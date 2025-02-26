@@ -368,7 +368,8 @@ class Alpaca(Broker):
                 limit_price=response.limit_price,
                 stop_price=response.stop_price,
                 time_in_force=response.time_in_force,
-                avg_fill_price=fill_price
+                avg_fill_price=fill_price,
+                order_type=order_type
             )
 
             for l in response.legs:
@@ -609,7 +610,6 @@ class Alpaca(Broker):
                     "ratio_qty": order.quantity,
                     "side": Order.OrderSide.BUY if order.is_buy_order() else Order.OrderSide.SELL,
                     "position_intent": order.side if order.side != Order.OrderSide.BUY and order.side != Order.OrderSide.SELL else None,
-                    "type": order.order_type
                 }
                 legs.append(leg)
 
@@ -619,7 +619,7 @@ class Alpaca(Broker):
             "qty": qty,
             "side": order.side,
             "order_class": order.order_class if len(legs) == 0 else 'mleg',
-            "type": alpaca_type,
+            "order_type": alpaca_type,
             "time_in_force": order.time_in_force,
             # Crypto can use 9 decimal places on Alpaca
             "limit_price": str(limit_price) if limit_price else None,

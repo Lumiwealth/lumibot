@@ -17,12 +17,6 @@ from lumibot.tools import get_trading_days
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
 
-def next_friday(date):
-    days_until_friday = (4 - date.weekday() + 7) % 7
-    days_until_friday = 7 if days_until_friday == 0 else days_until_friday
-
-    return date + timedelta(days=days_until_friday+7)
-
 @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or not ALPACA_TEST_CONFIG['API_SECRET'],
         reason="This test requires an alpaca API key"
@@ -71,12 +65,16 @@ class TestAlpacaBroker(unittest.TestCase):
         porders = self.broker._pull_all_orders('test', None)
 
         spy_price = self.broker.get_last_price(asset='SPY')
-        dte = next_friday(datetime.now())
+        trading_days = get_trading_days(
+            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
+            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        )
+        dte = trading_days.index[-1]
         basset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
         sasset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price) + 2, right='CALL')
         orders = [
-            Order(strategy='test', asset=basset, quantity=1, type='limit', limit_price=0.01, side=Order.OrderSide.BUY), 
-            Order(strategy='test', asset=sasset, quantity=1, side=Order.OrderSide.SELL, limit_price=0.01, type='limit')
+            Order(strategy='test', asset=basset, quantity=1, order_type=Order.OrderType.LIMIT, limit_price=0.01, side=Order.OrderSide.BUY), 
+            Order(strategy='test', asset=sasset, quantity=1, side=Order.OrderSide.SELL, limit_price=0.01, order_type=Order.OrderType.LIMIT)
         ]
         self.broker.submit_orders(orders, is_multileg=True)
 
@@ -91,16 +89,20 @@ class TestAlpacaBroker(unittest.TestCase):
         porders = self.broker._pull_all_orders('test', None)
 
         spy_price = self.broker.get_last_price(asset='SPY')
-        dte = next_friday(datetime.now())
+        trading_days = get_trading_days(
+            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
+            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        )
+        dte = trading_days.index[-1]
         basset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
         sasset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price) - 3, right='CALL')
         b1asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='PUT')
         s1asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price) + 3, right='PUT')
         orders = [
-            Order(strategy='test', asset=basset, quantity=1, type='limit', limit_price=0.01, side=Order.OrderSide.BUY), 
-            Order(strategy='test', asset=sasset, quantity=1, side=Order.OrderSide.SELL, limit_price=0.01, type='limit'),
-            Order(strategy='test', asset=b1asset, quantity=1, side=Order.OrderSide.BUY, limit_price=0.01, type='limit'),
-            Order(strategy='test', asset=s1asset, quantity=1, side=Order.OrderSide.SELL, limit_price=0.01, type='limit')
+            Order(strategy='test', asset=basset, quantity=1, order_type='limit', limit_price=0.01, side=Order.OrderSide.BUY), 
+            Order(strategy='test', asset=sasset, quantity=1, side=Order.OrderSide.SELL, limit_price=0.01, order_type='limit'),
+            Order(strategy='test', asset=b1asset, quantity=1, side=Order.OrderSide.BUY, limit_price=0.01, order_type='limit'),
+            Order(strategy='test', asset=s1asset, quantity=1, side=Order.OrderSide.SELL, limit_price=0.01, order_type='limit')
         ]
         self.broker.submit_orders(orders, is_multileg=True)
 
@@ -116,9 +118,13 @@ class TestAlpacaBroker(unittest.TestCase):
         porders = self.broker._pull_all_orders('test', None)
 
         spy_price = self.broker.get_last_price(asset='QQQ')
-        dte = next_friday(datetime.now())
+        trading_days = get_trading_days(
+            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
+            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        )
+        dte = trading_days.index[-1]
         casset = Asset('QQQ', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
-        self.broker.submit_order(Order('test', asset=casset, quantity=1, side=Order.OrderSide.BUY, limit_price=0.01, type='limit'))
+        self.broker.submit_order(Order('test', asset=casset, quantity=1, side=Order.OrderSide.BUY, limit_price=0.01, order_type='limit'))
 
         orders = self.broker._pull_all_orders('test', None)
         oids = {o.identifier for o in porders}
@@ -127,7 +133,12 @@ class TestAlpacaBroker(unittest.TestCase):
         assert len([o.asset.right == 'CALL' and o.asset.symbol == 'SPY' for o in orders]) == 1
 
     def test_option_get_last_price(self):
-        dte = next_friday(datetime.now())
+        trading_days = get_trading_days(
+            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
+            end_date=(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d')
+        )
+        dte = trading_days.index[-1]
+
         spy_price = self.broker.get_last_price(asset='SPY')
         price = self.broker.get_last_price(asset=Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL'))
         assert price != 0
@@ -155,9 +166,9 @@ class TestAlpacaBroker(unittest.TestCase):
         spy_price = self.broker.get_last_price(asset=Asset('SPY'))
         asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
         print(asset)
-        bars = self.broker.data_source.get_historical_prices(asset, 10, "day")
+        bars = self.broker.data_source.get_historical_prices(asset, 15, "day")
 
         assert len(bars.df) > 0
 
         # This should pass. get_historical_prices should return the exact number of bars asked for
-        # assert len(bars.df) == 10
+        #assert len(bars.df) == 10

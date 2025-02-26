@@ -61,8 +61,7 @@ if __name__ == "__main__":
         save_tearsheet=False,
         show_indicators=False,
         save_logfile=False,
-        show_progress_bar=True,
-        include_cash_positions=True,
+        show_progress_bar=True
     )
 
     trades_df = strategy.broker._trade_event_log_df # noqa

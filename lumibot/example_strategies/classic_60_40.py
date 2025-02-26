@@ -38,7 +38,8 @@ if __name__ == "__main__":
         save_tearsheet=False,
         show_indicators=False,
         save_logfile=True,
-        show_progress_bar=True
+        show_progress_bar=True,
+        include_cash_positions=True,
     )
 
     print(results)

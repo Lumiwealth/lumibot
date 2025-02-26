@@ -175,6 +175,7 @@ class YahooHelper:
 
         return df["Close"].iloc[-1]
 
+    @staticmethod
     def download_symbol_data(symbol, interval="1d"):
         """
         Attempts to download historical data from yfinance for the specified symbol and interval.

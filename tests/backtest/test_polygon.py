@@ -113,7 +113,10 @@ class PolygonBacktestStrat(Strategy):
             expiration = self.select_option_expiration(chain, days_to_expiration=1)
             # expiration = datetime.date(2023, 8, 4)
 
-            strike_price = round(current_asset_price)
+            # Get the stike price closest to the current asset price
+            expiration_str = expiration.strftime("%Y-%m-%d")
+            strike_price = min(chain['Chains']['CALL'][expiration_str], key=lambda x: abs(x - current_asset_price))
+
             option_asset = Asset(
                 symbol=underlying_asset.symbol,
                 asset_type="option",

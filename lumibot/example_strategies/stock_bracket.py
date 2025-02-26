@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from lumibot.entities import Order
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -27,6 +28,7 @@ class StockBracket(Strategy):
 
         # Our Own Variables
         self.counter = 0
+        self.submitted_bracket_order = None  # Useful for updating/canceling orders
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
@@ -45,12 +47,12 @@ class StockBracket(Strategy):
             order = self.create_order(
                 buy_symbol,
                 quantity,
-                "buy",
-                take_profit_price=take_profit_price,
-                stop_loss_price=stop_loss_price,
-                type="bracket",
+                Order.OrderSide.BUY,
+                secondary_limit_price=take_profit_price,
+                secondary_stop_price=stop_loss_price,
+                order_class=Order.OrderClass.BRACKET,
             )
-            self.submit_order(order)
+            self.submitted_bracket_order = self.submit_order(order)
 
 
 if __name__ == "__main__":

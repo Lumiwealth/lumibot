@@ -5,9 +5,9 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Interactive Brokers" href="brokers.interactive_brokers.html" /><link rel="prev" title="Brokers" href="brokers.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>Alpaca - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
@@ -288,7 +288,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -418,8 +417,8 @@
 <span class="gp">... </span>    <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="c1"># Put your own Alpaca secret here:</span>
 <span class="gp">... </span>    <span class="s2">&quot;API_SECRET&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_SECRET&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="c1"># If you want to go live, you must change this</span>
-<span class="gp">... </span>    <span class="s2">&quot;ENDPOINT&quot;</span><span class="p">:</span> <span class="s2">&quot;https://paper-api.alpaca.markets&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="c1"># Set this to False to use a live account</span>
+<span class="gp">... </span>    <span class="s2">&quot;PAPER&quot;</span><span class="p">:</span> <span class="kc">True</span>
 <span class="gp">... </span><span class="p">}</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alpaca</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">alpaca</span><span class="o">.</span><span class="n">get_time_to_open</span><span class="p">())</span>
@@ -437,8 +436,8 @@
 <span class="gp">... </span>    <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="c1"># Put your own Alpaca secret here:</span>
 <span class="gp">... </span>    <span class="s2">&quot;API_SECRET&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_SECRET&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="c1"># If you want to go live, you must change this</span>
-<span class="gp">... </span>    <span class="s2">&quot;ENDPOINT&quot;</span><span class="p">:</span> <span class="s2">&quot;https://paper-api.alpaca.markets&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="c1"># Set this to False to use a live account</span>
+<span class="gp">... </span>    <span class="s2">&quot;PAPER&quot;</span><span class="p">:</span> <span class="kc">True</span>
 <span class="gp">... </span><span class="p">}</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">AlpacaStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
@@ -460,7 +459,7 @@
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.ASSET_TYPE_MAP">
-<span class="sig-name descname"><span class="pre">ASSET_TYPE_MAP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'forex':</span> <span class="pre">[],</span> <span class="pre">'future':</span> <span class="pre">[],</span> <span class="pre">'option':</span> <span class="pre">[],</span> <span class="pre">'stock':</span> <span class="pre">['us_equity']}</span></em><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.ASSET_TYPE_MAP" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">ASSET_TYPE_MAP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'forex':</span> <span class="pre">[],</span> <span class="pre">'future':</span> <span class="pre">[],</span> <span class="pre">'option':</span> <span class="pre">['us_option'],</span> <span class="pre">'stock':</span> <span class="pre">['us_equity']}</span></em><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.ASSET_TYPE_MAP" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -572,7 +571,7 @@ seconds until the next market open.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.map_asset_type">
-<span class="sig-name descname"><span class="pre">map_asset_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.map_asset_type" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">map_asset_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpaca_type</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.map_asset_type" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

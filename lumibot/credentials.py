@@ -157,11 +157,19 @@ THETADATA_CONFIG = {
 }
 
 # Alpaca Configuration
-ALPACA_CONFIG = {  # Paper trading!
+ALPACA_CONFIG = {
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_API_KEY"),
     "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
     "PAPER": os.environ.get("ALPACA_IS_PAPER").lower() == "true" if os.environ.get("ALPACA_IS_PAPER") else True,
+}
+
+# Alpaca test configuration for unit tests
+ALPACA_TEST_CONFIG = {  # Paper trading!
+    # Add ALPACA_TEST_API_KEY, and ALPACA_TEST_API_SECRET to your .env file or set them as secrets
+    "API_KEY": os.environ.get("ALPACA_TEST_API_KEY"),
+    "API_SECRET": os.environ.get("ALPACA_TEST_API_SECRET"),
+    "PAPER": True
 }
 
 # Tradier Configuration
@@ -172,6 +180,14 @@ TRADIER_CONFIG = {
     "PAPER": os.environ.get("TRADIER_IS_PAPER").lower() == "true"
     if os.environ.get("TRADIER_IS_PAPER")
     else True,
+}
+
+# Tradier test configuration for unit tests
+TRADIER_TEST_CONFIG = {
+    # Add TRADIER_TEST_ACCESS_TOKEN and TRADIER_TEST_ACCOUNT_NUMBER to your .env file or set them as secrets
+    "ACCESS_TOKEN": os.environ.get("TRADIER_TEST_ACCESS_TOKEN"),
+    "ACCOUNT_NUMBER": os.environ.get("TRADIER_TEST_ACCOUNT_NUMBER"),
+    "PAPER": True
 }
 
 KRAKEN_CONFIG = {

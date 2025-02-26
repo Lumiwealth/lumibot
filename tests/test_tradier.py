@@ -8,38 +8,51 @@ import pytest
 from lumibot.brokers.tradier import Tradier
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
+from lumibot.credentials import TRADIER_TEST_CONFIG
 
-TRADIER_ACCOUNT_ID_PAPER = os.getenv("TRADIER_ACCOUNT_ID_PAPER")
-TRADIER_TOKEN_PAPER = os.getenv("TRADIER_TOKEN_PAPER")
+if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+    pytest.skip("These tests requires a Tradier API key", allow_module_level=True)
 
 
 @pytest.fixture
 def tradier_ds():
-    return TradierData(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
+    return TradierData(
+        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
+        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
+        paper=True
+    )
 
 
 @pytest.fixture
 def tradier():
-    return Tradier(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
+    return Tradier(
+        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
+        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
+        paper=True
+    )
 
 
 @pytest.mark.apitest
-@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierDataAPI:
     """
     API Tests skipped by default. To run all API tests, use the following command:
     python -m pytest -m apitest
     """
+
     def test_basics(self):
-        tdata = TradierData(account_number=TRADIER_ACCOUNT_ID_PAPER, access_token=TRADIER_TOKEN_PAPER, paper=True)
-        assert tdata._account_number == TRADIER_ACCOUNT_ID_PAPER
+        tdata = TradierData(
+            account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
+            access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
+            paper=True
+        )
+        assert tdata._account_number == TRADIER_TEST_CONFIG['ACCOUNT_NUMBER']
 
     def test_get_last_price(self, tradier_ds):
         asset = Asset("AAPL")
         price = tradier_ds.get_last_price(asset)
         assert isinstance(price, float)
         assert price > 0.0
-               
+
     def test_get_chains(self, tradier_ds):
         asset = Asset("SPY")
         chain = tradier_ds.get_chains(asset)
@@ -93,12 +106,12 @@ class TestTradierDataAPI:
 
 
 @pytest.mark.apitest
-@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierBrokerAPI:
     """
     API Tests skipped by default. To run all API tests, use the following command:
     python -m pytest -m apitest
     """
+
     def test_get_last_price(self, tradier):
         asset = Asset("AAPL")
         price = tradier.get_last_price(asset)
@@ -107,7 +120,7 @@ class TestTradierBrokerAPI:
 
     def test_submit_order(self, tradier):
         asset = Asset("AAPL")
-        order = Order('strat_unittest', asset, 1, 'buy', type='market')
+        order = Order('strat_unittest', asset, 1, 'buy', order_type='market')
         submitted_order = tradier._submit_order(order)
         assert submitted_order.status == "submitted"
         assert submitted_order.identifier > 0
@@ -117,11 +130,11 @@ class TestTradierBrokerAPI:
         tradier.cancel_order(submitted_order)
 
 
-@pytest.mark.skipif(not TRADIER_ACCOUNT_ID_PAPER or not TRADIER_TOKEN_PAPER, reason="No Tradier credentials provided.")
 class TestTradierBroker:
     """
     Unit tests for the Tradier broker. These tests do not require any API calls.
     """
+
     def test_basics(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
         assert broker.name == "Tradier"
@@ -132,7 +145,7 @@ class TestTradierBroker:
         mock_modify = mocker.patch.object(broker.tradier.orders, "modify")
 
         stock_asset = Asset("SPY")
-        order = Order("my_strat", stock_asset, 10, "sell", type="limit")
+        order = Order("my_strat", stock_asset, 10, Order.OrderSide.SELL, order_type="limit")
 
         # Errors if no ID exists for this order
         order.identifier = None
@@ -153,10 +166,16 @@ class TestTradierBroker:
 
     def test_tradier_side2lumi(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
-        assert broker._tradier_side2lumi("buy") == "buy"
-        assert broker._tradier_side2lumi("sell") == "sell"
-        assert broker._tradier_side2lumi("buy_to_cover") == "buy"
-        assert broker._tradier_side2lumi("sell_short") == "sell"
+        assert broker._tradier_side2lumi("buy") == Order.OrderSide.BUY
+        assert broker._tradier_side2lumi("sell") == Order.OrderSide.SELL
+        assert broker._tradier_side2lumi("buy_to_open") == Order.OrderSide.BUY_TO_OPEN
+        assert broker._tradier_side2lumi("sell_to_open") == Order.OrderSide.SELL_TO_OPEN
+        assert broker._tradier_side2lumi("buy_to_close") == Order.OrderSide.BUY_TO_CLOSE
+        assert broker._tradier_side2lumi("sell_to_close") == Order.OrderSide.SELL_TO_CLOSE
+        assert broker._tradier_side2lumi("buy_to_cover") == Order.OrderSide.BUY_TO_COVER
+        assert broker._tradier_side2lumi("sell_short") == Order.OrderSide.SELL_SHORT
+        assert broker._tradier_side2lumi("buy_something_something") == Order.OrderSide.BUY
+        assert broker._tradier_side2lumi("sell_something_something") == Order.OrderSide.SELL
 
         with pytest.raises(ValueError):
             broker._tradier_side2lumi("blah")
@@ -167,8 +186,8 @@ class TestTradierBroker:
         strategy = "strat_unittest"
         stock_asset = Asset("SPY")
         option_asset = Asset("SPY", asset_type='option')
-        stock_order = Order(strategy, stock_asset, 1, 'buy', type='market')
-        option_order = Order(strategy, option_asset, 1, 'buy', type='market')
+        stock_order = Order(strategy, stock_asset, 1, 'buy', order_type='market')
+        option_order = Order(strategy, option_asset, 1, 'buy', order_type='market')
 
         # No Positions exist
         assert broker._lumi_side2tradier(stock_order) == "buy"
@@ -182,13 +201,13 @@ class TestTradierBroker:
         assert not broker._lumi_side2tradier(option_order)
 
         # Stoploss always submits as a "to_close" order
-        stop_stock_order = Order(strategy, stock_asset, 1, 'sell', type='stop', stop_price=100.0)
+        stop_stock_order = Order(strategy, stock_asset, 1, 'sell', order_type='stop', stop_price=100.0)
         assert broker._lumi_side2tradier(stop_stock_order) == "sell"
-        stop_option_order = Order(strategy, option_asset, 1, 'sell', type='stop', stop_price=100.0)
+        stop_option_order = Order(strategy, option_asset, 1, 'sell', order_type='stop', stop_price=100.0)
         assert broker._lumi_side2tradier(stop_option_order) == "sell_to_close"
 
         # TODO: Fix this test, it's commented out temporarily until we can figure out how to handle this case.
-        # limit_option_order = Order(strategy, option_asset, 1, 'sell', type='limit', limit_price=100.0)
+        # limit_option_order = Order(strategy, option_asset, 1, 'sell', order_type='limit', limit_price=100.0)
         # assert broker._lumi_side2tradier(limit_option_order) == "sell_to_close"
 
         # Positions exist
@@ -236,7 +255,7 @@ class TestTradierBroker:
         assert stock_order.quantity == 1
         assert stock_order.side == "buy"
         assert stock_order.status == "submitted"
-        assert stock_order.type == "market"
+        assert stock_order.order_type == "market"
         assert stock_order.tag == tag
 
         # Test with an option and stop order
@@ -263,7 +282,7 @@ class TestTradierBroker:
         assert option_order.quantity == 1
         assert option_order.side == "sell"
         assert option_order.status == "submitted"
-        assert option_order.type == "stop"
+        assert option_order.order_type == "stop"
         assert option_order.stop_price == 1.0
         assert option_order.tag == tag
 
@@ -290,7 +309,7 @@ class TestTradierBroker:
         # Submit an order to test polling with
         stock_asset = Asset("SPY")
         stock_qty = 10
-        order = Order(strategy, stock_asset, stock_qty, 'buy', type='market')
+        order = Order(strategy, stock_asset, stock_qty, 'buy', order_type='market')
         sub_order = broker._submit_order(order)
         assert sub_order.status == "submitted"
         assert sub_order.identifier == 123
@@ -337,7 +356,7 @@ class TestTradierBroker:
 
         # Add a 2nd order: stop loss
         mock_submit_order.return_value = {'id': 124, 'status': 'ok'}
-        stop_order = Order(strategy, stock_asset, 1, 'sell', type='stop', stop_price=100.0)
+        stop_order = Order(strategy, stock_asset, 1, 'sell', order_type='stop', stop_price=100.0)
         sub_order = broker._submit_order(stop_order)
         assert sub_order.status == "submitted"
         assert sub_order.identifier == 124
@@ -387,7 +406,7 @@ class TestTradierBroker:
         assert len(filled_orders) == 1
         order1 = filled_orders[0]
         assert order1.identifier == 123
-        assert order1.type == "market"
+        assert order1.order_type == "market"
         assert order1.is_filled()
         assert order1.get_fill_price() == 101.0
         assert len(broker._new_orders) == 1
@@ -408,7 +427,7 @@ class TestTradierBroker:
         assert len(broker._canceled_orders) == 1
         order2 = broker._canceled_orders[0]
         assert order2.identifier == 124
-        assert order2.type == "stop"
+        assert order2.order_type == "stop"
         assert order2.is_canceled()
         assert not order2.get_fill_price()
 
@@ -424,7 +443,7 @@ class TestTradierBroker:
 
         # 3rd Order: Submit an order that causes a broker error
         mock_submit_order.return_value = {'id': 125, 'status': 'ok'}
-        stop_order = Order(strategy, stock_asset, stock_qty, 'sell', type='limit', limit_price=1000.0)
+        stop_order = Order(strategy, stock_asset, stock_qty, 'sell', order_type='limit', limit_price=1000.0)
         sub_order = broker._submit_order(stop_order)
         assert sub_order.status == "submitted"
         assert sub_order.identifier == 125
@@ -459,14 +478,14 @@ class TestTradierBroker:
         assert len(broker.get_all_orders()) == 3, "Includes Filled/Cancelled orders"
         error_order = broker._canceled_orders[1]
         assert error_order.identifier == 125
-        assert error_order.type == "limit"
+        assert error_order.order_type == "limit"
         assert error_order.status == "error"
         assert not error_order.get_fill_price()
         assert error_order.error_message == "API Error Msg"
 
         # There is a Lumibot order that is not tracked by the broker, so it should be canceled.
         mock_submit_order.return_value = {'id': 126, 'status': 'ok'}
-        drop_order = Order(strategy, stock_asset, stock_qty, 'sell', type='market')
+        drop_order = Order(strategy, stock_asset, stock_qty, 'sell', order_type='market')
         broker._submit_order(drop_order)
         assert len(broker._unprocessed_orders) == 1
         assert len(broker._new_orders) == 0
@@ -519,7 +538,7 @@ class TestTradierBroker:
         sleep(sleep_amt)  # Sleep gives a chance for order processing thread to finish
         known_orders = broker.get_tracked_orders(strategy=strategy)
         assert len(known_orders) == 5, "Filled orders are still being tracked."
-        assert len(broker._new_orders) == 0 # New order is no longer new
+        assert len(broker._new_orders) == 0  # New order is no longer new
         assert not len(broker._unprocessed_orders)
         assert len(broker.get_all_orders()) == 5, "Includes Filled/Cancelled orders and order not in Broker info"
         order = broker.get_order(127)

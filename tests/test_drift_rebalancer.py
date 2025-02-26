@@ -907,7 +907,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("10")
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_selling_everything_with_market_orders(self):
         strategy = MockStrategyWithOrderLogic(
@@ -930,7 +930,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("10")
-        assert strategy.orders[0].type == Order.OrderType.MARKET
+        assert strategy.orders[0].order_type == Order.OrderType.MARKET
 
     def test_selling_part_of_a_holding_with_limit_order(self):
         strategy = MockStrategyWithOrderLogic(
@@ -952,7 +952,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_selling_with_only_rebalance_drifted_assets_when_over_drift_threshold(self):
         strategy = MockStrategyWithOrderLogic(
@@ -975,7 +975,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_selling_with_only_rebalance_drifted_assets_when_not_over_drift_threshold(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1017,7 +1017,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("5")
-        assert strategy.orders[0].type == Order.OrderType.MARKET
+        assert strategy.orders[0].order_type == Order.OrderType.MARKET
 
     def test_selling_short_doesnt_create_and_order_when_shorting_is_disabled(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1113,7 +1113,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].quantity == Decimal("10")
         assert strategy.orders[0].side == "sell"
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_buying_something_when_we_have_enough_money_and_there_is_slippage(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1157,7 +1157,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("4")
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_market_buy_when_we_dont_have_enough_money_for_everything(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1180,7 +1180,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("4")
-        assert strategy.orders[0].type == Order.OrderType.MARKET
+        assert strategy.orders[0].order_type == Order.OrderType.MARKET
 
     def test_attempting_to_buy_when_we_dont_have_enough_money_for_even_one_share(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1336,7 +1336,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("9.5")
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_selling_some_with_fractional_limit_orders(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1360,7 +1360,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("1.507537688")
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_buying_with_only_rebalance_drifted_assets_when_over_drift_threshold(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1383,7 +1383,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("4.0")  #
-        assert strategy.orders[0].type == Order.OrderType.LIMIT
+        assert strategy.orders[0].order_type == Order.OrderType.LIMIT
 
     def test_buying_with_only_rebalance_drifted_assets_when_not_over_drift_threshold(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1448,6 +1448,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
             # quiet_logs=False,
         )
 
@@ -1503,6 +1504,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
             # quiet_logs=False,
         )
 
@@ -1560,6 +1562,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1623,6 +1626,7 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
+            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df

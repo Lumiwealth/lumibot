@@ -1,11 +1,9 @@
 import logging
+import re
 import traceback
 from typing import Union
 
 import pandas as pd
-from lumiwealth_tradier import Tradier as _Tradier
-from lumiwealth_tradier.base import TradierApiError
-from lumiwealth_tradier.orders import OrderLeg
 from termcolor import colored
 
 from lumibot.brokers import Broker
@@ -13,6 +11,9 @@ from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.trading_builtins import PollingStream
+from lumiwealth_tradier import Tradier as _Tradier
+from lumiwealth_tradier.base import TradierApiError
+from lumiwealth_tradier.orders import OrderLeg
 
 
 class Tradier(Broker):
@@ -23,6 +24,8 @@ class Tradier(Broker):
     match what other LumiBrokers are doing without requiring changes to the stategy_executor. This
     polling method will also work for Live accounts, so it will be used by default. However, future updates will be
     made to natively support websocket streaming for Live accounts.
+
+    ***Note: Tradier does not support Trailing StopLoss orders.
     """
 
     POLL_EVENT = PollingStream.POLL_EVENT
@@ -161,7 +164,7 @@ class Tradier(Broker):
 
         # Check if order_type is set, if not, set it to 'market'
         if order_type is None:
-            order_type = "market"
+            order_type = Order.OrderType.MARKET
 
         # Check if the orders are empty
         if not orders or len(orders) == 0:
@@ -180,10 +183,11 @@ class Tradier(Broker):
 
         else:
             # Submit each order
+            sub_orders = []
             for order in orders:
-                self._submit_order(order)
+               sub_orders.append(self._submit_order(order))
 
-            return orders
+            return sub_orders
 
     def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None) -> Order:
         """
@@ -194,7 +198,8 @@ class Tradier(Broker):
         orders: list[Order]
             List of orders to submit
         order_type: str
-            The type of multi-leg order to submit. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+            The type of multi-leg order to submit. Valid values are ('market', 'debit', 'credit', 'even')
+            Default is 'market'.
         duration: str
             The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
         price: float
@@ -261,7 +266,7 @@ class Tradier(Broker):
             order_class=Order.OrderClass.MULTILEG,
             side=orders[0].side,
             quantity=orders[0].quantity,
-            type=orders[0].type,
+            order_type=orders[0].order_type,
             time_in_force=duration,
             limit_price=price,
             tag=tag,
@@ -282,7 +287,7 @@ class Tradier(Broker):
         Parameters
         ----------
         order: Order
-            Order to submit to the broker
+            The order to submit to the broker
 
         Returns
         -------
@@ -290,57 +295,74 @@ class Tradier(Broker):
         """
 
         tag = order.tag if order.tag else order.strategy
-
         # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
-        tag = "".join([c if c.isalnum() or c == "-" else "-" for c in tag])
+        tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+
+        order_limit_price = order.limit_price \
+            if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
 
         try:
-            # Check if the order is an OCO order
-            if isinstance(order.order_class, str) and order.order_class.lower() == Order.OrderClass.OCO:
-                # Create the legs for the OCO order
+            # Check if the order is an OCO/OTO/Bracker order
+            if order.is_advanced_order():
+                # Create the legs for the Combo order. For OTO/Bracket orders, the parent (entry) order is the first
+                # leg order and the children (exit) orders follow. For OCO orders, the parent is excluded from the
+                # legs list because there is no entry order (i.e. it has been submitted previously).
                 legs = []
+                if order.order_class != Order.OrderClass.OCO:
+                    # Create the stock/options symbol
+                    parent_option_symbol = create_options_symbol(
+                        order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                    ) if order.asset.asset_type == Asset.AssetType.OPTION else None
+                    parent_stock_symbol = order.asset.symbol \
+                        if order.asset.asset_type != Asset.AssetType.OPTION else None
+
+                    # Add the parent order to the legs list
+                    legs.append(OrderLeg(
+                        stock_symbol=parent_stock_symbol,  # None if option order
+                        option_symbol=parent_option_symbol,  # None if stock order
+                        quantity=int(order.quantity),
+                        side=self._lumi_side2tradier(order),
+                        price=order_limit_price,
+                        stop=order.stop_price,
+                        type=order.order_type,
+                    ))
+
                 for child_order in order.child_orders:
                     if child_order.asset is None:
                         logging.error(f"Asset {child_order.asset} not supported by Tradier.")
                         return None
 
-                    # Check if the child order is an option or stock
-                    if child_order.asset.asset_type == "option":
-                        # Create the options symbol
-                        option_symbol = create_options_symbol(
-                            child_order.asset.symbol, child_order.asset.expiration, child_order.asset.right, child_order.asset.strike
-                        )
+                    # Check if the child order is a stop limit order
+                    # Note: Tradier does not support Trailing Stop orders
+                    child_limit_price = child_order.limit_price \
+                        if not child_order.OrderType.STOP_LIMIT else child_order.stop_limit_price
 
-                        # Create the leg
-                        leg = OrderLeg(
-                            option_symbol=option_symbol,
-                            quantity=int(child_order.quantity),
-                            side=self._lumi_side2tradier(child_order),
-                            price=child_order.limit_price,
-                            stop=child_order.stop_price,
-                            type=child_order.type,
-                        )
-                        legs.append(leg)
+                    # Create the stock/options symbol
+                    child_option_symbol = create_options_symbol(
+                        order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                    ) if child_order.asset.asset_type == Asset.AssetType.OPTION else None
+                    child_stock_symbol = order.asset.symbol \
+                        if child_order.asset.asset_type != Asset.AssetType.OPTION else None
 
-                    elif child_order.asset.asset_type == "stock":
-                        # Make sure the symol is upper case
-                        symbol = child_order.asset.symbol.upper() 
+                    # Create the leg
+                    leg = OrderLeg(
+                        stock_symbol=child_stock_symbol,  # None if option order
+                        option_symbol=child_option_symbol,  # None if stock order
+                        quantity=int(child_order.quantity),
+                        side=self._lumi_side2tradier(child_order),
+                        price=child_limit_price,
+                        stop=child_order.stop_price,
+                        type=child_order.order_type,
+                    )
+                    legs.append(leg)
 
-                        # Create the leg
-                        leg = OrderLeg(
-                            stock_symbol=symbol,
-                            quantity=child_order.quantity,
-                            side=child_order.side,
-                            price=child_order.limit_price,
-                            stop=child_order.stop_price,
-                            type=child_order.type,
-                        )
-                        legs.append(leg)
-
-                # Place the OCO order
+                # Place the Advanced order
                 try:
-                    order_response = self.tradier.orders.oco_order(
+                    # Tradier calls parent Bracket orders an OTOCO. OCO/OTO names still match
+                    tradier_class = 'otoco' if order.order_class == Order.OrderClass.BRACKET else order.order_class
+                    order_response = self.tradier.orders.advanced_order(
                         duration=order.time_in_force,
+                        order_class=tradier_class,
                         legs=legs,
                         tag=tag,
                     )
@@ -349,8 +371,8 @@ class Tradier(Broker):
                     self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                     return None
 
-            elif order.asset is not None and order.asset.asset_type == "stock":
-                # Make sure the symol is upper case
+            elif order.asset is not None and order.asset.asset_type == Asset.AssetType.STOCK:
+                # Make sure the symbol is upper case
                 symbol = order.asset.symbol.upper()
 
                 # Place the order
@@ -358,14 +380,14 @@ class Tradier(Broker):
                     symbol,
                     order.side,
                     order.quantity,
-                    order_type=order.type,
+                    order_type=order.order_type,
                     duration=order.time_in_force,
-                    limit_price=order.limit_price,
+                    limit_price=order_limit_price,
                     stop_price=order.stop_price,
                     tag=tag,
                 )
 
-            elif order.asset is not None and order.asset.asset_type == "option":
+            elif order.asset is not None and order.asset.asset_type == Asset.AssetType.OPTION:
                 tradier_side = self._lumi_side2tradier(order)
                 stock_symbol = order.asset.symbol
                 option_symbol = create_options_symbol(
@@ -381,9 +403,9 @@ class Tradier(Broker):
                     option_symbol,
                     tradier_side,
                     order.quantity,
-                    order_type=order.type,
+                    order_type=order.order_type,
                     duration=order.time_in_force,
-                    limit_price=order.limit_price,
+                    limit_price=order_limit_price,
                     stop_price=order.stop_price,
                     tag=tag,
                 )
@@ -412,20 +434,24 @@ class Tradier(Broker):
             error = str(e)
             if "401" in error or "403" in error:
                 # Check if the access token or account number is invalid
-                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
-                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
-                    raise ValueError(colored_message)
-                
+                if (self._tradier_access_token is None or self._tradier_account_number is None or
+                        len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0):
+                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. "
+                                              "Please check your keys.", color="red")
+                    raise ValueError(colored_message) from e
+
                 # Conceal the end of the access token
                 access_token = self._tradier_access_token[:7] + "*" * 7
-                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
-                raise ValueError(colored_message)
+                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. "
+                                          f"Your account number is: {self._tradier_account_number} and your "
+                                          f"access token is: {access_token}", color="red")
+                raise ValueError(colored_message) from e
+            raise e
         except Exception as e:
             logging.error(f"Error pulling balances from Tradier: {e}")
             # Add traceback to the error message
             logging.error(traceback.format_exc())
             return None
-            
 
         # Get the portfolio value (total_equity) column
         portfolio_value = float(df["total_equity"].iloc[0])
@@ -452,12 +478,13 @@ class Tradier(Broker):
                 # Check if the access token or account number is invalid
                 if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
                     colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
-                    raise ValueError(colored_message)
+                    raise ValueError(colored_message) from e
                 
                 # Conceal the end of the access token
                 access_token = self._tradier_access_token[:7] + "*" * 7
                 colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
-                raise ValueError(colored_message)
+                raise ValueError(colored_message) from e
+            raise e
         except Exception as e:
             logging.error(f"Error pulling positions from Tradier: {e}")
             return []
@@ -581,7 +608,7 @@ class Tradier(Broker):
             asset=asset,
             side=self._tradier_side2lumi(response["side"]),
             quantity=response["quantity"],
-            type=response["type"],
+            order_type=response["type"],
             time_in_force=response["duration"],
             limit_price=response["price"] if "price" in response and response["price"] else None,
             stop_price=response["stop_price"] if "stop_price" in response and response["stop_price"] else None,
@@ -589,7 +616,7 @@ class Tradier(Broker):
             date_created=response["create_date"],
             avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
             error_message=reason_description,
-            order_class=response["class"] if "class" in response else None,
+            order_class=self._tradier_class2lumi(response["class"] if "class" in response else None),
         )
         # Example Tradier Date Value: '2024-10-04T15:46:14.946Z'
         order.broker_create_date = response["create_date"] if "create_date" in response else None
@@ -631,23 +658,23 @@ class Tradier(Broker):
 
         # Set the side that we will return
         side = order.side
-        if order.asset.asset_type == "stock":
+        if order.asset.asset_type == Asset.AssetType.STOCK:
             return side
 
         # Convert the side to the Tradier side for options orders if necessary
-        if side == "buy" or side == "sell":
+        if side == Order.OrderSide.BUY or side == Order.OrderSide.SELL:
             # Check if we currently own the option
             position = self.get_tracked_position(order.strategy, order.asset)
 
             # Check if we own the option then we need to sell to close or buy to close
             if position is not None:
-                if position.quantity > 0 and side == "sell":
+                if position.quantity > 0 and side == Order.OrderSide.SELL:
                     side = "sell_to_close"
-                elif position.quantity >= 0 and side == "buy":
+                elif position.quantity >= 0 and side == Order.OrderSide.BUY:
                     side = "buy_to_open"
-                elif position.quantity < 0 and side == "buy":
+                elif position.quantity < 0 and side == Order.OrderSide.BUY:
                     side = "buy_to_close"
-                elif position.quantity <= 0 and side == "sell":
+                elif position.quantity <= 0 and side == Order.OrderSide.SELL:
                     side = "sell_to_open"
                 else:
                     logging.error(
@@ -656,12 +683,13 @@ class Tradier(Broker):
 
             # Otherwise, we don't own the option so we need to buy to open or sell to open
             else:
-                side = "buy_to_open" if side == "buy" else "sell_to_open"
+                side = "buy_to_open" if side == Order.OrderSide.BUY else "sell_to_open"
 
         # Stoploss and limit orders are usually used to close positions, even if they are submitted "before" the
         # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if order.type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and (original_side == "buy" or original_side == "sell"):
-            side = side.replace("to_open", "to_close")
+        if (order.order_type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and
+                (original_side == Order.OrderSide.BUY or original_side == Order.OrderSide.SELL)):
+            side = str(side).replace("to_open", "to_close")
 
         # Check if the side is a valid Tradier side
         if side not in ["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]:
@@ -669,6 +697,25 @@ class Tradier(Broker):
             return ""
 
         return side
+
+    @staticmethod
+    def _tradier_class2lumi(order_class):
+        """
+        Converts a Tradier order class to a Lumi order class.
+        Valid Tradier clases: One of: equity, option, combo, multileg
+        Valid Lumi Order Classes: simple, bracket, oco, multileg, etc
+        """
+        if order_class is None or not isinstance(order_class, str):
+            return None
+
+        if order_class in ['equity', 'option']:
+            return Order.OrderClass.SIMPLE
+
+        # Check if the order class is a valid Lumi order class
+        try:
+            return Order.OrderClass(order_class)
+        except ValueError:
+            return None
 
     @staticmethod
     def _tradier_side2lumi(side):
@@ -680,13 +727,16 @@ class Tradier(Broker):
         # Check that the side is valid
         if not isinstance(side, str):
             return ""
-        
-        if "buy" in side:
-            return "buy"
-        elif "sell" in side:
-            return "sell"
-        else:
-            raise ValueError(f"Invalid side {side} for Tradier.")
+
+        try:
+            return Order.OrderSide(side)
+        except ValueError:
+            if "buy" in side:
+                return Order.OrderSide.BUY
+            elif "sell" in side:
+                return Order.OrderSide.SELL
+            else:
+                raise ValueError(f"Invalid side {side} for Tradier.") from None
 
     # ==========Processing streams data=======================
 

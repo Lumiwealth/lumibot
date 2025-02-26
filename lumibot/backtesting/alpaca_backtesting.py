@@ -46,6 +46,7 @@ class AlpacaBacktesting(PandasData):
             config: dict | None = None,
             tz_name: str = timezone.utc,
             warm_up_trading_days: int = 0,
+            market: str = "NYSE",
             auto_adjust: bool = True,
     ):
         """
@@ -73,6 +74,7 @@ class AlpacaBacktesting(PandasData):
                 Default is `timezone.utc`.
             warm_up_trading_days (int): The number of additional trading days to fetch before
                 `start_date`, useful for warming up trading algorithms. Default is 0.
+            market (str): The market to fetch data for. Default is 'NYSE'.
         """
         self.CACHE_SUBFOLDER = 'alpaca'
         self.tz_name = tz_name
@@ -96,6 +98,7 @@ class AlpacaBacktesting(PandasData):
             warm_up_start_dt = date_n_days_from_date(
                 n_bars=warm_up_trading_days,
                 start_datetime=start_dt,
+                market=market,
             )
             # Combine with a default time (midnight)
             warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())

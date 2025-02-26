@@ -2,6 +2,7 @@ from datetime import time
 from decimal import Decimal
 
 import pandas as pd
+import numpy as np
 
 
 def day_deduplicate(df_):
@@ -62,7 +63,8 @@ def set_pandas_float_display_precision(precision: int = 5):
 
 def prettify_dataframe_with_decimals(df: pd.DataFrame, decimal_places: int = 5) -> str:
     def decimal_formatter(x):
-        if isinstance(x, Decimal):
+        if isinstance(x, (Decimal, float, int, np.float64)):
             return f"{x:.{decimal_places}f}"
         return x
+
     return df.to_string(formatters={col: decimal_formatter for col in df.columns})

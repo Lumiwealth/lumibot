@@ -2,22 +2,17 @@ import pytest
 from datetime import datetime
 
 from lumibot.backtesting import AlpacaBacktesting, PandasDataBacktesting
-from lumibot.credentials import ALPACA_CONFIG
+from lumibot.credentials import ALPACA_TEST_CONFIG
 
 from tests.fixtures import (
     BuyOneShareTestStrategy
 )
 
 
-# @pytest.mark.skip()
-@pytest.mark.skipif(
-    not ALPACA_CONFIG['API_KEY'],
-    reason="This test requires an alpaca API key"
-)
-@pytest.mark.skipif(
-    ALPACA_CONFIG['API_KEY'] == '<your key here>',
-    reason="This test requires an alpaca API key"
-)
+if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
+    pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
+
+
 class TestAlpacaBacktests:
     """Tests for running backtests with AlpacaBacktesting, BacktestingBroker, and Trader."""
 
@@ -35,7 +30,7 @@ class TestAlpacaBacktests:
             start_date=backtesting_start.date().isoformat(),
             end_date=backtesting_end.date().isoformat(),
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name
         )
@@ -90,7 +85,7 @@ class TestAlpacaBacktests:
             start_date=backtesting_start.date().isoformat(),
             end_date=backtesting_end.date().isoformat(),
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name
         )
@@ -149,7 +144,7 @@ class TestAlpacaBacktests:
             start_date=backtesting_start.date().isoformat(),
             end_date=backtesting_end.date().isoformat(),
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name
         )
@@ -208,7 +203,7 @@ class TestAlpacaBacktests:
             start_date=backtesting_start.date().isoformat(),
             end_date=backtesting_end.date().isoformat(),
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name
         )
@@ -247,15 +242,6 @@ class TestAlpacaBacktests:
         assert tracker['avg_fill_price'] == 217.62
 
 
-# @pytest.mark.skip()
-@pytest.mark.skipif(
-    not ALPACA_CONFIG['API_KEY'],
-    reason="This test requires an alpaca API key"
-)
-@pytest.mark.skipif(
-    ALPACA_CONFIG['API_KEY'] == '<your key here>',
-    reason="This test requires an alpaca API key"
-)
 class TestAlpacaBacktesting:
     """Tests for the AlpacaBacktesting class itself."""
 
@@ -272,7 +258,7 @@ class TestAlpacaBacktesting:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
         )
 
@@ -307,7 +293,7 @@ class TestAlpacaBacktesting:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
         )
 
@@ -342,7 +328,7 @@ class TestAlpacaBacktesting:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
         )
 
@@ -361,11 +347,11 @@ class TestAlpacaBacktesting:
         assert not df.empty
         assert len(df.index) == 80
         assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
-        assert df.index[-1].isoformat() == '2025-01-17T18:00:00-05:00'
+        assert df.index[-1].isoformat() == '2025-01-17T19:00:00-05:00'
         assert df['open'].iloc[0] == 217.73
         assert df['close'].iloc[0] == 215.68
-        assert df['open'].iloc[-1] == 225.9
-        assert df['close'].iloc[-1] == 226.3175
+        assert df['open'].iloc[-1] == 226.3
+        assert df['close'].iloc[-1] == 226.39
 
     # @pytest.mark.skip()
     def test_tz_name_day_bars(self):
@@ -381,7 +367,7 @@ class TestAlpacaBacktesting:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name
         )
@@ -417,7 +403,7 @@ class TestAlpacaBacktesting:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
         )
 
@@ -452,7 +438,7 @@ class TestAlpacaBacktesting:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
         )
 

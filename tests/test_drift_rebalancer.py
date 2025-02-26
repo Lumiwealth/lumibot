@@ -1448,7 +1448,6 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            include_cash_positions=True,
             # quiet_logs=False,
         )
 
@@ -1504,7 +1503,6 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            include_cash_positions=True,
             # quiet_logs=False,
         )
 
@@ -1562,7 +1560,6 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1626,7 +1623,6 @@ class TestDriftRebalancer:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df

@@ -11,7 +11,7 @@ from pandas.testing import assert_series_equal
 from lumibot.strategies import Strategy
 from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, AlpacaBacktesting
 from tests.fixtures import pandas_data_fixture
-from lumibot.credentials import ALPACA_CONFIG
+from lumibot.credentials import ALPACA_TEST_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -206,11 +206,11 @@ class TestMomentum:
 
     # @pytest.mark.skip()
     @pytest.mark.skipif(
-        not ALPACA_CONFIG['API_KEY'],
+        not ALPACA_TEST_CONFIG['API_KEY'],
         reason="This test requires an alpaca API key"
     )
     @pytest.mark.skipif(
-        ALPACA_CONFIG['API_KEY'] == '<your key here>',
+        ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
     )
     def test_momo_alpaca_lookback_30(self):
@@ -227,7 +227,7 @@ class TestMomentum:
             start_date=start_date,
             end_date=end_date,
             timestep=timestep,
-            config=ALPACA_CONFIG,
+            config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name,
             warm_up_trading_days=lookback_period

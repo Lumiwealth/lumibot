@@ -1,13 +1,15 @@
 import os
 import re
 import sys
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
+from pytz import timezone
 
+import pandas as pd
 import pandas_market_calendars as mcal
+from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-import pandas as pd
 
 
 def get_chunks(l, chunk_size):
@@ -34,11 +36,6 @@ def deduplicate_sequence(seq, key=""):
             pos += 1
     del seq[pos:]
     return seq
-
-import pandas_market_calendars as mcal
-from pandas_market_calendars.market_calendar import MarketCalendar
-from datetime import time
-from pytz import timezone
 
 
 class TwentyFourSevenCalendar(MarketCalendar):

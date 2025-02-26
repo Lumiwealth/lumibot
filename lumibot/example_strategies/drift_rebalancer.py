@@ -111,6 +111,9 @@ class DriftRebalancer(Strategy):
             only_rebalance_drifted_assets=self.only_rebalance_drifted_assets,
         )
 
+        # Always include cash_positions or else there will be no cash buy stuff with.
+        self.include_cash_positions = True
+
     # noinspection PyAttributeOutsideInit
     def on_trading_iteration(self) -> None:
         dt = self.get_datetime()

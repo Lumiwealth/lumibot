@@ -165,10 +165,6 @@ class TestAlpacaBroker(unittest.TestCase):
         
         spy_price = self.broker.get_last_price(asset=Asset('SPY'))
         asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
-        print(asset)
-        bars = self.broker.data_source.get_historical_prices(asset, 15, "day")
+        bars = self.broker.data_source.get_historical_prices(asset, 5, "day")
 
-        assert len(bars.df) > 0
-
-        # This should pass. get_historical_prices should return the exact number of bars asked for
-        #assert len(bars.df) == 10
+        assert len(bars.df) == 5

@@ -35,33 +35,53 @@ def deduplicate_sequence(seq, key=""):
     del seq[pos:]
     return seq
 
+import pandas_market_calendars as mcal
+from pandas_market_calendars.market_calendar import MarketCalendar
+from datetime import time
+from pytz import timezone
+
+
+class TwentyFourSevenCalendar(MarketCalendar):
+    @property
+    def name(self):
+        return "24/7"
+
+    @property
+    def tz(self):
+        return timezone('UTC')
+
+    @property
+    def open_time_default(self):
+        return time(0, 0)
+
+    @property
+    def close_time_default(self):
+        return time(23, 59, 59)
+
+    @property
+    def regular_holidays(self):
+        return []
+
+    @property
+    def special_closes(self):
+        return []
+
+    @property
+    def special_opens(self):
+        return []
+
 
 def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
     format_datetime = lambda dt: dt.to_pydatetime().astimezone(LUMIBOT_DEFAULT_PYTZ)
 
     # Ensure start_date and end_date are datetime or Timestamp objects
     start_date = to_datetime_aware(pd.to_datetime(start_date))
-    end_date = to_datetime_aware(pd.to_datetime(end_date)) if end_date else get_lumibot_datetime()
+    end_date = to_datetime_aware(pd.to_datetime(end_date)) if end_date else to_datetime_aware(pd.to_datetime(get_lumibot_datetime()))
 
-    # macl's "24/7" calendar doesn't return consecutive days, so need to be generated manually.
-    if market == "24/7":
-        start_date = start_date.tz_convert(None)  # Remove timezone information
-        end_date = end_date.tz_convert(None)  # Remove timezone information
-
-        market_open = pd.date_range(
-            start=start_date, end=end_date).to_frame(index=False, name="market_open")
-        market_close = pd.date_range(
-            start=start_date.replace(hour=23, minute=59, second=59, microsecond=999999),
-            end=end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-        ).to_frame(index=False, name="market_close")
-        index = pd.date_range(start=start_date, end=end_date)
-        days = pd.concat([market_open, market_close], axis=1)
-        days.index = index
-    else:
-        nyse = mcal.get_calendar(market)
-        days = nyse.schedule(start_date=start_date, end_date=end_date or today)
-        days.market_open = days.market_open.apply(format_datetime)
-        days.market_close = days.market_close.apply(format_datetime)
+    cal = mcal.get_calendar(market)
+    days = cal.schedule(start_date=start_date, end_date=end_date)
+    days.market_open = days.market_open.apply(format_datetime)
+    days.market_close = days.market_close.apply(format_datetime)
     return days
 
 

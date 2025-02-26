@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import List, Any
 import os
 import pytest
 import logging
@@ -37,12 +37,14 @@ def pandas_data_fixture() -> List[Data]:
     """
     Get a dictionary of Lumibot Data objects from the test data in tests/data folder
     """
-    symbols = ["SPY", "TLT", "GLD"]
     pandas_data = []
+    symbols = ["SPY", "TLT", "GLD"]
     quote = Asset(symbol='USD', asset_type="forex")
+
     lumibot_git_dir = Path(LUMIBOT_SOURCE_PATH).parent
     data_dir = lumibot_git_dir / "data"
-    print(data_dir)
+    # print(data_dir)
+
     for symbol in symbols:
         csv_path = data_dir / f"{symbol}.csv"
         asset = Asset(
@@ -118,9 +120,11 @@ def load_pandas_data_from_alpaca_cached_data(
         asset_type: str = "stock"
 ) -> List[Data]:
     pandas_data = []
-    data_dir = os.getcwd() + "/data"
     quote = Asset(symbol='USD', asset_type="forex")
-    csv_path = data_dir + f"/" + filename
+
+    lumibot_git_dir = Path(LUMIBOT_SOURCE_PATH).parent
+    csv_path = lumibot_git_dir / "data" / filename
+    # print(csv_path)
 
     asset = Asset(
         symbol=symbol,

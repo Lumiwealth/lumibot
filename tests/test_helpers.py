@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from lumibot.tools.helpers import (
     has_more_than_n_decimal_places,
     date_n_days_from_date,
+    get_trading_days
 )
 
 
@@ -77,6 +78,7 @@ def test_date_n_bars_from_date_zero_bars():
     )
     assert result == datetime(2023, 10, 15).date()
 
+
 def test_date_n_days_from_date_with_24_7_market():
     start_datetime = datetime(2023, 1, 1)
     result = date_n_days_from_date(
@@ -94,6 +96,12 @@ def test_date_n_days_from_date_with_24_7_market():
     assert result == datetime(2023, 1, 6).date()
 
 
+def test_get_trading_days():
+    trading_days = get_trading_days('NYSE')
+    assert len(trading_days) > 0
+
+    trading_days = get_trading_days('24/7')
+    assert len(trading_days) > 0
 
 
 

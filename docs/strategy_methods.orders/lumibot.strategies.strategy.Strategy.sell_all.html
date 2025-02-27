@@ -5,9 +5,9 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="self.get_order" href="lumibot.strategies.strategy.Strategy.get_order.html" /><link rel="prev" title="self.get_selling_order" href="lumibot.strategies.strategy.Strategy.get_selling_order.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>self.sell_all - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=362ab14a" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=3791830b" />
@@ -170,6 +170,7 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?utm_source=lumibot+docs&amp;utm_medium=documentation&amp;utm_campaign=Menu+Build+Bots+with+AI">Build Bots with AI</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
@@ -288,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -369,7 +371,7 @@
 <h1>self.sell_all<a class="headerlink" href="#self-sell-all" title="Link to this heading">#</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.sell_all">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">sell_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cancel_open_orders</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_multileg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.sell_all" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">sell_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cancel_open_orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.sell_all" title="Link to this definition">#</a></dt>
 <dd><p>Sell all strategy positions.</p>
 <p>The system will generate closing market orders for each open
 position. If <cite>cancel_open_orders</cite> is <cite>True</cite>, then all open
@@ -377,11 +379,8 @@ orders will also be cancelled.</p>
 <p>Open orders are cancelled before the positions are closed.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>cancel_open_orders</strong> (<em>boolean</em>) – Cancel all order if True, leave all orders in place if
-False. Default is True.</p></li>
-<li><p><strong>is_multileg</strong> (<em>boolean</em>) – When True, will use multileg orders to close positions.</p></li>
-</ul>
+<dd class="field-odd"><p><strong>cancel_open_orders</strong> (<em>boolean</em>) – Cancel all order if True, leave all orders in place if
+False. Default is True.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>None</p>

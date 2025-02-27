@@ -561,6 +561,9 @@ class Tradier(Broker):
 
         # Check if the order is a multileg order
         if "leg" in response and isinstance(response["leg"], list):
+            # Reset child orders and replace them with the parsed child orders from broker
+            parent_order.child_orders = []
+
             # Loop through each leg in the response
             for leg in response["leg"]:
                 # Create the order object

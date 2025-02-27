@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -223,6 +223,17 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
 
+TRADEOVATE_CONFIG = {
+    "USERNAME": os.environ.get("TRADEOVATE_USERNAME"),
+    "DEDICATED_PASSWORD": os.environ.get("TRADEOVATE_DEDICATED_PASSWORD"),
+    "APP_ID": os.environ.get("TRADEOVATE_APP_ID", "Lumibot"),
+    "APP_VERSION": os.environ.get("TRADEOVATE_APP_VERSION", "1.0"),
+    "CID": os.environ.get("TRADEOVATE_CID"),
+    "SECRET": os.environ.get("TRADEOVATE_SECRET"),
+    "IS_PAPER": os.environ.get("TRADEOVATE_IS_PAPER", "true").lower() == "true",
+    "MD_URL": os.environ.get("TRADEOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
+}
+
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
 
 if IS_BACKTESTING:
@@ -248,7 +259,12 @@ else:
     elif INTERACTIVE_BROKERS_CONFIG["SOCKET_PORT"]:
         broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
     
+    # If using Interactive Brokers REST as a broker, set that as the broker
     elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
         broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+
+    # If using Tradeovate as a broker, set that as the broker
+    elif TRADEOVATE_CONFIG["USERNAME"]:
+        broker = Tradeovate(TRADEOVATE_CONFIG)
 
 BROKER = broker

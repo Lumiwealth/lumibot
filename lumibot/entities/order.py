@@ -16,20 +16,17 @@ BUY = "buy"
 VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "cancelling", "canceled", "error", "cash_settled"]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
-    "cancel": "canceled", 
+    "cancel": "canceled",
     "cash": "cash_settled",
     "expired": "canceled",  # Alpaca/Tradier status
-    "filled": "fill",  # Alpaca/Tradier status
+    "filled": "fill",  # IBKR/Alpaca/Tradier status
     "partially_filled": "partial_filled",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
     "presubmitted": "new",  # IBKR status
-    "filled": "fill",  # IBKR status
-    "cancelled": "canceled",  # IBKR status
     "apicancelled": "canceled",  # IBKR status
     "pendingcancel": "cancelling",  # IBKR status
     "inactive": "error",  # IBKR status
-    "pendingsubmit": "new",  # IBKR status 
-    "presubmitted": "new",  # IBKR status
+    "pendingsubmit": "new",  # IBKR status
     "apipending": "new",  # IBKR status
     "rejected": "error",  # Tradier status
     "submit": "submitted",
@@ -45,7 +42,6 @@ STATUS_ALIAS_MAP = {
     "calculated": "open",  # Alpaca status
     "accepted_for_bidding": "open",  # Alpaca status
     "held": "open",  # Alpaca status
-    "expired": "canceled",  # Tradier status
 }
 
 NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaround to still access type(None)
@@ -1025,7 +1021,7 @@ class Order:
             return True
         else:
             return False
-    
+
     @classmethod
     def is_equivalent_status(cls, status1, status2) -> bool:
         """Returns if the 2 statuses passed are equivalent."""
@@ -1039,7 +1035,7 @@ class Order:
             return True
         else:
             return False
-    
+
     def set_error(self, error):
         self.status = "error"
         self._error = error

@@ -257,14 +257,15 @@ class Broker(ABC):
         pass
 
     @abstractmethod
-    def _pull_broker_all_orders(self) -> list[Order]:
+    def _pull_broker_all_orders(self) -> list[dict]:
         """
         Get the broker open orders
-        
+
         Returns
         -------
-        list[Order]
-            A list of order objects
+        list[dict]
+            A list of order responses from the broker query. These will be passed to _parse_broker_order() to
+             be converted to Order objects.
         """
         pass
 
@@ -958,7 +959,7 @@ class Broker(ABC):
             return order
         return None
 
-    def _pull_all_orders(self, strategy_name, strategy_object):
+    def _pull_all_orders(self, strategy_name, strategy_object) -> list[Order]:
         """Get a list of order objects representing the open
         orders"""
         response = self._pull_broker_all_orders()

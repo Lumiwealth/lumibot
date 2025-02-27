@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 import traceback
 from typing import Union
@@ -335,7 +336,7 @@ class Tradier(Broker):
                     # Check if the child order is a stop limit order
                     # Note: Tradier does not support Trailing Stop orders
                     child_limit_price = child_order.limit_price \
-                        if not child_order.OrderType.STOP_LIMIT else child_order.stop_limit_price
+                        if child_order.order_type != Order.OrderType.STOP_LIMIT else child_order.stop_limit_price
 
                     # Create the stock/options symbol
                     child_option_symbol = create_options_symbol(
@@ -350,8 +351,8 @@ class Tradier(Broker):
                         option_symbol=child_option_symbol,  # None if stock order
                         quantity=int(child_order.quantity),
                         side=self._lumi_side2tradier(child_order),
-                        price=child_limit_price,
-                        stop=child_order.stop_price,
+                        price=round(child_limit_price, 2) if child_limit_price else child_limit_price,
+                        stop=round(child_order.stop_price, 2) if child_order.stop_price else child_order.stop_price,
                         type=child_order.order_type,
                     )
                     legs.append(leg)
@@ -587,9 +588,15 @@ class Tradier(Broker):
             strategy_name if strategy_name else strategy_object.name if strategy_object else None
         )
 
-        # Parse the symbol
-        symbol = response["symbol"]
-        option_symbol = response["option_symbol"] if "option_symbol" in response and response["option_symbol"] else None
+        # For OCO orders, tradier leaves lots of fields empty (float nan). Pull values from the children if needed
+        legs = response["leg"] if "leg" in response and isinstance(response["leg"], list) else []
+        limit_order = next((o for o in legs if o["type"] == "limit"), {})
+        stop_order = next((o for o in legs if o["type"] == "stop"), {})
+
+        # Parse the symbol & side
+        symbol = self._extract_order_value(response, limit_order, "symbol")
+        option_symbol = self._extract_order_value(response, limit_order, "option_symbol")
+        side = self._extract_order_value(response, limit_order, "side")
 
         asset = (
             Asset.symbol2asset(option_symbol)
@@ -606,12 +613,12 @@ class Tradier(Broker):
             strategy=strategy_name,
             status=response["status"],  # Status conversion happens automatically in Order
             asset=asset,
-            side=self._tradier_side2lumi(response["side"]),
-            quantity=response["quantity"],
-            order_type=response["type"],
-            time_in_force=response["duration"],
-            limit_price=response["price"] if "price" in response and response["price"] else None,
-            stop_price=response["stop_price"] if "stop_price" in response and response["stop_price"] else None,
+            side=self._tradier_side2lumi(side),
+            quantity=self._extract_order_value(response, limit_order, "quantity"),
+            order_type=self._extract_order_value(response, {}, "type"),
+            time_in_force=self._extract_order_value(response, limit_order, "duration"),
+            limit_price=self._extract_order_value(response, limit_order, "price"),
+            stop_price=self._extract_order_value(response, stop_order, "stop_price"),
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
             avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
@@ -624,6 +631,15 @@ class Tradier(Broker):
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
 
+    @staticmethod
+    def _extract_order_value(response, child_response, key):
+        """
+        OCO orders have empty values for many fields. This function will pull the value from the child order if
+        the value is empty in the parent order.
+        """
+        is_oco = response["class"] == "oco"
+        return response[key] if key in response and not is_oco else child_response.get(key, None)
+
     def _pull_broker_order(self, identifier):
         """
         This function pulls a single order from the broker by its identifier. Order is converted to a dictionary,
@@ -631,7 +647,7 @@ class Tradier(Broker):
         calling parse_broker_order() on the dictionary. Parsing the order will also dispatch it to the stream for
         processing.
         """
-        orders = self.tradier.orders.get_order(identifier).to_dict("records")
+        orders = self._clean_order_records(self.tradier.orders.get_order(identifier))
         return orders[0] if len(orders) > 0 else None
 
     def _pull_broker_all_orders(self):
@@ -650,7 +666,27 @@ class Tradier(Broker):
         if df is None or df.empty:
             return []
 
-        return df.to_dict("records")
+        return self._clean_order_records(df)
+
+    @staticmethod
+    def _clean_order_records(df):
+        """
+        Cleans the order records DataFrame by rounding float values to 2 decimal places,
+        replacing missing values with None, and converting the DataFrame to a list of dictionaries.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            The DataFrame containing order records.
+
+        Returns
+        -------
+        list[dict]
+            A list of dictionaries representing the cleaned order records.
+        """
+        rounded_df = df.applymap(lambda x: round(x, 2) if isinstance(x, float) else x)
+        cleaned_df = rounded_df.replace({pd.NA: None, pd.NaT: None, float('nan'): None})
+        return cleaned_df.to_dict("records")
 
     def _lumi_side2tradier(self, order: Order) -> str:
         # Make a copy of the side because we will modify it
@@ -725,8 +761,8 @@ class Tradier(Broker):
         Valid Option Sides: buy_to_open, buy_to_close, sell_to_open, sell_to_close
         """
         # Check that the side is valid
-        if not isinstance(side, str):
-            return ""
+        if not side or not isinstance(side, str):
+            return None
 
         try:
             return Order.OrderSide(side)

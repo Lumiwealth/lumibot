@@ -183,7 +183,8 @@ class StrategyExecutor(Thread):
                             )
                 else:
                     # If it is the brokers first iteration then fully process the order because it is likely
-                    # that the order was filled/canceled/etc before the strategy started.
+                    # that the order was filled/canceled/etc before the strategy started. This is also a recovery
+                    # mechanism for bot restarts where the broker has orders that lumibot does not.
                     if self.broker._first_iteration:
                         if order.status == Order.OrderStatus.FILLED:
                             self.broker._process_new_order(order)

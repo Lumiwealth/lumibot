@@ -10,6 +10,17 @@ To get started with Lumibot, you can check out our documentation below.
 
 **Check out the documentation for the project here: 👉 <http://lumibot.lumiwealth.com/> 👈**
 
+## Build Trading Bots with AI
+
+Want to build trading bots without code? Check out our new platform [BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) where you can create and deploy trading strategies using AI! BotSpot allows you to:
+
+- Build trading bots using natural language and AI
+- Test your strategies with historical data
+- Deploy your bots to trade automatically
+- Join a community of algorithmic traders
+
+**Visit [BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started building AI-powered trading bots today!**
+
 ## Blog
 
 Our blog has lots of example strategies and shows you how to run a bot using LumiBot. Check the blog out here:
@@ -204,12 +215,13 @@ git branch -D my-feature
 git push origin --delete my-feature
 ```
 
-
 ## Community
 
 If you want to learn more about Lumibot or Algorithmic Trading then you will love out communities! You can join us on Discord.
 
 **Join us on Discord: <https://discord.gg/TmMsJCKY3T>**
+
+**Build AI-powered trading bots on [BotSpot.trade](https://botspot.trade/)** - Our platform for creating, testing, and deploying trading strategies with AI assistance!
 
 ## Courses
 
@@ -220,6 +232,8 @@ If you need extra help building your algorithm, we have courses to help you out.
 **For our Machine Learning for Trading course: <https://www.lumiwealth.com/product-category/machine-learning-purchase/>**
 
 **For our Options Trading course: <https://www.lumiwealth.com/product-category/options-trading-purchase/>**
+
+**Looking for a no-code solution? Build trading bots with AI on [BotSpot](https://botspot.trade/)**
 
 ## License
 

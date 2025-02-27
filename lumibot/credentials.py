@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -157,11 +157,19 @@ THETADATA_CONFIG = {
 }
 
 # Alpaca Configuration
-ALPACA_CONFIG = {  # Paper trading!
+ALPACA_CONFIG = {
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_API_KEY"),
     "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
     "PAPER": os.environ.get("ALPACA_IS_PAPER").lower() == "true" if os.environ.get("ALPACA_IS_PAPER") else True,
+}
+
+# Alpaca test configuration for unit tests
+ALPACA_TEST_CONFIG = {  # Paper trading!
+    # Add ALPACA_TEST_API_KEY, and ALPACA_TEST_API_SECRET to your .env file or set them as secrets
+    "API_KEY": os.environ.get("ALPACA_TEST_API_KEY"),
+    "API_SECRET": os.environ.get("ALPACA_TEST_API_SECRET"),
+    "PAPER": True
 }
 
 # Tradier Configuration
@@ -172,6 +180,14 @@ TRADIER_CONFIG = {
     "PAPER": os.environ.get("TRADIER_IS_PAPER").lower() == "true"
     if os.environ.get("TRADIER_IS_PAPER")
     else True,
+}
+
+# Tradier test configuration for unit tests
+TRADIER_TEST_CONFIG = {
+    # Add TRADIER_TEST_ACCESS_TOKEN and TRADIER_TEST_ACCOUNT_NUMBER to your .env file or set them as secrets
+    "ACCESS_TOKEN": os.environ.get("TRADIER_TEST_ACCESS_TOKEN"),
+    "ACCOUNT_NUMBER": os.environ.get("TRADIER_TEST_ACCOUNT_NUMBER"),
+    "PAPER": True
 }
 
 KRAKEN_CONFIG = {
@@ -207,6 +223,17 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
 
+TRADEOVATE_CONFIG = {
+    "USERNAME": os.environ.get("TRADEOVATE_USERNAME"),
+    "DEDICATED_PASSWORD": os.environ.get("TRADEOVATE_DEDICATED_PASSWORD"),
+    "APP_ID": os.environ.get("TRADEOVATE_APP_ID", "Lumibot"),
+    "APP_VERSION": os.environ.get("TRADEOVATE_APP_VERSION", "1.0"),
+    "CID": os.environ.get("TRADEOVATE_CID"),
+    "SECRET": os.environ.get("TRADEOVATE_SECRET"),
+    "IS_PAPER": os.environ.get("TRADEOVATE_IS_PAPER", "true").lower() == "true",
+    "MD_URL": os.environ.get("TRADEOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
+}
+
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
 
 if IS_BACKTESTING:
@@ -232,7 +259,12 @@ else:
     elif INTERACTIVE_BROKERS_CONFIG["SOCKET_PORT"]:
         broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
     
+    # If using Interactive Brokers REST as a broker, set that as the broker
     elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
         broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+
+    # If using Tradeovate as a broker, set that as the broker
+    elif TRADEOVATE_CONFIG["USERNAME"]:
+        broker = Tradeovate(TRADEOVATE_CONFIG)
 
 BROKER = broker

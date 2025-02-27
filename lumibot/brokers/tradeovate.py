@@ -9,6 +9,14 @@ from lumibot.brokers import Broker
 from lumibot.entities import Asset, Order, Position
 from lumibot.data_sources import TradeovateData
 
+class TradeovateAPIError(Exception):
+    """Exception raised for errors in the Tradeovate API."""
+    def __init__(self, message, status_code=None, response_text=None, original_exception=None):
+        self.status_code = status_code
+        self.response_text = response_text
+        self.original_exception = original_exception
+        super().__init__(message)
+
 class Tradeovate(Broker):
     """
     Tradeovate broker that implements connection to the Tradeovate API.
@@ -23,7 +31,8 @@ class Tradeovate(Broker):
             data_source = TradeovateData()
 
         # Set configuration values from the provided config
-        self.trading_api_url = config.get("API_URL", "https://demo.tradovateapi.com/v1")
+        is_paper = config.get("IS_PAPER", True)
+        self.trading_api_url = "https://demo.tradovateapi.com/v1" if is_paper else "https://live.tradovateapi.com/v1"
         self.market_data_url = config.get("MD_URL", "https://md.tradovateapi.com/v1")
         self.username = config.get("USERNAME")
         self.password = config.get("DEDICATED_PASSWORD")
@@ -49,9 +58,32 @@ class Tradeovate(Broker):
 
             self.user_id = self._get_user_info(self.trading_token)
             logging.info(colored(f"User ID: {self.user_id}", "green"))
-        except Exception as e:
+        except TradeovateAPIError as e:
             logging.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
             raise e
+
+    def _get_headers(self, with_auth=True, with_content_type=False):
+        """
+        Create standard headers for API requests.
+        
+        Parameters
+        ----------
+        with_auth : bool
+            Whether to include the Authorization header with the trading token
+        with_content_type : bool
+            Whether to include Content-Type header for JSON requests
+            
+        Returns
+        -------
+        dict
+            Dictionary of headers for API requests
+        """
+        headers = {"Accept": "application/json"}
+        if with_auth:
+            headers["Authorization"] = f"Bearer {self.trading_token}"
+        if with_content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
 
     def _get_tokens(self):
         """
@@ -67,59 +99,63 @@ class Tradeovate(Broker):
             "sec": self.sec
         }
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 200:
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
             data = response.json()
             access_token = data.get("accessToken")
             market_token = data.get("mdAccessToken")
             has_market_data = data.get("hasMarketData", False)
             if not access_token or not market_token:
-                raise Exception("Authentication succeeded but tokens are missing.")
+                raise TradeovateAPIError("Authentication succeeded but tokens are missing.")
             return {"accessToken": access_token, "marketToken": market_token, "hasMarketData": has_market_data}
-        else:
-            raise Exception(f"Authentication failed: {response.status_code}, {response.text}")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Authentication failed", 
+                                     status_code=getattr(e.response, 'status_code', None), 
+                                     response_text=getattr(e.response, 'text', None), 
+                                     original_exception=e)
 
     def _get_account_info(self, trading_token):
         """
         Retrieve account information from Tradeovate.
         """
         url = f"{self.trading_api_url}/account/list"
-        headers = {
-            "Authorization": f"Bearer {trading_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
+        headers = self._get_headers()
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
             accounts = response.json()
             if isinstance(accounts, list) and accounts:
                 account = accounts[0]
                 return {"accountSpec": account.get("name"), "accountId": account.get("id")}
             else:
-                raise Exception("No accounts found in the account list response.")
-        else:
-            raise Exception(f"Failed to retrieve account list: {response.status_code}, {response.text}")
+                raise TradeovateAPIError("No accounts found in the account list response.")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve account list", 
+                                     status_code=getattr(e.response, 'status_code', None), 
+                                     response_text=getattr(e.response, 'text', None), 
+                                     original_exception=e)
 
     def _get_user_info(self, trading_token):
         """
         Retrieve user information from Tradeovate.
         """
         url = f"{self.trading_api_url}/user/list"
-        headers = {
-            "Authorization": f"Bearer {trading_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
+        headers = self._get_headers()
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
             users = response.json()
             if isinstance(users, list) and users:
                 user = users[0]
                 return user.get("id")
             else:
-                raise Exception("No users found in the user list response.")
-        else:
-            raise Exception(f"Failed to retrieve user list: {response.status_code}, {response.text}")
+                raise TradeovateAPIError("No users found in the user list response.")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve user list", 
+                                     status_code=getattr(e.response, 'status_code', None), 
+                                     response_text=getattr(e.response, 'text', None), 
+                                     original_exception=e)
 
     def _get_contract_details(self, contract_id: int) -> dict:
         """
@@ -130,15 +166,16 @@ class Tradeovate(Broker):
         """
         url = f"{self.trading_api_url}/contract/item"
         params = {"id": contract_id}
-        headers = {
-            "Authorization": f"Bearer {self.trading_token}",
-            "Accept": "application/json"
-        }
-        response = requests.get(url, params=params, headers=headers)
-        if response.status_code == 200:
+        headers = self._get_headers()
+        try:
+            response = requests.get(url, params=params, headers=headers)
+            response.raise_for_status()
             return response.json()
-        else:
-            raise Exception(f"Failed to retrieve contract details for contract {contract_id}: {response.status_code}, {response.text}")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
+                                     status_code=getattr(e.response, 'status_code', None), 
+                                     response_text=getattr(e.response, 'text', None),
+                                     original_exception=e)
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
@@ -148,24 +185,24 @@ class Tradeovate(Broker):
           - Portfolio value (netLiq)
         """
         url = f"{self.trading_api_url}/cashBalance/getcashbalancesnapshot"
-        headers = {
-            "Authorization": f"Bearer {self.trading_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
+        headers = self._get_headers(with_content_type=True)
         payload = {"accountId": self.account_id}
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 200:
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
             data = response.json()
             cash_balance = data.get("totalCashValue")
             net_liq = data.get("netLiq")
             if cash_balance is None or net_liq is None:
-                raise Exception("Missing totalCashValue or netLiq in account financials response.")
+                raise TradeovateAPIError("Missing totalCashValue or netLiq in account financials response.")
             positions_value = net_liq - cash_balance
             portfolio_value = net_liq
             return cash_balance, positions_value, portfolio_value
-        else:
-            raise Exception(f"Failed to retrieve account financials: {response.status_code}, {response.text}")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve account financials", 
+                                     status_code=getattr(e.response, 'status_code', None),
+                                     response_text=getattr(e.response, 'text', None),
+                                     original_exception=e)
 
     def _get_stream_object(self):
         logging.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
@@ -198,8 +235,8 @@ class Tradeovate(Broker):
                     contract_details = self._get_contract_details(contract_id)
                     # For Tradeovate futures, assume asset_type is "future" and use the contract's name as the symbol.
                     symbol = contract_details.get("name", "")
-                    asset = Asset(symbol=symbol, asset_type="future")
-                except Exception as e:
+                    asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE)
+                except TradeovateAPIError as e:
                     logging.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
             
             quantity = response.get("orderQty", 0)
@@ -211,19 +248,19 @@ class Tradeovate(Broker):
             # Map raw status to Lumibot's order status using common aliases.
             raw_status = response.get("ordStatus", "").lower()
             if raw_status in ["working"]:
-                status = "open"
+                status = Order.OrderStatus.OPEN
             elif raw_status in ["filled"]:
-                status = "fill"
+                status = Order.OrderStatus.FILLED
             elif raw_status in ["partialfill", "partial_fill", "partially_filled"]:
-                status = "partial_fill"
+                status = Order.OrderStatus.PARTIALLY_FILLED
             elif raw_status in ["canceled", "cancelled", "cancel"]:
-                status = "canceled"
+                status = Order.OrderStatus.CANCELED
             elif raw_status in ["rejected"]:
-                status = "error"
+                status = Order.OrderStatus.ERROR
             elif raw_status in ["expired"]:
-                status = "canceled"
+                status = Order.OrderStatus.CANCELED
             elif raw_status in ["submitted", "new", "pending"]:
-                status = "new"
+                status = Order.OrderStatus.NEW
             else:
                 status = raw_status
 
@@ -241,7 +278,7 @@ class Tradeovate(Broker):
                 side=action,
                 type=order_type,
                 identifier=order_id,
-                quote=Asset("USD", asset_type="forex")
+                quote=Asset("USD", asset_type=Asset.AssetType.FOREX)
             )
             order_obj.status = status
             return order_obj
@@ -255,13 +292,16 @@ class Tradeovate(Broker):
         Returns the raw JSON list of orders (dictionaries) without parsing.
         """
         url = f"{self.trading_api_url}/order/list"
-        headers = {"Authorization": f"Bearer {self.trading_token}", "Accept": "application/json"}
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            orders_data = response.json()
-            return orders_data
-        else:
-            raise Exception(f"Failed to retrieve orders: {response.status_code}, {response.text}")
+        headers = self._get_headers()
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve orders", 
+                                     status_code=getattr(e.response, 'status_code', None),
+                                     response_text=getattr(e.response, 'text', None),
+                                     original_exception=e)
 
     def _pull_broker_order(self, identifier: str) -> Order:
         """
@@ -269,14 +309,18 @@ class Tradeovate(Broker):
         """
         url = f"{self.trading_api_url}/order/item"
         params = {"id": identifier}
-        headers = {"Authorization": f"Bearer {self.trading_token}", "Accept": "application/json"}
-        response = requests.get(url, params=params, headers=headers)
-        if response.status_code == 200:
+        headers = self._get_headers()
+        try:
+            response = requests.get(url, params=params, headers=headers)
+            response.raise_for_status()
             order_data = response.json()
             order_obj = self._parse_broker_order(order_data, strategy_name="")  # set strategy as needed
             return order_obj
-        else:
-            raise Exception(f"Failed to retrieve order {identifier}: {response.status_code}, {response.text}")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve order {identifier}", 
+                                     status_code=getattr(e.response, 'status_code', None),
+                                     response_text=getattr(e.response, 'text', None),
+                                     original_exception=e)
 
     def _pull_position(self, strategy, asset: Asset) -> Position:
         logging.error(colored(f"Method '_pull_position' for asset {asset} is not yet implemented.", "red"))
@@ -293,9 +337,10 @@ class Tradeovate(Broker):
         The asset is created using contract details retrieved from Tradeovate.
         """
         url = f"{self.trading_api_url}/position/list"
-        headers = {"Authorization": f"Bearer {self.trading_token}", "Accept": "application/json"}
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
+        headers = self._get_headers()
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
             positions_data = response.json()
             positions = []
             for pos in positions_data:
@@ -305,16 +350,15 @@ class Tradeovate(Broker):
                     continue
                 try:
                     contract_details = self._get_contract_details(contract_id)
-                except Exception as e:
+                except TradeovateAPIError as e:
                     logging.error(colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red"))
                     continue
                 # Extract asset details from the contract details.
                 # For Tradeovate futures, assume asset_type is "future" and use the contract name as the symbol.
                 symbol = contract_details.get("name", "")
-                asset_type = "future"
                 expiration = None
                 multiplier = 1  # default multiplier
-                asset = Asset(symbol=symbol, asset_type=asset_type, expiration=expiration, multiplier=multiplier)
+                asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE, expiration=expiration, multiplier=multiplier)
                 quantity = pos.get("netPos", 0)
                 net_price = pos.get("netPrice", 0)
                 hold = 0
@@ -330,8 +374,11 @@ class Tradeovate(Broker):
                 )
                 positions.append(position_obj)
             return positions
-        else:
-            raise Exception(f"Failed to retrieve positions: {response.status_code}, {response.text}")
+        except requests.exceptions.RequestException as e:
+            raise TradeovateAPIError(f"Failed to retrieve positions", 
+                                     status_code=getattr(e.response, 'status_code', None),
+                                     response_text=getattr(e.response, 'text', None),
+                                     original_exception=e)
 
     def _register_stream_events(self):
         logging.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))
@@ -357,13 +404,13 @@ class Tradeovate(Broker):
         symbol = order.asset.symbol
 
         # Determine the order type string based on the order type.
-        if order.type.lower() == "market":
+        if order.type == Order.OrderType.MARKET:
             order_type = "Market"
-        elif order.type.lower() == "limit":
+        elif order.type == Order.OrderType.LIMIT:
             order_type = "Limit"
-        elif order.type.lower() == "stop":
+        elif order.type == Order.OrderType.STOP:
             order_type = "Stop"
-        elif order.type.lower() == "stop_limit":
+        elif order.type == Order.OrderType.STOP_LIMIT:
             order_type = "StopLimit"
         else:
             logging.warning(
@@ -390,21 +437,18 @@ class Tradeovate(Broker):
             payload["stopPrice"] = float(order.stop_price)
 
         url = f"{self.trading_api_url}/order/placeorder"
-        headers = {
-            "Authorization": f"Bearer {self.trading_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
+        headers = self._get_headers(with_content_type=True)
 
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 200:
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
             data = response.json()
             logging.info(f"Order successfully submitted: {data}")
-            order.status = "submitted"
+            order.status = Order.OrderStatus.SUBMITTED
             order.update_raw(data)
             return order
-        else:
-            error_message = f"Failed to submit order: {response.status_code}, {response.text}"
+        except requests.exceptions.RequestException as e:
+            error_message = f"Failed to submit order: {getattr(e.response, 'status_code', None)}, {getattr(e.response, 'text', None)}"
             logging.error(error_message)
             order.set_error(error_message)
             return order

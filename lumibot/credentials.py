@@ -207,9 +207,6 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
 
-# Get TRADEOVATE_IS_PAPER value, default to True if not set
-tradeovate_is_paper = os.environ.get("TRADEOVATE_IS_PAPER", "true").lower() == "true"
-
 TRADEOVATE_CONFIG = {
     "USERNAME": os.environ.get("TRADEOVATE_USERNAME"),
     "DEDICATED_PASSWORD": os.environ.get("TRADEOVATE_DEDICATED_PASSWORD"),
@@ -217,7 +214,7 @@ TRADEOVATE_CONFIG = {
     "APP_VERSION": os.environ.get("TRADEOVATE_APP_VERSION", "1.0"),
     "CID": os.environ.get("TRADEOVATE_CID"),
     "SECRET": os.environ.get("TRADEOVATE_SECRET"),
-    "API_URL": "https://demo.tradovateapi.com/v1" if tradeovate_is_paper else "https://live.tradovateapi.com/v1",
+    "IS_PAPER": os.environ.get("TRADEOVATE_IS_PAPER", "true").lower() == "true",
     "MD_URL": os.environ.get("TRADEOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
 }
 

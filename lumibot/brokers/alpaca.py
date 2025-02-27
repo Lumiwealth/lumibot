@@ -10,12 +10,13 @@ from typing import Union
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
 from alpaca.trading.stream import TradingStream
+from alpaca.trading.requests import GetOrdersRequest
 from dateutil import tz
 from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position
-from lumibot.tools.helpers import has_more_than_n_decimal_places
+from lumibot.tools.helpers import has_more_than_n_decimal_places, parse_symbol, create_options_symbol
 
 from .broker import Broker
 
@@ -267,10 +268,15 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type=Asset.AssetType.CRYPTO,
             )
-        elif position.asset_class == "option":
+        elif position.asset_class == Asset.AssetType.OPTION:
+            parsed = parse_symbol(position.symbol)
+
             asset = Asset(
-                symbol=position.symbol,
+                symbol=parsed["stock_symbol"],
                 asset_type=Asset.AssetType.OPTION,
+                expiration=parsed["expiration_date"],
+                strike=parsed["strike_price"],
+                right=parsed["option_type"]
             )
         else:
             asset = Asset(
@@ -340,38 +346,81 @@ class Alpaca(Broker):
         """parse a broker order representation
         to an order object"""
 
-        # If the symbol includes a slash, then it is a crypto order and only the first part of
-        # the symbol is the real symbol
-        if "/" in response.symbol:
-            symbol = response.symbol.split("/")[0]
-        else:
-            symbol = response.symbol
-
         # Alpaca Order type/class mostly matches LumiBot's Order type/class with exceptons of 'mleg' and 'trailing_stop'
         limit_price = response.limit_price if response.order_type != Order.OrderType.STOP_LIMIT else None
         stop_limit_price = response.limit_price if response.order_type == Order.OrderType.STOP_LIMIT else None
         order_class = response.order_class if response.order_class != "mleg" else Order.OrderClass.MULTILEG
         order_type = response.order_type if response.order_type != "trailing_stop" else Order.OrderType.TRAIL
-        order = Order(
-            strategy_name,
-            Asset(
-                symbol=symbol,
-                asset_type=self.map_asset_type(response.asset_class),
-            ),
-            Decimal(response.qty),
-            response.side,
-            limit_price=limit_price,  # order.py always converts to 'float'. Crypto issue?
-            stop_price=response.stop_price,
-            stop_limit_price=stop_limit_price,
-            trail_price=response.trail_price if response.trail_price else None,
-            trail_percent=response.trail_percent if response.trail_percent else None,
-            time_in_force=response.time_in_force,
-            order_class=order_class,
-            order_type=order_type,
+        qty = Decimal(response.qty) if response.qty != None else Decimal(response.filled_qty)
+        fill_price = Decimal(response.filled_avg_price) if response.filled_avg_price != None else 0
 
-            # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
-            quote=Asset(symbol="USD", asset_type="forex"),
-        )
+        # Check for multileg first its a bit different
+        if response.order_class == "mleg":
+            asset = Asset(
+                symbol=response.legs[0].symbol,
+                asset_type=Asset.AssetType.OPTION,
+            )
+            order = Order(
+                strategy_name,
+                asset,
+                qty,
+                response.side,
+                limit_price=response.limit_price,
+                stop_price=response.stop_price,
+                time_in_force=response.time_in_force,
+                avg_fill_price=fill_price,
+                order_type=order_type
+            )
+
+            for l in response.legs:
+                parsed = parse_symbol(l.symbol)
+
+                leg_asset = Asset(
+                    symbol=parsed["stock_symbol"],
+                    asset_type=Asset.AssetType.OPTION,
+                    expiration=parsed["expiration_date"],
+                    strike=parsed["strike_price"],
+                    right=parsed["option_type"]
+                )
+                order.add_child_order(Order(
+                    strategy_name,
+                    leg_asset,
+                    Decimal(l.qty) if l.qty != None else Decimal(l.filled_qty),
+                    l.side,
+                    limit_price=l.limit_price,
+                    stop_price=l.stop_price,
+                    time_in_force=l.time_in_force,
+                    avg_fill_price=fill_price
+                ))
+        else:
+            # If the symbol includes a slash, then it is a crypto order and only the first part of
+            # the symbol is the real symbol
+            if "/" in response.symbol:
+                symbol = response.symbol.split("/")[0]
+            else:
+                symbol = response.symbol
+
+            order = Order(
+                strategy_name,
+                Asset(
+                    symbol=symbol,
+                    asset_type=self.map_asset_type(response.asset_class),
+                ),
+                Decimal(response.qty),
+                response.side,
+                limit_price=limit_price,  # order.py always converts to 'float'. Crypto issue?
+                stop_price=response.stop_price,
+                stop_limit_price=stop_limit_price,
+                trail_price=response.trail_price if response.trail_price else None,
+                trail_percent=response.trail_percent if response.trail_percent else None,
+                time_in_force=response.time_in_force,
+                order_class=order_class,
+                order_type=order_type,
+
+                # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
+                quote=Asset(symbol="USD", asset_type="forex"),
+            )
+
         order.set_identifier(response.id)
         order.status = response.status
         order.update_raw(response)
@@ -384,7 +433,8 @@ class Alpaca(Broker):
 
     def _pull_broker_all_orders(self):
         """Get the broker orders"""
-        return self.api.get_orders()
+        orders = self.api.get_orders(GetOrdersRequest(status='all'))
+        return orders
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.
@@ -398,6 +448,129 @@ class Alpaca(Broker):
                 orders.append(sub_order)
 
         return orders
+
+    def _submit_multileg_order(self, orders, order_type="market", duration="day", price=None, tag=None) -> Order:
+        """
+        Submit a multi-leg order to Tradier. This function will submit the multi-leg order to Tradier.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        order_type: str
+            The type of multi-leg order to submit. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+        tag: str
+            The tag to associate with the order.
+
+        Returns
+        -------
+            parent order of the multi-leg orders
+        """
+
+        # Check if the order type is valid
+        if order_type not in ["market", "debit", "credit", "even"]:
+            raise ValueError(f"Invalid order type '{order_type}' for multi-leg order.")
+
+        # Check if the duration is valid
+        if duration not in ["day", "gtc", "pre", "post"]:   
+            raise ValueError(f"Invalid duration {duration} for multi-leg order.")
+
+        # Check if the price is required
+        if order_type in ["debit", "credit"] and price is None:
+            raise ValueError(f"Price is required for '{order_type}' order type.")
+
+        # Check that all the order objects have the same symbol
+        if len(set([order.asset.symbol for order in orders])) > 1:
+            raise ValueError("All orders in a multi-leg order must have the same symbol.")
+
+        # Get the symbol from the first order
+        symbol = orders[0].asset.symbol
+        parent_asset = Asset(symbol=symbol)
+
+        # Create the legs for the multi-leg order
+        parent_order = Order(
+            asset=parent_asset,
+            strategy=orders[0].strategy,
+            order_class=Order.OrderClass.MULTILEG,
+            side=orders[0].side,
+            quantity=orders[0].quantity,
+            order_type=orders[0].order_type,
+            time_in_force=duration,
+            limit_price=price if price != None else orders[0].limit_price,
+            tag=tag,
+            status=Order.OrderStatus.SUBMITTED,
+        )
+        for order in orders:
+            child_order = Order(
+                asset=order.asset,
+                strategy=order.strategy,
+                order_class=Order.OrderClass.MULTILEG,
+                side=order.side,
+                quantity=order.quantity,
+                order_type=order.order_type,
+                time_in_force=duration,
+                limit_price=price if price != None else orders[0].limit_price,
+                tag=tag,
+                status=Order.OrderStatus.SUBMITTED,
+            )
+            parent_order.add_child_order(child_order)
+
+        order_response = self.submit_order(parent_order)
+        for o in orders:
+            o.parent_identifier = order_response.identifier
+
+        parent_order.child_orders = order.child_orders
+        return parent_order
+
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+        """
+        Submit multiple orders to the broker. This function will submit the orders in the order they are provided.
+        If any order fails to submit, the function will stop submitting orders and return the last successful order.
+
+        Parameters
+        ----------
+        orders: list[Order]
+            List of orders to submit
+        is_multileg: bool
+            Whether the order is a multi-leg order. Default is False.
+        order_type: str
+            The type of multi-leg order to submit, if applicable. Valid values are ('market', 'debit', 'credit', 'even'). Default is 'market'.
+        duration: str
+            The duration of the order. Valid values are ('day', 'gtc', 'pre', 'post'). Default is 'day'.
+        price: float
+            The limit price for the order. Required for 'debit' and 'credit' order types.
+
+        Returns
+        -------
+            Order
+                The list of processed order objects.
+        """
+
+        # Check if order_type is set, if not, set it to 'market'
+        if order_type is None:
+            order_type = "market"
+
+        # Check if the orders are empty
+        if not orders or len(orders) == 0:
+            return
+        
+        # Check if it is a multi-leg order
+        if is_multileg:
+            parent_order = self._submit_multileg_order(orders, order_type, duration, price)
+            return [parent_order]
+
+        else:
+            # Submit each order
+            submittted_orders = []
+            for order in orders:
+                submittted_order = self._submit_order(order)
+                submittted_orders.append(submittted_order)
+
+            return submittted_orders
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
@@ -429,19 +602,31 @@ class Alpaca(Broker):
         elif order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
             alpaca_type = Order.OrderType.MARKET
 
+        legs = []
+        if len(order.child_orders) > 0:
+            for order in order.child_orders:
+                leg = {
+                    "symbol": create_options_symbol(order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike),
+                    "ratio_qty": order.quantity,
+                    "side": Order.OrderSide.BUY if order.is_buy_order() else Order.OrderSide.SELL,
+                    "position_intent": order.side if order.side != Order.OrderSide.BUY and order.side != Order.OrderSide.SELL else None,
+                }
+                legs.append(leg)
+
         limit_price = order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
         kwargs = {
-            "symbol": trade_symbol,
+            "symbol": trade_symbol if len(legs) == 0 else None,
             "qty": qty,
             "side": order.side,
+            "order_class": order.order_class if len(legs) == 0 else 'mleg',
             "type": alpaca_type,
-            "order_class": order.order_class,
             "time_in_force": order.time_in_force,
             # Crypto can use 9 decimal places on Alpaca
             "limit_price": str(limit_price) if limit_price else None,
             "stop_price": str(order.stop_price) if order.stop_price else None,
             "trail_price": str(order.trail_price) if order.trail_price else None,
             "trail_percent": str(order.trail_percent) if order.trail_percent else None,
+            "legs": legs if len(legs) > 0 else None
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
@@ -480,6 +665,7 @@ class Alpaca(Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
+            print(message)
             if "stop price must not be greater than base price / 1.001" in message:
                 logging.info(
                     colored(

@@ -149,6 +149,19 @@ Need Extra Help?
 .. raw:: html
    :file: _html/course_list.html
 
+.. important::
+
+   **Build Trading Bots with AI**
+   
+   Want to create trading bots without writing code? Visit `BotSpot <https://botspot.trade/>`_ - our platform for building, testing, and deploying trading strategies using AI!
+   
+   - Create strategies using natural language
+   - Backtest on historical data
+   - Deploy to live markets
+   - Join a community of algorithmic traders
+   
+   **Get started at** `https://botspot.trade/ <https://botspot.trade/>`_
+
 Table of Contents
 *****************
 
@@ -156,6 +169,7 @@ Table of Contents
    :maxdepth: 3
    
    Home <self>
+   Build Bots with AI <https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=Menu+Build+Bots+with+AI>
    GitHub <https://github.com/Lumiwealth/lumibot>
    Discord Community <https://discord.gg/v6asVjTCvh>
    Get Pre-Built Profitable Strategies <https://lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_sidebar>

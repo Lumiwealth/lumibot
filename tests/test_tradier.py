@@ -11,8 +11,12 @@ from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.credentials import TRADIER_TEST_CONFIG
 
-if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
-    pytest.skip("These tests requires a Tradier API key", allow_module_level=True)
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if 'API' in item.cls.__name__:
+            if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+                item.add_marker(pytest.mark.skip(reason="These tests require a Tradier API key"))
 
 
 @pytest.fixture
@@ -231,11 +235,12 @@ class TestTradierBroker:
         option_order.side = "buy"
         assert broker._lumi_side2tradier(option_order) == "buy_to_open"
 
-    def test_pull_broker_all_orders(self, mocker, tradier):
+    def test_pull_broker_all_orders(self, mocker):
         """
         Test the _pull_broker_all_orders function by mocking the get_orders() call.
         """
-        mock_get_orders = mocker.patch.object(tradier.tradier.orders, 'get_orders', return_value=pd.DataFrame([
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
+        mock_get_orders = mocker.patch.object(broker.tradier.orders, 'get_orders', return_value=pd.DataFrame([
             {"id": 1, "symbol": "AAPL", "quantity": 10, "status": "filled", "side": "buy", "type": "market"},
             {"id": 2, "symbol": "GOOGL", "quantity": 5, "status": "open", "side": "sell", "type": "market"},
             {"id": 3, "symbol": "MSFT", "quantity": 15, "status": "open", "side": "buy",
@@ -244,7 +249,7 @@ class TestTradierBroker:
                 "type": "stop", "stop_price": 600.0091}
         ]))
 
-        orders = tradier._pull_broker_all_orders()
+        orders = broker._pull_broker_all_orders()
         assert len(orders) == 4
         assert orders[0]["id"] == 1
         assert orders[0]["symbol"] == "AAPL"

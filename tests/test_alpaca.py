@@ -67,7 +67,7 @@ class TestAlpacaBroker(unittest.TestCase):
         spy_price = self.broker.get_last_price(asset='SPY')
         trading_days = get_trading_days(
             start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
-            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            end_date=(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
         )
         dte = trading_days.index[-1]
         basset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
@@ -91,7 +91,7 @@ class TestAlpacaBroker(unittest.TestCase):
         spy_price = self.broker.get_last_price(asset='SPY')
         trading_days = get_trading_days(
             start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
-            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            end_date=(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
         )
         dte = trading_days.index[-1]
         basset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
@@ -120,7 +120,7 @@ class TestAlpacaBroker(unittest.TestCase):
         spy_price = self.broker.get_last_price(asset='QQQ')
         trading_days = get_trading_days(
             start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
-            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            end_date=(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
         )
         dte = trading_days.index[-1]
         casset = Asset('QQQ', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')

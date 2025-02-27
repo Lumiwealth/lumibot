@@ -619,7 +619,7 @@ class Alpaca(Broker):
             "qty": qty,
             "side": order.side,
             "order_class": order.order_class if len(legs) == 0 else 'mleg',
-            "order_type": alpaca_type,
+            "type": alpaca_type,
             "time_in_force": order.time_in_force,
             # Crypto can use 9 decimal places on Alpaca
             "limit_price": str(limit_price) if limit_price else None,
@@ -665,6 +665,7 @@ class Alpaca(Broker):
         except Exception as e:
             order.set_error(e)
             message = str(e)
+            print(message)
             if "stop price must not be greater than base price / 1.001" in message:
                 logging.info(
                     colored(

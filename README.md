@@ -12,14 +12,14 @@ To get started with Lumibot, you can check out our documentation below.
 
 ## Build Trading Bots with AI
 
-Want to build trading bots without code? Check out our new platform [BotSpot](https://botspot.trade/) where you can create and deploy trading strategies using AI! BotSpot allows you to:
+Want to build trading bots without code? Check out our new platform [BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) where you can create and deploy trading strategies using AI! BotSpot allows you to:
 
 - Build trading bots using natural language and AI
 - Test your strategies with historical data
 - Deploy your bots to trade automatically
 - Join a community of algorithmic traders
 
-**Visit [BotSpot.trade](https://botspot.trade/) to get started building AI-powered trading bots today!**
+**Visit [BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started building AI-powered trading bots today!**
 
 ## Blog
 

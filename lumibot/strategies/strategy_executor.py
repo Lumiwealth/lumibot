@@ -203,7 +203,9 @@ class StrategyExecutor(Thread):
 
             for order_lumi in orders_lumi:
                 # Remove lumibot orders if not in broker.
-                if order_lumi.identifier not in [order.identifier for order in orders_broker]:
+                # Check both main order IDs and child order IDs from broker
+                broker_identifiers = self._get_all_order_identifiers(orders_broker)
+                if order_lumi.identifier not in broker_identifiers:
                     # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
                     # However, active orders should not be dropped as they are still in effect and if they can't
                     # be found in the broker, they should be canceled because something went wrong.
@@ -216,6 +218,32 @@ class StrategyExecutor(Thread):
 
         self.broker._hold_trade_events = False
         self.broker.process_held_trades()
+
+    @staticmethod
+    def _get_all_order_identifiers(orders_broker: list[Order]) -> set:
+        """
+        Extract all order identifiers from a list of broker orders.
+
+        This function iterates through each order in orders_broker once,
+        collecting both the main order identifiers and their child order
+        identifiers into a single set.
+
+        Parameters
+        ----------
+        orders_broker : list
+            A list of Order objects from the broker
+
+        Returns
+        -------
+        set
+            A set containing all unique order identifiers
+        """
+        broker_identifiers = set()
+        for order in orders_broker:
+            broker_identifiers.add(order.identifier)
+            for child_order in order.child_orders:
+                broker_identifiers.add(child_order.identifier)
+        return broker_identifiers
 
     def add_event(self, event_name, payload):
         self.queue.put((event_name, payload))

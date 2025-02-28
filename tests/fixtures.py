@@ -1,5 +1,7 @@
 from typing import List, Any
 import os
+from zoneinfo import ZoneInfo
+
 import pytest
 import logging
 import datetime
@@ -33,7 +35,7 @@ def polygon_data_backtesting():
 
 
 @pytest.fixture(scope="function")
-def pandas_data_fixture() -> List[Data]:
+def pandas_data_fixture():
     """
     Get a dictionary of Lumibot Data objects from the test data in tests/data folder
     """
@@ -85,28 +87,57 @@ def pandas_data_fixture() -> List[Data]:
 
 
 @pytest.fixture(scope="function")
-def pandas_data_fixture_amzn_day() -> List[Data]:
+def pandas_data_fixture_amzn_day():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
-        filename="AMZN_1D.csv",
+        filename="AMZN_DAY.csv",
         timestep="day"
     )
 
 
 @pytest.fixture(scope="function")
-def pandas_data_fixture_amzn_minute() -> List[Data]:
+def pandas_data_fixture_amzn_hour():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
-        filename="AMZN_1M.csv",
+        filename="AMZN_HOUR.csv",
         timestep="minute"
     )
 
 
 @pytest.fixture(scope="function")
-def pandas_data_fixture_btc_hourly() -> List[Data]:
+def pandas_data_fixture_amzn_minute():
+    return load_pandas_data_from_alpaca_cached_data(
+        symbol="AMZN",
+        filename="AMZN_MINUTE.csv",
+        timestep="minute"
+    )
+
+
+@pytest.fixture(scope="function")
+def pandas_data_fixture_btc_day():
+    return load_pandas_data_from_alpaca_cached_data(
+        symbol="BTC",
+        filename="BTC-USD_DAY.csv",
+        timestep="day",
+        asset_type="crypto"
+    )
+
+
+@pytest.fixture(scope="function")
+def pandas_data_fixture_btc_hour():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="BTC",
         filename="BTC-USD_HOUR.csv",
+        timestep="minute",
+        asset_type="crypto"
+    )
+
+
+@pytest.fixture(scope="function")
+def pandas_data_fixture_btc_minute():
+    return load_pandas_data_from_alpaca_cached_data(
+        symbol="BTC",
+        filename="BTC-USD_MINUTE.csv",
         timestep="minute",
         asset_type="crypto"
     )
@@ -130,6 +161,11 @@ def load_pandas_data_from_alpaca_cached_data(
         asset_type=asset_type,
     )
 
+    if asset_type == "crypto":
+        timezone = ZoneInfo("America/Chicago")
+    else:
+        timezone = ZoneInfo("America/New_York")
+
     df = pd.read_csv(
         csv_path,
         parse_dates=True,
@@ -146,6 +182,7 @@ def load_pandas_data_from_alpaca_cached_data(
         date_end=df.index[-1],
         timestep=timestep,
         quote=quote,
+        timezone=timezone,
     )
     pandas_data.append(data)
     return pandas_data

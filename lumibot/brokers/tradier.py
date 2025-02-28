@@ -689,7 +689,7 @@ class Tradier(Broker):
         """
         # The rounding needs to be cell by cell because OCO orders make the dataframe values inconsistent
         # and the column types will be set to 'object'
-        rounded_df = df.applymap(lambda x: round(x, 2) if isinstance(x, float) else x)
+        rounded_df = df.apply(lambda col: col.map(lambda x: round(x, 2) if isinstance(x, float) else x))
         cleaned_df = rounded_df.replace({pd.NA: None, pd.NaT: None, float('nan'): None})
         return cleaned_df.to_dict("records")
 

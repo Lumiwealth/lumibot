@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-
+from zoneinfo import ZoneInfo
 from pandas.testing import assert_series_equal
 
 from lumibot.backtesting import (
@@ -34,6 +34,7 @@ def check_bars(
         bars: Bars,
         length: int = 30,
         check_timezone: bool = True,
+        is_daily: bool = False,
 ):
     """
      This tests:
@@ -41,14 +42,33 @@ def check_bars(
         - the index is a timestamp
         - optionally checks the timezone of the index (alpaca is incorrect)
         - the bars contain returns
+        - if daily bars, the timestamp is midnight
     """
     assert len(bars.df) == length
     assert isinstance(bars.df.index[-1], pd.Timestamp)
 
+    # Create a proper timezone object for comparison
+    ny_timezone = ZoneInfo("America/New_York")
+    utc_timezone = ZoneInfo("UTC")
+
     if check_timezone:
-        assert bars.df.index[-1].tzinfo.zone == "America/New_York"
+        assert bars.df.index[-1].tzinfo == ny_timezone
 
     assert bars.df["return"].iloc[-1] is not None
+    
+    if is_daily:
+        # check that the hour of the daily bar is equivalent to midnight in either America/New_York or UTC
+        timestamp = bars.df.index[-1]
+
+        if timestamp.tzinfo == ny_timezone:
+            assert timestamp.hour == 0 and timestamp.minute == 0 and timestamp.second == 0, \
+                "Timestamp is not at midnight in America/New_York timezone"
+        elif timestamp.tzinfo == utc_timezone:
+            midnight_utc = timestamp.astimezone(pytz.timezone("America/New_York"))
+            assert midnight_utc.hour == 0 and midnight_utc.minute == 0 and midnight_utc.second == 0, \
+                "Timestamp is not at midnight in UTC or adjusted America/New_York timezone"
+        else:
+            raise ValueError("Unexpected timezone. Expected America/New_York or UTC.")
 
 
 # @pytest.mark.skip()
@@ -216,7 +236,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             pandas_data=pandas_data_fixture
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        check_bars(bars=bars, length=self.length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -245,7 +265,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timeshift=timeshift,
             timestep=self.timestep
         )
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -271,7 +291,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             pandas_data=pandas_data_fixture
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -314,7 +334,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=self.timestep
         )
         
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -347,7 +367,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -370,7 +390,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             pandas_data=pandas_data_fixture
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        check_bars(bars=bars, length=self.length, is_daily=True)
         self.check_dividends_and_adjusted_returns(bars)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
@@ -401,7 +421,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=self.timestep
         )
 
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -427,7 +447,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             pandas_data=pandas_data_fixture
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -458,7 +478,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             length=self.length,
             timestep=self.timestep
         )
-        check_bars(bars=bars, length=self.length)
+        check_bars(bars=bars, length=self.length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
             bars,
             backtesting_start=backtesting_start
@@ -507,7 +527,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=self.timestep
         )
 
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -547,7 +567,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         )
 
         bars = data_source.get_historical_prices(asset=self.asset, length=length, timestep=self.timestep)
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -597,7 +617,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep="day"
         )
 
-        check_bars(bars=bars, length=length)
+        check_bars(bars=bars, length=length, is_daily=True)
 
 
 # @pytest.mark.skip()
@@ -648,7 +668,7 @@ class TestDatasourceGetHistoricalPricesDailyData:
 
         # Alpaca's time zone is UTC. We should probably convert it to America/New_York
         # Alpaca data source does not provide dividends
-        check_bars(bars=bars, length=self.length, check_timezone=False)
+        check_bars(bars=bars, length=self.length, check_timezone=False, is_daily=True)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
         # TODO: convert the timezones returned by alpaca to America/New_York
@@ -656,7 +676,27 @@ class TestDatasourceGetHistoricalPricesDailyData:
 
         # This simulates what the call to get_yesterday_dividends does (lookback of 1)
         bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
-        check_bars(bars=bars, length=1, check_timezone=False)
+        check_bars(bars=bars, length=1, check_timezone=False, is_daily=True)
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
+
+    def test_alpaca_data_source_get_historical_prices_daily_bars_crypto(self):
+        data_source = AlpacaData(ALPACA_TEST_CONFIG)
+        asset = Asset('BTC', asset_type='crypto')
+        quote_asset = Asset('USD', asset_type='forex')
+        bars = data_source.get_historical_prices(asset=asset, length=self.length, timestep=self.timestep, quote=quote_asset)
+        check_bars(bars=bars, length=self.length, check_timezone=False, is_daily=True)
+
+        # Alpaca's time zone is UTC. We should probably convert it to America/New_York
+        # Alpaca data source does not provide dividends
+        check_bars(bars=bars, length=self.length, check_timezone=False, is_daily=True)
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
+
+        # TODO: convert the timezones returned by alpaca to America/New_York
+        assert bars.df.index[0].tzinfo == pytz.timezone("UTC")
+
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
+        check_bars(bars=bars, length=1, check_timezone=False, is_daily=True)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
     # @pytest.mark.skip()
@@ -710,10 +750,10 @@ class TestDatasourceGetHistoricalPricesDailyData:
         )
 
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
-        check_bars(bars=bars, length=self.length)
+        check_bars(bars=bars, length=self.length, check_timezone=False, is_daily=True)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
         # This simulates what the call to get_yesterday_dividends does (lookback of 1)
         bars = data_source.get_historical_prices(asset=self.asset, length=1, timestep=self.timestep)
-        check_bars(bars=bars, length=1)
+        check_bars(bars=bars, length=1, check_timezone=False, is_daily=True)
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)

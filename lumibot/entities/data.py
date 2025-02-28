@@ -40,7 +40,7 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    localize_timezone : str or None
+    timezone : str or None
         If not None, then localize the timezone of the dataframe to the
         given timezone as a string. The values can be any supported by tz_localize,
         e.g. "US/Eastern", "UTC", etc.
@@ -173,8 +173,10 @@ class Data:
                 self.df.index = self.df.index.tz_localize(timezone)
             else:
                 self.df.index = self.df.index.tz_convert(timezone)
+        else:
+            # If no timezone was passed in, use the default timezone.
+            self.df = self.set_date_format(self.df)
 
-        self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()
 
         self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
@@ -389,8 +391,9 @@ class Data:
             if getattr(self, "iter_index_dict", None) is None:
                 self.repair_times_and_fill(self.df.index)
 
-            if dt in self.iter_index_dict:
-                i = self.iter_index_dict[dt]
+            # Convert `dt` to a pandas.Timestamp
+            if pd.Timestamp(dt) in self.iter_index_dict:
+                i = self.iter_index_dict[pd.Timestamp(dt)]
             else:
                 # If not found, get the last known data
                 i = self.iter_index.asof(dt)

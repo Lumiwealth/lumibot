@@ -12,6 +12,7 @@ from lumibot.entities import Asset
 from tests.fixtures import (
     pandas_data_fixture,
     pandas_data_fixture_amzn_day,
+    pandas_data_fixture_amzn_hour,
     pandas_data_fixture_amzn_minute,
     BuyOneShareTestStrategy
 )
@@ -54,7 +55,7 @@ class TestPandasBacktest:
         )
 
     # @pytest.mark.skip()
-    def test_day_data(self, pandas_data_fixture_amzn_day):
+    def test_pandas_datasource_with_amzn_day(self, pandas_data_fixture_amzn_day):
         strategy_class = BuyOneShareTestStrategy
         backtesting_start = pandas_data_fixture_amzn_day[0].df.index[0]
         backtesting_end = pandas_data_fixture_amzn_day[0].df.index[-1] + timedelta(minutes=1)
@@ -78,15 +79,17 @@ class TestPandasBacktest:
             }
         )
         tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
+        assert tracker["iteration_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2021-01-04T09:30:00-05:00'
 
-        assert tracker['last_price'] == 218.46  # Close of '2025-01-13T09:30:00-05:00'
-        assert tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T09:30:00-05:00'
+        # daily data uses the close price of the current bar as the last price
+        # but unlike minute data, it uses the open price of the next bar as the fill price
+        assert tracker['last_price'] == 159.33  # Close of '2021-01-04T05:00:00+00:00'
+        assert tracker["avg_fill_price"] == 158.3  # Open of '2021-01-05 05:00:00+00:00'
 
     # @pytest.mark.skip()
-    def test_minute_data(self, pandas_data_fixture_amzn_minute):
+    def test_pandas_datasource_with_amzn_minute(self, pandas_data_fixture_amzn_minute):
         strategy_class = BuyOneShareTestStrategy
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
         backtesting_end = pandas_data_fixture_amzn_minute[0].df.index[-1] + timedelta(minutes=1)
@@ -111,23 +114,53 @@ class TestPandasBacktest:
         )
 
         tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
+        assert tracker["iteration_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2021-01-04T09:30:00-05:00'
 
-        # current prices seem wrong to me
-        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
-        assert tracker['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
-
-        # i think it should be:
-        # assert tracker['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
-        # assert tracker['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
+        # minute data uses the open price of the current bar as the last price and the fill price
+        assert tracker['last_price'] == 163.45   # Open price of '2021-01-04T14:30:00-00:00'
+        assert tracker['avg_fill_price'] == 163.45   # Open price of '2021-01-04T14:30:00-00:00'
 
     # @pytest.mark.skip()
-    def test_minute_data_using_60M_sleeptime(self, pandas_data_fixture_amzn_minute):
+    def test_pandas_datasource_with_amzn_hour(self, pandas_data_fixture_amzn_hour):
+        strategy_class = BuyOneShareTestStrategy
+        backtesting_start = pandas_data_fixture_amzn_hour[0].df.index[0]
+        backtesting_end = backtesting_start + timedelta(days=5)
+
+        result, strategy = strategy_class.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            pandas_data=pandas_data_fixture_amzn_hour,
+            risk_free_rate=0,
+            show_plot=False,
+            save_tearsheet=False,
+            show_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            quiet_logs=False,
+            parameters={
+                "sleeptime": "60M",
+                "symbol": "AMZN"
+            }
+        )
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2021-01-04T09:30:00-05:00'
+
+        # minute data uses the open price of the current bar as the last price and the fill price
+        assert tracker['last_price'] == 163.9   # Open price of '2021-01-04T14:00:00+00:00'
+        assert tracker['avg_fill_price'] == 163.9   # Open price of '2021-01-04T14:00:00+00:00'
+
+    # @pytest.mark.skip()
+    def test_pandas_datasource_with_amzn_minute_60M_sleeptime(self, pandas_data_fixture_amzn_minute):
         strategy_class = BuyOneShareTestStrategy
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
-        backtesting_end = pandas_data_fixture_amzn_minute[0].df.index[-1] + timedelta(minutes=1)
+        backtesting_end = backtesting_start + timedelta(days=5)
 
         result, strategy = strategy_class.run_backtest(
             datasource_class=PandasDataBacktesting,
@@ -149,15 +182,10 @@ class TestPandasBacktest:
         )
 
         tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
-        assert tracker['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker["iteration_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2021-01-04T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() ==    '2021-01-04T09:30:00-05:00'
 
-        # i think it should be:
-        # assert tracker['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
-        # assert tracker['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
-
-
-
+        # minute data uses the open price of the current bar as the last price and the fill price
+        assert tracker['last_price'] == 163.45   # Open price of '2021-01-04 14:30:00+00:00'
+        assert tracker['avg_fill_price'] == 163.45   # Open price of '2021-01-04 14:30:00+00:00'

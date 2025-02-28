@@ -195,6 +195,7 @@ class BuyOneShareTestStrategy(Strategy):
     def initialize(self, parameters: Any = None) -> None:
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
+        self.asset = self.parameters.get("asset", None)
         self.symbol = self.parameters.get("symbol", "AMZN")
         self.market_opens = []
         self.market_closes = []
@@ -228,7 +229,11 @@ class BuyOneShareTestStrategy(Strategy):
         self.num_trading_iterations += 1
         if self.first_iteration:
             now = self.get_datetime()
-            asset = Asset(self.parameters["symbol"])
+
+            if self.asset:
+                asset = self.asset
+            else:
+                asset = Asset(self.parameters["symbol"])
             current_asset_price = self.get_last_price(asset)
 
             # Buy 1 shares of the asset for the test

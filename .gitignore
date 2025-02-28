@@ -12,8 +12,8 @@ lumibot/cache
 .pytest*
 
 # Development files
-venv
-.venv
+venv*
+.venv*
 logs
 *debug.py
 todos.txt

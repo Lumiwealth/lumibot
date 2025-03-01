@@ -305,6 +305,10 @@ class AlpacaData(DataSource):
 
             # Alpaca now returns a dataframe with a MultiIndex. We only want an index of timestamps
             df = df.reset_index(level=0, drop=True)
+            
+            # Alpaca returns a datetimeindex with pydantic.Tzinfo. The rest of lumibot uses pytz.
+            if hasattr(df.index, 'tz') and df.index.tz.__class__.__name__ == 'TzInfo':
+                df.index = df.index.tz_convert(self.DEFAULT_PYTZ)
 
             if df.empty:
                 logging.error(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")

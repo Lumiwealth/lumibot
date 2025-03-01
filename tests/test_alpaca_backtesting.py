@@ -246,11 +246,12 @@ class TestAlpacaBacktesting:
     """Tests for the AlpacaBacktesting class itself."""
 
     # @pytest.mark.skip()
-    def test_single_stock_day_bars(self):
+    def test_single_stock_day_bars_utc(self):
         tickers = "AMZN"
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
+        tz_name = "UTC"
         refresh_cache = False
 
         data_source = AlpacaBacktesting(
@@ -260,10 +261,47 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
         assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 5
+        assert df.index[0].isoformat() == "2025-01-13T05:00:00+00:00"
+        assert df['open'].iloc[0] == 218.06
+        assert df['close'].iloc[0] == 218.46
+        assert df.index[-1].isoformat() == "2025-01-17T05:00:00+00:00"
+        assert df['open'].iloc[-1] == 225.84
+        assert df['close'].iloc[-1] == 225.94
+
+    def test_single_stock_day_bars_america_new_york(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'day'
+        refresh_cache = False
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert data_source.datetime_end.isoformat() == '2025-01-17T23:59:00-05:00'
         assert isinstance(data_source.pandas_data, dict)
         assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
         assert next(iter(data_source.pandas_data))[1].symbol == "USD"
@@ -281,12 +319,13 @@ class TestAlpacaBacktesting:
         assert df['close'].iloc[-1] == 225.94
 
     # @pytest.mark.skip()
-    def test_single_stock_minute_bars(self):
+    def test_single_stock_minute_bars_utc(self):
         tickers = "AMZN"
         start_date = "2025-01-13"
         end_date = "2025-01-14"
         timestep = 'minute'
         refresh_cache = False
+        tz_name = "UTC"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -295,10 +334,47 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
         assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 732
+        assert df.index[0].isoformat() == '2025-01-13T09:00:00+00:00'
+        assert df.index[-1].isoformat() == '2025-01-13T23:58:00+00:00'
+        assert df['open'].iloc[0] == 217.73
+        assert df['close'].iloc[0] == 216.68
+        assert df['open'].iloc[-1] == 219.27
+        assert df['close'].iloc[-1] == 219.27
+
+    def test_single_stock_minute_bars_america_new_york(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-05:00"
         assert isinstance(data_source.pandas_data, dict)
         assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
         assert next(iter(data_source.pandas_data))[1].symbol == "USD"
@@ -316,12 +392,13 @@ class TestAlpacaBacktesting:
         assert df['close'].iloc[-1] == 219.27
 
     # @pytest.mark.skip()
-    def test_single_stock_hour_bars(self):
+    def test_single_stock_hour_bars_utc(self):
         tickers = "AMZN"
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'hour'
         refresh_cache = False
+        tz_name = "UTC"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -330,10 +407,51 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
         assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+
+        # PandasData only knows about day and minute timestep. Hourly bars are handled by minute mode.
+        assert data.timestep == 'minute'
+
+        df = data.df
+        assert not df.empty
+        assert len(df.index) == 80
+        assert df.index[0].isoformat() == "2025-01-13T09:00:00+00:00"
+        assert df.index[-1].isoformat() == "2025-01-18T00:00:00+00:00"
+        assert df['open'].iloc[0] == 217.73
+        assert df['close'].iloc[0] == 215.68
+        assert df['open'].iloc[-1] == 226.3
+        assert df['close'].iloc[-1] == 226.39
+
+    # @pytest.mark.skip()
+    def test_single_stock_hour_bars_america_new_york(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'hour'
+        refresh_cache = False
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
+        assert data_source.datetime_end.isoformat() == '2025-01-17T23:59:00-05:00'
         assert isinstance(data_source.pandas_data, dict)
         assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
         assert next(iter(data_source.pandas_data))[1].symbol == "USD"
@@ -354,13 +472,50 @@ class TestAlpacaBacktesting:
         assert df['close'].iloc[-1] == 226.39
 
     # @pytest.mark.skip()
-    def test_tz_name_day_bars(self):
-        tickers = "AMZN"
+    def test_single_crypto_daily_bars_utc(self):
+        tickers = "BTC/USD"
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
         refresh_cache = False
-        tz_name = "US/Eastern"
+        tz_name = "UTC"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 5
+        assert df.index[0].isoformat() == "2025-01-13T06:00:00+00:00"
+        assert df['open'].iloc[0] == 94066.35
+        assert df['close'].iloc[0] == 94861.625
+        assert df.index[-1].isoformat() == "2025-01-17T06:00:00+00:00"
+        assert df['open'].iloc[-1] == 101416.579115
+        assert df['close'].iloc[-1] == 102846.0
+
+    # @pytest.mark.skip()
+    def test_single_crypto_daily_bars_america_new_york(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
+        timestep = 'day'
+        refresh_cache = False
+        tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -374,41 +529,6 @@ class TestAlpacaBacktesting:
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
         assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00-05:00"
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-
-        data = list(data_source.pandas_data.values())[0]
-        df = data.df
-
-        assert not df.empty
-        assert len(df.index) == 5
-        assert df.index[0].isoformat() == "2025-01-13T00:00:00-05:00"
-        assert df['open'].iloc[0] == 218.06
-        assert df['close'].iloc[0] == 218.46
-        assert df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
-        assert df['open'].iloc[-1] == 225.84
-        assert df['close'].iloc[-1] == 225.94
-
-    # @pytest.mark.skip()
-    def test_single_crypto_daily_bars(self):
-        tickers = "BTC/USD"
-        start_date = "2025-01-13"
-        end_date = "2025-01-18"
-        timestep = 'day'
-        refresh_cache = False
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-        )
-
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
-        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
         assert isinstance(data_source.pandas_data, dict)
         assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
         assert next(iter(data_source.pandas_data))[1].symbol == "USD"
@@ -426,12 +546,13 @@ class TestAlpacaBacktesting:
         assert df['close'].iloc[-1] == 102846.0
 
     # @pytest.mark.skip()
-    def test_single_crypto_minute_bars(self):
+    def test_single_crypto_daily_bars_america_chicago(self):
         tickers = "BTC/USD"
         start_date = "2025-01-13"
-        end_date = "2025-01-14"
-        timestep = 'minute'
+        end_date = "2025-01-18"
+        timestep = 'day'
         refresh_cache = False
+        tz_name = "America/Chicago" # Alpaca crypto daily bars are natively indexed at midnight central time
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -440,6 +561,44 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00-06:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 5
+        assert df.index[0].isoformat() == "2025-01-13T00:00:00-06:00"
+        assert df['open'].iloc[0] == 94066.35
+        assert df['close'].iloc[0] == 94861.625
+        assert df.index[-1].isoformat() == "2025-01-17T00:00:00-06:00"
+        assert df['open'].iloc[-1] == 101416.579115
+        assert df['close'].iloc[-1] == 102846.0
+
+    # @pytest.mark.skip()
+    def test_single_crypto_minute_bars_utc(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+        tz_name = "UTC"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -453,9 +612,121 @@ class TestAlpacaBacktesting:
 
         assert not df.empty
         assert len(df.index) == 1196
-        assert df.index[0].isoformat() == '2025-01-12T19:00:00-05:00'
-        assert df.index[-1].isoformat() == '2025-01-13T18:58:00-05:00'
+        assert df.index[0].isoformat() == '2025-01-13T00:00:00+00:00'
+        assert df.index[-1].isoformat() == '2025-01-13T23:58:00+00:00'
         assert df['open'].iloc[0] == 94558.75
         assert df['close'].iloc[0] == 94558.75
         assert df['open'].iloc[-1] == 94511.24
         assert df['close'].iloc[-1] == 94511.24
+
+    # @pytest.mark.skip()
+    def test_single_crypto_minute_bars_america_chicago(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+        tz_name = "America/Chicago"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-06:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 959
+        assert df.index[0].isoformat() == '2025-01-13T00:01:00-06:00'
+        assert df.index[-1].isoformat() == '2025-01-13T17:58:00-06:00'
+        assert df['open'].iloc[0] == 94066.35
+        assert df['close'].iloc[0] == 94151.7
+        assert df['open'].iloc[-1] == 94511.24
+        assert df['close'].iloc[-1] == 94511.24
+
+    # @pytest.mark.skip()
+    def test_single_crypto_hour_bars_utc(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'hour'
+        refresh_cache = False
+        tz_name = "UTC"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00+00:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 24
+        assert df.index[0].isoformat() == '2025-01-13T00:00:00+00:00'
+        assert df.index[-1].isoformat() == '2025-01-13T23:00:00+00:00'
+        assert df['open'].iloc[0] == 94558.75
+        assert df['close'].iloc[0] == 95295.13
+        assert df['open'].iloc[-1] == 94393.892
+        assert df['close'].iloc[-1] == 94511.24
+
+    # @pytest.mark.skip()
+    def test_single_crypto_hour_bars_america_chicago(self):
+        tickers = "BTC/USD"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'hour'
+        refresh_cache = False
+        tz_name = "America/Chicago"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-06:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+
+        assert not df.empty
+        assert len(df.index) == 18
+        assert df.index[0].isoformat() == '2025-01-13T00:00:00-06:00'
+        assert df.index[-1].isoformat() == '2025-01-13T17:00:00-06:00'
+        assert df['open'].iloc[0] == 94066.35
+        assert df['close'].iloc[0] == 93590.758
+        assert df['open'].iloc[-1] == 94393.892
+        assert df['close'].iloc[-1] == 94511.24
+

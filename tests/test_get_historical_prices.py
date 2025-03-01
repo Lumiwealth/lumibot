@@ -68,7 +68,7 @@ def check_bars(
 
 
 # @pytest.mark.skip()
-class TestDatasourceGetHistoricalPricesDailyData:
+class TestDatasourceLiveGetHistoricalPrices:
     """These tests check the daily Bars returned from get_historical_prices for live data sources."""
 
     # noinspection PyMethodMayBeStatic

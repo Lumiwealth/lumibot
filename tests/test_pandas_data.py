@@ -72,8 +72,8 @@ class TestPandasData:
         data = pandas_data_fixture_amzn_minute[0]
         assert data.asset.symbol == 'AMZN'
         assert data.timestep == 'minute'
-        assert data.df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
-        assert data.df.index[-1].isoformat() == '2025-01-17T19:59:00-05:00'
+        assert data.df.index[0].isoformat() == '2020-12-31T19:01:00-05:00'
+        assert data.df.index[-1].isoformat() == '2021-01-08T17:58:00-05:00'
 
     def test_pandas_data_fixture_btc_day(self, pandas_data_fixture_btc_day):
         assert pandas_data_fixture_btc_day is not None

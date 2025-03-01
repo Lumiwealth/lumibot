@@ -90,9 +90,9 @@ class AlpacaBacktesting(PandasData):
             secret_key=config["API_SECRET"]
         )
 
-        # Convert the date string to UTC midnight datetime.
-        start_dt = pd.to_datetime(start_date).tz_localize(self.tz_name)
-        end_dt = pd.to_datetime(end_date).tz_localize(self.tz_name)
+        # Another approach using pd.Timestamp
+        start_dt = pd.Timestamp(start_date, tz=self.tz_name).normalize()  # normalize() sets to midnight
+        end_dt = pd.Timestamp(end_date, tz=self.tz_name).normalize()
 
         if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_days_from_date(

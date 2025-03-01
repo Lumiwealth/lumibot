@@ -53,9 +53,17 @@ class TestAlpacaBroker:
         broker._conform_order(order)
         assert order.limit_price == 0.1235
 
+    @pytest.mark.skip(reason="This test is won't work. Alpaca broker doesn't have an options data source.")
     def test_option_get_last_price(self):
-        broker = Alpaca(ALPACA_TEST_CONFIG)
-        dte = datetime.now()
+        broker = Alpaca(
+            ALPACA_TEST_CONFIG,
+        )
+        # calculate the last calendar day before today
+        trading_days = get_trading_days(
+            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
+            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        )
+        dte = trading_days.index[-1]
         spy_price = broker.get_last_price(asset=Asset('SPY'))
         price = broker.get_last_price(asset=Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL'))
         assert price != 0

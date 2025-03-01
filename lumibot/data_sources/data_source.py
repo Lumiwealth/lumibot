@@ -77,6 +77,12 @@ class DataSource(ABC):
         For example, with a length of 10 and a timestep of "1day", and now timeshift, this
         would return the last 10 daily bars.
 
+        - Higher-level method that returns a `Bars` object
+        - Handles timezone conversions automatically
+        - Includes additional metadata and processing
+        - Preferred for strategy development and backtesting
+        - Returns normalized data with consistent format across data sources
+
         Parameters
         ----------
         asset : Asset

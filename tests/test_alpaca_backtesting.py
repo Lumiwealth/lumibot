@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
@@ -13,7 +14,7 @@ from tests.fixtures import (
 
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
-    
+
 
 class TestAlpacaBacktesting:
     """Tests for the AlpacaBacktesting datasource class as well as using it in strategies."""
@@ -24,7 +25,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-18"
         timestep = 'day'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -33,7 +34,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
@@ -54,10 +55,10 @@ class TestAlpacaBacktesting:
         # Convert to midnight in the specified timezone
         backtesting_start = pd.to_datetime(start_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         backtesting_end = pd.to_datetime(end_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
         assert backtesting_end.isoformat() == "2025-01-18T00:00:00-05:00"
 
@@ -105,7 +106,7 @@ class TestAlpacaBacktesting:
         start_date = "2025-01-13"
         end_date = "2025-01-18"
         timestep = 'day'
-        tz_name = "UTC"
+        tzinfo = ZoneInfo("UTC")
         refresh_cache = False
 
         data_source = AlpacaBacktesting(
@@ -115,7 +116,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -139,7 +140,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-14"
         timestep = 'minute'
         refresh_cache = False
-        tz_name = "UTC"
+        tzinfo = ZoneInfo("UTC")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -148,7 +149,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -171,7 +172,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-14"
         timestep = 'minute'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -180,7 +181,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
@@ -206,10 +207,10 @@ class TestAlpacaBacktesting:
         # Convert to midnight in the specified timezone
         backtesting_start = pd.to_datetime(start_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         backtesting_end = pd.to_datetime(end_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
         assert backtesting_end.isoformat() == '2025-01-14T00:00:00-05:00'
 
@@ -254,7 +255,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-14"
         timestep = 'minute'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -263,7 +264,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
@@ -289,10 +290,10 @@ class TestAlpacaBacktesting:
         # Convert to midnight in the specified timezone
         backtesting_start = pd.to_datetime(start_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         backtesting_end = pd.to_datetime(end_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
         assert backtesting_end.isoformat() == '2025-01-14T00:00:00-05:00'
 
@@ -338,7 +339,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-18"
         timestep = 'hour'
         refresh_cache = False
-        tz_name = "UTC"
+        tzinfo = ZoneInfo("UTC")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -347,7 +348,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -377,7 +378,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-18"
         timestep = 'hour'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -386,7 +387,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
@@ -411,10 +412,10 @@ class TestAlpacaBacktesting:
         # Convert to midnight in the specified timezone
         backtesting_start = pd.to_datetime(start_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         backtesting_end = pd.to_datetime(end_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(tz_name)
+        ).tz_localize(tzinfo)
         assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
         assert backtesting_end.isoformat() == '2025-01-18T00:00:00-05:00'
 
@@ -460,7 +461,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-18"
         timestep = 'day'
         refresh_cache = False
-        tz_name = "UTC"
+        tzinfo = ZoneInfo("UTC")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -469,7 +470,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
@@ -493,7 +494,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-18"
         timestep = 'day'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -502,7 +503,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
@@ -528,7 +529,7 @@ class TestAlpacaBacktesting:
         refresh_cache = False
 
         # Alpaca crypto daily bars are natively indexed at midnight central time
-        tz_name = "America/Chicago"
+        tzinfo = ZoneInfo("America/Chicago")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -537,7 +538,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
@@ -561,7 +562,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-02"
         timestep = 'minute'
         refresh_cache = False
-        tz_name = "UTC"
+        tzinfo = ZoneInfo("UTC")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -570,7 +571,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-01T00:00:00+00:00"
@@ -596,7 +597,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-02"
         timestep = 'minute'
         refresh_cache = False
-        tz_name = "America/Chicago"
+        tzinfo = ZoneInfo("America/Chicago")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -605,7 +606,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-01T00:00:00-06:00"
@@ -634,7 +635,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-02"
         timestep = 'hour'
         refresh_cache = False
-        tz_name = "UTC"
+        tzinfo = ZoneInfo("UTC")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -643,7 +644,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-01T00:00:00+00:00"
@@ -667,7 +668,7 @@ class TestAlpacaBacktesting:
         end_date = "2025-01-02"
         timestep = 'hour'
         refresh_cache = False
-        tz_name = "America/Chicago"
+        tzinfo = ZoneInfo("America/Chicago")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -676,7 +677,7 @@ class TestAlpacaBacktesting:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         assert data_source.datetime_start.isoformat() == "2025-01-01T00:00:00-06:00"

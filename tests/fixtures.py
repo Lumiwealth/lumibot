@@ -188,9 +188,8 @@ def load_pandas_data_from_alpaca_cached_data(
     return pandas_data
 
 
-class BuyOneShareTestStrategy(Strategy):
+class BuyOnceTestStrategy(Strategy):
 
-    # Set the initial values for the strategy
     # noinspection PyAttributeOutsideInit
     def initialize(self, parameters: Any = None) -> None:
         self.set_market(self.parameters.get("market", "NYSE"))
@@ -201,6 +200,10 @@ class BuyOneShareTestStrategy(Strategy):
         self.market_closes = []
         self.tracker = {}
         self.num_trading_iterations = 0
+        self.trading_iterations = []
+
+        if not self.asset:
+            self.asset = Asset(self.parameters["symbol"])
 
     def before_market_opens(self):
         self.log_message(f"Before market opens called at {self.get_datetime().isoformat()}")
@@ -226,24 +229,21 @@ class BuyOneShareTestStrategy(Strategy):
 
     # noinspection PyAttributeOutsideInit
     def on_trading_iteration(self):
+        now = self.get_datetime()
         self.num_trading_iterations += 1
-        if self.first_iteration:
-            now = self.get_datetime()
+        self.trading_iterations.append(now)
 
-            if self.asset:
-                asset = self.asset
-            else:
-                asset = Asset(self.parameters["symbol"])
-            current_asset_price = self.get_last_price(asset)
+        if self.first_iteration:
+            current_asset_price = self.get_last_price(self.asset)
 
             # Buy 1 shares of the asset for the test
             qty = 1
-            self.log_message(f"Buying {qty} shares of {asset} at {current_asset_price} @ {now}")
-            order = self.create_order(asset, quantity=qty, side="buy")
+            self.log_message(f"Buying {qty} shares of {self.asset} at {current_asset_price} @ {now}")
+            order = self.create_order(self.asset, quantity=qty, side="buy")
             submitted_order = self.submit_order(order)
             self.tracker = {
-                "symbol": self.symbol,
-                "iteration_at": self.get_datetime(),
+                "symbol": self.asset.symbol,
+                "iteration_at": now,
                 "last_price": current_asset_price,
                 "order_id": submitted_order.identifier,
             }

@@ -17,7 +17,7 @@ from tests.fixtures import (
     pandas_data_fixture_btc_day,
     pandas_data_fixture_btc_hour,
     pandas_data_fixture_btc_minute,
-    BuyOneShareTestStrategy
+    BuyOnceTestStrategy
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class TestPandasBacktest:
 
     # @pytest.mark.skip()
     def test_pandas_datasource_with_amzn_day(self, pandas_data_fixture_amzn_day):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_amzn_day[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -93,7 +93,7 @@ class TestPandasBacktest:
 
     # @pytest.mark.skip()
     def test_pandas_datasource_with_amzn_minute(self, pandas_data_fixture_amzn_minute):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -127,7 +127,7 @@ class TestPandasBacktest:
 
     # @pytest.mark.skip()
     def test_pandas_datasource_with_amzn_hour(self, pandas_data_fixture_amzn_hour):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_amzn_hour[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -161,7 +161,7 @@ class TestPandasBacktest:
 
     # @pytest.mark.skip()
     def test_pandas_datasource_with_amzn_minute_60M_sleeptime(self, pandas_data_fixture_amzn_minute):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_amzn_minute[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -194,7 +194,7 @@ class TestPandasBacktest:
         assert tracker['avg_fill_price'] == 163.45   # Open price of '2021-01-04 14:30:00+00:00'
 
     def test_pandas_datasource_with_btc_day(self, pandas_data_fixture_btc_day):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_btc_day[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -228,7 +228,7 @@ class TestPandasBacktest:
         assert tracker["avg_fill_price"] == 30461.84  # Open of '2021-01-05 06:00:00+00:00'
 
     def test_pandas_datasource_with_btc_hour(self, pandas_data_fixture_btc_hour):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_btc_hour[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -261,7 +261,7 @@ class TestPandasBacktest:
         assert tracker['avg_fill_price'] == 31418.36   # Open price of '2021-01-04 14:00:00+00:00'
 
     def test_pandas_datasource_with_btc_minute(self, pandas_data_fixture_btc_minute):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_btc_minute[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 
@@ -295,7 +295,7 @@ class TestPandasBacktest:
 
 
     def test_pandas_datasource_with_btc_minute_60M_sleeptime(self, pandas_data_fixture_btc_minute):
-        strategy_class = BuyOneShareTestStrategy
+        strategy_class = BuyOnceTestStrategy
         backtesting_start = pandas_data_fixture_btc_minute[0].df.index[0]
         backtesting_end = backtesting_start + timedelta(days=5)
 

@@ -1,42 +1,68 @@
-import pytest
 from datetime import datetime, timedelta
+
+import pandas as pd
+import pytest
 
 from lumibot.backtesting import AlpacaBacktesting, PandasDataBacktesting
 from lumibot.credentials import ALPACA_TEST_CONFIG
 
 from tests.fixtures import (
-    BuyOneShareTestStrategy
+    BuyOnceTestStrategy
 )
 
 
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
+    
 
+class TestAlpacaBacktesting:
+    """Tests for the AlpacaBacktesting datasource class as well as using it in strategies."""
 
-class TestAlpacaBacktestingBacktests:
-    """Tests for running backtests with AlpacaBacktesting, BacktestingBroker, and Trader."""
-
-    # @pytest.mark.skip()
-    def test_day_data_backtest(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 18)
+    def test_single_stock_day_bars_america_new_york(self):
         tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-18"
         timestep = 'day'
         refresh_cache = False
         tz_name = "America/New_York"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
-            start_date=backtesting_start.date().isoformat(),
-            end_date=backtesting_end.date().isoformat(),
+            start_date=start_date,
+            end_date=end_date,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tz_name=tz_name
         )
 
-        strategy: BuyOneShareTestStrategy
-        results, strategy = BuyOneShareTestStrategy.run_backtest(
+        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert data_source.datetime_end.isoformat() == '2025-01-17T23:59:00-05:00'
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+        assert not df.empty
+        assert len(df.index) == 5
+        
+        # daily bars are indexed at midnight (the open of the bar).
+        assert df.index[0].isoformat() == "2025-01-13T00:00:00-05:00"
+        assert df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
+
+        # Convert to midnight in the specified timezone
+        backtesting_start = pd.to_datetime(start_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        backtesting_end = pd.to_datetime(end_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert backtesting_end.isoformat() == "2025-01-18T00:00:00-05:00"
+
+        strategy: BuyOnceTestStrategy
+        results, strategy = BuyOnceTestStrategy.run_backtest(
             datasource_class=PandasDataBacktesting,
             pandas_data=data_source.pandas_data,
             backtesting_start=backtesting_start,
@@ -55,195 +81,23 @@ class TestAlpacaBacktestingBacktests:
         )
         assert results
 
-        # Assert the end datetime is before the next trading day
-        assert strategy.broker.datetime.isoformat() == '2025-01-18T09:25:00-05:00'
+        # check when trading iterations happened
+        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-17T09:30:00-05:00'
         assert strategy.num_trading_iterations == 5
 
         tracker = strategy.tracker
         assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
 
         assert tracker['last_price'] == 218.46  # Close of '2025-01-13T09:30:00-05:00'
         assert tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T09:30:00-05:00'
 
-        # Checks bug where LifeCycle methods not being called during PANDAS backtesting
+        # TODO: fix pandas backtesting bug. These should be called but aren't.
+        # Check lifeCycle methods are being called during PANDAS backtesting
         # assert len(strategy.market_opens) == 5
         # assert len(strategy.market_closes) == 5
-
-    # @pytest.mark.skip()
-    def test_minute_data_backtest(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 18)
-        tickers = "AMZN"
-        timestep = 'minute'
-        refresh_cache = False
-        tz_name = "America/New_York"
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=backtesting_start.date().isoformat(),
-            end_date=backtesting_end.date().isoformat(),
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tz_name=tz_name
-        )
-
-        strategy: BuyOneShareTestStrategy
-        results, strategy = BuyOneShareTestStrategy.run_backtest(
-            datasource_class=PandasDataBacktesting,
-            pandas_data=data_source.pandas_data,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            parameters={
-                "symbol": "AMZN",
-                "sleeptime": "1M",
-                "market": "NYSE"
-            },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
-        )
-        assert results
-
-        # Assert the end datetime is before the next trading day
-        assert strategy.broker.datetime.isoformat() == '2025-01-21T08:30:00-05:00'
-        assert strategy.num_trading_iterations == 1930
-
-        tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
-
-        # current prices seem wrong to me
-        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
-        assert tracker['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
-
-        # I think it should be:
-        # assert tracker['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
-        # assert tracker['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
-
-        # Checks bug where LifeCycle methods not being called during PANDAS backtesting
-        # assert len(strategy.market_opens) == 5
-        # assert len(strategy.market_closes) == 5
-
-    def test_minute_data_with_60_sleeptime_backtest(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 18)
-        tickers = "AMZN"
-        timestep = 'minute'
-        refresh_cache = False
-        tz_name = "America/New_York"
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=backtesting_start.date().isoformat(),
-            end_date=backtesting_end.date().isoformat(),
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tz_name=tz_name
-        )
-
-        strategy: BuyOneShareTestStrategy
-        results, strategy = BuyOneShareTestStrategy.run_backtest(
-            datasource_class=PandasDataBacktesting,
-            pandas_data=data_source.pandas_data,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            parameters={
-                "symbol": "AMZN",
-                "sleeptime": "60M",
-                "market": "NYSE"
-            },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
-        )
-        assert results
-
-        # Assert the end datetime is before the next trading day
-        assert strategy.broker.datetime.isoformat() == '2025-01-21T08:30:00-05:00'
-        assert strategy.num_trading_iterations == 5 * 7
-
-        tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
-
-        # current prices seem wrong to me
-        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
-        assert tracker['avg_fill_price'] == 218.06   # Open price of '2025-01-13T09:30:00-05:00'
-
-        # I think it should be:
-        # assert tracker['last_price'] == 217.92  # Close price of '2025-01-13T09:30:00-05:00'
-        # assert tracker['avg_fill_price'] == 218.0  # Open price of '2025-01-13T09:31:00-05:00'
-
-        # Checks bug where LifeCycle methods not being called during PANDAS backtesting
-        # assert len(strategy.market_opens) == 5
-        # assert len(strategy.market_closes) == 5
-
-    def test_hour_data_with_60_sleeptime_backtest(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 18)
-        tickers = "AMZN"
-        timestep = 'hour'
-        refresh_cache = False
-        tz_name = "America/New_York"
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=backtesting_start.date().isoformat(),
-            end_date=backtesting_end.date().isoformat(),
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tz_name=tz_name
-        )
-
-        strategy: BuyOneShareTestStrategy
-        results, strategy = BuyOneShareTestStrategy.run_backtest(
-            datasource_class=PandasDataBacktesting,
-            pandas_data=data_source.pandas_data,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            parameters={
-                "symbol": "AMZN",
-                "sleeptime": "60M",
-                "market": "NYSE"
-            },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
-        )
-        assert results
-
-        # Assert the end datetime is before the next trading day
-        assert strategy.broker.datetime.isoformat() == '2025-01-21T08:30:00-05:00'
-        assert strategy.num_trading_iterations == 5 * 7
-
-        tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2025-01-13T09:30:00-05:00'
-
-        # current prices seem wrong to me
-        assert tracker['last_price'] == 217.615
-        assert tracker['avg_fill_price'] == 217.62
-
-
-class TestAlpacaBacktestingDataSource:
-    """Tests for the AlpacaBacktesting datasource class itself."""
 
     # @pytest.mark.skip()
     def test_single_stock_day_bars_utc(self):
@@ -277,38 +131,6 @@ class TestAlpacaBacktestingDataSource:
         assert len(df.index) == 5
         assert df.index[0].isoformat() == "2025-01-13T05:00:00+00:00"
         assert df.index[-1].isoformat() == "2025-01-17T05:00:00+00:00"
-
-    def test_single_stock_day_bars_america_new_york(self):
-        tickers = "AMZN"
-        start_date = "2025-01-13"
-        end_date = "2025-01-18"
-        timestep = 'day'
-        refresh_cache = False
-        tz_name = "America/New_York"
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tz_name=tz_name
-        )
-
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
-        assert data_source.datetime_end.isoformat() == '2025-01-17T23:59:00-05:00'
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-
-        data = list(data_source.pandas_data.values())[0]
-        df = data.df
-
-        assert not df.empty
-        assert len(df.index) == 5
-        assert df.index[0].isoformat() == "2025-01-13T00:00:00-05:00"
-        assert df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
 
     # @pytest.mark.skip()
     def test_single_stock_minute_bars_utc(self):
@@ -370,13 +192,144 @@ class TestAlpacaBacktestingDataSource:
         data = list(data_source.pandas_data.values())[0]
         df = data.df
         assert not df.empty
-        assert len(df.index) <= 1440
 
-        # Pre-market trading opens at 4am EDT which is 9 UTC.
+        # TODO: limit getting data from extended trading hours
+        # this assumes we get a minute bar for every bar in normal trading hours.
+        # assert len(df.index) == 6.5 * 60
+
+        # Pre-market trading opens at 4am EDT
         assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
 
-        # extended trading ended at 8pm EDT which is 20 UTC.
+        # extended trading ended at 8pm EDT which is 20 in military time.
         assert df.index[-1].isoformat() == '2025-01-13T19:59:00-05:00'
+
+        # Convert to midnight in the specified timezone
+        backtesting_start = pd.to_datetime(start_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        backtesting_end = pd.to_datetime(end_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert backtesting_end.isoformat() == '2025-01-14T00:00:00-05:00'
+
+        strategy: BuyOnceTestStrategy
+        results, strategy = BuyOnceTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            parameters={
+                "symbol": "AMZN",
+                "sleeptime": "1M",
+                "market": "NYSE"
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            minutes_before_closing=0
+        )
+        assert results
+
+        # check when trading iterations happened
+        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-13T15:59:00-05:00'
+        assert strategy.num_trading_iterations == 6.5 * 60
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # When using minute data, last price and fill price are the open price of the current bar.
+        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+
+    def test_single_stock_minute_bars_america_new_york_with_60m_sleeptime(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+        tz_name = "America/New_York"
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tz_name=tz_name
+        )
+
+        assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-05:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+        assert not df.empty
+
+        # TODO: limit getting data from extended trading hours
+        # this assumes we get a minute bar for every bar in normal trading hours.
+        # assert len(df.index) == 6.5 * 60
+
+        # Pre-market trading opens at 4am EDT
+        assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
+
+        # extended trading ended at 8pm EDT which is 20 in military time.
+        assert df.index[-1].isoformat() == '2025-01-13T19:59:00-05:00'
+
+        # Convert to midnight in the specified timezone
+        backtesting_start = pd.to_datetime(start_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        backtesting_end = pd.to_datetime(end_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert backtesting_end.isoformat() == '2025-01-14T00:00:00-05:00'
+
+        strategy: BuyOnceTestStrategy
+        results, strategy = BuyOnceTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            parameters={
+                "symbol": "AMZN",
+                "sleeptime": "60M",
+                "market": "NYSE"
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            minutes_before_closing=0
+        )
+        assert results
+
+        # check when trading iterations happened
+        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-13T15:30:00-05:00'
+        assert strategy.num_trading_iterations == 7
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # When using minute data, last price and fill price are the open price of the current bar.
+        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
 
     # @pytest.mark.skip()
     def test_single_stock_hour_bars_utc(self):
@@ -454,6 +407,51 @@ class TestAlpacaBacktestingDataSource:
         #
         assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
         assert df.index[-1].isoformat() == '2025-01-17T19:00:00-05:00'
+
+        # Convert to midnight in the specified timezone
+        backtesting_start = pd.to_datetime(start_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        backtesting_end = pd.to_datetime(end_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tz_name)
+        assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert backtesting_end.isoformat() == '2025-01-18T00:00:00-05:00'
+
+        strategy: BuyOnceTestStrategy
+        results, strategy = BuyOnceTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            parameters={
+                "symbol": "AMZN",
+                "sleeptime": "60M",
+                "market": "NYSE"
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            minutes_before_closing=0
+        )
+        assert results
+
+        # check when trading iterations happened
+        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-17T15:30:00-05:00'
+        assert strategy.num_trading_iterations == 35
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # When using minute data, last price and fill price are the open price of the current bar.
+        assert tracker['last_price'] == 217.615  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 217.62  # Open price of '2025-01-13T09:30:00-05:00'
 
     # @pytest.mark.skip()
     def test_single_crypto_daily_bars_utc(self):

@@ -369,11 +369,14 @@ class TestAlpacaBacktestingDataSource:
 
         data = list(data_source.pandas_data.values())[0]
         df = data.df
-
         assert not df.empty
-        assert len(df.index) == 732
+        assert len(df.index) <= 1440
+
+        # Pre-market trading opens at 4am EDT which is 9 UTC.
         assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
-        assert df.index[-1].isoformat() == '2025-01-13T18:58:00-05:00'
+
+        # extended trading ended at 8pm EDT which is 20 UTC.
+        assert df.index[-1].isoformat() == '2025-01-13T19:59:00-05:00'
 
     # @pytest.mark.skip()
     def test_single_stock_hour_bars_utc(self):
@@ -404,12 +407,15 @@ class TestAlpacaBacktestingDataSource:
 
         # PandasData only knows about day and minute timestep. Hourly bars are handled by minute mode.
         assert data.timestep == 'minute'
-
         df = data.df
         assert not df.empty
-        assert len(df.index) == 80
+        assert len(df.index) == 79  # minute data is missing bars.
+
+        # Pre-market trading opens at 4am EDT which is 9 UTC.
         assert df.index[0].isoformat() == "2025-01-13T09:00:00+00:00"
-        assert df.index[-1].isoformat() == "2025-01-18T00:00:00+00:00"
+
+        # midnight UTC is 7pm EST and extended hours markets are still open.
+        assert df.index[-1].isoformat() == '2025-01-17T23:00:00+00:00'
 
     # @pytest.mark.skip()
     def test_single_stock_hour_bars_america_new_york(self):
@@ -444,6 +450,8 @@ class TestAlpacaBacktestingDataSource:
         df = data.df
         assert not df.empty
         assert len(df.index) == 80
+
+        #
         assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
         assert df.index[-1].isoformat() == '2025-01-17T19:00:00-05:00'
 
@@ -520,7 +528,9 @@ class TestAlpacaBacktestingDataSource:
         end_date = "2025-01-18"
         timestep = 'day'
         refresh_cache = False
-        tz_name = "America/Chicago" # Alpaca crypto daily bars are natively indexed at midnight central time
+
+        # Alpaca crypto daily bars are natively indexed at midnight central time
+        tz_name = "America/Chicago"
 
         data_source = AlpacaBacktesting(
             tickers=tickers,

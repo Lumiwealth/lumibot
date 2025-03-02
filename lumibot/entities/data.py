@@ -35,10 +35,10 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    trading_hours_start : datetime.time or None
-        If not supplied, then default is 0001 hrs.
-    trading_hours_end : datetime.time or None
-        If not supplied, then default is 2359 hrs.
+    trading_hours_start : datetime.time or None. Only applicable when timestep is 'minute'.
+        If not supplied, then default is 0000 hrs.
+    trading_hours_end : datetime.time or None. Only applicable when timestep is 'minute'.
+        If not supplied, then default is 2359 hrs (inclusive).
     timestep : str
         Either "minute" (default) or "day"
     tzinfo : ZoneInfo or None

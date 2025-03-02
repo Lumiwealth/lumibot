@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
 from zoneinfo import ZoneInfo
 from typing import List
 import os
@@ -42,6 +42,8 @@ class AlpacaBacktesting(PandasData):
             tickers: List[str] | str,
             start_date: str,
             end_date: str,
+            trading_hours_start=time(9, 30),
+            trading_hours_end=time(15, 59),
             timestep: str = 'day',
             refresh_cache: bool = False,
             config: dict | None = None,
@@ -64,6 +66,10 @@ class AlpacaBacktesting(PandasData):
                 format. Must comply with the `pandas.to_datetime` format.
             end_date (str): The end date of the historical data range in string
                 format. Must comply with the `pandas.to_datetime` format.
+            trading_hours_start : datetime.time (inclusive) or None. Only applicable when timestep is 'minute'.
+                If not supplied, then default is 09:30 (to align with the default LUMIBOT_TIMEZONE).
+            trading_hours_end : datetime.time (inclusive) or None. Only applicable when timestep is 'minute'.
+                If not supplied, then default is 15:59 hrs (to align with the default LUMIBOT_TIMEZONE).
             timestep (str): The time interval for the historical data (e.g., 'minute', 'hour' and
                 'day'). Default is 'day'. When hour bars are used, the timestep will be set to minute.
             refresh_cache (bool): Whether to refresh the cached historical data or use
@@ -118,6 +124,8 @@ class AlpacaBacktesting(PandasData):
             tickers=tickers,
             start_dt=warm_up_start_dt,
             end_dt=end_dt,
+            trading_hours_start=trading_hours_start,
+            trading_hours_end=trading_hours_end,
             timestep=timestep,
             refresh_cache=refresh_cache,
             auto_adjust=auto_adjust,
@@ -137,6 +145,8 @@ class AlpacaBacktesting(PandasData):
             tickers: List[str] | str,
             start_dt: datetime,
             end_dt: datetime,
+            trading_hours_start: datetime,
+            trading_hours_end: datetime,
             timestep: str = 'day',
             refresh_cache: bool = False,
             auto_adjust: bool = True,
@@ -148,6 +158,8 @@ class AlpacaBacktesting(PandasData):
             tickers: A list of tickers to fetch data for.
             start_dt: The start date to fetch data for (inclusive from midnight) in YYYY-MM-DD format.
             end_dt: The end date to fetch data for (exclusive) in YYYY-MM-DD format.
+            trading_hours_start: The start time for trading days in HH:MM (inclusive).
+            trading_hours_end: The end time for trading days in HH:MM (inclusive).
             timestep: The interval to fetch data for. Options: 'day' (default), 'minute', 'hour'.
             refresh_cache: Ignore current cache and fetch from source again. Default is False.
             auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
@@ -190,9 +202,15 @@ class AlpacaBacktesting(PandasData):
             if not refresh_cache and os.path.exists(filepath):
                 logger.info(f"Loading {ticker} data from cache.")
                 try:
-                    df = pd.read_csv(filepath, parse_dates=['timestamp'])
                     # Parse timestamp column and localize to the original timezone
+                    df = pd.read_csv(filepath, parse_dates=['timestamp'])
+
+                    # First convert strings to datetime with timezone
+                    df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+                    # Then apply the timezone conversion
                     df["timestamp"] = df["timestamp"].apply(lambda ts: ts.tz_convert(self.tzinfo))
+
                 except FileNotFoundError:
                     raise RuntimeError(f"No data found for {ticker}.")
             else:
@@ -240,6 +258,8 @@ class AlpacaBacktesting(PandasData):
                 df=df,
                 date_start=start_dt,
                 date_end=end_dt,
+                trading_hours_start=trading_hours_start,
+                trading_hours_end=trading_hours_end,
                 timestep=self._timestep,
                 quote=quote_asset,
                 tzinfo=tzinfo

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta, time
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -92,7 +92,10 @@ class TestAlpacaBacktesting:
         assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
 
+        # With daily data, last price gets the close of the current bar.
         assert tracker['last_price'] == 218.46  # Close of '2025-01-13T09:30:00-05:00'
+
+        # With daily data, trades are filled using the open price of the next bar.
         assert tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T09:30:00-05:00'
 
         # TODO: fix pandas backtesting bug. These should be called but aren't.
@@ -100,73 +103,75 @@ class TestAlpacaBacktesting:
         # assert len(strategy.market_opens) == 5
         # assert len(strategy.market_closes) == 5
 
-    # @pytest.mark.skip()
-    def test_single_stock_day_bars_utc(self):
-        tickers = "AMZN"
-        start_date = "2025-01-13"
-        end_date = "2025-01-18"
-        timestep = 'day'
-        tzinfo = ZoneInfo("UTC")
-        refresh_cache = False
+    # # @pytest.mark.skip(reason='Not sure why you would run a NYSE backtest in UTC')
+    # def test_single_stock_day_bars_utc(self):
+    #     tickers = "AMZN"
+    #     start_date = "2025-01-13"
+    #     end_date = "2025-01-18"
+    #     timestep = 'day'
+    #     tzinfo = ZoneInfo("UTC")
+    #     refresh_cache = False
+    #
+    #     data_source = AlpacaBacktesting(
+    #         tickers=tickers,
+    #         start_date=start_date,
+    #         end_date=end_date,
+    #         timestep=timestep,
+    #         config=ALPACA_TEST_CONFIG,
+    #         refresh_cache=refresh_cache,
+    #         tzinfo=tzinfo
+    #     )
+    #
+    #     assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+    #     assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
+    #     assert isinstance(data_source.pandas_data, dict)
+    #     assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+    #     assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+    #
+    #     data = list(data_source.pandas_data.values())[0]
+    #     df = data.df
+    #
+    #     assert not df.empty
+    #     assert len(df.index) == 5
+    #     assert df.index[0].isoformat() == "2025-01-13T05:00:00+00:00"
+    #     assert df.index[-1].isoformat() == "2025-01-17T05:00:00+00:00"
 
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tzinfo=tzinfo
-        )
+    # # @pytest.mark.skip(reason='Not sure why you would run a NYSE backtest in UTC')
+    # def test_single_stock_minute_bars_utc(self):
+    #     tickers = "AMZN"
+    #     start_date = "2025-01-13"
+    #     end_date = "2025-01-14"
+    #     timestep = 'minute'
+    #     refresh_cache = False
+    #     tzinfo = ZoneInfo("UTC")
+    #
+    #     data_source = AlpacaBacktesting(
+    #         tickers=tickers,
+    #         start_date=start_date,
+    #         end_date=end_date,
+    #         trading_hours_start = time(9, 30),
+    #         trading_hours_end = time(15, 59),
+    #         timestep=timestep,
+    #         config=ALPACA_TEST_CONFIG,
+    #         refresh_cache=refresh_cache,
+    #         tzinfo=tzinfo
+    #     )
+    #
+    #     assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+    #     assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00+00:00"
+    #     assert isinstance(data_source.pandas_data, dict)
+    #     assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+    #     assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+    #
+    #     data = list(data_source.pandas_data.values())[0]
+    #     df = data.df
+    #
+    #     assert not df.empty
+    #     assert len(df.index) == 732
+    #     assert df.index[0].isoformat() == '2025-01-13T09:00:00+00:00'
+    #     assert df.index[-1].isoformat() == '2025-01-13T23:58:00+00:00'
 
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
-        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-
-        data = list(data_source.pandas_data.values())[0]
-        df = data.df
-
-        assert not df.empty
-        assert len(df.index) == 5
-        assert df.index[0].isoformat() == "2025-01-13T05:00:00+00:00"
-        assert df.index[-1].isoformat() == "2025-01-17T05:00:00+00:00"
-
-    # @pytest.mark.skip()
-    def test_single_stock_minute_bars_utc(self):
-        tickers = "AMZN"
-        start_date = "2025-01-13"
-        end_date = "2025-01-14"
-        timestep = 'minute'
-        refresh_cache = False
-        tzinfo = ZoneInfo("UTC")
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tzinfo=tzinfo
-        )
-
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
-        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00+00:00"
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-
-        data = list(data_source.pandas_data.values())[0]
-        df = data.df
-
-        assert not df.empty
-        assert len(df.index) == 732
-        assert df.index[0].isoformat() == '2025-01-13T09:00:00+00:00'
-        assert df.index[-1].isoformat() == '2025-01-13T23:58:00+00:00'
-
-    def test_single_stock_minute_bars_america_new_york(self):
+    def test_single_stock_minute_bars_america_new_york_regular_hours(self):
         tickers = "AMZN"
         start_date = "2025-01-13"
         end_date = "2025-01-14"
@@ -178,6 +183,8 @@ class TestAlpacaBacktesting:
             tickers=tickers,
             start_date=start_date,
             end_date=end_date,
+            trading_hours_start=time(9, 30),
+            trading_hours_end=time(15, 59),
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
@@ -194,9 +201,96 @@ class TestAlpacaBacktesting:
         df = data.df
         assert not df.empty
 
-        # TODO: limit getting data from extended trading hours
         # this assumes we get a minute bar for every bar in normal trading hours.
-        # assert len(df.index) == 6.5 * 60
+        assert len(df.index) == 6.5 * 60
+
+        # Regular trading opens at 930am EDT
+        assert df.index[0].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # Regular trading ends at 4pm EDT which is 16 in military time.
+        # However, trading_hours_start, trading_hours_end are inclusive.
+        assert df.index[-1].isoformat() == '2025-01-13T15:59:00-05:00'
+
+        # Convert to midnight in the specified timezone
+        backtesting_start = pd.to_datetime(start_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tzinfo)
+        backtesting_end = pd.to_datetime(end_date).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).tz_localize(tzinfo)
+        assert backtesting_start.isoformat() == "2025-01-13T00:00:00-05:00"
+        assert backtesting_end.isoformat() == '2025-01-14T00:00:00-05:00'
+
+        strategy: BuyOnceTestStrategy
+        results, strategy = BuyOnceTestStrategy.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            pandas_data=data_source.pandas_data,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            parameters={
+                "symbol": "AMZN",
+                "sleeptime": "1M",
+                "market": "NYSE"
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            minutes_before_closing=0
+        )
+        assert results
+
+        # check when trading iterations happened
+        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-13T15:59:00-05:00'
+        assert strategy.num_trading_iterations == 6.5 * 60
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # When using minute data, last price and fill price are the open price of the current bar.
+        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+
+    def test_single_stock_minute_bars_america_new_york_extended_hours(self):
+        tickers = "AMZN"
+        start_date = "2025-01-13"
+        end_date = "2025-01-14"
+        timestep = 'minute'
+        refresh_cache = False
+        tzinfo = ZoneInfo("America/New_York")
+
+        data_source = AlpacaBacktesting(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+
+            # Alpaca extended hours are from 4am-8pm EDT
+            trading_hours_start=time(4, 00),
+            trading_hours_end=time(19, 59),
+
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tzinfo=tzinfo
+        )
+
+        assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-05:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+        assert not df.empty
+
+        # We don't get a minute bar for every bar in extended trading hours.
+        assert len(df.index) <= 16 * 60
 
         # Pre-market trading opens at 4am EDT
         assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
@@ -261,6 +355,8 @@ class TestAlpacaBacktesting:
             tickers=tickers,
             start_date=start_date,
             end_date=end_date,
+            trading_hours_start=time(9, 30),
+            trading_hours_end=time(15, 59),
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
@@ -277,15 +373,14 @@ class TestAlpacaBacktesting:
         df = data.df
         assert not df.empty
 
-        # TODO: limit getting data from extended trading hours
         # this assumes we get a minute bar for every bar in normal trading hours.
-        # assert len(df.index) == 6.5 * 60
+        assert len(df.index) == 6.5 * 60
 
-        # Pre-market trading opens at 4am EDT
-        assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
+        # Regular trading opens at 930am EDT
+        assert df.index[0].isoformat() == '2025-01-13T09:30:00-05:00'
 
-        # extended trading ended at 8pm EDT which is 20 in military time.
-        assert df.index[-1].isoformat() == '2025-01-13T19:59:00-05:00'
+        # Regular trading ends at 4pm EDT which is 16 in military time.
+        assert df.index[-1].isoformat() == '2025-01-13T15:59:00-05:00'
 
         # Convert to midnight in the specified timezone
         backtesting_start = pd.to_datetime(start_date).replace(
@@ -333,45 +428,6 @@ class TestAlpacaBacktesting:
         assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
 
     # @pytest.mark.skip()
-    def test_single_stock_hour_bars_utc(self):
-        tickers = "AMZN"
-        start_date = "2025-01-13"
-        end_date = "2025-01-18"
-        timestep = 'hour'
-        refresh_cache = False
-        tzinfo = ZoneInfo("UTC")
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tzinfo=tzinfo
-        )
-
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
-        assert data_source.datetime_end.isoformat() == "2025-01-17T23:59:00+00:00"
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-
-        data = list(data_source.pandas_data.values())[0]
-
-        # PandasData only knows about day and minute timestep. Hourly bars are handled by minute mode.
-        assert data.timestep == 'minute'
-        df = data.df
-        assert not df.empty
-        assert len(df.index) == 79  # minute data is missing bars.
-
-        # Pre-market trading opens at 4am EDT which is 9 UTC.
-        assert df.index[0].isoformat() == "2025-01-13T09:00:00+00:00"
-
-        # midnight UTC is 7pm EST and extended hours markets are still open.
-        assert df.index[-1].isoformat() == '2025-01-17T23:00:00+00:00'
-
-    # @pytest.mark.skip()
     def test_single_stock_hour_bars_america_new_york(self):
         tickers = "AMZN"
         start_date = "2025-01-13"
@@ -384,6 +440,10 @@ class TestAlpacaBacktesting:
             tickers=tickers,
             start_date=start_date,
             end_date=end_date,
+
+            # To get the 930 start, we start at 9
+            trading_hours_start=time(9, 0),
+            trading_hours_end=time(15, 59),
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
@@ -403,11 +463,14 @@ class TestAlpacaBacktesting:
 
         df = data.df
         assert not df.empty
-        assert len(df.index) == 80
 
-        #
-        assert df.index[0].isoformat() == '2025-01-13T04:00:00-05:00'
-        assert df.index[-1].isoformat() == '2025-01-17T19:00:00-05:00'
+        assert len(df.index) == 7 * 5
+
+        # Regular trading opens at 930am EDT, but hour bars start at 00 minutes
+        assert df.index[0].isoformat() == '2025-01-13T09:00:00-05:00'
+
+        # Regular trading ends at 4pm EDT which is 16 in military time, but hour bars start at 00 minutes
+        assert df.index[-1].isoformat() == '2025-01-17T15:00:00-05:00'
 
         # Convert to midnight in the specified timezone
         backtesting_start = pd.to_datetime(start_date).replace(

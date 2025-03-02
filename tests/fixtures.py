@@ -1,5 +1,4 @@
 from typing import List, Any
-import os
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -162,9 +161,9 @@ def load_pandas_data_from_alpaca_cached_data(
     )
 
     if asset_type == "crypto":
-        timezone = ZoneInfo("America/Chicago")
+        tzinfo = ZoneInfo("America/Chicago")
     else:
-        timezone = ZoneInfo("America/New_York")
+        tzinfo = ZoneInfo("America/New_York")
 
     df = pd.read_csv(
         csv_path,
@@ -182,7 +181,7 @@ def load_pandas_data_from_alpaca_cached_data(
         date_end=df.index[-1],
         timestep=timestep,
         quote=quote,
-        timezone=timezone,
+        tzinfo=tzinfo,
     )
     pandas_data.append(data)
     return pandas_data

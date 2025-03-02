@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from pandas.testing import assert_series_equal
+from zoneinfo import ZoneInfo
 
 from lumibot.backtesting import (
     PolygonDataBacktesting,
@@ -33,7 +34,7 @@ def check_bars(
         *,
         bars: Bars,
         length: int = 30,
-        data_source_timezone: pytz.timezone = None,
+        data_source_timezone: ZoneInfo = None,
         check_midnight: bool = False,
 ):
     """
@@ -55,11 +56,12 @@ def check_bars(
     if check_midnight:
         # check that the hour of the daily bar is equivalent to midnight in either America/New_York or UTC
         timestamp = bars.df.index[-1]
+        tz_str = timestamp.tzinfo.key if hasattr(timestamp.tzinfo, 'key') else str(timestamp.tzinfo)
 
-        if timestamp.tzinfo.zone == LUMIBOT_DEFAULT_TIMEZONE:
+        if tz_str == LUMIBOT_DEFAULT_TIMEZONE:
             assert timestamp.hour == 0 and timestamp.minute == 0 and timestamp.second == 0, \
                 "Timestamp is not at midnight in America/New_York timezone"
-        elif timestamp.tzinfo.zone == "UTC":
+        elif tz_str == "UTC":
             ny_time = timestamp.astimezone(LUMIBOT_DEFAULT_PYTZ)
             assert ny_time.hour == 0 and ny_time.minute == 0 and ny_time.second == 0, \
                 "Timestamp is not at midnight in America/New_York timezone"
@@ -646,7 +648,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         end_date = backtesting_end.date().isoformat()
         timestep = 'day'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -655,7 +657,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name,
+            tzinfo=tzinfo,
         )
 
         length = 2
@@ -693,7 +695,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         end_date = backtesting_end.date().isoformat()
         timestep = 'day'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
         length = 10
 
         data_source = AlpacaBacktesting(
@@ -703,7 +705,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name,
+            tzinfo=tzinfo,
             warm_up_trading_days=length,
         )
 
@@ -737,7 +739,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         end_date = backtesting_end.date().isoformat()
         timestep = 'minute'  # using minute bars, but asking for daily bars in get_historical_prices
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
             tickers=tickers,
@@ -746,7 +748,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name,
+            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_days,
         )
 

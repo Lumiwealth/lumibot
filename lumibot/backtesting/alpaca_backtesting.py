@@ -165,7 +165,7 @@ class AlpacaBacktesting(PandasData):
 
         for ticker in tickers:
             cleaned_ticker = replace_slashes(ticker)
-            filename = f"{cleaned_ticker}_{timestep}_{adj}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}"
+            filename = f"{cleaned_ticker}_{timestep}_{adj}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}_{tz_name}"
             filename = replace_slashes(filename).upper()
             filename += '.csv'
             filepath = os.path.join(cache_dir, filename)

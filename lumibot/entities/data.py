@@ -2,6 +2,7 @@ import datetime
 import logging
 from decimal import Decimal
 from typing import Union
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -40,17 +41,15 @@ class Data:
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    timezone : str or None
+    tzinfo : ZoneInfo or None
         If not None, then localize the timezone of the dataframe to the
         given timezone as a string. The values can be any supported by tz_localize,
-        e.g. "US/Eastern", "UTC", etc.
+        e.g. "America/New_York", "UTC", etc.
 
     Attributes
     ----------
     asset : Asset Object
         Asset object to which this data is attached.
-    sybmol : str
-        The underlying or stock symbol as a string.
     df : dataframe
         Pandas dataframe containing OHLCV etc trade data. Loaded by user
         from csv.
@@ -120,10 +119,9 @@ class Data:
         trading_hours_end=datetime.time(23, 59),
         timestep="minute",
         quote=None,
-        timezone=None,
+        tzinfo: ZoneInfo = None,
     ):
         self.asset = asset
-        # self.symbol = self.asset.symbol
 
         if self.asset.asset_type == "crypto" and quote is None:
             raise ValueError(
@@ -168,11 +166,11 @@ class Data:
                     self.df = self.df.set_index(date_col)
                     break
 
-        if timezone is not None:
+        if tzinfo is not None:
             if self.df.index.tz is None:
-                self.df.index = self.df.index.tz_localize(timezone)
+                self.df.index = self.df.index.tz_localize(tzinfo)
             else:
-                self.df.index = self.df.index.tz_convert(timezone)
+                self.df.index = self.df.index.tz_convert(tzinfo)
         else:
             # If no timezone was passed in, use the default timezone.
             self.df = self.set_date_format(self.df)
@@ -424,8 +422,6 @@ class Data:
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
-        timestep : str
-            The frequency of the data to get the last price.
         timeshift : int
             The number of periods to shift the data.
 
@@ -449,8 +445,6 @@ class Data:
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
-        timestep : str
-            The frequency of the data to get the last price.
         timeshift : int
             The number of periods to shift the data.
 

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import List
 import os
 
@@ -11,7 +12,7 @@ from alpaca.data.timeframe import TimeFrame
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Data, Asset
-from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools.helpers import date_n_days_from_date
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class AlpacaBacktesting(PandasData):
             timestep: str = 'day',
             refresh_cache: bool = False,
             config: dict | None = None,
-            tz_name: str = timezone.utc,
+            tzinfo: ZoneInfo = ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE),
             warm_up_trading_days: int = 0,
             market: str = "NYSE",
             auto_adjust: bool = True,
@@ -70,14 +71,14 @@ class AlpacaBacktesting(PandasData):
             auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
             config (dict | None): Configuration dictionary containing `API_KEY` and
                 `API_SECRET` for authenticating with Alpaca APIs.
-            tz_name (str): The name of the timezone to localize datetime values.
-                Default is `timezone.utc`.
+            tzinfo (ZoneInfo): The name of the timezone to localize datetime values.
+                Default is `ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)`.
             warm_up_trading_days (int): The number of additional trading days to fetch before
                 `start_date`, useful for warming up trading algorithms. Default is 0.
             market (str): The market to fetch data for. Default is 'NYSE'.
         """
         self.CACHE_SUBFOLDER = 'alpaca'
-        self.tz_name = tz_name
+        self.tzinfo = tzinfo
         self._timestep = timestep
 
         self._crypto_client = CryptoHistoricalDataClient(
@@ -94,10 +95,10 @@ class AlpacaBacktesting(PandasData):
         start_dt = pd.to_datetime(start_date).replace(
             hour=0, minute=0, second=0, microsecond=0
         ).tz_localize(
-            self.tz_name)
+            self.tzinfo)
         end_dt = pd.to_datetime(end_date).replace(
             hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(self.tz_name)
+        ).tz_localize(self.tzinfo)
 
         if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_days_from_date(
@@ -108,7 +109,7 @@ class AlpacaBacktesting(PandasData):
             # Combine with a default time (midnight)
             warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())
             # Make it timezone-aware
-            warm_up_start_dt = pd.to_datetime(warm_up_start_dt).tz_localize(self.tz_name)
+            warm_up_start_dt = pd.to_datetime(warm_up_start_dt).tz_localize(self.tzinfo)
 
         else:
             warm_up_start_dt = start_dt
@@ -120,7 +121,7 @@ class AlpacaBacktesting(PandasData):
             timestep=timestep,
             refresh_cache=refresh_cache,
             auto_adjust=auto_adjust,
-            tz_name=tz_name
+            tzinfo=tzinfo
         )
 
         super().__init__(
@@ -136,10 +137,10 @@ class AlpacaBacktesting(PandasData):
             tickers: List[str] | str,
             start_dt: datetime,
             end_dt: datetime,
-            timestep: str = '1d',
+            timestep: str = 'day',
             refresh_cache: bool = False,
             auto_adjust: bool = True,
-            tz_name: str = None,
+            tzinfo: ZoneInfo = None,
     ) -> List[Data]:
         """ Fetches, caches, and loads data for a list of tickers.
 
@@ -150,7 +151,7 @@ class AlpacaBacktesting(PandasData):
             timestep: The interval to fetch data for. Options: 'day' (default), 'minute', 'hour'.
             refresh_cache: Ignore current cache and fetch from source again. Default is False.
             auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
-            tz_name : If not None, then localize the timezone of the dataframe to the 
+            tzinfo : If not None, then localize the timezone of the dataframe to the 
             given timezone as a string. The values can be any supported by tz_localize,
             e.g. "US/Eastern", "UTC", etc.
         """
@@ -170,7 +171,7 @@ class AlpacaBacktesting(PandasData):
 
         for ticker in tickers:
             cleaned_ticker = replace_slashes(ticker)
-            filename = f"{cleaned_ticker}_{timestep}_{adj}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}_{tz_name}"
+            filename = f"{cleaned_ticker}_{timestep}_{adj}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}_{tzinfo}"
             filename = replace_slashes(filename).upper()
             filename += '.csv'
             filepath = os.path.join(cache_dir, filename)
@@ -191,7 +192,7 @@ class AlpacaBacktesting(PandasData):
                 try:
                     df = pd.read_csv(filepath, parse_dates=['timestamp'])
                     # Parse timestamp column and localize to the original timezone
-                    df["timestamp"] = df["timestamp"].apply(lambda ts: ts.tz_convert(self.tz_name))
+                    df["timestamp"] = df["timestamp"].apply(lambda ts: ts.tz_convert(self.tzinfo))
                 except FileNotFoundError:
                     raise RuntimeError(f"No data found for {ticker}.")
             else:
@@ -241,7 +242,7 @@ class AlpacaBacktesting(PandasData):
                 date_end=end_dt,
                 timestep=self._timestep,
                 quote=quote_asset,
-                timezone=tz_name
+                tzinfo=tzinfo
             )
             data_list.append(new_data)
 

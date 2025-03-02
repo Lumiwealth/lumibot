@@ -219,7 +219,7 @@ class TestMomentum:
         end_date = self.backtesting_end.date().isoformat()
         timestep = 'day'
         refresh_cache = False
-        tz_name = "America/New_York"
+        tzinfo = "America/New_York"
         lookback_period = 30
 
         data_source = AlpacaBacktesting(
@@ -229,7 +229,7 @@ class TestMomentum:
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tz_name=tz_name,
+            tzinfo=tzinfo,
             warm_up_trading_days=lookback_period
         )
 

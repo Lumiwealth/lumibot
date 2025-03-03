@@ -94,10 +94,13 @@ class TestAlpacaBacktesting:
         assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
 
-        # With daily data, last price gets the close of the current bar.
+        # With daily data, last price gets the close of the current bar because
+        # daily bars are indexed at midnight and at 930am the open has already passed.
         assert tracker['last_price'] == 218.46  # Close of '2025-01-13T09:30:00-05:00'
 
-        # With daily data, trades are filled using the open price of the next bar.
+        # Since marked orders are always fill with the open of a bar, with daily data,
+        # they are filled at teh open of the next bar, because the open of the current bar (midnight)
+        # has already passed.
         assert tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T09:30:00-05:00'
 
         # TODO: fix pandas backtesting bug. These should be called but aren't.
@@ -457,7 +460,7 @@ class TestAlpacaBacktesting:
         assert tracker['avg_fill_price'] == 217.62  # Open price of '2025-01-13T09:30:00-05:00'
 
     # @pytest.mark.skip()
-    def test_single_crypto_daily_bars_america_chicago(self):
+    def test_single_crypto_day_bars_america_chicago(self):
         tickers = "BTC/USD"
         start_date = "2025-01-13"
         end_date = "2025-01-18"
@@ -534,13 +537,12 @@ class TestAlpacaBacktesting:
         assert tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
 
-        # TODO: Investigate. I thought daily data used the close of the current bar for last price
-        # and the open of the next bar for filling.
-
-        # With daily data, last price gets the close of the current bar.
+        # with crypto, the open of the bar is midnight and thats a tradable bar so
+        # get_last_price returns the open of the current bar just like it does with minute and hour data.
         assert tracker['last_price'] == 94066.35  # open of 2025-01-13 06:00:00+00:00
 
-        # With daily data, trades are filled using the open price of the next bar.
+        # with crypto, the open of the bar is midnight and thats a tradable bar so
+        # the backtest broker returns the open of the current bar just like it does with minute and hour data.
         assert tracker["avg_fill_price"] == 94066.35  # Open of 2025-01-13 06:00:00+00:00
 
     # @pytest.mark.skip()
@@ -624,13 +626,7 @@ class TestAlpacaBacktesting:
         assert tracker["submitted_at"].isoformat() == '2025-01-13T00:01:00-06:00'
         assert tracker["filled_at"].isoformat() == '2025-01-13T00:01:00-06:00'
 
-        # TODO: Investigate. I thought daily data used the close of the current bar for last price
-        # and the open of the next bar for filling.
-
-        # With daily data, last price gets the close of the current bar.
         assert tracker['last_price'] == 94066.35  # open of 2025-01-13 06:00:00+00:00
-
-        # With daily data, trades are filled using the open price of the next bar.
         assert tracker["avg_fill_price"] == 94066.35  # Open of 2025-01-13 06:00:00+00:00
 
     # @pytest.mark.skip()
@@ -708,9 +704,6 @@ class TestAlpacaBacktesting:
         assert tracker["iteration_at"].isoformat() == '2025-01-01T00:00:00+00:00'
         assert tracker["submitted_at"].isoformat() == '2025-01-01T00:00:00+00:00'
         assert tracker["filled_at"].isoformat() == '2025-01-01T00:00:00+00:00'
-
-        # TODO: Investigate. I thought daily data used the close of the current bar for last price
-        # and the open of the next bar for filling.
 
         # open of the current bar.
         assert tracker['last_price'] == 93381.5825  # open of 2025-01-01 00:00:00+00:00
@@ -794,12 +787,10 @@ class TestAlpacaBacktesting:
         assert tracker["submitted_at"].isoformat() == '2025-01-01T00:00:00-06:00'
         assert tracker["filled_at"].isoformat() == '2025-01-01T00:00:00-06:00'
 
-        # TODO: Investigate. I thought daily data used the close of the current bar for last price
-        # and the open of the next bar for filling.
-
         # open of the current bar.
         assert tracker['last_price'] == 93486.63  # open of 2025-01-01 06:00:00+00:00
 
         # open price of the current bar.
         assert tracker["avg_fill_price"] == 93486.63  # Open of 2025-01-01 06:00:00+00:00
+
 

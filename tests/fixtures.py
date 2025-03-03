@@ -232,8 +232,11 @@ class BuyOnceTestStrategy(Strategy):
         self.num_trading_iterations += 1
         self.trading_iterations.append(now)
 
-        if self.first_iteration:
+        if len(self.tracker) == 0:
             current_asset_price = self.get_last_price(self.asset)
+
+            if not current_asset_price:
+                return
 
             # Buy 1 shares of the asset for the test
             qty = 1

@@ -132,7 +132,7 @@ class _Strategy:
         sleeptime="1M",
         stats_file=None,
         risk_free_rate=None,
-        benchmark_asset="SPY",
+        benchmark_asset: str | Asset | None = "SPY",
         backtesting_start=None,
         backtesting_end=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
@@ -177,9 +177,9 @@ class _Strategy:
             The file name to save the stats to.
         risk_free_rate : float
             The risk-free rate to use for calculating the Sharpe ratio.
-        benchmark_asset : Asset or str
+        benchmark_asset : Asset or str or None
             The asset to use as the benchmark for the strategy. Defaults to "SPY". Strings are converted to
-            Asset objects with an asset_type="stock".
+            Asset objects with an asset_type="stock". None, means don't benchmark the strategy.
         backtesting_start : datetime.datetime
             The date and time to start backtesting from. Required for backtesting.
         backtesting_end : datetime.datetime
@@ -790,7 +790,7 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
-        if not self.is_backtesting:
+        if not self.is_backtesting or not self._benchmark_asset:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
             # Need to adjust the backtesting end date because the data from Yahoo
@@ -956,7 +956,7 @@ class _Strategy:
         auto_adjust = False,
         name = None,
         budget = None,
-        benchmark_asset = "SPY",
+        benchmark_asset: str | Asset | None="SPY",
         plot_file_html = None,
         trades_file = None,
         settings_file = None,
@@ -1015,9 +1015,9 @@ class _Strategy:
             The name of the strategy.
         budget : float
             The initial budget to use for the backtest.
-        benchmark_asset : str or Asset
+        benchmark_asset : str or Asset or None
             The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
-            to a stock Asset object.
+            to a stock Asset object. If it is None, no benchmarking will occur.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str

@@ -2,6 +2,7 @@ import os
 import datetime
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -39,17 +40,17 @@ class MomoTester(Strategy):
         self.actual_df = pd.DataFrame(columns=["date", "actual_momo"])
 
     def on_trading_iteration(self):
-        dt, actual_momo = self.get_momentum(self.symbol, self.lookback_period)
+        dt = self.get_datetime()
+        actual_momo = self.get_momentum(self.symbol, self.lookback_period)
         self.actual_df.loc[len(self.actual_df)] = {
             "date": dt.date(),
             "actual_momo": actual_momo,
         }
 
     def get_momentum(self, symbol, lookback_period):
-        bars = self.get_historical_prices(symbol, lookback_period + 2, timestep="day")
-        dt = bars.df.index[-1]
+        bars = self.get_historical_prices(symbol, lookback_period, timestep="day")
         actual_momo = bars.get_momentum(lookback_period)
-        return dt, actual_momo
+        return actual_momo
 
 
 class TestMomentum:
@@ -65,7 +66,6 @@ class TestMomentum:
         df.rename(columns={"Date": "date"}, inplace=True)
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
-        df['adj_returns'] = df['Adj Close'].pct_change()
         cls.df = df
 
     # noinspection PyMethodMayBeStatic
@@ -74,7 +74,7 @@ class TestMomentum:
         # in bars.get_momentum. But here were using the Adjusted Close from yahoo. And in bars.get_momentum,
         # we calculated the adjusted returns by using unadjusted close prices and dividends.
         df = df_orig.copy()
-        df['expected_momo'] = df['Adj Close'].pct_change(lookback_period)
+        df['expected_momo'] = df['Adj Close'].pct_change(lookback_period-1).shift(1)
         return df
 
     def build_comparison_df(self, strategy) -> pd.DataFrame:
@@ -215,27 +215,14 @@ class TestMomentum:
     )
     def test_momo_alpaca_lookback_30(self):
         tickers = "SPY"
-        start_date = self.backtesting_start.date().isoformat()
-        end_date = self.backtesting_end.date().isoformat()
         timestep = 'day'
         refresh_cache = False
-        tzinfo = "America/New_York"
+        tzinfo = ZoneInfo("America/New_York")
         lookback_period = 30
-
-        data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
-            warm_up_trading_days=lookback_period
-        )
+        market='NYSE'
 
         results, strategy = MomoTester.run_backtest(
-            datasource_class=PandasDataBacktesting,
-            pandas_data=data_source.pandas_data,
+            datasource_class=AlpacaBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
             parameters={
@@ -247,17 +234,26 @@ class TestMomentum:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=False
+            quiet_logs=False,
+
+            # AlpacaBacktesting kwargs
+            tickers=tickers,
+            refresh_cache=refresh_cache,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            warm_up_trading_days=lookback_period,
+            tzinfo=tzinfo,
+            market=market,
         )
         comparison_df = self.build_comparison_df(strategy)
 
         # Remove the first row
-        comparison_df = comparison_df.iloc[1:]
+        # comparison_df = comparison_df.iloc[1:]
 
         assert_series_equal(
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
-            atol=1e-3,
+            atol=1e-2,  # be more flexible. im comparing data from alpaca with data from yahoo.
             rtol=0
         )

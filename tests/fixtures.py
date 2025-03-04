@@ -78,7 +78,7 @@ def pandas_data_fixture():
             df,
             date_start=datetime.datetime(2019, 1, 2),
             date_end=datetime.datetime(2019, 12, 31),
-            timestep="day",
+            lookback_timestep="day",
             quote=quote,
         )
         pandas_data.append(data)
@@ -90,7 +90,7 @@ def pandas_data_fixture_amzn_day():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
         filename="AMZN_DAY.csv",
-        timestep="day"
+        lookback_timestep="day"
     )
 
 
@@ -99,7 +99,7 @@ def pandas_data_fixture_amzn_hour():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
         filename="AMZN_HOUR.csv",
-        timestep="minute"
+        lookback_timestep="minute"
     )
 
 
@@ -108,7 +108,7 @@ def pandas_data_fixture_amzn_minute():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="AMZN",
         filename="AMZN_MINUTE.csv",
-        timestep="minute"
+        lookback_timestep="minute"
     )
 
 
@@ -117,7 +117,7 @@ def pandas_data_fixture_btc_day():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="BTC",
         filename="BTC-USD_DAY.csv",
-        timestep="day",
+        lookback_timestep="day",
         asset_type="crypto"
     )
 
@@ -127,7 +127,7 @@ def pandas_data_fixture_btc_hour():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="BTC",
         filename="BTC-USD_HOUR.csv",
-        timestep="minute",
+        lookback_timestep="minute",
         asset_type="crypto"
     )
 
@@ -137,7 +137,7 @@ def pandas_data_fixture_btc_minute():
     return load_pandas_data_from_alpaca_cached_data(
         symbol="BTC",
         filename="BTC-USD_MINUTE.csv",
-        timestep="minute",
+        lookback_timestep="minute",
         asset_type="crypto"
     )
 
@@ -145,7 +145,7 @@ def pandas_data_fixture_btc_minute():
 def load_pandas_data_from_alpaca_cached_data(
         symbol: str,
         filename: str,
-        timestep: str,
+        lookback_timestep: str,
         asset_type: str = "stock"
 ) -> List[Data]:
     pandas_data = []
@@ -179,7 +179,7 @@ def load_pandas_data_from_alpaca_cached_data(
         df,
         date_start=df.index[0],
         date_end=df.index[-1],
-        timestep=timestep,
+        lookback_timestep=lookback_timestep,
         quote=quote,
         tzinfo=tzinfo,
     )
@@ -261,7 +261,7 @@ class GetHistoricalTestStrategy(Strategy):
     def initialize(self, parameters: Any = None) -> None:
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.timestep = self.parameters.get("timestep", "day")
+        self.lookback_timestep = self.parameters.get("lookback_timestep", "day")
         self.asset = self.parameters.get("asset", None)
         self.lookback_length = self.parameters.get("lookback_length", 5)
         self.last_historical_prices_df: pd.DataFrame | None = None
@@ -272,7 +272,7 @@ class GetHistoricalTestStrategy(Strategy):
         bars = self.get_historical_prices(
             asset=self.asset,
             length=self.lookback_length,
-            timestep=self.timestep,
+            timestep=self.lookback_timestep,
             quote=self.quote_asset
         )
         self.last_historical_prices_df = bars.df

@@ -571,6 +571,7 @@ class TestAlpacaBacktesting:
         backtesting_end = datetime(2025, 1, 18)
         timestep = 'day'
         refresh_cache = False
+        market = '24/7'
 
         # Alpaca crypto daily bars are natively indexed at midnight central time
         tzinfo = ZoneInfo("America/Chicago")
@@ -585,7 +586,7 @@ class TestAlpacaBacktesting:
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "1D",
-                "market": "24/7"
+                "market": market,
             },
             show_plot=False,
             show_tearsheet=False,
@@ -604,6 +605,7 @@ class TestAlpacaBacktesting:
             # Crypto trades 24 hours a day
             trading_hours_start=time(0, 0),
             trading_hours_end=time(23, 59),
+            market=market,
         )
         assert results
         assert strategy
@@ -655,6 +657,7 @@ class TestAlpacaBacktesting:
         timestep = 'minute'
         refresh_cache = False
         tzinfo = ZoneInfo("America/Chicago")
+        market = '24/7'
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
@@ -666,7 +669,7 @@ class TestAlpacaBacktesting:
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "1M",
-                "market": "24/7"
+                "market": market,
             },
             show_plot=False,
             show_tearsheet=False,
@@ -685,6 +688,7 @@ class TestAlpacaBacktesting:
             # Crypto trades 24 hours a day
             trading_hours_start=time(0, 0),
             trading_hours_end=time(23, 59),
+            market=market,
         )
         assert results
         assert strategy
@@ -735,6 +739,7 @@ class TestAlpacaBacktesting:
         timestep = 'hour'
         refresh_cache = False
         tzinfo = ZoneInfo("UTC")
+        market = '24/7'
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
@@ -746,7 +751,7 @@ class TestAlpacaBacktesting:
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
-                "market": "24/7"
+                "market": market,
             },
             show_plot=False,
             show_tearsheet=False,
@@ -765,6 +770,7 @@ class TestAlpacaBacktesting:
             # Crypto trades 24 hours a day
             trading_hours_start=time(0, 0),
             trading_hours_end=time(23, 59),
+            market=market,
         )
         assert results
         assert strategy
@@ -817,6 +823,7 @@ class TestAlpacaBacktesting:
         timestep = 'hour'
         refresh_cache = False
         tzinfo = ZoneInfo("America/Chicago")
+        market = '24/7'
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
@@ -828,7 +835,7 @@ class TestAlpacaBacktesting:
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
-                "market": "24/7"
+                "market": market
             },
             show_plot=False,
             show_tearsheet=False,
@@ -847,6 +854,7 @@ class TestAlpacaBacktesting:
             # Crypto trades 24 hours a day
             trading_hours_start=time(0, 0),
             trading_hours_end=time(23, 59),
+            market=market,
         )
         assert results
         assert strategy

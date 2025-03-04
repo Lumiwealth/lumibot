@@ -78,7 +78,7 @@ def pandas_data_fixture():
             df,
             date_start=datetime.datetime(2019, 1, 2),
             date_end=datetime.datetime(2019, 12, 31),
-            lookback_timestep="day",
+            timestep="day",
             quote=quote,
         )
         pandas_data.append(data)
@@ -179,7 +179,7 @@ def load_pandas_data_from_alpaca_cached_data(
         df,
         date_start=df.index[0],
         date_end=df.index[-1],
-        lookback_timestep=lookback_timestep,
+        timestep=lookback_timestep,
         quote=quote,
         tzinfo=tzinfo,
     )

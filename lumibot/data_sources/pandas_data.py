@@ -25,7 +25,6 @@ class PandasData(DataSourceBacktesting):
             self,
             datetime_start: datetime,
             datetime_end: datetime,
-            backtesting_started: datetime | None = None,
             config: dict | None = None,
             api_key: str | None = None,
             show_progress_bar: bool = True,
@@ -46,7 +45,6 @@ class PandasData(DataSourceBacktesting):
         super().__init__(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
-            backtesting_started=backtesting_started,
             config=config,
             api_key=api_key,
             show_progress_bar=show_progress_bar,

@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, time
 import logging
 from decimal import Decimal
 from typing import Union
@@ -35,9 +35,9 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    trading_hours_start : datetime.time or None. Only applicable when timestep is 'minute'.
+    trading_hours_start : time or None. Only applicable when timestep is 'minute'.
         If not supplied, then default is 0000 hrs.
-    trading_hours_end : datetime.time or None. Only applicable when timestep is 'minute'.
+    trading_hours_end : time or None. Only applicable when timestep is 'minute'.
         If not supplied, then default is 2359 hrs (inclusive).
     timestep : str
         Either "minute" (default) or "day"
@@ -61,9 +61,9 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    trading_hours_start : datetime.time or None
+    trading_hours_start : time or None
         If not supplied, then default is 0001 hrs.
-    trading_hours_end : datetime.time or None
+    trading_hours_end : time or None
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
@@ -115,8 +115,8 @@ class Data:
         df,
         date_start=None,
         date_end=None,
-        trading_hours_start=datetime.time(0, 0),
-        trading_hours_end=datetime.time(23, 59),
+        trading_hours_start=time(0, 0),
+        trading_hours_end=time(23, 59),
         timestep="minute",
         quote=None,
         tzinfo: ZoneInfo = None,
@@ -195,18 +195,18 @@ class Data:
 
         Parameters
         ----------
-        trading_hours_start : datetime.time
+        trading_hours_start : time
             The start time of the trading hours.
 
-        trading_hours_end : datetime.time
+        trading_hours_end : time
             The end time of the trading hours.
 
         Returns
         -------
-        trading_hours_start : datetime.time
+        trading_hours_start : time
             The start time of the trading hours.
 
-        trading_hours_end : datetime.time
+        trading_hours_end : time
             The end time of the trading hours.
         """
         # Set the trading hours start and end times.
@@ -214,8 +214,8 @@ class Data:
             ts = trading_hours_start
             te = trading_hours_end
         else:
-            ts = datetime.time(0, 0)
-            te = datetime.time(23, 59, 59, 999999)
+            ts = time(0, 0)
+            te = time(23, 59, 59, 999999)
         return ts, te
 
     def columns(self, df):
@@ -238,7 +238,7 @@ class Data:
     def set_dates(self, date_start, date_end):
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
-            if dt and not isinstance(dt, datetime.datetime):
+            if dt and not isinstance(dt, datetime):
                 raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} " f"was entered")
 
         if not date_start:
@@ -418,7 +418,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime.datetime
+        dt : datetime
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
@@ -441,7 +441,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime.datetime
+        dt : datetime
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
@@ -520,7 +520,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime.datetime
+        dt : datetime
             The datetime to get the data.
         length : int
             The number of periods to get the data.
@@ -559,9 +559,9 @@ class Data:
         ----------
         timestep : str
             The frequency of the data to get the data.
-        start_date : datetime.datetime
+        start_date : datetime
             The start date to get the data for.
-        end_date : datetime.datetime
+        end_date : datetime
             The end date to get the data for.
 
         Returns
@@ -590,7 +590,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime.datetime
+        dt : datetime
             The datetime to get the data.
         length : int
             The number of periods to get the data.
@@ -622,8 +622,15 @@ class Data:
             "volume": "sum",
         }
         if timestep == "day" and self.timestep == "minute":
-            # If the data is minute data and we are requesting daily data then multiply the length by 1440
-            length = length * 1440
+            # Length needs to be the number of minute bars per day * number of days to get.
+            # The number of bars depends on the trading hours in the day.
+            dt1 = datetime.combine(datetime.today(), self.trading_hours_end)
+            dt2 = datetime.combine(datetime.today(), self.trading_hours_start)
+
+            # Calculate difference and convert to minutes
+            diff = dt2 - dt1
+            length = abs(int(diff.total_seconds() / 60))
+
             unit = "D"
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
@@ -666,9 +673,9 @@ class Data:
             The frequency of the data to get the data. Only minute and day are supported.
         exchange : str
             The exchange to get the data for.
-        start_date : datetime.datetime
+        start_date : datetime
             The start date to get the data for.
-        end_date : datetime.datetime
+        end_date : datetime
             The end date to get the data for.
 
         Returns

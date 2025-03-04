@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict, OrderedDict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Union, Dict, List
 
@@ -23,20 +23,35 @@ class PandasData(DataSourceBacktesting):
 
     def __init__(
             self,
+            datetime_start: datetime,
+            datetime_end: datetime,
+            backtesting_started: datetime | None = None,
+            config: dict | None = None,
+            api_key: str | None = None,
+            show_progress_bar: bool = True,
+            delay: int | None = None,
+            pandas_data: dict | list = None,
+            auto_adjust: bool = True,
             *args,
-            pandas_data: Union[Dict, List] = None,
-            auto_adjust=True,
             **kwargs
     ):
         """
         Initialize a PandasData instance.
-
+    
         pandas_data can be one of these:
             List(Data)  <-- preferred. Be sure to include quote assets.
             Dict[Asset, Data]
             Dict[(Asset, Asset), Data]
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            backtesting_started=backtesting_started,
+            config=config,
+            api_key=api_key,
+            show_progress_bar=show_progress_bar,
+            delay=delay,
+        )
         self.name = "pandas"
         self.auto_adjust = auto_adjust
         self._date_index = None

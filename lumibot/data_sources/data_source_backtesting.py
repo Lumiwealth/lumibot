@@ -20,21 +20,22 @@ class DataSourceBacktesting(DataSource, ABC):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self,
-        datetime_start=None,
-        datetime_end=None,
-        backtesting_started=None,
-        config=None,
-        api_key=None,
-        pandas_data=None,
-        show_progress_bar=True,
-        progress_csv_path=None,
-        log_backtest_progress_to_file=False,
-        **kwargs
+             self,
+            datetime_start: datetime,
+            datetime_end: datetime,
+            backtesting_started: datetime | None = None,
+            config: dict | None = None,
+            api_key: str | None = None,
+            show_progress_bar: bool = True,
+            progress_csv_path = None,
+            log_backtest_progress_to_file = False,
+            delay: int | None = None,
+            pandas_data: dict | list = None,
     ):
-        # Make sure we pass api_key to the parent class but not datetime_start and datetime_end
-        # as they are specific to DataSourceBacktesting
-        super().__init__(api_key=api_key)
+        super().__init__(
+            api_key=api_key,
+            delay=delay
+        )
 
         if backtesting_started is None:
             _backtesting_started = dt.datetime.now()

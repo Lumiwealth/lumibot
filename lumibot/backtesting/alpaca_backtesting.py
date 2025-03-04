@@ -39,18 +39,17 @@ class AlpacaBacktesting(PandasData):
 
     def __init__(
             self,
-            tickers: List[str] | str,
-            start_date: str,
-            end_date: str,
-            trading_hours_start=time(9, 30),
-            trading_hours_end=time(15, 59),
-            timestep: str = 'day',
-            refresh_cache: bool = False,
+            datetime_start: datetime,
+            datetime_end: datetime,
+            backtesting_started: datetime | None = None,
             config: dict | None = None,
-            tzinfo: ZoneInfo = ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE),
-            warm_up_trading_days: int = 0,
-            market: str = "NYSE",
+            api_key: str | None = None,
+            show_progress_bar: bool = True,
+            delay: int | None = None,
+            pandas_data: dict | list = None,
             auto_adjust: bool = True,
+            *args,
+            **kwargs
     ):
         """
         Initializes an instance for fetching and managing historical data from Alpaca,
@@ -58,34 +57,50 @@ class AlpacaBacktesting(PandasData):
         Uses Alpaca's Crypto and Stock Historical Data clients to retrieve the data.
         Supports caching and time interval customization. Also supports warm-up bars
         for initializing strategies.
-
+        
         Args:
-            tickers (List[str] | str): List of ticker symbols or a single ticker symbol
-                for the required data.
-            start_date (str): The start date of the historical data range in string
-                format. Must comply with the `pandas.to_datetime` format.
-            end_date (str): The end date of the historical data range in string
-                format. Must comply with the `pandas.to_datetime` format.
-            trading_hours_start : datetime.time (inclusive) or None. Only applicable when timestep is 'minute'.
-                If not supplied, then default is 09:30 (to align with the default LUMIBOT_TIMEZONE).
-            trading_hours_end : datetime.time (inclusive) or None. Only applicable when timestep is 'minute'.
-                If not supplied, then default is 15:59 hrs (to align with the default LUMIBOT_TIMEZONE).
-            timestep (str): The time interval for the historical data (e.g., 'minute', 'hour' and
-                'day'). Default is 'day'. When hour bars are used, the timestep will be set to minute.
-            refresh_cache (bool): Whether to refresh the cached historical data or use
-                existing cache. Default is False.
-            auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
-            config (dict | None): Configuration dictionary containing `API_KEY` and
+            datetime_start (datetime): The start datetime of the historical data range 
+                (inclusive, set to midnight in the specified timezone).
+            datetime_end (datetime): The end datetime of the historical data range 
+                (exclusive, set to midnight in the specified timezone).
+            backtesting_started (datetime | None): The datetime at which backtesting starts. Optional.
+            config (dict | None): Configuration dictionary containing `API_KEY` and 
                 `API_SECRET` for authenticating with Alpaca APIs.
-            tzinfo (ZoneInfo): The name of the timezone to localize datetime values.
-                Default is `ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)`.
-            warm_up_trading_days (int): The number of additional trading days to fetch before
-                `start_date`, useful for warming up trading algorithms. Default is 0.
+            api_key (str | None): API key for authentication.
+            show_progress_bar (bool): Whether to show a progress bar during data fetching. Default is True.
+            delay (int | None): Optional delay (in seconds) for data fetching operations.
+            pandas_data (dict | list | None): Preloaded pandas data to avoid fetching/caching. Optional.
+            auto_adjust (bool): Whether to auto-adjust prices for splits and dividends. Default is True.
+            args: Additional positional arguments for the parent class.
+            kwargs: Additional keyword arguments for customization.
+        
+        Keyword Args (kwargs):
+            tickers (List[str] | str | None): List of ticker symbols or a single ticker 
+                symbol for the required data. Default is None.
+            trading_hours_start (time): Start time for trading hours (inclusive). Applicable 
+                when timestep is 'minute'. Default is 09:30.
+            trading_hours_end (time): End time for trading hours (inclusive). Applicable 
+                when timestep is 'minute'. Default is 15:59.
+            timestep (str): Time interval for the historical data ('minute', 'hour', 'day').
+                Default is 'day'.
+            refresh_cache (bool): Whether to refresh the cached historical data. Default is False.
+            tzinfo (ZoneInfo): Timezone to localize datetime values. Default is 
+                ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE).
+            warm_up_trading_days (int): Number of additional trading days to fetch before 
+                `datetime_start` for warming up strategies. Default is 0.
             market (str): The market to fetch data for. Default is 'NYSE'.
         """
+
+        tickers: List[str] | str | None = kwargs.get('tickers', None)
+        trading_hours_start: time = kwargs.get('trading_hours_start', time(9, 30))
+        trading_hours_end: time = kwargs.get('trading_hours_end', time(15, 59))
+        self._timestep: str = kwargs.get('timestep', 'day')
+        refresh_cache: bool = kwargs.get('refresh_cache', False)
+        self.tzinfo: ZoneInfo = kwargs.get('tzinfo', ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE))
+        warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
+        market: str = kwargs.get('market', "NYSE")
+
         self.CACHE_SUBFOLDER = 'alpaca'
-        self.tzinfo = tzinfo
-        self._timestep = timestep
 
         self._crypto_client = CryptoHistoricalDataClient(
             api_key=config["API_KEY"],
@@ -97,14 +112,19 @@ class AlpacaBacktesting(PandasData):
             secret_key=config["API_SECRET"]
         )
 
-        # Convert to midnight in the specified timezone
-        start_dt = pd.to_datetime(start_date).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(
-            self.tzinfo)
-        end_dt = pd.to_datetime(end_date).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).tz_localize(self.tzinfo)
+        start_dt = datetime(
+            year=datetime_start.year,
+            month=datetime_start.month,
+            day=datetime_start.day,
+            tzinfo=self.tzinfo
+        )
+
+        end_dt = datetime(
+            year=datetime_start.year,
+            month=datetime_start.month,
+            day=datetime_end.day,
+            tzinfo=self.tzinfo
+        )
 
         if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_days_from_date(
@@ -126,10 +146,10 @@ class AlpacaBacktesting(PandasData):
             end_dt=end_dt,
             trading_hours_start=trading_hours_start,
             trading_hours_end=trading_hours_end,
-            timestep=timestep,
+            timestep=self._timestep,
             refresh_cache=refresh_cache,
             auto_adjust=auto_adjust,
-            tzinfo=tzinfo
+            tzinfo=self.tzinfo
         )
 
         super().__init__(
@@ -145,8 +165,8 @@ class AlpacaBacktesting(PandasData):
             tickers: List[str] | str,
             start_dt: datetime,
             end_dt: datetime,
-            trading_hours_start: datetime,
-            trading_hours_end: datetime,
+            trading_hours_start: time,
+            trading_hours_end: time,
             timestep: str = 'day',
             refresh_cache: bool = False,
             auto_adjust: bool = True,

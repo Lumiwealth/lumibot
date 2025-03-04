@@ -17,16 +17,20 @@ class DataSourceBacktesting(DataSource, ABC):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self,
-        datetime_start,
-        datetime_end,
-        backtesting_started=None,
-        config=None,
-        api_key=None,
-        pandas_data=None,
-        show_progress_bar=True
+            self,
+            datetime_start: datetime,
+            datetime_end: datetime,
+            backtesting_started: datetime | None = None,
+            config: dict | None = None,
+            api_key: str | None = None,
+            show_progress_bar: bool = True,
+            delay: int | None = None,
+            pandas_data: dict | list = None,
     ):
-        super().__init__(api_key=api_key)
+        super().__init__(
+            api_key=api_key,
+            delay=delay
+        )
 
         if backtesting_started is None:
             _backtesting_started = datetime.now()

@@ -644,18 +644,17 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         backtesting_end = datetime(last_year, 2, 22)
 
         tickers = asset.symbol
-        start_date = backtesting_start.date().isoformat()
-        end_date = backtesting_end.date().isoformat()
         timestep = 'day'
         refresh_cache = False
         tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
             config=ALPACA_TEST_CONFIG,
+
+            tickers=tickers,
+            timestep=timestep,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
         )
@@ -691,22 +690,21 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         backtesting_end = datetime(last_year, 2, 22)
 
         tickers = asset.symbol
-        start_date = backtesting_start.date().isoformat()
-        end_date = backtesting_end.date().isoformat()
         timestep = 'day'
         refresh_cache = False
         tzinfo = ZoneInfo("America/New_York")
         length = 10
 
         data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
             config=ALPACA_TEST_CONFIG,
+
+            tickers=tickers,
+            timestep=timestep,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-            warm_up_trading_days=length,
+            warm_up_trading_days=length
         )
 
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
@@ -735,21 +733,20 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         backtesting_end = backtesting_start + timedelta(days=2)
 
         tickers = ticker
-        start_date = backtesting_start.date().isoformat()
-        end_date = backtesting_end.date().isoformat()
         timestep = 'minute'  # using minute bars, but asking for daily bars in get_historical_prices
         refresh_cache = False
         tzinfo = ZoneInfo("America/New_York")
 
         data_source = AlpacaBacktesting(
-            tickers=tickers,
-            start_date=start_date,
-            end_date=end_date,
-            timestep=timestep,
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
             config=ALPACA_TEST_CONFIG,
+
+            tickers=tickers,
+            timestep=timestep,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-            warm_up_trading_days=warm_up_days,
+            warm_up_trading_days=warm_up_days
         )
 
         bars = data_source.get_historical_prices(

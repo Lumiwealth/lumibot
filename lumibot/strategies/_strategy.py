@@ -1249,8 +1249,8 @@ class _Strategy:
             )
         else:
             data_source = datasource_class(
-                backtesting_start,
-                backtesting_end,
+                datetime_start=backtesting_start,
+                datetime_end=backtesting_end,
                 config=config,
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,

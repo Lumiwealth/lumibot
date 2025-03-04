@@ -41,7 +41,6 @@ class AlpacaBacktesting(PandasData):
             self,
             datetime_start: datetime,
             datetime_end: datetime,
-            backtesting_started: datetime | None = None,
             config: dict | None = None,
             api_key: str | None = None,
             show_progress_bar: bool = True,
@@ -63,7 +62,6 @@ class AlpacaBacktesting(PandasData):
                 (inclusive, set to midnight in the specified timezone).
             datetime_end (datetime): The end datetime of the historical data range 
                 (exclusive, set to midnight in the specified timezone).
-            backtesting_started (datetime | None): The datetime at which backtesting starts. Optional.
             config (dict | None): Configuration dictionary containing `API_KEY` and 
                 `API_SECRET` for authenticating with Alpaca APIs.
             api_key (str | None): API key for authentication.

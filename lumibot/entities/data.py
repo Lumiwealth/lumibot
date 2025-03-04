@@ -621,7 +621,10 @@ class Data:
 
             # Calculate difference and convert to minutes
             diff = dt2 - dt1
-            length = abs(int(diff.total_seconds() / 60))
+            diff_minutes = abs(int(diff.total_seconds() / 60))
+
+            # Calculate the number of minute bars we need
+            length = diff_minutes * num_periods
 
             unit = "D"
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)

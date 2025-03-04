@@ -330,6 +330,91 @@ class TestAlpacaBacktesting:
         assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
         assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
 
+    def test_single_stock_30_minute_bars_america_new_york_regular_hours(self):
+        tickers = "AMZN"
+        backtesting_start = datetime(2025, 1, 13)
+        backtesting_end = datetime(2025, 1, 14)
+        timestep = '30m'
+        refresh_cache = False
+        tzinfo = ZoneInfo("America/New_York")
+
+        strategy: BuyOnceTestStrategy
+        results, strategy = BuyOnceTestStrategy.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset=None,
+            parameters={
+                "asset": Asset('AMZN', asset_type='stock'),
+                "sleeptime": "30M",
+                "timestep": timestep,
+                "market": "NYSE"
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+
+            # AlpacaBacktesting kwargs
+            tickers=tickers,
+            timestep=timestep,
+            trading_hours_start=time(9, 30),
+            trading_hours_end=time(15, 59),
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            tzinfo=tzinfo,
+        )
+
+        assert results
+        assert strategy
+        assert strategy.broker
+        assert isinstance(strategy.broker, BacktestingBroker)
+        assert strategy.broker.data_source
+        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+
+        # Data source tests
+        data_source = strategy.broker.data_source
+        assert data_source.datetime_start.isoformat() == '2025-01-13T00:00:00-05:00'
+        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-05:00"
+        assert isinstance(data_source.pandas_data, dict)
+        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
+        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
+
+        data = list(data_source.pandas_data.values())[0]
+        df = data.df
+        assert not df.empty
+
+        # this assumes we get a minute bar for every bar in normal trading hours.
+        # 6.5 trading hours in a day, 60 minutes per hour
+        # minus 30 minutes since the end of the day is gonna be the 15:30 30min bar
+        # plus 1 bar which is the 15:30 bar
+        assert len(df.index) == (6.5 * 60) - 30 + 1
+
+        # Regular trading opens at 930am EDT
+        assert df.index[0].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # Regular trading ends at 4pm EDT which is 16 in military time.
+        # However, trading_hours_start, trading_hours_end are inclusive.
+        assert df.index[-1].isoformat() == '2025-01-13T15:30:00-05:00'
+
+        # check when trading iterations happened
+        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-13T15:30:00-05:00'
+        assert strategy.num_trading_iterations == 6.5 * 2
+
+        tracker = strategy.tracker
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+
+        # When using minute data, last price and fill price are the open price of the current bar.
+        assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+        assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
+
+
     def test_single_stock_minute_bars_america_new_york_with_60m_sleeptime(self):
         tickers = "AMZN"
         backtesting_start = datetime(2025, 1, 13)

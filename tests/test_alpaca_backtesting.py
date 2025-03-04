@@ -414,7 +414,6 @@ class TestAlpacaBacktesting:
         assert tracker['last_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
         assert tracker['avg_fill_price'] == 218.06  # Open price of '2025-01-13T09:30:00-05:00'
 
-
     def test_single_stock_minute_bars_america_new_york_with_60m_sleeptime(self):
         tickers = "AMZN"
         backtesting_start = datetime(2025, 1, 13)

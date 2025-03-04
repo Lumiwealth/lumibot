@@ -18,7 +18,7 @@ class TestConfigsHelper:
         assert config["sleeptime"] == "1D"
         assert config["drift_type"] == DriftType.RELATIVE
         assert config["drift_threshold"] == "0.1"
-        assert config["order_type"] == Order.OrderType.MARKET
+        assert config["order_type"] == Order.OrderType.LIMIT
         assert config["acceptable_slippage"] == "0.005"
         assert config["fill_sleeptime"] == 15
         assert config["portfolio_weights"] == [

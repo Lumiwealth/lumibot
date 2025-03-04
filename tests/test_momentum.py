@@ -213,6 +213,57 @@ class TestMomentum:
         ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
     )
+    def test_momo_alpaca_lookback_2(self):
+        tickers = "SPY"
+        timestep = 'day'
+        refresh_cache = False
+        tzinfo = ZoneInfo("America/New_York")
+        lookback_period = 2
+        market='NYSE'
+
+        results, strategy = MomoTester.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            parameters={
+                "lookback_period": lookback_period,
+            },
+            show_plot=False,
+            show_tearsheet=False,
+            save_tearsheet=False,
+            show_indicators=False,
+            save_logfile=False,
+            show_progress_bar=False,
+            quiet_logs=False,
+
+            # AlpacaBacktesting kwargs
+            tickers=tickers,
+            refresh_cache=refresh_cache,
+            timestep=timestep,
+            config=ALPACA_TEST_CONFIG,
+            warm_up_trading_days=lookback_period,
+            tzinfo=tzinfo,
+            market=market,
+        )
+        comparison_df = self.build_comparison_df(strategy)
+
+        assert_series_equal(
+            comparison_df["actual_momo"],
+            comparison_df["expected_momo"],
+            check_names=False,
+            atol=1e-2,  # be more flexible. im comparing data from alpaca with data from yahoo.
+            rtol=0
+        )
+
+# @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'],
+        reason="This test requires an alpaca API key"
+    )
+    @pytest.mark.skipif(
+        ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
     def test_momo_alpaca_lookback_30(self):
         tickers = "SPY"
         timestep = 'day'
@@ -247,9 +298,6 @@ class TestMomentum:
         )
         comparison_df = self.build_comparison_df(strategy)
 
-        # Remove the first row
-        # comparison_df = comparison_df.iloc[1:]
-
         assert_series_equal(
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
@@ -257,3 +305,4 @@ class TestMomentum:
             atol=1e-2,  # be more flexible. im comparing data from alpaca with data from yahoo.
             rtol=0
         )
+

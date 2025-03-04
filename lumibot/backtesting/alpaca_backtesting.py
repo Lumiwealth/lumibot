@@ -8,12 +8,12 @@ import pandas as pd
 from alpaca.data.historical import CryptoHistoricalDataClient
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Data, Asset
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.tools.helpers import date_n_days_from_date
+from lumibot.tools.helpers import date_n_days_from_date, parse_timestep_qty_and_unit
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +23,27 @@ def replace_slashes(string: str) -> str:
     return string.replace('/', '-')
 
 
-def alpaca_timeframe_from_timestep(timestep: str) -> TimeFrame:
-    """Convert a timestep string to an Alpaca TimeFrame."""
-    if timestep == 'day':
-        return TimeFrame.Day
-    elif timestep == 'minute':
-        return TimeFrame.Minute
-    elif timestep == 'hour':
-        return TimeFrame.Hour
-    else:
-        raise ValueError(f"Unsupported timestep: {timestep}")
-
-
 class AlpacaBacktesting(PandasData):
+
+    # noinspection PyMethodMayBeStatic
+    def alpaca_timeframe_from_timestep(self, timestep: str) -> TimeFrame:
+        """Convert a timestep string to an Alpaca TimeFrame."""
+
+        if ' ' in timestep or '/' in timestep:
+            raise ValueError("Timestep cannot contain spaces or slashes.")
+
+        timestep = timestep.lower()
+
+        if timestep in ['day', '1d']:
+            return TimeFrame.Day
+        elif timestep in ['minute', '1m']:
+            return TimeFrame.Minute
+        elif timestep in ['hour', '1h']:
+            return TimeFrame.Hour
+        elif timestep in ['30m']:
+            return TimeFrame(30, TimeFrameUnit.Minute)
+        else:
+            raise ValueError(f"Unsupported timestep: {timestep}")
 
     def __init__(
             self,
@@ -99,6 +107,11 @@ class AlpacaBacktesting(PandasData):
         market: str = kwargs.get('market', "NYSE")
 
         self.CACHE_SUBFOLDER = 'alpaca'
+
+        if config is None:
+            raise ValueError("Config cannot be None. Please provide a valid configuration.")
+        if not config.get("PAPER", True):
+            raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
 
         self._crypto_client = CryptoHistoricalDataClient(
             api_key=config["API_KEY"],
@@ -199,6 +212,14 @@ class AlpacaBacktesting(PandasData):
 
         adj = 'aat' if not auto_adjust else 'aaf'
 
+        # We need to get the timeframe to pass into alpaca
+        alpaca_timeframe = self.alpaca_timeframe_from_timestep(timestep)
+        qty, alpaca_timestep = parse_timestep_qty_and_unit(timestep)
+        if alpaca_timestep in ['day', 'minute']:
+            self._timestep = alpaca_timestep
+        else:
+            self._timestep = 'minute'
+        
         for ticker in tickers:
             cleaned_ticker = replace_slashes(ticker)
             filename = f"{cleaned_ticker}_{timestep}_{adj}_{start_dt.date().isoformat()}_{end_dt.date().isoformat()}_{tzinfo}"
@@ -241,7 +262,7 @@ class AlpacaBacktesting(PandasData):
                     # noinspection PyArgumentList
                     request_params = CryptoBarsRequest(
                         symbol_or_symbols=ticker,
-                        timeframe=alpaca_timeframe_from_timestep(timestep),
+                        timeframe=alpaca_timeframe,
                         start=start_dt,
                         end=end_dt,
                     )
@@ -258,18 +279,13 @@ class AlpacaBacktesting(PandasData):
                     # noinspection PyArgumentList
                     request_params = StockBarsRequest(
                         symbol_or_symbols=ticker,
-                        timeframe=alpaca_timeframe_from_timestep(timestep),
+                        timeframe=alpaca_timeframe,
                         start=start_dt,
                         end=end_dt,
                         adjustment=adjustment,
                     )
                 df = self._download_and_save_data(client, request_params, filepath, start_dt, end_dt)
                 df.set_index('timestamp', inplace=True)
-
-            # If we were using hourly data, set the timestep to minute since the rest of lumibot only operates
-            # with day or minute timestep.
-            if self._timestep == 'hour':
-                self._timestep = 'minute'
 
             new_data = Data(
                 asset=base_asset,

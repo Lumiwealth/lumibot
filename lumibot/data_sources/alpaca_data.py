@@ -54,6 +54,12 @@ class AlpacaData(DataSource):
             ],
         },
         {
+            "timestep": "hour",
+            "representations": [
+                [f"{TimeFrame.Hour}", "hour"],
+            ],
+        },
+        {
             "timestep": "1 hour",
             "representations": [
                 [f"{TimeFrame.Hour}", "hour"],

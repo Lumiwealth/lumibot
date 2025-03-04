@@ -131,8 +131,8 @@ class AlpacaBacktesting(PandasData):
         )
 
         end_dt = datetime(
-            year=datetime_start.year,
-            month=datetime_start.month,
+            year=datetime_end.year,
+            month=datetime_end.month,
             day=datetime_end.day,
             tzinfo=self.tzinfo
         )

@@ -39,19 +39,15 @@ class TestPandasBacktest:
         for data in pandas_data_fixture:
             data.strategy = strategy_name
 
-        result = strategy_class.backtest(
+        result, strategy = strategy_class.run_backtest(
             datasource_class=PandasDataBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture,
             risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "1D",
             }
@@ -68,14 +64,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_amzn_day,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "1D",
                 "symbol": "AMZN"
@@ -102,14 +93,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_amzn_minute,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "1M",
                 "symbol": "AMZN"
@@ -136,14 +122,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_amzn_hour,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "60M",
                 "symbol": "AMZN"
@@ -170,14 +151,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_amzn_minute,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "60M",
                 "symbol": "AMZN"
@@ -203,14 +179,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_btc_day,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "1D",
                 "asset": Asset(symbol="BTC", asset_type="crypto")
@@ -237,14 +208,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_btc_hour,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "60M",
                 "asset": Asset(symbol="BTC", asset_type="crypto")
@@ -270,14 +236,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_btc_minute,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "1M",
                 "asset": Asset(symbol="BTC", asset_type="crypto")
@@ -304,14 +265,9 @@ class TestPandasBacktest:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data_fixture_btc_minute,
-            risk_free_rate=0,
-            show_plot=False,
-            save_tearsheet=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False,
             parameters={
                 "sleeptime": "60M",
                 "asset": Asset(symbol="BTC", asset_type="crypto")

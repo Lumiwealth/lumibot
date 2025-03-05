@@ -34,18 +34,15 @@ class TestAlpacaBacktesting:
             datasource_class=AlpacaBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1D",
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
+
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -117,19 +114,15 @@ class TestAlpacaBacktesting:
             datasource_class=AlpacaBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1D",
                 "timestep": timestep,
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -183,19 +176,15 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1M",
                 "timestep": timestep,
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -264,18 +253,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1M",
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -344,19 +329,15 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "30M",
                 "timestep": timestep,
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -428,18 +409,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "60M",
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -505,18 +482,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "60M",
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -590,19 +563,15 @@ class TestAlpacaBacktesting:
             datasource_class=AlpacaBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1D",
                 "lookback_timestep": "day",
                 "market": "NYSE"
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -666,18 +635,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "1D",
                 "market": market,
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -749,18 +714,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "1M",
                 "market": market,
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -831,18 +792,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
                 "market": market,
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -915,18 +872,14 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
                 "market": market
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -998,19 +951,15 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
+            benchmark_asset=None,
             analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
                 "lookback_timestep": "day",
                 "market": market
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,

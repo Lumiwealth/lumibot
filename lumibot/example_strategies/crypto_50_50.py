@@ -46,11 +46,7 @@ if __name__ == "__main__":
         backtesting_start=datetime(2025, 1, 1),
         backtesting_end=datetime(2025, 2, 1),
         parameters=parameters,
-        show_plot=False,
-        show_tearsheet=False,
-        save_tearsheet=False,
-        show_indicators=False,
-        save_logfile=False,
+        analyze_backtest=False,
         show_progress_bar=True,
 
         # AlpacaBacktesting kwargs

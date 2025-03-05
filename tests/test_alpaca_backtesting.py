@@ -34,7 +34,7 @@ class TestAlpacaBacktesting:
             datasource_class=AlpacaBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1D",
@@ -117,7 +117,7 @@ class TestAlpacaBacktesting:
             datasource_class=AlpacaBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1D",
@@ -183,7 +183,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1M",
@@ -264,7 +264,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1M",
@@ -344,7 +344,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "30M",
@@ -428,7 +428,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "60M",
@@ -505,7 +505,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "60M",
@@ -590,7 +590,7 @@ class TestAlpacaBacktesting:
             datasource_class=AlpacaBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
                 "sleeptime": "1D",
@@ -666,7 +666,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "1D",
@@ -749,7 +749,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "1M",
@@ -831,7 +831,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
@@ -915,7 +915,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",
@@ -998,7 +998,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset=None,
+            analyze_backtest=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
                 "sleeptime": "60M",

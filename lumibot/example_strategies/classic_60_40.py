@@ -32,13 +32,8 @@ if __name__ == "__main__":
         datasource_class=AlpacaBacktesting,
         backtesting_start= datetime(2023, 1, 2),
         backtesting_end=datetime(2025, 1, 1),
-        benchmark_asset=None,
+        analyze_backtest=False,
         parameters=parameters,
-        show_plot=False,
-        show_tearsheet=False,
-        save_tearsheet=False,
-        show_indicators=False,
-        save_logfile=False,
         show_progress_bar=True,
 
         # AlpacaBacktesting kwargs

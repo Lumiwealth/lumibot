@@ -2905,9 +2905,6 @@ class Strategy(_Strategy):
         >>> self.write_backtest_settings("backtest_settings.json")
 
         """
-        if not self._analyze_backtest:
-            return
-
         datasource = self.broker.data_source
         auto_adjust = datasource.auto_adjust if hasattr(datasource, "auto_adjust") else False
         settings = {

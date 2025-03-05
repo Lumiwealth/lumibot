@@ -7,7 +7,7 @@ from typing import Union
 import pandas as pd
 from termcolor import colored
 
-from lumibot.brokers import Broker
+from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
@@ -133,11 +133,14 @@ class Tradier(Broker):
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 
         # Modify the order
-        self.tradier.orders.modify(
-            order.identifier,
-            limit_price=limit_price,
-            stop_price=stop_price,
-        )
+        try:
+            self.tradier.orders.modify(
+                order.identifier,
+                limit_price=limit_price,
+                stop_price=stop_price,
+            )
+        except TradierApiError as e:
+            raise LumibotBrokerAPIError(f"Unable to modify order at broker. {e}") from e
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
@@ -859,9 +862,23 @@ class Tradier(Broker):
                                 else:
                                     fill_qty = order.quantity
 
-                                self.stream.dispatch(
-                                    self.FILLED_ORDER, order=stored_order, price=fill_price, filled_quantity=fill_qty
-                                )
+                                # For OCO orders - Parent order never gets filled values populated by Tradier API.
+                                # Need to look at the child orders to get the necessary fill values.
+                                if order.order_class == Order.OrderClass.OCO:
+                                    filled_children = [o for o in order.child_orders if o.is_filled()]
+                                    if filled_children:
+                                        fill_price = filled_children[0].avg_fill_price
+                                        fill_qty = filled_children[0].quantity
+
+                                # There's race condition where Tradier API is marking status=filled but has not yet
+                                # populated the avg_fill_price and other fill data. At some time in the future these
+                                # values will be filled in by Tradier, so do not trigger a 'filled' event until
+                                # all of the needed data has been populated.
+                                if fill_price is not None and fill_qty is not None:
+                                    self.stream.dispatch(
+                                        self.FILLED_ORDER, order=stored_order, price=fill_price,
+                                        filled_quantity=fill_qty
+                                    )
                             case "canceled":
                                 self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
@@ -986,12 +1003,21 @@ class Tradier(Broker):
         def on_trade_event_error(order, error_msg):
             # Log that the order had an error
             logging.error(f"Processing action for error order {order} | {error_msg}")
-                                                                         
             try:
                 if order.is_active():
+                    # If the order has children, cancel them first upon error
+                    if order.child_orders:
+                        for child_order in order.child_orders:
+                            child_order.set_error(error_msg)
+                            broker._process_trade_event(
+                                child_order,
+                                broker.ERROR_ORDER,
+                            )
+
+                    # Then cancel the parent order
                     broker._process_trade_event(
                         order,
-                        broker.CANCELED_ORDER,
+                        broker.ERROR_ORDER,
                     )
                 logging.error(error_msg)
                 order.set_error(error_msg)

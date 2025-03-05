@@ -18,6 +18,11 @@ from ..data_sources import DataSource
 from ..entities import Asset, Order, Position
 from ..trading_builtins import SafeList
 
+# Consolidate errors from different brokers into a single class that can be easily caught even
+# if the user decides to switch brokers.
+class LumibotBrokerAPIError(Exception):
+    pass
+
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
@@ -1248,6 +1253,10 @@ class Broker(ABC):
             if stored_order.is_active():
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
+        elif Order.is_equivalent_status(type_event, self.ERROR_ORDER):
+            # Errors can occur during submission when there is an API communication error or a broker error.
+            stored_order = self._process_error_order(stored_order, price)
+            self._on_canceled_order(stored_order)
         elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
             # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
             if stored_order.order_type == Order.OrderType.STOP:

@@ -2905,6 +2905,9 @@ class Strategy(_Strategy):
         >>> self.write_backtest_settings("backtest_settings.json")
 
         """
+        if not self._analyze_backtest:
+            return
+
         datasource = self.broker.data_source
         auto_adjust = datasource.auto_adjust if hasattr(datasource, "auto_adjust") else False
         settings = {
@@ -2920,7 +2923,7 @@ class Strategy(_Strategy):
             "quote_asset": self.quote_asset,
             "benchmark_asset": self._benchmark_asset,
             "starting_positions": self.starting_positions,
-            "parameters": self.parameters,
+            "parameters": {k: v for k, v in self.parameters.items() if k != 'pandas_data'}
         }
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:

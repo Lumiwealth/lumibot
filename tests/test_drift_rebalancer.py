@@ -1442,13 +1442,9 @@ class TestDriftRebalancer:
             backtesting_end=self.backtesting_end,
             pandas_data=pandas_data_fixture,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            # quiet_logs=False,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1497,13 +1493,9 @@ class TestDriftRebalancer:
             backtesting_end=self.backtesting_end,
             pandas_data=pandas_data_fixture,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            # quiet_logs=False,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1554,11 +1546,8 @@ class TestDriftRebalancer:
             backtesting_start=start_date,
             backtesting_end=end_date,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
         )
 
@@ -1617,11 +1606,8 @@ class TestDriftRebalancer:
             backtesting_start=start_date,
             backtesting_end=end_date,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
         )
 

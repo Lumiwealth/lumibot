@@ -1290,6 +1290,7 @@ class _Strategy:
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
             benchmark_asset=benchmark_asset,
+            analyze_backtest=analyze_backtest,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
@@ -1348,6 +1349,9 @@ class _Strategy:
         tearsheet_csv_file=None,
         base_filename="",  # This is the base filename for the backtest
     ):
+        if not self._analyze_backtest:
+            return
+
         name = self._name
 
         # Filename defaults

@@ -3090,7 +3090,7 @@ class Strategy(_Strategy):
 
     def get_historical_prices_for_assets(
         self,
-        assets: List[Union[Asset, str]],
+        assets: List[Asset | str | tuple],
         length: int,
         timestep: str = "minute",
         timeshift: datetime.timedelta = None,
@@ -3110,7 +3110,7 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        assets : list(str/asset)
+        assets : list(str/asset,tuple)
             The symbol string representation (e.g. AAPL, GOOG, ...) or asset
             objects.
             Cryptocurrencies must specify the quote asset. Use tuples with the two asset

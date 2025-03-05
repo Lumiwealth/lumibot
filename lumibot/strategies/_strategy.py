@@ -132,6 +132,7 @@ class _Strategy:
         stats_file=None,
         risk_free_rate=None,
         benchmark_asset: str | Asset | None = "SPY",
+        analyze_backtest: bool = True,
         backtesting_start=None,
         backtesting_end=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
@@ -179,6 +180,8 @@ class _Strategy:
         benchmark_asset : Asset or str or None
             The asset to use as the benchmark for the strategy. Defaults to "SPY". Strings are converted to
             Asset objects with an asset_type="stock". None, means don't benchmark the strategy.
+        analyze_backtest: bool
+            Run the backtest_analysis function at the end.
         backtesting_start : datetime.datetime
             The date and time to start backtesting from. Required for backtesting.
         backtesting_end : datetime.datetime
@@ -332,6 +335,7 @@ class _Strategy:
             self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
 
         self._benchmark_asset = benchmark_asset
+        self._analyze_backtest = analyze_backtest
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
         if self.is_backtesting:
@@ -956,6 +960,7 @@ class _Strategy:
         name = None,
         budget = None,
         benchmark_asset: str | Asset | None="SPY",
+        analyze_backtest: bool = True,
         plot_file_html = None,
         trades_file = None,
         settings_file = None,
@@ -1017,6 +1022,8 @@ class _Strategy:
         benchmark_asset : str or Asset or None
             The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
             to a stock Asset object. If it is None, no benchmarking will occur.
+        analyze_backtest: bool = True
+            Run the backtest_analysis method on the strategy.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str
@@ -1104,6 +1111,7 @@ class _Strategy:
             name = self.__name__
 
         self._name = name
+        self._analyze_backtest = analyze_backtest
 
         # If backtesting_start is None, then check the BACKTESTING_START environment variable
         if backtesting_start is None and BACKTESTING_START is not None:

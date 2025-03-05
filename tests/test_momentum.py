@@ -99,13 +99,10 @@ class TestMomentum:
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
             pandas_data=pandas_data_fixture,
-            parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
+            parameters=parameters,
         )
         comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
@@ -128,13 +125,10 @@ class TestMomentum:
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
             pandas_data=pandas_data_fixture,
-            parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
+            parameters=parameters,
         )
         comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
@@ -156,13 +150,10 @@ class TestMomentum:
             datasource_class=YahooDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
-            parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
+            parameters=parameters,
         )
         comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
@@ -184,14 +175,10 @@ class TestMomentum:
             datasource_class=YahooDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
-            parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            quiet_logs=False
+            parameters=parameters,
         )
         comparison_df = self.build_comparison_df(strategy)
         # print(f"\n{comparison_df}")
@@ -225,16 +212,12 @@ class TestMomentum:
             datasource_class=AlpacaBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "lookback_period": lookback_period,
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
-            quiet_logs=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,
@@ -276,16 +259,12 @@ class TestMomentum:
             datasource_class=AlpacaBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            show_progress_bar=False,
             parameters={
                 "lookback_period": lookback_period,
             },
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
-            show_progress_bar=False,
-            quiet_logs=False,
 
             # AlpacaBacktesting kwargs
             tickers=tickers,

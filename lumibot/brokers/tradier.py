@@ -613,6 +613,16 @@ class Tradier(Broker):
         # Get the reason_description if it exists
         reason_description = response.get("reason_description", "")
 
+        # Tradier sometimes returns None for avg_fill_price and sometimes $0.0. It mostly appears that:
+        #    - 0.0 occurs during submission (mostly for OCO child orders it seems)
+        #    - None while the order is active/cancelled
+        #    - A value when the order is filled
+        # Lumibot treats 0.0 as a valid fill amount, so need to convert to None when it is just a placeholder
+        #    value for non-filled orders.
+        avg_fill_price = response["avg_fill_price"] if "avg_fill_price" in response else None
+        if avg_fill_price == 0.0 and not Order.is_equivalent_status(response["status"], Order.OrderStatus.FILLED):
+            avg_fill_price = None
+
         # Create the order object
         order = Order(
             identifier=response["id"],
@@ -627,7 +637,7 @@ class Tradier(Broker):
             stop_price=self._extract_order_value(response, stop_order, "stop_price"),
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
-            avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
+            avg_fill_price=avg_fill_price,
             error_message=reason_description,
             order_class=self._tradier_class2lumi(response["class"] if "class" in response else None),
         )
@@ -832,6 +842,10 @@ class Tradier(Broker):
                     # for the first time.
                     stored_order = stored_orders[order.identifier]
                     stored_order.quantity = order.quantity  # Update the quantity in case it has changed
+                    stored_order.broker_create_date = order.broker_create_date
+                    stored_order.broker_update_date = order.broker_update_date
+                    if order.avg_fill_price:
+                        stored_order.avg_fill_price = order.avg_fill_price
                     stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
                                        for o in order.child_orders]
                     stored_order.child_orders = stored_children
@@ -873,7 +887,7 @@ class Tradier(Broker):
                                 # There's race condition where Tradier API is marking status=filled but has not yet
                                 # populated the avg_fill_price and other fill data. At some time in the future these
                                 # values will be filled in by Tradier, so do not trigger a 'filled' event until
-                                # all of the needed data has been populated.
+                                # all the needed data has been populated.
                                 if fill_price is not None and fill_qty is not None:
                                     self.stream.dispatch(
                                         self.FILLED_ORDER, order=stored_order, price=fill_price,

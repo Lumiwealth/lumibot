@@ -371,16 +371,26 @@ class AlpacaBacktesting(PandasData):
         if len(self._data_store.values()) > 0:
             self._timestep = list(self._data_store.values())[0].timestep
 
-        # Add one minute back because get_trading_days end_date is exclusive and
-        # DataSourceBacktesting subtracted a minute from datetime_end in init.
-        end_date = self.datetime_end + timedelta(minutes=1)
+        # # Add one minute back because get_trading_days end_date is exclusive and
+        # # DataSourceBacktesting subtracted a minute from datetime_end in init.
+        # end_date = self.datetime_end + timedelta(minutes=1)
+        #
+        # pcal = get_trading_days(
+        #     market=self._market,
+        #     start_date=self.datetime_start,
+        #     end_date=end_date,
+        #     tzinfo=self.tzinfo
+        # )
+
+        end_date = self.datetime_end + timedelta(days=1)
 
         pcal = get_trading_days(
             market=self._market,
-            start_date=self.datetime_start,
+            start_date=self._date_index[0],
             end_date=end_date,
             tzinfo=self.tzinfo
         )
+
         self._date_index = get_trading_times(
             pcal=pcal,
             timestep=self._timestep

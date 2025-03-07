@@ -84,7 +84,12 @@ class TestDatasourceLiveGetHistoricalPrices:
         now = datetime.now().astimezone(pytz.timezone("America/New_York"))
         today = now.date()
 
-        trading_days = get_trading_days(market=market, start_date=today - timedelta(days=7))
+        trading_days = get_trading_days(
+            market=market,
+            start_date=today - timedelta(days=7),
+            end_date=today + timedelta(days=1),
+            tzinfo=pytz.timezone("America/New_York")
+        )
 
         if today in list(trading_days.index.date):
             market_open = trading_days.loc[str(today), 'market_open']

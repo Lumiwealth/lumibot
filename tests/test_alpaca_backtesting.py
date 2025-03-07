@@ -373,16 +373,13 @@ class TestAlpacaBacktesting:
 
         # this assumes we get a minute bar for every bar in normal trading hours.
         # 6.5 trading hours in a day, 60 minutes per hour
-        # minus 30 minutes since the end of the day is gonna be the 15:30 30min bar
-        # plus 1 bar which is the 15:30 bar
-        assert len(df.index) == (6.5 * 60) - 30 + 1
+        assert len(df.index) == (6.5 * 60)
 
         # Regular trading opens at 930am EDT
         assert df.index[0].isoformat() == '2025-01-13T09:30:00-05:00'
 
         # Regular trading ends at 4pm EDT which is 16 in military time.
-        # However, trading_hours_start, trading_hours_end are inclusive.
-        assert df.index[-1].isoformat() == '2025-01-13T15:30:00-05:00'
+        assert df.index[-1].isoformat() == '2025-01-13T15:59:00-05:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
@@ -529,14 +526,12 @@ class TestAlpacaBacktesting:
         assert not df.empty
 
         # 6.5 hours in a trading day 5 days a week, 60 minutes per hour,
-        # But since the last data bar is at 15:00, even though the end date of the backtest is 15:59
-        # it cuts off the last 59 minutes of the data.
-        assert len(df.index) == (6.5 * 5 * 60) - 59
+        assert len(df.index) == (6.5 * 5 * 60)
 
         assert df.index[0].isoformat() == '2025-01-13T09:30:00-05:00'
 
         # Regular trading ends at 4pm EDT which is 16 in military time, but hour bars start at 00 minutes
-        assert df.index[-1].isoformat() == '2025-01-17T15:00:00-05:00'
+        assert df.index[-1].isoformat() == '2025-01-17T15:59:00-05:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
@@ -608,13 +603,12 @@ class TestAlpacaBacktesting:
         assert not df.empty
 
         # 5 days of lookback plus 5 days of backtesting
-        # 6.5 hours in a trading day, means 6 hour-long bars.
+        # 6.5 hours in a trading day
         # 60 minutes an hour
-        # plus the 15:00 bar tacked onto the end of each day
-        assert len(df.index) == (10 * 6 * 60) + 10
+        assert len(df.index) == (10 * 6.5 * 60)
 
-        assert df.index[0].isoformat() == "2025-01-03T09:00:00-05:00"
-        assert df.index[-1].isoformat() == "2025-01-17T15:00:00-05:00"
+        assert df.index[0].isoformat() == "2025-01-03T09:30:00-05:00"
+        assert df.index[-1].isoformat() == "2025-01-17T15:59:00-05:00"
 
         assert strategy.last_historical_prices_df is not None
         assert strategy.last_trading_iteration.isoformat() == "2025-01-17T09:30:00-05:00"
@@ -760,10 +754,9 @@ class TestAlpacaBacktesting:
         # the data is missing minutes but it won't be more than one bar per minute
         assert len(df.index) <= 1440
 
+        # first bar on 1/13  was a 00:01 of the day.
         assert df.index[0].isoformat() == '2025-01-13T00:01:00-06:00'
-
-        # last bar was 2 minutes before the hour.
-        assert df.index[-1].isoformat() == '2025-01-13T23:58:00-06:00'
+        assert df.index[-1].isoformat() == '2025-01-13T23:59:00-06:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-13T00:00:00-06:00'
@@ -836,12 +829,11 @@ class TestAlpacaBacktesting:
 
         assert not df.empty
 
-        # 23 hour-long bars in a 24-hour day (0-23)
+        # 24 hour-long bars
         # 60 minutes per hour
-        # plus one bar for the 23:00 hour bar.
-        assert len(df.index) == (23 * 60) + 1
+        assert len(df.index) == (24 * 60)
         assert df.index[0].isoformat() == '2025-01-01T00:00:00+00:00'
-        assert df.index[-1].isoformat() == '2025-01-01T23:00:00+00:00'
+        assert df.index[-1].isoformat() == '2025-01-01T23:59:00+00:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-01T00:00:00+00:00'
@@ -915,12 +907,11 @@ class TestAlpacaBacktesting:
         df = data.df
         assert not df.empty
 
-        # 23 hour-long bars in a 24-hour day (0-23)
+        # 24 hour-long bars
         # 60 minutes per hour
-        # plus one bar for the 23:00 hour bar.
-        assert len(df.index) == (23 * 60) + 1
+        assert len(df.index) == (24 * 60)
         assert df.index[0].isoformat() == '2025-01-01T00:00:00-06:00'
-        assert df.index[-1].isoformat() == '2025-01-01T23:00:00-06:00'
+        assert df.index[-1].isoformat() == '2025-01-01T23:59:00-06:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-01T00:00:00-06:00'
@@ -998,11 +989,10 @@ class TestAlpacaBacktesting:
 
         # 24 hour-long bars in a 24-hour day (0-23)
         # 60 minutes per hour
-        # plus 1 bar for first minute of the day we don't include
-        assert len(df.index) == (24*60*10) + 1
+        assert len(df.index) == (24*60*10)
 
         assert df.index[0].isoformat() == '2025-01-08T00:00:00-06:00'
-        assert df.index[-1].isoformat() == "2025-01-17T23:00:00-06:00"
+        assert df.index[-1].isoformat() == "2025-01-17T23:59:00-06:00"
 
         assert strategy.last_historical_prices_df is not None
         assert strategy.last_trading_iteration.isoformat() == "2025-01-17T23:00:00-06:00"

@@ -282,14 +282,15 @@ class Data:
 
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
-        idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
-        
+        idx = idx[(idx >= self.datetime_start) & (
+                idx <= self.datetime_end.replace(hour=23, minute=59, second=59, microsecond=999999))]
+
         # Ensure that the DataFrame's index is unique by dropping duplicate timestamps.
         self.df = self.df[~self.df.index.duplicated(keep='first')]
-        
-        # Reindex the DataFrame with the new index and forward-fill missing values.
+
+        # After all time series merged, adjust the local dataframe to reindex and fill nan's.
         df = self.df.reindex(idx, method="ffill")
-        
+
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
             df.loc[df["volume"].isna(), "volume"] = 0

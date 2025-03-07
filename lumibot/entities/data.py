@@ -191,7 +191,7 @@ class Data:
         self.datetime_end = self.df.index[-1]
 
     def set_times(self, trading_hours_start, trading_hours_end):
-        """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
+        """Set the start and end times for the data. The default is 0000 hrs to 2359 hrs.
 
         Parameters
         ----------

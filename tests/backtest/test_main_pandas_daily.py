@@ -27,8 +27,6 @@ logfile = "logs/test.log"
 trader = Trader(logfile=logfile, debug=debug)
 
 
-trading_hours_start = datetime.time(9, 30)
-trading_hours_end = datetime.time(15, 30)
 pandas_data = dict()
 tickers = ["SPY", "DJP", "TLT", "GLD", "IEF"]
 data_dir = Path(__file__).parent.parent / "data"

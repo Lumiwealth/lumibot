@@ -88,10 +88,6 @@ class AlpacaBacktesting(PandasData):
         Keyword Args (kwargs):
             tickers (List[str] | str | None): List of ticker symbols or a single ticker 
                 symbol for the required data. Default is None.
-            trading_hours_start (time): Start time for trading hours (inclusive). Applicable 
-                when timestep is 'minute'. Default is 09:30.
-            trading_hours_end (time): End time for trading hours (inclusive). Applicable 
-                when timestep is 'minute'. Default is 15:59.
             timestep (str): Time interval for the historical data ('minute', 'hour', 'day').
                 Default is 'day'.
             refresh_cache (bool): Whether to refresh the cached historical data. Default is False.
@@ -103,8 +99,6 @@ class AlpacaBacktesting(PandasData):
         """
 
         tickers: List[str] | str | None = kwargs.get('tickers', None)
-        trading_hours_start: time = kwargs.get('trading_hours_start', time(9, 30))
-        trading_hours_end: time = kwargs.get('trading_hours_end', time(15, 59))
         self._timestep: str = kwargs.get('timestep', 'day')
         refresh_cache: bool = kwargs.get('refresh_cache', False)
         self.tzinfo: ZoneInfo = kwargs.get('tzinfo', ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE))
@@ -160,8 +154,6 @@ class AlpacaBacktesting(PandasData):
             tickers=tickers,
             start_dt=warm_up_start_dt,
             end_dt=end_dt,
-            trading_hours_start=trading_hours_start,
-            trading_hours_end=trading_hours_end,
             timestep=self._timestep,
             refresh_cache=refresh_cache,
             auto_adjust=auto_adjust,
@@ -181,8 +173,6 @@ class AlpacaBacktesting(PandasData):
             tickers: List[str] | str,
             start_dt: datetime,
             end_dt: datetime,
-            trading_hours_start: time,
-            trading_hours_end: time,
             timestep: str = 'day',
             refresh_cache: bool = False,
             auto_adjust: bool = True,
@@ -194,8 +184,6 @@ class AlpacaBacktesting(PandasData):
             tickers: A list of tickers to fetch data for.
             start_dt: The start date to fetch data for (inclusive from midnight) in YYYY-MM-DD format.
             end_dt: The end date to fetch data for (exclusive) in YYYY-MM-DD format.
-            trading_hours_start: The start time for trading days in HH:MM (inclusive).
-            trading_hours_end: The end time for trading days in HH:MM (inclusive).
             timestep: The interval to fetch data for. Options: 'day' (default), 'minute', 'hour'.
             refresh_cache: Ignore current cache and fetch from source again. Default is False.
             auto_adjust (bool): Split and dividend adjusted if true, split adjusted only if false.
@@ -297,8 +285,6 @@ class AlpacaBacktesting(PandasData):
                 df=df,
                 date_start=start_dt,
                 date_end=end_dt,
-                trading_hours_start=trading_hours_start,
-                trading_hours_end=trading_hours_end,
                 timestep=self._timestep,
                 quote=quote_asset,
                 tzinfo=tzinfo
@@ -370,17 +356,6 @@ class AlpacaBacktesting(PandasData):
 
         if len(self._data_store.values()) > 0:
             self._timestep = list(self._data_store.values())[0].timestep
-
-        # # Add one minute back because get_trading_days end_date is exclusive and
-        # # DataSourceBacktesting subtracted a minute from datetime_end in init.
-        # end_date = self.datetime_end + timedelta(minutes=1)
-        #
-        # pcal = get_trading_days(
-        #     market=self._market,
-        #     start_date=self.datetime_start,
-        #     end_date=end_date,
-        #     tzinfo=self.tzinfo
-        # )
 
         end_date = self.datetime_end + timedelta(days=1)
 

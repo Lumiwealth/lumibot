@@ -189,8 +189,6 @@ class TestAlpacaBacktesting:
             # AlpacaBacktesting kwargs
             tickers=tickers,
             timestep=timestep,
-            trading_hours_start=time(9, 30),
-            trading_hours_end=time(15, 59),
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
@@ -266,9 +264,6 @@ class TestAlpacaBacktesting:
             # AlpacaBacktesting kwargs
             tickers=tickers,
             timestep=timestep,
-            # Alpaca extended hours are from 4am-8pm EDT
-            trading_hours_start=time(4, 00),
-            trading_hours_end=time(19, 59),
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
@@ -345,8 +340,6 @@ class TestAlpacaBacktesting:
             # AlpacaBacktesting kwargs
             tickers=tickers,
             timestep=timestep,
-            trading_hours_start=time(9, 30),
-            trading_hours_end=time(15, 59),
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
@@ -497,10 +490,6 @@ class TestAlpacaBacktesting:
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-
-            # To get the 930 start, we start at 9
-            trading_hours_start=time(9, 0),
-            trading_hours_end=time(15, 59),
         )
         assert results
         assert strategy
@@ -578,10 +567,6 @@ class TestAlpacaBacktesting:
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
-
-            # To get the 930 start, we start at 9
-            trading_hours_start=time(9, 0),
-            trading_hours_end=time(15, 59),
         )
         assert results
         assert strategy
@@ -647,10 +632,6 @@ class TestAlpacaBacktesting:
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-
-            # Crypto trades 24 hours a day
-            trading_hours_start=time(0, 0),
-            trading_hours_end=time(23, 59),
             market=market,
         )
         assert results
@@ -726,10 +707,6 @@ class TestAlpacaBacktesting:
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-
-            # Crypto trades 24 hours a day
-            trading_hours_start=time(0, 0),
-            trading_hours_end=time(23, 59),
             market=market,
         )
         assert results
@@ -803,10 +780,6 @@ class TestAlpacaBacktesting:
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-
-            # Crypto trades 24 hours a day
-            trading_hours_start=time(0, 0),
-            trading_hours_end=time(23, 59),
             market=market,
         )
         assert results
@@ -882,10 +855,6 @@ class TestAlpacaBacktesting:
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-
-            # Crypto trades 24 hours a day
-            trading_hours_start=time(0, 0),
-            trading_hours_end=time(23, 59),
             market=market,
         )
         assert results
@@ -961,10 +930,6 @@ class TestAlpacaBacktesting:
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-
-            # Crypto trades 24 hours a day
-            trading_hours_start=time(0, 0),
-            trading_hours_end=time(23, 59),
             warm_up_trading_days=warm_up_trading_days,
             market=market,
         )

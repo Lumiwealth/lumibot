@@ -2,6 +2,8 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta, date, time
+from zoneinfo import ZoneInfo
+
 from pytz import timezone
 
 import pandas as pd
@@ -9,7 +11,7 @@ import pandas_market_calendars as mcal
 from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 
 
 def get_chunks(l, chunk_size):
@@ -39,13 +41,27 @@ def deduplicate_sequence(seq, key=""):
 
 
 class TwentyFourSevenCalendar(MarketCalendar):
+    """
+    Calendar for markets that trade 24/7, like crypto markets.
+    Market open is set to midnight (00:00) and close to 23:59 for each day.
+    """
+
+    regular_market_times = {
+        'market_open': [(None, time(0, 0))],
+        'market_close': [(None, time(23, 59, 59, 999999))],
+    }
+
+    def __init__(self, tzinfo: str | ZoneInfo = 'UTC'):
+        self._tzinfo = ZoneInfo(tzinfo) if isinstance(tzinfo, str) else tzinfo
+        super().__init__()
+
     @property
     def name(self):
         return "24/7"
 
     @property
     def tz(self):
-        return timezone('UTC')
+        return self._tzinfo
 
     @property
     def open_time_default(self):
@@ -53,7 +69,7 @@ class TwentyFourSevenCalendar(MarketCalendar):
 
     @property
     def close_time_default(self):
-        return time(23, 59, 59)
+        return time(23, 59)
 
     @property
     def regular_holidays(self):
@@ -64,60 +80,178 @@ class TwentyFourSevenCalendar(MarketCalendar):
         return []
 
     @property
+    def special_closes_adherence(self):
+        return []
+
+    @property
     def special_opens(self):
         return []
 
+    @property
+    def special_opens_adherence(self):
+        return []
 
-def get_trading_days(market="NYSE", start_date="1950-01-01", end_date=None):
-    format_datetime = lambda dt: dt.to_pydatetime().astimezone(LUMIBOT_DEFAULT_PYTZ)
+    def valid_days(self, start_date, end_date, tz=None):
+        return pd.date_range(start=start_date, end=end_date, freq='D')
 
-    # Ensure start_date and end_date are datetime or Timestamp objects
-    start_date = to_datetime_aware(pd.to_datetime(start_date))
-    end_date = to_datetime_aware(pd.to_datetime(end_date)) if end_date else to_datetime_aware(pd.to_datetime(get_lumibot_datetime()))
 
-    cal = mcal.get_calendar(market)
-    days = cal.schedule(start_date=start_date, end_date=end_date)
+def get_trading_days(
+        market="NYSE",
+        start_date="1950-01-01",
+        end_date=None,
+        tzinfo: ZoneInfo = ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE),
+):
+    """
+    Gets a schedule of trading days and corresponding market open/close times
+    for a specified market between given start and end dates, including proper
+    timezone handling for datetime objects.
+
+    Args:
+        market (str, optional): Market identifier for which the trading days
+            are to be retrieved. Defaults to "NYSE".
+        start_date (str or datetime-like, optional): The start date for the
+            range of trading days. Defaults to "1950-01-01".
+        end_date (str or datetime-like, optional): The end date (exclusive) for
+            the range of trading days. If not specified, the current date is used.
+            Defaults to None.
+        tzinfo (ZoneInfo, optional): Timezone information used for
+            converting datetime objects. Defaults to ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE).
+
+    Returns:
+        DataFrame: A pandas DataFrame containing the trading schedule with
+            columns for 'market_open' and 'market_close', adjusted to the
+            specified timezone.
+    """
+
+    # More robust datetime conversion with explicit timezone handling
+    def format_datetime(dt):
+        if pd.isna(dt):
+            return dt
+        # Convert to Python datetime and ensure proper timezone conversion
+        return pd.Timestamp(dt).tz_convert(tzinfo).to_pydatetime()
+
+    # Convert input dates to timezone-aware datetime objects
+    def ensure_tz_aware(dt):
+        dt = pd.to_datetime(dt)
+        return dt.tz_convert(tzinfo) if dt.tz is not None else dt.tz_localize(tzinfo)
+
+    start_date = ensure_tz_aware(start_date)
+    end_date = ensure_tz_aware(end_date) if end_date else ensure_tz_aware(get_lumibot_datetime())
+
+    if market == "24/7":
+        cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
+    else:
+        cal = mcal.get_calendar(market)
+
+    # Make end_date exclusive by moving it one day earlier
+    schedule_end = pd.Timestamp(end_date) - pd.Timedelta(days=1)
+    days = cal.schedule(start_date=start_date, end_date=schedule_end, tz=tzinfo)
     days.market_open = days.market_open.apply(format_datetime)
     days.market_close = days.market_close.apply(format_datetime)
     return days
 
 
+def get_trading_times(
+        pcal: pd.DataFrame,
+        timestep: str = 'day'
+) -> pd.DatetimeIndex:
+    """
+    Generate a DatetimeIndex of trading times based on market calendar and timestep
+
+    Parameters:
+    -----------
+    pcal : pd.DataFrame
+        DataFrame with columns 'market_open' and 'market_close' containing datetime objects
+    timestep : str
+        'day' for daily bars or 'minute' for minute bars
+
+    Returns:
+    --------
+    pd.DatetimeIndex : Index of all trading times
+    """
+
+    if timestep.lower() not in ['day', 'minute']:
+        raise ValueError("timestep must be 'day' or 'minute'")
+
+    if timestep.lower() == 'day':
+        # For daily bars, return midnight of each trading day
+        dates = pd.DatetimeIndex(pcal['market_open'].dt.normalize())
+        return dates
+
+    # For minute bars, we need to generate minutes between open and close
+    trading_minutes = []
+
+    for _, row in pcal.iterrows():
+        start = row['market_open']
+        end = row['market_close']
+
+        # Check if it's a 24/7 market by checking if close time is 23:59
+        is_24_7 = end.hour == 23 and end.minute == 59
+
+        # Generate minute bars between open and close
+        minutes = pd.date_range(start=start, end=end, freq='T')
+
+        # Only remove the last minute for non-24/7 markets
+        if not is_24_7:
+            minutes = minutes[:-1]
+
+        trading_minutes.extend(minutes)
+
+    return pd.DatetimeIndex(trading_minutes)
+
+
 def date_n_days_from_date(
-        n_bars: int,
+        n_days: int,
         start_datetime: datetime,
         market: str = "NYSE",
+        tzinfo: ZoneInfo = ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE),
 ) -> date:
-
-    if n_bars == 0:
+    """
+    Get the trading date n_days from start_datetime.
+    Positive n_days means going backwards in time (earlier dates).
+    Negative n_days means going forwards in time (later dates).
+    """
+    if n_days == 0:
         return start_datetime.date()
     if not isinstance(start_datetime, datetime):
         raise ValueError("start_datetime must be datetime")
 
-    # Remove timezone information from a datetime object
-    start_datetime = start_datetime.replace(tzinfo=None)
+    # Special handling for 24/7 market
+    if market == "24/7":
+        return (start_datetime - timedelta(days=n_days)).date()
 
-    # Let's add 3 days per week for weekends and holidays.
-    weeks_requested = n_bars // 5  # Full trading week is 5 days
-    extra_padding_days = weeks_requested * 3  # to account for 3day weekends
-    buffer_bars = max(10, n_bars + extra_padding_days)  # Get at least 10 days
+    # Regular market handling
+    start_datetime = start_datetime.astimezone(tzinfo)
+    buffer_bars = max(10, abs(n_days) + (abs(n_days) // 5) * 3)  # Padding for weekends/holidays
 
-    # Get trading days around the backtesting_start date
-    trading_days = get_trading_days(
-        market=market,
-        start_date=(start_datetime - timedelta(days=n_bars+buffer_bars)).date().isoformat(),
-        end_date=(start_datetime + timedelta(days=n_bars+buffer_bars)).date().isoformat(),
-    )
-
-    # Check if start_datetime is in trading_days
-    if start_datetime in trading_days.index:
-        start_index = trading_days.index.get_loc(start_datetime)
+    # Calculate date range based on direction
+    date_range = {
+        'market': market,
+        'tzinfo': tzinfo,
+    }
+    if n_days > 0:
+        date_range.update({
+            'start_date': (start_datetime - timedelta(days=n_days + buffer_bars)).date().isoformat(),
+            'end_date': (start_datetime + timedelta(days=1)).date().isoformat(),  # Add one day to include end date
+        })
     else:
-        # Find the first trading date after start_datetime
-        start_index = trading_days.index.get_indexer([start_datetime], method='bfill')[0]
+        date_range.update({
+            'start_date': start_datetime.date().isoformat(),
+            'end_date': (start_datetime + timedelta(days=abs(n_days) + buffer_bars + 1)).date().isoformat(),
+            # Add one day
+        })
 
-    # get the date of the last trading n_bars before the start_datetime date
-    date_n_bars_away = trading_days.index[start_index - n_bars].date()
-    return date_n_bars_away
+    trading_days = get_trading_days(**date_range)
+    start_datetime_naive = start_datetime.replace(tzinfo=None)
+
+    # Find index and calculate result
+    start_index = (trading_days.index.get_loc(start_datetime_naive)
+                   if start_datetime_naive in trading_days.index
+                   else trading_days.index.get_indexer([start_datetime_naive], method='bfill')[0])
+
+    return trading_days.index[start_index - n_days].date()
+
+
 
 
 class ComparaisonMixin:

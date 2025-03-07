@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta
-from typing import List
+from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
+import pytest
 
 import pandas as pd
 from lumibot.data_sources import PandasData
-from lumibot.entities import Asset, Data
+from lumibot.entities import Asset
 
 from tests.fixtures import (
     pandas_data_fixture,
@@ -108,7 +108,7 @@ class TestPandasData:
 
         # end it sometime after (it doesn't matter, we're not doing a backtest)
         datetime_end = datetime_start + timedelta(days=1)
-        
+
         data_source = PandasData(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
@@ -256,3 +256,9 @@ class TestPandasData:
         assert bars[asset_tuple].asset.symbol == 'BTC'
         assert bars[asset_tuple].df is not None
         assert len(bars[asset_tuple].df) == 5
+
+    def test_empty_pandas_data(self):
+        datetime_start = datetime(2019, 6, 18)
+        datetime_end = datetime(2019, 6, 22)
+        pandas_data = PandasData(datetime_start, datetime_end)
+        assert pandas_data

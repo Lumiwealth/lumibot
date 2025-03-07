@@ -282,7 +282,9 @@ class Data:
 
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
-        idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+        # idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+        idx = idx[(idx >= self.datetime_start) & (
+                idx <= self.datetime_end.replace(hour=23, minute=59, second=59, microsecond=999999))]
 
         # After all time series merged, adjust the local dataframe to reindex and fill nan's.
         df = self.df.reindex(idx, method="ffill")

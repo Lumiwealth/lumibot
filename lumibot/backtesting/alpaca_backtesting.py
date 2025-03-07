@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone, time, timedelta
 from zoneinfo import ZoneInfo
 from typing import List
 import os
@@ -13,7 +13,12 @@ from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from lumibot.data_sources import PandasData
 from lumibot.entities import Data, Asset
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.tools.helpers import date_n_days_from_date, parse_timestep_qty_and_unit
+from lumibot.tools.helpers import (
+    date_n_days_from_date,
+    parse_timestep_qty_and_unit,
+    get_trading_days,
+    get_trading_times
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +109,7 @@ class AlpacaBacktesting(PandasData):
         refresh_cache: bool = kwargs.get('refresh_cache', False)
         self.tzinfo: ZoneInfo = kwargs.get('tzinfo', ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE))
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
-        market: str = kwargs.get('market', "NYSE")
+        self._market: str = kwargs.get('market', "NYSE")
 
         self.CACHE_SUBFOLDER = 'alpaca'
 
@@ -139,9 +144,9 @@ class AlpacaBacktesting(PandasData):
 
         if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_days_from_date(
-                n_bars=warm_up_trading_days,
+                n_days=warm_up_trading_days,
                 start_datetime=start_dt,
-                market=market,
+                market=self._market,
             )
             # Combine with a default time (midnight)
             warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())
@@ -338,3 +343,48 @@ class AlpacaBacktesting(PandasData):
 
         df.to_csv(filepath, index=False)
         return df
+    
+    def load_data(self):
+        """
+        Loads the data, updates date index, and prepares the data for use by repairing
+        times and filling missing data based on trading days and times.
+
+        This method initializes the internal data store from the Pandas dataset and
+        determines the timestep frequency. It calculates the trading days and trading
+        times based on the market calendar, ensuring that the data is aligned and
+        consistent by repairing and filling missing dates and times using the updated
+        date index.
+
+        Args:
+            None
+
+        Returns:
+            list: A list of trading days as calculated by the `get_trading_days`
+            function.
+
+        Raises:
+            None
+        """
+        self._data_store = self.pandas_data
+        self._date_index = self.update_date_index()
+
+        if len(self._data_store.values()) > 0:
+            self._timestep = list(self._data_store.values())[0].timestep
+
+        # Add one minute back because get_trading_days end_date is exclusive and
+        # DataSourceBacktesting subtracted a minute from datetime_end in init.
+        end_date = self.datetime_end + timedelta(minutes=1)
+
+        pcal = get_trading_days(
+            market=self._market,
+            start_date=self.datetime_start,
+            end_date=end_date,
+            tzinfo=self.tzinfo
+        )
+        self._date_index = get_trading_times(
+            pcal=pcal,
+            timestep=self._timestep
+        )
+        for _, data in self._data_store.items():
+            data.repair_times_and_fill(self._date_index)
+        return pcal

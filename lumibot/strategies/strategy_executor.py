@@ -201,10 +201,10 @@ class StrategyExecutor(Thread):
                         # Add to order in lumibot.
                         self.broker._process_new_order(order)
 
+            broker_identifiers = self._get_all_order_identifiers(orders_broker)
             for order_lumi in orders_lumi:
                 # Remove lumibot orders if not in broker.
                 # Check both main order IDs and child order IDs from broker
-                broker_identifiers = self._get_all_order_identifiers(orders_broker)
                 if order_lumi.identifier not in broker_identifiers:
                     # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
                     # However, active orders should not be dropped as they are still in effect and if they can't

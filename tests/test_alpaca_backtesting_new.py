@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import pytest
 
-from lumibot.backtesting import AlpacaBacktesting, PandasDataBacktesting, BacktestingBroker
+from lumibot.backtesting import AlpacaBacktestingNew, PandasDataBacktesting, BacktestingBroker
 from lumibot.brokers import Broker
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset
@@ -18,20 +18,256 @@ if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your 
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
 
 
-class TestAlpacaBacktesting:
-    """Tests for the AlpacaBacktesting datasource class as well as using it in strategies."""
+import pytest
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from lumibot.entities import Asset
+
+
+class TestAssetKey:
+
+    def _create_data_source(
+            self,
+            *,
+            datetime_start=datetime(2025, 1, 1),
+            datetime_end=datetime(2025, 1, 31),
+            config=ALPACA_TEST_CONFIG,
+            timestep = "1d",
+            tzinfo=ZoneInfo("America/New_York"),
+            refresh_cache=False,
+            market="NYSE",
+            warm_up_trading_days: int = 0,
+            auto_adjust: bool = True,
+    ):
+        """
+        Create an instance of AlpacaBacktestingNew with default or provided parameters.
+        """
+        return AlpacaBacktestingNew(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            config=config,
+            timestep=timestep,
+            tzinfo=tzinfo,
+            refresh_cache=refresh_cache,
+            market=market,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+    def test_create_data_source(self):
+        data_source = self._create_data_source()
+        assert isinstance(data_source, AlpacaBacktestingNew)
+
+    def test_basic_key_generation_crypto(self):
+        datetime_start = datetime(2025, 1, 1)
+        datetime_end = datetime(2025, 2, 1)
+        base_asset = Asset("BTC", asset_type='crypto')
+        quote_asset = Asset("USD", asset_type='forex')
+        market = "24/7"
+        tzinfo = ZoneInfo("America/Chicago")
+        timestep = "1d"
+        
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            tzinfo=tzinfo,
+            timestep=timestep,
+        )
+
+        key = data_source._get_asset_key(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            market=market,
+            tzinfo=tzinfo,
+            timestep=timestep,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end
+        )
+
+        expected = "BTC-USD_24-7_AMERICA-CHICAGO_1D_AA_2025-01-01_2025-02-01"
+        assert key == expected
+
+    def test_basic_key_generation_stock(self):
+        datetime_start = datetime(2025, 1, 1)
+        datetime_end = datetime(2025, 2, 1)
+        base_asset = Asset("AAPL", asset_type='stock')
+        quote_asset = Asset("USD", asset_type='forex')
+        market = "NYSE"
+        tzinfo = ZoneInfo("America/New_York")
+        timestep = "1d"
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            tzinfo=tzinfo,
+            timestep=timestep,
+        )
+
+        key = data_source._get_asset_key(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            market=market,
+            tzinfo=tzinfo,
+            timestep=timestep,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end
+        )
+
+        expected = "AAPL-USD_NYSE_AMERICA-NEW-YORK_1D_AA_2025-01-01_2025-02-01"
+        assert key == expected
+
+    def test_with_auto_adjust(self):
+        base_asset = Asset("AAPL", asset_type="stock")
+        quote_asset = Asset("USD", asset_type="forex")
+        market = "NYSE"
+        tz = ZoneInfo("America/New_York")
+        timestep = "1h"
+        start_date = datetime(2023, 1, 1)
+        end_date = datetime(2023, 12, 31)
+        auto_adjust = True
+
+        data_source = self._create_data_source(
+            datetime_start=start_date,
+            datetime_end=end_date,
+            market=market,
+            tzinfo=tz,
+            timestep=timestep,
+            auto_adjust=auto_adjust
+        )
+
+        key = data_source._get_asset_key(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            market=market,
+            tzinfo=tz,
+            timestep=timestep,
+            datetime_start=start_date,
+            datetime_end=end_date,
+            auto_adjust=auto_adjust
+        )
+
+        expected = "AAPL-USD_NYSE_AMERICA-NEW-YORK_1H_AA_2023-01-01_2023-12-31"
+        assert key == expected
+
+    def test_empty_market_false_auto_adjust(self):
+        base_asset = Asset("SPY", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="crypto")
+        tz = ZoneInfo("America/New_York")
+        timestep = "30M"
+        start_date = datetime(2023, 1, 1)
+        end_date = datetime(2023, 12, 31)
+        auto_adjust = False
+
+        data_source = self._create_data_source(
+            datetime_start=start_date,
+            datetime_end=end_date,
+            tzinfo=tz,
+            timestep=timestep,
+            auto_adjust=auto_adjust
+        )
+
+        key = data_source._get_asset_key(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            tzinfo=tz,
+            timestep=timestep,
+            datetime_start=start_date,
+            datetime_end=end_date,
+            auto_adjust=auto_adjust
+        )
+
+        expected = "SPY-USD_NYSE_AMERICA-NEW-YORK_30M_2023-01-01_2023-12-31"
+        assert key == expected
+
+    def test_different_timezones(self):
+        base_asset = Asset("BTC")
+        quote_asset = Asset("EUR")
+        market = "24/7"
+        timezones = [
+            ZoneInfo("Asia/Tokyo"),
+            ZoneInfo("Europe/London"),
+            ZoneInfo("US/Pacific")
+        ]
+        timestep = "1d"
+        start_date = datetime(2023, 1, 1)
+        end_date = datetime(2023, 12, 31)
+        auto_adjust = False
+
+        data_source = self._create_data_source(
+            datetime_start=start_date,
+            datetime_end=end_date,
+            market=market,
+            timestep=timestep
+        )
+
+        expected_results = [
+            "BTC-EUR_24-7_ASIA-TOKYO_1D_2023-01-01_2023-12-31",
+            "BTC-EUR_24-7_EUROPE-LONDON_1D_2023-01-01_2023-12-31",
+            "BTC-EUR_24-7_US-PACIFIC_1D_2023-01-01_2023-12-31"
+        ]
+
+        for tz, expected in zip(timezones, expected_results):
+            key = data_source._get_asset_key(
+                base_asset=base_asset,
+                quote_asset=quote_asset,
+                market=market,
+                tzinfo=tz,
+                timestep=timestep,
+                datetime_start=start_date,
+                datetime_end=end_date,
+                auto_adjust=auto_adjust
+            )
+            assert key == expected
+
+    def test_different_timesteps(self):
+        base_asset = Asset("AMZN")
+        quote_asset = Asset("USD")
+        market = "NASDAQ"
+        tz = ZoneInfo("America/New_York")
+        timesteps = ["1m", "5m", "15m", "1h", "4h", "1d"]
+        start_date = datetime(2023, 1, 1)
+        end_date = datetime(2023, 12, 31)
+        auto_adjust = False
+
+        for timestep in timesteps:
+            data_source = self._create_data_source(
+                datetime_start=start_date,
+                datetime_end=end_date,
+                market=market,
+                timestep=timestep
+            )
+            key = data_source._get_asset_key(
+                base_asset=base_asset,
+                quote_asset=quote_asset,
+                market=market,
+                tzinfo=tz,
+                timestep=timestep,
+                datetime_start=start_date,
+                datetime_end=end_date,
+                auto_adjust=auto_adjust
+            )
+            expected = f"AMZN-USD_NASDAQ_AMERICA-NEW-YORK_{timestep.upper()}_2023-01-01_2023-12-31"
+            assert key == expected
+
+
+class TestAlpacaBacktestingNew:
+    """Tests for the AlpacaBacktestingNew datasource class as well as using it in strategies."""
 
     def test_single_stock_day_bars_america_new_york(self):
         backtesting_start = datetime(2025, 1, 13)
         backtesting_end = datetime(2025, 1, 18)
-        timestep = 'day'
+        timestep = sleeptime = '1D'
+        market = 'NYSE'
         tzinfo = ZoneInfo("America/New_York")
-        tickers = "AMZN"
         refresh_cache = False
+        auto_adjust = True
+        warm_up_trading_days = 0
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             benchmark_asset=None,
@@ -39,34 +275,33 @@ class TestAlpacaBacktesting:
             show_progress_bar=False,
             parameters={
                 "asset": Asset('AMZN', asset_type='stock'),
-                "sleeptime": "1D",
-                "market": "NYSE"
+                "sleeptime": sleeptime,
+                "market": market
             },
 
-
-            # AlpacaBacktesting kwargs
-            tickers=tickers,
+            # AlpacaBacktestingNew kwargs
             timestep=timestep,
+            market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo
+            tzinfo=tzinfo,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
         )
         assert results
         assert strategy
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
         assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
-        assert data_source.datetime_end.isoformat() == '2025-01-17T23:59:00-05:00'
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "AMZN"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-        data = list(data_source.pandas_data.values())[0]
-        df = data.df
+        assert data_source.datetime_end.isoformat() == '2025-01-18T00:00:00-05:00'
+        key = list(data_source._data_store.keys())[0]
+        assert key == 'AMZN-USD_NYSE_1D_AMERICA-NEW-YORK_AA_2025-01-13_2025-01-18'
+        df = list(data_source._data_store.values())[0]
         assert not df.empty
         assert len(df.index) == 5
 
@@ -111,7 +346,7 @@ class TestAlpacaBacktesting:
 
         strategy: GetHistoricalTestStrategy
         results, strategy = GetHistoricalTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             benchmark_asset=None,
@@ -124,7 +359,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -138,7 +373,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -172,7 +407,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -185,7 +420,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -198,7 +433,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -247,7 +482,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -260,7 +495,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -273,7 +508,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -322,7 +557,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -336,7 +571,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -349,7 +584,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -397,7 +632,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -410,7 +645,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -422,7 +657,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -470,7 +705,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -483,7 +718,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -495,7 +730,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -546,7 +781,7 @@ class TestAlpacaBacktesting:
 
         strategy: GetHistoricalTestStrategy
         results, strategy = GetHistoricalTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             benchmark_asset=None,
@@ -559,7 +794,7 @@ class TestAlpacaBacktesting:
                 "market": "NYSE"
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -572,7 +807,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -612,7 +847,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -625,7 +860,7 @@ class TestAlpacaBacktesting:
                 "market": market,
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -638,7 +873,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -687,7 +922,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -700,7 +935,7 @@ class TestAlpacaBacktesting:
                 "market": market,
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -713,7 +948,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -760,7 +995,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -773,7 +1008,7 @@ class TestAlpacaBacktesting:
                 "market": market,
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -786,7 +1021,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -835,7 +1070,7 @@ class TestAlpacaBacktesting:
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -848,7 +1083,7 @@ class TestAlpacaBacktesting:
                 "market": market
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -861,7 +1096,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source
@@ -909,7 +1144,7 @@ class TestAlpacaBacktesting:
 
         strategy: GetHistoricalTestStrategy
         results, strategy = GetHistoricalTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
+            datasource_class=AlpacaBacktestingNew,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
@@ -923,7 +1158,7 @@ class TestAlpacaBacktesting:
                 "market": market
             },
 
-            # AlpacaBacktesting kwargs
+            # AlpacaBacktestingNew kwargs
             tickers=tickers,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
@@ -937,7 +1172,7 @@ class TestAlpacaBacktesting:
         assert strategy.broker
         assert isinstance(strategy.broker, BacktestingBroker)
         assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+        assert isinstance(strategy.broker.data_source, AlpacaBacktestingNew)
 
         # Data source tests
         data_source = strategy.broker.data_source

@@ -174,10 +174,7 @@ def get_trading_times(
         raise ValueError("timestep must be 'day' or 'minute'")
 
     if timestep.lower() == 'day':
-        # For daily bars, return midnight of each trading day
-        # TODO: maybe we don't normalize and jsut return the open? Then daily backtests will
-        # have data at 9:30am and get_last_price and order fills will fill at the open.
-        dates = pd.DatetimeIndex(pcal['market_open'].dt.normalize())
+        dates = pd.DatetimeIndex(pcal['market_open'])
         return dates
 
     # For minute bars, we need to generate minutes between open and close

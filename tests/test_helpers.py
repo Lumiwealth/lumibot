@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from pytz import timezone
+import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools.helpers import (
@@ -151,7 +151,7 @@ def test_get_trading_days():
     assert all(dt.tzinfo == america_chicago for dt in trading_days.market_close)
 
 
-def test_get_trading_times_day():
+def test_get_trading_times_day_nyse():
     start_date = datetime(2024, 1, 8)  # Monday
     end_date = datetime(2024, 1, 13)  # Saturday
     pcal = get_trading_days(market='NYSE', start_date=start_date, end_date=end_date)
@@ -159,8 +159,22 @@ def test_get_trading_times_day():
     result = get_trading_times(pcal=pcal, timestep='day')
 
     assert len(result) == 5  # 8th through 12th (Mon-Fri)
-    # All timestamps should be at midnight in market timezone
-    assert all(ts.strftime('%H:%M:%S%z') == '00:00:00-0500' for ts in result)
+    # All timestamps the market open for NYSE
+    assert all(ts.strftime('%H:%M:%S%z') == '09:30:00-0500' for ts in result)
+
+
+def test_get_trading_times_minute_nyse():
+    start_date = datetime(2024, 1, 8)  # Monday
+    end_date = datetime(2024, 1, 13)  # Saturday
+    pcal = get_trading_days(market='NYSE', start_date=start_date, end_date=end_date)
+
+    result = get_trading_times(pcal=pcal, timestep='minute')
+
+    assert len(result) == 6.5 * 60 * 5  # 8th through 12th (Mon-Fri)
+    assert result[0].hour == 9
+    assert result[0].minute == 30
+    assert result[-1].hour == 15
+    assert result[-1].minute == 59
 
 
 def test_get_trading_times_minute_24_7_utc():

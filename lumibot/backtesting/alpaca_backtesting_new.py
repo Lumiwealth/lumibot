@@ -22,6 +22,7 @@ from lumibot import (
 from lumibot.tools.helpers import (
     date_n_days_from_date,
     get_trading_days,
+    get_trading_times
 )
 
 
@@ -130,7 +131,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             tzinfo=self._tzinfo
         )
 
-        # The end, should be the last minute of the day.
+        # The end should be the last minute of the day.
         end_dt = datetime(
             year=datetime_end.year,
             month=datetime_end.month,
@@ -174,10 +175,14 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         # the portfolio value. To avoid that crash (and because im avoiding dealing with people complaining about
         # backtest behavior changing if i fix it) im just hacking this so the backtest ends before the data runs out.
         if self._timestep == 'day':
-            # stop backtesting 2 days before the last trading date of the backtest
-            # so there's one day of data the backtester has to calculate all its stuff.
-            last_trading_day = self._trading_days.iloc[-3]['market_open']
-            self.datetime_end = last_trading_day
+            end_shift = -3
+        else:
+            end_shift = -3
+
+        # stop backtesting before the last trading date of the backtest
+        # so there's one day of data the backtester has to calculate all its stuff.
+        last_trading_day = self._trading_days.iloc[end_shift]['market_open']
+        self.datetime_end = last_trading_day
 
         self.datetime_start = start_dt
         self._datetime = self.datetime_start
@@ -353,7 +358,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         tzinfo: ZoneInfo - Timezone information.
         timestep: str - Timestep of the source data. Accepts "day" or "minute".
         data_datetime_start: datetime - The start date of the data in the backtest.
-        data_datetime_end: datetime - The end date of the data in the backtest. Exclusive.
+        data_datetime_end: datetime - The end date of the data in the backtest. Inclusive.
         auto_adjust: bool - Flag to indicate if auto-adjustment is applied.
 
         Returns
@@ -487,11 +492,9 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
         else:
             df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
-        df.drop(columns=['symbol'], inplace=True, errors='ignore')
 
-        # Only keep rows within the specified date range (exclusive of end date
-        df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
-        
+        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+
         if self._timestep == 'day':
             # daily bars are NORMALLY indexed at midnight (the open of the bar).
             # To enable lumibot to use the open price of the bar for the get_last_price and fills,
@@ -500,6 +503,15 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             df['timestamp'] = df['timestamp'].map(
                 lambda x: x.replace(hour=market_open.hour, minute=market_open.minute)
             )
+
+        trading_times = get_trading_times(
+            pcal=self._trading_days,
+            timestep=self._timestep,
+        )
+
+        # Reindex the dataframe with a row for each bar we should have a trading iteration for.
+        # Fill any empty bars with previous data.
+        df = self._reindex_and_fill(df=df, trading_times=trading_times)
 
         # If asset is of type stock, quantize OHLC prices to ALPACA_STOCK_PRECISION
         if base_asset.asset_type == 'stock':
@@ -554,3 +566,38 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         except Exception as e:
             logging.error(f"Failed to load cached data for key: {key}. Error: {e}")
             return False
+
+    def _reindex_and_fill(self, df: pd.DataFrame, trading_times: pd.DatetimeIndex) -> pd.DataFrame:
+        # Check if all required columns are present
+        required_columns = {"timestamp", "open", "high", "low", "close", "volume"}
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
+
+        # Ensure timestamp is the index
+        if df.index.name != "timestamp":
+            df.set_index("timestamp", inplace=True)
+
+        # Reindex and fill missing dates
+        df = df.reindex(trading_times)
+
+        # Set missing volume values to 0.0
+        df['volume'] = df['volume'].fillna(0.0)
+
+        # Forward fill missing close prices
+        df['close'] = df['close'].fillna(method='ffill')
+
+        # Fill NaN in 'open', 'high', and 'low' columns with the value from the 'close' column
+        for column in ['open', 'high', 'low']:
+            df[column] = df[column].fillna(df['close'])
+            
+        # Backward fill missing data to address gaps at the front
+        df['open'] = df['open'].fillna(method='bfill')
+
+        # Backfill NaN in 'open', 'high', and 'low' columns with the value from the 'open' column
+        for column in ['high', 'low', 'close']:
+            df[column] = df[column].fillna(df['open'])
+
+        df.rename_axis("timestamp", inplace=True)
+        df.reset_index(inplace=True)
+        return df

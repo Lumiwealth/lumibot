@@ -1036,6 +1036,13 @@ class StrategyExecutor(Thread):
                 if not self._strategy_sleep():
                     break
 
+            # TODO: I think we want to add this return for backtesting. At this point, the backtest is over.
+            # During backtesting we've never called before_market_close or after_market_close so why start now?
+            # It just asks for data to calculate the portfolio value, but at this point, the backtest is over
+            # and the date requested would be bbeyond the end date of the backtest. However, im not changing this
+            # because it MIGHT mess up people who are counting on this functionality. :shrug:
+            # return
+
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
             self._before_market_closes()  # perhaps the user could set the time of day based on their data that the market closes?

@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN
 
 import pandas as pd
 import numpy as np
@@ -13,38 +13,28 @@ from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
-from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot import (
+    LUMIBOT_CACHE_FOLDER,
+    LUMIBOT_DEFAULT_TIMEZONE,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
+)
 from lumibot.tools.helpers import (
     date_n_days_from_date,
-    parse_timestep_qty_and_unit,
     get_trading_days,
-    get_trading_times
 )
 
 
 class AlpacaBacktestingNew(DataSourceBacktesting):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
-
-    # noinspection PyMethodMayBeStatic
-    def _alpaca_timeframe_from_timestep(self, timestep: str) -> TimeFrame:
-        """Convert a timestep string to an Alpaca TimeFrame."""
-
-        if ' ' in timestep or '/' in timestep:
-            raise ValueError("Timestep cannot contain spaces or slashes.")
-
-        timestep = timestep.lower()
-
-        if timestep in ['day', '1d']:
-            return TimeFrame.Day
-        elif timestep in ['minute', '1m']:
-            return TimeFrame.Minute
-        elif timestep in ['hour', '1h']:
-            return TimeFrame.Hour
-        elif timestep in ['30m']:
-            return TimeFrame(30, TimeFrameUnit.Minute)
-        else:
-            raise ValueError(f"Unsupported timestep: {timestep}")
+    TIMESTEP_MAPPING = [
+        {"timestep": "day", "representations": [TimeFrame.Day]},
+        {"timestep": "minute", "representations": [TimeFrame.Minute]},
+    ]
+    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
+    ALPACA_STOCK_PRECISION = Decimal('0.0001')
+    ALPACA_CRYPTO_PRECISION = Decimal('0.000000001')
 
     def __init__(
             self,
@@ -66,7 +56,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
 
         Args:
             datetime_start (datetime): The starting datetime for the backtesting process. Inclusive.
-            datetime_end (datetime): The ending datetime for the backtesting process. Exclusive.
+            datetime_end (datetime): The ending datetime for the backtesting process. Inclusive.
             backtesting_started (datetime | None): Represents the datetime when backtesting started. Defaults to None.
             config (dict | None): Configuration dictionary containing required API keys and account details.
                 Cannot be None as it's critical for API connections.
@@ -79,7 +69,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting 
                 without requiring external API calls.
             **kwargs: Additional keyword arguments, such as:
-                - timestep (str): Interval for data ("day", "hour", etc.). Defaults to "day".
+                - timestep (str): Interval for data ("day" or "minute"). Defaults to "day".
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
                 - tzinfo (ZoneInfo): The timezone information. Defaults to the system’s default timezone.
                 - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
@@ -94,7 +84,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         """
         self._datetime = None
         
-        # Call the base class. We will override most stuff later.
+        # Call the base class.
         super().__init__(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
@@ -110,8 +100,8 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
         self._market: str = kwargs.get('market', "NYSE")
         self._auto_adjust: bool = kwargs.get('auto_adjust', True)
-
         self.CACHE_SUBFOLDER = 'alpaca'
+        self._data_store: dict[str, pd.DataFrame] = {}
 
         if config is None:
             raise ValueError("Config cannot be None. Please provide a valid configuration.")
@@ -159,11 +149,29 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         else:
             warm_up_start_dt = start_dt
 
-        self.datetime_start = warm_up_start_dt
-        self.datetime_end = end_dt
+        self._data_datetime_start = warm_up_start_dt
+        self._data_datetime_end = end_dt
 
-        self._data_store: dict[str, pd.DataFrame] = {}
-        
+        if self._timestep not in ['day', 'minute']:
+            raise ValueError("Invalid timestep passed. Must be 'day' or 'minute'.")
+
+        # I think lumibot's got a bug in the strategy_executor when backtesting daily strategies.
+        # After the backtest is over, it calls on_market_close() which calls get_last_price.
+        # So if you run the backtest until the last day of data, lumibot will crash when it tries to calculate
+        # the portfolio value. To avoid that crash (and because im avoiding dealing with people complaining about
+        # backtest behavior changing if i fix it) im just hacking this so the backtest ends before the data runs out.
+        if self._timestep == 'day':
+            trading_days = get_trading_days(
+                self._market,
+                self._data_datetime_start,
+                self._data_datetime_end + timedelta(days=1),  # end_date is exclusive in this function
+                tzinfo=self._tzinfo
+            )
+            # stop backtesting 2 days before the last trading date of the backtest
+            # so there's one day of data the backtester has to calculate all its stuff.
+            last_trading_day = trading_days.iloc[-3]['market_open']
+            self.datetime_end = last_trading_day
+
     def get_last_price(
             self, 
             asset: Asset, 
@@ -172,28 +180,21 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
     ) -> float | Decimal | None:
         """Takes an asset and returns the last known price"""
 
-        _, timestep_unit = parse_timestep_qty_and_unit(self._timestep)
-
         bars = self.get_historical_prices(
             asset=asset,
-            length=1,
-            timestep=timestep_unit,
+            length=1,  # Get one bar
+            timestep=self._timestep,
             quote=quote,
-            timeshift=None
+            timeshift=None  # Get the current bar
         )
 
         if bars is None or bars.df.empty:
             return None
 
+        precision = self.ALPACA_CRYPTO_PRECISION if asset.asset_type == 'crypto' else self.ALPACA_STOCK_PRECISION
+
         open_ = bars.df.iloc[0].open
-        if isinstance(open_, np.int64):
-            return Decimal(open_.item())
-        elif isinstance(open_, float):
-            return Decimal(open_)
-        elif isinstance(open_, Decimal):
-            return open_
-        else:
-            raise ValueError(f"Invalid open value type: {type(open)} for asset {asset.symbol}")
+        return Decimal(str(open_)).quantize(precision, rounding=ROUND_HALF_EVEN)
 
     def get_historical_prices(
             self,
@@ -207,7 +208,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
     ) -> Bars | None:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
-        For example, with a length of 10 and a timestep of "1day", and now timeshift, this
+        For example, with a length of 10 and a timestep of "day", and now timeshift, this
         would return the last 10 daily bars.
     
         - Higher-level method that returns a `Bars` object
@@ -223,10 +224,11 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         length : int
             The number of bars to get.
         timestep : str
-            The timestep to get the bars at. For example, "1minute" or "1hour" or "1day".
+            The timestep to get the bars at. Accepts "day" or "minute".
         timeshift : datetime.timedelta
-            The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
-            you would set timeshift to 1 hour.
+            The amount of time to shift the reference point (self._datetime).
+            If you want 10 daily bars from 1 week ago (not including the last week),
+            you'd use timeshift=timedelta(days=7)
         quote : Asset
             The quote asset to get the bars for.
         exchange : str
@@ -249,32 +251,43 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
                 timestep=self._timestep,
                 market=self._market,
                 tzinfo=self._tzinfo,
-                datetime_start=self.datetime_start,
-                datetime_end=self.datetime_end,
+                data_datetime_start=self._data_datetime_start,
+                data_datetime_end=self._data_datetime_end,
                 auto_adjust=self._auto_adjust,
             )
 
         df = self._data_store[key]
 
-        # Locate the index of self._datetime in the data by matching the timestamp
-        current_index = df.index.searchsorted(self._datetime)
-        if current_index >= len(df):
-            raise ValueError(f"Current datetime {self._datetime} not found in the dataset for {key}.")
-
-        # Shift the index by the number of timeshift bars
+        # Locate the index of self._datetime adjusted by timeshift
+        search_datetime = self._datetime
         if timeshift:
-            shifted_index = current_index - timeshift
-        else:
-            shifted_index = current_index
+            search_datetime = self._datetime - timeshift
 
-        # Ensure the shifted index is within valid range
-        if shifted_index < 0 or shifted_index + length > len(df):
-            logging.warning(
-                f"Requested range [{shifted_index}:{shifted_index + length}] is out of bounds for the dataset.")
-            return None
+        current_index = df.index.searchsorted(search_datetime)
+        if current_index >= len(df):
+            raise ValueError(f"Datetime {search_datetime} not found in the dataset for {key}.")
 
-        # Extract the last `length` number of bars starting from the shifted index
-        result = df.iloc[shifted_index: shifted_index + length]
+        if length == 0:
+            raise ValueError("Length must be non-zero")
+
+        if length == 1:
+            result = df.iloc[[current_index]]  # Return just the current row as DataFrame
+        elif length > 1:
+            # Check if we have enough historical data
+            if current_index - length < 0:
+                raise ValueError(
+                    f"Not enough historical data. Requested {length} bars but only have {current_index} "
+                    f"bars before the reference time."
+                )
+            result = df.iloc[current_index - length:current_index]
+        else:  # length < 0
+            # Check if we have enough forward data
+            if current_index - length > len(df):  # Note: minus a negative is plus
+                raise ValueError(
+                    f"Not enough forward data. Requested {abs(length)} bars but only have "
+                    f"{len(df) - current_index} bars after the reference time."
+                )
+            result = df.iloc[current_index:current_index - length]  # Note: minus a negative is plus
 
         bars = Bars(result, self.SOURCE, asset=asset, quote=quote)
         return bars
@@ -291,8 +304,8 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             timestep: str = None,
             market: str = None,
             tzinfo: ZoneInfo = None,
-            datetime_start: datetime = None,
-            datetime_end: datetime = None,
+            data_datetime_start: datetime = None,
+            data_datetime_end: datetime = None,
             auto_adjust: bool = None,
     ) -> str:
         """
@@ -304,9 +317,9 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         quote_asset: Asset - Quote asset of the pair.
         market: str - Market or exchange identifier.
         tzinfo: ZoneInfo - Timezone information.
-        timestep: str - Timestep for price data granularity.
-        datetime_start: datetime - The start date for data retrieval.
-        datetime_end: datetime - The end date for data retrieval.
+        timestep: str - Timestep of the source data. Accepts "day" or "minute".
+        data_datetime_start: datetime - The start date of the data in the backtest.
+        data_datetime_end: datetime - The end date of the data in the backtest. Exclusive.
         auto_adjust: bool - Flag to indicate if auto-adjustment is applied.
 
         Returns
@@ -317,14 +330,17 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         if base_asset is None:
             raise ValueError("Base asset must be provided.")
 
+        if quote_asset is None:
+            quote_asset = self.LUMIBOT_DEFAULT_QUOTE_ASSET
+
         if market is None:
             market = self._market
 
-        if datetime_start is None:
-            datetime_start = self.datetime_start
+        if data_datetime_start is None:
+            data_datetime_start = self._data_datetime_start
 
-        if datetime_end is None:
-            datetime_end = self.datetime_end
+        if data_datetime_end is None:
+            data_datetime_end = self._data_datetime_end
 
         if tzinfo is None:
             tzinfo = self._tzinfo
@@ -335,14 +351,17 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         if timestep is None:
             timestep = self._timestep
 
+        if timestep not in ['day', 'minute']:
+            raise ValueError(f"Invalid timestep {timestep}. Must be 'day' or 'minute'.")
+
         if not quote_asset:
             base_quote = f"{base_asset.symbol}"
         else:
             base_quote = f"{base_asset.symbol}-{quote_asset.symbol}"
         market = market
         tzinfo_str = str(tzinfo).replace("_", "-")
-        start_date_str = datetime_start.strftime("%Y-%m-%d")
-        end_date_str = datetime_end.strftime("%Y-%m-%d")
+        start_date_str = data_datetime_start.strftime("%Y-%m-%d")
+        end_date_str = data_datetime_end.strftime("%Y-%m-%d")
         auto_adjust_str = "AA" if auto_adjust else ""
 
         key_parts = [
@@ -361,8 +380,8 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             timestep: str = None,
             market: str = None,
             tzinfo: ZoneInfo = None,
-            datetime_start: datetime = None,
-            datetime_end: datetime = None,
+            data_datetime_start: datetime = None,
+            data_datetime_end: datetime = None,
             auto_adjust: bool = None,
     ) -> None:
         if base_asset is None:
@@ -375,10 +394,10 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             raise ValueError("The parameter 'market' cannot be None.")
         if tzinfo is None:
             raise ValueError("The parameter 'tzinfo' cannot be None.")
-        if datetime_start is None:
-            raise ValueError("The parameter 'datetime_start' cannot be None.")
-        if datetime_end is None:
-            raise ValueError("The parameter 'datetime_end' cannot be None.")
+        if data_datetime_start is None:
+            raise ValueError("The parameter 'data_datetime_start' cannot be None.")
+        if data_datetime_end is None:
+            raise ValueError("The parameter 'data_datetime_end' cannot be None.")
         if auto_adjust is None:
             raise ValueError("The parameter 'auto_adjust' cannot be None.")
 
@@ -402,9 +421,9 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             # noinspection PyArgumentList
             request_params = CryptoBarsRequest(
                 symbol_or_symbols=symbol,
-                timeframe=self._alpaca_timeframe_from_timestep(timestep),
-                start=datetime_start,
-                end=datetime_end,
+                timeframe=self._parse_source_timestep(timestep, reverse=True),
+                start=data_datetime_start,
+                end=data_datetime_end + timedelta(days=1),  # alpaca end dates are exclusive
             )
         else:
             client = self._stock_client
@@ -413,9 +432,9 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             # noinspection PyArgumentList
             request_params = StockBarsRequest(
                 symbol_or_symbols=base_asset.symbol,
-                timeframe=self._alpaca_timeframe_from_timestep(timestep),
-                start=datetime_start,
-                end=datetime_end,
+                timeframe=self._parse_source_timestep(timestep, reverse=True),
+                start=data_datetime_start,
+                end=data_datetime_end + timedelta(days=1),  # alpaca end dates are exclusive,
                 adjustment=adjustment,
             )
 
@@ -439,8 +458,26 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
         df.drop(columns=['symbol'], inplace=True, errors='ignore')
 
-        # Only keep rows within the specified date range
-        df = df[(df['timestamp'] >= datetime_start) & (df['timestamp'] < datetime_end)]
+        # Only keep rows within the specified date range (exclusive of end date
+        df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
+        
+        if self._timestep == 'day':
+            # daily bars are NORMALLY indexed at midnight (the open of the bar).
+            # To enable lumibot to use the open price of the bar for the get_last_price and fills,
+            # the alpaca backtester adjusts daily bars to the open bar of the market.
+            df['timestamp'] = df['timestamp'].map(lambda x: x.replace(hour=9, minute=30))
+
+        # If asset is of type stock, quantize OHLC prices to ALPACA_STOCK_PRECISION
+        if base_asset.asset_type == 'stock':
+            for column in ['open', 'high', 'low', 'close']:
+                df[column] = df[column].apply(
+                    lambda x: Decimal(str(x)).quantize(self.ALPACA_STOCK_PRECISION, rounding=ROUND_HALF_EVEN)
+                )
+        elif base_asset.asset_type == 'crypto':
+            for column in ['open', 'high', 'low', 'close']:
+                df[column] = df[column].apply(
+                    lambda x: Decimal(str(x)).quantize(self.ALPACA_CRYPTO_PRECISION, rounding=ROUND_HALF_EVEN)
+                )
 
         # Save to cache
         df.to_csv(filepath, index=False)

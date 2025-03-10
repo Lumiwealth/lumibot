@@ -159,7 +159,7 @@ class TradierData(DataSource):
         length : int
             The number of bars to get.
         timestep : str
-            The timestep to get the bars at. For example, "minute" or "day".
+            The timestep to get the bars at. Accepts "day" or "minute".
         timeshift : datetime.timedelta
             The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
             you would set timeshift to 1 hour.

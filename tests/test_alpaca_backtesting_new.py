@@ -9,6 +9,7 @@ from lumibot.backtesting import AlpacaBacktestingNew, PandasDataBacktesting, Bac
 from lumibot.brokers import Broker
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset
+from lumibot.tools import get_trading_times
 
 from tests.fixtures import (
     BuyOnceTestStrategy,
@@ -25,7 +26,8 @@ from zoneinfo import ZoneInfo
 from lumibot.entities import Asset
 
 
-class TestAssetKey:
+class TestAlpacaBacktestingNew:
+    """Tests for the AlpacaBacktestingNew datasource class as well as using it in strategies."""
 
     def _create_data_source(
             self,
@@ -317,10 +319,6 @@ class TestAssetKey:
         )
         assert key not in data_source._refreshed_keys
 
-
-class TestAlpacaBacktestingNew:
-    """Tests for the AlpacaBacktestingNew datasource class as well as using it in strategies."""
-
     def test_bo_single_stock_day_bars_america_new_york(self):
         backtesting_start = datetime(2025, 1, 13)
         backtesting_end = datetime(2025, 1, 17)
@@ -366,7 +364,7 @@ class TestAlpacaBacktestingNew:
         # Data source tests
         data_source = strategy.broker.data_source
         assert data_source._data_datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
-        assert data_source._data_datetime_end.isoformat() == '2025-01-17T00:00:00-05:00'
+        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-05:00'
         key = list(data_source._data_store.keys())[0]
         assert key == 'AMZN-STOCK_USD-FOREX_NYSE_DAY_AMERICA-NEW-YORK_AA_2025-01-13_2025-01-17'
         df = list(data_source._data_store.values())[0]
@@ -441,7 +439,7 @@ class TestAlpacaBacktestingNew:
         # Data source tests
         data_source = strategy.broker.data_source
         assert data_source._data_datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
-        assert data_source._data_datetime_end.isoformat() == '2025-01-17T00:00:00-06:00'
+        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-06:00'
         key = list(data_source._data_store.keys())[0]
         assert key == 'BTC-CRYPTO_USD-FOREX_24-7_DAY_AMERICA-CHICAGO_AA_2025-01-13_2025-01-17'
         df = list(data_source._data_store.values())[0]
@@ -517,18 +515,18 @@ class TestAlpacaBacktestingNew:
         assert key == 'AMZN-STOCK_USD-FOREX_NYSE_MINUTE_AMERICA-NEW-YORK_AA_2025-01-13_2025-01-17'
         df = list(data_source._data_store.values())[0]
         assert not df.empty
-        # assert len(df.index) == 6.5 * 60 * 5  # after we align with trading hours and fill missing bars...
+        assert len(df.index) == 6.5 * 60 * 5  # after we align with trading hours and fill missing bars...
 
-        # assert df.index[0].isoformat() == "2025-01-13T09:30:00-05:00"
-        # assert df.index[-1].isoformat() == "2025-01-17T09:30:00-05:00"
+        assert df.index[0].isoformat() == "2025-01-13T09:30:00-05:00"
+        assert df.index[-1].isoformat() == "2025-01-17T15:59:00-05:00"
 
         # Trading strategy tests
-        # assert data_source.datetime_end.isoformat() == '2025-01-15T09:30:00-05:00'
+        assert data_source.datetime_end.isoformat() == '2025-01-15T09:30:00-05:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
-        # assert strategy.trading_iterations[-1].isoformat() == '2025-01-15T09:30:00-05:00'
-        # assert strategy.num_trading_iterations == 3
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-15T09:30:00-05:00'
+        assert strategy.num_trading_iterations == 3
 
         tracker = strategy.tracker
         assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
@@ -543,6 +541,7 @@ class TestAlpacaBacktestingNew:
         pass
 
     def test_bo_single_stock_minute_bars_america_new_york_with_30m_sleeptime(self):
+        # TODO fix
         tickers = "AMZN"
         backtesting_start = datetime(2025, 1, 13)
         backtesting_end = datetime(2025, 1, 14)
@@ -662,7 +661,7 @@ class TestAlpacaBacktestingNew:
         # Data source tests
         data_source = strategy.broker.data_source
         assert data_source._data_datetime_start.isoformat() == "2025-01-03T00:00:00-05:00"
-        assert data_source._data_datetime_end.isoformat() == '2025-01-17T00:00:00-05:00'
+        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-05:00'
         key = list(data_source._data_store.keys())[0]
         assert key == 'AMZN-STOCK_USD-FOREX_NYSE_DAY_AMERICA-NEW-YORK_AA_2025-01-03_2025-01-17'
         df = list(data_source._data_store.values())[0]
@@ -732,7 +731,7 @@ class TestAlpacaBacktestingNew:
         # Data source tests
         data_source = strategy.broker.data_source
         assert data_source._data_datetime_start.isoformat() == "2025-01-08T00:00:00-06:00"
-        assert data_source._data_datetime_end.isoformat() == '2025-01-17T00:00:00-06:00'
+        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-06:00'
         key = list(data_source._data_store.keys())[0]
         assert key == 'BTC-CRYPTO_USD-FOREX_24-7_DAY_AMERICA-CHICAGO_AA_2025-01-08_2025-01-17'
         df = list(data_source._data_store.values())[0]
@@ -752,14 +751,16 @@ class TestAlpacaBacktestingNew:
         assert strategy.last_historical_prices_df.index[-1].isoformat() == '2025-01-14T00:00:00-06:00'
 
     # @pytest.mark.skip()
-    def test_bo_single_crypto_minute_bars_america_chicago(self):
-        tickers = "BTC/USD"
+    def test_bo_single_crypto_minute_bars_america_chicago_1d_sleeptime(self):
         backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 14)
+        backtesting_end = datetime(2025, 1, 17)
+        sleeptime = '1D'
         timestep = 'minute'
-        refresh_cache = False
-        tzinfo = ZoneInfo("America/Chicago")
         market = '24/7'
+        tzinfo = ZoneInfo("America/Chicago")
+        refresh_cache = False
+        auto_adjust = True
+        warm_up_trading_days = 0
 
         strategy: BuyOnceTestStrategy
         results, strategy = BuyOnceTestStrategy.run_backtest(
@@ -772,17 +773,18 @@ class TestAlpacaBacktestingNew:
             show_progress_bar=False,
             parameters={
                 "asset": Asset('BTC', asset_type='crypto'),
-                "sleeptime": "1M",
-                "market": market,
+                "sleeptime": sleeptime,
+                "market": market
             },
 
             # AlpacaBacktestingNew kwargs
-            tickers=tickers,
             timestep=timestep,
+            market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
             tzinfo=tzinfo,
-            market=market,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
         )
         assert results
         assert strategy
@@ -793,39 +795,36 @@ class TestAlpacaBacktestingNew:
 
         # Data source tests
         data_source = strategy.broker.data_source
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
-        assert data_source.datetime_end.isoformat() == "2025-01-13T23:59:00-06:00"
-        assert isinstance(data_source.pandas_data, dict)
-        assert next(iter(data_source.pandas_data))[0].symbol == "BTC"
-        assert next(iter(data_source.pandas_data))[1].symbol == "USD"
-
-        data = list(data_source.pandas_data.values())[0]
-        df = data.df
+        assert data_source._data_datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
+        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-06:00'
+        key = list(data_source._data_store.keys())[0]
+        assert key == 'BTC-CRYPTO_USD-FOREX_24-7_MINUTE_AMERICA-CHICAGO_AA_2025-01-13_2025-01-17'
+        df = list(data_source._data_store.values())[0]
         assert not df.empty
+        assert len(df.index) == 24 * 60 * 5
 
-        # the data is missing minutes but it won't be more than one bar per minute
-        assert len(df.index) <= 1440
+        assert df.index[0].isoformat() == "2025-01-13T00:00:00-06:00"
+        assert df.index[-1].isoformat() == "2025-01-17T23:59:00-06:00"
 
-        # first bar on 1/13  was a 00:01 of the day.
-        assert df.index[0].isoformat() == '2025-01-13T00:01:00-06:00'
-        assert df.index[-1].isoformat() == '2025-01-13T23:59:00-06:00'
+        # Trading strategy tests
+        assert data_source.datetime_end.isoformat() == '2025-01-15T00:00:00-06:00'
 
         # check when trading iterations happened
         assert strategy.trading_iterations[0].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert strategy.trading_iterations[-1].isoformat() == '2025-01-13T23:59:00-06:00'
-        assert strategy.num_trading_iterations == 1440
+        assert strategy.trading_iterations[-1].isoformat() == '2025-01-15T00:00:00-06:00'
+        assert strategy.num_trading_iterations == 3
 
         tracker = strategy.tracker
-        # no data at 00:00; first bar is 00:01
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T00:01:00-06:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T00:01:00-06:00'
-        assert tracker["filled_at"].isoformat() == '2025-01-13T00:01:00-06:00'
+        assert tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00-06:00'
+        assert tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
+        assert tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
 
-        assert tracker['last_price'] == 94066.35  # open of 2025-01-13 06:00:00+00:00
-        assert tracker["avg_fill_price"] == 94066.35  # Open of 2025-01-13 06:00:00+00:00
+        assert tracker['last_price'] == Decimal('94066.35')  # Open of '2025-01-13T00:00:00-06:00'
+        assert tracker["avg_fill_price"] == 94066.35  # Open of '2025-01-13T00:00:00-06:00'
 
     # @pytest.mark.skip()
     def test_bo_single_crypto_hour_bars_utc(self):
+        # TODO fix
         tickers = "BTC/USD"
         backtesting_start = datetime(2025, 1, 1)
         backtesting_end = datetime(2025, 1, 2)
@@ -901,6 +900,7 @@ class TestAlpacaBacktestingNew:
 
     # @pytest.mark.skip()
     def test_bo_single_crypto_hour_bars_america_chicago(self):
+        # TODO fix
         tickers = "BTC/USD"
         backtesting_start = datetime(2025, 1, 1)
         backtesting_end = datetime(2025, 1, 2)
@@ -974,6 +974,7 @@ class TestAlpacaBacktestingNew:
         assert tracker["avg_fill_price"] == 93486.63  # Open of 2025-01-01 06:00:00+00:00
 
     def test_ghp_day_single_crypto_hour_bars_america_chicago(self):
+        # TODO fix
         tickers = "BTC/USD"
         backtesting_start = datetime(2025, 1, 13)
         backtesting_end = datetime(2025, 1, 18)

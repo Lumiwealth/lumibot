@@ -705,7 +705,8 @@ class BacktestingBroker(Broker):
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
             if data_source_name in ["CCXT", "YAHOO", "ALPACA"]:
-                # If we're using the CCXT data source, we don't need to timeshift the data
+                # If we're using the CCXT or Alpaca data source, we don't need to timeshift the data.
+                # We fill at the open price of the current bar.
                 if data_source_name in ["CCXT", "ALPACA"]:
                     timeshift = None
                 else:

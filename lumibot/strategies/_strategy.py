@@ -704,7 +704,7 @@ class _Strategy:
                     multiplier = 1
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                portfolio_value += float(quantity) * price * multiplier
+                portfolio_value += float(quantity) * float(price) * multiplier
             self._portfolio_value = portfolio_value
         return portfolio_value
 

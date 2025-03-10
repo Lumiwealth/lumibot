@@ -1,5 +1,6 @@
 from typing import List, Any
 from zoneinfo import ZoneInfo
+from datetime import datetime
 
 import pytest
 import logging
@@ -12,6 +13,9 @@ from lumibot import LUMIBOT_SOURCE_PATH
 from lumibot.entities import Data, Asset
 from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.strategies import Strategy
+from lumibot.tools.helpers import (
+    parse_timestep_qty_and_unit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +198,6 @@ class BuyOnceTestStrategy(Strategy):
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
         self.asset = self.parameters.get("asset", None)
-        self.symbol = self.parameters.get("symbol", "AMZN")
         self.market_opens = []
         self.market_closes = []
         self.tracker = {}
@@ -267,8 +270,10 @@ class GetHistoricalTestStrategy(Strategy):
         self.last_historical_prices_df: pd.DataFrame | None = None
         self.last_trading_iteration: datetime | None = None
 
+    # noinspection PyAttributeOutsideInit
     def on_trading_iteration(self):
         self.last_trading_iteration = self.get_datetime()
+
         bars = self.get_historical_prices(
             asset=self.asset,
             length=self.lookback_length,

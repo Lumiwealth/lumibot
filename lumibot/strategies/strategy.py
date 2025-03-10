@@ -3037,7 +3037,7 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
 
-        asset = self.crypto_assets_to_tuple(asset, quote)
+        # asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
             timestep = self.broker.data_source.MIN_TIMESTEP
         if self.broker.option_source and asset.asset_type == "option":

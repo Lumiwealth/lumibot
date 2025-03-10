@@ -172,6 +172,9 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             last_trading_day = trading_days.iloc[-3]['market_open']
             self.datetime_end = last_trading_day
 
+        self.datetime_start = start_dt
+        self._datetime = self.datetime_start
+
     def get_last_price(
             self, 
             asset: Asset, 
@@ -179,6 +182,11 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             exchange: str | None = None
     ) -> float | Decimal | None:
         """Takes an asset and returns the last known price"""
+
+        if isinstance(asset, tuple):
+            # Grr... Who made this a tuple?
+            quote = asset[1]
+            asset = asset[0]
 
         bars = self.get_historical_prices(
             asset=asset,
@@ -241,6 +249,11 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         pd.DataFrame | None
             The bars for the asset.
         """
+
+        if isinstance(asset, tuple):
+            # Grr... Who made this a tuple?
+            quote = asset[1]
+            asset = asset[0]
 
         key = self._get_asset_key(base_asset=asset, quote_asset=quote)
 
@@ -354,10 +367,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         if timestep not in ['day', 'minute']:
             raise ValueError(f"Invalid timestep {timestep}. Must be 'day' or 'minute'.")
 
-        if not quote_asset:
-            base_quote = f"{base_asset.symbol}"
-        else:
-            base_quote = f"{base_asset.symbol}-{quote_asset.symbol}"
+        base_quote = f"{base_asset.symbol}-{base_asset.asset_type}_{quote_asset.symbol}-{quote_asset.asset_type}"
         market = market
         tzinfo_str = str(tzinfo).replace("_", "-")
         start_date_str = data_datetime_start.strftime("%Y-%m-%d")
@@ -462,10 +472,14 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
         
         if self._timestep == 'day':
-            # daily bars are NORMALLY indexed at midnight (the open of the bar).
-            # To enable lumibot to use the open price of the bar for the get_last_price and fills,
-            # the alpaca backtester adjusts daily bars to the open bar of the market.
-            df['timestamp'] = df['timestamp'].map(lambda x: x.replace(hour=9, minute=30))
+            if base_asset.asset_type == 'crypto':
+                # ensure daily bars are indexed at midnight (the open of the bar).
+                df['timestamp'] = df['timestamp'].map(lambda x: x.replace(hour=0, minute=0))
+            else:
+                # daily bars are NORMALLY indexed at midnight (the open of the bar).
+                # To enable lumibot to use the open price of the bar for the get_last_price and fills,
+                # the alpaca backtester adjusts daily bars to the open bar of the market.
+                df['timestamp'] = df['timestamp'].map(lambda x: x.replace(hour=9, minute=30))
 
         # If asset is of type stock, quantize OHLC prices to ALPACA_STOCK_PRECISION
         if base_asset.asset_type == 'stock':

@@ -95,13 +95,14 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         )
 
         self._timestep: str = kwargs.get('timestep', 'day')
-        refresh_cache: bool = kwargs.get('refresh_cache', False)
         self._tzinfo: ZoneInfo = kwargs.get('tzinfo', ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE))
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
         self._market: str = kwargs.get('market', "NYSE")
         self._auto_adjust: bool = kwargs.get('auto_adjust', True)
         self.CACHE_SUBFOLDER = 'alpaca'
         self._data_store: dict[str, pd.DataFrame] = {}
+        self._refreshed_keys = {}
+        self._refresh_cache: bool = kwargs.get('refresh_cache', False)
 
         if config is None:
             raise ValueError("Config cannot be None. Please provide a valid configuration.")
@@ -118,9 +119,10 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             secret_key=config["API_SECRET"]
         )
 
-        # We want self.datetime_start and self.datetime_end to be the start and end dates
+        # We want self._data_datetime_start and self._data_datetime_end to be the start and end dates
         # of the data for the entire backtest including the warmup dates.
-        # Also, they should be midnight of the tzinfo passed in.
+
+        # The start should be midnight.
         start_dt = datetime(
             year=datetime_start.year,
             month=datetime_start.month,
@@ -128,10 +130,14 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             tzinfo=self._tzinfo
         )
 
+        # The end, should be the last minute of the day.
         end_dt = datetime(
             year=datetime_end.year,
             month=datetime_end.month,
             day=datetime_end.day,
+            hour=23,
+            minute=59,
+            second=59,
             tzinfo=self._tzinfo
         )
 
@@ -155,21 +161,22 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         if self._timestep not in ['day', 'minute']:
             raise ValueError("Invalid timestep passed. Must be 'day' or 'minute'.")
 
+        self._trading_days = get_trading_days(
+            self._market,
+            self._data_datetime_start,
+            self._data_datetime_end + timedelta(days=1),  # end_date is exclusive in this function
+            tzinfo=self._tzinfo
+        )
+
         # I think lumibot's got a bug in the strategy_executor when backtesting daily strategies.
         # After the backtest is over, it calls on_market_close() which calls get_last_price.
         # So if you run the backtest until the last day of data, lumibot will crash when it tries to calculate
         # the portfolio value. To avoid that crash (and because im avoiding dealing with people complaining about
         # backtest behavior changing if i fix it) im just hacking this so the backtest ends before the data runs out.
         if self._timestep == 'day':
-            trading_days = get_trading_days(
-                self._market,
-                self._data_datetime_start,
-                self._data_datetime_end + timedelta(days=1),  # end_date is exclusive in this function
-                tzinfo=self._tzinfo
-            )
             # stop backtesting 2 days before the last trading date of the backtest
             # so there's one day of data the backtester has to calculate all its stuff.
-            last_trading_day = trading_days.iloc[-3]['market_open']
+            last_trading_day = self._trading_days.iloc[-3]['market_open']
             self.datetime_end = last_trading_day
 
         self.datetime_start = start_dt
@@ -257,7 +264,21 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
 
         key = self._get_asset_key(base_asset=asset, quote_asset=quote)
 
-        if key not in self._data_store and not self._load_ohlcv_into_data_store(key):
+        if self._refresh_cache and key not in self._refreshed_keys:
+            # If we need are refreshing cache and we didn't refresh this key's cache yet, refresh it.
+            self._download_and_cache_ohlcv_data(
+                base_asset=asset,
+                quote_asset=quote,
+                timestep=self._timestep,
+                market=self._market,
+                tzinfo=self._tzinfo,
+                data_datetime_start=self._data_datetime_start,
+                data_datetime_end=self._data_datetime_end,
+                auto_adjust=self._auto_adjust,
+            )
+            self._refreshed_keys[key] = True
+        elif key not in self._data_store and not self._load_ohlcv_into_data_store(key):
+            # If not refreshing or already refreshed, try to load from cache or download
             self._download_and_cache_ohlcv_data(
                 base_asset=asset,
                 quote_asset=quote,
@@ -472,14 +493,13 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
         
         if self._timestep == 'day':
-            if base_asset.asset_type == 'crypto':
-                # ensure daily bars are indexed at midnight (the open of the bar).
-                df['timestamp'] = df['timestamp'].map(lambda x: x.replace(hour=0, minute=0))
-            else:
-                # daily bars are NORMALLY indexed at midnight (the open of the bar).
-                # To enable lumibot to use the open price of the bar for the get_last_price and fills,
-                # the alpaca backtester adjusts daily bars to the open bar of the market.
-                df['timestamp'] = df['timestamp'].map(lambda x: x.replace(hour=9, minute=30))
+            # daily bars are NORMALLY indexed at midnight (the open of the bar).
+            # To enable lumibot to use the open price of the bar for the get_last_price and fills,
+            # the alpaca backtester adjusts daily bars to the open bar of the market.
+            market_open = self._trading_days.iloc[0]['market_open']
+            df['timestamp'] = df['timestamp'].map(
+                lambda x: x.replace(hour=market_open.hour, minute=market_open.minute)
+            )
 
         # If asset is of type stock, quantize OHLC prices to ALPACA_STOCK_PRECISION
         if base_asset.asset_type == 'stock':

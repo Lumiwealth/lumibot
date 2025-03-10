@@ -693,6 +693,7 @@ class BacktestingBroker(Broker):
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
+            # TODO: One day... I will purge all this crypto tuple stuff.
             asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
 
             price = None
@@ -715,8 +716,8 @@ class BacktestingBroker(Broker):
                     )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
 
                 ohlc = strategy.get_historical_prices(
-                    asset,
-                    1,
+                    asset=asset,
+                    length=1,
                     quote=order.quote,
                     timeshift=timeshift,
                 )
@@ -732,8 +733,8 @@ class BacktestingBroker(Broker):
             elif self.data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = strategy.get_historical_prices(
-                    asset,
-                    2,
+                    asset=asset,
+                    length=2,
                     quote=order.quote,
                     timeshift=-2,
                     timestep=self.data_source._timestep,

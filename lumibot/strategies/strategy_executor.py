@@ -1079,7 +1079,7 @@ class StrategyExecutor(Thread):
         market = self.broker.market
 
         # Get the trading days based on the market that the strategy is trading on
-        self.broker._trading_days = get_trading_days(market)
+        self.broker._trading_days = get_trading_days(market=market)
 
         # Sort the trading days by market close time so that we can search them faster
         self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order

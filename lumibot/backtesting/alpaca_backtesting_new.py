@@ -267,7 +267,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             quote = asset[1]
             asset = asset[0]
 
-        key = self._get_asset_key(base_asset=asset, quote_asset=quote)
+        key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
 
         if self._refresh_cache and key not in self._refreshed_keys:
             # If we need are refreshing cache and we didn't refresh this key's cache yet, refresh it.

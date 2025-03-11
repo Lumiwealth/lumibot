@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import List, Any
 from zoneinfo import ZoneInfo
 from datetime import datetime
@@ -281,3 +282,64 @@ class GetHistoricalTestStrategy(Strategy):
             quote=self.quote_asset
         )
         self.last_historical_prices_df = bars.df
+
+
+class BacktestingTestStrategy(Strategy):
+
+    # noinspection PyAttributeOutsideInit
+    def initialize(self, parameters: Any = None) -> None:
+        self.asset = self.parameters.get("asset", Asset('AMZN'))
+        self.set_market(self.parameters.get("market", "NYSE"))
+        self.sleeptime = self.parameters.get("sleeptime", "1D")
+        self.lookback_timestep = self.parameters.get("lookback_timestep", "day")
+        self.lookback_length = self.parameters.get("lookback_length", 5)
+
+        self.last_prices: dict[str, Decimal] = {}
+        self.historical_prices: dict[str, pd.DataFrame] = {}
+        self.order_tracker: dict = {}
+
+    def on_filled_order(self, position, order, price, quantity, multiplier):
+        self.log_message(f"AlpacaBacktestTestStrategy: Filled Order: {order}")
+        self.order_tracker["filled_at"] = self.get_datetime()
+        self.order_tracker["avg_fill_price"] = order.avg_fill_price
+
+    def on_new_order(self, order):
+        self.log_message(f"AlpacaBacktestTestStrategy: New Order: {order}")
+        self.order_tracker["submitted_at"] = self.get_datetime()
+
+    # noinspection PyAttributeOutsideInit
+    def on_trading_iteration(self):
+        now = self.get_datetime()
+        current_asset_price = self.get_last_price(self.asset)
+        self.last_prices[now.isoformat()] = current_asset_price
+
+        if self.lookback_length > 0:
+            bars = self.get_historical_prices(
+                asset=self.asset,
+                length=self.lookback_length,
+                timestep=self.lookback_timestep,
+                quote=self.quote_asset
+            )
+            self.historical_prices[now.isoformat()] = bars.df
+
+        if len(self.order_tracker) == 0:
+
+            if not current_asset_price:
+                return
+
+            # Buy 1 shares of the asset for the test
+            qty = 1
+            self.log_message(f"Buying {qty} shares of {self.asset} at {current_asset_price} @ {now}")
+            order = self.create_order(self.asset, quantity=qty, side="buy")
+            submitted_order = self.submit_order(order)
+            self.order_tracker = {
+                "symbol": self.asset.symbol,
+                "iteration_at": now,
+                "last_price": current_asset_price,
+                "order_id": submitted_order.identifier,
+            }
+
+        # Not the 1st iteration, cancel orders.
+        else:
+            self.cancel_open_orders()
+

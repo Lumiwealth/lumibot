@@ -524,6 +524,7 @@ class Schwab(Broker):
             # If there are child order strategies, process them
             if child_order_strategies is not None:
                 # Create a list to hold the child order objects
+
                 child_order_objects = []
 
                 # Loop through the childOrderStrategies
@@ -819,13 +820,21 @@ class Schwab(Broker):
             # Replace any characters that might cause issues
             tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
             
-            # Get the appropriate limit price based on order type
-            order_limit_price = order.limit_price
-            if order.order_type == Order.OrderType.STOP_LIMIT:
-                order_limit_price = order.stop_limit_price
+            # Import Schwab order templates
+            try:
+                from schwab.orders.equities import (
+                    equity_buy_market, equity_buy_limit,
+                    equity_sell_market, equity_sell_limit,
+                    equity_sell_short_market, equity_sell_short_limit,
+                    equity_buy_to_cover_market, equity_buy_to_cover_limit
+                )
+                from schwab.orders.common import Duration, Session
+            except ImportError:
+                logging.error(colored("Failed to import Schwab order templates. Make sure the schwab-py library is installed.", "red"))
+                return None
             
-            # Create the appropriate order spec based on asset type and order details
-            order_spec = None
+            # Create the appropriate order builder based on asset type and order details
+            order_builder = None
             
             # Handle different order types
             if order.is_advanced_order():
@@ -833,19 +842,42 @@ class Schwab(Broker):
                 return None
                 
             elif order.asset.asset_type == Asset.AssetType.STOCK:
-                # Prepare stock order
-                order_spec = self._prepare_stock_order_spec(order, order_limit_price, tag)
+                order_builder = self._prepare_stock_order_builder(order, equity_buy_market, equity_buy_limit, 
+                                                               equity_sell_market, equity_sell_limit,
+                                                               equity_sell_short_market, equity_sell_short_limit,
+                                                               equity_buy_to_cover_market, equity_buy_to_cover_limit)
                 
             elif order.asset.asset_type == Asset.AssetType.OPTION:
-                # Prepare option order
-                order_spec = self._prepare_option_order_spec(order, order_limit_price, tag)
+                logging.error(colored(f"Option orders are not yet implemented using order templates for Schwab broker.", "red"))
+                return None
                 
             else:
                 logging.error(colored(f"Asset type {order.asset.asset_type} is not supported by Schwab broker.", "red"))
                 return None
             
-            if not order_spec:
-                logging.error(colored(f"Failed to create order specification for {order}", "red"))
+            if not order_builder:
+                logging.error(colored(f"Failed to create order builder for {order}", "red"))
+                return None
+            
+            # Set duration and session
+            try:
+                tif = order.time_in_force or "day"
+                if tif == "day":
+                    order_builder = order_builder.set_duration(Duration.DAY)
+                elif tif == "gtc":
+                    order_builder = order_builder.set_duration(Duration.GOOD_TILL_CANCEL)
+                elif tif == "opg":
+                    order_builder = order_builder.set_duration(Duration.ON_THE_OPEN)
+                elif tif == "cls":
+                    order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
+                
+                # Set normal session
+                order_builder = order_builder.set_session(Session.NORMAL)
+                    
+                # Build the order spec
+                order_spec = order_builder.build()
+            except Exception as e:
+                logging.error(colored(f"Error building order specification: {e}", "red"))
                 return None
             
             # Log the final order request
@@ -882,19 +914,22 @@ class Schwab(Broker):
             # Extract order ID from response
             order_id = None
             try:
-                # Use the appropriate way to extract the order ID from the response
-                if hasattr(response, 'headers') and 'Location' in response.headers:
+                # Use the Schwab utility function to extract order ID if available
+                try:
+                    from schwab.utils import Utils
+                    # Create a Utils instance first, then call the method
+                    utils_instance = Utils()
+                    order_id = utils_instance.extract_order_id(response)
+                    if order_id:
+                        logging.info(colored(f"Extracted order ID using Utils.extract_order_id: {order_id}", "green"))
+                except (ImportError, Exception) as e:
+                    logging.warning(colored(f"Could not use Utils.extract_order_id: {e}", "yellow"))
+                
+                # Fallback methods if Utils.extract_order_id fails
+                if not order_id and hasattr(response, 'headers') and 'Location' in response.headers:
                     location = response.headers.get('Location', '')
                     order_id = location.split('/')[-1] if '/' in location else location.strip()
                     logging.info(colored(f"Extracted order ID from Location header: {order_id}", "green"))
-                elif hasattr(response, 'json') and callable(response.json):
-                    try:
-                        json_data = response.json()
-                        if 'orderId' in json_data:
-                            order_id = json_data['orderId']
-                            logging.info(colored(f"Extracted order ID from JSON response: {order_id}", "green"))
-                    except:
-                        pass
                         
                 # If still no order ID and we have text, try to use it directly
                 if not order_id and hasattr(response, 'text') and response.text and response.text.strip():
@@ -934,210 +969,115 @@ class Schwab(Broker):
             
             return None
 
-    def _prepare_stock_order_spec(self, order, limit_price, tag):
+    def _prepare_stock_order_builder(self, order, equity_buy_market, equity_buy_limit, 
+                                   equity_sell_market, equity_sell_limit,
+                                   equity_sell_short_market, equity_sell_short_limit,
+                                   equity_buy_to_cover_market, equity_buy_to_cover_limit):
         """
-        Prepare the order specification for stock orders.
+        Prepare the order builder for stock orders using Schwab order templates.
         
         Parameters
         ----------
         order : Order
-            The order to prepare the specification for
-        limit_price : float
-            The limit price for the order
-        tag : str
-            The tag to associate with the order
+            The order to prepare the builder for
+        equity_buy_market, equity_buy_limit, etc. : function
+            Schwab order template functions
             
         Returns
         -------
-        dict
-            The order specification for Schwab API
+        OrderBuilder
+            The order builder object for Schwab API
         """
         # Debug the order data
-        logging.info(colored(f"Preparing stock order spec for: {order.asset.symbol}, Side: {order.side}, Quantity: {order.quantity}", "cyan"))
+        logging.info(colored(f"Preparing stock order builder for: {order.asset.symbol}, Side: {order.side}, "
+                          f"OrderType: {order.order_type}, Quantity: {order.quantity}", "cyan"))
         
-        # Map order type
-        schwab_order_type = self._map_order_type_to_schwab(order.order_type)
-        tif = self._map_time_in_force_to_schwab(order.time_in_force)
-        side = self._map_side_to_schwab(order.side)
+        # Get order parameters
+        symbol = order.asset.symbol
+        quantity = int(order.quantity)
+        limit_price = order.limit_price
+        if order.order_type == Order.OrderType.STOP_LIMIT:
+            limit_price = order.stop_limit_price
         
-        # Create the order spec following Schwab's exact format requirements
-        order_spec = {
-            "orderType": schwab_order_type,
-            "session": "NORMAL",
-            "duration": tif,
-            "orderStrategyType": "SINGLE",
-            "orderLegCollection": [
-                {
-                    "instruction": side,
-                    "quantity": int(order.quantity),  # Ensure quantity is an integer
-                    "instrument": {
-                        "symbol": order.asset.symbol,
-                        "assetType": "EQUITY"
-                    }
-                }
-            ]
-        }
+        # Create the appropriate order builder based on order side and type
+        order_builder = None
         
-        # Add client order ID if available
-        if tag:
-            order_spec["clientId"] = tag
+        # Market orders
+        if order.order_type == Order.OrderType.MARKET:
+            if order.side == Order.OrderSide.BUY:
+                order_builder = equity_buy_market(symbol, quantity)
+            elif order.side == Order.OrderSide.SELL:
+                order_builder = equity_sell_market(symbol, quantity)
+            elif order.side == Order.OrderSide.SELL_SHORT:
+                order_builder = equity_sell_short_market(symbol, quantity)
+            elif order.side == Order.OrderSide.BUY_TO_COVER:
+                order_builder = equity_buy_to_cover_market(symbol, quantity)
         
-        # Add price details based on order type
-        if order.order_type in [Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT]:
-            if limit_price is not None:
-                order_spec["price"] = str(limit_price)
+        # Limit orders
+        elif order.order_type == Order.OrderType.LIMIT:
+            if order.side == Order.OrderSide.BUY:
+                order_builder = equity_buy_limit(symbol, quantity, limit_price)
+            elif order.side == Order.OrderSide.SELL:
+                order_builder = equity_sell_limit(symbol, quantity, limit_price)
+            elif order.side == Order.OrderSide.SELL_SHORT:
+                order_builder = equity_sell_short_limit(symbol, quantity, limit_price)
+            elif order.side == Order.OrderSide.BUY_TO_COVER:
+                order_builder = equity_buy_to_cover_limit(symbol, quantity, limit_price)
         
-        if order.order_type in [Order.OrderType.STOP, Order.OrderType.STOP_LIMIT]:
-            if order.stop_price is not None:
-                order_spec["stopPrice"] = str(order.stop_price)
-                
-        if order.order_type == Order.OrderType.TRAIL:
-            if isinstance(order.trail_percent, (int, float)) and order.trail_percent > 0:
-                current_price = self.get_last_price(order.asset)
-                if current_price:
-                    order_spec["stopPriceLinkType"] = "PERCENT"
-                    order_spec["stopPriceLinkBasis"] = str(order.trail_percent)
-                    order_spec["stopType"] = "TRAILING"
-            elif isinstance(order.trail_price, (int, float)) and order.trail_price > 0:
-                order_spec["stopPriceLinkType"] = "VALUE"
-                order_spec["stopPriceLinkBasis"] = str(order.trail_price)
-                order_spec["stopType"] = "TRAILING"
-        
-        # Log the final order spec for debugging
-        logging.info(colored(f"Final stock order spec: {order_spec}", "cyan"))
-        
-        return order_spec
-
-    def _prepare_option_order_spec(self, order, limit_price, tag):
-        """
-        Prepare the order specification for option orders.
-        
-        Parameters
-        ----------
-        order : Order
-            The order to prepare the specification for
-        limit_price : float
-            The limit price for the order
-        tag : str
-            The tag to associate with the order
+        # Stop and stop limit orders aren't directly supported by the templates, so we need a workaround
+        elif order.order_type in [Order.OrderType.STOP, Order.OrderType.STOP_LIMIT]:
+            logging.warning(colored(f"Using workaround for stop/stop-limit orders with Schwab templates", "yellow"))
             
-        Returns
-        -------
-        dict
-            The order specification for Schwab API
-        """
-        # Debug the order data
-        logging.info(colored(f"Preparing option order spec for: {order.asset.symbol}, Side: {order.side}, Quantity: {order.quantity}", "cyan"))
-        
-        # Create options symbol in the format required by Schwab
-        expiry_date = order.asset.expiration
-        expiry_str = expiry_date.strftime("%y%m%d")
-        
-        # Format the strike price with padding
-        strike_padded = f"{int(order.asset.strike * 1000):08d}"
-        
-        # Create the option symbol (e.g., "SPY   240801P00541000")
-        option_type = "C" if order.asset.right == "CALL" else "P"
-        option_symbol = f"{order.asset.symbol.ljust(6)}{expiry_str}{option_type}{strike_padded}"
-        
-        # Determine if opening or closing position
-        position = self.get_tracked_position(order.strategy, order.asset)
-        position_effect = "OPENING"
-        
-        if position is not None:
-            if (position.quantity > 0 and order.side in [Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE]) or \
-               (position.quantity < 0 and order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_CLOSE]):
-                position_effect = "CLOSING"
-                
-        # Map order parameters
-        schwab_order_type = self._map_order_type_to_schwab(order.order_type)
-        tif = self._map_time_in_force_to_schwab(order.time_in_force)
-        side = self._map_side_to_schwab(order.side)
-        
-        # Create the order spec following Schwab's exact format requirements
-        order_spec = {
-            "orderType": schwab_order_type,
-            "session": "NORMAL",
-            "duration": tif,
-            "orderStrategyType": "SINGLE",
-            "orderLegCollection": [
-                {
-                    "instruction": side,
-                    "quantity": int(order.quantity),
-                    "instrument": {
-                        "symbol": option_symbol,
-                        "assetType": "OPTION"
-                    },
-                    "positionEffect": position_effect
-                }
-            ]
-        }
-        
-        # Add client order ID if available
-        if tag:
-            order_spec["clientId"] = tag
-        
-        # Add price details based on order type
-        if order.order_type in [Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT]:
-            if limit_price is not None:
-                order_spec["price"] = str(limit_price)
-        
-        if order.order_type in [Order.OrderType.STOP, Order.OrderType.STOP_LIMIT]:
-            if order.stop_price is not None:
-                order_spec["stopPrice"] = str(order.stop_price)
-                
-        if order.order_type == Order.OrderType.TRAIL:
-            if isinstance(order.trail_percent, (int, float)) and order.trail_percent > 0:
-                order_spec["stopPriceLinkType"] = "PERCENT"
-                order_spec["stopPriceLinkBasis"] = str(order.trail_percent)
-                order_spec["stopType"] = "TRAILING"
-            elif isinstance(order.trail_price, (int, float)) and order.trail_price > 0:
-                order_spec["stopPriceLinkType"] = "VALUE"
-                order_spec["stopPriceLinkBasis"] = str(order.trail_price)
-                order_spec["stopType"] = "TRAILING"
-        
-        # Log the final order spec for debugging
-        logging.info(colored(f"Final option order spec: {order_spec}", "cyan"))
-        
-        return order_spec
-
-    def cancel_order(self, order: Order) -> None:
-        """
-        Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
-        
-        Parameters
-        ----------
-        order : Order
-            The order to cancel.
-        """
-        # Check if the order is already cancelled or filled
-        if order.is_filled() or order.is_canceled():
-            return
-
-        if not order.identifier:
-            logging.error(colored("Order identifier is not set, unable to cancel order. Did you remember to submit it?", "red"))
-            return
-
-        try:
-            # Cancel the order
-            response = self.client.cancel_order(order.identifier, self.hash_value)
+            # Start with a market or limit order based on type
+            if order.order_type == Order.OrderType.STOP:
+                if order.side == Order.OrderSide.BUY:
+                    order_builder = equity_buy_market(symbol, quantity)
+                elif order.side == Order.OrderSide.SELL:
+                    order_builder = equity_sell_market(symbol, quantity)
+                elif order.side == Order.OrderSide.SELL_SHORT:
+                    order_builder = equity_sell_short_market(symbol, quantity)
+                elif order.side == Order.OrderSide.BUY_TO_COVER:
+                    order_builder = equity_buy_to_cover_market(symbol, quantity)
+            else:  # STOP_LIMIT
+                if order.side == Order.OrderSide.BUY:
+                    order_builder = equity_buy_limit(symbol, quantity, limit_price)
+                elif order.side == Order.OrderSide.SELL:
+                    order_builder = equity_sell_limit(symbol, quantity, limit_price)
+                elif order.side == Order.OrderSide.SELL_SHORT:
+                    order_builder = equity_sell_short_limit(symbol, quantity, limit_price)
+                elif order.side == Order.OrderSide.BUY_TO_COVER:
+                    order_builder = equity_buy_to_cover_limit(symbol, quantity, limit_price)
             
-            if response.status_code not in [200, 201, 202]:
-                logging.error(colored(f"Error cancelling order {order.identifier}: {response.status_code}, {response.text}", "red"))
-                return
-                
-            logging.info(colored(f"Successfully cancelled order {order.identifier}", "green"))
-            
-            # Update order status
-            order.status = Order.OrderStatus.CANCELED
-            
-            # Dispatch cancel event
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
-                self.stream.dispatch(self.CANCELED_ORDER, order=order)
-                
-        except Exception as e:
-            logging.error(colored(f"Error cancelling order {order.identifier}: {str(e)}", "red"))
-            logging.error(traceback.format_exc())
+            # Then try to add stop price to the builder object through manual modification
+            if order_builder:
+                try:
+                    # Add stop price to the order spec - this is a hack since the templates don't support it directly
+                    order_spec = order_builder.order_spec
+                    if order.order_type == Order.OrderType.STOP:
+                        order_spec["orderType"] = "STOP"
+                    else:
+                        order_spec["orderType"] = "STOP_LIMIT"
+                    
+                    # Add stop price
+                    order_spec["stopPrice"] = str(order.stop_price)
+                    
+                    # Reconstruct builder with modified spec
+                    order_builder._order_spec = order_spec
+                except Exception as e:
+                    logging.error(colored(f"Failed to modify order builder for stop/stop-limit order: {e}", "red"))
+                    return None
+        else:
+            logging.error(colored(f"Order type {order.order_type} not supported for stocks with Schwab templates.", "red"))
+            return None
+        
+        if not order_builder:
+            logging.error(colored(f"Failed to create order builder for side: {order.side}", "red"))
+            return None
+        
+        # Log the order builder
+        logging.info(colored(f"Created stock order builder for {order.asset.symbol}", "green"))
+        
+        return order_builder
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
@@ -1282,3 +1222,19 @@ class Schwab(Broker):
         """
         logging.error(colored("Method '_run_stream' is not yet implemented.", "red"))
         return None
+    
+    def cancel_order(self, order: Order) -> None:
+        """
+        Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
+        
+        Parameters
+        ----------
+        order : Order
+            The order to cancel.
+
+        Returns
+        -------
+        None
+        """
+        logging.error(colored(f"Method 'cancel_order' for order {order} is not yet implemented.", "red"))
+        return None  # Explicitly return None

@@ -192,73 +192,6 @@ def load_pandas_data_from_alpaca_cached_data(
     return pandas_data
 
 
-class BuyOnceTestStrategy(Strategy):
-
-    # noinspection PyAttributeOutsideInit
-    def initialize(self, parameters: Any = None) -> None:
-        self.set_market(self.parameters.get("market", "NYSE"))
-        self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.asset = self.parameters.get("asset", None)
-        self.market_opens = []
-        self.market_closes = []
-        self.tracker = {}
-        self.num_trading_iterations = 0
-        self.trading_iterations = []
-
-        if not self.asset:
-            self.asset = Asset(self.parameters["symbol"])
-
-    def before_market_opens(self):
-        self.log_message(f"Before market opens called at {self.get_datetime().isoformat()}")
-        self.market_opens.append(self.get_datetime())
-
-    def after_market_closes(self):
-        self.log_message(f"After market closes called at {self.get_datetime().isoformat()}")
-        self.market_closes.append(self.get_datetime())
-        orders = self.get_orders()
-        self.log_message(f"AlpacaBacktestTestStrategy: {len(orders)} orders executed today")
-
-    def on_filled_order(self, position, order, price, quantity, multiplier):
-        self.log_message(f"AlpacaBacktestTestStrategy: Filled Order: {order}")
-        self.tracker["filled_at"] = self.get_datetime()
-        self.tracker["avg_fill_price"] = order.avg_fill_price
-
-    def on_new_order(self, order):
-        self.log_message(f"AlpacaBacktestTestStrategy: New Order: {order}")
-        self.tracker["submitted_at"] = self.get_datetime()
-
-    def on_canceled_order(self, order):
-        self.log_message(f"AlpacaBacktestTestStrategy: Canceled Order: {order}")
-
-    # noinspection PyAttributeOutsideInit
-    def on_trading_iteration(self):
-        now = self.get_datetime()
-        self.num_trading_iterations += 1
-        self.trading_iterations.append(now)
-
-        if len(self.tracker) == 0:
-            current_asset_price = self.get_last_price(self.asset)
-
-            if not current_asset_price:
-                return
-
-            # Buy 1 shares of the asset for the test
-            qty = 1
-            self.log_message(f"Buying {qty} shares of {self.asset} at {current_asset_price} @ {now}")
-            order = self.create_order(self.asset, quantity=qty, side="buy")
-            submitted_order = self.submit_order(order)
-            self.tracker = {
-                "symbol": self.asset.symbol,
-                "iteration_at": now,
-                "last_price": current_asset_price,
-                "order_id": submitted_order.identifier,
-            }
-
-        # Not the 1st iteration, cancel orders.
-        else:
-            self.cancel_open_orders()
-
-
 class BacktestingTestStrategy(Strategy):
 
     # noinspection PyAttributeOutsideInit
@@ -267,7 +200,7 @@ class BacktestingTestStrategy(Strategy):
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
         self.lookback_timestep = self.parameters.get("lookback_timestep", "day")
-        self.lookback_length = self.parameters.get("lookback_length", 5)
+        self.lookback_length = self.parameters.get("lookback_length", 0)
 
         self.last_prices: dict[str, Decimal] = {}
         self.historical_prices: dict[str, pd.DataFrame] = {}

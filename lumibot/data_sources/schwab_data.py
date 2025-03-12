@@ -577,9 +577,7 @@ class SchwabData(DataSource):
                 
                 # Construct the full option symbol
                 symbol = f"{root_symbol}{year_str}{month_str}{day_str}{option_type}{strike_whole:05d}{strike_decimal:03d}"
-                
-                logging.info(colored(f"Using option symbol format: {symbol}", "blue"))
-                
+                                
             elif asset.asset_type == Asset.AssetType.FUTURE:
                 # For futures, add a slash prefix if not already present
                 symbol = asset.symbol if asset.symbol.startswith('/') else f"/{asset.symbol}"

@@ -244,6 +244,21 @@ class TestLiveDataSource:
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
+    @pytest.mark.skipif(
+        not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>',
+        reason="This test requires a Tradier API key"
+    )
+    def test_tradier_data_source_get_last_price_stock(self):
+        data_source = TradierData(
+            account_number=TRADIER_TEST_CONFIG["ACCOUNT_NUMBER"],
+            access_token=TRADIER_TEST_CONFIG["ACCESS_TOKEN"],
+            paper=TRADIER_TEST_CONFIG["PAPER"],
+        )
+        asset = Asset('SPY', asset_type='stock')
+        quote_asset = Asset('USD', asset_type='forex')
+        price = data_source.get_last_price(asset=asset, quote=quote_asset)
+        assert price is not None
+
 
 # @pytest.mark.skip()
 class TestBacktestingDataSources:

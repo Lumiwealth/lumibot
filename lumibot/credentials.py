@@ -241,8 +241,9 @@ TRADEOVATE_CONFIG = {
 
 # Schwab Configuration
 SCHWAB_CONFIG = {
-    "CLIENT_ID": os.environ.get("SCHWAB_CLIENT_ID"),
-    "CLIENT_SECRET": os.environ.get("SCHWAB_CLIENT_SECRET"),
+    "SCHWAB_API_KEY": os.environ.get("SCHWAB_API_KEY"),
+    "SCHWAB_SECRET": os.environ.get("SCHWAB_SECRET"),
+    "SCHWAB_ACCOUNT_NUMBER": os.environ.get("SCHWAB_ACCOUNT_NUMBER"),
 }
 
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
@@ -279,7 +280,7 @@ else:
         broker = Tradeovate(TRADEOVATE_CONFIG)
 
     # If using Schwab as a broker, set that as the broker
-    elif SCHWAB_CONFIG["CLIENT_ID"]:
+    elif SCHWAB_CONFIG["SCHWAB_ACCOUNT_NUMBER"]:
         broker = Schwab(SCHWAB_CONFIG)
 
 BROKER = broker

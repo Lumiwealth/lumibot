@@ -311,7 +311,7 @@ class TradierData(DataSource):
         Returns
         -------
         dict
-           Quote of the asset
+           Quote of the asset in the format of a dictionary, eg. {"bid": 100.0, "ask": 101.0, "last": 100.5}
         """
 
         if asset.asset_type == "option":

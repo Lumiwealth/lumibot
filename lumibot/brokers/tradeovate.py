@@ -24,13 +24,12 @@ class Tradeovate(Broker):
     NAME = "Tradeovate"
 
     def __init__(self, config=None, data_source=None):
-        # Ensure config is a dict and a data source is provided
         if config is None:
             config = {}
+        # Pass our get_headers method to the data source.
         if data_source is None:
-            data_source = TradeovateData()
-
-        # Set configuration values from the provided config
+            data_source = TradeovateData(config=config, get_headers_func=self._get_headers)
+        
         is_paper = config.get("IS_PAPER", True)
         self.trading_api_url = "https://demo.tradovateapi.com/v1" if is_paper else "https://live.tradovateapi.com/v1"
         self.market_data_url = config.get("MD_URL", "https://md.tradovateapi.com/v1")
@@ -43,7 +42,6 @@ class Tradeovate(Broker):
 
         super().__init__(name=self.NAME, data_source=data_source, config=config)
 
-        # Connect to Tradeovate: get tokens, account, and user information
         try:
             tokens = self._get_tokens()
             self.trading_token = tokens["accessToken"]
@@ -58,6 +56,9 @@ class Tradeovate(Broker):
 
             self.user_id = self._get_user_info(self.trading_token)
             logging.info(colored(f"User ID: {self.user_id}", "green"))
+            
+            # Since our get_headers method depends on self.trading_token,
+            # it is now available to our data source via the get_headers_func.
         except TradeovateAPIError as e:
             logging.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
             raise e
@@ -404,13 +405,13 @@ class Tradeovate(Broker):
         symbol = order.asset.symbol
 
         # Determine the order type string based on the order type.
-        if order.type == Order.OrderType.MARKET:
+        if order.order_type == Order.OrderType.MARKET:
             order_type = "Market"
-        elif order.type == Order.OrderType.LIMIT:
+        elif order.order_type == Order.OrderType.LIMIT:
             order_type = "Limit"
-        elif order.type == Order.OrderType.STOP:
+        elif order.order_type == Order.OrderType.STOP:
             order_type = "Stop"
-        elif order.type == Order.OrderType.STOP_LIMIT:
+        elif order.order_type == Order.OrderType.STOP_LIMIT:
             order_type = "StopLimit"
         else:
             logging.warning(

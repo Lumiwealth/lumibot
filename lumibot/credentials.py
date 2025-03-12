@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -190,6 +190,7 @@ TRADIER_TEST_CONFIG = {
     "PAPER": True
 }
 
+# Kraken Configuration
 KRAKEN_CONFIG = {
     # Add KRAKEN_API_KEY and KRAKEN_API_SECRET to your .env file or set them as secrets
     "exchange_id": "kraken",
@@ -199,6 +200,7 @@ KRAKEN_CONFIG = {
     "sandbox": False,
 }
 
+# Coinbase Configuration
 COINBASE_CONFIG = {
     # Add COINBASE_API_KEY and COINBASE_API_SECRET to your .env file or set them as secrets
     "exchange_id": "coinbase",
@@ -208,6 +210,7 @@ COINBASE_CONFIG = {
     "sandbox": False,
 }
 
+# Interactive Brokers Configuration
 INTERACTIVE_BROKERS_CONFIG = {
     "SOCKET_PORT": int(os.environ.get("INTERACTIVE_BROKERS_PORT")) if os.environ.get("INTERACTIVE_BROKERS_PORT") else None,
     "CLIENT_ID": int(os.environ.get("INTERACTIVE_BROKERS_CLIENT_ID")) if os.environ.get("INTERACTIVE_BROKERS_CLIENT_ID") else None,
@@ -215,6 +218,7 @@ INTERACTIVE_BROKERS_CONFIG = {
     "IB_SUBACCOUNT": os.environ.get("IB_SUBACCOUNT", None)
 }
 
+# Interactive Brokers REST Configuration
 INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_USERNAME": os.environ.get("IB_USERNAME"),
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
@@ -223,6 +227,7 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
 
+# Tradeovate Configuration
 TRADEOVATE_CONFIG = {
     "USERNAME": os.environ.get("TRADEOVATE_USERNAME"),
     "DEDICATED_PASSWORD": os.environ.get("TRADEOVATE_DEDICATED_PASSWORD"),
@@ -232,6 +237,12 @@ TRADEOVATE_CONFIG = {
     "SECRET": os.environ.get("TRADEOVATE_SECRET"),
     "IS_PAPER": os.environ.get("TRADEOVATE_IS_PAPER", "true").lower() == "true",
     "MD_URL": os.environ.get("TRADEOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
+}
+
+# Schwab Configuration
+SCHWAB_CONFIG = {
+    "CLIENT_ID": os.environ.get("SCHWAB_CLIENT_ID"),
+    "CLIENT_SECRET": os.environ.get("SCHWAB_CLIENT_SECRET"),
 }
 
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
@@ -266,5 +277,9 @@ else:
     # If using Tradeovate as a broker, set that as the broker
     elif TRADEOVATE_CONFIG["USERNAME"]:
         broker = Tradeovate(TRADEOVATE_CONFIG)
+
+    # If using Schwab as a broker, set that as the broker
+    elif SCHWAB_CONFIG["CLIENT_ID"]:
+        broker = Schwab(SCHWAB_CONFIG)
 
 BROKER = broker

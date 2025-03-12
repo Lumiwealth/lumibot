@@ -1,7 +1,10 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 import logging
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from lumibot.backtesting import PandasDataBacktesting
@@ -17,7 +20,7 @@ from tests.fixtures import (
     pandas_data_fixture_btc_day,
     pandas_data_fixture_btc_hour,
     pandas_data_fixture_btc_minute,
-    BuyOnceTestStrategy
+    BacktestingTestStrategy
 )
 
 logger = logging.getLogger(__name__)
@@ -55,8 +58,8 @@ class TestPandasBacktest:
 
     # @pytest.mark.skip()
     def test_pandas_datasource_with_amzn_day(self, pandas_data_fixture_amzn_day):
-        strategy_class = BuyOnceTestStrategy
-        backtesting_start = pandas_data_fixture_amzn_day[0].df.index[0]
+        strategy_class = BacktestingTestStrategy
+        backtesting_start = pandas_data_fixture_amzn_day[0].df.index[5]
         backtesting_end = backtesting_start + timedelta(days=5)
 
         result, strategy = strategy_class.run_backtest(
@@ -68,19 +71,21 @@ class TestPandasBacktest:
             analyze_backtest=False,
             show_progress_bar=False,
             parameters={
-                "sleeptime": "1D",
-                "symbol": "AMZN"
-            }
+            },
         )
-        tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2021-01-04T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2021-01-04T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() ==    '2021-01-04T09:30:00-05:00'
+        # check when trading iterations happened
+        last_prices = strategy.last_prices
+        last_price_keys = list(last_prices.keys())
+        assert len(last_prices) == 5 # number of trading iterations
+        assert last_price_keys[0] == '2021-01-11T09:30:00-05:00'
+        assert last_price_keys[-1] == '2021-01-15T09:30:00-05:00'
+        assert last_prices['2021-01-11T09:30:00-05:00'] == 155.71  # close of '2025-01-11T09:30:00-05:00'
 
-        # daily data uses the close price of the current bar as the last price
-        # but unlike minute data, it uses the open price of the next bar as the fill price
-        assert tracker['last_price'] == 159.33  # Close of '2021-01-04T05:00:00+00:00'
-        assert tracker["avg_fill_price"] == 158.3  # Open of '2021-01-05 05:00:00+00:00'
+        order_tracker = strategy.order_tracker
+        assert order_tracker["iteration_at"].isoformat() == '2021-01-11T09:30:00-05:00'
+        assert order_tracker["submitted_at"].isoformat() == '2021-01-11T09:30:00-05:00'
+        assert order_tracker["filled_at"].isoformat() == '2021-01-11T09:30:00-05:00'
+        assert order_tracker["avg_fill_price"] == 156.0  # open of '2025-01-12T09:30:00-05:00'
 
     # @pytest.mark.skip()
     def test_pandas_datasource_with_amzn_minute(self, pandas_data_fixture_amzn_minute):

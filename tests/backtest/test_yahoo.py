@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.strategies import Strategy
@@ -6,8 +7,7 @@ from lumibot.traders import Trader
 from lumibot.entities import Asset
 
 from tests.fixtures import (
-    BuyOnceTestStrategy,
-    GetHistoricalTestStrategy
+    BacktestingTestStrategy
 )
 
 
@@ -74,8 +74,8 @@ class TestYahooBacktestFull:
         sleeptime = '1D'
         market = 'NYSE'
 
-        strategy: BuyOnceTestStrategy
-        results, strategy = BuyOnceTestStrategy.run_backtest(
+        strategy: BacktestingTestStrategy
+        results, strategy = BacktestingTestStrategy.run_backtest(
             datasource_class=YahooDataBacktesting,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
@@ -107,16 +107,16 @@ class TestYahooBacktestFull:
         assert df.index[0].isoformat() == "1997-05-15T16:00:00-04:00"
 
         # Trading strategy tests
-
         # check when trading iterations happened
-        assert strategy.trading_iterations[0].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert strategy.trading_iterations[-1].isoformat() == '2025-01-17T09:30:00-05:00'
-        assert strategy.num_trading_iterations == 5
+        last_prices = strategy.last_prices
+        last_price_keys = list(last_prices.keys())
+        assert len(last_prices) == 5 # number of trading iterations
+        assert last_price_keys[0] == '2025-01-13T09:30:00-05:00'
+        assert last_price_keys[-1] == '2025-01-17T09:30:00-05:00'
+        assert last_prices['2025-01-13T09:30:00-05:00'] == 218.05999755859375
 
-        tracker = strategy.tracker
-        assert tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-
-        assert tracker['last_price'] == 218.05999755859375  # Open of '2025-01-13T16:00:00-05:00'
-        assert tracker["avg_fill_price"] == 218.06  # Open of '2025-01-13T16:00:00-05:00'
+        order_tracker = strategy.order_tracker
+        assert order_tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert order_tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert order_tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
+        assert order_tracker["avg_fill_price"] == 218.06

@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 from lumibot.entities import Asset
 
 
-class TestAlpacaBacktestingNew:
+class TestAlpacaBacktesting:
     """Tests for the AlpacaBacktesting datasource class as well as using it in strategies."""
 
     def _create_data_source(

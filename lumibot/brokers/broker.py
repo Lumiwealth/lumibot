@@ -18,6 +18,11 @@ from ..data_sources import DataSource
 from ..entities import Asset, Order, Position
 from ..trading_builtins import SafeList
 
+# Consolidate errors from different brokers into a single class that can be easily caught even
+# if the user decides to switch brokers.
+class LumibotBrokerAPIError(Exception):
+    pass
+
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
@@ -1169,7 +1174,9 @@ class Broker(ABC):
 
             # Log that the trade event was received
             self.logger.info(
-                f"Processing held trade event. Trade event received for stored_order: {stored_order}, type_event: {type_event}, price: {price}, filled_quantity: {filled_quantity}, multiplier: {multiplier}"
+                f"Processing held trade event. Trade event received for stored_order: {stored_order}, "
+                f"type_event: {type_event}, ID: {stored_order.identifier}, price: {price}, "
+                f"filled_quantity: {filled_quantity}, multiplier: {multiplier}"
             )
 
             # Process the trade event
@@ -1186,13 +1193,16 @@ class Broker(ABC):
         corresponding order"""
         # Log that the trade event was received
         self.logger.info(
-            f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} {stored_order.symbol}, processed by broker {self.name}"
+            f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} "
+            f"{stored_order.symbol} ID={stored_order.identifier}, processed by broker {self.name}"
         )
 
         if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
             # Log that the trade event was held
             self.logger.info(
-                f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol}, processed by broker {self.name}. self._hold_trade_events is {self._hold_trade_events}"
+                f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol} "
+                f"ID={stored_order.identifier}, processed by broker {self.name}. "
+                f"self._hold_trade_events is {self._hold_trade_events}"
             )
 
             # Hold the trade event
@@ -1208,9 +1218,9 @@ class Broker(ABC):
             return
 
         # for fill and partial_fill events, price and filled_quantity must be specified
-        if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (
-            price is None or filled_quantity is None
-        ):
+        if (type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and
+                stored_order.order_class != Order.OrderClass.OCO and
+                (price is None or filled_quantity is None)):
             raise ValueError(
                 f"""For filled_order and partially_filled_order event,
                 price and filled_quantity must be specified.
@@ -1235,7 +1245,7 @@ class Broker(ABC):
         if Order.is_equivalent_status(type_event, self.NEW_ORDER):
             stored_order = self._process_new_order(stored_order)
             self._on_new_order(stored_order)
-        if Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):
+        elif Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):
             stored_order = self._process_placeholder_order(stored_order)
             self._on_new_order(stored_order)
         elif Order.is_equivalent_status(type_event, self.CANCELED_ORDER):
@@ -1243,6 +1253,10 @@ class Broker(ABC):
             if stored_order.is_active():
                 stored_order = self._process_canceled_order(stored_order)
                 self._on_canceled_order(stored_order)
+        elif Order.is_equivalent_status(type_event, self.ERROR_ORDER):
+            # Errors can occur during submission when there is an API communication error or a broker error.
+            stored_order = self._process_error_order(stored_order, price)
+            self._on_canceled_order(stored_order)
         elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
             # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
             if stored_order.order_type == Order.OrderType.STOP:

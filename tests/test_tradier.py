@@ -633,9 +633,10 @@ class TestTradierBroker:
         assert len(known_orders) == 3, "Rejected orders still stay tracked."
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
-        assert len(broker._canceled_orders) == 2
+        assert len(broker._canceled_orders) == 1
+        assert len(broker._error_orders) == 1
         assert len(broker.get_all_orders()) == 3, "Includes Filled/Cancelled orders"
-        error_order = broker._canceled_orders[1]
+        error_order = broker._error_orders[0]
         assert error_order.identifier == 125
         assert error_order.order_type == "limit"
         assert error_order.status == "error"
@@ -658,8 +659,8 @@ class TestTradierBroker:
         assert len(known_orders) == 4
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
-        assert len(broker._canceled_orders) == 3
-        order = broker._canceled_orders[2]
+        assert len(broker._canceled_orders) == 2
+        order = broker._canceled_orders[-1]
         assert order.identifier == 126
         assert order.is_canceled()
 
@@ -705,3 +706,122 @@ class TestTradierBroker:
         assert order.identifier == 127
         assert order.is_filled()
         assert order.get_fill_price() == 102.0
+
+        # ---------------------------------
+        # Include an OCO order case.
+        # Lumibot doesn't know about it, but the broker does. Add to Lumibot trackers
+        fifth_response = {
+            'id': 128,
+            'type': 'oco',
+            'side': 'buy',
+            'symbol': "SPY",
+            'class': 'oco',
+            'quantity': 1,
+            'avg_fill_price': None,
+            'status': 'open',
+            'tag': strategy,
+            'duration': 'gtc',
+            'create_date': dt.datetime.today(),
+            'leg': [
+                {
+                    'avg_fill_price': None,
+                    'class': 'equity',
+                    'create_date': dt.datetime.today(),
+                    'duration': 'gtc',
+                    'exec_quantity': None,
+                    'id': 129,
+                    'last_fill_price': None,
+                    'last_fill_quantity': None,
+                    'option_symbol': None,
+                    'price': 103.0,
+                    'quantity': 1.0,
+                    'remaining_quantity': 1.0,
+                    'side': 'buy_to_open',
+                    'status': 'open',
+                    'stop_price': None,
+                    'symbol': "SPY",
+                    'transaction_date': dt.datetime.today(),
+                    'type': 'limit',
+                    'tag': strategy,
+                },
+                {
+                    'avg_fill_price': None,
+                    'class': 'equity',
+                    'create_date': dt.datetime.today(),
+                    'duration': 'gtc',
+                    'exec_quantity': None,
+                    'id': 130,
+                    'last_fill_price': None,
+                    'last_fill_quantity': None,
+                    'option_symbol': "SPY",
+                    'price': None,
+                    'quantity': 1.0,
+                    'remaining_quantity': 1.0,
+                    'side': 'buy_to_open',
+                    'status': 'open',
+                    'stop_price': 101.0,
+                    'symbol': "SPY",
+                    'transaction_date': dt.datetime.today(),
+                    'type': 'stop',
+                    'tag': strategy,
+                }
+            ],
+        }
+        mock_get_orders.return_value = [first_response, second_response, third_response,
+                                         fourth_response, fifth_response]
+        broker.do_polling()
+        sleep(sleep_amt)
+        known_orders = broker.get_tracked_orders(strategy=strategy)
+        assert len(known_orders) == 5 + 3, "OCO and child orders are tracked."
+        assert len(broker._new_orders) == 3, "OCO and child orders are new."
+        assert not len(broker._unprocessed_orders)
+        assert len(broker.get_all_orders()) == 5 + 3, "Includes Filled/Cancelled orders and order not in Broker info"
+        oco_order = broker.get_order(128)
+        assert not oco_order.is_filled()
+        assert oco_order.is_active()
+        assert not oco_order.child_orders[0].is_filled()
+
+        # Update broker response for a Race condition fill - OCO and child limit order are marked as status=filled,
+        # but there is not a fill price provided yet.
+        fifth_response["status"] = "filled"
+        fifth_response["avg_fill_price"] = None
+        fifth_response["exec_quantity"] = 1
+        fifth_response["leg"][0]["status"] = "filled"
+        fifth_response["leg"][0]["avg_fill_price"] = None
+        fifth_response["leg"][0]["exec_quantity"] = 1
+        fifth_response["leg"][1]["status"] = "cancelled"
+        fifth_response["leg"][1]["avg_fill_price"] = None
+        mock_get_orders.return_value = [first_response, second_response, third_response,
+                                            fourth_response, fifth_response]
+        broker.do_polling()
+        sleep(sleep_amt)
+        known_orders = broker.get_tracked_orders(strategy=strategy)
+        assert len(known_orders) == 5 + 3, "OCO orders are tracked."
+        assert len(broker._new_orders) == 2, "OCO and limit are in incomplete fill state, Stop is canceled."
+        # OCO order status has not yet been updated to filled
+        oco_order = broker.get_order(128)
+        assert oco_order.identifier == 128
+        assert not oco_order.is_filled()
+        assert not oco_order.get_fill_price()
+        assert not oco_order.child_orders[0].is_filled()
+        assert oco_order.child_orders[0].is_active()
+        assert not oco_order.child_orders[1].is_filled()
+        assert not oco_order.child_orders[1].is_active()
+        assert oco_order.child_orders[1].is_canceled()
+
+        # OCO now has a fill price and should finally get filled
+        fifth_response["leg"][0]["avg_fill_price"] = 103.0
+        mock_get_orders.return_value = [first_response, second_response, third_response,
+                                            fourth_response, fifth_response]
+        broker.do_polling()
+        sleep(sleep_amt)
+        known_orders = broker.get_tracked_orders(strategy=strategy)
+        assert len(known_orders) == 5 + 3, "OCO orders are tracked."
+        assert len(broker._new_orders) == 0
+        assert not len(broker._unprocessed_orders)
+        oco_order = broker.get_order(128)
+        assert oco_order.identifier == 128
+        assert oco_order.is_filled()
+        assert oco_order.get_fill_price() == 103.0
+        assert oco_order.child_orders[0].is_filled()
+        assert oco_order.child_orders[0].get_fill_price() == 103.0

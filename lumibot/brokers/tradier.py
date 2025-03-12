@@ -7,7 +7,7 @@ from typing import Union
 import pandas as pd
 from termcolor import colored
 
-from lumibot.brokers import Broker
+from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.helpers import create_options_symbol
@@ -133,11 +133,14 @@ class Tradier(Broker):
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 
         # Modify the order
-        self.tradier.orders.modify(
-            order.identifier,
-            limit_price=limit_price,
-            stop_price=stop_price,
-        )
+        try:
+            self.tradier.orders.modify(
+                order.identifier,
+                limit_price=limit_price,
+                stop_price=stop_price,
+            )
+        except TradierApiError as e:
+            raise LumibotBrokerAPIError(f"Unable to modify order at broker. {e}") from e
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
@@ -610,6 +613,16 @@ class Tradier(Broker):
         # Get the reason_description if it exists
         reason_description = response.get("reason_description", "")
 
+        # Tradier sometimes returns None for avg_fill_price and sometimes $0.0. It mostly appears that:
+        #    - 0.0 occurs during submission (mostly for OCO child orders it seems)
+        #    - None while the order is active/cancelled
+        #    - A value when the order is filled
+        # Lumibot treats 0.0 as a valid fill amount, so need to convert to None when it is just a placeholder
+        #    value for non-filled orders.
+        avg_fill_price = response["avg_fill_price"] if "avg_fill_price" in response else None
+        if avg_fill_price == 0.0 and not Order.is_equivalent_status(response["status"], Order.OrderStatus.FILLED):
+            avg_fill_price = None
+
         # Create the order object
         order = Order(
             identifier=response["id"],
@@ -624,7 +637,7 @@ class Tradier(Broker):
             stop_price=self._extract_order_value(response, stop_order, "stop_price"),
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
-            avg_fill_price=response["avg_fill_price"] if "avg_fill_price" in response else None,
+            avg_fill_price=avg_fill_price,
             error_message=reason_description,
             order_class=self._tradier_class2lumi(response["class"] if "class" in response else None),
         )
@@ -829,6 +842,10 @@ class Tradier(Broker):
                     # for the first time.
                     stored_order = stored_orders[order.identifier]
                     stored_order.quantity = order.quantity  # Update the quantity in case it has changed
+                    stored_order.broker_create_date = order.broker_create_date
+                    stored_order.broker_update_date = order.broker_update_date
+                    if order.avg_fill_price:
+                        stored_order.avg_fill_price = order.avg_fill_price
                     stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
                                        for o in order.child_orders]
                     stored_order.child_orders = stored_children
@@ -859,9 +876,23 @@ class Tradier(Broker):
                                 else:
                                     fill_qty = order.quantity
 
-                                self.stream.dispatch(
-                                    self.FILLED_ORDER, order=stored_order, price=fill_price, filled_quantity=fill_qty
-                                )
+                                # For OCO orders - Parent order never gets filled values populated by Tradier API.
+                                # Need to look at the child orders to get the necessary fill values.
+                                if order.order_class == Order.OrderClass.OCO:
+                                    filled_children = [o for o in order.child_orders if o.is_filled()]
+                                    if filled_children:
+                                        fill_price = filled_children[0].avg_fill_price
+                                        fill_qty = filled_children[0].quantity
+
+                                # There's race condition where Tradier API is marking status=filled but has not yet
+                                # populated the avg_fill_price and other fill data. At some time in the future these
+                                # values will be filled in by Tradier, so do not trigger a 'filled' event until
+                                # all the needed data has been populated.
+                                if fill_price is not None and fill_qty is not None:
+                                    self.stream.dispatch(
+                                        self.FILLED_ORDER, order=stored_order, price=fill_price,
+                                        filled_quantity=fill_qty
+                                    )
                             case "canceled":
                                 self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
@@ -986,12 +1017,21 @@ class Tradier(Broker):
         def on_trade_event_error(order, error_msg):
             # Log that the order had an error
             logging.error(f"Processing action for error order {order} | {error_msg}")
-                                                                         
             try:
                 if order.is_active():
+                    # If the order has children, cancel them first upon error
+                    if order.child_orders:
+                        for child_order in order.child_orders:
+                            child_order.set_error(error_msg)
+                            broker._process_trade_event(
+                                child_order,
+                                broker.ERROR_ORDER,
+                            )
+
+                    # Then cancel the parent order
                     broker._process_trade_event(
                         order,
-                        broker.CANCELED_ORDER,
+                        broker.ERROR_ORDER,
                     )
                 logging.error(error_msg)
                 order.set_error(error_msg)

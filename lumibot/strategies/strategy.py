@@ -1170,7 +1170,7 @@ class Strategy(_Strategy):
 
     @property
     def positions(self):
-        return self.get_tracked_positions()
+        return self.get_positions()
 
     def _get_contract_details(self, asset: Asset):
         """Convert an asset into a IB Contract.

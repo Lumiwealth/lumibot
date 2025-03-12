@@ -2,13 +2,13 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools.helpers import (
     has_more_than_n_decimal_places,
     date_n_days_from_date,
     get_trading_days,
-    get_trading_times
+    get_trading_times,
+    get_zoneinfo_from_datetime
 )
 
 
@@ -238,3 +238,51 @@ def test_get_trading_times_minute():
     assert result[-1].time().hour == 15
     assert result[-1].time().minute == 59
     assert all(dt.tzinfo == tzinfo for dt in result)
+    
+import pytest
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import pytz
+
+
+def testget_zoneinfo_from_datetime():
+    # Test naive datetime
+    naive_dt = datetime(2025, 1, 1)
+    tz_info = get_zoneinfo_from_datetime(naive_dt)
+    assert isinstance(tz_info, ZoneInfo)
+    assert str(tz_info) == LUMIBOT_DEFAULT_TIMEZONE
+
+    # Test datetime with ZoneInfo
+    ny_zoneinfo = ZoneInfo("America/New_York")
+    zoneinfo_dt = datetime(2025, 1, 1, tzinfo=ny_zoneinfo)
+    tz_info = get_zoneinfo_from_datetime(zoneinfo_dt)
+    assert isinstance(tz_info, ZoneInfo)
+    assert str(tz_info) == "America/New_York"
+
+    # Test datetime with pytz
+    ny_pytz = pytz.timezone("America/New_York")
+    pytz_dt = datetime(2025, 1, 1, tzinfo=ny_pytz)
+    tz_info = get_zoneinfo_from_datetime(pytz_dt)
+    assert isinstance(tz_info, ZoneInfo)
+    assert str(tz_info) == "America/New_York"
+
+    # Test with different timezone
+    tokyo_zoneinfo = ZoneInfo("Asia/Tokyo")
+    tokyo_dt = datetime(2025, 1, 1, tzinfo=tokyo_zoneinfo)
+    tz_info = get_zoneinfo_from_datetime(tokyo_dt)
+    assert isinstance(tz_info, ZoneInfo)
+    assert str(tz_info) == "Asia/Tokyo"
+
+
+def testget_zoneinfo_from_datetime_types():
+    dt = datetime(2025, 1, 1, tzinfo=ZoneInfo("America/New_York"))
+    tz_info = get_zoneinfo_from_datetime(dt)
+    assert isinstance(tz_info, ZoneInfo)
+
+    # Test with None
+    with pytest.raises(AttributeError):
+        get_zoneinfo_from_datetime(None)
+
+    # Test with non-datetime
+    with pytest.raises(AttributeError):
+        get_zoneinfo_from_datetime("not a datetime")

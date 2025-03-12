@@ -73,7 +73,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
             **kwargs: Additional keyword arguments, such as:
                 - timestep (str): Interval for data ("day" or "minute"). Defaults to "day".
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
-                - tzinfo (ZoneInfo): The timezone information. Defaults to the system’s default timezone.
                 - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
                   the primary dataset. Defaults to 0.
                 - market (str): Indicates the stock exchange or market (e.g., "NYSE"). Defaults to "NYSE".
@@ -277,6 +276,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if timestep is None:
             timestep = self._timestep
 
+        if quote is None:
+            quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
+
         key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
 
         if self._refresh_cache and key not in self._refreshed_keys:
@@ -447,7 +449,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if auto_adjust is None:
             raise ValueError("The parameter 'auto_adjust' cannot be None.")
 
-        key = self._get_asset_key(base_asset=base_asset, quote_asset=quote_asset)
+        key = self._get_asset_key(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            timestep=timestep,
+            market=market,
+            tzinfo=tzinfo,
+            data_datetime_start=data_datetime_start,
+            data_datetime_end=data_datetime_end,
+            auto_adjust=auto_adjust,
+        )
 
         # Directory to save cached data.
         cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
@@ -505,7 +516,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
-        if self._timestep == 'day':
+        if timestep == 'day':
             # daily bars are NORMALLY indexed at midnight (the open of the bar).
             # To enable lumibot to use the open price of the bar for the get_last_price and fills,
             # the alpaca backtester adjusts daily bars to the open bar of the market.
@@ -516,7 +527,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         trading_times = get_trading_times(
             pcal=self._trading_days,
-            timestep=self._timestep,
+            timestep=timestep,
         )
 
         # Reindex the dataframe with a row for each bar we should have a trading iteration for.

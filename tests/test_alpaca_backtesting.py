@@ -12,8 +12,6 @@ from lumibot.entities import Asset
 from lumibot.tools import get_trading_times
 
 from tests.fixtures import (
-    BuyOnceTestStrategy,
-    GetHistoricalTestStrategy,
     BacktestingTestStrategy
 )
 

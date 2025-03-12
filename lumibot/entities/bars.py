@@ -231,7 +231,7 @@ class Bars:
         """
         df_copy = self.df.copy()
         if "return" in df_copy.columns:
-            period_adj_returns = df_copy['return'].iloc[-num_periods:]
+            period_adj_returns = df_copy['return'].iloc[-num_periods:].astype(float)
             momentum = (1 + period_adj_returns).cumprod().iloc[-1] - 1
         else:
             momentum = df_copy['close'].pct_change(num_periods).iloc[-1]

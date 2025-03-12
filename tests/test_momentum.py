@@ -201,17 +201,15 @@ class TestMomentum:
         reason="This test requires an alpaca API key"
     )
     def test_momo_alpaca_lookback_2(self):
-        tickers = "SPY"
         timestep = 'day'
         refresh_cache = False
-        tzinfo = ZoneInfo("America/New_York")
         lookback_period = 2
         market='NYSE'
 
         results, strategy = MomoTester.run_backtest(
             datasource_class=AlpacaBacktesting,
-            backtesting_start=self.backtesting_start,
-            backtesting_end=self.backtesting_end,
+            backtesting_start=self.backtesting_start.replace(tzinfo=ZoneInfo("America/New_York")),
+            backtesting_end=self.backtesting_end.replace(tzinfo=ZoneInfo("America/New_York")),
             benchmark_asset=None,
             analyze_backtest=False,
             show_progress_bar=False,
@@ -220,12 +218,10 @@ class TestMomentum:
             },
 
             # AlpacaBacktesting kwargs
-            tickers=tickers,
             refresh_cache=refresh_cache,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             warm_up_trading_days=lookback_period,
-            tzinfo=tzinfo,
             market=market,
         )
         comparison_df = self.build_comparison_df(strategy)
@@ -248,17 +244,15 @@ class TestMomentum:
         reason="This test requires an alpaca API key"
     )
     def test_momo_alpaca_lookback_30(self):
-        tickers = "SPY"
         timestep = 'day'
         refresh_cache = False
-        tzinfo = ZoneInfo("America/New_York")
         lookback_period = 30
         market='NYSE'
 
         results, strategy = MomoTester.run_backtest(
             datasource_class=AlpacaBacktesting,
-            backtesting_start=self.backtesting_start,
-            backtesting_end=self.backtesting_end,
+            backtesting_start=self.backtesting_start.replace(tzinfo=ZoneInfo("America/New_York")),
+            backtesting_end=self.backtesting_end.replace(tzinfo=ZoneInfo("America/New_York")),
             benchmark_asset=None,
             analyze_backtest=False,
             show_progress_bar=False,
@@ -267,12 +261,10 @@ class TestMomentum:
             },
 
             # AlpacaBacktesting kwargs
-            tickers=tickers,
             refresh_cache=refresh_cache,
             timestep=timestep,
             config=ALPACA_TEST_CONFIG,
             warm_up_trading_days=lookback_period,
-            tzinfo=tzinfo,
             market=market,
         )
         comparison_df = self.build_comparison_df(strategy)

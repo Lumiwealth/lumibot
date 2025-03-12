@@ -448,3 +448,22 @@ def has_more_than_n_decimal_places(number: float, n: int) -> bool:
         return len(decimal_part) > n
     else:
         return False
+
+
+def get_zoneinfo_from_datetime(dt: datetime) -> ZoneInfo:
+    """Convert datetime's timezone to ZoneInfo, handling both pytz and zoneinfo cases"""
+    if dt.tzinfo is None:
+        return ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)
+
+    # If it's already a ZoneInfo, return it
+    if isinstance(dt.tzinfo, ZoneInfo):
+        return dt.tzinfo
+
+    # Handle pytz timezone by getting its name and converting to ZoneInfo
+    try:
+        # pytz timezones have a 'zone' attribute with the timezone name
+        timezone_name = dt.tzinfo.zone
+        return ZoneInfo(timezone_name)
+    except AttributeError:
+        # If we can't get the zone name, fall back to default
+        return ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)

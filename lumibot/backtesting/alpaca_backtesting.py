@@ -22,7 +22,8 @@ from lumibot import (
 from lumibot.tools.helpers import (
     date_n_days_from_date,
     get_trading_days,
-    get_trading_times
+    get_trading_times,
+    get_zoneinfo_from_datetime
 )
 
 
@@ -96,7 +97,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
         )
 
         self._timestep: str = kwargs.get('timestep', 'day')
-        self._tzinfo: ZoneInfo = kwargs.get('tzinfo', ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE))
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
         self._market: str = kwargs.get('market', "NYSE")
         self._auto_adjust: bool = kwargs.get('auto_adjust', True)
@@ -119,6 +119,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
             api_key=config["API_KEY"],
             secret_key=config["API_SECRET"]
         )
+
+        # Ensure datetime_start and datetime_end have the same tzinfo
+        if datetime_start.tzinfo != datetime_end.tzinfo:
+            raise ValueError("datetime_start and datetime_end must have the same tzinfo.")
+
+        # Get timezone from datetime_start if it has one, otherwise use Lumibot default
+        self._tzinfo = get_zoneinfo_from_datetime(datetime_start)
 
         # We want self._data_datetime_start and self._data_datetime_end to be the start and end dates
         # of the data for the entire backtest including the warmup dates.

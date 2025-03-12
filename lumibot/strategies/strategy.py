@@ -3037,9 +3037,9 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
 
-        # asset = self.crypto_assets_to_tuple(asset, quote)
+        asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
-            timestep = self.broker.data_source.MIN_TIMESTEP
+            timestep = self.broker.data_source.get_timestep()
         if self.broker.option_source and asset.asset_type == "option":
             return self.broker.option_source.get_historical_prices(
                 asset,

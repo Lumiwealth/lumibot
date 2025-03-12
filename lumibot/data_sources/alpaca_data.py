@@ -112,11 +112,10 @@ class AlpacaData(DataSource):
             self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
         return self._option_client
 
-    def __init__(self, config, max_workers=20, chunk_size=100):
-        super().__init__()
-        # Alpaca authorize 200 requests per minute and per API key
-        # Setting the max_workers for multithreading with a maximum
-        # of 200
+    def __init__(self, config, max_workers=20, chunk_size=100, delay=16):
+        # delay: A delay parameter to control throttling when making API calls.
+        super().__init__(delay=delay)
+
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)
 
@@ -371,7 +370,7 @@ class AlpacaData(DataSource):
         if timeshift is None and timestep == "day":
             # Alpaca throws an error if we don't do this and don't have a data subscription because
             # they require a subscription for historical data less than 15 minutes old
-            timeshift = timedelta(minutes=16)
+            timeshift = self._delay
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)

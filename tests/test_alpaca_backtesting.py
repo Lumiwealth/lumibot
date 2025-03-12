@@ -33,11 +33,10 @@ class TestAlpacaBacktestingNew:
     def _create_data_source(
             self,
             *,
-            datetime_start=datetime(2025, 1, 1),
-            datetime_end=datetime(2025, 1, 31),
+            datetime_start=datetime(2025, 1, 1, tzinfo=ZoneInfo("America/New_York")),
+            datetime_end=datetime(2025, 1, 31, tzinfo=ZoneInfo("America/New_York")),
             config=ALPACA_TEST_CONFIG,
             timestep="day",
-            tzinfo=ZoneInfo("America/New_York"),
             refresh_cache=False,
             market="NYSE",
             warm_up_trading_days: int = 0,
@@ -51,7 +50,6 @@ class TestAlpacaBacktestingNew:
             datetime_end=datetime_end,
             config=config,
             timestep=timestep,
-            tzinfo=tzinfo,
             refresh_cache=refresh_cache,
             market=market,
             warm_up_trading_days=warm_up_trading_days,
@@ -63,19 +61,17 @@ class TestAlpacaBacktestingNew:
         assert isinstance(data_source, AlpacaBacktesting)
 
     def test_basic_key_generation_crypto(self):
-        datetime_start = datetime(2025, 1, 1)
-        datetime_end = datetime(2025, 2, 1)
+        datetime_start = datetime(2025, 1, 1, tzinfo=ZoneInfo("America/Chicago"))
+        datetime_end = datetime(2025, 2, 1, tzinfo=ZoneInfo("America/Chicago"))
         base_asset = Asset("BTC", asset_type='crypto')
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
-        tzinfo = ZoneInfo("America/Chicago")
         timestep = "day"
         
         data_source = self._create_data_source(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             market=market,
-            tzinfo=tzinfo,
             timestep=timestep,
         )
 
@@ -83,7 +79,6 @@ class TestAlpacaBacktestingNew:
             base_asset=base_asset,
             quote_asset=quote_asset,
             market=market,
-            tzinfo=tzinfo,
             timestep=timestep,
             data_datetime_start=datetime_start,
             data_datetime_end=datetime_end
@@ -93,19 +88,17 @@ class TestAlpacaBacktestingNew:
         assert key == expected
 
     def test_basic_key_generation_stock(self):
-        datetime_start = datetime(2025, 1, 1)
-        datetime_end = datetime(2025, 2, 1)
+        datetime_start = datetime(2025, 1, 1, tzinfo=ZoneInfo("America/New_York"))
+        datetime_end = datetime(2025, 2, 1, tzinfo=ZoneInfo("America/New_York"))
         base_asset = Asset("AAPL", asset_type='stock')
         quote_asset = Asset("USD", asset_type='forex')
         market = "NYSE"
-        tzinfo = ZoneInfo("America/New_York")
         timestep = "day"
 
         data_source = self._create_data_source(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             market=market,
-            tzinfo=tzinfo,
             timestep=timestep,
         )
 
@@ -113,7 +106,6 @@ class TestAlpacaBacktestingNew:
             base_asset=base_asset,
             quote_asset=quote_asset,
             market=market,
-            tzinfo=tzinfo,
             timestep=timestep,
             data_datetime_start=datetime_start,
             data_datetime_end=datetime_end
@@ -126,17 +118,15 @@ class TestAlpacaBacktestingNew:
         base_asset = Asset("AAPL", asset_type="stock")
         quote_asset = Asset("USD", asset_type="forex")
         market = "NYSE"
-        tz = ZoneInfo("America/New_York")
         timestep = "day"
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 12, 31)
+        start_date = datetime(2023, 1, 1, tzinfo=ZoneInfo("America/New_York"))
+        end_date = datetime(2023, 12, 31, tzinfo=ZoneInfo("America/New_York"))
         auto_adjust = True
 
         data_source = self._create_data_source(
             datetime_start=start_date,
             datetime_end=end_date,
             market=market,
-            tzinfo=tz,
             timestep=timestep,
             auto_adjust=auto_adjust
         )
@@ -145,7 +135,6 @@ class TestAlpacaBacktestingNew:
             base_asset=base_asset,
             quote_asset=quote_asset,
             market=market,
-            tzinfo=tz,
             timestep=timestep,
             data_datetime_start=start_date,
             data_datetime_end=end_date,
@@ -158,16 +147,14 @@ class TestAlpacaBacktestingNew:
     def test_empty_market_false_auto_adjust(self):
         base_asset = Asset("SPY", asset_type="stock")
         quote_asset = Asset("USD", asset_type="forex")
-        tz = ZoneInfo("America/New_York")
         timestep = "minute"
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 12, 31)
+        start_date = datetime(2023, 1, 1, tzinfo=ZoneInfo("America/New_York"))
+        end_date = datetime(2023, 12, 31, tzinfo=ZoneInfo("America/New_York"))
         auto_adjust = False
 
         data_source = self._create_data_source(
             datetime_start=start_date,
             datetime_end=end_date,
-            tzinfo=tz,
             timestep=timestep,
             auto_adjust=auto_adjust
         )
@@ -175,7 +162,6 @@ class TestAlpacaBacktestingNew:
         key = data_source._get_asset_key(
             base_asset=base_asset,
             quote_asset=quote_asset,
-            tzinfo=tz,
             timestep=timestep,
             data_datetime_start=start_date,
             data_datetime_end=end_date,
@@ -228,12 +214,11 @@ class TestAlpacaBacktestingNew:
     def test_refresh_cache(self):
         """Test that refresh_cache properly refreshes data and uses the refreshed_keys dict"""
 
-        datetime_start = datetime(2024, 1, 1)
-        datetime_end = datetime(2024, 2, 1)
+        datetime_start = datetime(2024, 1, 1, tzinfo=ZoneInfo("America/Chicago"))
+        datetime_end = datetime(2024, 2, 1, tzinfo=ZoneInfo("America/Chicago"))
         base_asset = Asset("BTC", asset_type='crypto')
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
-        tzinfo = ZoneInfo("America/Chicago")
         timestep = "day"
         refresh_cache = True
 
@@ -241,7 +226,6 @@ class TestAlpacaBacktestingNew:
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             market=market,
-            tzinfo=tzinfo,
             timestep=timestep,
             refresh_cache=refresh_cache
         )
@@ -274,12 +258,11 @@ class TestAlpacaBacktestingNew:
     def test_no_refresh_cache(self):
         """Test that when refresh_cache is False, data is loaded from cache when available"""
 
-        datetime_start = datetime(2024, 1, 1)
-        datetime_end = datetime(2024, 2, 1)
+        datetime_start = datetime(2024, 1, 1, tzinfo=ZoneInfo("America/Chicago"))
+        datetime_end = datetime(2024, 2, 1, tzinfo=ZoneInfo("America/Chicago"))
         base_asset = Asset("BTC", asset_type='crypto')
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
-        tzinfo = ZoneInfo("America/Chicago")
         timestep = "day"
         refresh_cache = False
 
@@ -287,7 +270,6 @@ class TestAlpacaBacktestingNew:
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             market=market,
-            tzinfo=tzinfo,
             timestep=timestep,
             refresh_cache=refresh_cache
         )
@@ -331,8 +313,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -357,7 +339,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -412,8 +393,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -438,7 +419,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -501,8 +481,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -527,7 +507,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -582,8 +561,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -608,7 +587,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -683,8 +661,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -709,7 +687,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -784,8 +761,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -810,7 +787,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -865,8 +841,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -891,7 +867,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -946,8 +921,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -972,7 +947,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -1027,8 +1001,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1053,7 +1027,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )
@@ -1108,8 +1081,8 @@ class TestAlpacaBacktestingNew:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 17)
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1134,7 +1107,6 @@ class TestAlpacaBacktestingNew:
             market=market,
             config=ALPACA_TEST_CONFIG,
             refresh_cache=refresh_cache,
-            tzinfo=tzinfo,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
         )

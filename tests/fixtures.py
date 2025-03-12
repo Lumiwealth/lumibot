@@ -259,31 +259,6 @@ class BuyOnceTestStrategy(Strategy):
             self.cancel_open_orders()
 
 
-class GetHistoricalTestStrategy(Strategy):
-
-    # noinspection PyAttributeOutsideInit
-    def initialize(self, parameters: Any = None) -> None:
-        self.set_market(self.parameters.get("market", "NYSE"))
-        self.sleeptime = self.parameters.get("sleeptime", "1D")
-        self.lookback_timestep = self.parameters.get("lookback_timestep", "day")
-        self.asset = self.parameters.get("asset", None)
-        self.lookback_length = self.parameters.get("lookback_length", 5)
-        self.last_historical_prices_df: pd.DataFrame | None = None
-        self.last_trading_iteration: datetime | None = None
-
-    # noinspection PyAttributeOutsideInit
-    def on_trading_iteration(self):
-        self.last_trading_iteration = self.get_datetime()
-
-        bars = self.get_historical_prices(
-            asset=self.asset,
-            length=self.lookback_length,
-            timestep=self.lookback_timestep,
-            quote=self.quote_asset
-        )
-        self.last_historical_prices_df = bars.df
-
-
 class BacktestingTestStrategy(Strategy):
 
     # noinspection PyAttributeOutsideInit

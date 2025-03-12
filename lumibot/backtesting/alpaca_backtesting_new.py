@@ -220,7 +220,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             self,
             asset: Asset,
             length: int,
-            timestep: str = "",
+            timestep: str | None = None,
             timeshift: timedelta | None = None,
             quote: Asset | None = None,
             exchange: str | None = None,
@@ -267,6 +267,9 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             quote = asset[1]
             asset = asset[0]
 
+        if timestep is None:
+            timestep = self._timestep
+
         key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
 
         if self._refresh_cache and key not in self._refreshed_keys:
@@ -274,7 +277,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             self._download_and_cache_ohlcv_data(
                 base_asset=asset,
                 quote_asset=quote,
-                timestep=self._timestep,
+                timestep=timestep,
                 market=self._market,
                 tzinfo=self._tzinfo,
                 data_datetime_start=self._data_datetime_start,
@@ -287,7 +290,7 @@ class AlpacaBacktestingNew(DataSourceBacktesting):
             self._download_and_cache_ohlcv_data(
                 base_asset=asset,
                 quote_asset=quote,
-                timestep=self._timestep,
+                timestep=timestep,
                 market=self._market,
                 tzinfo=self._tzinfo,
                 data_datetime_start=self._data_datetime_start,

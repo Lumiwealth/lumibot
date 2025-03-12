@@ -5,14 +5,19 @@ from typing import Union
 
 import pandas as pd
 import re
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient, OptionHistoricalDataClient
+from alpaca.data.historical import (
+    CryptoHistoricalDataClient,
+    StockHistoricalDataClient,
+    OptionHistoricalDataClient
+)
 from alpaca.data.requests import (
     CryptoBarsRequest,
     CryptoLatestQuoteRequest,
     StockBarsRequest,
     StockLatestTradeRequest,
     OptionLatestTradeRequest,
-    OptionBarsRequest
+    OptionBarsRequest,
+    StockLatestQuoteRequest
 )
 from alpaca.data.timeframe import TimeFrame
 
@@ -89,6 +94,24 @@ class AlpacaData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
+    def _get_stock_client(self):
+        """Lazily initialize and return the stock client."""
+        if self._stock_client is None:
+            self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
+        return self._stock_client
+
+    def _get_crypto_client(self):
+        """Lazily initialize and return the crypto client."""
+        if self._crypto_client is None:
+            self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
+        return self._crypto_client
+
+    def _get_option_client(self):
+        """Lazily initialize and return the option client."""
+        if self._option_client is None:
+            self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+        return self._option_client
+
     def __init__(self, config, max_workers=20, chunk_size=100):
         super().__init__()
         # Alpaca authorize 200 requests per minute and per API key
@@ -104,6 +127,8 @@ class AlpacaData(DataSource):
 
         # Connection to alpaca REST API
         self.config = config
+
+        self._stock_client = self._crypto_client = self._option_client = None
 
         if isinstance(config, dict) and "API_KEY" in config:
             self.api_key = config["API_KEY"]
@@ -172,8 +197,9 @@ class AlpacaData(DataSource):
         else:
             symbol = asset.symbol
 
-        if (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.CRYPTO) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.CRYPTO):
-            client = CryptoHistoricalDataClient()
+        if (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.CRYPTO) or (
+                isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.CRYPTO):
+            client = self._get_crypto_client()
             quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
             quote = client.get_crypto_latest_quote(quote_params)
 
@@ -184,17 +210,23 @@ class AlpacaData(DataSource):
             price = (quote.bid_price + quote.ask_price) / 2
         elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
             logging.info(f"Getting {asset} option price")
-            client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+            client = self._get_option_client()
             params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
             trade = client.get_option_latest_trade(params)
             print(f'This {trade} {symbol}')
             price = trade[symbol].price
         else:
             # Stocks
-            client = StockHistoricalDataClient(self.api_key, self.api_secret)
-            params = StockLatestTradeRequest(symbol_or_symbols=symbol)
-            trade = client.get_stock_latest_trade(params)[symbol]
-            price = trade.price
+            client = self._get_stock_client()
+            params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+            quote = client.get_stock_latest_quote(params)[symbol]
+
+            # Get bid and ask prices from the quote
+            bid_price = quote.bid_price
+            ask_price = quote.ask_price
+
+            # You can use either bid, ask, or their average as your price
+            price = (bid_price + ask_price) / 2  # Using midpoint price
 
         return price
 
@@ -278,7 +310,7 @@ class AlpacaData(DataSource):
             if asset.asset_type == Asset.AssetType.CRYPTO:
                 symbol = f"{asset.symbol}/{quote.symbol}"
 
-                client = CryptoHistoricalDataClient()
+                client = self._get_crypto_client()
                 params = CryptoBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
                 barset = client.get_crypto_bars(params)
 
@@ -287,7 +319,7 @@ class AlpacaData(DataSource):
                 date = asset.expiration.strftime("%y%m%d")
                 symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
 
-                client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+                client = self._get_option_client()
                 params = OptionBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
 
                 try:
@@ -298,7 +330,7 @@ class AlpacaData(DataSource):
             else:
                 symbol = asset.symbol
 
-                client = StockHistoricalDataClient(self.api_key, self.api_secret)
+                client = self._get_stock_client()
                 params = StockBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
 
                 try:

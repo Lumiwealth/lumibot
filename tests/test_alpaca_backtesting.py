@@ -908,6 +908,86 @@ class TestAlpacaBacktesting:
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["avg_fill_price"] == 94066.35  # Open of '2025-01-13T00:00:00-06:00'
 
+    def test_btc_day_1d_utc(
+            self,
+            asset: Asset = Asset('BTC', asset_type='crypto'),
+            market: str = '24/7',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: ZoneInfo = ZoneInfo('UTC'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+            lookback_length: int = 0,
+    ):
+        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
+        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        refresh_cache = False
+
+        strategy: BacktestingTestStrategy
+        results, strategy = BacktestingTestStrategy.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            show_progress_bar=False,
+            parameters={
+                "asset": asset,
+                "market": market,
+                "sleeptime": sleeptime,
+                "lookback_timestep": 'day',
+                "lookback_length": lookback_length,
+            },
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+        assert results
+        assert strategy
+        assert strategy.broker
+        assert isinstance(strategy.broker, BacktestingBroker)
+        assert strategy.broker.data_source
+        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
+
+        # Data source tests
+        data_source = strategy.broker.data_source
+        assert data_source._data_datetime_start.isoformat() == "2025-01-13T00:00:00+00:00"
+        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59+00:00'
+
+        timestep_data_key = data_source._get_asset_key(
+            base_asset=asset,
+            quote_asset=AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET,
+            timestep=timestep,
+        )
+        timestep_data_df = data_source._data_store[timestep_data_key]
+
+        assert len(timestep_data_df.index) == 5 + lookback_length
+        assert timestep_data_df.index[0].isoformat() == "2025-01-13T00:00:00+00:00"
+        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T00:00:00+00:00"
+
+        # Trading strategy tests
+        assert data_source.datetime_end.isoformat() == '2025-01-15T00:00:00+00:00'
+
+        # check when trading iterations happened
+        last_prices = strategy.last_prices
+        last_price_keys = list(last_prices.keys())
+        assert len(last_prices) == 3 # number of trading iterations
+        assert last_price_keys[0] == '2025-01-13T00:00:00+00:00'
+        assert last_price_keys[-1] == '2025-01-15T00:00:00+00:00'
+        assert last_prices['2025-01-13T00:00:00+00:00'] == Decimal('94066.35')  # Open of '2025-01-13T00:00:00+00:00'
+
+        order_tracker = strategy.order_tracker
+        assert order_tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00+00:00'
+        assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00+00:00'
+        assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00+00:00'
+        assert order_tracker["avg_fill_price"] == 94066.35  # Open of '2025-01-13T00:00:00+00:00'
+
     def test_btc_minute_1d(
             self,
             asset: Asset = Asset('BTC', asset_type='crypto'),

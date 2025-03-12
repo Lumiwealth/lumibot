@@ -59,7 +59,7 @@ def check_bars(
 
 
 # @pytest.mark.skip()
-class TestDatasourceLiveGetHistoricalPrices:
+class TestLiveDataSource:
     """These tests check the daily Bars returned from get_historical_prices for live data sources."""
 
     # noinspection PyMethodMayBeStatic
@@ -186,6 +186,30 @@ class TestDatasourceLiveGetHistoricalPrices:
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
 
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_data_source_get_last_price_crypto(self):
+
+        data_source = AlpacaData(ALPACA_TEST_CONFIG)
+        asset = Asset('BTC', asset_type='crypto')
+        quote_asset = Asset('USD', asset_type='forex')
+        price = data_source.get_last_price(asset=asset, quote=quote_asset)
+        assert price is not None
+
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_data_source_get_last_price_stock(self):
+        data_source = AlpacaData(ALPACA_TEST_CONFIG)
+        asset = Asset('SPY', asset_type='stock')
+        quote_asset = Asset('USD', asset_type='forex')
+        price = data_source.get_last_price(asset=asset, quote=quote_asset)
+        assert price is not None
+
     @pytest.mark.skipif(
         not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>',
         reason="This test requires a Tradier API key"
@@ -222,7 +246,7 @@ class TestDatasourceLiveGetHistoricalPrices:
 
 
 # @pytest.mark.skip()
-class TestDatasourceBacktestingGetHistoricalPricesDailyData:
+class TestBacktestingDataSources:
     """These tests check the daily Bars returned from get_historical_prices for backtesting data sources."""
 
     # noinspection PyMethodMayBeStatic

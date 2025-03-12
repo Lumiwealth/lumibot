@@ -18,6 +18,10 @@ from schwab.auth import easy_client
 from schwab.client import Client
 from schwab.streaming import StreamClient
 
+# Import PollingStream class
+from lumibot.trading_builtins import PollingStream
+from threading import Thread  # Add this import
+
 class Schwab(Broker):
     """
     Broker implementation for Schwab API.
@@ -28,6 +32,7 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
             self,
@@ -104,9 +109,7 @@ class Schwab(Broker):
             elif isinstance(data_source, SchwabData) and not hasattr(data_source, 'client'):
                 # If SchwabData instance exists but no client is set, set it
                 data_source.client = client
-                
-            logging.info(colored("Successfully initialized Schwab broker connection", "green"))
-            
+                            
         except Exception as e:
             logging.error(colored(f"Error initializing Schwab broker: {str(e)}", "red"))
             raise
@@ -116,6 +119,9 @@ class Schwab(Broker):
             data_source=data_source,
             config=config,
         )
+        # Initialize and launch stream (non-blocking)
+        self.stream = self._get_stream_object()
+        self._launch_stream()
 
     # Account and balance methods
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
@@ -175,9 +181,7 @@ class Schwab(Broker):
             
             # Calculate positions value (portfolio value minus cash)
             positions_value = portfolio_value - cash
-            
-            logging.info(colored(f"Account balances: Cash=${cash:.2f}, Positions=${positions_value:.2f}, Portfolio=${portfolio_value:.2f}", "green"))
-            
+                        
             return cash, positions_value, portfolio_value
             
         except Exception as e:
@@ -189,26 +193,6 @@ class Schwab(Broker):
 
     # Position methods
     def _pull_positions(self, strategy: 'Strategy') -> List[Position]:
-        """
-        Get the account positions. Returns a list of position objects.
-
-        Parameters
-        ----------
-        strategy : Strategy
-            The strategy object to pull the positions for.
-
-        Returns
-        -------
-        list[Position]
-            A list of position objects containing details about each position 
-            including asset, quantity, and average fill price.
-        
-        Notes
-        -----
-        This method handles various asset types including stocks, options, futures,
-        bonds, mutual funds, and cash equivalents. Unknown asset types are skipped
-        with an appropriate warning message.
-        """
         try:
             # Get account details with positions
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
@@ -223,8 +207,7 @@ class Schwab(Broker):
             securities_account = account_data.get('securitiesAccount', {})
             schwab_positions = securities_account.get('positions', [])
 
-            # Create a list of Position objects
-            position_objects = []
+            pos_dict = {}  # key: (symbol, asset_type, expiration, strike, right)
             for schwab_position in schwab_positions:
                 # Extract instrument details
                 instrument = schwab_position.get('instrument', {})
@@ -277,7 +260,6 @@ class Schwab(Broker):
                     )
                 elif asset_type == 'ETF':
                     # Handle ETFs as stocks
-                    logging.info(colored(f"Treating ETF {symbol} as STOCK", "blue"))
                     asset = Asset(
                         symbol=symbol,
                         asset_type=Asset.AssetType.STOCK,
@@ -305,18 +287,28 @@ class Schwab(Broker):
                 if net_quantity < 0:  # Use short PnL if it's a short position
                     unrealized_pnl = schwab_position.get('shortOpenProfitLoss', 0.0)
 
-                # Create Position object with strategy name
+                # Create Position object with strategy name - handle None strategy
+                strategy_name = strategy.name if strategy is not None else "Unknown"
                 position = Position(
-                    strategy.name,
+                    strategy_name,
                     asset=asset,
                     quantity=net_quantity,
                     avg_fill_price=average_price,
                 )
 
                 # Add the Position object to the list
-                position_objects.append(position)
+                # Build a key unique for the asset
+                key = (asset.symbol, asset.asset_type,
+                       getattr(asset, 'expiration', None),
+                       getattr(asset, 'strike', None),
+                       getattr(asset, 'right', None))
                 
-            return position_objects
+                if key in pos_dict:
+                    pos_dict[key].quantity += net_quantity
+                else:
+                    pos_dict[key] = Position(strategy_name, asset=asset, quantity=net_quantity, avg_fill_price=average_price)
+            
+            return list(pos_dict.values())
 
         except Exception as e:
             logging.error(colored(f"Error pulling positions from Schwab: {str(e)}", "red"))
@@ -787,17 +779,95 @@ class Schwab(Broker):
 
     # Unimplemented methods with stubs
     def _get_stream_object(self):
+        """Get the broker stream connection"""
+        stream = PollingStream(5.0)  # 5 seconds polling interval
+        return stream
+
+    def _register_stream_events(self):
+        """Register callbacks for broker stream events"""
+        broker = self
+
+        @broker.stream.add_action(broker.POLL_EVENT)
+        def on_trade_event_poll():
+            # Implement polling similar to tradier.py without referencing _orders
+            try:
+                # Sync positions before polling for orders
+                broker.sync_positions(None)
+                orders = broker._pull_broker_all_orders()
+                for order_data in orders:
+                    order = broker._parse_broker_order(order_data, broker._strategy_name)
+                    if order:
+                        # Process each new order without checking against a nonexistent _orders attribute
+                        broker._process_new_order(order)
+            except Exception as e:
+                logging.error(colored(f"Error during polling: {e}", "red"))
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.NEW_ORDER)
+        def on_trade_event_new(order):
+            logging.info(f"Processing action for new order {order}")
+            try:
+                broker._process_trade_event(order, broker.NEW_ORDER)
+                return True
+            except Exception:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.FILLED_ORDER)
+        def on_trade_event_fill(order, price, filled_quantity):
+            logging.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+                return True
+            except Exception:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.CANCELED_ORDER)
+        def on_trade_event_cancel(order):
+            logging.info(f"Processing action for cancelled order {order}")
+            try:
+                broker._process_trade_event(order, broker.CANCELED_ORDER)
+            except Exception:
+                logging.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.ERROR_ORDER)
+        def on_trade_event_error(order, error_msg):
+            logging.error(f"Processing action for error order {order} | {error_msg}")
+            try:
+                if order.is_active():
+                    broker._process_trade_event(order, broker.CANCELED_ORDER)
+                logging.error(error_msg)
+                order.set_error(error_msg)
+            except Exception:
+                logging.error(traceback.format_exc())
+
+    def _run_stream(self):
+        self._stream_established()
+        logging.info(colored("Starting Schwab stream...", "green"))
+        try:
+            self.stream._run()
+        except Exception as e:
+            logging.error(f"Error running Schwab stream: {e}")
+            logging.error(traceback.format_exc())
+
+    def _stream_established(self):
         """
-        Get the broker stream connection. This method should return an object that handles 
-        the streaming connection to the broker's API.
+        Called when the stream is established.
+        This method is required by the broker framework to indicate the stream is ready.
+        """
+        logging.info(colored("Schwab stream connection established", "green"))
+        # Clear only the _unprocessed_orders since _orders is not defined
+        for item in self._unprocessed_orders.get_list():
+            self._unprocessed_orders.remove(item)
+        self._initialized = True
         
-        Returns
-        -------
-        object
-            The stream object that will handle the streaming connection.
-        """
-        logging.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
-        return None
+        # First time initialization - sync positions
+        self.sync_positions(None)
 
     def _submit_order(self, order: Order) -> Order:
         """
@@ -917,8 +987,8 @@ class Schwab(Broker):
                 # Use the Schwab utility function to extract order ID if available
                 try:
                     from schwab.utils import Utils
-                    # Create a Utils instance first, then call the method
-                    utils_instance = Utils()
+                    # Create a Utils instance with required client and account_hash parameters
+                    utils_instance = Utils(self.client, self.hash_value)
                     order_id = utils_instance.extract_order_id(response)
                     if order_id:
                         logging.info(colored(f"Extracted order ID using Utils.extract_order_id: {order_id}", "green"))
@@ -953,9 +1023,7 @@ class Schwab(Broker):
             # Add to unprocessed orders and dispatch to stream
             self._unprocessed_orders.append(order)
             self.stream.dispatch(self.NEW_ORDER, order=order)
-            
-            logging.info(colored(f"Successfully submitted order {order_id}", "green"))
-            
+                        
             return order
             
         except Exception as e:
@@ -988,9 +1056,6 @@ class Schwab(Broker):
         OrderBuilder
             The order builder object for Schwab API
         """
-        # Debug the order data
-        logging.info(colored(f"Preparing stock order builder for: {order.asset.symbol}, Side: {order.side}, "
-                          f"OrderType: {order.order_type}, Quantity: {order.quantity}", "cyan"))
         
         # Get order parameters
         symbol = order.asset.symbol
@@ -1073,10 +1138,7 @@ class Schwab(Broker):
         if not order_builder:
             logging.error(colored(f"Failed to create order builder for side: {order.side}", "red"))
             return None
-        
-        # Log the order builder
-        logging.info(colored(f"Created stock order builder for {order.asset.symbol}", "green"))
-        
+                
         return order_builder
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
@@ -1137,9 +1199,7 @@ class Schwab(Broker):
             if not new_order_id:
                 logging.error(colored(f"Failed to get new order ID after replacement", "red"))
                 return
-                
-            logging.info(colored(f"Successfully modified order {order.identifier}, new order ID: {new_order_id}", "green"))
-            
+                            
             # Update the order with the new identifier
             order.previous_identifiers = order.previous_identifiers or []
             order.previous_identifiers.append(order.identifier)
@@ -1209,20 +1269,6 @@ class Schwab(Broker):
         logging.error(colored("Method 'get_historical_account_value' is not yet implemented.", "red"))
         return {"hourly": None, "daily": None}
 
-    def _register_stream_events(self):
-        """
-        Register callbacks for broker stream events.
-        """
-        logging.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))
-        return None
-
-    def _run_stream(self):
-        """
-        Start and run the broker's data stream.
-        """
-        logging.error(colored("Method '_run_stream' is not yet implemented.", "red"))
-        return None
-    
     def cancel_order(self, order: Order) -> None:
         """
         Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
@@ -1238,3 +1284,11 @@ class Schwab(Broker):
         """
         logging.error(colored(f"Method 'cancel_order' for order {order} is not yet implemented.", "red"))
         return None  # Explicitly return None
+
+    def _launch_stream(self):
+        """Set the asynchronous actions to be executed when events are sent via socket streams"""
+        self._register_stream_events()
+        t = Thread(target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread")
+        t.start()
+        # Removed blocking wait for stream connection establishment
+        return

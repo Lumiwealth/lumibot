@@ -1,6 +1,12 @@
+import os
+import logging
+import pytest
+import math
 from datetime import datetime, timedelta, time
+import pytz
+
+import pandas as pd
 from pandas.testing import assert_series_equal
-from zoneinfo import ZoneInfo
 
 from lumibot.backtesting import (
     PolygonDataBacktesting,
@@ -13,17 +19,7 @@ from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Asset, Bars
 from lumibot.tools import get_trading_days
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-
-# Global parameters
 from lumibot.credentials import TRADIER_TEST_CONFIG, ALPACA_TEST_CONFIG, POLYGON_CONFIG
-
-import os
-import logging
-import pytest
-import math
-import pandas as pd
-import pytz
 
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
@@ -34,21 +30,21 @@ def check_bars(
         *,
         bars: Bars,
         length: int = 30,
-        data_source_timezone: ZoneInfo = None,
+        data_source_tz: pytz.timezone = None,
         time_check: time | None = None,
 ):
     """
      This tests:
         - the right number of bars are retrieved
         - the index is a timestamp
-        - data_source_timezone: pytz.timezone, if set checks that the index's timezone matches
+        - data_source_tz: pytz.timezone, if set checks that the index's timezone matches
         - if time_check, check the hour and minute of the timestamp
     """
     assert len(bars.df) == length
     assert isinstance(bars.df.index[-1], pd.Timestamp)
 
-    if data_source_timezone:
-        assert bars.df.index[-1].tzinfo.zone == data_source_timezone
+    if data_source_tz:
+        assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
 
     assert bars.df["return"].iloc[-1] is not None
 
@@ -70,7 +66,7 @@ class TestLiveDataSource:
         If you ask for one bar while the market is open, you should get an incomplete bar for the current day.
         If you ask for one bar after the market is closed, you should get a complete bar from the current trading day.
         """
-        now = datetime.now().astimezone(pytz.timezone("America/New_York"))
+        now = datetime.now(tz=pytz.timezone("America/New_York"))
         today = now.date()
 
         trading_days = get_trading_days(
@@ -105,7 +101,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source._tzinfo,
+            data_source_tz=data_source._tzinfo,
             time_check=time(0,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -116,7 +112,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_tz=data_source._tzinfo,
             time_check=time(0,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -130,11 +126,11 @@ class TestLiveDataSource:
         quote_asset = Asset('USD', asset_type='forex')
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
 
-        # TODO Alpaca returns crypto bars at midnight central time aka 1am ET
+        # Alpaca ONLY returns crypto daily bars at midnight central time aka 1am ET
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source._tzinfo,
+            data_source_tz=data_source._tzinfo,
             time_check=time(1,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
@@ -145,7 +141,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_tz=data_source._tzinfo,
             time_check=time(1,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
@@ -153,19 +149,19 @@ class TestLiveDataSource:
     def test_alpaca_data_source_get_historical_prices_daily_bars_crypto_utc(self):
         length = 30
         timestep = "day"
-        tzinfo = ZoneInfo('UTC')
+        tzinfo = pytz.timezone('UTC')
 
         data_source = AlpacaData(ALPACA_TEST_CONFIG, tzinfo=tzinfo)
         asset = Asset('BTC', asset_type='crypto')
         quote_asset = Asset('USD', asset_type='forex')
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
 
-        # TODO Alpaca returns crypto bars at midnight central time aka 1am ET
+        # Alpaca ONLY returns crypto daily bars at midnight central time aka 5am UTC
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source._tzinfo,
-            time_check=time(1, 0)
+            data_source_tz=data_source._tzinfo,
+            time_check=time(5, 0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
 
@@ -175,7 +171,37 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source._tzinfo,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(5, 0)
+        )
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
+
+    def test_alpaca_data_source_get_historical_prices_daily_bars_crypto_america_chicago(self):
+        length = 30
+        timestep = "day"
+        tzinfo = pytz.timezone('America/Chicago')
+
+        data_source = AlpacaData(ALPACA_TEST_CONFIG, tzinfo=tzinfo)
+        asset = Asset('BTC', asset_type='crypto')
+        quote_asset = Asset('USD', asset_type='forex')
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
+
+        # Alpaca ONLY returns crypto daily bars at midnight central time
+        check_bars(
+            bars=bars,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0, 0)
+        )
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
+
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        length = 1
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
+        check_bars(
+            bars=bars,
+            length=length,
+            data_source_tz=data_source._tzinfo,
             time_check=time(0, 0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
@@ -211,7 +237,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=1,
-            data_source_timezone=data_source._tzinfo,
+            data_source_tz=data_source._tzinfo,
             time_check=time(0,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -257,7 +283,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_tz=data_source.DEFAULT_PYTZ,
             time_check=time(0, 0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -268,7 +294,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_tz=data_source.DEFAULT_PYTZ,
             time_check=time(0,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)

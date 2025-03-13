@@ -15,6 +15,12 @@ from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 class SchwabData(DataSource):
     """
     Data source that connects to the Schwab Broker API.
+
+    This class provides methods to fetch historical price data, option chains, and other information
+    from the Schwab API. It requires a Schwab API client to be passed in during initialization.
+
+    Link to Schwab API documentation: https://developer.schwab.com/ and create an account to get API doc access.
+    Link to the Python client library: https://schwab-py.readthedocs.io/en/latest/
     """
 
     MIN_TIMESTEP = "minute"
@@ -32,7 +38,7 @@ class SchwabData(DataSource):
         if client is None:
             logging.warning(colored("SchwabData initialized without client. Methods will not work until a client is provided.", "yellow"))
 
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 10) -> dict:
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """
         Obtains option chain information for the asset (stock) from each
         of the exchanges the options trade on and returns a dictionary
@@ -72,12 +78,9 @@ class SchwabData(DataSource):
         }
         
         try:
-            # To handle body buffer overflow error, we'll process one contract type at a time
-            # Determine what StrikeRange values are available - need to check the actual enum values
-            # Common values might be: ALL, ITM, OTM, ATM, NTM, SNK, SAK, SBK
+            # Find an appropriate strike range value
+            strike_range = None
             try:
-                # Try to find a suitable strike range value
-                strike_range = None
                 strike_range_options = dir(self.client.Options.StrikeRange)
                 # Look for near the money options - options may have different naming
                 if 'NTM' in strike_range_options:
@@ -93,143 +96,101 @@ class SchwabData(DataSource):
                 elif 'STRIKES_NEAR_MARKET' in strike_range_options:
                     strike_range = self.client.Options.StrikeRange.STRIKES_NEAR_MARKET
                 else:
-                    # Fallback to all strikes if we can't find a near-the-money option
+                    # Fallback to all strikes
                     strike_range = self.client.Options.StrikeRange.ALL
-                    
-                logging.info(colored(f"Using strike range: {strike_range}", "blue"))
                 
+                logging.debug(colored(f"Using strike range: {strike_range}", "blue"))
             except Exception as e:
                 logging.warning(colored(f"Error finding strike range options: {e}. Using None.", "yellow"))
                 strike_range = None
-                
-            # Get call options first
-            logging.info(colored(f"Fetching CALL options for {asset.symbol}", "blue"))
-            call_params = {
+            
+            # Fetch both call and put options in a single API call using ALL contract type
+            logging.info(colored(f"Fetching option chains for {asset.symbol}", "blue"))
+            
+            params = {
                 "symbol": asset.symbol,
-                "contract_type": self.client.Options.ContractType.CALL,
-                "strategy": self.client.Options.Strategy.SINGLE,
-                "include_underlying_quote": False,  # Skip underlying quote to reduce response size
-                "strike_count": strike_count
-            }
-            
-            # Only add strike_range if a valid one was found
-            if strike_range is not None:
-                call_params["strike_range"] = strike_range
-                
-            call_response = self.client.get_option_chain(**call_params)
-            
-            # Process call options response
-            if call_response:
-                if hasattr(call_response, 'status_code'):
-                    # It's a Response object
-                    if call_response.status_code == 200:
-                        call_data = call_response.json()
-                    else:
-                        logging.error(colored(f"Error fetching CALL options for {asset.symbol}: {call_response.status_code}", "red"))
-                        call_data = {}
-                else:
-                    call_data = call_response
-                    
-                # Extract call option data
-                if call_data and 'callExpDateMap' in call_data:
-                    call_dates = call_data.get('callExpDateMap', {})
-                    for exp_date_str, strikes_data in call_dates.items():
-                        # Format the expiration date (assumed format: YYYY-MM-DD:days_to_expiry)
-                        exp_date = exp_date_str.split(':')[0]  # Extract just the date part
-                        
-                        # Initialize list to store strikes for this expiration
-                        chains["Chains"]["CALL"][exp_date] = []
-                        
-                        # Add all available strikes for this expiration date
-                        for strike_str, strike_data in strikes_data.items():
-                            strike = float(strike_str)
-                            chains["Chains"]["CALL"][exp_date].append(strike)
-                            
-                        # Sort the strikes in ascending order
-                        chains["Chains"]["CALL"][exp_date].sort()
-                        
-                    # If underlying data is available, extract additional information
-                    if 'underlying' in call_data:
-                        underlying = call_data.get('underlying', {})
-                        if underlying:
-                            # If available, update the multiplier from the API response
-                            multiplier = underlying.get('multiplier')
-                            if multiplier:
-                                chains["Multiplier"] = int(multiplier)
-                                
-                            # Get exchange information if available
-                            exchange_name = underlying.get('exchange')
-                            if exchange_name:
-                                chains["Exchange"] = exchange_name
-            
-            # Now get put options
-            logging.info(colored(f"Fetching PUT options for {asset.symbol}", "blue"))
-            put_params = {
-                "symbol": asset.symbol,
-                "contract_type": self.client.Options.ContractType.PUT,
+                "contract_type": self.client.Options.ContractType.ALL,  # Get both calls and puts
                 "strategy": self.client.Options.Strategy.SINGLE,
                 "include_underlying_quote": False,
                 "strike_count": strike_count
             }
             
-            # Only add strike_range if a valid one was found
+            # Add strike_range if available
             if strike_range is not None:
-                put_params["strike_range"] = strike_range
+                params["strike_range"] = strike_range
+            
+            response = self.client.get_option_chain(**params)
+            
+            # Process response
+            if not response:
+                logging.error(colored(f"No response from API for {asset.symbol}", "red"))
+                return {}
                 
-            put_response = self.client.get_option_chain(**put_params)
-            
-            # Process put options response
-            if put_response:
-                if hasattr(put_response, 'status_code'):
-                    # It's a Response object
-                    if put_response.status_code == 200:
-                        put_data = put_response.json()
-                    else:
-                        logging.error(colored(f"Error fetching PUT options for {asset.symbol}: {put_response.status_code}", "red"))
-                        put_data = {}
+            if hasattr(response, 'status_code'):
+                if response.status_code == 200:
+                    data = response.json()
                 else:
-                    put_data = put_response
-                    
-                # Extract put option data
-                if put_data and 'putExpDateMap' in put_data:
-                    put_dates = put_data.get('putExpDateMap', {})
-                    for exp_date_str, strikes_data in put_dates.items():
-                        # Format the expiration date
-                        exp_date = exp_date_str.split(':')[0]  # Extract just the date part
-                        
-                        # Initialize list to store strikes for this expiration
-                        chains["Chains"]["PUT"][exp_date] = []
-                        
-                        # Add all available strikes for this expiration date
-                        for strike_str, strike_data in strikes_data.items():
-                            strike = float(strike_str)
-                            chains["Chains"]["PUT"][exp_date].append(strike)
-                            
-                        # Sort the strikes in ascending order
-                        chains["Chains"]["PUT"][exp_date].sort()
-                        
-                    # If we didn't get underlying info from calls, try to get from puts
-                    if 'underlying' in put_data and not chains.get("Exchange"):
-                        underlying = put_data.get('underlying', {})
-                        if underlying:
-                            multiplier = underlying.get('multiplier')
-                            if multiplier:
-                                chains["Multiplier"] = int(multiplier)
-                                
-                            exchange_name = underlying.get('exchange')
-                            if exchange_name:
-                                chains["Exchange"] = exchange_name
-            
-            # Check if we got any data
-            if not chains["Chains"]["CALL"] and not chains["Chains"]["PUT"]:
-                # If we got no data with the strike range, try again with ALL strikes
-                if strike_range is not None and strike_range != self.client.Options.StrikeRange.ALL:
-                    logging.warning(colored(f"No option data found with current strike range. Trying with ALL strikes...", "yellow"))
-                    return self.get_chains(asset, quote, exchange, strike_count)
-                else:
-                    logging.error(colored(f"No option data found for {asset.symbol}", "red"))
+                    logging.error(colored(f"Error fetching options for {asset.symbol}: {response.status_code}", "red"))
                     return {}
+            else:
+                data = response
             
+            # Extract option data for both call and put types
+            success = False
+            
+            # Helper function to extract option data for a specific type (CALL/PUT)
+            def extract_option_data(option_type):
+                map_key = f"{option_type.lower()}ExpDateMap"
+                if map_key not in data:
+                    return False
+                
+                option_dates = data[map_key]
+                for exp_date_str, strikes_data in option_dates.items():
+                    # Format the expiration date (assumed format: YYYY-MM-DD:days_to_expiry)
+                    exp_date = exp_date_str.split(':')[0]  # Extract just the date part
+                    
+                    # Initialize list to store strikes for this expiration
+                    chains["Chains"][option_type][exp_date] = []
+                    
+                    # Add all available strikes for this expiration date
+                    for strike_str, strike_data in strikes_data.items():
+                        strike = float(strike_str)
+                        chains["Chains"][option_type][exp_date].append(strike)
+                        
+                    # Sort the strikes in ascending order
+                    chains["Chains"][option_type][exp_date].sort()
+                
+                return True
+            
+            # Extract data for both call and put options
+            call_success = extract_option_data("CALL")
+            put_success = extract_option_data("PUT")
+            success = call_success or put_success
+            
+            # Extract underlying data if available
+            if 'underlying' in data and (not chains.get("Exchange") or not chains.get("Multiplier")):
+                underlying = data.get('underlying', {})
+                if underlying:
+                    # Update multiplier if available
+                    multiplier = underlying.get('multiplier')
+                    if multiplier:
+                        chains["Multiplier"] = int(multiplier)
+                        
+                    # Update exchange if available
+                    exchange_name = underlying.get('exchange')
+                    if exchange_name:
+                        chains["Exchange"] = exchange_name
+            
+            # If we got no data and we're not already using ALL strikes, try again with ALL strikes
+            if not success and strike_range is not None and strike_range != self.client.Options.StrikeRange.ALL:
+                logging.warning(colored(f"No option data found with current strike range. Trying with ALL strikes...", "yellow"))
+                # Set to ALL for the recursive call
+                params["strike_range"] = self.client.Options.StrikeRange.ALL
+                return self.get_chains(asset, quote, exchange, strike_count)
+            
+            if not success:
+                logging.error(colored(f"No option data found for {asset.symbol}", "red"))
+                
             return chains
             
         except Exception as e:
@@ -337,110 +298,66 @@ class SchwabData(DataSource):
                 logging.warning(colored(f"Could not calculate trading days, using calendar days instead: {e}", "yellow"))
 
         try:
-            # Based on the Schwab documentation, we need to use the appropriate helper method 
-            # or adjust parameters for get_price_history
+            # Map timestep to Schwab API parameters
+            period_type = None
+            frequency_type = None
+            frequency = None
             
-            symbol = asset.symbol
-            
-            # Based on timestep_unit and timestep_qty, choose the appropriate method
+            # Set appropriate frequency_type and frequency based on timestep_unit
             if timestep_unit == "minute":
+                frequency_type = 'minute'
+                # Use the closest supported frequency value
+                if timestep_qty in [1, 5, 10, 15, 30]:
+                    frequency = timestep_qty
+                else:
+                    # Find the closest supported frequency
+                    supported_frequencies = [1, 5, 10, 15, 30]
+                    frequency = min(supported_frequencies, key=lambda x: abs(x - timestep_qty))
+                    logging.warning(colored(f"Non-standard minute frequency: {timestep_qty}. Using closest supported frequency: {frequency}", "yellow"))
+            elif timestep_unit == "hour":
+                frequency_type = 'minute'
+                # For hour, we need to convert to minutes
                 if timestep_qty == 1:
-                    response = self.client.get_price_history_every_minute(
-                        symbol=symbol,
-                        start_datetime=start_date,
-                        end_datetime=end_date,
-                        need_extended_hours_data=include_after_hours
-                    )
-                elif timestep_qty == 5:
-                    response = self.client.get_price_history_every_five_minutes(
-                        symbol=symbol,
-                        start_datetime=start_date,
-                        end_datetime=end_date,
-                        need_extended_hours_data=include_after_hours
-                    )
-                elif timestep_qty == 10:
-                    response = self.client.get_price_history_every_ten_minutes(
-                        symbol=symbol,
-                        start_datetime=start_date,
-                        end_datetime=end_date,
-                        need_extended_hours_data=include_after_hours
-                    )
-                elif timestep_qty == 15:
-                    response = self.client.get_price_history_every_fifteen_minutes(
-                        symbol=symbol,
-                        start_datetime=start_date,
-                        end_datetime=end_date,
-                        need_extended_hours_data=include_after_hours
-                    )
-                elif timestep_qty == 30:
-                    response = self.client.get_price_history_every_thirty_minutes(
-                        symbol=symbol,
-                        start_datetime=start_date,
-                        end_datetime=end_date,
-                        need_extended_hours_data=include_after_hours
-                    )
+                    frequency = 30  # Use 30-minute candles for 1 hour
                 else:
-                    # For non-standard minute values, use the generic method
-                    # Note: This might not work as expected since Schwab has specific frequency values
-                    logging.warning(colored(f"Non-standard minute frequency: {timestep_qty}. Using generic method.", "yellow"))
-                    response = self.client.get_price_history(
-                        symbol=symbol,
-                        frequency_type='minute',
-                        frequency=min(30, timestep_qty),  # Use closest supported frequency
-                        start_datetime=start_date,
-                        end_datetime=end_date,
-                        need_extended_hours_data=include_after_hours
-                    )
+                    frequency = 30  # Default to 30-minute candles
+                    logging.warning(colored(f"Multiple hour timestep: {timestep_qty}. Using 30-minute frequency.", "yellow"))
             elif timestep_unit == "day":
-                response = self.client.get_price_history_every_day(
-                    symbol=symbol,
-                    start_datetime=start_date,
-                    end_datetime=end_date,
-                    need_extended_hours_data=include_after_hours
-                )
+                frequency_type = 'daily'
+                frequency = 1
             elif timestep_unit == "week":
-                response = self.client.get_price_history_every_week(
-                    symbol=symbol,
-                    start_datetime=start_date,
-                    end_datetime=end_date,
-                    need_extended_hours_data=include_after_hours
-                )
+                frequency_type = 'weekly'
+                frequency = 1
+            elif timestep_unit == "month":
+                frequency_type = 'monthly'
+                frequency = 1
             else:
-                # For other timesteps, use the generic method with best guess parameters
-                logging.warning(colored(f"Timestep unit '{timestep_unit}' not directly supported. Using generic method.", "yellow"))
-                
-                # Map timestep to Schwab frequency types
-                if timestep_unit == "hour":
-                    frequency_type = 'minute'
-                    frequency = 60  # 60 minutes = 1 hour
-                elif timestep_unit == "month":
-                    frequency_type = 'monthly'
-                    frequency = 1
-                else:
-                    frequency_type = 'daily'  # Default to daily
-                    frequency = 1
-                    
-                response = self.client.get_price_history(
-                    symbol=symbol,
-                    frequency_type=frequency_type,
-                    frequency=frequency,
-                    start_datetime=start_date,
-                    end_datetime=end_date,
-                    need_extended_hours_data=include_after_hours
-                )
+                logging.warning(colored(f"Unknown timestep unit: {timestep_unit}. Using 'daily' as default.", "yellow"))
+                frequency_type = 'daily'
+                frequency = 1
+            
+            # Get price history using the simplified API function
+            response = self.client.get_price_history(
+                symbol=asset.symbol,
+                frequency_type=frequency_type,
+                frequency=frequency,
+                start_datetime=start_date,
+                end_datetime=end_date,
+                need_extended_hours_data=include_after_hours
+            )
             
             # Check if the response is a Response object and handle accordingly
             if hasattr(response, 'status_code'):
                 # It's a Response object from requests library
                 if response.status_code != 200:
-                    logging.error(colored(f"Error fetching historical prices for {symbol}: {response.status_code}, {response.text}", "red"))
+                    logging.error(colored(f"Error fetching historical prices for {asset.symbol}: {response.status_code}, {response.text}", "red"))
                     return None
                     
                 # Parse the JSON response
                 try:
                     data = response.json()
                 except ValueError as e:
-                    logging.error(colored(f"Invalid JSON in response for {symbol}: {e}", "red"))
+                    logging.error(colored(f"Invalid JSON in response for {asset.symbol}: {e}", "red"))
                     return None
             else:
                 # It's already a dictionary or other data structure
@@ -448,14 +365,14 @@ class SchwabData(DataSource):
                 
             # Check if data contains candles data
             if not data or 'candles' not in data:
-                logging.error(colored(f"No candles data found in the response for {symbol}", "red"))
+                logging.error(colored(f"No candles data found in the response for {asset.symbol}", "red"))
                 return None
                 
             candles = data['candles']
             
             # If no candles were returned, return None
             if not candles or len(candles) == 0:
-                logging.warning(colored(f"No price data available for {symbol} in the requested time range", "yellow"))
+                logging.warning(colored(f"No price data available for {asset.symbol} in the requested time range", "yellow"))
                 return None
             
             # Convert candles to a DataFrame

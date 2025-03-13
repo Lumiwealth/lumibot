@@ -29,6 +29,9 @@ class Schwab(Broker):
     This class provides the integration with Schwab's trading platform,
     implementing all necessary methods required by the Lumibot framework
     to interact with the broker.
+
+    Link to Schwab API documentation: https://developer.schwab.com/ and create an account to get API doc access.
+    Link to the Python client library: https://schwab-py.readthedocs.io/en/latest/
     """
 
     NAME = "Schwab"

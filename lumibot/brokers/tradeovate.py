@@ -26,9 +26,6 @@ class Tradeovate(Broker):
     def __init__(self, config=None, data_source=None):
         if config is None:
             config = {}
-        # Pass our get_headers method to the data source.
-        if data_source is None:
-            data_source = TradeovateData(config=config, get_headers_func=self._get_headers)
         
         is_paper = config.get("IS_PAPER", True)
         self.trading_api_url = "https://demo.tradovateapi.com/v1" if is_paper else "https://live.tradovateapi.com/v1"
@@ -40,15 +37,27 @@ class Tradeovate(Broker):
         self.cid = config.get("CID")
         self.sec = config.get("SECRET")
 
-        super().__init__(name=self.NAME, data_source=data_source, config=config)
-
+        # Authenticate and get tokens before creating data_source
         try:
             tokens = self._get_tokens()
             self.trading_token = tokens["accessToken"]
             self.market_token = tokens["marketToken"]
             self.has_market_data = tokens["hasMarketData"]
             logging.info(colored("Successfully acquired tokens from Tradeovate.", "green"))
-
+            
+            # Now create the data source with the tokens if it wasn't provided
+            if data_source is None:
+                # Update config with API URLs for consistency
+                config["TRADING_API_URL"] = self.trading_api_url
+                config["MD_URL"] = self.market_data_url
+                data_source = TradeovateData(
+                    config=config,
+                    trading_token=self.trading_token,
+                    market_token=self.market_token
+                )
+            
+            super().__init__(name=self.NAME, data_source=data_source, config=config)
+            
             account_info = self._get_account_info(self.trading_token)
             self.account_spec = account_info["accountSpec"]
             self.account_id = account_info["accountId"]
@@ -57,8 +66,6 @@ class Tradeovate(Broker):
             self.user_id = self._get_user_info(self.trading_token)
             logging.info(colored(f"User ID: {self.user_id}", "green"))
             
-            # Since our get_headers method depends on self.trading_token,
-            # it is now available to our data source via the get_headers_func.
         except TradeovateAPIError as e:
             logging.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
             raise e

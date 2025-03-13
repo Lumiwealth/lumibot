@@ -2166,6 +2166,7 @@ class _Strategy:
                 if stats_past_7_days.shape[0] > 0:
                     # Get the portfolio value 7 days ago
                     portfolio_value_7_days_ago = stats_past_7_days.iloc[0]["portfolio_value"]
+                    return_7_days = None
                     if float(portfolio_value_7_days_ago) != 0.0:
                         # Calculate the return over the past 7 days
                         return_7_days = ((portfolio_value / portfolio_value_7_days_ago) - 1) * 100
@@ -2174,7 +2175,7 @@ class _Strategy:
 
                     # If we are up more than pct_up_threshold over the past 7 days, send a message to Discord
                     PERCENT_UP_THRESHOLD = 3
-                    if return_7_days > PERCENT_UP_THRESHOLD:
+                    if return_7_days and return_7_days > PERCENT_UP_THRESHOLD:
                         # Create a message to send to Discord
                         message = f"""
                                 🚀 {self._name} is up {return_7_days:,.2f}% in 7 days.

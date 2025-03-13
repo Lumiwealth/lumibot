@@ -11,13 +11,10 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
-from lumibot.data_sources import DataSourceBacktesting
+from lumibot.data_sources import DataSourceBacktesting, AlpacaData
 from lumibot.entities import Asset, Bars
 from lumibot import (
     LUMIBOT_CACHE_FOLDER,
-    LUMIBOT_DEFAULT_TIMEZONE,
-    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
-    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
 )
 from lumibot.tools.helpers import (
     date_n_days_from_date,
@@ -34,9 +31,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
         {"timestep": "day", "representations": [TimeFrame.Day]},
         {"timestep": "minute", "representations": [TimeFrame.Minute]},
     ]
-    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
-    ALPACA_STOCK_PRECISION = Decimal('0.0001')
-    ALPACA_CRYPTO_PRECISION = Decimal('0.000000001')
+    LUMIBOT_DEFAULT_QUOTE_ASSET = AlpacaData.LUMIBOT_DEFAULT_QUOTE_ASSET
+    ALPACA_STOCK_PRECISION = AlpacaData.ALPACA_STOCK_PRECISION
+    ALPACA_CRYPTO_PRECISION = AlpacaData.ALPACA_CRYPTO_PRECISION
 
     def __init__(
             self,

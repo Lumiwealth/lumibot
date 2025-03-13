@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Union
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import re
@@ -22,6 +23,11 @@ from alpaca.data.requests import (
 from alpaca.data.timeframe import TimeFrame
 
 from lumibot.entities import Asset, Bars
+from lumibot import (
+    LUMIBOT_DEFAULT_TIMEZONE,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
+)
 
 from .data_source import DataSource
 
@@ -87,6 +93,9 @@ class AlpacaData(DataSource):
             "representations": [TimeFrame.Day, "day"],
         },
     ]
+    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
+    ALPACA_STOCK_PRECISION = Decimal('0.0001')
+    ALPACA_CRYPTO_PRECISION = Decimal('0.000000001')
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
@@ -112,9 +121,25 @@ class AlpacaData(DataSource):
             self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
         return self._option_client
 
-    def __init__(self, config, max_workers=20, chunk_size=100, delay=16):
-        # delay: A delay parameter to control throttling when making API calls.
+    def __init__(
+            self,
+            config,
+            max_workers=20,
+            chunk_size=100,
+
+            # A delay parameter to control how many minutes to delay non-crypto data for.
+            # Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan.
+            # Set the delay to 0 if you are on a paid plan.
+            delay=16,
+
+            # Setting this causes all calls to historical data endpoints to request data in this timezone
+            # and datetimes in dataframes are adjusted to this timezone. Useful if you want UTC time for
+            # crypto for example.
+            tzinfo=ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)
+    ):
+
         super().__init__(delay=delay)
+        self._tzinfo = tzinfo
 
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)
@@ -127,6 +152,8 @@ class AlpacaData(DataSource):
         # Connection to alpaca REST API
         self.config = config
 
+        # Initialize these to none so they will be lazily created and kept around
+        # for better performance.
         self._stock_client = self._crypto_client = self._option_client = None
 
         if isinstance(config, dict) and "API_KEY" in config:
@@ -179,13 +206,13 @@ class AlpacaData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         if quote is not None:
             # If the quote is not None, we use it even if the asset is a tuple
-            if type(asset) == Asset and asset.asset_type == Asset.AssetType.STOCK:
+            if isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.STOCK:
                 symbol = asset.symbol
             elif isinstance(asset, tuple):
                 symbol = f"{asset[0].symbol}/{quote.symbol}"
             else:
                 symbol = f"{asset.symbol}/{quote.symbol}"
-        elif type(asset) == Asset and asset.asset_type == Asset.AssetType.OPTION:
+        elif isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION:
             strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
             date = asset.expiration.strftime("%y%m%d")
             symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
@@ -200,14 +227,15 @@ class AlpacaData(DataSource):
                 isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.CRYPTO):
             client = self._get_crypto_client()
             quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
-            quote = client.get_crypto_latest_quote(quote_params)
+            latest_quote = client.get_crypto_latest_quote(quote_params)
 
             # Get the first item in the dictionary
-            quote = quote[list(quote.keys())[0]]
+            latest_quote = latest_quote[list(latest_quote.keys())[0]]
 
             # The price is the average of the bid and ask
-            price = (quote.bid_price + quote.ask_price) / 2
-        elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
+            price = (latest_quote.bid_price + latest_quote.ask_price) / 2
+        elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (
+                isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
             logging.info(f"Getting {asset} option price")
             client = self._get_option_client()
             params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
@@ -218,11 +246,11 @@ class AlpacaData(DataSource):
             # Stocks
             client = self._get_stock_client()
             params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
-            quote = client.get_stock_latest_quote(params)[symbol]
+            latest_quote = client.get_stock_latest_quote(params)[symbol]
 
             # Get bid and ask prices from the quote
-            bid_price = quote.bid_price
-            ask_price = quote.ask_price
+            bid_price = latest_quote.bid_price
+            ask_price = latest_quote.ask_price
 
             # You can use either bid, ask, or their average as your price
             price = (bid_price + ask_price) / 2  # Using midpoint price
@@ -230,7 +258,7 @@ class AlpacaData(DataSource):
         return price
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+            self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):
@@ -267,7 +295,7 @@ class AlpacaData(DataSource):
         and time params.
 
         outputs a dataframe open, high, low, close columns and
-        a UTC timezone aware index.
+        a timezone aware index.
         """
         if isinstance(asset, tuple):
             if quote is None:
@@ -275,26 +303,38 @@ class AlpacaData(DataSource):
             asset = asset[0]
 
         if not limit:
-            limit = 1000
+             limit = 1000
+        loop_limit = 0
 
-        if not end:
+        if not end and asset.asset_type != Asset.AssetType.CRYPTO:
             # Alpaca limitation of not getting the most recent 15 minutes
-            # TODO: This is only needed if you dont have a paid alpaca subscription
-            end = datetime.now(timezone.utc) - timedelta(minutes=15)
+            end = datetime.now(self._tzinfo) - self._delay
 
         if not start:
-            if str(freq) == "1Min":
-                if datetime.now().weekday() == 0:  # for Mondays as prior days were off
-                    loop_limit = (
-                        limit + 4896
-                    )  # subtract 4896 minutes to take it from Monday to Friday, as there is no data between Friday 4:00 pm and Monday 9:30 pm causing an incomplete or empty dataframe
-                else:
-                    loop_limit = limit
+            if asset.asset_type == Asset.AssetType.CRYPTO:
+                # Crypto trades 24/7, no adjustments needed
+                loop_limit = limit
+            else:
+                # Traditional assets (stocks, etc.)
+                if str(freq) == "1Min":
+                    if datetime.now().weekday() == 0:  # Monday
+                        # Add 4896 minutes to account for:
+                        # - Saturday (1440 minutes)
+                        # - Sunday (1440 minutes)
+                        # - Gap between Friday 4:00 PM to Monday 9:30 AM (390 minutes)
+                        loop_limit = limit + 4896
+                    else:
+                        # Regular trading days
+                        loop_limit = limit
 
-            elif str(freq) == "1Day":
-                weeks_requested = limit // 5  # Full trading week is 5 days
-                extra_padding_days = weeks_requested * 3  # to account for 3day weekends
-                loop_limit = max(5, limit + extra_padding_days)  # Get at least 5 days
+                elif str(freq) == "1Day":
+                    # Calculate padding for weekends and holidays
+                    weeks_requested = limit // 5  # Full trading week is 5 days
+                    extra_padding_days = weeks_requested * 3  # Account for weekends and holidays
+                    loop_limit = max(5, limit + extra_padding_days)  # Get at least 5 days
+                else:
+                    # For any other frequency
+                    loop_limit = limit
 
         df = []  # to use len(df) below without an error
 
@@ -308,30 +348,30 @@ class AlpacaData(DataSource):
 
             if asset.asset_type == Asset.AssetType.CRYPTO:
                 symbol = f"{asset.symbol}/{quote.symbol}"
-
                 client = self._get_crypto_client()
                 params = CryptoBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-                barset = client.get_crypto_bars(params)
+                try:
+                    barset = client.get_crypto_bars(params)
+                except Exception as e:
+                    logging.error(f"Could not get crypto pricing data from Alpaca for {symbol} with the following error: {e}")
+                    return None
 
             elif asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
                 date = asset.expiration.strftime("%y%m%d")
                 symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-
                 client = self._get_option_client()
                 params = OptionBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-
                 try:
                     barset = client.get_option_bars(params)
                 except Exception as e:
-                    logging.error(f"Could not get option pricing data from Alpaca for {symbol} with the following error: {e}")
+                    logging.error(
+                        f"Could not get option pricing data from Alpaca for {symbol} with the following error: {e}")
                     return None
             else:
                 symbol = asset.symbol
-
                 client = self._get_stock_client()
                 params = StockBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-
                 try:
                     barset = client.get_stock_bars(params)
                 except Exception as e:
@@ -342,10 +382,12 @@ class AlpacaData(DataSource):
 
             # Alpaca now returns a dataframe with a MultiIndex. We only want an index of timestamps
             df = df.reset_index(level=0, drop=True)
-            
-            # Alpaca returns a datetimeindex with pydantic.Tzinfo. The rest of lumibot uses pytz.
+
+            # Adjust the timezone of the data to whatever the user wanted.
             if hasattr(df.index, 'tz') and df.index.tz.__class__.__name__ == 'TzInfo':
-                df.index = df.index.tz_convert(self.DEFAULT_PYTZ)
+                df.index = df.index.tz_convert(self._tzinfo)
+            elif df.index.tz is None:
+                df.index = df.index.tz_localize(self._tzinfo)
 
             if df.empty:
                 logging.error(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
@@ -364,30 +406,34 @@ class AlpacaData(DataSource):
         return df
 
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
+            self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
     ):
         """pull broker bars for a list assets"""
-        if timeshift is None and timestep == "day":
-            # Alpaca throws an error if we don't do this and don't have a data subscription because
-            # they require a subscription for historical data less than 15 minutes old
-            timeshift = self._delay
-
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        kwargs = dict(limit=length)
-        if timeshift:
-            end = datetime.now() - timeshift
-            end = self.to_default_timezone(end)
-            kwargs["end"] = end
-
         result = {}
         for asset in assets:
+            if timeshift or asset.asset_type == Asset.AssetType.CRYPTO:
+                # Crypto asset prices are not delayed.
+                asset_timeshift = timeshift
+            else:
+                # Alpaca throws an error if we don't do this and don't have a data subscription because
+                # they require a subscription for historical data less than 15 minutes old
+                asset_timeshift = self._delay
+
+            parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+            kwargs = dict(limit=length)
+            if asset_timeshift:
+                end = datetime.now() - asset_timeshift
+                end = end.astimezone(self._tzinfo)
+                kwargs["end"] = end
+
             data = self.get_barset_from_api(asset, parsed_timestep, quote=quote, **kwargs)
             result[asset] = data
 
         return result
 
     def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
+            self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None,
+            include_after_hours=True
     ):
         if exchange is not None:
             logging.warning(

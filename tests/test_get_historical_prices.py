@@ -105,7 +105,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_timezone=data_source._tzinfo,
             time_check=time(0,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -134,7 +134,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=length,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_timezone=data_source._tzinfo,
             time_check=time(1,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
@@ -147,6 +147,36 @@ class TestLiveDataSource:
             length=length,
             data_source_timezone=data_source.DEFAULT_TIMEZONE,
             time_check=time(1,0)
+        )
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
+
+    def test_alpaca_data_source_get_historical_prices_daily_bars_crypto_utc(self):
+        length = 30
+        timestep = "day"
+        tzinfo = ZoneInfo('UTC')
+
+        data_source = AlpacaData(ALPACA_TEST_CONFIG, tzinfo=tzinfo)
+        asset = Asset('BTC', asset_type='crypto')
+        quote_asset = Asset('USD', asset_type='forex')
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
+
+        # TODO Alpaca returns crypto bars at midnight central time aka 1am ET
+        check_bars(
+            bars=bars,
+            length=length,
+            data_source_timezone=data_source._tzinfo,
+            time_check=time(1, 0)
+        )
+        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
+
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        length = 1
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
+        check_bars(
+            bars=bars,
+            length=length,
+            data_source_timezone=data_source._tzinfo,
+            time_check=time(0, 0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
 
@@ -181,7 +211,7 @@ class TestLiveDataSource:
         check_bars(
             bars=bars,
             length=1,
-            data_source_timezone=data_source.DEFAULT_TIMEZONE,
+            data_source_timezone=data_source._tzinfo,
             time_check=time(0,0)
         )
         self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
@@ -192,7 +222,6 @@ class TestLiveDataSource:
         reason="This test requires an alpaca API key"
     )
     def test_alpaca_data_source_get_last_price_crypto(self):
-
         data_source = AlpacaData(ALPACA_TEST_CONFIG)
         asset = Asset('BTC', asset_type='crypto')
         quote_asset = Asset('USD', asset_type='forex')

@@ -32,3 +32,4 @@ thetadata
 holidays
 psutil
 openai
+schwab-py

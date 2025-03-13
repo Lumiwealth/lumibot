@@ -371,8 +371,8 @@ class Broker(ABC):
     @property
     def _tracked_orders(self):
         return (self._unprocessed_orders.get_list() + self._new_orders.get_list() +
-                self._partially_filled_orders.get_list() + self._filled_orders.get_list() + 
-                self._error_orders.get_list() + self._canceled_orders.get_list())
+                self._partially_filled_orders.get_list() + self._filled_orders.get_list() +
+                self._error_orders.get_list() + self._canceled_orders.get_list() + self._placeholder_orders.get_list())
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER

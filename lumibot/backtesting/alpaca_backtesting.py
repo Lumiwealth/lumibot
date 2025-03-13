@@ -1,11 +1,10 @@
 import logging
 import os
+import pytz
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN
 
 import pandas as pd
-import numpy as np
 from alpaca.data.historical import CryptoHistoricalDataClient
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
@@ -20,7 +19,7 @@ from lumibot.tools.helpers import (
     date_n_days_from_date,
     get_trading_days,
     get_trading_times,
-    get_zoneinfo_from_datetime
+    get_timezone_from_datetime
 )
 
 
@@ -54,8 +53,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         appropriately configured.
 
         Args:
-            datetime_start (datetime): The starting datetime for the backtesting process. Inclusive.
-            datetime_end (datetime): The ending datetime for the backtesting process. Inclusive.
+            datetime_start (tz aware datetime): The starting datetime for the backtesting process. Inclusive.
+            datetime_end (tz aware datetime): The ending datetime for the backtesting process. Inclusive.
             backtesting_started (datetime | None): Represents the datetime when backtesting started. Defaults to None.
             config (dict | None): Configuration dictionary containing required API keys and account details.
                 Cannot be None as it's critical for API connections.
@@ -117,11 +116,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
         )
 
         # Ensure datetime_start and datetime_end have the same tzinfo
-        if datetime_start.tzinfo != datetime_end.tzinfo:
+        if str(datetime_start.tzinfo) != str(datetime_end.tzinfo):
             raise ValueError("datetime_start and datetime_end must have the same tzinfo.")
 
         # Get timezone from datetime_start if it has one, otherwise use Lumibot default
-        self._tzinfo = get_zoneinfo_from_datetime(datetime_start)
+        self._tzinfo = get_timezone_from_datetime(datetime_start)
 
         # We want self._data_datetime_start and self._data_datetime_end to be the start and end dates
         # of the data for the entire backtest including the warmup dates.
@@ -131,8 +130,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             year=datetime_start.year,
             month=datetime_start.month,
             day=datetime_start.day,
-            tzinfo=self._tzinfo
         )
+        start_dt = self._tzinfo.localize(start_dt)  # Use localize instead of tzinfo in constructor
 
         # The end should be the last minute of the day.
         end_dt = datetime(
@@ -142,8 +141,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             hour=23,
             minute=59,
             second=59,
-            tzinfo=self._tzinfo
         )
+        end_dt = self._tzinfo.localize(end_dt)  # Use localize instead of tzinfo in constructor
 
         if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_days_from_date(
@@ -154,8 +153,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Combine with a default time (midnight)
             warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())
             # Make it timezone-aware
-            warm_up_start_dt = pd.to_datetime(warm_up_start_dt).tz_localize(self._tzinfo)
-
+            warm_up_start_dt = self._tzinfo.localize(warm_up_start_dt)
         else:
             warm_up_start_dt = start_dt
 
@@ -351,7 +349,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote_asset: Asset,
             timestep: str = None,
             market: str = None,
-            tzinfo: ZoneInfo = None,
+            tzinfo: pytz.timezone = None,
             data_datetime_start: datetime = None,
             data_datetime_end: datetime = None,
             auto_adjust: bool = None,
@@ -364,7 +362,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         base_asset: Asset - Base asset of the pair.
         quote_asset: Asset - Quote asset of the pair.
         market: str - Market or exchange identifier.
-        tzinfo: ZoneInfo - Timezone information.
+        tzinfo: pytz.timezone - Timezone information.
         timestep: str - Timestep of the source data. Accepts "day" or "minute".
         data_datetime_start: datetime - The start date of the data in the backtest.
         data_datetime_end: datetime - The end date of the data in the backtest. Inclusive.
@@ -424,7 +422,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote_asset: Asset = None,
             timestep: str = None,
             market: str = None,
-            tzinfo: ZoneInfo = None,
+            tzinfo: pytz.timezone = None,
             data_datetime_start: datetime = None,
             data_datetime_end: datetime = None,
             auto_adjust: bool = None,
@@ -576,7 +574,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         try:
             df = pd.read_csv(filepath, parse_dates=['timestamp'])
-            df['timestamp'] = df['timestamp'].dt.tz_convert(self._tzinfo)
+            # We know the timestamps in the CSV are in a specific timezone
+            df['timestamp'] = df['timestamp'].dt.tz_localize(self._tzinfo)
+
             df.set_index('timestamp', inplace=True)
             self._data_store[key] = df
             logging.info(f"Loaded data for key: {key} from cache.")

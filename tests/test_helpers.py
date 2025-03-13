@@ -1,14 +1,15 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import pytz
+import pytest
 
-import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools.helpers import (
     has_more_than_n_decimal_places,
     date_n_days_from_date,
     get_trading_days,
     get_trading_times,
-    get_zoneinfo_from_datetime
+    get_timezone_from_datetime
 )
 
 
@@ -90,7 +91,7 @@ def test_date_n_days_from_date_with_24_7_market():
         n_days=5,
         start_datetime=start_datetime,
         market="24/7",
-        tzinfo=ZoneInfo("UTC")
+        tzinfo=pytz.timezone("UTC")
     )
     assert result == datetime(2024, 1, 8).date()
 
@@ -98,7 +99,7 @@ def test_date_n_days_from_date_with_24_7_market():
         n_days=-5,
         start_datetime=start_datetime,
         market="24/7",
-        tzinfo=ZoneInfo("UTC")
+        tzinfo=pytz.timezone("UTC")
     )
     assert result == datetime(2024, 1, 18).date()
 
@@ -109,17 +110,17 @@ def test_get_trading_days():
     trading_days = get_trading_days()
     assert len(trading_days) > 0
 
-    ny_tz = ZoneInfo('America/New_York')
+    ny_tz = pytz.timezone('America/New_York')
     start = datetime(2025, 1, 1)
     end = datetime(2025, 2, 1)
-    trading_days = get_trading_days('NYSE', start_date=start, end_date=end)
+    trading_days = get_trading_days('NYSE', start_date=start, end_date=end, tzinfo=ny_tz)
     assert len(trading_days) == 20
 
     # Check all market opens and closes
     for open_time, close_time in zip(trading_days.market_open, trading_days.market_close):
         # Check timezone
-        assert open_time.tzinfo == ny_tz
-        assert close_time.tzinfo == ny_tz
+        assert str(open_time.tzinfo) == str(ny_tz)
+        assert str(close_time.tzinfo) == str(ny_tz)
 
         # Check NYSE trading hours (9:30 AM - 4:00 PM)
         assert open_time.hour == 9
@@ -128,7 +129,7 @@ def test_get_trading_days():
         assert close_time.minute == 0
 
     # Test 24/7 market
-    utc = ZoneInfo('UTC')
+    utc = pytz.timezone('UTC')
     start = datetime(2025, 1, 1)
     end = datetime(2025, 2, 1)
     trading_days = get_trading_days('24/7', start_date=start, end_date=end, tzinfo=utc)
@@ -136,10 +137,10 @@ def test_get_trading_days():
     assert all(dt.hour == 0 and dt.minute == 0 for dt in trading_days.market_open)
     assert all(dt.hour == 23 and dt.minute == 59 for dt in trading_days.market_close)
     # Check timezone of market_open and market_close times
-    assert all(dt.tzinfo == utc for dt in trading_days.market_open)
-    assert all(dt.tzinfo == utc for dt in trading_days.market_close)
+    assert all(str(dt.tzinfo) == str(utc) for dt in trading_days.market_open)
+    assert all(str(dt.tzinfo) == str(utc) for dt in trading_days.market_close)
 
-    america_chicago = ZoneInfo('America/Chicago')
+    america_chicago = pytz.timezone('America/Chicago')
     start = datetime(2025, 1, 1)
     end = datetime(2025, 2, 1)
     trading_days = get_trading_days('24/7', start_date=start, end_date=end, tzinfo=america_chicago)
@@ -147,8 +148,8 @@ def test_get_trading_days():
     assert all(dt.hour == 0 and dt.minute == 0 for dt in trading_days.market_open)
     assert all(dt.hour == 23 and dt.minute == 59 for dt in trading_days.market_close)
     # Check timezone of market_open and market_close times
-    assert all(dt.tzinfo == america_chicago for dt in trading_days.market_open)
-    assert all(dt.tzinfo == america_chicago for dt in trading_days.market_close)
+    assert all(str(dt.tzinfo) == str(america_chicago) for dt in trading_days.market_open)
+    assert all(str(dt.tzinfo) == str(america_chicago) for dt in trading_days.market_close)
 
 
 def test_get_trading_times_day_nyse():
@@ -238,51 +239,50 @@ def test_get_trading_times_minute():
     assert result[-1].time().hour == 15
     assert result[-1].time().minute == 59
     assert all(dt.tzinfo == tzinfo for dt in result)
-    
-import pytest
-from datetime import datetime
-from zoneinfo import ZoneInfo
-import pytz
 
 
-def testget_zoneinfo_from_datetime():
+def test_get_timezone_from_datetime():
     # Test naive datetime
     naive_dt = datetime(2025, 1, 1)
-    tz_info = get_zoneinfo_from_datetime(naive_dt)
-    assert isinstance(tz_info, ZoneInfo)
-    assert str(tz_info) == LUMIBOT_DEFAULT_TIMEZONE
+    tzinfo = get_timezone_from_datetime(naive_dt)
+    assert isinstance(tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo))
+    assert str(tzinfo) == LUMIBOT_DEFAULT_TIMEZONE
 
     # Test datetime with ZoneInfo
     ny_zoneinfo = ZoneInfo("America/New_York")
     zoneinfo_dt = datetime(2025, 1, 1, tzinfo=ny_zoneinfo)
-    tz_info = get_zoneinfo_from_datetime(zoneinfo_dt)
-    assert isinstance(tz_info, ZoneInfo)
-    assert str(tz_info) == "America/New_York"
+    tzinfo = get_timezone_from_datetime(zoneinfo_dt)
+    assert isinstance(tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo))
+    assert str(tzinfo) == "America/New_York"
 
     # Test datetime with pytz
     ny_pytz = pytz.timezone("America/New_York")
     pytz_dt = datetime(2025, 1, 1, tzinfo=ny_pytz)
-    tz_info = get_zoneinfo_from_datetime(pytz_dt)
-    assert isinstance(tz_info, ZoneInfo)
-    assert str(tz_info) == "America/New_York"
+    tzinfo = get_timezone_from_datetime(pytz_dt)
+    assert isinstance(tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo))
+    assert str(tzinfo) == "America/New_York"
 
     # Test with different timezone
     tokyo_zoneinfo = ZoneInfo("Asia/Tokyo")
     tokyo_dt = datetime(2025, 1, 1, tzinfo=tokyo_zoneinfo)
-    tz_info = get_zoneinfo_from_datetime(tokyo_dt)
-    assert isinstance(tz_info, ZoneInfo)
-    assert str(tz_info) == "Asia/Tokyo"
+    tzinfo = get_timezone_from_datetime(tokyo_dt)
+    assert isinstance(tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo))
+    assert str(tzinfo) == "Asia/Tokyo"
 
 
-def testget_zoneinfo_from_datetime_types():
+def test_get_timezone_from_datetime_types():
     dt = datetime(2025, 1, 1, tzinfo=ZoneInfo("America/New_York"))
-    tz_info = get_zoneinfo_from_datetime(dt)
-    assert isinstance(tz_info, ZoneInfo)
+    tzinfo = get_timezone_from_datetime(dt)
+    assert isinstance(tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo))
+
+    dt = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York"))
+    tzinfo = get_timezone_from_datetime(dt)
+    assert isinstance(tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo))
 
     # Test with None
     with pytest.raises(AttributeError):
-        get_zoneinfo_from_datetime(None)
+        get_timezone_from_datetime(None)
 
     # Test with non-datetime
     with pytest.raises(AttributeError):
-        get_zoneinfo_from_datetime("not a datetime")
+        get_timezone_from_datetime("not a datetime")

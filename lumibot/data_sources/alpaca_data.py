@@ -1,8 +1,8 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Union
-from zoneinfo import ZoneInfo
+import pytz
 
 import pandas as pd
 import re
@@ -15,10 +15,9 @@ from alpaca.data.requests import (
     CryptoBarsRequest,
     CryptoLatestQuoteRequest,
     StockBarsRequest,
-    StockLatestTradeRequest,
-    OptionLatestTradeRequest,
+    StockLatestQuoteRequest,
     OptionBarsRequest,
-    StockLatestQuoteRequest
+    OptionLatestTradeRequest,
 )
 from alpaca.data.timeframe import TimeFrame
 
@@ -135,7 +134,7 @@ class AlpacaData(DataSource):
             # Setting this causes all calls to historical data endpoints to request data in this timezone
             # and datetimes in dataframes are adjusted to this timezone. Useful if you want UTC time for
             # crypto for example.
-            tzinfo=ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)
+            tzinfo=pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
     ):
 
         super().__init__(delay=delay)
@@ -302,13 +301,16 @@ class AlpacaData(DataSource):
                 quote = asset[1]
             asset = asset[0]
 
+        loop_limit = 0
         if not limit:
              limit = 1000
-        loop_limit = 0
 
-        if not end and asset.asset_type != Asset.AssetType.CRYPTO:
-            # Alpaca limitation of not getting the most recent 15 minutes
-            end = datetime.now(self._tzinfo) - self._delay
+        if not end:
+            if asset.asset_type != Asset.AssetType.CRYPTO:
+                # Alpaca limitation of not getting the most recent 15 minutes
+                end = datetime.now(self._tzinfo) - self._delay
+            else:
+                end = datetime.now(self._tzinfo)
 
         if not start:
             if asset.asset_type == Asset.AssetType.CRYPTO:
@@ -384,10 +386,13 @@ class AlpacaData(DataSource):
             df = df.reset_index(level=0, drop=True)
 
             # Adjust the timezone of the data to whatever the user wanted.
-            if hasattr(df.index, 'tz') and df.index.tz.__class__.__name__ == 'TzInfo':
-                df.index = df.index.tz_convert(self._tzinfo)
+            if hasattr(df.index, 'tz'):
+                if df.index.tz is not None:
+                    # Convert if index already has a timezone
+                    df.index = df.index.tz_convert(self._tzinfo)
             elif df.index.tz is None:
-                df.index = df.index.tz_localize(self._tzinfo)
+                # Localize if index has no timezone
+                df.index = self._tzinfo.localize(df.index)  # For pytz
 
             if df.empty:
                 logging.error(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
@@ -422,8 +427,7 @@ class AlpacaData(DataSource):
             parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
             kwargs = dict(limit=length)
             if asset_timeshift:
-                end = datetime.now() - asset_timeshift
-                end = end.astimezone(self._tzinfo)
+                end = datetime.now(tz=self._tzinfo) - asset_timeshift  # Create datetime directly in target timezone
                 kwargs["end"] = end
 
             data = self.get_barset_from_api(asset, parsed_timestep, quote=quote, **kwargs)

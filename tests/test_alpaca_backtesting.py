@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta, time
-from zoneinfo import ZoneInfo
+import pytest
 from decimal import Decimal
+import pytz
 
 import pandas as pd
-import pytest
 
 from lumibot.backtesting import AlpacaBacktesting, PandasDataBacktesting, BacktestingBroker
 from lumibot.brokers import Broker
@@ -21,7 +20,6 @@ if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your 
 
 import pytest
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from lumibot.entities import Asset
 
 
@@ -31,8 +29,8 @@ class TestAlpacaBacktesting:
     def _create_data_source(
             self,
             *,
-            datetime_start=datetime(2025, 1, 1, tzinfo=ZoneInfo("America/New_York")),
-            datetime_end=datetime(2025, 1, 31, tzinfo=ZoneInfo("America/New_York")),
+            datetime_start=datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York")),
+            datetime_end=datetime(2025, 1, 31, tzinfo=pytz.timezone("America/New_York")),
             config=ALPACA_TEST_CONFIG,
             timestep="day",
             refresh_cache=False,
@@ -59,8 +57,8 @@ class TestAlpacaBacktesting:
         assert isinstance(data_source, AlpacaBacktesting)
 
     def test_basic_key_generation_crypto(self):
-        datetime_start = datetime(2025, 1, 1, tzinfo=ZoneInfo("America/Chicago"))
-        datetime_end = datetime(2025, 2, 1, tzinfo=ZoneInfo("America/Chicago"))
+        datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/Chicago"))
+        datetime_end = datetime(2025, 2, 1, tzinfo=pytz.timezone("America/Chicago"))
         base_asset = Asset("BTC", asset_type='crypto')
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
@@ -86,8 +84,8 @@ class TestAlpacaBacktesting:
         assert key == expected
 
     def test_basic_key_generation_stock(self):
-        datetime_start = datetime(2025, 1, 1, tzinfo=ZoneInfo("America/New_York"))
-        datetime_end = datetime(2025, 2, 1, tzinfo=ZoneInfo("America/New_York"))
+        datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York"))
+        datetime_end = datetime(2025, 2, 1, tzinfo=pytz.timezone("America/New_York"))
         base_asset = Asset("AAPL", asset_type='stock')
         quote_asset = Asset("USD", asset_type='forex')
         market = "NYSE"
@@ -117,8 +115,8 @@ class TestAlpacaBacktesting:
         quote_asset = Asset("USD", asset_type="forex")
         market = "NYSE"
         timestep = "day"
-        start_date = datetime(2023, 1, 1, tzinfo=ZoneInfo("America/New_York"))
-        end_date = datetime(2023, 12, 31, tzinfo=ZoneInfo("America/New_York"))
+        start_date = datetime(2023, 1, 1, tzinfo=pytz.timezone("America/New_York"))
+        end_date = datetime(2023, 12, 31, tzinfo=pytz.timezone("America/New_York"))
         auto_adjust = True
 
         data_source = self._create_data_source(
@@ -146,8 +144,8 @@ class TestAlpacaBacktesting:
         base_asset = Asset("SPY", asset_type="stock")
         quote_asset = Asset("USD", asset_type="forex")
         timestep = "minute"
-        start_date = datetime(2023, 1, 1, tzinfo=ZoneInfo("America/New_York"))
-        end_date = datetime(2023, 12, 31, tzinfo=ZoneInfo("America/New_York"))
+        start_date = datetime(2023, 1, 1, tzinfo=pytz.timezone("America/New_York"))
+        end_date = datetime(2023, 12, 31, tzinfo=pytz.timezone("America/New_York"))
         auto_adjust = False
 
         data_source = self._create_data_source(
@@ -174,9 +172,9 @@ class TestAlpacaBacktesting:
         quote_asset = Asset("EUR", asset_type="forex")
         market = "24/7"
         timezones = [
-            ZoneInfo("Asia/Tokyo"),
-            ZoneInfo("Europe/London"),
-            ZoneInfo("US/Pacific")
+            pytz.timezone("Asia/Tokyo"),
+            pytz.timezone("Europe/London"),
+            pytz.timezone("US/Pacific")
         ]
         timestep = "day"
         start_date = datetime(2023, 1, 1)
@@ -212,8 +210,8 @@ class TestAlpacaBacktesting:
     def test_refresh_cache(self):
         """Test that refresh_cache properly refreshes data and uses the refreshed_keys dict"""
 
-        datetime_start = datetime(2024, 1, 1, tzinfo=ZoneInfo("America/Chicago"))
-        datetime_end = datetime(2024, 2, 1, tzinfo=ZoneInfo("America/Chicago"))
+        datetime_start = datetime(2024, 1, 1, tzinfo=pytz.timezone("America/Chicago"))
+        datetime_end = datetime(2024, 2, 1, tzinfo=pytz.timezone("America/Chicago"))
         base_asset = Asset("BTC", asset_type='crypto')
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
@@ -256,8 +254,8 @@ class TestAlpacaBacktesting:
     def test_no_refresh_cache(self):
         """Test that when refresh_cache is False, data is loaded from cache when available"""
 
-        datetime_start = datetime(2024, 1, 1, tzinfo=ZoneInfo("America/Chicago"))
-        datetime_end = datetime(2024, 2, 1, tzinfo=ZoneInfo("America/Chicago"))
+        datetime_start = datetime(2024, 1, 1, tzinfo=pytz.timezone("America/Chicago"))
+        datetime_end = datetime(2024, 2, 1, tzinfo=pytz.timezone("America/Chicago"))
         base_asset = Asset("BTC", asset_type='crypto')
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
@@ -306,7 +304,7 @@ class TestAlpacaBacktesting:
             market: str = 'NYSE',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/New_York'),
+            tzinfo: pytz.timezone = pytz.timezone('America/New_York'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
@@ -386,7 +384,7 @@ class TestAlpacaBacktesting:
             market: str = 'NYSE',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/New_York'),
+            tzinfo: pytz.timezone = pytz.timezone('America/New_York'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
@@ -474,7 +472,7 @@ class TestAlpacaBacktesting:
             market: str = 'NYSE',
             timestep: str = 'minute',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/New_York'),
+            tzinfo: pytz.timezone = pytz.timezone('America/New_York'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
@@ -554,7 +552,7 @@ class TestAlpacaBacktesting:
             market: str = 'NYSE',
             timestep: str = 'minute',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/New_York'),
+            tzinfo: pytz.timezone = pytz.timezone('America/New_York'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
@@ -654,7 +652,7 @@ class TestAlpacaBacktesting:
             market: str = 'NYSE',
             timestep: str = 'minute',
             sleeptime: str = '30M',
-            tzinfo: ZoneInfo = ZoneInfo('America/New_York'),
+            tzinfo: pytz.timezone = pytz.timezone('America/New_York'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
@@ -754,7 +752,7 @@ class TestAlpacaBacktesting:
             market: str = '24/7',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/Chicago'),
+            tzinfo: pytz.timezone = pytz.timezone('America/Chicago'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
@@ -834,7 +832,7 @@ class TestAlpacaBacktesting:
             market: str = '24/7',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/Chicago'),
+            tzinfo: pytz.timezone = pytz.timezone('America/Chicago'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
@@ -914,7 +912,7 @@ class TestAlpacaBacktesting:
             market: str = '24/7',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('UTC'),
+            tzinfo: pytz.timezone = pytz.timezone('UTC'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
@@ -994,7 +992,7 @@ class TestAlpacaBacktesting:
             market: str = '24/7',
             timestep: str = 'minute',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/Chicago'),
+            tzinfo: pytz.timezone = pytz.timezone('America/Chicago'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
@@ -1074,7 +1072,7 @@ class TestAlpacaBacktesting:
             market: str = '24/7',
             timestep: str = 'minute',
             sleeptime: str = '1D',
-            tzinfo: ZoneInfo = ZoneInfo('America/Chicago'),
+            tzinfo: pytz.timezone = pytz.timezone('America/Chicago'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
@@ -1154,7 +1152,7 @@ class TestAlpacaBacktesting:
             market: str = '24/7',
             timestep: str = 'minute',
             sleeptime: str = '30M',
-            tzinfo: ZoneInfo = ZoneInfo('America/Chicago'),
+            tzinfo: pytz.timezone = pytz.timezone('America/Chicago'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,

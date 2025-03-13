@@ -1,10 +1,9 @@
 import os
 import re
 import sys
+import pytz
 from datetime import datetime, timedelta, date, time
 from zoneinfo import ZoneInfo
-
-from pytz import timezone
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -51,8 +50,8 @@ class TwentyFourSevenCalendar(MarketCalendar):
         'market_close': [(None, time(23, 59, 59, 999999))],
     }
 
-    def __init__(self, tzinfo: str | ZoneInfo = 'UTC'):
-        self._tzinfo = ZoneInfo(tzinfo) if isinstance(tzinfo, str) else tzinfo
+    def __init__(self, tzinfo: str | pytz.BaseTzInfo = 'UTC'):
+        self._tzinfo = pytz.timezone(tzinfo) if isinstance(tzinfo, str) else tzinfo
         super().__init__()
 
     @property
@@ -99,8 +98,8 @@ def get_trading_days(
         market="NYSE",
         start_date="1950-01-01",
         end_date=None,
-        tzinfo: ZoneInfo = ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE),
-):
+        tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
+) -> pd.DatetimeIndex:
     """
     Gets a schedule of trading days and corresponding market open/close times
     for a specified market between given start and end dates, including proper
@@ -114,8 +113,8 @@ def get_trading_days(
         end_date (str or datetime-like, optional): The end date (exclusive) for
             the range of trading days. If not specified, the current date is used.
             Defaults to None.
-        tzinfo (ZoneInfo, optional): Timezone information used for
-            converting datetime objects. Defaults to ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE).
+        tzinfo (pytz.timezone, optional): Timezone information used for
+            converting datetime objects. Defaults to pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE).
 
     Returns:
         DataFrame: A pandas DataFrame containing the trading schedule with
@@ -149,6 +148,7 @@ def get_trading_days(
     days.market_open = days.market_open.apply(format_datetime)
     days.market_close = days.market_close.apply(format_datetime)
     return days
+
 
 
 def get_trading_times(
@@ -203,7 +203,7 @@ def date_n_days_from_date(
         n_days: int,
         start_datetime: datetime,
         market: str = "NYSE",
-        tzinfo: ZoneInfo = ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE),
+        tzinfo: pytz.timezone = LUMIBOT_DEFAULT_PYTZ
 ) -> date:
     """
     Get the trading date n_days from start_datetime.
@@ -249,8 +249,6 @@ def date_n_days_from_date(
                    else trading_days.index.get_indexer([start_datetime_naive], method='bfill')[0])
 
     return trading_days.index[start_index - n_days].date()
-
-
 
 
 class ComparaisonMixin:
@@ -450,20 +448,25 @@ def has_more_than_n_decimal_places(number: float, n: int) -> bool:
         return False
 
 
-def get_zoneinfo_from_datetime(dt: datetime) -> ZoneInfo:
-    """Convert datetime's timezone to ZoneInfo, handling both pytz and zoneinfo cases"""
+def get_timezone_from_datetime(dt: datetime) -> pytz.timezone:
+    """Convert datetime's timezone to pytz.timezone, handling both pytz and zoneinfo cases"""
     if dt.tzinfo is None:
-        return ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)
+        return LUMIBOT_DEFAULT_PYTZ
 
-    # If it's already a ZoneInfo, return it
-    if isinstance(dt.tzinfo, ZoneInfo):
+    # If it's already a pytz timezone (checking both DstTzInfo and StaticTzInfo)
+    if isinstance(dt.tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo)):
         return dt.tzinfo
 
-    # Handle pytz timezone by getting its name and converting to ZoneInfo
+    # Try different ways to get timezone name
     try:
-        # pytz timezones have a 'zone' attribute with the timezone name
-        timezone_name = dt.tzinfo.zone
-        return ZoneInfo(timezone_name)
-    except AttributeError:
-        # If we can't get the zone name, fall back to default
-        return ZoneInfo(LUMIBOT_DEFAULT_TIMEZONE)
+        # Try key or zone attribute (works for both zoneinfo and pytz)
+        if hasattr(dt.tzinfo, 'key'):
+            return pytz.timezone(dt.tzinfo.key)
+        elif hasattr(dt.tzinfo, 'zone'):
+            return pytz.timezone(dt.tzinfo.zone)
+        # Try getting string representation (fallback)
+        timezone_name = str(dt.tzinfo)
+        return pytz.timezone(timezone_name)
+    except (AttributeError, pytz.exceptions.UnknownTimeZoneError):
+        return LUMIBOT_DEFAULT_PYTZ
+

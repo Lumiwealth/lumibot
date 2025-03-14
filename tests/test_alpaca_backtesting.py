@@ -8,7 +8,10 @@ from lumibot.backtesting import AlpacaBacktesting, PandasDataBacktesting, Backte
 from lumibot.brokers import Broker
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset
-from lumibot.tools import get_trading_times
+from lumibot.tools import (
+    get_trading_days,
+    get_trading_times,
+)
 
 from tests.fixtures import (
     BacktestingTestStrategy
@@ -298,6 +301,174 @@ class TestAlpacaBacktesting:
         )
         assert key not in data_source._refreshed_keys
 
+    def test_reindex_and_fill_day_when_all_data_exists(self):
+        datetime_start = datetime(2025, 1, 13, tzinfo=pytz.timezone("America/New_York"))
+        datetime_end = datetime(2025, 1, 17, tzinfo=pytz.timezone("America/New_York"))
+        market = "NYSE"
+        timestep = "day"
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        trading_times = get_trading_times(pcal=data_source._trading_days, timestep=timestep)
+
+        data = [
+            ["2025-01-13 00:00:00-05:00", 218.06, 219.4, 216.47, 218.46, 27262655.0],
+            ["2025-01-14 00:00:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            ["2025-01-15 00:00:00-05:00", 222.83, 223.57, 220.75, 223.35, 31291257.0],
+            ["2025-01-16 00:00:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-17 00:00:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"])  # Ensure timestamps are converted
+
+        expected_df = df.copy()
+        actual_df = data_source._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
+
+        # Convert both DataFrames to the same format and check all columns
+        pd.testing.assert_frame_equal(
+            expected_df.sort_values('timestamp').reset_index(drop=True),
+            actual_df.sort_values('timestamp').reset_index(drop=True),
+            check_dtype=False  # If you want to ignore dtype differences
+        )
+
+    def test_reindex_and_fill_day_when_missing_dates(self):
+        datetime_start = datetime(2025, 1, 13, tzinfo=pytz.timezone("America/New_York"))
+        datetime_end = datetime(2025, 1, 17, tzinfo=pytz.timezone("America/New_York"))
+        market = "NYSE"
+        timestep = "day"
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        trading_times = get_trading_times(pcal=data_source._trading_days, timestep=timestep)
+
+        data = [
+            ["2025-01-13 00:00:00-05:00", 218.06, 219.4, 216.47, 218.46, 27262655.0],
+            ["2025-01-14 00:00:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            # ["2025-01-15 00:00:00-05:00", 222.83, 223.57, 220.75, 223.35, 31291257.0],
+            ["2025-01-16 00:00:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-17 00:00:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"])  # Ensure timestamps are converted
+
+        actual_df = data_source._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
+
+        data = [
+            ["2025-01-13 00:00:00-05:00", 218.06, 219.4, 216.47, 218.46, 27262655.0],
+            ["2025-01-14 00:00:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            ["2025-01-15 00:00:00-05:00", 217.76, 217.76, 217.76, 217.76, 0.0],
+            ["2025-01-16 00:00:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-17 00:00:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        expected_df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        expected_df["timestamp"] = pd.to_datetime(expected_df["timestamp"])  # Ensure timestamps are converted
+
+        # Convert both DataFrames to the same format and check all columns
+        pd.testing.assert_frame_equal(
+            expected_df.sort_values('timestamp').reset_index(drop=True),
+            actual_df.sort_values('timestamp').reset_index(drop=True),
+            check_dtype=False  # If you want to ignore dtype differences
+        )
+
+    def test_reindex_and_fill_day_when_missing_dates_beginning(self):
+        datetime_start = datetime(2025, 1, 13, tzinfo=pytz.timezone("America/New_York"))
+        datetime_end = datetime(2025, 1, 17, tzinfo=pytz.timezone("America/New_York"))
+        market = "NYSE"
+        timestep = "day"
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        trading_times = get_trading_times(pcal=data_source._trading_days, timestep=timestep)
+
+        data = [
+            # ["2025-01-13 00:00:00-05:00", 218.06, 219.4, 216.47, 218.46, 27262655.0],
+            ["2025-01-14 00:00:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            ["2025-01-15 00:00:00-05:00", 222.83, 223.57, 220.75, 223.35, 31291257.0],
+            ["2025-01-16 00:00:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-17 00:00:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"])  # Ensure timestamps are converted
+
+        actual_df = data_source._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
+
+        data = [
+            ["2025-01-13 00:00:00-05:00", 220.44, 220.44, 220.44, 220.44, 0.0],
+            ["2025-01-14 00:00:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            ["2025-01-15 00:00:00-05:00", 222.83, 223.57, 220.75, 223.35, 31291257.0],
+            ["2025-01-16 00:00:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-17 00:00:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        expected_df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        expected_df["timestamp"] = pd.to_datetime(expected_df["timestamp"])  # Ensure timestamps are converted
+
+        # Convert both DataFrames to the same format and check all columns
+        pd.testing.assert_frame_equal(
+            expected_df.sort_values('timestamp').reset_index(drop=True),
+            actual_df.sort_values('timestamp').reset_index(drop=True),
+            check_dtype=False  # If you want to ignore dtype differences
+        )
+
+    def test_reindex_and_fill_minute_when_missing_dates(self):
+        datetime_start = datetime(2025, 1, 13, tzinfo=pytz.timezone("America/New_York"))
+        datetime_end = datetime(2025, 1, 17, tzinfo=pytz.timezone("America/New_York"))
+        market = "NYSE"
+        timestep = "minute"
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        trading_times = get_trading_times(pcal=data_source._trading_days, timestep=timestep)
+
+        data = [
+            ["2025-01-13 09:30:00-05:00", 218.06, 219.4, 216.47, 218.46, 27262655.0],
+            ["2025-01-13 09:31:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            # ["2025-01-15 00:00:00-05:00", 222.83, 223.57, 220.75, 223.35, 31291257.0],
+            ["2025-01-13 09:33:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-13 09:34:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"])  # Ensure timestamps are converted
+
+        actual_df = data_source._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
+        assert len(actual_df.index) == 6.5 * 60 * 5
+
+        data = [
+            ["2025-01-13 09:30:00-05:00", 218.06, 219.4, 216.47, 218.46, 27262655.0],
+            ["2025-01-13 09:31:00-05:00", 220.44, 221.82, 216.2, 217.76, 24711650.0],
+            ["2025-01-13 09:32:00-05:00", 217.76, 217.76, 217.76, 217.76, 0.0],
+            ["2025-01-13 09:33:00-05:00", 224.42, 224.65, 220.31, 220.66, 24757276.0],
+            ["2025-01-13 09:34:00-05:00", 225.84, 226.51, 223.08, 225.94, 42370123.0],
+        ]
+        expected_df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        expected_df["timestamp"] = pd.to_datetime(expected_df["timestamp"])  # Ensure timestamps are converted
+
+        # Convert both DataFrames to the same format and check all columns
+        pd.testing.assert_frame_equal(
+            expected_df.sort_values('timestamp').reset_index(drop=True),
+            actual_df.head(5).sort_values('timestamp').reset_index(drop=True),
+            check_dtype=False
+        )
+
     def test_amzn_day_1d(
             self,
             asset: Asset = Asset('AMZN'),
@@ -358,8 +529,8 @@ class TestAlpacaBacktesting:
         timestep_data_df = data_source._data_store[timestep_data_key]
 
         assert len(timestep_data_df.index) == 5 + lookback_length
-        assert timestep_data_df.index[0].isoformat() == "2025-01-13T09:30:00-05:00"
-        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T09:30:00-05:00"
+        assert timestep_data_df.index[0].isoformat() == "2025-01-13T00:00:00-05:00"
+        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
 
         # Trading strategy tests
         assert data_source.datetime_end.isoformat() == '2025-01-15T09:30:00-05:00'
@@ -370,13 +541,13 @@ class TestAlpacaBacktesting:
         assert len(last_prices) == 3 # number of trading iterations
         assert last_price_keys[0] == '2025-01-13T09:30:00-05:00'
         assert last_price_keys[-1] == '2025-01-15T09:30:00-05:00'
-        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('218.06')  # Open of '2025-01-13T09:30:00-05:00'
+        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('220.44')  # Open of '2025-01-14T00:00:00-05:00'
 
         order_tracker = strategy.order_tracker
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["avg_fill_price"] == 218.06  # Open of '2025-01-13T09:30:00-05:00'
+        assert order_tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T00:00:00-05:00'
 
     def test_amzn_day_1d_5(
             self,
@@ -438,8 +609,8 @@ class TestAlpacaBacktesting:
         timestep_data_df = data_source._data_store[timestep_data_key]
 
         assert len(timestep_data_df.index) == 5 + lookback_length
-        assert timestep_data_df.index[0].isoformat() == "2025-01-03T09:30:00-05:00"
-        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T09:30:00-05:00"
+        assert timestep_data_df.index[0].isoformat() == "2025-01-03T00:00:00-05:00"
+        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T00:00:00-05:00"
 
         # Trading strategy tests
         assert data_source.datetime_end.isoformat() == '2025-01-15T09:30:00-05:00'
@@ -450,21 +621,21 @@ class TestAlpacaBacktesting:
         assert len(last_prices) == 3 # number of trading iterations
         assert last_price_keys[0] == '2025-01-13T09:30:00-05:00'
         assert last_price_keys[-1] == '2025-01-15T09:30:00-05:00'
-        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('218.06')  # Open of '2025-01-13T09:30:00-05:00'
+        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('220.44')  # Open of '2025-01-14T00:00:00-05:00'
 
         order_tracker = strategy.order_tracker
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["avg_fill_price"] == 218.06  # Open of '2025-01-13T09:30:00-05:00'
+        assert order_tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T00:00:00-05:00'
 
         if lookback_length > 0:
             historical_prices = strategy.historical_prices
             historical_price_keys = list(historical_prices.keys())
             assert len(historical_prices) == 3 # iterations
             last_df = historical_prices[historical_price_keys[-1]]
-            assert last_df.index[0].isoformat() == '2025-01-07T09:30:00-05:00'
-            assert last_df.index[-1].isoformat() == '2025-01-14T09:30:00-05:00'
+            assert last_df.index[0].isoformat() == '2025-01-08T00:00:00-05:00'
+            assert last_df.index[-1].isoformat() == '2025-01-15T00:00:00-05:00'
 
     def test_amzn_minute_1d(
             self,
@@ -631,8 +802,8 @@ class TestAlpacaBacktesting:
             historical_price_keys = list(historical_prices.keys())
             assert len(historical_prices) == 3 # iterations
             last_df = historical_prices[historical_price_keys[-1]]
-            assert last_df.index[0].isoformat() == '2025-01-07T09:30:00-05:00'
-            assert last_df.index[-1].isoformat() == '2025-01-14T09:30:00-05:00'
+            assert last_df.index[0].isoformat() == '2025-01-08T00:00:00-05:00'
+            assert last_df.index[-1].isoformat() == '2025-01-15T00:00:00-05:00'
 
         if lookback_length > 0 and timestep == 'minute':
             lookback_data_key = data_source._get_asset_key(
@@ -643,8 +814,8 @@ class TestAlpacaBacktesting:
             lookback_data_df = data_source._data_store[lookback_data_key]
 
             assert len(lookback_data_df.index) == 10
-            assert lookback_data_df.index[0].isoformat() == '2025-01-03T09:30:00-05:00'
-            assert lookback_data_df.index[-1].isoformat() == '2025-01-17T09:30:00-05:00'
+            assert lookback_data_df.index[0].isoformat() == '2025-01-03T00:00:00-05:00'
+            assert lookback_data_df.index[-1].isoformat() == '2025-01-17T00:00:00-05:00'
 
     def test_amzn_minute_30m_5(
             self,
@@ -731,8 +902,8 @@ class TestAlpacaBacktesting:
             historical_price_keys = list(historical_prices.keys())
             assert len(historical_prices) == 13 * 2 + 1 # number of trading iterations
             last_df = historical_prices[historical_price_keys[-1]]
-            assert last_df.index[0].isoformat() == '2025-01-07T09:30:00-05:00'
-            assert last_df.index[-1].isoformat() == '2025-01-14T09:30:00-05:00'
+            assert last_df.index[0].isoformat() == '2025-01-08T00:00:00-05:00'
+            assert last_df.index[-1].isoformat() == '2025-01-15T00:00:00-05:00'
 
         if lookback_length > 0 and timestep == 'minute':
             lookback_data_key = data_source._get_asset_key(
@@ -743,8 +914,8 @@ class TestAlpacaBacktesting:
             lookback_data_df = data_source._data_store[lookback_data_key]
 
             assert len(lookback_data_df.index) == 10
-            assert lookback_data_df.index[0].isoformat() == '2025-01-03T09:30:00-05:00'
-            assert lookback_data_df.index[-1].isoformat() == '2025-01-17T09:30:00-05:00'
+            assert lookback_data_df.index[0].isoformat() == '2025-01-03T00:00:00-05:00'
+            assert lookback_data_df.index[-1].isoformat() == '2025-01-17T00:00:00-05:00'
 
     def test_btc_day_1d(
             self,
@@ -966,8 +1137,9 @@ class TestAlpacaBacktesting:
         timestep_data_df = data_source._data_store[timestep_data_key]
 
         assert len(timestep_data_df.index) == 5 + lookback_length
-        assert timestep_data_df.index[0].isoformat() == "2025-01-13T00:00:00+00:00"
-        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T00:00:00+00:00"
+        # Alpaca provides crypto data back at midnight central which is 6am UTC
+        assert timestep_data_df.index[0].isoformat() == "2025-01-13T06:00:00+00:00"
+        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T06:00:00+00:00"
 
         # Trading strategy tests
         assert data_source.datetime_end.isoformat() == '2025-01-15T00:00:00+00:00'

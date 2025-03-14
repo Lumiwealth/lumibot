@@ -778,7 +778,7 @@ class TestBacktestingDataSources:
             timestep=timestep
         )
 
-        check_bars(bars=bars, length=length, time_check=time(9,30))
+        check_bars(bars=bars, length=length, time_check=time(0,0))
         self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -812,7 +812,7 @@ class TestBacktestingDataSources:
         )
 
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(bars=bars, length=length, time_check=time(9,30))
+        check_bars(bars=bars, length=length, time_check=time(0,0))
         self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
             bars,
             backtesting_start=backtesting_start
@@ -853,4 +853,4 @@ class TestBacktestingDataSources:
             timestep="day"
         )
 
-        check_bars(bars=bars, length=length, time_check=time(9,30))
+        check_bars(bars=bars, length=length, time_check=time(0,0))

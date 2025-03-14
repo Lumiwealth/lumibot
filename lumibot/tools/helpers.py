@@ -150,7 +150,6 @@ def get_trading_days(
     return days
 
 
-
 def get_trading_times(
         pcal: pd.DataFrame,
         timestep: str = 'day'

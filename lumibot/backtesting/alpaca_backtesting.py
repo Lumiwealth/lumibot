@@ -23,6 +23,7 @@ from lumibot.tools.helpers import (
 )
 
 
+
 class AlpacaBacktesting(DataSourceBacktesting):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
@@ -511,15 +512,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
-        if timestep == 'day':
-            # daily bars are NORMALLY indexed at midnight (the open of the bar).
-            # To enable lumibot to use the open price of the bar for the get_last_price and fills,
-            # the alpaca backtester adjusts daily bars to the open bar of the market.
-            market_open = self._trading_days.iloc[0]['market_open']
-            df['timestamp'] = df['timestamp'].map(
-                lambda x: x.replace(hour=market_open.hour, minute=market_open.minute)
-            )
-
         trading_times = get_trading_times(
             pcal=self._trading_days,
             timestep=timestep,
@@ -527,7 +519,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         # Reindex the dataframe with a row for each bar we should have a trading iteration for.
         # Fill any empty bars with previous data.
-        df = self._reindex_and_fill(df=df, trading_times=trading_times)
+        df = self._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
 
         # If asset is of type stock, quantize OHLC prices to ALPACA_STOCK_PRECISION
         if base_asset.asset_type == 'stock':
@@ -540,6 +532,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 df[column] = df[column].apply(
                     lambda x: Decimal(str(x)).quantize(self.ALPACA_CRYPTO_PRECISION, rounding=ROUND_HALF_EVEN)
                 )
+
+        # Filter data to include only rows between data_datetime_start and data_datetime_end
+        df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
 
         # Save to cache
         df.to_csv(filepath, index=False)
@@ -585,37 +580,74 @@ class AlpacaBacktesting(DataSourceBacktesting):
             logging.error(f"Failed to load cached data for key: {key}. Error: {e}")
             return False
 
-    def _reindex_and_fill(self, df: pd.DataFrame, trading_times: pd.DatetimeIndex) -> pd.DataFrame:
+    def _reindex_and_fill(
+            self,
+            df: pd.DataFrame,
+            trading_times: pd.DatetimeIndex,
+            timestep: str
+    ) -> pd.DataFrame:
+        if df.index.name == 'timestamp':
+            df = df.reset_index()
+
         # Check if all required columns are present
         required_columns = {"timestamp", "open", "high", "low", "close", "volume"}
         missing_columns = required_columns - set(df.columns)
         if missing_columns:
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
-        # Ensure timestamp is the index
-        if df.index.name != "timestamp":
-            df.set_index("timestamp", inplace=True)
+        if timestep not in ['day', 'minute']:
+            raise ValueError(f"The timestep must be 'day' or 'minute'.")
 
-        # Reindex and fill missing dates
-        df = df.reindex(trading_times)
+        # For daily bars, we want to preserve original timestamps but add missing days
+        if timestep == 'day':
+            # Get just the dates from trading_times
+            trading_dates = trading_times.date
+            # Get dates from df timestamps
+            df_dates = df['timestamp'].dt.date
 
-        # Set missing volume values to 0.0
+            # Convert both to sets of dates for proper comparison
+            trading_dates_set = set(trading_dates)
+            df_dates_set = set(df_dates)
+
+            # Find truly missing dates
+            missing_dates = trading_dates_set - df_dates_set
+
+            # Add rows for missing dates (at midnight)
+            for date in missing_dates:
+                # Get timezone from the first timestamp in df
+                tz = df['timestamp'].iloc[0].tz
+
+                missing_row = pd.DataFrame({
+                    'timestamp': [pd.Timestamp(date).tz_localize(tz)],
+                    'open': [None],
+                    'high': [None],
+                    'low': [None],
+                    'close': [None],
+                    'volume': [0.0]
+                })
+
+                df = pd.concat([df, missing_row], ignore_index=True)
+
+            # Sort by timestamp
+            df.sort_values('timestamp', inplace=True)
+        else:
+            # For non-daily bars, use the original reindexing logic
+            if df.index.name != "timestamp":
+                # Ensure timestamp is the index for reindexing
+                df = df.set_index("timestamp")
+            df = df.reindex(trading_times)
+            df.index.name = 'timestamp'  # Restore the index name
+            df.sort_values('timestamp', inplace=True)
+            df.reset_index(inplace=True)
+
+        # Fill missing values
         df['volume'] = df['volume'].fillna(0.0)
-
-        # Forward fill missing close prices
         df['close'] = df['close'].fillna(method='ffill')
-
-        # Fill NaN in 'open', 'high', and 'low' columns with the value from the 'close' column
         for column in ['open', 'high', 'low']:
             df[column] = df[column].fillna(df['close'])
-            
-        # Backward fill missing data to address gaps at the front
         df['open'] = df['open'].fillna(method='bfill')
-
-        # Backfill NaN in 'open', 'high', and 'low' columns with the value from the 'open' column
         for column in ['high', 'low', 'close']:
             df[column] = df[column].fillna(df['open'])
 
-        df.rename_axis("timestamp", inplace=True)
-        df.reset_index(inplace=True)
         return df
+

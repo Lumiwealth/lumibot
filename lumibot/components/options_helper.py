@@ -348,6 +348,37 @@ class OptionsHelper:
         }
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
+    
+    def get_expiration_on_or_after_date(self, dt: date, chains: List[dict], call_or_put: str) -> date:
+        """
+        Get the expiration date that is on or after a given date
+
+        Parameters
+        ----------
+        dt : date
+            The starting date.
+        chains : List[dict]
+            A list of option chains.
+        call_or_put : str
+            One of "call" or "put".
+
+        Returns
+        -------
+        date
+            The adjusted expiration date.
+        """
+        
+        call_or_put_caps = call_or_put.capitalize()
+        specific_chain = chains["Chains"][call_or_put_caps]
+
+        # Get the list of expiration dates
+        expiration_dates = list(specific_chain.keys())
+
+        # Find the closest expiration date
+        if dt not in expiration_dates:
+            dt = min(expiration_dates, key=lambda x: abs(x - dt.date()))
+
+        return dt
 
     # ============================================================
     # Order Building Functions (Build orders without submission)

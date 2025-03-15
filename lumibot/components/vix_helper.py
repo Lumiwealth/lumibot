@@ -16,7 +16,7 @@ import datetime
 """
 
 class VixHelper:
-    def __init__(self, strategy):
+    def __init__(self, strategy) -> None:
         """ 
             Initialize the VIX helper with the given strategy.
 

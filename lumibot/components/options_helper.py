@@ -1,4 +1,4 @@
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from typing import Optional, List, Dict, Union, Tuple
 from lumibot.entities import Asset, Order
 
@@ -349,16 +349,16 @@ class OptionsHelper:
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
     
-    def get_expiration_on_or_after_date(self, dt: date, chains: List[dict], call_or_put: str) -> date:
+    def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> date:
         """
-        Get the expiration date that is on or after a given date
+        Get the expiration date that is on or after a given date.
 
         Parameters
         ----------
         dt : date
             The starting date.
-        chains : List[dict]
-            A list of option chains.
+        chains : dict
+            A dictionary containing option chains.
         call_or_put : str
             One of "call" or "put".
 
@@ -368,15 +368,18 @@ class OptionsHelper:
             The adjusted expiration date.
         """
         
-        call_or_put_caps = call_or_put.capitalize()
+        # Make it all caps and get the specific chain.
+        call_or_put_caps = call_or_put.upper()
         specific_chain = chains["Chains"][call_or_put_caps]
 
-        # Get the list of expiration dates
+        # Get the list of expiration dates as strings.
         expiration_dates = list(specific_chain.keys())
 
-        # Find the closest expiration date
+        # Since dt is a date object and expiration_dates contains strings, dt won't be found.
+        # Find the closest expiration date (as a string) and convert it back to a date.
         if dt not in expiration_dates:
-            dt = min(expiration_dates, key=lambda x: abs(x - dt.date()))
+            closest_str = min(expiration_dates, key=lambda x: abs(datetime.strptime(x, "%Y-%m-%d").date() - dt))
+            dt = datetime.strptime(closest_str, "%Y-%m-%d").date()
 
         return dt
 

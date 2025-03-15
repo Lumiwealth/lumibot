@@ -738,7 +738,7 @@ class BacktestingBroker(Broker):
                     timestep=self.data_source._timestep,
                 )
                 # Check if we got any ohlc data
-                if ohlc is None:
+                if ohlc is None or ohlc.df.empty:
                     self.cancel_order(order)
                     continue
 

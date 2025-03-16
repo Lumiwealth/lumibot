@@ -2,7 +2,7 @@ import os
 import datetime
 import logging
 from typing import Any
-from zoneinfo import ZoneInfo
+import pytz
 
 import pytest
 
@@ -205,11 +205,12 @@ class TestMomentum:
         refresh_cache = False
         lookback_period = 2
         market='NYSE'
+        tzinfo = pytz.timezone("America/New_York")
 
         results, strategy = MomoTester.run_backtest(
             datasource_class=AlpacaBacktesting,
-            backtesting_start=self.backtesting_start.replace(tzinfo=ZoneInfo("America/New_York")),
-            backtesting_end=self.backtesting_end.replace(tzinfo=ZoneInfo("America/New_York")),
+            backtesting_start=self.backtesting_start.astimezone(tzinfo),
+            backtesting_end=self.backtesting_end.astimezone(tzinfo),
             benchmark_asset=None,
             analyze_backtest=False,
             show_progress_bar=False,
@@ -248,11 +249,12 @@ class TestMomentum:
         refresh_cache = False
         lookback_period = 30
         market='NYSE'
+        tzinfo = pytz.timezone("America/New_York")
 
         results, strategy = MomoTester.run_backtest(
             datasource_class=AlpacaBacktesting,
-            backtesting_start=self.backtesting_start.replace(tzinfo=ZoneInfo("America/New_York")),
-            backtesting_end=self.backtesting_end.replace(tzinfo=ZoneInfo("America/New_York")),
+            backtesting_start=self.backtesting_start.astimezone(tzinfo),
+            backtesting_end=self.backtesting_end.astimezone(tzinfo),
             benchmark_asset=None,
             analyze_backtest=False,
             show_progress_bar=False,

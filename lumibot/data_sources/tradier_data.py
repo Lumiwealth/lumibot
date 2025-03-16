@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Union
+import pytz
 
 import pandas as pd
 
@@ -55,12 +56,27 @@ class TradierData(DataSource):
         },
     ]
 
-    def __init__(self, account_number, access_token, paper=True, max_workers=20, delay=None):
+    def __init__(
+            self,
+            account_number,
+            access_token,
+            paper=True,
+            max_workers=20,
+
+            # A delay parameter to control how many minutes to delay non-crypto data for.
+            # Set to zero for no delay
+            delay=0,
+
+            # Setting this causes all calls to historical data endpoints to request data in this timezone
+            # and datetimes in dataframes are adjusted to this timezone.
+            tzinfo=pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+    ):
         super().__init__(api_key=access_token, delay=delay)
         self._account_number = account_number
         self._paper = paper
         self.max_workers = min(max_workers, 50)
         self.tradier = Tradier(account_number, access_token, paper)
+        self._tzinfo = tzinfo
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
@@ -189,12 +205,7 @@ class TradierData(DataSource):
             symbol = asset.symbol
 
         end_date = datetime.now()
-
-        # Use pytz to get the US/Eastern timezone
-        eastern = LUMIBOT_DEFAULT_PYTZ
-
-        # Convert datetime object to US/Eastern timezone
-        end_date = end_date.astimezone(eastern)
+        end_date = end_date.astimezone(self._tzinfo)
 
         # Calculate the end date
         if timeshift:
@@ -209,6 +220,7 @@ class TradierData(DataSource):
             max_days_of_long_weekend = 3
             weeks_requested = length // 5  # Full trading week is 5 days
             extra_padding_days = weeks_requested * max_days_of_long_weekend
+            extra_padding_days = max(5, extra_padding_days)  # Get at least 5 days
             td = timedelta(days=length + extra_padding_days)
             tcal_start_date = end_date - td
             trading_days = get_trading_days(
@@ -254,10 +266,10 @@ class TradierData(DataSource):
             df.index = pd.to_datetime(df.index)  # Always ensure it's a DatetimeIndex
 
             # Check if the index is timezone-naive or already timezone-aware
-            if df.index.tz is None:  # Naive index, localize to America/New_York
-                df.index = df.index.tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
-            else:  # Already timezone-aware, convert to America/New_York
-                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+            if df.index.tz is None:  # Naive index, localize to data source timezone
+                df.index = df.index.tz_localize(self._tzinfo)
+            else:  # Already timezone-aware, convert to data source timezone
+                df.index = df.index.tz_convert(self._tzinfo)
 
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)

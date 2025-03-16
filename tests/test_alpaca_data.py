@@ -39,22 +39,12 @@ class TestAlpacaData:
         assert price is not None
 
     def test_get_historical_prices_daily_bars(self):
-        length = 30
+
         asset = Asset("SPY")
         timestep = "day"
 
         data_source = AlpacaData(ALPACA_TEST_CONFIG)
         now = datetime.now(data_source._tzinfo)
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-
-        check_bars(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0,0),
-            timestep=timestep,
-        )
 
         # This simulates what the call to get_yesterday_dividends does (lookback of 1)
         length = 1
@@ -67,6 +57,20 @@ class TestAlpacaData:
             time_check=time(0 ,0),
             timestep=timestep,
         )
+
+        length = 30
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0,0),
+            timestep=timestep,
+        )
+
+
 
     def test_get_historical_prices_minute_bars_stock(self):
         timestep = "minute"

@@ -209,8 +209,8 @@ class TestMomentum:
 
         results, strategy = MomoTester.run_backtest(
             datasource_class=AlpacaBacktesting,
-            backtesting_start=self.backtesting_start.astimezone(tzinfo),
-            backtesting_end=self.backtesting_end.astimezone(tzinfo),
+            backtesting_start=tzinfo.localize(self.backtesting_start),
+            backtesting_end=tzinfo.localize(self.backtesting_end),
             benchmark_asset=None,
             analyze_backtest=False,
             show_progress_bar=False,
@@ -253,8 +253,8 @@ class TestMomentum:
 
         results, strategy = MomoTester.run_backtest(
             datasource_class=AlpacaBacktesting,
-            backtesting_start=self.backtesting_start.astimezone(tzinfo),
-            backtesting_end=self.backtesting_end.astimezone(tzinfo),
+            backtesting_start=tzinfo.localize(self.backtesting_start),
+            backtesting_end=tzinfo.localize(self.backtesting_end),
             benchmark_asset=None,
             analyze_backtest=False,
             show_progress_bar=False,

@@ -23,7 +23,6 @@ from lumibot.tools.helpers import (
 )
 
 
-
 class AlpacaBacktesting(DataSourceBacktesting):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
@@ -317,7 +316,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if timeshift:
             search_datetime = self._datetime - timeshift
 
-        if self._timestep == 'day':
+        if timestep == 'day':
             # For daily bars, find the index of any bar on the same day
             search_date = search_datetime.date()
             # Convert index to date objects for comparison

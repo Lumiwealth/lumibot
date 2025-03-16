@@ -1,29 +1,25 @@
 import pytest
 from decimal import Decimal
 import pytz
+from datetime import datetime, timedelta, time
 
 import pandas as pd
 
-from lumibot.backtesting import AlpacaBacktesting, PandasDataBacktesting, BacktestingBroker
-from lumibot.brokers import Broker
+from lumibot.backtesting import AlpacaBacktesting, BacktestingBroker
 from lumibot.credentials import ALPACA_TEST_CONFIG
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Bars
 from lumibot.tools import (
     get_trading_days,
     get_trading_times,
 )
 
 from tests.fixtures import (
-    BacktestingTestStrategy
+    BacktestingTestStrategy,
+    check_bars
 )
 
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
-
-
-import pytest
-from datetime import datetime
-from lumibot.entities import Asset
 
 
 class TestAlpacaBacktesting:
@@ -480,8 +476,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -541,13 +537,15 @@ class TestAlpacaBacktesting:
         assert len(last_prices) == 3 # number of trading iterations
         assert last_price_keys[0] == '2025-01-13T09:30:00-05:00'
         assert last_price_keys[-1] == '2025-01-15T09:30:00-05:00'
-        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('220.44')  # Open of '2025-01-14T00:00:00-05:00'
+        # get_last_price should return open of '2025-01-13T00:00:00-05:00'
+        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('218.0600')
 
         order_tracker = strategy.order_tracker
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T00:00:00-05:00'
+        # Market order should be filled with open price of '2025-01-13T09:30:00-05:00
+        assert order_tracker["avg_fill_price"] == 218.0600
 
     def test_amzn_day_1d_5(
             self,
@@ -560,8 +558,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -621,13 +619,15 @@ class TestAlpacaBacktesting:
         assert len(last_prices) == 3 # number of trading iterations
         assert last_price_keys[0] == '2025-01-13T09:30:00-05:00'
         assert last_price_keys[-1] == '2025-01-15T09:30:00-05:00'
-        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('220.44')  # Open of '2025-01-14T00:00:00-05:00'
+        # get_last_price should return open of '2025-01-13T00:00:00-05:00'
+        assert last_prices['2025-01-13T09:30:00-05:00'] == Decimal('218.0600')
 
         order_tracker = strategy.order_tracker
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["avg_fill_price"] == 220.44  # Open of '2025-01-14T00:00:00-05:00'
+        # Market order should be filled with open price of '2025-01-13T09:30:00-05:00
+        assert order_tracker["avg_fill_price"] == 218.0600
 
         if lookback_length > 0:
             historical_prices = strategy.historical_prices
@@ -648,8 +648,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -728,8 +728,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -828,8 +828,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -928,8 +928,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1008,8 +1008,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1088,8 +1088,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1169,8 +1169,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1249,8 +1249,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1329,8 +1329,8 @@ class TestAlpacaBacktesting:
             warm_up_trading_days: int = 5,
             lookback_length: int = 5,
     ):
-        backtesting_start = datetime(2025, 1, 13, tzinfo=tzinfo)
-        backtesting_end = datetime(2025, 1, 17, tzinfo=tzinfo)
+        backtesting_start = datetime(2025, 1, 13).astimezone(tzinfo)
+        backtesting_end = datetime(2025, 1, 17).astimezone(tzinfo)
         refresh_cache = False
 
         strategy: BacktestingTestStrategy
@@ -1397,3 +1397,209 @@ class TestAlpacaBacktesting:
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["avg_fill_price"] == 94153.05  # Open of '2025-01-13T00:00:00-06:00'
+
+
+class TestAlpacaBacktestingDataSource:
+
+    def _create_data_source(
+            self,
+            *,
+            datetime_start=datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York")),
+            datetime_end=datetime(2025, 1, 31, tzinfo=pytz.timezone("America/New_York")),
+            config=ALPACA_TEST_CONFIG,
+            timestep="day",
+            refresh_cache=False,
+            market="NYSE",
+            warm_up_trading_days: int = 0,
+            auto_adjust: bool = True,
+    ):
+        """
+        Create an instance of AlpacaBacktesting with default or provided parameters.
+        """
+        return AlpacaBacktesting(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            config=config,
+            timestep=timestep,
+            refresh_cache=refresh_cache,
+            market=market,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+    def test_get_last_price_daily_bars(self):
+        tzinfo = pytz.timezone("America/New_York")
+        datetime_start = datetime(2025, 1, 1).astimezone(tzinfo)
+        datetime_end = datetime(2025, 3, 1).astimezone(tzinfo)
+        market = "NYSE"
+        timestep = "day"
+        asset = Asset("SPY")
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        now = datetime(2025, 2, 21, 0, 0).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('610.1600')  # open price of the daily bar
+
+        now = datetime(2025, 2, 21, 9, 30).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('610.1600')  # open price of the daily bar
+
+        now = datetime(2025, 2, 21, 15, 59).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('610.1600')  # open price of the daily bar
+
+        now = datetime(2025, 2, 21, 16, 0).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('610.1600')  # open price of the daily bar
+
+    def test_get_last_price_minute_bars(self):
+        tzinfo = pytz.timezone("America/New_York")
+        datetime_start = datetime(2025, 2, 19).astimezone(tzinfo)
+        datetime_end = datetime(2025, 2, 22).astimezone(tzinfo)
+        market = "NYSE"
+        timestep = "minute"
+        asset = Asset("SPY")
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        now = datetime(2025, 2, 21, 0, 0).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('610.1700')  # open price of the minute bar
+
+        now = datetime(2025, 2, 21, 9, 30).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('610.1700')  # open price of the minute bar
+
+        now = datetime(2025, 2, 21, 15, 59).astimezone(tzinfo)
+        data_source._datetime = now
+        price = data_source.get_last_price(asset=asset)
+        assert price == Decimal('599.9700')  # open price of the minute bar
+
+    def test_get_historical_prices_minute_bars(self):
+        tzinfo = pytz.timezone("America/New_York")
+        datetime_start = datetime(2025, 2, 19).astimezone(tzinfo)
+        datetime_end = datetime(2025, 2, 22).astimezone(tzinfo)
+        market = "NYSE"
+        timestep = "minute"
+        asset = Asset("SPY")
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        now = datetime(2025, 2, 21, 9, 30).astimezone(tzinfo)
+        data_source._datetime = now
+        length = 10
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=None,
+            timestep=timestep,
+        )
+
+        length = 1
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=None,
+            timestep=timestep,
+        )
+
+        now = datetime(2025, 2, 21, 10, 0).astimezone(tzinfo)
+        data_source._datetime = now
+        length = 10
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=None,
+            timestep=timestep,
+        )
+
+        length = 1
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=None,
+            timestep=timestep,
+        )
+
+        with pytest.raises(Exception):
+            length = -1
+            bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+
+    def test_get_historical_prices_daily_bars(self):
+        tzinfo = pytz.timezone("America/New_York")
+        datetime_start = datetime(2025, 1, 1).astimezone(tzinfo)
+        datetime_end = datetime(2025, 3, 1).astimezone(tzinfo)
+        market = "NYSE"
+        timestep = "day"
+        asset = Asset("SPY")
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+        )
+
+        now = datetime(2025, 2, 21, 9, 30).astimezone(tzinfo)
+        data_source._datetime = now
+        length = 10
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0, 0)
+        )
+
+        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        length = 1
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0, 0)
+        )
+
+        with pytest.raises(Exception):
+            length = -1
+            bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+
+        
+        

@@ -204,8 +204,7 @@ class TradierData(DataSource):
         else:
             symbol = asset.symbol
 
-        end_date = datetime.now()
-        end_date = end_date.astimezone(self._tzinfo)
+        end_date = datetime.now().astimezone(self._tzinfo)
 
         # Calculate the end date
         if timeshift:

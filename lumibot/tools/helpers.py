@@ -1,9 +1,10 @@
 import os
 import re
 import sys
+from decimal import Decimal, ROUND_HALF_EVEN
+
 import pytz
 from datetime import datetime, timedelta, date, time
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -99,7 +100,7 @@ def get_trading_days(
         start_date="1950-01-01",
         end_date=None,
         tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
-) -> pd.DatetimeIndex:
+) -> pd.DataFrame:
     """
     Gets a schedule of trading days and corresponding market open/close times
     for a specified market between given start and end dates, including proper
@@ -430,6 +431,27 @@ def parse_timestep_qty_and_unit(timestep):
         unit = m.group(2).rstrip("s")  # remove trailing 's' if any
 
     return quantity, unit
+
+
+def get_decimals(number):
+    return len(str(number).split('.')[-1]) if '.' in str(number) else 0
+
+
+def quantize_to_num_decimals(num: float, num_decimals: int) -> float:
+    if isinstance(num, Decimal):
+        num = num
+    elif isinstance(num, float):
+        num = Decimal(str(num))
+    else:
+        raise ValueError(f"{num} is not a Decimal or float")
+
+    # Create the proper decimal format (e.g., '0.01' for 2 decimals)
+    decimal_format = Decimal('0.' + '0' * num_decimals)
+
+    # quantize num using ROUND_HALF_EVEN
+    quantized_num = num.quantize(decimal_format, rounding=ROUND_HALF_EVEN)
+    return float(quantized_num)
+
 
 
 def has_more_than_n_decimal_places(number: float, n: int) -> bool:

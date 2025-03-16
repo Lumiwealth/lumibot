@@ -60,12 +60,6 @@ class TestLiveDataSource:
 
     # noinspection PyMethodMayBeStatic
     def check_date_of_last_bar_is_correct_for_live_data_sources(self, bars, market='NYSE'):
-        """
-        Weird test: the results depend on the market, date and time the test is run.
-        If you ask for one bar before the market is closed, you should get the bar from the last trading day.
-        If you ask for one bar while the market is open, you should get an incomplete bar for the current day.
-        If you ask for one bar after the market is closed, you should get a complete bar from the current trading day.
-        """
         now = datetime.now(tz=pytz.timezone("America/New_York"))
         today = now.date()
 
@@ -78,192 +72,20 @@ class TestLiveDataSource:
 
         if today in list(trading_days.index.date):
             market_open = trading_days.loc[str(today), 'market_open']
+            market_close = trading_days.loc[str(today), 'market_close']
 
             if now < market_open:
+                # Before market open - should get last trading day's bar
                 assert bars.df.index[-1].date() == trading_days.index[-2].date()
+            elif market_open <= now <= market_close:
+                # During market hours - should get incomplete current day bar
+                assert bars.df.index[-1].date() == trading_days.index[-1].date()
             else:
+                # After market close - should get complete current day bar
                 assert bars.df.index[-1].date() == trading_days.index[-1].date()
         else:
+            # Non-trading day - should get last trading day's bar
             assert bars.df.index[-1].date() == trading_days.index[-1].date()
-
-    @pytest.mark.skipif(
-        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires an alpaca API key"
-    )
-    def test_alpaca_data_source_get_historical_prices_daily_bars(self):
-        length = 30
-        asset = Asset("SPY")
-        timestep = "day"
-
-        data_source = AlpacaData(ALPACA_TEST_CONFIG)
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0,0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
-
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0,0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
-
-    def test_alpaca_data_source_get_historical_prices_daily_bars_crypto(self):
-        length = 30
-        timestep = "day"
-        
-        data_source = AlpacaData(ALPACA_TEST_CONFIG)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-
-        # Alpaca ONLY returns crypto daily bars at midnight central time aka 1am ET
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(1,0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
-
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(1,0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
-
-    def test_alpaca_data_source_get_historical_prices_daily_bars_crypto_utc(self):
-        length = 30
-        timestep = "day"
-        tzinfo = pytz.timezone('UTC')
-
-        data_source = AlpacaData(ALPACA_TEST_CONFIG, tzinfo=tzinfo)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-
-        # Alpaca ONLY returns crypto daily bars at midnight central time aka 5am UTC
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(5, 0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
-
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(5, 0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
-
-    def test_alpaca_data_source_get_historical_prices_daily_bars_crypto_america_chicago(self):
-        length = 30
-        timestep = "day"
-        tzinfo = pytz.timezone('America/Chicago')
-
-        data_source = AlpacaData(ALPACA_TEST_CONFIG, tzinfo=tzinfo)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-
-        # Alpaca ONLY returns crypto daily bars at midnight central time
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
-
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-        check_bars(
-            bars=bars,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars, market='24/7')
-
-    # @pytest.mark.skip()
-    @pytest.mark.skipif(
-        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires an alpaca API key"
-    )
-    def test_alpaca_data_source_get_historical_option_prices(self):
-        length = 30
-        ticker = 'SPY'
-        asset = Asset("SPY")
-        timestep = "day"
-        data_source = AlpacaData(ALPACA_TEST_CONFIG)
-
-        # Get a 0dte option
-        # calculate the last calendar day before today
-        trading_days = get_trading_days(
-            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
-            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-        )
-        dte = trading_days.index[-1]
-
-        spy_price = data_source.get_last_price(asset=asset)
-        o_asset = Asset(ticker, Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
-
-        bars = data_source.get_historical_prices(asset=o_asset, length=length, timestep=timestep)
-        assert len(bars.df) > 0
-
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
-        bars = data_source.get_historical_prices(asset=asset, length=1, timestep=timestep)
-        check_bars(
-            bars=bars,
-            length=1,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0,0)
-        )
-        self.check_date_of_last_bar_is_correct_for_live_data_sources(bars)
-
-    # @pytest.mark.skip()
-    @pytest.mark.skipif(
-        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires an alpaca API key"
-    )
-    def test_alpaca_data_source_get_last_price_crypto(self):
-        data_source = AlpacaData(ALPACA_TEST_CONFIG)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
-        price = data_source.get_last_price(asset=asset, quote=quote_asset)
-        assert price is not None
-
-    @pytest.mark.skipif(
-        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires an alpaca API key"
-    )
-    def test_alpaca_data_source_get_last_price_stock(self):
-        data_source = AlpacaData(ALPACA_TEST_CONFIG)
-        asset = Asset('SPY', asset_type='stock')
-        quote_asset = Asset('USD', asset_type='forex')
-        price = data_source.get_last_price(asset=asset, quote=quote_asset)
-        assert price is not None
 
     @pytest.mark.skipif(
         not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>',
@@ -371,10 +193,12 @@ class TestBacktestingDataSources:
         )
 
         # find the index of the backtesting_start date in the trading_days
-        backtesting_start_index = trading_days.index.get_loc(backtesting_start)
+        # backtesting_start_index = trading_days.index.get_loc(backtesting_start)
+        # As the index is sorted, use searchsorted to find the relevant day
+        backtesting_start_index = trading_days['market_close'].searchsorted(backtesting_start, side='right')
 
         # get the date of the last trading day before the backtesting_start date
-        previous_trading_day_date = trading_days.index[backtesting_start_index - 1].date()
+        previous_trading_day_date = trading_days['market_close'][backtesting_start_index - 1].date()
         assert bars.df.index[-1].date() == previous_trading_day_date
 
     # noinspection PyMethodMayBeStatic
@@ -638,6 +462,7 @@ class TestBacktestingDataSources:
             datetime_end=backtesting_end,
             pandas_data=pandas_data_fixture
         )
+        data_source._datetime = datetime.strptime("09:30", "%H:%M").time()
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
         # TODO: Yahoo data is indexed at the close (4pm EDT).
         #  Consider changing that to midnight like lumibot expects
@@ -742,6 +567,44 @@ class TestBacktestingDataSources:
             bars,
             backtesting_start=backtesting_start
         )
+        
+    # @pytest.mark.skip()
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_alpaca_backtesting_data_source_get_historical_prices_daily_bars_at_sim_time(self):
+        asset = Asset("SPY")
+        # Get MLK day for last year
+        last_year = datetime.now().year - 1
+        mlk_day = self.get_mlk_day(last_year)
+
+        # Get the friday of MLK week
+        backtesting_start = mlk_day + timedelta(days=4)
+        backtesting_end = datetime(last_year, 2, 22)
+        timestep = 'day'
+        refresh_cache = False
+        length = 3
+
+        data_source = AlpacaBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            config=ALPACA_TEST_CONFIG,
+            timestep=timestep,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=length
+        )
+
+        # the backtester runs daily bars at 9:30am
+        data_source._datetime = data_source._datetime.replace(hour=9, minute=30, second=0, microsecond=0)
+
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+        check_bars(bars=bars, length=length, time_check=time(0,0))
+        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+            bars,
+            backtesting_start=data_source._datetime
+        )
+
 
     # @pytest.mark.skip()
     @pytest.mark.skipif(

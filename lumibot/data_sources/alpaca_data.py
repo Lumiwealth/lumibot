@@ -27,6 +27,10 @@ from lumibot import (
     LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
     LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
 )
+from lumibot.tools.helpers import (
+    get_decimals,
+    quantize_to_num_decimals
+)
 
 from .data_source import DataSource
 
@@ -233,6 +237,8 @@ class AlpacaData(DataSource):
 
             # The price is the average of the bid and ask
             price = (latest_quote.bid_price + latest_quote.ask_price) / 2
+            num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
+
         elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (
                 isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
             logging.info(f"Getting {asset} option price")
@@ -241,18 +247,18 @@ class AlpacaData(DataSource):
             trade = client.get_option_latest_trade(params)
             print(f'This {trade} {symbol}')
             price = trade[symbol].price
+            num_decimals = get_decimals(price)
         else:
             # Stocks
             client = self._get_stock_client()
             params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
             latest_quote = client.get_stock_latest_quote(params)[symbol]
 
-            # Get bid and ask prices from the quote
-            bid_price = latest_quote.bid_price
-            ask_price = latest_quote.ask_price
+            # The price is the average of the bid and ask
+            price = (latest_quote.bid_price + latest_quote.ask_price) / 2
+            num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
 
-            # You can use either bid, ask, or their average as your price
-            price = (bid_price + ask_price) / 2  # Using midpoint price
+        price = quantize_to_num_decimals(price, num_decimals)
 
         return price
 
@@ -305,12 +311,18 @@ class AlpacaData(DataSource):
         if not limit:
              limit = 1000
 
+        pull_latest = False
         if not end:
             if asset.asset_type != Asset.AssetType.CRYPTO:
                 # Alpaca limitation of not getting the most recent 15 minutes
                 end = datetime.now(self._tzinfo) - self._delay
             else:
                 end = datetime.now(self._tzinfo)
+
+            # Get a minute into the future to get the last full minute back
+            end = end + timedelta(minutes=1)
+            end = end.replace(second=0, microsecond=0)
+            pull_latest = True
 
         if not start:
             if asset.asset_type == Asset.AssetType.CRYPTO:
@@ -382,6 +394,14 @@ class AlpacaData(DataSource):
 
             df = barset.df
 
+            if df.empty and not pull_latest:
+                logging.warning(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
+                return None
+            elif df.empty:
+                # Create an empty DataFrame with specified columns and index "timestamp"
+                df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume', 'trade_count', 'vwap'])
+                df.index.name = 'timestamp'
+
             # Alpaca now returns a dataframe with a MultiIndex. We only want an index of timestamps
             df = df.reset_index(level=0, drop=True)
 
@@ -390,13 +410,10 @@ class AlpacaData(DataSource):
                 if df.index.tz is not None:
                     # Convert if index already has a timezone
                     df.index = df.index.tz_convert(self._tzinfo)
-            elif df.index.tz is None:
-                # Localize if index has no timezone
-                df.index = self._tzinfo.localize(df.index)  # For pytz
-
-            if df.empty:
-                logging.error(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
-                return None
+                else:
+                    # Localize if index has no timezone
+                    df.index = self._tzinfo.localize(df.index)  # For pytz
+            # No else clause needed - skip timezone operations for non-datetime indices
 
             df = df[~df.index.duplicated(keep="first")]
             df = df.iloc[-limit:]
@@ -407,6 +424,35 @@ class AlpacaData(DataSource):
             logging.warning(
                 f"Dataframe for {symbol} has {len(df)} rows while {limit} were requested. Further data does not exist for Alpaca"
             )
+
+        if str(freq) == "1Min":
+            # live minute data will not include the current incomplete minute bar. that behavior is different
+            # from alpaca's behavior for daily bars (which will return the incomplete bar for the current day).
+            # For consistency, we include the last_price as the last row during minute timesteps
+            # and add that as the last row in the df using the end as the timestamp.
+            price = self.get_last_price(
+                asset=asset,
+                quote=quote
+            )
+            # Create a dictionary with all columns set to 0.0 first
+            new_row = {col: 0.0 for col in df.columns}
+
+            # Then set the OHLC values
+            new_row.update({
+                'open': price,
+                'high': price,
+                'low': price,
+                'close': price
+            })
+
+            # Apply to the DataFrame
+            now = datetime.now().astimezone(self._tzinfo)
+            now = now.replace(second=0, microsecond=0)
+            df.loc[now] = new_row
+
+            # Remove the first row since a row was added
+            if not df.empty and len(df) > 1:
+                df = df.iloc[1:]
 
         return df
 

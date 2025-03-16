@@ -1,7 +1,8 @@
 from decimal import Decimal
 from typing import List, Any
 from zoneinfo import ZoneInfo
-from datetime import datetime
+from datetime import datetime, timedelta, time
+import pytz
 
 import pytest
 import logging
@@ -11,11 +12,11 @@ from pathlib import Path
 import pandas as pd
 
 from lumibot import LUMIBOT_SOURCE_PATH
-from lumibot.entities import Data, Asset
+from lumibot.entities import Data, Asset, Bars
 from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.strategies import Strategy
 from lumibot.tools.helpers import (
-    parse_timestep_qty_and_unit,
+    get_trading_days,
 )
 
 logger = logging.getLogger(__name__)
@@ -251,3 +252,83 @@ class BacktestingTestStrategy(Strategy):
         else:
             self.cancel_open_orders()
 
+
+# noinspection PyMethodMayBeStatic
+def check_bars(
+        *,
+        bars: Bars,
+        now: datetime,
+        length: int = 30,
+        data_source_tz: pytz.timezone = None,
+        time_check: time | None = None,
+        market: str = 'NYSE',
+        timestep: str = 'day'
+):
+    """
+     This tests:
+        - the right number of bars are retrieved
+        - the index is a timestamp
+        - data_source_tz: pytz.timezone, if set checks that the index's timezone matches
+        - if the timestamp of the last bar is earlier or equal to now
+        - if time_check, check the hour and minute of the timestamp,
+        - checks that the date of the last bar is correct based on now
+    """
+    assert len(bars.df) == abs(length)
+    assert isinstance(bars.df.index[-1], pd.Timestamp)
+
+    if data_source_tz:
+        assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
+
+    assert bars.df["return"].iloc[-1] is not None
+
+    if time_check:
+        timestamp = bars.df.index[-1]
+        assert timestamp.hour == time_check.hour
+        assert timestamp.minute == time_check.minute
+
+    today = now.date()
+
+    assert bars.df.index[-1] <= now
+
+    trading_days = get_trading_days(
+        market=market,
+        start_date=today - timedelta(days=7),
+        end_date=today + timedelta(days=1),
+        tzinfo=data_source_tz
+    )
+
+    if timestep == 'day':
+        if today in list(trading_days.index.date):
+            market_open = trading_days.loc[str(today), 'market_open']
+            market_close = trading_days.loc[str(today), 'market_close']
+
+            if now < market_open:
+                # Before market open - should get last trading day's bar
+                assert bars.df.index[-1].date() == trading_days.index[-2].date()
+            elif market_open <= now <= market_close:
+                # During market hours - should get incomplete current day bar
+                assert bars.df.index[-1].date() == trading_days.index[-1].date()
+            else:
+                # After market close - should get complete current day bar
+                assert bars.df.index[-1].date() == trading_days.index[-1].date()
+        else:
+            # Non-trading day - should get last trading day's bar
+            assert bars.df.index[-1].date() == trading_days.index[-1].date()
+    else:
+        # timestep == 'minute'
+        if today in list(trading_days.index.date):
+            market_open = trading_days.loc[str(today), 'market_open']
+            market_close = trading_days.loc[str(today), 'market_close']
+
+            if now < market_open:
+                # Before market open - last bar should be from previous day
+                assert bars.df.index[-1].date() == trading_days.index[-2].date()
+            elif market_open <= now <= market_close:
+                # During market hours - last bar should be (incomplete) minute bar for now
+                assert bars.df.index[-1] == now.replace(second=0, microsecond=0)
+            else:
+                # After market close - should be equal to market close
+                assert bars.df.index[-1] == market_close
+        else:
+            # Non-trading day - should get last trading day's bar
+            assert bars.df.index[-1].date() == trading_days.index[-1].date()

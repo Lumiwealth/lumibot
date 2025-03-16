@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 import pytz
 import pytest
@@ -9,7 +10,8 @@ from lumibot.tools.helpers import (
     date_n_days_from_date,
     get_trading_days,
     get_trading_times,
-    get_timezone_from_datetime
+    get_timezone_from_datetime,
+    quantize_to_num_decimals
 )
 
 
@@ -286,3 +288,10 @@ def test_get_timezone_from_datetime_types():
     # Test with non-datetime
     with pytest.raises(AttributeError):
         get_timezone_from_datetime("not a datetime")
+
+
+def test_quantize_to_num_decimals():
+    assert quantize_to_num_decimals(123.4567, 2) == 123.46
+    assert quantize_to_num_decimals(123.4567, 3) == 123.457
+    assert quantize_to_num_decimals(Decimal('123.4567'), 1) == 123.5
+    assert quantize_to_num_decimals(123.4567000001, 2) == 123.46

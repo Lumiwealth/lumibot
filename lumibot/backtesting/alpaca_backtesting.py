@@ -195,7 +195,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote: Asset | None = None,
             exchange: str | None = None
     ) -> float | Decimal | None:
-        """Takes an asset and returns the last known price"""
+        """Returns the open price of the current bar."""
 
         if isinstance(asset, tuple):
             # Grr... Who made this a tuple?
@@ -215,8 +215,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         precision = self.ALPACA_CRYPTO_PRECISION if asset.asset_type == 'crypto' else self.ALPACA_STOCK_PRECISION
 
-        open_ = bars.df.iloc[0].open
-        return Decimal(str(open_)).quantize(precision, rounding=ROUND_HALF_EVEN)
+        # The backtesting_broker, fills market orders using the open price of the current bar, so
+        # get_last_price should also return the open. (It would be weird to fill on the open but provide the close
+        # as the last price). This approach works for daily and minute bars. For daily bars, this returns the open
+        # price, even if now is 9:30 and the daily bar was indexed at 00:00. Thats the only weird thing. But it makes
+        # sense. The open of the daily bar for stocks was not at 00:00. It was at 9:30 anyway.
+        price = bars.df.iloc[0].open
+        return Decimal(str(price)).quantize(precision, rounding=ROUND_HALF_EVEN)
 
     def get_historical_prices(
             self,
@@ -263,6 +268,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         pd.DataFrame | None
             The bars for the asset.
         """
+        if length <= 0:
+            raise ValueError("Length must be positive.")
 
         if isinstance(asset, tuple):
             # Grr... Who made this a tuple?
@@ -310,31 +317,30 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if timeshift:
             search_datetime = self._datetime - timeshift
 
-        current_index = df.index.searchsorted(search_datetime)
+        if self._timestep == 'day':
+            # For daily bars, find the index of any bar on the same day
+            search_date = search_datetime.date()
+            # Convert index to date objects for comparison
+            dates = df.index.date
+            current_index = dates.searchsorted(search_date)
+        else:
+            # For minute bars, find the exact minute
+            current_index = df.index.searchsorted(search_datetime)
+
         if current_index >= len(df):
             raise ValueError(f"Datetime {search_datetime} not found in the dataset for {key}.")
 
-        if length == 0:
-            raise ValueError("Length must be non-zero")
-
         if length == 1:
-            result = df.iloc[[current_index]]  # Return just the current row as DataFrame
-        elif length > 1:
-            # Check if we have enough historical data
+            result = df.iloc[[current_index]]
+        else:
+            # pandas slicing is exclusive of end... increment current_index so it's included
+            current_index += 1
             if current_index - length < 0:
                 raise ValueError(
                     f"Not enough historical data. Requested {length} bars but only have {current_index} "
                     f"bars before the reference time."
                 )
             result = df.iloc[current_index - length:current_index]
-        else:  # length < 0
-            # Check if we have enough forward data
-            if current_index - length > len(df):  # Note: minus a negative is plus
-                raise ValueError(
-                    f"Not enough forward data. Requested {abs(length)} bars but only have "
-                    f"{len(df) - current_index} bars after the reference time."
-                )
-            result = df.iloc[current_index:current_index - length]  # Note: minus a negative is plus
 
         bars = Bars(result, self.SOURCE, asset=asset, quote=quote)
         return bars
@@ -569,8 +575,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         try:
             df = pd.read_csv(filepath, parse_dates=['timestamp'])
-            # We know the timestamps in the CSV are in a specific timezone
-            df['timestamp'] = df['timestamp'].dt.tz_localize(self._tzinfo)
+            if df['timestamp'].dt.tz is None:
+                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(self._tzinfo)
+            else:
+                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_convert(self._tzinfo)
 
             df.set_index('timestamp', inplace=True)
             self._data_store[key] = df

@@ -1,8 +1,19 @@
 from collections import UserDict
 from datetime import date, datetime
-from enum import StrEnum
+from enum import Enum
 
 from lumibot.tools import parse_symbol
+
+
+# Custom string enum implementation for Python 3.9 compatibility
+class StrEnum(str, Enum):
+    def __str__(self):
+        return self.value
+    
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
 
 
 class Asset:

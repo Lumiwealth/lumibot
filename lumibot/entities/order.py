@@ -2,13 +2,25 @@ import logging
 import uuid
 from collections import namedtuple
 from decimal import Decimal
-from enum import StrEnum
+from enum import Enum
 from threading import Event
 import datetime
 from typing import Union
 
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price
+
+
+# Custom string enum implementation for Python 3.9 compatibility
+class StrEnum(str, Enum):
+    def __str__(self):
+        return self.value
+    
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
 
 SELL = "sell"
 BUY = "buy"

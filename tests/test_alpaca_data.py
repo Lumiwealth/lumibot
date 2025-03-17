@@ -72,6 +72,7 @@ class TestAlpacaData:
         )
 
     def test_get_historical_prices_minute_bars_stock(self):
+        # TODO: this really checks extended hours and won't work before market hours.
         timestep = "minute"
         data_source = AlpacaData(ALPACA_TEST_CONFIG)
         now = datetime.now(data_source._tzinfo)

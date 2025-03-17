@@ -78,7 +78,7 @@ class DataSource(ABC):
     ) -> Bars:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
-        For example, with a length of 10 and a timestep of "day", and now timeshift, this
+        For example, with a length of 10 and a timestep of "day", and no timeshift, this
         would return the last 10 daily bars.
 
         - Higher-level method that returns a `Bars` object

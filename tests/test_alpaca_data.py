@@ -30,6 +30,7 @@ class TestAlpacaData:
         quote_asset = Asset('USD', asset_type='forex')
         price = data_source.get_last_price(asset=asset, quote=quote_asset)
         assert price is not None
+        assert isinstance(price, float)
 
     def test_get_last_price_stock(self):
         data_source = AlpacaData(ALPACA_TEST_CONFIG)
@@ -37,16 +38,16 @@ class TestAlpacaData:
         quote_asset = Asset('USD', asset_type='forex')
         price = data_source.get_last_price(asset=asset, quote=quote_asset)
         assert price is not None
+        assert isinstance(price, float)
 
     def test_get_historical_prices_daily_bars(self):
-
         asset = Asset("SPY")
         timestep = "day"
 
         data_source = AlpacaData(ALPACA_TEST_CONFIG)
         now = datetime.now(data_source._tzinfo)
 
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
         check_bars(
@@ -70,8 +71,6 @@ class TestAlpacaData:
             timestep=timestep,
         )
 
-
-
     def test_get_historical_prices_minute_bars_stock(self):
         timestep = "minute"
         data_source = AlpacaData(ALPACA_TEST_CONFIG)
@@ -90,7 +89,7 @@ class TestAlpacaData:
             if bars:
                 check_bars(
                     bars=bars,
-                    now=now,
+                    now=now - data_source._delay,
                     length=length,
                     data_source_tz=data_source._tzinfo,
                     time_check=None,
@@ -145,7 +144,7 @@ class TestAlpacaData:
             timestep=timestep,
         )
 
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
         check_bars(
@@ -180,7 +179,7 @@ class TestAlpacaData:
             timestep=timestep,
         )
 
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
         check_bars(
@@ -215,7 +214,7 @@ class TestAlpacaData:
             timestep=timestep,
         )
 
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
         check_bars(

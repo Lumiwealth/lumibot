@@ -1,8 +1,10 @@
 import logging
+import math
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Union
 import pytz
+import time
 
 import pandas as pd
 import re
@@ -97,8 +99,6 @@ class AlpacaData(DataSource):
         },
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
-    ALPACA_STOCK_PRECISION = Decimal('0.0001')
-    ALPACA_CRYPTO_PRECISION = Decimal('0.000000001')
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
@@ -296,148 +296,166 @@ class AlpacaData(DataSource):
 
     def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None):
         """
-        gets historical bar data for the given stock symbol
-        and time params.
+        Gets historical bar data for the given asset and time parameters with proper pagination.
 
-        outputs a dataframe open, high, low, close columns and
-        a timezone aware index.
+        Args:
+            asset: Asset object or tuple (asset, quote)
+            freq: Bar frequency (e.g. "1Min", "1Day")
+            limit: Maximum number of bars to return
+            end: End datetime (timezone aware)
+            start: Start datetime (timezone aware)
+            quote: Quote asset for crypto pairs
+
+        Returns:
+            DataFrame with OHLCV data and timezone aware index
         """
+        # Handle asset tuple case
         if isinstance(asset, tuple):
             if quote is None:
                 quote = asset[1]
             asset = asset[0]
 
-        loop_limit = 0
+        # Set default limit
         if not limit:
-             limit = 1000
+            limit = 1000
 
-        pull_latest = False
+        # Handle end time
         if not end:
             if asset.asset_type != Asset.AssetType.CRYPTO:
-                # Alpaca limitation of not getting the most recent 15 minutes
+                # Stocks/options need delay for last 15 minutes
                 end = datetime.now(self._tzinfo) - self._delay
             else:
                 end = datetime.now(self._tzinfo)
 
-            # Get a minute into the future to get the last full minute back
+            # Round to last full minute
             end = end + timedelta(minutes=1)
             end = end.replace(second=0, microsecond=0)
             pull_latest = True
+        else:
+            pull_latest = False
 
-        if not start:
-            if asset.asset_type == Asset.AssetType.CRYPTO:
-                # Crypto trades 24/7, no adjustments needed
-                loop_limit = limit
-            else:
-                # Traditional assets (stocks, etc.)
-                if str(freq) == "1Min":
-                    if datetime.now().weekday() == 0:  # Monday
-                        # Add 4896 minutes to account for:
-                        # - Saturday (1440 minutes)
-                        # - Sunday (1440 minutes)
-                        # - Gap between Friday 4:00 PM to Monday 9:30 AM (390 minutes)
-                        loop_limit = limit + 4896
-                    else:
-                        # Regular trading days
-                        loop_limit = limit
+        # Initialize pagination parameters
+        max_bars_per_request = 5000
+        df_list = []
+        remaining_bars = limit
+        current_end = end
 
-                elif str(freq) == "1Day":
-                    # Calculate padding for weekends and holidays
-                    weeks_requested = limit // 5  # Full trading week is 5 days
-                    extra_padding_days = weeks_requested * 3  # Account for weekends and holidays
-                    loop_limit = max(5, limit + extra_padding_days)  # Get at least 5 days
+        while remaining_bars > 0:
+            # Calculate request size for this iteration
+            request_size = min(remaining_bars, max_bars_per_request)
+
+            # Calculate start time based on frequency and asset type
+            if str(freq) == "1Day":
+                # For daily bars, directly calculate days
+                if asset.asset_type == Asset.AssetType.CRYPTO:
+                    request_start = current_end - timedelta(days=request_size)
                 else:
-                    # For any other frequency
-                    loop_limit = limit
+                    # For stocks/options, account for weekends (multiply by 7/5)
+                    calendar_days = math.ceil(request_size * 7 / 5)
+                    request_start = current_end - timedelta(days=calendar_days)
 
-        df = []  # to use len(df) below without an error
+            elif str(freq) == "1Min":
+                if asset.asset_type == Asset.AssetType.CRYPTO:
+                    # Crypto trades 24/7, so direct minute calculation
+                    request_start = current_end - timedelta(minutes=request_size)
+                else:
+                    # For stocks/options with extended hours (12 hours per day)
+                    minutes_per_day = 12 * 60
+                    trading_days = math.ceil(request_size / minutes_per_day)
+                    calendar_days = math.ceil(trading_days * 7 / 5)
+                    request_start = current_end - timedelta(days=calendar_days)
 
-        # arbitrary limit of upto 4 calls after which it will give up
-        while loop_limit / limit <= 64 and len(df) < limit:
-            if str(freq) == "1Min":
-                start = end - timedelta(minutes=loop_limit)
-
-            elif str(freq) == "1Day":
-                start = end - timedelta(days=loop_limit)
-
-            if asset.asset_type == Asset.AssetType.CRYPTO:
-                symbol = f"{asset.symbol}/{quote.symbol}"
-                client = self._get_crypto_client()
-                params = CryptoBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-                try:
-                    barset = client.get_crypto_bars(params)
-                except Exception as e:
-                    logging.error(f"Could not get crypto pricing data from Alpaca for {symbol} with the following error: {e}")
-                    return None
-
-            elif asset.asset_type == Asset.AssetType.OPTION:
-                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-                date = asset.expiration.strftime("%y%m%d")
-                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-                client = self._get_option_client()
-                params = OptionBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-                try:
-                    barset = client.get_option_bars(params)
-                except Exception as e:
-                    logging.error(
-                        f"Could not get option pricing data from Alpaca for {symbol} with the following error: {e}")
-                    return None
             else:
-                symbol = asset.symbol
-                client = self._get_stock_client()
-                params = StockBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-                try:
+                # For other frequencies, treat similar to minutes
+                request_start = current_end - timedelta(minutes=request_size)
+
+            # Make API request based on asset type
+            try:
+                if asset.asset_type == Asset.AssetType.CRYPTO:
+                    symbol = f"{asset.symbol}/{quote.symbol}"
+                    client = self._get_crypto_client()
+                    params = CryptoBarsRequest(
+                        symbol_or_symbols=symbol,
+                        timeframe=freq,
+                        start=request_start,
+                        end=current_end
+                    )
+                    barset = client.get_crypto_bars(params)
+
+                elif asset.asset_type == Asset.AssetType.OPTION:
+                    strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                    date = asset.expiration.strftime("%y%m%d")
+                    symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                    client = self._get_option_client()
+                    params = OptionBarsRequest(
+                        symbol_or_symbols=symbol,
+                        timeframe=freq,
+                        start=request_start,
+                        end=current_end
+                    )
+                    barset = client.get_option_bars(params)
+
+                else:  # Stock/ETF
+                    symbol = asset.symbol
+                    client = self._get_stock_client()
+                    params = StockBarsRequest(
+                        symbol_or_symbols=symbol,
+                        timeframe=freq,
+                        start=request_start,
+                        end=current_end
+                    )
                     barset = client.get_stock_bars(params)
-                except Exception as e:
-                    logging.error(f"Could not get pricing data from Alpaca for {symbol} with the following error: {e}")
-                    return None
 
-            df = barset.df
+                chunk_df = barset.df
 
-            if df.empty and not pull_latest:
-                logging.warning(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
+                if not chunk_df.empty:
+                    df_list.append(chunk_df)
+                    received_bars = len(chunk_df)
+                    remaining_bars -= received_bars
+                    current_end = chunk_df.index[0][1]  # Start next request from earliest received data
+                else:
+                    break  # No more data available
+
+            except Exception as e:
+                logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+                break
+
+            # Rate limiting pause
+            time.sleep(0.1)
+
+        # Handle case where no data was received
+        if not df_list:
+            if not pull_latest:
+                logging.warning(f"No pricing data available from Alpaca for {symbol}")
                 return None
-            elif df.empty:
-                # Create an empty DataFrame with specified columns and index "timestamp"
-                df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume', 'trade_count', 'vwap'])
-                df.index.name = 'timestamp'
+            df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume', 'trade_count', 'vwap'])
+            df.index.name = 'timestamp'
+        else:
+            # Combine all chunks and process the final dataframe
+            df = pd.concat(df_list)
+            df = df.reset_index(level=0, drop=True)  # Remove MultiIndex
 
-            # Alpaca now returns a dataframe with a MultiIndex. We only want an index of timestamps
-            df = df.reset_index(level=0, drop=True)
-
-            # Adjust the timezone of the data to whatever the user wanted.
+            # Handle timezone conversion
             if hasattr(df.index, 'tz'):
                 if df.index.tz is not None:
-                    # Convert if index already has a timezone
                     df.index = df.index.tz_convert(self._tzinfo)
                 else:
-                    # Localize if index has no timezone
-                    df.index = self._tzinfo.localize(df.index)  # For pytz
-            # No else clause needed - skip timezone operations for non-datetime indices
+                    df.index = self._tzinfo.localize(df.index)
 
+            # Clean up the dataframe
             df = df[~df.index.duplicated(keep="first")]
-            df = df.iloc[-limit:]
+            df = df.iloc[-limit:]  # Ensure we don't exceed the requested limit
             df = df[df.close > 0]
-            loop_limit *= 2
 
-        if len(df) < limit:
-            logging.warning(
-                f"Dataframe for {symbol} has {len(df)} rows while {limit} were requested. Further data does not exist for Alpaca"
-            )
+            if len(df) < limit:
+                logging.warning(
+                    f"Only got {len(df)} bars for {symbol} while {limit} were requested"
+                )
 
-        if str(freq) == "1Min":
-            # live minute data will not include the current incomplete minute bar. that behavior is different
-            # from alpaca's behavior for daily bars (which will return the incomplete bar for the current day).
-            # For consistency, we include the last_price as the last row during minute timesteps
-            # and add that as the last row in the df using the end as the timestamp.
-            price = self.get_last_price(
-                asset=asset,
-                quote=quote
-            )
-            # Create a dictionary with all columns set to 0.0 first
+        # Handle live minute data special case
+        if str(freq) == "1Min" and pull_latest:
+            price = self.get_last_price(asset=asset, quote=quote)
             new_row = {col: 0.0 for col in df.columns}
-
-            # Then set the OHLC values
             new_row.update({
                 'open': price,
                 'high': price,
@@ -445,15 +463,14 @@ class AlpacaData(DataSource):
                 'close': price
             })
 
-            # Apply to the DataFrame
             now = datetime.now().astimezone(self._tzinfo)
             now = now.replace(second=0, microsecond=0)
             df.loc[now] = new_row
 
-            # Remove the first row since a row was added
             if not df.empty and len(df) > 1:
                 df = df.iloc[1:]
 
+        df = df.sort_index()
         return df
 
     def _pull_source_bars(

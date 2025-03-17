@@ -270,6 +270,10 @@ class TradierData(DataSource):
             else:  # Already timezone-aware, convert to data source timezone
                 df.index = df.index.tz_convert(self._tzinfo)
 
+        # Ensure df only contains the last N bars
+        if len(df) > length:
+            df = df.iloc[-length:]
+
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
 

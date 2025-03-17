@@ -5,6 +5,12 @@ import pandas as pd
 
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
+from lumibot.tools.helpers import (
+    date_n_days_from_date,
+    get_trading_days,
+    get_trading_times,
+    get_timezone_from_datetime
+)
 
 
 class DataSourceBacktesting(DataSource, ABC):
@@ -32,6 +38,7 @@ class DataSourceBacktesting(DataSource, ABC):
             delay=delay
         )
 
+
         if backtesting_started is None:
             _backtesting_started = datetime.now()
         else:
@@ -42,6 +49,7 @@ class DataSourceBacktesting(DataSource, ABC):
         self._datetime = self.datetime_start
         self._iter_count = None
         self.backtesting_started = _backtesting_started
+        self._tzinfo = get_timezone_from_datetime(self.datetime_start)
 
         # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
         self.datetime_end -= timedelta(minutes=1)

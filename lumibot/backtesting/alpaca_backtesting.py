@@ -2,7 +2,7 @@ import logging
 import os
 import pytz
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN
+from decimal import Decimal, ROUND_HALF_EVEN
 
 import pandas as pd
 from alpaca.data.historical import CryptoHistoricalDataClient
@@ -19,7 +19,9 @@ from lumibot.tools.helpers import (
     date_n_days_from_date,
     get_trading_days,
     get_trading_times,
-    get_timezone_from_datetime
+    get_timezone_from_datetime,
+    get_decimals,
+    quantize_to_num_decimals
 )
 
 
@@ -31,8 +33,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
         {"timestep": "minute", "representations": [TimeFrame.Minute]},
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = AlpacaData.LUMIBOT_DEFAULT_QUOTE_ASSET
-    ALPACA_STOCK_PRECISION = AlpacaData.ALPACA_STOCK_PRECISION
-    ALPACA_CRYPTO_PRECISION = AlpacaData.ALPACA_CRYPTO_PRECISION
 
     def __init__(
             self,
@@ -212,15 +212,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if bars is None or bars.df.empty:
             return None
 
-        precision = self.ALPACA_CRYPTO_PRECISION if asset.asset_type == 'crypto' else self.ALPACA_STOCK_PRECISION
-
         # The backtesting_broker, fills market orders using the open price of the current bar, so
         # get_last_price should also return the open. (It would be weird to fill on the open but provide the close
         # as the last price). This approach works for daily and minute bars. For daily bars, this returns the open
         # price, even if now is 9:30 and the daily bar was indexed at 00:00. Thats the only weird thing. But it makes
         # sense. The open of the daily bar for stocks was not at 00:00. It was at 9:30 anyway.
         price = bars.df.iloc[0].open
-        return Decimal(str(price)).quantize(precision, rounding=ROUND_HALF_EVEN)
+        num_decimals = get_decimals(price)
+        return quantize_to_num_decimals(price, num_decimals)
 
     def get_historical_prices(
             self,
@@ -525,18 +524,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # Reindex the dataframe with a row for each bar we should have a trading iteration for.
         # Fill any empty bars with previous data.
         df = self._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
-
-        # If asset is of type stock, quantize OHLC prices to ALPACA_STOCK_PRECISION
-        if base_asset.asset_type == 'stock':
-            for column in ['open', 'high', 'low', 'close']:
-                df[column] = df[column].apply(
-                    lambda x: Decimal(str(x)).quantize(self.ALPACA_STOCK_PRECISION, rounding=ROUND_HALF_EVEN)
-                )
-        elif base_asset.asset_type == 'crypto':
-            for column in ['open', 'high', 'low', 'close']:
-                df[column] = df[column].apply(
-                    lambda x: Decimal(str(x)).quantize(self.ALPACA_CRYPTO_PRECISION, rounding=ROUND_HALF_EVEN)
-                )
 
         # Filter data to include only rows between data_datetime_start and data_datetime_end
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]

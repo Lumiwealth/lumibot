@@ -1,9 +1,8 @@
 import os
 import logging
 import pytest
-import math
-from datetime import datetime, timedelta, time
 import pytz
+from datetime import datetime, timedelta, time
 
 import pandas as pd
 from pandas.testing import assert_series_equal
@@ -12,46 +11,49 @@ from lumibot.backtesting import (
     PolygonDataBacktesting,
     YahooDataBacktesting,
     CcxtBacktesting,
-    AlpacaBacktesting
 )
-from lumibot.data_sources import AlpacaData, TradierData, PandasData
+from lumibot.data_sources import PandasData
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Asset, Bars
 from lumibot.tools import get_trading_days
-from lumibot.credentials import TRADIER_TEST_CONFIG, ALPACA_TEST_CONFIG, POLYGON_CONFIG
+from lumibot.credentials import POLYGON_CONFIG
+
+from tests.fixtures import (
+    check_bars
+)
 
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
 set_pandas_float_display_precision()
 
 
-def check_bars(
-        *,
-        bars: Bars,
-        length: int = 30,
-        data_source_tz: pytz.timezone = None,
-        time_check: time | None = None,
-):
-    """
-     This tests:
-        - the right number of bars are retrieved
-        - the index is a timestamp
-        - data_source_tz: pytz.timezone, if set checks that the index's timezone matches
-        - if time_check, check the hour and minute of the timestamp
-    """
-    assert len(bars.df) == length
-    assert isinstance(bars.df.index[-1], pd.Timestamp)
-
-    if data_source_tz:
-        assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
-
-    assert bars.df["return"].iloc[-1] is not None
-
-    if time_check:
-        timestamp = bars.df.index[-1]
-        assert timestamp.hour == time_check.hour
-        assert timestamp.minute == time_check.minute
+# def check_bars(
+#         *,
+#         bars: Bars,
+#         length: int = 30,
+#         data_source_tz: pytz.timezone = None,
+#         time_check: time | None = None,
+# ):
+#     """
+#      This tests:
+#         - the right number of bars are retrieved
+#         - the index is a timestamp
+#         - data_source_tz: pytz.timezone, if set checks that the index's timezone matches
+#         - if time_check, check the hour and minute of the timestamp
+#     """
+#     assert len(bars.df) == length
+#     assert isinstance(bars.df.index[-1], pd.Timestamp)
+#
+#     if data_source_tz:
+#         assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
+#
+#     assert bars.df["return"].iloc[-1] is not None
+#
+#     if time_check:
+#         timestamp = bars.df.index[-1]
+#         assert timestamp.hour == time_check.hour
+#         assert timestamp.minute == time_check.minute
 
 
 # @pytest.mark.skip()
@@ -257,27 +259,33 @@ class TestBacktestingDataSources:
             self,
             pandas_data_fixture
     ):
-        # Get MLK day in 2019
-        mlk_day = self.get_mlk_day(2019)
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
 
         # First trading day after MLK day
-        backtesting_start = mlk_day + timedelta(days=1)
-        backtesting_end = datetime(2019, 2, 22)
+        mlk_day = self.get_mlk_day(2019)
+        now = mlk_day + timedelta(days=1)
+        now = tzinfo.localize(now).replace(hour=9, minute=30)
 
         asset = Asset("SPY")
         timestep = "day"
         # get 10 bars starting from backtesting_start (going back in time)
         length = 10
         data_source = PandasData(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             pandas_data=pandas_data_fixture
         )
+        data_source._datetime = now
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(bars=bars, length=length, time_check=time(0,0))
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0,0),
+            timestep=timestep,
         )
 
     @pytest.mark.skipif(

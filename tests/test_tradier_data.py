@@ -111,7 +111,7 @@ class TestTradierData:
             timestep=timestep,
         )
 
-        # This simulates what the call to get_yesterday_dividends does (lookback of 1)
+        # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = tradier_ds.get_historical_prices(asset=asset, length=length, timestep=timestep)
         check_bars(

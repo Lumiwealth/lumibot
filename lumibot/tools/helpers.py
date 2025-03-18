@@ -99,7 +99,7 @@ def get_trading_days(
         market="NYSE",
         start_date="1950-01-01",
         end_date=None,
-        tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
+        tzinfo: pytz.tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
 ) -> pd.DataFrame:
     """
     Gets a schedule of trading days and corresponding market open/close times
@@ -122,6 +122,8 @@ def get_trading_days(
             columns for 'market_open' and 'market_close', adjusted to the
             specified timezone.
     """
+    if not isinstance(tzinfo, pytz.BaseTzInfo):
+        raise TypeError('tzinfo must be a pytz.tzinfo object.')
 
     # More robust datetime conversion with explicit timezone handling
     def format_datetime(dt):
@@ -130,13 +132,12 @@ def get_trading_days(
         # Convert to Python datetime and ensure proper timezone conversion
         return pd.Timestamp(dt).tz_convert(tzinfo).to_pydatetime()
 
-    # Convert input dates to timezone-aware datetime objects
-    def ensure_tz_aware(dt):
+    def ensure_tz_aware(dt, tzinfo):
         dt = pd.to_datetime(dt)
         return dt.tz_convert(tzinfo) if dt.tz is not None else dt.tz_localize(tzinfo)
 
-    start_date = ensure_tz_aware(start_date)
-    end_date = ensure_tz_aware(end_date) if end_date else ensure_tz_aware(get_lumibot_datetime())
+    start_date = ensure_tz_aware(start_date, tzinfo)
+    end_date = ensure_tz_aware(end_date, tzinfo) if end_date else ensure_tz_aware(get_lumibot_datetime())
 
     if market == "24/7":
         cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
@@ -203,7 +204,7 @@ def date_n_days_from_date(
         n_days: int,
         start_datetime: datetime,
         market: str = "NYSE",
-        tzinfo: pytz.timezone = LUMIBOT_DEFAULT_PYTZ
+        tzinfo: pytz.tzinfo = LUMIBOT_DEFAULT_PYTZ
 ) -> date:
     """
     Get the trading date n_days from start_datetime.

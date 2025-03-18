@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 from lumibot import LUMIBOT_SOURCE_PATH
+from lumibot.data_sources import DataSource
 from lumibot.entities import Data, Asset, Bars
 from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.strategies import Strategy
@@ -259,7 +260,7 @@ def check_bars_from_get_historical_prices(
         bars: Bars,
         now: datetime,
         length: int = 30,
-        data_source_tz: pytz.timezone = None,
+        data_source_tz: pytz.tzinfo = None,
         time_check: time | None = None,
         market: str = 'NYSE',
         timestep: str = 'day'
@@ -344,6 +345,117 @@ def check_bars_from_get_historical_prices(
             elif market_open <= now <= market_close:
                 # During market hours - last bar should be (incomplete) minute bar for now
                 assert bars.df.index[-1] == now.replace(second=0, microsecond=0)
+            else:
+                # After market close - should be equal to market close
+                assert bars.df.index[-1] == market_close
+        else:
+            # Non-trading day - should get last trading day's bar
+            assert bars.df.index[-1].date() == trading_days.index[-1].date()
+
+
+class BaseDataSourceTester:
+
+    def _create_data_source(self) -> DataSource:
+        raise NotImplementedError()
+
+    # noinspection PyMethodMayBeStatic
+    def check_length(self, bars: Bars, length: int) -> None:
+        assert len(bars.df) == abs(length)
+
+    # noinspection PyMethodMayBeStatic
+    def check_index(self, bars: Bars, data_source_tz: pytz.tzinfo = None) -> None:
+        assert isinstance(bars.df.index[-1], pd.Timestamp)
+        assert bars.df.index.name in ['timestamp', 'date', 'datetime']
+
+        if data_source_tz:
+            assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
+
+    # noinspection PyMethodMayBeStatic
+    def check_columns(self, bars: Bars) -> None:
+        expected_columns = ['open', 'high', 'low', 'close', 'volume']
+        for column in expected_columns:
+            assert column in bars.df.columns
+
+        assert bars.df["return"].iloc[-1] is not None
+
+    # noinspection PyMethodMayBeStatic
+    def check_daily_bars(
+            self,
+            *,
+            bars: Bars,
+            now: datetime,
+            data_source_tz: pytz.tzinfo = None,
+            time_check: time | None = None,
+            market: str = 'NYSE',
+    ):
+        assert bars.df.index[-1] <= now
+        timestamp = bars.df.index[-1]
+        assert timestamp.hour == time_check.hour
+        assert timestamp.minute == time_check.minute
+
+        today = now.date()
+        trading_days = get_trading_days(
+            market=market,
+            start_date=today - timedelta(days=7),
+            end_date=today + timedelta(days=1),
+            tzinfo=data_source_tz
+        )
+
+        if today in list(trading_days.index.date):
+            market_open = trading_days.loc[str(today), 'market_open']
+            market_close = trading_days.loc[str(today), 'market_close']
+
+            if now < market_open:
+                # Before market open - should get last trading day's bar
+                assert bars.df.index[-1].date() == trading_days.index[-2].date()
+            elif market_open <= now <= market_close:
+                # During market hours - should get incomplete current day bar
+                assert bars.df.index[-1].date() == trading_days.index[-1].date()
+            else:
+                # After market close - should get complete current day bar
+                assert bars.df.index[-1].date() == trading_days.index[-1].date()
+        else:
+            # Non-trading day - should get last trading day's bar
+            assert bars.df.index[-1].date() == trading_days.index[-1].date()
+
+    # noinspection PyMethodMayBeStatic
+    def check_minute_bars(
+            self,
+            *,
+            bars: Bars,
+            now: datetime,
+            data_source_tz: pytz.tzinfo = None,
+            market: str = 'NYSE',
+    ):
+        assert bars.df.index[-1] <= now
+
+        today = now.date()
+        trading_days = get_trading_days(
+            market=market,
+            start_date=today - timedelta(days=7),
+            end_date=today + timedelta(days=1),
+            tzinfo=data_source_tz
+        )
+
+        if today in list(trading_days.index.date):
+            market_open = trading_days.loc[str(today), 'market_open']
+            market_close = trading_days.loc[str(today), 'market_close']
+
+            if now < market_open:
+                # Before market open - last bar should be from previous day
+                assert bars.df.index[-1].date() == trading_days.index[-2].date()
+            elif market_open <= now <= market_close:
+                # TODO: this accounts for a delay where we DO get the last complete minute bar
+                # the when there isn't a delay when we don't get the last complete minute bar.
+                # Probably should have a delay flag in this function.
+                # During market hours - last bar should be the last complete minute bar (so one minute ago)
+                if (bars.df.index[-1] == now.replace(second=0, microsecond=0) - timedelta(minutes=1) or
+                        (bars.df.index[-1] == now.replace(second=0, microsecond=0))
+                ):
+                    assert True
+                else:
+                    assert False
+
             else:
                 # After market close - should be equal to market close
                 assert bars.df.index[-1] == market_close

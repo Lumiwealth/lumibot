@@ -138,10 +138,13 @@ class AlpacaData(DataSource):
             # Setting this causes all calls to historical data endpoints to request data in this timezone
             # and datetimes in dataframes are adjusted to this timezone. Useful if you want UTC time for
             # crypto for example.
-            tzinfo=pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+            tzinfo=None
     ):
 
         super().__init__(delay=delay)
+
+        if tzinfo is None:
+            tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
         self._tzinfo = tzinfo
 
         self.name = "alpaca"
@@ -294,7 +297,7 @@ class AlpacaData(DataSource):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
         return bars
 
-    def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None):
+    def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None, include_after_hours=True):
         """
         Gets historical bar data for the given asset and time parameters with proper pagination.
 
@@ -452,23 +455,27 @@ class AlpacaData(DataSource):
                     f"Only got {len(df)} bars for {symbol} while {limit} were requested"
                 )
 
-        # Handle live minute data special case
-        if str(freq) == "1Min" and pull_latest:
-            price = self.get_last_price(asset=asset, quote=quote)
-            new_row = {col: 0.0 for col in df.columns}
-            new_row.update({
-                'open': price,
-                'high': price,
-                'low': price,
-                'close': price
-            })
+        # # Handle live minute data special case
+        # if str(freq) == "1Min" and pull_latest:
+        #     price = self.get_last_price(asset=asset, quote=quote)
+        #     new_row = {col: 0.0 for col in df.columns}
+        #     new_row.update({
+        #         'open': price,
+        #         'high': price,
+        #         'low': price,
+        #         'close': price
+        #     })
+        #
+        #     now = datetime.now().astimezone(self._tzinfo)
+        #     now = now.replace(second=0, microsecond=0)
+        #     df.loc[now] = new_row
+        #
+        #     if not df.empty and len(df) > 1:
+        #         df = df.iloc[1:]
 
-            now = datetime.now().astimezone(self._tzinfo)
-            now = now.replace(second=0, microsecond=0)
-            df.loc[now] = new_row
-
-            if not df.empty and len(df) > 1:
-                df = df.iloc[1:]
+        if not include_after_hours and str(freq) == "1Min" and self._tzinfo == pytz.timezone("America/New_York"):
+            # Filter the data to only include regular market hours (9:30 AM to 4:00 PM ET)
+            df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
 
         df = df.sort_index()
         return df
@@ -493,7 +500,13 @@ class AlpacaData(DataSource):
                 end = datetime.now(tz=self._tzinfo) - asset_timeshift  # Create datetime directly in target timezone
                 kwargs["end"] = end
 
-            data = self.get_barset_from_api(asset, parsed_timestep, quote=quote, **kwargs)
+            data = self.get_barset_from_api(
+                asset=asset,
+                freq=parsed_timestep,
+                quote=quote,
+                include_after_hours=include_after_hours,
+                **kwargs
+            )
             result[asset] = data
 
         return result
@@ -508,7 +521,14 @@ class AlpacaData(DataSource):
             )
 
         """pull broker bars for a given asset"""
-        response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
+        response = self._pull_source_bars(
+            assets=[asset],
+            length=length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            include_after_hours=include_after_hours
+        )
         return response[asset]
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):

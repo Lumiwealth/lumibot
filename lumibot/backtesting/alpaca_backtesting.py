@@ -354,7 +354,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote_asset: Asset,
             timestep: str = None,
             market: str = None,
-            tzinfo: pytz.timezone = None,
+            tzinfo: pytz.tzinfo = None,
             data_datetime_start: datetime = None,
             data_datetime_end: datetime = None,
             auto_adjust: bool = None,
@@ -367,7 +367,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         base_asset: Asset - Base asset of the pair.
         quote_asset: Asset - Quote asset of the pair.
         market: str - Market or exchange identifier.
-        tzinfo: pytz.timezone - Timezone information.
+        tzinfo: pytz.tzinfo - Timezone information.
         timestep: str - Timestep of the source data. Accepts "day" or "minute".
         data_datetime_start: datetime - The start date of the data in the backtest.
         data_datetime_end: datetime - The end date of the data in the backtest. Inclusive.
@@ -427,7 +427,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote_asset: Asset = None,
             timestep: str = None,
             market: str = None,
-            tzinfo: pytz.timezone = None,
+            tzinfo: pytz.tzinfo = None,
             data_datetime_start: datetime = None,
             data_datetime_end: datetime = None,
             auto_adjust: bool = None,

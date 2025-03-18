@@ -32,14 +32,14 @@ set_pandas_float_display_precision()
 #         *,
 #         bars: Bars,
 #         length: int = 30,
-#         data_source_tz: pytz.timezone = None,
+#         data_source_tz: pytz.tzinfo = None,
 #         time_check: time | None = None,
 # ):
 #     """
 #      This tests:
 #         - the right number of bars are retrieved
 #         - the index is a timestamp
-#         - data_source_tz: pytz.timezone, if set checks that the index's timezone matches
+#         - data_source_tz: pytz.tzinfo, if set checks that the index's timezone matches
 #         - if time_check, check the hour and minute of the timestamp
 #     """
 #     assert len(bars.df) == length

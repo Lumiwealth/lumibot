@@ -20,7 +20,7 @@ from lumibot.tools import get_trading_days
 from lumibot.credentials import POLYGON_CONFIG
 
 from tests.fixtures import (
-    check_bars
+    check_bars_from_get_historical_prices
 )
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ print_full_pandas_dataframes()
 set_pandas_float_display_precision()
 
 
-# def check_bars(
+# def check_bars_from_get_historical_prices(
 #         *,
 #         bars: Bars,
 #         length: int = 30,
@@ -79,75 +79,75 @@ class TestBacktestingDataSources:
         return first_trading_day
 
     # noinspection PyMethodMayBeStatic
-    def check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
-            self, bars: Bars,
-            backtesting_start: datetime
-    ):
-        # The current behavior of the backtesting data sources is to return the data for the
-        # last trading day before now.
-        # To simulate this, we set backtesting_start date to what we want "now" to be.
-        # So based on the backtesting_start date, the last bar should be the bar from the previous day
-        # before the backtesting_start date. Since this is crypto, and it trades 24/7, we don't care about
-        # trading days.
-
-        previous_day_date = backtesting_start - timedelta(days=1)
-        assert bars.df.index[-1].date() == previous_day_date.date()
-
-    # noinspection PyMethodMayBeStatic
-    def check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
-            self, bars: Bars,
-            backtesting_start: datetime
-    ):
-        # The current behavior of the backtesting data sources is to return the data for the
-        # last trading day before now.
-        # To simulate this, we set backtesting_start date to what we want "now" to be.
-        # So based on the backtesting_start date, the last bar should be the bar from the previous trading day
-        # before the backtesting_start date.
-
-        # Get trading days around the backtesting_start date
-        trading_days = get_trading_days(
-            market="NYSE",
-            start_date=backtesting_start - timedelta(days=5),
-            end_date=backtesting_start + timedelta(days=5)
-        )
-
-        # find the index of the backtesting_start date in the trading_days
-        # backtesting_start_index = trading_days.index.get_loc(backtesting_start)
-        # As the index is sorted, use searchsorted to find the relevant day
-        backtesting_start_index = trading_days['market_close'].searchsorted(backtesting_start, side='right')
-
-        # get the date of the last trading day before the backtesting_start date
-        previous_trading_day_date = trading_days['market_close'][backtesting_start_index - 1].date()
-        assert bars.df.index[-1].date() == previous_trading_day_date
+    # def check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
+    #         self, bars: Bars,
+    #         backtesting_start: datetime
+    # ):
+    #     # The current behavior of the backtesting data sources is to return the data for the
+    #     # last trading day before now.
+    #     # To simulate this, we set backtesting_start date to what we want "now" to be.
+    #     # So based on the backtesting_start date, the last bar should be the bar from the previous day
+    #     # before the backtesting_start date. Since this is crypto, and it trades 24/7, we don't care about
+    #     # trading days.
+    #
+    #     previous_day_date = backtesting_start - timedelta(days=1)
+    #     assert bars.df.index[-1].date() == previous_day_date.date()
 
     # noinspection PyMethodMayBeStatic
-    def check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
-            self,
-            bars: Bars,
-            backtesting_start: datetime
-    ):
-        # The backtesting broker needs to look into the future to fill orders.
-        # To simulate this, we set backtesting_start date to what we want "now" to be.
-        # So the first bar should be the backtesting_start date, or if the
-        # backtesting_start date is not a trading day, the first trading day after the backtesting_start date.
+    # def check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
+    #         self, bars: Bars,
+    #         backtesting_start: datetime
+    # ):
+    #     # The current behavior of the backtesting data sources is to return the data for the
+    #     # last trading day before now.
+    #     # To simulate this, we set backtesting_start date to what we want "now" to be.
+    #     # So based on the backtesting_start date, the last bar should be the bar from the previous trading day
+    #     # before the backtesting_start date.
+    #
+    #     # Get trading days around the backtesting_start date
+    #     trading_days = get_trading_days(
+    #         market="NYSE",
+    #         start_date=backtesting_start - timedelta(days=5),
+    #         end_date=backtesting_start + timedelta(days=5)
+    #     )
+    #
+    #     # find the index of the backtesting_start date in the trading_days
+    #     # backtesting_start_index = trading_days.index.get_loc(backtesting_start)
+    #     # As the index is sorted, use searchsorted to find the relevant day
+    #     backtesting_start_index = trading_days['market_close'].searchsorted(backtesting_start, side='right')
+    #
+    #     # get the date of the last trading day before the backtesting_start date
+    #     previous_trading_day_date = trading_days['market_close'][backtesting_start_index - 1].date()
+    #     assert bars.df.index[-1].date() == previous_trading_day_date
 
-        # Get trading days around the backtesting_start date
-        trading_days = get_trading_days(
-            market="NYSE",
-            start_date=backtesting_start - timedelta(days=5),
-            end_date=backtesting_start + timedelta(days=5)
-        )
-
-        # Check if backtesting_start is in trading_days
-        if backtesting_start in trading_days.index:
-            backtesting_start_index = trading_days.index.get_loc(backtesting_start)
-        else:
-            # Find the first trading date after backtesting_start
-            backtesting_start_index = trading_days.index.get_indexer([backtesting_start], method='bfill')[0]
-
-        # get the date of the first trading day on or after the backtesting_start date
-        first_trading_day_date = trading_days.index[backtesting_start_index].date()
-        assert bars.df.index[0].date() == first_trading_day_date
+    # noinspection PyMethodMayBeStatic
+    # def check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
+    #         self,
+    #         bars: Bars,
+    #         backtesting_start: datetime
+    # ):
+    #     # The backtesting broker needs to look into the future to fill orders.
+    #     # To simulate this, we set backtesting_start date to what we want "now" to be.
+    #     # So the first bar should be the backtesting_start date, or if the
+    #     # backtesting_start date is not a trading day, the first trading day after the backtesting_start date.
+    #
+    #     # Get trading days around the backtesting_start date
+    #     trading_days = get_trading_days(
+    #         market="NYSE",
+    #         start_date=backtesting_start - timedelta(days=5),
+    #         end_date=backtesting_start + timedelta(days=5)
+    #     )
+    #
+    #     # Check if backtesting_start is in trading_days
+    #     if backtesting_start in trading_days.index:
+    #         backtesting_start_index = trading_days.index.get_loc(backtesting_start)
+    #     else:
+    #         # Find the first trading date after backtesting_start
+    #         backtesting_start_index = trading_days.index.get_indexer([backtesting_start], method='bfill')[0]
+    #
+    #     # get the date of the first trading day on or after the backtesting_start date
+    #     first_trading_day_date = trading_days.index[backtesting_start_index].date()
+    #     assert bars.df.index[0].date() == first_trading_day_date
 
     # noinspection PyMethodMayBeStatic
     def check_dividends_and_adjusted_returns(self, bars):
@@ -206,21 +206,28 @@ class TestBacktestingDataSources:
         This tests that the pandas data_source calculates adjusted returns for bars and that they
         are calculated correctly. It assumes that it is provided split adjusted OHLCV and dividend data.
         """
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 3, 26))
+        datetime_end = tzinfo.localize(datetime(2019, 4, 25))
+        now = tzinfo.localize(datetime(2019, 4, 25))
         length = 30
         asset = Asset("SPY")
         timestep = "day"
-        backtesting_start = datetime(2019, 3, 26)
-        backtesting_end = datetime(2019, 4, 25)
+
         data_source = PandasData(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             pandas_data=pandas_data_fixture
         )
+        data_source._datetime = now
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(bars=bars, length=length, time_check=time(0,0))
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0,0),
+            timestep=timestep,
         )
         self.check_dividends_and_adjusted_returns(bars)
 
@@ -229,29 +236,32 @@ class TestBacktestingDataSources:
             self,
             pandas_data_fixture
     ):
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 3, 26))
+        datetime_end = tzinfo.localize(datetime(2019, 4, 25))
+        now = tzinfo.localize(datetime(2019, 4, 25))
         asset = Asset("SPY")
         timestep = "day"
+
         # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
         # for the next trading day)
-        backtesting_start = datetime(2019, 3, 26)
-        backtesting_end = datetime(2019, 4, 25)
         length = 2
+        timeshift = -length  # negative length gets future bars
         data_source = PandasData(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             pandas_data=pandas_data_fixture
         )
-        timeshift = -length  # negative length gets future bars
-        bars = data_source.get_historical_prices(
-            asset=asset,
+
+        data_source._datetime = now
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, timeshift=timeshift)
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
             length=length,
-            timeshift=timeshift,
-            timestep=timestep
-        )
-        check_bars(bars=bars, length=length, time_check=time(0,0))
-        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0,0),
+            timestep=timestep,
         )
 
     # @pytest.mark.skip()
@@ -262,15 +272,11 @@ class TestBacktestingDataSources:
         tzinfo = pytz.timezone('America/New_York')
         datetime_start = tzinfo.localize(datetime(2019, 1, 2))
         datetime_end = tzinfo.localize(datetime(2019, 12, 31))
-
         # First trading day after MLK day
-        mlk_day = self.get_mlk_day(2019)
-        now = mlk_day + timedelta(days=1)
-        now = tzinfo.localize(now).replace(hour=9, minute=30)
+        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
 
         asset = Asset("SPY")
         timestep = "day"
-        # get 10 bars starting from backtesting_start (going back in time)
         length = 10
         data_source = PandasData(
             datetime_start=datetime_start,
@@ -279,7 +285,7 @@ class TestBacktestingDataSources:
         )
         data_source._datetime = now
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -303,23 +309,23 @@ class TestBacktestingDataSources:
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(self):
         asset = Asset("SPY")
         timestep = "day"
+        tzinfo = pytz.timezone('America/New_York')
+
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        # First trading day after MLK day
+        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
+        data_source = PolygonDataBacktesting(
+            datetime_start,
+            datetime_end,
+            api_key=POLYGON_CONFIG["API_KEY"]
+        )
+
         # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
         # for the next trading day)
-        last_year = datetime.now().year - 1
-
-        # Get MLK day last year which is a non-trading monday
-        mlk_day = self.get_mlk_day(last_year)
-
-        # First trading day after MLK day
-        backtesting_start = mlk_day + timedelta(days=1)
-        backtesting_end = datetime(last_year, 2, 22)
-
-        data_source = PolygonDataBacktesting(
-            backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
-        )
-        
         length = 2
         timeshift = -length  # negative length gets future bars
+        data_source._datetime = now
         bars = data_source.get_historical_prices(
             asset=asset,
             length=length,
@@ -327,10 +333,13 @@ class TestBacktestingDataSources:
             timestep=timestep
         )
         
-        check_bars(bars=bars, length=length, time_check=time(0,0))
-        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0,0),
+            timestep=timestep,
         )
 
     @pytest.mark.skipif(
@@ -348,24 +357,29 @@ class TestBacktestingDataSources:
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(self):
         asset = Asset("SPY")
         timestep = "day"
-        # Get MLK day for last year
-        last_year = datetime.now().year - 1
-        mlk_day = self.get_mlk_day(last_year)
+        tzinfo = pytz.timezone('America/New_York')
 
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
         # First trading day after MLK day
-        backtesting_start = mlk_day + timedelta(days=1)
-        backtesting_end = datetime(last_year, 2, 22)
+        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
 
-        # get 10 bars starting from backtesting_start (going back in time)
         length = 10
         data_source = PolygonDataBacktesting(
-            backtesting_start, backtesting_end, api_key=POLYGON_CONFIG["API_KEY"]
+            datetime_start,
+            datetime_end,
+            api_key=POLYGON_CONFIG["API_KEY"]
         )
+
+        data_source._datetime = now
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(bars=bars, length=length, time_check=time(0,0))
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            time_check=time(0,0),
+            timestep=timestep,
         )
 
     # @pytest.mark.skip()
@@ -377,25 +391,32 @@ class TestBacktestingDataSources:
         This tests that the yahoo data_source calculates adjusted returns for bars and that they
         are calculated correctly. It assumes that it is provided split adjusted OHLCV and dividend data.
         """
-        length = 30
         asset = Asset("SPY")
         timestep = "day"
-        backtesting_start = datetime(2019, 3, 25)
-        backtesting_end = datetime(2019, 4, 25)
+        length = 30
+
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        now = tzinfo.localize(datetime(2019, 4, 1, 9, 30))
+
         data_source = YahooDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             pandas_data=pandas_data_fixture
         )
-        data_source._datetime = datetime.strptime("09:30", "%H:%M").time()
+        data_source._datetime = now
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        # TODO: Yahoo data is indexed at the close (4pm EDT).
-        #  Consider changing that to midnight like lumibot expects
-        check_bars(bars=bars, length=length, time_check=time(16,0))
+
         self.check_dividends_and_adjusted_returns(bars)
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            # Yahoo data is indexed at the close (4pm EDT).
+            time_check=time(16,0),
+            timestep=timestep,
         )
 
     # @pytest.mark.skip()
@@ -405,18 +426,23 @@ class TestBacktestingDataSources:
     ):
         asset = Asset("SPY")
         timestep = "day"
-        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
-        # for the next trading day)
-        backtesting_start = datetime(2019, 3, 25)
-        backtesting_end = datetime(2019, 4, 25)
+
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        now = tzinfo.localize(datetime(2019, 4, 1, 9, 30))
+
         data_source = YahooDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             pandas_data=pandas_data_fixture
         )
 
+        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
+        # for the next trading day)
         length = 2
         timeshift = -length  # negative length gets future bars
+        data_source._datetime = now
         bars = data_source.get_historical_prices(
             asset=asset,
             length=length,
@@ -424,11 +450,14 @@ class TestBacktestingDataSources:
             timestep=timestep
         )
 
-        # TODO: Yahoo data is indexed at the close (4pm EDT). Consider changing that to midnight like lumibot expects
-        check_bars(bars=bars, length=length, time_check=time(16,0))
-        self.check_date_of_last_bar_is_date_of_first_trading_date_on_or_after_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            # Yahoo data is indexed at the close (4pm EDT).
+            time_check=time(16,0),
+            timestep=timestep,
         )
 
     # @pytest.mark.skip()
@@ -436,28 +465,32 @@ class TestBacktestingDataSources:
             self,
             pandas_data_fixture
     ):
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        # First trading day after MLK day
+        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
+
         asset = Asset("SPY")
         timestep = "day"
-        # Get MLK day in 2019
-        mlk_day = self.get_mlk_day(2019)
 
-        # First trading day after MLK day
-        backtesting_start = mlk_day + timedelta(days=1)
-        backtesting_end = datetime(2019, 2, 22)
-
-        # get 10 bars starting from backtesting_start (going back in time)
         length = 10
         data_source = YahooDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             pandas_data=pandas_data_fixture
         )
+
+        data_source._datetime = now
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        # TODO: Yahoo data is indexed at the close (4pm EDT). Consider changing that to midnight like lumibot expects
-        check_bars(bars=bars, length=length, time_check=time(16,0))
-        self.check_date_of_last_bar_is_date_of_last_trading_date_before_backtest_start(
-            bars,
-            backtesting_start=backtesting_start
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            # Yahoo data is indexed at the close (4pm EDT).
+            time_check=time(16,0),
+            timestep=timestep,
         )
 
     def test_kraken_ccxt_backtesting_data_source_get_historical_prices_daily_bars(
@@ -467,8 +500,11 @@ class TestBacktestingDataSources:
         This tests that the kraken ccxt data_source gets the right bars
         """
         length = 30
-        backtesting_start = (datetime.now() - timedelta(days=4)).replace(hour=0, minute=0, second=0, microsecond=0)
-        backtesting_end = (datetime.now() - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+        tzinfo = pytz.timezone('UTC')
+        now = tzinfo.localize(datetime.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+        datetime_start = now - timedelta(days=length + 5)
+        datetime_end = now - timedelta(days=2)
+        now = datetime_end - timedelta(days=2)
         base = Asset(symbol='BTC', asset_type='crypto')
         quote = Asset(symbol='USD', asset_type='forex')
         timestep = "day"
@@ -477,18 +513,23 @@ class TestBacktestingDataSources:
             "exchange_id": "kraken"  # "kucoin" #"bybit" #"okx" #"bitmex" # "binance"
         }
         data_source = CcxtBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
             **kwargs
         )
+        data_source._datetime = now
         bars = data_source.get_historical_prices(
             asset=(base, quote),
             length=length,
             timestep=timestep
         )
-        # TODO: Kraken returns daily data at midnight UTC which is 5pm ET aka 19
-        check_bars(bars=bars, length=length, time_check=time(19,0))
-        self.check_date_of_last_bar_is_date_of_day_before_backtest_start_for_crypto(
-            bars,
-            backtesting_start=backtesting_start
+
+        check_bars_from_get_historical_prices(
+            bars=bars,
+            now=now,
+            length=length,
+            data_source_tz=data_source._tzinfo,
+            # Kraken returns daily data at midnight UTC which is 5pm ET aka 19
+            time_check=time(19,0),
+            timestep=timestep,
         )

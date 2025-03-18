@@ -254,7 +254,7 @@ class BacktestingTestStrategy(Strategy):
 
 
 # noinspection PyMethodMayBeStatic
-def check_bars(
+def check_bars_from_get_historical_prices(
         *,
         bars: Bars,
         now: datetime,
@@ -265,13 +265,31 @@ def check_bars(
         timestep: str = 'day'
 ):
     """
-     This tests:
-        - the right number of bars are retrieved
-        - the index is a timestamp
-        - data_source_tz: pytz.timezone, if set checks that the index's timezone matches
-        - if the timestamp of the last bar is earlier or equal to now
-        - if time_check, check the hour and minute of the timestamp,
-        - checks that the date of the last bar is correct based on now
+    Validates the integrity and correctness of financial bars data retrieved from a call to
+    the get_historical_price API, ensuring it aligns with expected trading day conditions and timestamps.
+
+    The idea is, if you make a version of a get_historical_price call, you should test it with this method.
+
+    The function performs multiple checks based on the input parameters, including verifying the
+    data length, timestamp consistency, timezone correctness, and alignment with trading schedules.
+    These validations are contingent upon trading markets, timesteps, and other configurations
+    provided.
+
+    Args:
+        bars (Bars): Financial bars data containing a dataframe of historical prices and returns.
+            The dataframe index should be in timestamp format.
+        now (datetime): Current timestamp representing the time when the validation is executed.
+        length (int): Expected length or count of bars in the historical data. Defaults to 30.
+        data_source_tz (pytz.timezone): Timezone information pertaining to the data source.
+            Optional parameter.
+        time_check (time | None): Specific time to verify against the timestamp of the most recent bar.
+            Can be None.
+        market (str): Identifier of the market (e.g., 'NYSE') the data pertains to. Defaults to 'NYSE'.
+        timestep (str): Interval of the bars data. Typically 'day' or 'minute'. Defaults to 'day'.
+
+    Raises:
+        AssertionError: If validity checks fail in terms of data length, timezone alignment,
+            timestamp accuracy, or trading day conditions.
     """
     assert len(bars.df) == abs(length)
     assert isinstance(bars.df.index[-1], pd.Timestamp)

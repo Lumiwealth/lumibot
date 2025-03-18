@@ -11,7 +11,7 @@ from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display
 from lumibot.entities import Asset, Bars
 from lumibot.tools import get_trading_days
 from lumibot.credentials import TRADIER_TEST_CONFIG
-from tests.fixtures import check_bars
+from tests.fixtures import check_bars_from_get_historical_prices
 
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
@@ -102,7 +102,7 @@ class TestTradierData:
         now = datetime.now(tradier_ds._tzinfo)
         bars = tradier_ds.get_historical_prices(asset=asset, length=length, timestep=timestep)
 
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -114,7 +114,7 @@ class TestTradierData:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = tradier_ds.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -138,7 +138,7 @@ class TestTradierData:
                 quote=quote_asset
             )
             if bars:
-                check_bars(
+                check_bars_from_get_historical_prices(
                     bars=bars,
                     now=now,
                     length=length,

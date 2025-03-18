@@ -14,7 +14,7 @@ from lumibot.tools import (
 
 from tests.fixtures import (
     BacktestingTestStrategy,
-    check_bars
+    check_bars_from_get_historical_prices
 )
 
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
@@ -1579,7 +1579,7 @@ class TestAlpacaBacktestingDataSource:
         data_source._datetime = now
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1590,7 +1590,7 @@ class TestAlpacaBacktestingDataSource:
 
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1603,7 +1603,7 @@ class TestAlpacaBacktestingDataSource:
         data_source._datetime = now
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1614,7 +1614,7 @@ class TestAlpacaBacktestingDataSource:
 
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1646,7 +1646,7 @@ class TestAlpacaBacktestingDataSource:
         data_source._datetime = now
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1658,7 +1658,7 @@ class TestAlpacaBacktestingDataSource:
 
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1672,7 +1672,7 @@ class TestAlpacaBacktestingDataSource:
         data_source._datetime = now
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1684,7 +1684,7 @@ class TestAlpacaBacktestingDataSource:
 
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1718,7 +1718,7 @@ class TestAlpacaBacktestingDataSource:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1728,7 +1728,7 @@ class TestAlpacaBacktestingDataSource:
 
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1741,7 +1741,7 @@ class TestAlpacaBacktestingDataSource:
         data_source._datetime = now
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1773,7 +1773,7 @@ class TestAlpacaBacktestingDataSource:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -1784,7 +1784,7 @@ class TestAlpacaBacktestingDataSource:
 
         length = 10
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,

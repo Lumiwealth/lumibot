@@ -1,6 +1,7 @@
 import pytest
 import pytz
 from datetime import datetime, timedelta, time
+import logging
 
 import pandas as pd
 
@@ -14,11 +15,13 @@ from lumibot.tools import (
 
 from tests.fixtures import (
     BacktestingTestStrategy,
-    check_bars_from_get_historical_prices
+    BaseDataSourceTester
 )
 
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
+
+logger = logging.getLogger(__name__)
 
 
 class TestAlpacaBacktesting:
@@ -1398,7 +1401,7 @@ class TestAlpacaBacktesting:
         assert order_tracker["avg_fill_price"] == 94153.05  # Open of '2025-01-13T00:00:00-06:00'
 
 
-class TestAlpacaBacktestingDataSource:
+class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
     def _create_data_source(
             self,
@@ -1577,51 +1580,45 @@ class TestAlpacaBacktestingDataSource:
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=None,
-            timestep=timestep,
-        )
 
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=None,
-            timestep=timestep,
-        )
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
 
         now = tzinfo.localize(datetime(2025, 2, 21, 10, 0))
         data_source._datetime = now
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=None,
-            timestep=timestep,
-        )
 
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=None,
-            timestep=timestep,
-        )
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
 
         with pytest.raises(Exception):
             length = -1
@@ -1644,55 +1641,41 @@ class TestAlpacaBacktestingDataSource:
 
         now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
         data_source._datetime = now
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0,0),
-            timestep=timestep,
-            market=market,
-        )
+        for length in [1, 10]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+            )
 
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0,0),
-            timestep=timestep,
-            market=market,
-        )
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
 
         now = tzinfo.localize(datetime(2025, 2, 21, 10, 0))
         data_source._datetime = now
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(10,0),
-            timestep=timestep,
-            market=market,
-        )
+        for length in [1, 10]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+            )
 
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=None,
-            timestep=timestep,
-            market=market,
-        )
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
 
         with pytest.raises(Exception):
             length = -1
@@ -1715,45 +1698,52 @@ class TestAlpacaBacktestingDataSource:
 
         now = tzinfo.localize( datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
-        # This simulates what the backtesting_broker does when it tries to fill an order
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0)
-        )
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
 
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0)
-        )
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0 ,0),
+                market=market,
+            )
 
         # MLK was 1/20 so long 3 day weekend
         now = tzinfo.localize(datetime(2025, 1, 21, 9, 30))
         data_source._datetime = now
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0)
-        )
+        for length in [1, 10]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0 ,0),
+                market=market,
+            )
 
         with pytest.raises(Exception):
             length = -1
             bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
 
-    def test_get_historical_prices_daily_bars_crypto(self):
+    def test_get_historical_prices_daily_bars_crypto_chicago(self):
         tzinfo = pytz.timezone("America/Chicago")
         datetime_start = tzinfo.localize(datetime(2025, 1, 1))
         datetime_end = tzinfo.localize(datetime(2025, 3, 1))
@@ -1770,28 +1760,24 @@ class TestAlpacaBacktestingDataSource:
 
         now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
         data_source._datetime = now
-        # This simulates what the backtesting_broker does when it tries to fill an order
-        length = 1
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0),
-            market=market,
-        )
+        for length in [1, 10]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
 
-        length = 10
-        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars_from_get_historical_prices(
-            bars=bars,
-            now=now,
-            length=length,
-            data_source_tz=data_source._tzinfo,
-            time_check=time(0, 0),
-            market=market,
-        )
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0 ,0),
+                market=market,
+            )
 
         with pytest.raises(Exception):
             length = -1

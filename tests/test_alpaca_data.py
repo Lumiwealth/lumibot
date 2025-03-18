@@ -182,7 +182,7 @@ class TestAlpacaData(BaseDataSourceTester):
             )
             if not bars or bars.df.empty:
                 # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-                logging.warning(f"No minutes bars found for asset={asset} at: {now}")
+                logger.warning(f"No minutes bars found for asset={asset} at: {now}")
                 continue
 
             self.check_length(bars=bars, length=length)
@@ -215,7 +215,7 @@ class TestAlpacaData(BaseDataSourceTester):
             )
             if not bars or bars.df.empty:
                 # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-                logging.warning(f"No minutes bars found for asset={asset} at: {now}")
+                logger.warning(f"No minutes bars found for asset={asset} at: {now}")
                 continue
 
             # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
@@ -250,7 +250,7 @@ class TestAlpacaData(BaseDataSourceTester):
             )
             if not bars or bars.df.empty:
                 # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-                logging.warning(f"No minutes bars found for asset={asset} at: {now}")
+                logger.warning(f"No minutes bars found for asset={asset} at: {now}")
                 continue
 
             # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.

@@ -11,7 +11,7 @@ from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display
 from lumibot.entities import Asset, Bars
 from lumibot.tools import get_trading_days
 from lumibot.credentials import ALPACA_TEST_CONFIG
-from tests.fixtures import check_bars
+from tests.fixtures import check_bars_from_get_historical_prices
 
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
@@ -50,7 +50,7 @@ class TestAlpacaData:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -62,7 +62,7 @@ class TestAlpacaData:
         length = 30
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
 
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -88,7 +88,7 @@ class TestAlpacaData:
                 quote=quote_asset
             )
             if bars:
-                check_bars(
+                check_bars_from_get_historical_prices(
                     bars=bars,
                     now=now - data_source._delay,
                     length=length,
@@ -114,7 +114,7 @@ class TestAlpacaData:
                 quote=quote_asset
             )
             # if bars:
-            check_bars(
+            check_bars_from_get_historical_prices(
                 bars=bars,
                 now=now,
                 length=length,
@@ -135,7 +135,7 @@ class TestAlpacaData:
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
 
         # Alpaca ONLY returns crypto daily bars at midnight central time aka 1am ET
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -148,7 +148,7 @@ class TestAlpacaData:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -170,7 +170,7 @@ class TestAlpacaData:
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
 
         # Alpaca ONLY returns crypto daily bars at midnight central time aka 5am UTC
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -183,7 +183,7 @@ class TestAlpacaData:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -205,7 +205,7 @@ class TestAlpacaData:
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
 
         # Alpaca ONLY returns crypto daily bars at midnight central time
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,
@@ -218,7 +218,7 @@ class TestAlpacaData:
         # This simulates what the backtesting_broker does when it tries to fill an order
         length = 1
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
-        check_bars(
+        check_bars_from_get_historical_prices(
             bars=bars,
             now=now,
             length=length,

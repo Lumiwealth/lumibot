@@ -94,6 +94,7 @@ def print_progress_bar(
     fill=chr(9608),
     cash=None,
     portfolio_value=None,
+    log_progress_to_file=False
 ):
     total_length = end_value - start_value
     current_length = value - start_value
@@ -103,6 +104,7 @@ def print_progress_bar(
 
     now = dt.datetime.now()
     elapsed = now - backtesting_started
+    eta = None
 
     if percent > 0:
         eta = (elapsed * (100 / percent)) - elapsed
@@ -128,6 +130,11 @@ def print_progress_bar(
 
     filled_length = int(length * percent / 100)
     bar = fill * filled_length + "-" * (length - filled_length)
+
+    if log_progress_to_file:
+        log_eta = eta if eta is not None else None
+        log_portfolio_value = f'{portfolio_value:,.2f}'
+        self.log_backtest_progress_to_csv(percent, elapsed, log_eta, log_portfolio_value)
 
     line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str} {portfolio_value_str}"
     file.write(line)

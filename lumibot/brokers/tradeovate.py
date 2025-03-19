@@ -422,7 +422,7 @@ class Tradeovate(Broker):
             order_type = "StopLimit"
         else:
             logging.warning(
-                f"Order type '{order.type}' is not fully supported. Defaulting to Market order."
+                f"Order type '{order.order_type}' is not fully supported. Defaulting to Market order."
             )
             order_type = "Market"
 

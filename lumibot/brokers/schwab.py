@@ -62,10 +62,20 @@ class Schwab(Broker):
         # Load environment variables
         dotenv.load_dotenv()
         
-        # Get Schwab API credentials from environment
-        api_key = os.environ.get('SCHWAB_API_KEY')
-        secret = os.environ.get('SCHWAB_SECRET')
-        account_number = os.environ.get('SCHWAB_ACCOUNT_NUMBER')
+        # Get Schwab API credentials from environment or config
+        api_key = None
+        secret = None
+        account_number = None
+        
+        if config:
+            api_key = config.get("SCHWAB_API_KEY")
+            secret = config.get("SCHWAB_SECRET")
+            account_number = config.get("SCHWAB_ACCOUNT_NUMBER")
+        
+        # Fallback to environment variables if not in config
+        api_key = api_key or os.environ.get('SCHWAB_API_KEY')
+        secret = secret or os.environ.get('SCHWAB_SECRET')
+        account_number = account_number or os.environ.get('SCHWAB_ACCOUNT_NUMBER')
         
         if not all([api_key, secret, account_number]):
             logging.error(colored("Missing Schwab API credentials. Ensure SCHWAB_API_KEY, SCHWAB_SECRET, and SCHWAB_ACCOUNT_NUMBER are set in .env file.", "red"))
@@ -77,10 +87,10 @@ class Schwab(Broker):
         
         try:
             # Create Schwab API client
-            client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
+            self.client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
             
             # Get account numbers and find the hash value for the specified account number
-            response = client.get_account_numbers()
+            response = self.client.get_account_numbers()
             if response.status_code != 200:
                 logging.error(colored(f"Error getting account numbers: {response.status_code}, {response.text}", "red"))
                 raise ConnectionError(f"Failed to get account numbers: {response.text}")
@@ -99,19 +109,19 @@ class Schwab(Broker):
                 raise ValueError(f"Could not find account number {account_number}")
                 
             # Store the client and account info
-            self.client = client
             self.account_number = account_number
             self.hash_value = hash_value
             
             # Initialize stream client but don't connect yet
-            self.stream_client = StreamClient(client, account_id=account_number)
+            self.stream_client = StreamClient(self.client, account_id=account_number)
             
             # Check if the user has provided a data source, if not, create one and pass the client
             if data_source is None:
-                data_source = SchwabData(client=client)
-            elif isinstance(data_source, SchwabData) and not hasattr(data_source, 'client'):
-                # If SchwabData instance exists but no client is set, set it
-                data_source.client = client
+                data_source = SchwabData(client=self.client)
+            elif isinstance(data_source, SchwabData):
+                # If SchwabData instance exists but no client is set or client is None, set it
+                if not hasattr(data_source, 'client') or data_source.client is None:
+                    data_source.set_client(self.client)
                             
         except Exception as e:
             logging.error(colored(f"Error initializing Schwab broker: {str(e)}", "red"))
@@ -211,6 +221,8 @@ class Schwab(Broker):
             schwab_positions = securities_account.get('positions', [])
 
             pos_dict = {}  # key: (symbol, asset_type, expiration, strike, right)
+            strategy_name = strategy.name if strategy is not None else "Unknown"
+            
             for schwab_position in schwab_positions:
                 # Extract instrument details
                 instrument = schwab_position.get('instrument', {})
@@ -283,33 +295,35 @@ class Schwab(Broker):
                 short_quantity = schwab_position.get('shortQuantity', 0)
                 net_quantity = long_quantity - short_quantity
                 
+                # Skip positions with zero quantity
+                if net_quantity == 0:
+                    continue
+                
                 # Extract position-specific details
                 average_price = schwab_position.get('averagePrice', 0.0)
-                market_value = schwab_position.get('marketValue', 0.0)
-                unrealized_pnl = schwab_position.get('longOpenProfitLoss', 0.0)  
-                if net_quantity < 0:  # Use short PnL if it's a short position
-                    unrealized_pnl = schwab_position.get('shortOpenProfitLoss', 0.0)
 
-                # Create Position object with strategy name - handle None strategy
-                strategy_name = strategy.name if strategy is not None else "Unknown"
-                position = Position(
-                    strategy_name,
-                    asset=asset,
-                    quantity=net_quantity,
-                    avg_fill_price=average_price,
-                )
-
-                # Add the Position object to the list
-                # Build a key unique for the asset
-                key = (asset.symbol, asset.asset_type,
-                       getattr(asset, 'expiration', None),
-                       getattr(asset, 'strike', None),
-                       getattr(asset, 'right', None))
-                
-                if key in pos_dict:
-                    pos_dict[key].quantity += net_quantity
-                else:
-                    pos_dict[key] = Position(strategy_name, asset=asset, quantity=net_quantity, avg_fill_price=average_price)
+                # Only create position object if we have a valid asset
+                if asset is not None:
+                    # Create a unique key for the asset to avoid duplicates
+                    key = (asset.symbol, asset.asset_type,
+                          getattr(asset, 'expiration', None),
+                          getattr(asset, 'strike', None),
+                          getattr(asset, 'right', None))
+                    
+                    # If we already have this asset in our dict, update the quantity
+                    if key in pos_dict:
+                        pos_dict[key].quantity += net_quantity
+                    else:
+                        # Create a new Position object
+                        pos_dict[key] = Position(
+                            strategy_name,
+                            asset=asset,
+                            quantity=net_quantity,
+                            avg_fill_price=average_price,
+                        )
+            
+            # Log the number of positions found
+            logging.debug(f"Pulled {len(pos_dict)} unique positions from Schwab")
             
             return list(pos_dict.values())
 
@@ -794,8 +808,14 @@ class Schwab(Broker):
         def on_trade_event_poll():
             # Implement polling similar to tradier.py without referencing _orders
             try:
-                # Sync positions before polling for orders
-                broker.sync_positions(None)
+                # Track the last time we synced positions to avoid doing it too frequently
+                current_time = datetime.now()
+                if not hasattr(broker, '_last_position_sync_time') or (current_time - broker._last_position_sync_time).total_seconds() > 30:
+                    # Only sync positions every 30 seconds to avoid duplication
+                    broker.sync_positions(None)
+                    broker._last_position_sync_time = current_time
+                
+                # Always check for new orders
                 orders = broker._pull_broker_all_orders()
                 for order_data in orders:
                     order = broker._parse_broker_order(order_data, broker._strategy_name)
@@ -901,7 +921,15 @@ class Schwab(Broker):
                     equity_sell_short_market, equity_sell_short_limit,
                     equity_buy_to_cover_market, equity_buy_to_cover_limit
                 )
-                from schwab.orders.common import Duration, Session
+                from schwab.orders.options import (
+                    option_buy_to_open_market, option_buy_to_open_limit,
+                    option_sell_to_open_market, option_sell_to_open_limit,
+                    option_buy_to_close_market, option_buy_to_close_limit,
+                    option_sell_to_close_market, option_sell_to_close_limit,
+                    OptionSymbol
+                )
+                from schwab.orders.common import Duration, Session, OrderType
+                from schwab.orders.generic import OrderBuilder
             except ImportError:
                 logging.error(colored("Failed to import Schwab order templates. Make sure the schwab-py library is installed.", "red"))
                 return None
@@ -921,8 +949,14 @@ class Schwab(Broker):
                                                                equity_buy_to_cover_market, equity_buy_to_cover_limit)
                 
             elif order.asset.asset_type == Asset.AssetType.OPTION:
-                logging.error(colored(f"Option orders are not yet implemented using order templates for Schwab broker.", "red"))
-                return None
+                order_builder = self._prepare_option_order_builder(order, option_buy_to_open_market, option_buy_to_open_limit,
+                                                               option_sell_to_open_market, option_sell_to_open_limit,
+                                                               option_buy_to_close_market, option_buy_to_close_limit,
+                                                               option_sell_to_close_market, option_sell_to_close_limit,
+                                                               OptionSymbol)
+                
+            elif order.asset.asset_type == Asset.AssetType.FUTURE:
+                order_builder = self._prepare_futures_order_builder(order, OrderBuilder)
                 
             else:
                 logging.error(colored(f"Asset type {order.asset.asset_type} is not supported by Schwab broker.", "red"))
@@ -953,19 +987,20 @@ class Schwab(Broker):
                 logging.error(colored(f"Error building order specification: {e}", "red"))
                 return None
             
-            # Log the final order request
-            logging.info(colored(f"Sending order request to Schwab: {json.dumps(order_spec, indent=2)}", "cyan"))
+            # IMPORTANT: Verify that we don't have a nested 'order_spec' inside the order_spec
+            # This is the key fix for the validation error
+            if "order_spec" in order_spec:
+                # If order_spec contains another order_spec, use the inner one
+                order_spec = order_spec["order_spec"]
+                
+            # Log the final order request - reduce verbosity
+            logging.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {order.limit_price or 'market'}", "cyan"))
             
             # Submit the order to Schwab
             response = self.client.place_order(self.hash_value, order_spec)
             
-            # Log the response
-            logging.info(colored(f"Schwab place_order response: {response}", "cyan"))
-            logging.info(colored(f"Response status code: {response.status_code}", "cyan"))
-            if hasattr(response, 'text'):
-                logging.info(colored(f"Response text: {response.text}", "cyan"))
-            if hasattr(response, 'headers'):
-                logging.info(colored(f"Response headers: {response.headers}", "cyan"))
+            # Log the response - reduce verbosity
+            logging.info(colored(f"Schwab order response status: {response.status_code}", "cyan"))
                 
             # If we get an error response, extract details and return
             if response.status_code >= 400:
@@ -1144,6 +1179,249 @@ class Schwab(Broker):
                 
         return order_builder
 
+    def _prepare_option_order_builder(self, order, option_buy_to_open_market, option_buy_to_open_limit,
+                                   option_sell_to_open_market, option_sell_to_open_limit,
+                                   option_buy_to_close_market, option_buy_to_close_limit,
+                                   option_sell_to_close_market, option_sell_to_close_limit,
+                                   OptionSymbol):
+        """
+        Prepare the order builder for option orders using Schwab order templates.
+        
+        Parameters
+        ----------
+        order : Order
+            The order to prepare the builder for
+        option_buy_to_open_market, option_buy_to_open_limit, etc. : function
+            Schwab option order template functions
+        OptionSymbol : class
+            The Schwab OptionSymbol class for constructing option symbols
+            
+        Returns
+        -------
+        OrderBuilder
+            The order builder object for Schwab API
+        """
+        try:
+            # Get order parameters
+            quantity = int(order.quantity)
+            limit_price = order.limit_price
+            
+            # Construct the option symbol in Schwab format
+            # Get option data from the order's asset
+            underlying_symbol = order.asset.symbol
+            expiration_date = order.asset.expiration
+            strike_price = order.asset.strike
+            option_type = 'C' if order.asset.right == 'CALL' else 'P'
+            
+            # Format strike price as string with proper decimal format
+            strike_price_str = f"{strike_price:.2f}"
+            
+            # Create option symbol using Schwab's OptionSymbol builder
+            option_symbol = OptionSymbol(
+                underlying_symbol, 
+                expiration_date, 
+                option_type, 
+                strike_price_str
+            ).build()
+            
+            logging.info(colored(f"Created option symbol: {option_symbol}", "cyan"))
+            
+            # Create the order builder based on order side and type
+            order_builder = None
+            
+            # First determine if this is an opening or closing transaction
+            is_opening = False
+            if order.side in [Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.SELL_TO_OPEN]:
+                is_opening = True
+            elif order.side in [Order.OrderSide.BUY_TO_CLOSE, Order.OrderSide.SELL_TO_CLOSE]:
+                is_opening = False
+            elif order.side == Order.OrderSide.BUY:
+                # Default to opening transaction for BUY
+                is_opening = True
+            elif order.side == Order.OrderSide.SELL:
+                # Default to closing transaction for SELL
+                is_opening = False
+            else:
+                logging.error(colored(f"Unsupported order side for options: {order.side}", "red"))
+                return None
+            
+            # Second, determine if this is a buy or sell action
+            is_buy = False
+            if order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.BUY_TO_CLOSE]:
+                is_buy = True
+            elif order.side in [Order.OrderSide.SELL, Order.OrderSide.SELL_TO_OPEN, Order.OrderSide.SELL_TO_CLOSE]:
+                is_buy = False
+            else:
+                logging.error(colored(f"Unsupported order side for options: {order.side}", "red"))
+                return None
+            
+            # Select the appropriate template function based on side, opening/closing, and order type
+            if order.order_type == Order.OrderType.MARKET:
+                if is_buy and is_opening:
+                    order_builder = option_buy_to_open_market(option_symbol, quantity)
+                elif is_buy and not is_opening:
+                    order_builder = option_buy_to_close_market(option_symbol, quantity)
+                elif not is_buy and is_opening:
+                    order_builder = option_sell_to_open_market(option_symbol, quantity)
+                elif not is_buy and not is_opening:
+                    order_builder = option_sell_to_close_market(option_symbol, quantity)
+            
+            elif order.order_type == Order.OrderType.LIMIT:
+                if limit_price is None:
+                    logging.error(colored(f"Limit price is required for limit orders", "red"))
+                    return None
+                    
+                if is_buy and is_opening:
+                    order_builder = option_buy_to_open_limit(option_symbol, quantity, limit_price)
+                elif is_buy and not is_opening:
+                    order_builder = option_buy_to_close_limit(option_symbol, quantity, limit_price)
+                elif not is_buy and is_opening:
+                    order_builder = option_sell_to_open_limit(option_symbol, quantity, limit_price)
+                elif not is_buy and not is_opening:
+                    order_builder = option_sell_to_close_limit(option_symbol, quantity, limit_price)
+            
+            # Handle stop and stop-limit orders
+            elif order.order_type in [Order.OrderType.STOP, Order.OrderType.STOP_LIMIT]:
+                # For stop orders, we start with a market or limit order template
+                if order.order_type == Order.OrderType.STOP:
+                    if is_buy and is_opening:
+                        order_builder = option_buy_to_open_market(option_symbol, quantity)
+                    elif is_buy and not is_opening:
+                        order_builder = option_buy_to_close_market(option_symbol, quantity)
+                    elif not is_buy and is_opening:
+                        order_builder = option_sell_to_open_market(option_symbol, quantity)
+                    elif not is_buy and not is_opening:
+                        order_builder = option_sell_to_close_market(option_symbol, quantity)
+                else:  # STOP_LIMIT
+                    if limit_price is None:
+                        logging.error(colored(f"Limit price is required for stop-limit orders", "red"))
+                        return None
+                        
+                    if is_buy and is_opening:
+                        order_builder = option_buy_to_open_limit(option_symbol, quantity, limit_price)
+                    elif is_buy and not is_opening:
+                        order_builder = option_buy_to_close_limit(option_symbol, quantity, limit_price)
+                    elif not is_buy and is_opening:
+                        order_builder = option_sell_to_open_limit(option_symbol, quantity, limit_price)
+                    elif not is_buy and not is_opening:
+                        order_builder = option_sell_to_close_limit(option_symbol, quantity, limit_price)
+                
+                # Then modify the order spec to add stop price
+                if order_builder and order.stop_price is not None:
+                    try:
+                        # Add stop price to the order spec
+                        order_spec = order_builder.order_spec
+                        if order.order_type == Order.OrderType.STOP:
+                            order_spec["orderType"] = "STOP"
+                        else:
+                            order_spec["orderType"] = "STOP_LIMIT"
+                        
+                        # Add stop price
+                        order_spec["stopPrice"] = str(order.stop_price)
+                        
+                        # Reconstruct builder with modified spec
+                        order_builder._order_spec = order_spec
+                    except Exception as e:
+                        logging.error(colored(f"Failed to modify order builder for stop/stop-limit option order: {e}", "red"))
+                        return None
+            else:
+                logging.error(colored(f"Order type {order.order_type} not supported for options with Schwab templates.", "red"))
+                return None
+                
+            if not order_builder:
+                logging.error(colored(f"Failed to create option order builder for side: {order.side}", "red"))
+                return None
+                    
+            return order_builder
+            
+        except Exception as e:
+            logging.error(colored(f"Error creating option order builder: {e}", "red"))
+            logging.error(traceback.format_exc())
+            return None
+
+    def _prepare_futures_order_builder(self, order, OrderBuilder):
+        """
+        Prepare the order builder for futures orders using Schwab generic order builder.
+        
+        Parameters
+        ----------
+        order : Order
+            The order to prepare the builder for
+        OrderBuilder : class
+            Schwab OrderBuilder class
+            
+        Returns
+        -------
+        OrderBuilder
+            The order builder object for Schwab API
+        """
+        from schwab.orders.common import OrderType, EquityInstruction, OrderStrategyType, Session, Duration
+        
+        # Get order parameters
+        symbol = order.asset.symbol
+        quantity = int(order.quantity)
+        
+        # Futures symbols in Schwab sometimes need special formatting
+        # Most common futures symbols include a slash, e.g., "/ES" for E-mini S&P 500
+        if not symbol.startswith('/') and not ':' in symbol and not '.' in symbol:
+            logging.info(colored(f"Converting futures symbol from {symbol} to /{symbol}", "cyan"))
+            symbol = f"/{symbol}"
+        
+        try:
+            # Create order spec directly (without using OrderBuilder methods)
+            # This ensures we have the exact structure the API expects
+            order_spec = {
+                "session": "NORMAL",
+                "duration": "GOOD_TILL_CANCEL",
+                "orderStrategyType": "SINGLE",
+                "orderLegCollection": [
+                    {
+                        "orderLegType": "FUTURE",
+                        "instruction": "BUY" if order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.BUY_TO_COVER] else "SELL",
+                        "quantity": quantity,
+                        "instrument": {
+                            "assetType": "FUTURE",
+                            "symbol": symbol
+                        }
+                    }
+                ]
+            }
+            
+            # Set order type
+            if order.order_type == Order.OrderType.MARKET:
+                order_spec["orderType"] = "MARKET"
+            elif order.order_type == Order.OrderType.LIMIT:
+                order_spec["orderType"] = "LIMIT"
+                order_spec["price"] = float(order.limit_price)
+            elif order.order_type == Order.OrderType.STOP:
+                order_spec["orderType"] = "STOP"
+                order_spec["stopPrice"] = float(order.stop_price)
+            elif order.order_type == Order.OrderType.STOP_LIMIT:
+                order_spec["orderType"] = "STOP_LIMIT"
+                order_spec["price"] = float(order.stop_limit_price)
+                order_spec["stopPrice"] = float(order.stop_price)
+            else:
+                logging.error(colored(f"Order type {order.order_type} not supported for futures with Schwab.", "red"))
+                return None
+            
+            # Log the manually constructed order spec for debugging
+            logging.info(colored(f"Manually constructed futures order spec: {json.dumps(order_spec, indent=2)}", "cyan"))
+            
+            # Create a new OrderBuilder with the direct spec
+            # This bypasses all the OrderBuilder methods completely
+            new_builder = OrderBuilder()
+            # Important: We're directly setting the order spec as the final product
+            # That will be returned by build() later, not creating a nested structure
+            new_builder._order_spec = order_spec
+            
+            # No need to call any setter methods since we've directly set the spec
+            return new_builder
+            
+        except Exception as e:
+            logging.error(colored(f"Error creating futures order builder: {e}", "red"))
+            logging.error(traceback.format_exc())
+            return None
+
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """
@@ -1295,3 +1573,53 @@ class Schwab(Broker):
         t.start()
         # Removed blocking wait for stream connection establishment
         return
+
+    def sync_positions(self, strategy):
+        """
+        Override the default sync_positions method to prevent duplicate positions.
+        
+        This method ensures that positions are properly synchronized without creating duplicates.
+        """
+        # Get current tracked positions for this strategy
+        strategy_name = strategy.name if strategy else None
+        tracked = self.get_tracked_positions(strategy_name)
+        tracked_dict = {}
+        
+        # Create a dict of tracked positions keyed by their unique asset identifiers
+        for position in tracked:
+            asset = position.asset
+            key = (asset.symbol, asset.asset_type,
+                  getattr(asset, 'expiration', None),
+                  getattr(asset, 'strike', None),
+                  getattr(asset, 'right', None))
+            tracked_dict[key] = position
+        
+        # Pull fresh positions from the broker
+        new_positions = self._pull_positions(strategy)
+        new_dict = {}
+        for position in new_positions:
+            asset = position.asset
+            key = (asset.symbol, asset.asset_type,
+                  getattr(asset, 'expiration', None),
+                  getattr(asset, 'strike', None),
+                  getattr(asset, 'right', None))
+            new_dict[key] = position
+        
+        # Remove positions that no longer exist
+        for key, position in tracked_dict.items():
+            if key not in new_dict:
+                # Use the proper method to remove positions from filled_positions list
+                if position in self._filled_positions.get_list():
+                    self._filled_positions.remove(position)
+        
+        # Update or add positions
+        for key, position in new_dict.items():
+            if key in tracked_dict:
+                # Update existing position
+                tracked_position = tracked_dict[key]
+                tracked_position.quantity = position.quantity
+            else:
+                # Add new position
+                self._filled_positions.append(position)
+        
+        logging.debug(f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}")

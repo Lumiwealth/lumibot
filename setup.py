@@ -32,7 +32,7 @@ setuptools.setup(
         "scipy>=1.13.0",
         "quantstats-lumi>=0.3.3",
         "python-dotenv",  # Secret Storage
-        "ccxt>=4.3.74",
+        "ccxt>=4.4.68",
         "termcolor",
         "jsonpickle",
         "apscheduler>=3.10.4",

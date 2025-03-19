@@ -46,5 +46,4 @@ data/SRNE_Minute.csv
 .vscode/**
 *.tmp
 .env
-lumibot/brokers/token.json
-lumibot/brokers/token.json
+token.json

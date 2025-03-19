@@ -560,11 +560,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return False
 
         try:
+            # Read CSV file with 'timestamp' column parsed as dates
             df = pd.read_csv(filepath, parse_dates=['timestamp'])
-            if df['timestamp'].dt.tz is None:
-                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(self._tzinfo)
-            else:
-                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_convert(self._tzinfo)
+
+            # Convert timestamp column to datetime objects, interpreting them as UTC times
+            # utc=True ensures proper handling of timezone-aware data
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+
+            # Convert timestamps from UTC to the timezone specified in self._tzinfo
+            # For example: if self._tzinfo is 'America/New_York', converts UTC times to NY time
+            df['timestamp'] = df['timestamp'].dt.tz_convert(self._tzinfo)
 
             df.set_index('timestamp', inplace=True)
             self._data_store[key] = df
@@ -634,12 +639,20 @@ class AlpacaBacktesting(DataSourceBacktesting):
             df.sort_values('timestamp', inplace=True)
             df.reset_index(inplace=True)
 
-        # Fill missing values
+        # Fill missing volume values with 0.0
         df['volume'] = df['volume'].fillna(0.0)
-        df['close'] = df['close'].fillna(method='ffill')
+
+        # Forward fill missing close prices
+        df['close'] = df['close'].ffill()
+
+        # Fill missing open, high, low with close prices
         for column in ['open', 'high', 'low']:
             df[column] = df[column].fillna(df['close'])
-        df['open'] = df['open'].fillna(method='bfill')
+
+        # Backward fill remaining missing open prices
+        df['open'] = df['open'].bfill()
+
+        # Fill any remaining missing high, low, close with open prices
         for column in ['high', 'low', 'close']:
             df[column] = df[column].fillna(df['open'])
 

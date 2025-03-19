@@ -58,6 +58,10 @@ if __name__ == "__main__":
         analyze_backtest=False,
         parameters=parameters,
 
+        # For seeing logs (if using DebugLogTrader, set show_progress_bar to false)
+        trader_class=DebugLogTrader,
+        show_progress_bar=False,
+
         # AlpacaBacktesting kwargs
         timestep=timestep,
         market=parameters['market'],
@@ -65,10 +69,6 @@ if __name__ == "__main__":
         refresh_cache=refresh_cache,
         warm_up_trading_days=warm_up_trading_days,
         auto_adjust=auto_adjust,
-
-        # For seeing logs (if using DebugLogTrader, set show_progress_bar to false)
-        # trader_class=DebugLogTrader,
-        # show_progress_bar=False,
     )
 
     print(results)

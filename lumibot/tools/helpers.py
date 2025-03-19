@@ -137,7 +137,10 @@ def get_trading_days(
         return dt.tz_convert(tzinfo) if dt.tz is not None else dt.tz_localize(tzinfo)
 
     start_date = ensure_tz_aware(start_date, tzinfo)
-    end_date = ensure_tz_aware(end_date, tzinfo) if end_date else ensure_tz_aware(get_lumibot_datetime())
+    if end_date is not None:
+        end_date = ensure_tz_aware(end_date, tzinfo)
+    else:
+        end_date = ensure_tz_aware(get_lumibot_datetime(), tzinfo)
 
     if market == "24/7":
         cal = TwentyFourSevenCalendar(tzinfo=tzinfo)

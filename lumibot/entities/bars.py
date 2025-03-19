@@ -46,9 +46,6 @@ class Bars:
     get_last_dividend
         Returns the dividend per share value of the last dataframe row
 
-    get_momentum(num_periods=1)
-        Calculates the global price momentum of the dataframe.
-
     aggregate_bars(frequency)
         Will convert a set of bars to a different timeframe (eg. 1 min
         to 15 min) frequency (string): The new timeframe that the bars
@@ -223,19 +220,6 @@ class Bars:
             df_copy = df_copy[df_copy.index <= end]
 
         return df_copy
-
-    def get_momentum(self, num_periods: int = 1):
-        """
-        Calculate the momentum of the asset over the last num_periods rows. If dividends are provided by the data source,
-        and included in the return calculation, the momentum will be adjusted for dividends.
-        """
-        df_copy = self.df.copy()
-        if "return" in df_copy.columns:
-            period_adj_returns = df_copy['return'].iloc[-num_periods:].astype(float)
-            momentum = (1 + period_adj_returns).cumprod().iloc[-1] - 1
-        else:
-            momentum = df_copy['close'].pct_change(num_periods).iloc[-1]
-        return momentum
 
     def get_total_volume(self, start=None, end=None):
         """Return the total volume of the bars between start and end

@@ -254,105 +254,6 @@ class BacktestingTestStrategy(Strategy):
             self.cancel_open_orders()
 
 
-# noinspection PyMethodMayBeStatic
-def check_bars_from_get_historical_prices(
-        *,
-        bars: Bars,
-        now: datetime,
-        length: int = 30,
-        data_source_tz: pytz.tzinfo = None,
-        time_check: time | None = None,
-        market: str = 'NYSE',
-        timestep: str = 'day'
-):
-    """
-    Validates the integrity and correctness of financial bars data retrieved from a call to
-    the get_historical_price API, ensuring it aligns with expected trading day conditions and timestamps.
-
-    The idea is, if you make a version of a get_historical_price call, you should test it with this method.
-
-    The function performs multiple checks based on the input parameters, including verifying the
-    data length, timestamp consistency, timezone correctness, and alignment with trading schedules.
-    These validations are contingent upon trading markets, timesteps, and other configurations
-    provided.
-
-    Args:
-        bars (Bars): Financial bars data containing a dataframe of historical prices and returns.
-            The dataframe index should be in timestamp format.
-        now (datetime): Current timestamp representing the time when the validation is executed.
-        length (int): Expected length or count of bars in the historical data. Defaults to 30.
-        data_source_tz (pytz.timezone): Timezone information pertaining to the data source.
-            Optional parameter.
-        time_check (time | None): Specific time to verify against the timestamp of the most recent bar.
-            Can be None.
-        market (str): Identifier of the market (e.g., 'NYSE') the data pertains to. Defaults to 'NYSE'.
-        timestep (str): Interval of the bars data. Typically 'day' or 'minute'. Defaults to 'day'.
-
-    Raises:
-        AssertionError: If validity checks fail in terms of data length, timezone alignment,
-            timestamp accuracy, or trading day conditions.
-    """
-    assert len(bars.df) == abs(length)
-    assert isinstance(bars.df.index[-1], pd.Timestamp)
-
-    if data_source_tz:
-        assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
-
-    assert bars.df["return"].iloc[-1] is not None
-
-    if time_check:
-        timestamp = bars.df.index[-1]
-        assert timestamp.hour == time_check.hour
-        assert timestamp.minute == time_check.minute
-
-    today = now.date()
-
-    assert bars.df.index[-1] <= now
-
-    trading_days = get_trading_days(
-        market=market,
-        start_date=today - timedelta(days=7),
-        end_date=today + timedelta(days=1),
-        tzinfo=data_source_tz
-    )
-
-    if timestep == 'day':
-        if today in list(trading_days.index.date):
-            market_open = trading_days.loc[str(today), 'market_open']
-            market_close = trading_days.loc[str(today), 'market_close']
-
-            if now < market_open:
-                # Before market open - should get last trading day's bar
-                assert bars.df.index[-1].date() == trading_days.index[-2].date()
-            elif market_open <= now <= market_close:
-                # During market hours - should get incomplete current day bar
-                assert bars.df.index[-1].date() == trading_days.index[-1].date()
-            else:
-                # After market close - should get complete current day bar
-                assert bars.df.index[-1].date() == trading_days.index[-1].date()
-        else:
-            # Non-trading day - should get last trading day's bar
-            assert bars.df.index[-1].date() == trading_days.index[-1].date()
-    else:
-        # timestep == 'minute'
-        if today in list(trading_days.index.date):
-            market_open = trading_days.loc[str(today), 'market_open']
-            market_close = trading_days.loc[str(today), 'market_close']
-
-            if now < market_open:
-                # Before market open - last bar should be from previous day
-                assert bars.df.index[-1].date() == trading_days.index[-2].date()
-            elif market_open <= now <= market_close:
-                # During market hours - last bar should be (incomplete) minute bar for now
-                assert bars.df.index[-1] == now.replace(second=0, microsecond=0)
-            else:
-                # After market close - should be equal to market close
-                assert bars.df.index[-1] == market_close
-        else:
-            # Non-trading day - should get last trading day's bar
-            assert bars.df.index[-1].date() == trading_days.index[-1].date()
-
-
 class BaseDataSourceTester:
 
     def _create_data_source(self) -> DataSource:
@@ -365,7 +266,7 @@ class BaseDataSourceTester:
     # noinspection PyMethodMayBeStatic
     def check_index(self, bars: Bars, data_source_tz: pytz.tzinfo = None) -> None:
         assert isinstance(bars.df.index[-1], pd.Timestamp)
-        assert bars.df.index.name in ['timestamp', 'date', 'datetime']
+        assert bars.df.index.name in ['timestamp', 'date', 'datetime', 'Date']
 
         if data_source_tz:
             assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone

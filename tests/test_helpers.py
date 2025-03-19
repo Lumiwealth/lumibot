@@ -183,7 +183,7 @@ def test_get_trading_times_minute_nyse():
 def test_get_trading_times_minute_24_7_utc():
     start_date = datetime(2024, 1, 8)
     end_date = datetime(2024, 1, 9)
-    tzinfo = ZoneInfo('UTC')
+    tzinfo = pytz.timezone('UTC')
     pcal = get_trading_days(
         market='24/7',
         start_date=start_date,
@@ -198,13 +198,13 @@ def test_get_trading_times_minute_24_7_utc():
     assert result[0].time().minute == 0
     assert result[-1].time().hour == 23
     assert result[-1].time().minute == 59
-    assert all(dt.tzinfo == tzinfo for dt in result)
+    assert all(dt.tzinfo.zone == tzinfo.zone for dt in result)
 
 
 def test_get_trading_times_minute_24_7_america_chicago():
     start_date = datetime(2024, 1, 8)
     end_date = datetime(2024, 1, 10)
-    tzinfo = ZoneInfo('America/Chicago')
+    tzinfo = pytz.timezone('America/Chicago')
     pcal = get_trading_days(
         market='24/7',
         start_date=start_date,
@@ -219,13 +219,13 @@ def test_get_trading_times_minute_24_7_america_chicago():
     assert result[0].time().minute == 0
     assert result[-1].time().hour == 23
     assert result[-1].time().minute == 59
-    assert all(dt.tzinfo == tzinfo for dt in result)
+    assert all(dt.tzinfo.zone == tzinfo.zone for dt in result)
 
 
 def test_get_trading_times_minute():
     start_date = datetime(2024, 1, 8)
     end_date = datetime(2024, 1, 10)
-    tzinfo = ZoneInfo('America/New_York')
+    tzinfo = pytz.timezone('America/New_York')
     pcal = get_trading_days(
         market='NYSE',
         start_date=start_date,
@@ -240,7 +240,7 @@ def test_get_trading_times_minute():
     assert result[0].time().minute == 30
     assert result[-1].time().hour == 15
     assert result[-1].time().minute == 59
-    assert all(dt.tzinfo == tzinfo for dt in result)
+    assert all(dt.tzinfo.zone == tzinfo.zone for dt in result)
 
 
 def test_get_timezone_from_datetime():

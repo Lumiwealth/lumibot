@@ -192,7 +192,7 @@ def get_trading_times(
         is_24_7 = end.hour == 23 and end.minute == 59
 
         # Generate minute bars between open and close
-        minutes = pd.date_range(start=start, end=end, freq='T')
+        minutes = pd.date_range(start=start, end=end, freq='min')
 
         # Only remove the last minute for non-24/7 markets
         if not is_24_7:

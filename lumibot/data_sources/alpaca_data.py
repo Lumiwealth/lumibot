@@ -333,9 +333,6 @@ class AlpacaData(DataSource):
             # Round to last full minute
             end = end + timedelta(minutes=1)
             end = end.replace(second=0, microsecond=0)
-            pull_latest = True
-        else:
-            pull_latest = False
 
         # Initialize pagination parameters
         max_bars_per_request = 5000
@@ -428,11 +425,8 @@ class AlpacaData(DataSource):
 
         # Handle case where no data was received
         if not df_list:
-            if not pull_latest:
-                logging.warning(f"No pricing data available from Alpaca for {symbol}")
-                return None
-            df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume', 'trade_count', 'vwap'])
-            df.index.name = 'timestamp'
+            logging.warning(f"No pricing data available from Alpaca for {symbol}")
+            return None
         else:
             # Combine all chunks and process the final dataframe
             df = pd.concat(df_list)
@@ -454,24 +448,6 @@ class AlpacaData(DataSource):
                 logging.warning(
                     f"Only got {len(df)} bars for {symbol} while {limit} were requested"
                 )
-
-        # # Handle live minute data special case
-        # if str(freq) == "1Min" and pull_latest:
-        #     price = self.get_last_price(asset=asset, quote=quote)
-        #     new_row = {col: 0.0 for col in df.columns}
-        #     new_row.update({
-        #         'open': price,
-        #         'high': price,
-        #         'low': price,
-        #         'close': price
-        #     })
-        #
-        #     now = datetime.now().astimezone(self._tzinfo)
-        #     now = now.replace(second=0, microsecond=0)
-        #     df.loc[now] = new_row
-        #
-        #     if not df.empty and len(df) > 1:
-        #         df = df.iloc[1:]
 
         if not include_after_hours and str(freq) == "1Min" and self._tzinfo == pytz.timezone("America/New_York"):
             # Filter the data to only include regular market hours (9:30 AM to 4:00 PM ET)

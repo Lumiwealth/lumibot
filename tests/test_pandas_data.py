@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
 import pytest
+import pytz
 
 import pandas as pd
 from lumibot.data_sources import PandasData
@@ -13,11 +14,12 @@ from tests.fixtures import (
     pandas_data_fixture_amzn_minute,
     pandas_data_fixture_btc_day,
     pandas_data_fixture_btc_hour,
-    pandas_data_fixture_btc_minute
+    pandas_data_fixture_btc_minute,
+    BaseDataSourceTester
 )
 
 
-class TestPandasData:
+class TestPandasData(BaseDataSourceTester):
 
     def test_pandas_data_fixture(self, pandas_data_fixture):
         assert pandas_data_fixture is not None
@@ -262,3 +264,73 @@ class TestPandasData:
         datetime_end = datetime(2019, 6, 22)
         pandas_data = PandasData(datetime_start, datetime_end)
         assert pandas_data
+
+    # @pytest.mark.skip()
+    def test_pandas_backtesting_data_source_get_historical_prices_daily(
+            self,
+            pandas_data_fixture
+    ):
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        asset = Asset("SPY")
+        timestep = "day"
+
+        data_source = PandasData(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            pandas_data=pandas_data_fixture
+        )
+
+        # First trading day after MLK day
+        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
+        data_source._datetime = now
+
+        for length in [1, 10]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            # TODO: PandasData doesn't return the incomplete daily bar for the day like most live data sources.
+            # self.check_daily_bars(
+            #     bars=bars,
+            #     now=now,
+            #     data_source_tz=data_source._tzinfo,
+            #     time_check=time(0, 0),
+            # )
+
+    # @pytest.mark.skip()
+    def test_pandas_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(
+            self,
+            pandas_data_fixture
+    ):
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 3, 26))
+        datetime_end = tzinfo.localize(datetime(2019, 4, 25))
+
+        asset = Asset("SPY")
+        timestep = "day"
+
+        data_source = PandasData(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            pandas_data=pandas_data_fixture
+        )
+
+        now = tzinfo.localize(datetime(2019, 4, 25))
+        data_source._datetime = now
+
+        # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
+        # for the next trading day)
+        length = 2
+        timeshift = -length  # negative length gets future bars
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, timeshift=timeshift)
+        self.check_length(bars=bars, length=length)
+        self.check_columns(bars=bars)
+        self.check_index(bars=bars, data_source_tz=data_source._tzinfo)

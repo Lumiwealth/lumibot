@@ -10,7 +10,6 @@ import pytest
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset, Data
-from lumibot.example_strategies.stock_momentum import Momentum
 from lumibot.traders import Trader
 
 # Skip all the tests in this file
@@ -68,14 +67,6 @@ for ticker in tickers:
 
 # Strategies mapping
 mapping = {
-    "momentum": {
-        "class": Momentum,
-        "backtesting_datasource": PandasDataBacktesting,
-        "kwargs": {"symbols": list(pandas_data)},
-        "config": None,
-        "pandas_data": pandas_data,
-        "logfile": "logs/log_momentum.txt",
-    },
     # "diversification": {
     #     "class": Diversification,
     #     "backtesting_datasource": PandasDataBacktesting,
@@ -185,13 +176,6 @@ def test_integration():
             "sharpe": 2.929003968617979,
             "romad": 8.00686191195888,
             "total_return": 0.13127250881195174,
-        },
-        "momentum": {
-            "cagr": 0.48736434348385216,
-            "volatility": 0.11638046363125136,
-            "sharpe": 4.187681748957919,
-            "romad": 14.647567392415182,
-            "total_return": 0.29946557283401365,
         },
         "diversification": {
             "cagr": 0.19794477299026614,

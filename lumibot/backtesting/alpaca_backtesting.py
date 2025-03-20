@@ -23,6 +23,7 @@ from lumibot.tools.helpers import (
     get_decimals,
     quantize_to_num_decimals
 )
+from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 
 class AlpacaBacktesting(DataSourceBacktesting):
@@ -188,6 +189,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self.datetime_start = start_dt
         self._datetime = self.datetime_start
 
+    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+        asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
+        return asset, quote
+
     def get_last_price(
             self, 
             asset: Asset, 
@@ -196,10 +201,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
     ) -> float | Decimal | None:
         """Returns the open price of the current bar."""
 
-        if isinstance(asset, tuple):
-            # Grr... Who made this a tuple?
-            quote = asset[1]
-            asset = asset[0]
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         bars = self.get_historical_prices(
             asset=asset,
@@ -269,10 +271,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if length <= 0:
             raise ValueError("Length must be positive.")
 
-        if isinstance(asset, tuple):
-            # Grr... Who made this a tuple?
-            quote = asset[1]
-            asset = asset[0]
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if timestep is None:
             timestep = self._timestep

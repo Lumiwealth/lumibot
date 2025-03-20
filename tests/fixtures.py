@@ -259,6 +259,11 @@ class BaseDataSourceTester:
     def _create_data_source(self) -> DataSource:
         raise NotImplementedError()
 
+    def check_get_last_price(self, data_source, asset, quote=None, exchange=None) -> None:
+        price = data_source.get_last_price(asset=asset, quote=quote, exchange=exchange)
+        assert price is not None
+        assert isinstance(price, float)
+
     # noinspection PyMethodMayBeStatic
     def check_length(self, bars: Bars, length: int) -> None:
         assert len(bars.df) == abs(length)

@@ -31,17 +31,19 @@ class TestAlpacaData(BaseDataSourceTester):
         data_source = self._create_data_source()
         asset = Asset('BTC', asset_type='crypto')
         quote_asset = Asset('USD', asset_type='forex')
-        price = data_source.get_last_price(asset=asset, quote=quote_asset)
-        assert price is not None
-        assert isinstance(price, float)
+        self.check_get_last_price(data_source, asset, quote_asset)
+        # test tuple
+        asset_tuple = (asset, quote_asset)
+        self.check_get_last_price(data_source, asset_tuple)
 
     def test_get_last_price_stock(self):
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
         quote_asset = Asset('USD', asset_type='forex')
-        price = data_source.get_last_price(asset=asset, quote=quote_asset)
-        assert price is not None
-        assert isinstance(price, float)
+        self.check_get_last_price(data_source, asset, quote_asset)
+        # test tuple
+        asset_tuple = (asset, quote_asset)
+        self.check_get_last_price(data_source, asset_tuple)
 
     def test_get_historical_prices_daily_bars_stock(self):
         data_source = self._create_data_source()
@@ -71,6 +73,34 @@ class TestAlpacaData(BaseDataSourceTester):
                 market=market,
             )
 
+    def test_get_historical_prices_daily_bars_stock_tuple(self):
+        data_source = self._create_data_source()
+        asset = Asset("SPY")
+        quote_asset = Asset('USD', asset_type='forex')
+        asset_tuple = (asset, quote_asset)
+        timestep = "day"
+        market = 'NYSE'
+        now = datetime.now(data_source._tzinfo)
+
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0 ,0),
+                market=market,
+            )
+
     def test_get_historical_prices_daily_bars_crypto(self):
         market = '24/7'
         timestep = "day"
@@ -86,6 +116,37 @@ class TestAlpacaData(BaseDataSourceTester):
                 length=length,
                 timestep=timestep,
                 quote=quote_asset,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+
+                # default crypto timezone is America/Chicago
+                time_check=time(1 ,0),
+                market=market,
+            )
+
+    def test_get_historical_prices_daily_bars_crypto_tuple(self):
+        market = '24/7'
+        timestep = "day"
+        asset = Asset('BTC', asset_type='crypto')
+        quote_asset = Asset('USD', asset_type='forex')
+        asset_tuple = (asset, quote_asset)
+
+        data_source = self._create_data_source()
+        now = datetime.now(data_source._tzinfo)
+
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
                 include_after_hours=True
             )
 

@@ -267,7 +267,7 @@ class AlpacaData(DataSource):
         if not timestep:
             timestep = self.get_timestep()
 
-        df = self._pull_source_dataframe(
+        df = self._pull_source_symbol_bars(
             asset,
             length,
             timestep=timestep,
@@ -279,7 +279,7 @@ class AlpacaData(DataSource):
         if df is None:
             return None
 
-        bars = self._create_bars_from_dataframe(df, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(df, asset, quote=quote, length=length)
         return bars
 
     def _get_dataframe_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None, include_after_hours=True) -> pd.DataFrame | None:
@@ -436,7 +436,7 @@ class AlpacaData(DataSource):
         df = df.sort_index()
         return df
 
-    def _pull_source_dataframe(
+    def _pull_source_symbol_bars(
             self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None,
             include_after_hours=True
     ) -> pd.DataFrame | None:
@@ -470,7 +470,6 @@ class AlpacaData(DataSource):
 
         return df
 
-    def _create_bars_from_dataframe(self, df, asset, quote=None, length=None) -> Bars:
-        # TODO: Alpaca return should also include dividends
-        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars

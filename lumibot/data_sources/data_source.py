@@ -333,13 +333,19 @@ class DataSource(ABC):
         def process_chunk(chunk):
             chunk_result = {}
             for asset in chunk:
+                if isinstance(asset, tuple):
+                    base_asset = asset[0]
+                    quote_asset = asset[1]
+                else:
+                    base_asset = asset
+                    quote_asset = quote
                 try:
                     chunk_result[asset] = self.get_historical_prices(
-                        asset,
-                        length,
+                        asset=base_asset,
+                        length=length,
                         timestep=timestep,
                         timeshift=timeshift,
-                        quote=quote,
+                        quote=quote_asset,
                         exchange=exchange,
                         include_after_hours=include_after_hours,
                     )
@@ -348,7 +354,7 @@ class DataSource(ABC):
                     time.sleep(0.1)
                 except Exception as e:
                     # Log once per asset to avoid spamming with a huge traceback
-                    logging.warning(f"Error retrieving data for {asset.symbol}: {e}")
+                    logging.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
                     tb = traceback.format_exc()
                     logging.warning(tb)  # This prints the traceback
                     chunk_result[asset] = None

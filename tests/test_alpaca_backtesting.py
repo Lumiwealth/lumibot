@@ -1465,6 +1465,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         price = data_source.get_last_price(asset=asset)
         assert price == 610.1600  # open price of the daily bar
 
+        # test tuple
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        asset_tuple = (quote, quote)
+        self.check_get_last_price(data_source, asset_tuple)
+
     def test_get_last_price_daily_bars_crypto(self):
         tzinfo = pytz.timezone("America/Chicago")
         datetime_start = tzinfo.localize(datetime(2025, 1, 1))
@@ -1500,6 +1505,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
         assert price == 98308.914000000 # open price of the daily bar
+
+        # test tuple
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        asset_tuple = (quote, quote)
+        self.check_get_last_price(data_source, asset_tuple)
 
     def test_get_last_price_minute_bars_stock(self):
         tzinfo = pytz.timezone("America/New_York")
@@ -1624,6 +1634,27 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             length = -1
             bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
 
+        # check tuple support
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        asset_tuple = (asset, quote)
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
+
     def test_get_historical_prices_minute_bars_crypto(self):
         tzinfo = pytz.timezone("America/Chicago")
         datetime_start = tzinfo.localize(datetime(2025, 2, 19))
@@ -1680,6 +1711,27 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         with pytest.raises(Exception):
             length = -1
             bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+
+        # check tuple support
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        asset_tuple = (asset, quote)
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
 
     def test_get_historical_prices_daily_bars_stock(self):
         tzinfo = pytz.timezone("America/New_York")

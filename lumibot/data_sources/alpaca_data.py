@@ -33,6 +33,7 @@ from lumibot.tools.helpers import (
     get_decimals,
     quantize_to_num_decimals
 )
+from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 from .data_source import DataSource
 
@@ -200,6 +201,10 @@ class AlpacaData(DataSource):
         else:
             self.version = "v2"
 
+    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+        asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
+        return asset, quote
+
     def get_chains(self, asset: Asset, quote=None, exchange: str = None):
         """
         Alpaca doesn't support option trading. This method is here to comply with the DataSource interface
@@ -210,27 +215,11 @@ class AlpacaData(DataSource):
         )
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
-        if quote is not None:
-            # If the quote is not None, we use it even if the asset is a tuple
-            if isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.STOCK:
-                symbol = asset.symbol
-            elif isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol}/{quote.symbol}"
-            else:
-                symbol = f"{asset.symbol}/{quote.symbol}"
-        elif isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION:
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-        elif isinstance(asset, tuple):
-            symbol = f"{asset[0].symbol}/{asset[1].symbol}"
-        elif isinstance(asset, str):
-            symbol = asset
-        else:
-            symbol = asset.symbol
 
-        if (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.CRYPTO) or (
-                isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.CRYPTO):
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
+
+        if asset.asset_type == Asset.AssetType.CRYPTO:
+            symbol = f"{asset.symbol}/{quote.symbol}"
             client = self._get_crypto_client()
             quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
             latest_quote = client.get_crypto_latest_quote(quote_params)
@@ -242,8 +231,10 @@ class AlpacaData(DataSource):
             price = (latest_quote.bid_price + latest_quote.ask_price) / 2
             num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
 
-        elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (
-                isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = asset.expiration.strftime("%y%m%d")
+            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
             logging.info(f"Getting {asset} option price")
             client = self._get_option_client()
             params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
@@ -253,6 +244,7 @@ class AlpacaData(DataSource):
             num_decimals = get_decimals(price)
         else:
             # Stocks
+            symbol = asset.symbol
             client = self._get_stock_client()
             params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
             latest_quote = client.get_stock_latest_quote(params)[symbol]
@@ -269,18 +261,13 @@ class AlpacaData(DataSource):
             self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
         """Get bars for a given asset"""
-        if isinstance(asset, str):
-            # Check if the string matches an option contract
-            pattern = r'^[A-Z]{1,5}\d{6,7}[CP]\d{8}$'
-            if re.match(pattern, asset) is not None:
-                asset = Asset(symbol=asset, asset_type=Asset.AssetType.OPTION)
-            else:
-                asset = Asset(symbol=asset)
+
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if not timestep:
             timestep = self.get_timestep()
 
-        response = self._pull_source_symbol_bars(
+        df = self._pull_source_dataframe(
             asset,
             length,
             timestep=timestep,
@@ -289,15 +276,13 @@ class AlpacaData(DataSource):
             exchange=exchange,
             include_after_hours=include_after_hours,
         )
-        if isinstance(response, float):
-            return response
-        elif response is None:
+        if df is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        bars = self._create_bars_from_dataframe(df, asset, quote=quote, length=length)
         return bars
 
-    def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None, include_after_hours=True):
+    def _get_dataframe_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None, include_after_hours=True) -> pd.DataFrame | None:
         """
         Gets historical bar data for the given asset and time parameters with proper pagination.
 
@@ -312,11 +297,6 @@ class AlpacaData(DataSource):
         Returns:
             DataFrame with OHLCV data and timezone aware index
         """
-        # Handle asset tuple case
-        if isinstance(asset, tuple):
-            if quote is None:
-                quote = asset[1]
-            asset = asset[0]
 
         # Set default limit
         if not limit:
@@ -456,58 +436,41 @@ class AlpacaData(DataSource):
         df = df.sort_index()
         return df
 
-    def _pull_source_bars(
-            self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
-    ):
-        """pull broker bars for a list assets"""
-        result = {}
-        for asset in assets:
-            if timeshift or asset.asset_type == Asset.AssetType.CRYPTO:
-                # Crypto asset prices are not delayed.
-                asset_timeshift = timeshift
-            else:
-                # Alpaca throws an error if we don't do this and don't have a data subscription because
-                # they require a subscription for historical data less than 15 minutes old
-                asset_timeshift = self._delay
-
-            parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-            kwargs = dict(limit=length)
-            if asset_timeshift:
-                end = datetime.now(tz=self._tzinfo) - asset_timeshift  # Create datetime directly in target timezone
-                kwargs["end"] = end
-
-            data = self.get_barset_from_api(
-                asset=asset,
-                freq=parsed_timestep,
-                quote=quote,
-                include_after_hours=include_after_hours,
-                **kwargs
-            )
-            result[asset] = data
-
-        return result
-
-    def _pull_source_symbol_bars(
+    def _pull_source_dataframe(
             self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None,
             include_after_hours=True
-    ):
+    ) -> pd.DataFrame | None:
         if exchange is not None:
             logging.warning(
                 f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
             )
 
-        """pull broker bars for a given asset"""
-        response = self._pull_source_bars(
-            assets=[asset],
-            length=length,
-            timestep=timestep,
-            timeshift=timeshift,
-            quote=quote,
-            include_after_hours=include_after_hours
-        )
-        return response[asset]
+        result = {}
+        if timeshift or asset.asset_type == Asset.AssetType.CRYPTO:
+            # Crypto asset prices are not delayed.
+            asset_timeshift = timeshift
+        else:
+            # Alpaca throws an error if we don't do this and don't have a data subscription because
+            # they require a subscription for historical data less than 15 minutes old
+            asset_timeshift = self._delay
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        kwargs = dict(limit=length)
+        if asset_timeshift:
+            end = datetime.now(tz=self._tzinfo) - asset_timeshift  # Create datetime directly in target timezone
+            kwargs["end"] = end
+
+        df = self._get_dataframe_from_api(
+            asset=asset,
+            freq=parsed_timestep,
+            quote=quote,
+            include_after_hours=include_after_hours,
+            **kwargs
+        )
+
+        return df
+
+    def _create_bars_from_dataframe(self, df, asset, quote=None, length=None) -> Bars:
         # TODO: Alpaca return should also include dividends
-        bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
+        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
         return bars

@@ -35,6 +35,40 @@ class TestTradierData(BaseDataSourceTester):
         data_source = self._create_data_source()
         assert data_source._account_number == TRADIER_TEST_CONFIG['ACCOUNT_NUMBER']
 
+    def test_sanitize_base_and_quote_asset(self):
+        """
+        Test _sanitize_base_and_quote_asset method with various inputs:
+        - Regular input with two assets
+        - Tuple input
+        - String input (should raise error)
+        - String in tuple input (should raise error)
+        """
+        # Setup
+        data_source = self._create_data_source()
+        asset_a = Asset("AAPL")  # Create real Asset objects
+        asset_b = Asset("USD")  # instead of Mocks
+
+        # Test case 1: Regular input with two separate assets
+        base, quote = data_source._sanitize_base_and_quote_asset(asset_a, asset_b)
+        assert base == asset_a
+        assert quote == asset_b
+
+        # Test case 2: Input as tuple
+        tuple_input = (asset_a, asset_b)
+        base, quote = data_source._sanitize_base_and_quote_asset(tuple_input, None)
+        assert base == asset_a
+        assert quote == asset_b
+
+        # Test case 3: String input should raise NotImplementedError
+        with pytest.raises(NotImplementedError) as exc_info:
+            data_source._sanitize_base_and_quote_asset("AAPL", asset_b)
+        assert "TradierData doesn't support string assets" in str(exc_info.value)
+
+        # Test case 4: String input in tuple should raise NotImplementedError
+        with pytest.raises(NotImplementedError) as exc_info:
+            data_source._sanitize_base_and_quote_asset(("AAPL", asset_b), None)
+        assert "TradierData doesn't support string assets" in str(exc_info.value)
+
     def test_get_chains(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
@@ -96,6 +130,9 @@ class TestTradierData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         price = data_source.get_last_price(asset=asset, quote=quote_asset)
         assert price is not None
+        # test tuple
+        asset_tuple = (asset, quote_asset)
+        self.check_get_last_price(data_source, asset_tuple)
 
     def test_get_historical_prices_daily_bars_stock(self):
         data_source = self._create_data_source()
@@ -111,6 +148,28 @@ class TestTradierData(BaseDataSourceTester):
                 length=length,
                 timestep=timestep,
                 quote=quote_asset,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0 ,0),
+                market=market,
+            )
+
+        # test tuple
+        asset_tuple = (asset, quote_asset)
+        self.check_get_last_price(data_source, asset_tuple)
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
                 include_after_hours=True
             )
 

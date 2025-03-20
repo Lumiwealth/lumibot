@@ -78,6 +78,19 @@ class TradierData(DataSource):
         self.tradier = Tradier(account_number, access_token, paper)
         self._tzinfo = tzinfo
 
+    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+        if isinstance(base_asset, tuple):
+            quote = base_asset[1]
+            asset = base_asset[0]
+        else:
+            asset = base_asset
+            quote = quote_asset
+
+        if isinstance(asset, str):
+            raise NotImplementedError(f"TradierData doesn't support string assets like: {asset} yet.")
+
+        return asset, quote
+
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Obtains option chain information for the asset (stock) from each
@@ -186,6 +199,7 @@ class TradierData(DataSource):
         include_after_hours : bool
             Whether to include after hours data.
         """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
@@ -296,6 +310,7 @@ class TradierData(DataSource):
         float or Decimal or none
            Price of the asset
         """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         symbol = None
         try:
@@ -335,6 +350,7 @@ class TradierData(DataSource):
         dict
            Quote of the asset in the format of a dictionary, eg. {"bid": 100.0, "ask": 101.0, "last": 100.5}
         """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if asset.asset_type == "option":
             symbol = create_options_symbol(

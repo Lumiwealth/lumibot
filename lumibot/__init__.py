@@ -1,8 +1,16 @@
 import logging
 import os
-
+import sys
+import warnings
 import appdirs
 import pytz
+
+# Get the major and minor Python version
+major, minor = sys.version_info[:2]
+
+# Check if Python version is less than 3.10
+if (major, minor) < (3, 10):
+    warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
 
 # SOURCE PATH
 LUMIBOT_SOURCE_PATH = os.path.abspath(os.path.dirname(__file__))

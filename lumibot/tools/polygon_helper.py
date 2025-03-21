@@ -407,7 +407,12 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
     return cache_file
 
 
-def get_missing_dates(df_all, asset, start, end):
+def get_missing_dates(
+    df_all: Optional[pd.DataFrame],
+    asset: Asset,
+    start: datetime,
+    end: datetime
+) -> List[datetime.date]:
     """
     Check if we have data for the full range
     Later Query to Polygon will pad an extra full day to start/end dates so that there should never
@@ -435,7 +440,7 @@ def get_missing_dates(df_all, asset, start, end):
     if asset.asset_type == "option":
         trading_dates = [x for x in trading_dates if x <= asset.expiration]
 
-    if df_all is None or not len(df_all) or df_all.empty:
+    if df_all is None or df_all.empty:
         return trading_dates
 
     # It is possible to have full day gap in the data if previous queries were far apart

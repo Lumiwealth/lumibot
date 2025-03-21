@@ -4,7 +4,7 @@ import sys
 from decimal import Decimal, ROUND_HALF_EVEN
 
 import pytz
-from datetime import datetime, timedelta, date, time
+import datetime as dt
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -47,8 +47,8 @@ class TwentyFourSevenCalendar(MarketCalendar):
     """
 
     regular_market_times = {
-        'market_open': [(None, time(0, 0))],
-        'market_close': [(None, time(23, 59, 59, 999999))],
+        'market_open': [(None, dt.time(0, 0))],
+        'market_close': [(None, dt.time(23, 59, 59, 999999))],
     }
 
     def __init__(self, tzinfo: str | pytz.BaseTzInfo = 'UTC'):
@@ -65,11 +65,11 @@ class TwentyFourSevenCalendar(MarketCalendar):
 
     @property
     def open_time_default(self):
-        return time(0, 0)
+        return dt.time(0, 0)
 
     @property
     def close_time_default(self):
-        return time(23, 59)
+        return dt.time(23, 59)
 
     @property
     def regular_holidays(self):
@@ -126,15 +126,15 @@ def get_trading_days(
         raise TypeError('tzinfo must be a pytz.tzinfo object.')
 
     # More robust datetime conversion with explicit timezone handling
-    def format_datetime(dt):
-        if pd.isna(dt):
-            return dt
+    def format_datetime(dtm):
+        if pd.isna(dtm):
+            return dtm
         # Convert to Python datetime and ensure proper timezone conversion
-        return pd.Timestamp(dt).tz_convert(tzinfo).to_pydatetime()
+        return pd.Timestamp(dtm).tz_convert(tzinfo).to_pydatetime()
 
-    def ensure_tz_aware(dt, tzinfo):
-        dt = pd.to_datetime(dt)
-        return dt.tz_convert(tzinfo) if dt.tz is not None else dt.tz_localize(tzinfo)
+    def ensure_tz_aware(dtm, tzinfo):
+        dtm = pd.to_datetime(dtm)
+        return dtm.tz_convert(tzinfo) if dtm.tz is not None else dtm.tz_localize(tzinfo)
 
     start_date = ensure_tz_aware(start_date, tzinfo)
     if end_date is not None:
@@ -205,10 +205,10 @@ def get_trading_times(
 
 def date_n_days_from_date(
         n_days: int,
-        start_datetime: datetime,
+        start_datetime: dt.datetime,
         market: str = "NYSE",
         tzinfo: pytz.tzinfo = LUMIBOT_DEFAULT_PYTZ
-) -> date:
+) -> dt.date:
     """
     Get the trading date n_days from start_datetime.
     Positive n_days means going backwards in time (earlier dates).
@@ -216,12 +216,12 @@ def date_n_days_from_date(
     """
     if n_days == 0:
         return start_datetime.date()
-    if not isinstance(start_datetime, datetime):
+    if not isinstance(start_datetime, dt.datetime):
         raise ValueError("start_datetime must be datetime")
 
     # Special handling for 24/7 market
     if market == "24/7":
-        return (start_datetime - timedelta(days=n_days)).date()
+        return (start_datetime - dt.timedelta(days=n_days)).date()
 
     # Regular market handling
     start_datetime = start_datetime.astimezone(tzinfo)
@@ -234,13 +234,13 @@ def date_n_days_from_date(
     }
     if n_days > 0:
         date_range.update({
-            'start_date': (start_datetime - timedelta(days=n_days + buffer_bars)).date().isoformat(),
-            'end_date': (start_datetime + timedelta(days=1)).date().isoformat(),  # Add one day to include end date
+            'start_date': (start_datetime - dt.timedelta(days=n_days + buffer_bars)).date().isoformat(),
+            'end_date': (start_datetime + dt.timedelta(days=1)).date().isoformat(),  # Add one day to include end date
         })
     else:
         date_range.update({
             'start_date': start_datetime.date().isoformat(),
-            'end_date': (start_datetime + timedelta(days=abs(n_days) + buffer_bars + 1)).date().isoformat(),
+            'end_date': (start_datetime + dt.timedelta(days=abs(n_days) + buffer_bars + 1)).date().isoformat(),
             # Add one day
         })
 
@@ -297,7 +297,7 @@ def print_progress_bar(
     percent_str = ("  {:.%df}" % decimals).format(percent)
     percent_str = percent_str[-decimals - 4 :]
 
-    now = datetime.now()
+    now = dt.datetime.now()
     elapsed = now - backtesting_started
 
     if percent > 0:
@@ -331,16 +331,16 @@ def print_progress_bar(
 
 
 def get_lumibot_datetime():
-    return datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
+    return dt.datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
 
 
 def to_datetime_aware(dt_in):
     """Convert naive time to datetime aware on default timezone."""
     if not dt_in:
         return dt_in
-    elif isinstance(dt_in, datetime) and (dt_in.tzinfo is None):
+    elif isinstance(dt_in, dt.datetime) and (dt_in.tzinfo is None):
         return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
-    elif isinstance(dt_in, datetime) and (dt_in.tzinfo.utcoffset(dt_in) is None):
+    elif isinstance(dt_in, dt.datetime) and (dt_in.tzinfo.utcoffset(dt_in) is None):
         # TODO: This will fail because an exception is thrown if tzinfo is not None.
         return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
     else:
@@ -365,7 +365,7 @@ def parse_symbol(symbol):
     match = re.match(option_pattern, symbol)
     if match:
         stock_symbol, expiration, option_type, strike_price = match.groups()
-        expiration_date = datetime.strptime(expiration, "%y%m%d").date()
+        expiration_date = dt.datetime.strptime(expiration, "%y%m%d").date()
         option_type = "CALL" if option_type == "C" else "PUT"
         return {
             "type": "option",
@@ -386,7 +386,7 @@ def create_options_symbol(stock_symbol, expiration_date, option_type, strike_pri
     ----------
     stock_symbol : str
         The stock symbol, e.g., 'AAPL'.
-    expiration_date : dt.date or datetime
+    expiration_date : dtm.date or datetime
         The expiration date of the option.
     option_type : str
         The type of the option, either 'Call' or 'Put'.
@@ -400,7 +400,7 @@ def create_options_symbol(stock_symbol, expiration_date, option_type, strike_pri
     """
     # Format the expiration date
     if isinstance(expiration_date, str):
-        expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date()
+        expiration_date = dt.datetime.strptime(expiration_date, "%Y-%m-%d").date()
     expiration_str = expiration_date.strftime("%y%m%d")
 
     # Determine the option type character
@@ -473,24 +473,24 @@ def has_more_than_n_decimal_places(number: float, n: int) -> bool:
         return False
 
 
-def get_timezone_from_datetime(dt: datetime) -> pytz.timezone:
+def get_timezone_from_datetime(dtm: dt.datetime) -> pytz.timezone:
     """Convert datetime's timezone to pytz.timezone, handling both pytz and zoneinfo cases"""
-    if dt.tzinfo is None:
+    if dtm.tzinfo is None:
         return LUMIBOT_DEFAULT_PYTZ
 
     # If it's already a pytz timezone (checking both DstTzInfo and StaticTzInfo)
-    if isinstance(dt.tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo)):
-        return dt.tzinfo
+    if isinstance(dtm.tzinfo, (pytz.tzinfo.DstTzInfo, pytz.tzinfo.StaticTzInfo)):
+        return dtm.tzinfo
 
     # Try different ways to get timezone name
     try:
         # Try key or zone attribute (works for both zoneinfo and pytz)
-        if hasattr(dt.tzinfo, 'key'):
-            return pytz.timezone(dt.tzinfo.key)
-        elif hasattr(dt.tzinfo, 'zone'):
-            return pytz.timezone(dt.tzinfo.zone)
+        if hasattr(dtm.tzinfo, 'key'):
+            return pytz.timezone(dtm.tzinfo.key)
+        elif hasattr(dtm.tzinfo, 'zone'):
+            return pytz.timezone(dtm.tzinfo.zone)
         # Try getting string representation (fallback)
-        timezone_name = str(dt.tzinfo)
+        timezone_name = str(dtm.tzinfo)
         return pytz.timezone(timezone_name)
     except (AttributeError, pytz.exceptions.UnknownTimeZoneError):
         return LUMIBOT_DEFAULT_PYTZ

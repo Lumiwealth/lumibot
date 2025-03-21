@@ -30,7 +30,6 @@ def test_has_more_than_n_decimal_places():
 
 
 def test_date_n_bars_from_date_valid_input(mocker):
-
     start_datetime = dt.datetime(2025, 1, 17)
     result = date_n_days_from_date(
         n_days=1,
@@ -88,20 +87,18 @@ def test_date_n_bars_from_date_zero_bars():
 
 
 def test_date_n_days_from_date_with_24_7_market():
-    start_datetime = dt.datetime(2024, 1, 13)
+    start_datetime = dt.datetime(2024, 1, 13, tzinfo=pytz.UTC)
     result = date_n_days_from_date(
         n_days=5,
         start_datetime=start_datetime,
-        market="24/7",
-        tzinfo=pytz.timezone("UTC")
+        market="24/7"
     )
     assert result == dt.datetime(2024, 1, 8).date()
 
     result = date_n_days_from_date(
         n_days=-5,
         start_datetime=start_datetime,
-        market="24/7",
-        tzinfo=pytz.timezone("UTC")
+        market="24/7"
     )
     assert result == dt.datetime(2024, 1, 18).date()
 

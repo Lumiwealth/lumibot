@@ -32,4 +32,4 @@ thetadata
 holidays
 psutil
 openai
-schwab-py
+schwab-py>=1.5.0

@@ -284,7 +284,7 @@ class AlpacaData(DataSource):
 
     def _get_dataframe_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None, include_after_hours=True) -> pd.DataFrame | None:
         """
-        Gets historical bar data for the given asset and time parameters with proper pagination.
+        Gets historical bar data for the given asset and time parameters.
 
         Args:
             asset: Asset object or tuple (asset, quote)
@@ -310,8 +310,13 @@ class AlpacaData(DataSource):
             else:
                 end = datetime.now(self._tzinfo)
 
-            # Round to last full minute
-            end = end + timedelta(minutes=1)
+            if str(freq) == "1Day":
+                # Round to the next full day
+                end = end + timedelta(days=1)
+            else:
+                # Round to last full minute
+                end = end + timedelta(minutes=1)
+
             end = end.replace(second=0, microsecond=0)
 
         # Initialize pagination parameters
@@ -441,12 +446,12 @@ class AlpacaData(DataSource):
             self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None,
             include_after_hours=True
     ) -> pd.DataFrame | None:
+
         if exchange is not None:
             logging.warning(
                 f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
             )
 
-        result = {}
         if timeshift or asset.asset_type == Asset.AssetType.CRYPTO:
             # Crypto asset prices are not delayed.
             asset_timeshift = timeshift

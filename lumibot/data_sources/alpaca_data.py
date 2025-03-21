@@ -421,6 +421,7 @@ class AlpacaData(DataSource):
 
             # Clean up the dataframe
             df = df[~df.index.duplicated(keep="first")]
+            df = df.sort_index()
             df = df.iloc[-limit:]  # Ensure we don't exceed the requested limit
             df = df[df.close > 0]
 

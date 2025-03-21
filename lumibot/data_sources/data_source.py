@@ -94,7 +94,7 @@ class DataSource(ABC):
         length : int
             The number of bars to get.
         timestep : str
-            The timestep to get the bars at. Accepts "day" or "minute".
+            The timestep to get the bars at. Accepts "day" "hour" or "minute".
         timeshift : datetime.timedelta
             The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
             you would set timeshift to 1 hour.
@@ -361,15 +361,10 @@ class DataSource(ABC):
             return chunk_result
 
         # Convert strings to Asset objects
-        cleaned_assets = []
-        for a in assets:
-            if isinstance(a, str):
-                cleaned_assets.append(Asset(symbol=a))
-            else:
-                cleaned_assets.append(a)
+        assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
 
         # Chunk the assets
-        chunks = [cleaned_assets[i : i + chunk_size] for i in range(0, len(cleaned_assets), chunk_size)]
+        chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 
         results = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:

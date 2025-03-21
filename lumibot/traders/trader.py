@@ -146,15 +146,17 @@ class Trader:
         if self.is_backtest_broker:
             logger.setLevel(logging.INFO)
             logger.info("Backtesting finished")
-            strat.backtest_analysis(
-                logdir=self.logdir,
-                show_plot=show_plot,
-                show_tearsheet=show_tearsheet,
-                save_tearsheet=save_tearsheet,
-                show_indicators=show_indicators,
-                tearsheet_file=tearsheet_file,
-                base_filename=base_filename,
-            )
+
+            if strat._analyze_backtest:
+                strat.backtest_analysis(
+                    logdir=self.logdir,
+                    show_plot=show_plot,
+                    show_tearsheet=show_tearsheet,
+                    save_tearsheet=save_tearsheet,
+                    show_indicators=show_indicators,
+                    tearsheet_file=tearsheet_file,
+                    base_filename=base_filename,
+                )
 
         return result
 

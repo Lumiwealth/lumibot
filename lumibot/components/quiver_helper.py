@@ -175,14 +175,14 @@ class QuiverHelper:
             except requests.exceptions.HTTPError as e:
                 # Specifically handle 429 Too Many Requests
                 if response.status_code == 429:
-                    print("Rate limit exceeded. Retrying after 60 seconds...")
+                    self.strategy.log_message("Rate limit exceeded. Retrying after 60 seconds...")
                     time.sleep(60)  # Sleep 60 seconds before retry
                 else:
                     # For other HTTP errors, just raise again
                     raise e
             except Exception as e:
                 # Catch all other exceptions and re-raise them after printing
-                print(f"An error occurred: {e}")
+                self.strategy.log_message(f"An error occurred: {e}")
                 raise e
 
         # If we've exhausted all retries, raise an exception
@@ -246,7 +246,7 @@ class QuiverHelper:
             
             # Accumulate results
             total_results.extend(data)
-            print(f"Fetched {len(data)} results from page {page}.")
+            self.strategy.log_message(f"Fetched {len(data)} results from page {page}.")
             
             # Increment page to fetch the next set of results
             page += 1

@@ -18,7 +18,7 @@ set_pandas_float_display_precision()
 
 
 if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
-    pytest.skip(reason="These tests require a Tradier API key")
+    pytest.skip(reason="These tests require a Tradier API key", allow_module_level=True)
 
 
 # @pytest.mark.skip()

@@ -206,8 +206,7 @@ def get_trading_times(
 def date_n_days_from_date(
         n_days: int,
         start_datetime: dt.datetime,
-        market: str = "NYSE",
-        tzinfo: pytz.tzinfo = LUMIBOT_DEFAULT_PYTZ
+        market: str = "NYSE"
 ) -> dt.date:
     """
     Get the trading date n_days from start_datetime.
@@ -219,12 +218,16 @@ def date_n_days_from_date(
     if not isinstance(start_datetime, dt.datetime):
         raise ValueError("start_datetime must be datetime")
 
+    if start_datetime.tzinfo is None:
+        start_datetime = LUMIBOT_DEFAULT_PYTZ.localize(start_datetime)
+
+    tzinfo = start_datetime.tzinfo
+
     # Special handling for 24/7 market
     if market == "24/7":
         return (start_datetime - dt.timedelta(days=n_days)).date()
 
     # Regular market handling
-    start_datetime = start_datetime.astimezone(tzinfo)
     buffer_bars = max(10, abs(n_days) + (abs(n_days) // 5) * 3)  # Padding for weekends/holidays
 
     # Calculate date range based on direction

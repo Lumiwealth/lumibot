@@ -313,11 +313,11 @@ class AlpacaData(DataSource):
             if str(freq) == "1Day":
                 # Round to the next full day
                 end = end + timedelta(days=1)
+                end = end.replace(hour=0, minute=0, second=0, microsecond=0)
             else:
                 # Round to last full minute
                 end = end + timedelta(minutes=1)
-
-            end = end.replace(second=0, microsecond=0)
+                end = end.replace(second=0, microsecond=0)
 
         # Initialize pagination parameters
         max_bars_per_request = 5000

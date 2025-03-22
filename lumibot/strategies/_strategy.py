@@ -54,6 +54,7 @@ from ..credentials import (
     POLYGON_MAX_MEMORY_BYTES,
     BACKTESTING_START,
     BACKTESTING_END,
+    LOG_BACKTEST_PROGRESS_TO_FILE,
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -1245,6 +1246,8 @@ class _Strategy:
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
                 max_memory=POLYGON_MAX_MEMORY_BYTES,
+                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
@@ -1258,6 +1261,8 @@ class _Strategy:
                 pandas_data=pandas_data,
                 use_quote_data=use_quote_data,
                 show_progress_bar=show_progress_bar,
+                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
                 **kwargs,
             )
         else:
@@ -1268,6 +1273,8 @@ class _Strategy:
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
+                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
                 **kwargs,
             )
 

@@ -71,12 +71,11 @@ class TradierData(DataSource):
             # and datetimes in dataframes are adjusted to this timezone.
             tzinfo=pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
     ):
-        super().__init__(api_key=access_token, delay=delay)
+        super().__init__(api_key=access_token, delay=delay, tzinfo=tzinfo)
         self._account_number = account_number
         self._paper = paper
         self.max_workers = min(max_workers, 50)
         self.tradier = Tradier(account_number, access_token, paper)
-        self._tzinfo = tzinfo
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
         if isinstance(base_asset, tuple):

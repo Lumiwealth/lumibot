@@ -28,7 +28,8 @@ class YahooData(DataSourceBacktesting):
         if datetime_end is None:
             datetime_end = datetime.now()
             
-        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, *args, **kwargs)
+        # Pass datetime_start and datetime_end as keyword arguments only, not as positional args
+        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, **kwargs)
         self.name = "yahoo"
         self.auto_adjust = auto_adjust
         self._data_store = {}

@@ -21,8 +21,8 @@ class DataSourceBacktesting(DataSource, ABC):
 
     def __init__(
         self,
-        datetime_start,
-        datetime_end,
+        datetime_start=None,
+        datetime_end=None,
         backtesting_started=None,
         config=None,
         api_key=None,
@@ -30,7 +30,10 @@ class DataSourceBacktesting(DataSource, ABC):
         show_progress_bar=True,
         progress_csv_path=None,
         log_backtest_progress_to_file=False,
+        **kwargs
     ):
+        # Make sure we pass api_key to the parent class but not datetime_start and datetime_end
+        # as they are specific to DataSourceBacktesting
         super().__init__(api_key=api_key)
 
         if backtesting_started is None:
@@ -59,6 +62,7 @@ class DataSourceBacktesting(DataSource, ABC):
         self._progress_csv_path = progress_csv_path if progress_csv_path else "progress.csv"
         # Add initialization for the logging timer attribute
         self._last_logging_time = None
+        self._portfolio_value = None
 
     def get_datetime(self, adjust_for_delay=False):
         """

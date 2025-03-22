@@ -18,14 +18,21 @@ class DataSourceBacktesting(DataSource, ABC):
 
     def __init__(
         self,
-        datetime_start,
-        datetime_end,
+        datetime_start=None,
+        datetime_end=None,
         backtesting_started=None,
         config=None,
         api_key=None,
         pandas_data=None,
-        show_progress_bar=True
+        show_progress_bar=True,
+        **kwargs
     ):
+        # Handle positional arguments that might have been passed via keyword
+        if 'datetime_start' in kwargs:
+            datetime_start = kwargs.pop('datetime_start')
+        if 'datetime_end' in kwargs:
+            datetime_end = kwargs.pop('datetime_end')
+            
         super().__init__(api_key=api_key)
 
         if backtesting_started is None:

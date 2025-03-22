@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
-from typing import assert_type
+from typing_extensions import assert_type
 
 import pytz
 from lumibot.entities import Asset, Order, Bars

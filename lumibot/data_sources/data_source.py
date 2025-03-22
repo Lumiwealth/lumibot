@@ -6,6 +6,7 @@ import traceback
 import time
 from decimal import Decimal
 from typing import Union
+import pytz
 
 import pandas as pd
 
@@ -27,7 +28,8 @@ class DataSource(ABC):
     def __init__(
             self,
             api_key: str | None = None,
-            delay: int | None = None
+            delay: int | None = None,
+            tzinfo=None
     ):
         """
 
@@ -43,6 +45,10 @@ class DataSource(ABC):
         self._timestep = None
         self._api_key = api_key
         self._delay = timedelta(minutes=delay) if delay else None
+
+        if tzinfo is None:
+            tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
+        self._tzinfo = tzinfo
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -215,16 +221,14 @@ class DataSource(ABC):
         start_date = end_date - period_length
         return start_date, end_date
 
-    @classmethod
-    def localize_datetime(cls, dt):
+    def localize_datetime(self, dt):
         if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
-            return cls.to_default_timezone(dt)
+            return self.to_default_timezone(dt)
         else:
-            return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
+            return self._tzinfo.localize(dt, is_dst=None)
 
-    @classmethod
-    def to_default_timezone(cls, dt):
-        return dt.astimezone(cls.DEFAULT_PYTZ)
+    def to_default_timezone(self, dt):
+        return dt.astimezone(self._tzinfo)
 
     def get_timestep(self):
         return self._timestep if self._timestep else self.MIN_TIMESTEP
@@ -524,8 +528,8 @@ class DataSource(ABC):
 
         # Convert the expiration to be a datetime with 4pm New York time
         expiration = datetime.combine(expiration, datetime.min.time())
-        expiration = self.DEFAULT_PYTZ.localize(expiration)
-        expiration = expiration.astimezone(self.DEFAULT_PYTZ)
+        expiration = self._tzinfo.localize(expiration)
+        expiration = expiration.astimezone(self._tzinfo)
         expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
 
         # Calculate the days to expiration, but allow for fractional days

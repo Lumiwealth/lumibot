@@ -142,11 +142,7 @@ class AlpacaData(DataSource):
             tzinfo=None
     ):
 
-        super().__init__(delay=delay)
-
-        if tzinfo is None:
-            tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
-        self._tzinfo = tzinfo
+        super().__init__(delay=delay, tzinfo=tzinfo)
 
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)

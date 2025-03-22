@@ -717,7 +717,7 @@ class BacktestingBroker(Broker):
                         days=-1
                     )
 
-                ohlc = strategy.get_historical_prices(
+                ohlc = self.data_source.get_historical_prices(
                     asset=asset,
                     length=1,
                     quote=order.quote,
@@ -734,7 +734,7 @@ class BacktestingBroker(Broker):
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
-                ohlc = strategy.get_historical_prices(
+                ohlc = self.data_source.get_historical_prices(
                     asset=asset,
                     length=2,
                     quote=order.quote,

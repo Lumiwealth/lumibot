@@ -23,7 +23,7 @@ if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'
 
 # @pytest.mark.skip()
 class TestTradierData(BaseDataSourceTester):
-    
+
     def _create_data_source(self) -> DataSource:
         return TradierData(
             account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
@@ -158,7 +158,7 @@ class TestTradierData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                time_check=time(0 ,0),
+                time_check=time(0,0),
                 market=market,
             )
 
@@ -180,45 +180,9 @@ class TestTradierData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                time_check=time(0 ,0),
+                time_check=time(0,0),
                 market=market,
             )
-
-    def test_get_historical_prices_minute_bars_stock_extended_hours(self):
-        data_source = self._create_data_source()
-        timestep = "minute"
-        now = datetime.now(data_source._tzinfo)
-        quote_asset = Asset('USD', asset_type='forex')
-        market='NYSE'
-        asset = Asset('SPY', asset_type='stock')
-
-        for length in [1, 30]:
-            bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset,
-                include_after_hours=True
-            )
-            if not bars or bars.df.empty:
-                # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-                logging.warning(f"No minutes bars found for asset={asset} at: {now}")
-                continue
-
-            # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-            # This is a different behavior backtesting data sources which do forward fill dataframes
-            # returned by get_historical_prices. We should consider making TradierData do the same.
-            # self.check_length(bars=bars, length=length)
-            self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
-
-            # TODO: Need to create an Tradier extended hours market
-            # self.check_minute_bars(
-            #     bars=bars,
-            #     now=now,
-            #     data_source_tz=data_source._tzinfo,
-            #     market=market,
-            # )
 
     def test_get_historical_prices_minute_bars_stock_regular_hours(self):
         data_source = self._create_data_source()
@@ -236,28 +200,15 @@ class TestTradierData(BaseDataSourceTester):
                 quote=quote_asset,
                 include_after_hours=False,
             )
-            if not bars or bars.df.empty:
-                # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-                logging.warning(f"No minutes bars found for asset={asset} at: {now}")
-                continue
-
-            # TODO: Sometimes there are no minute bars for every minute and the data_source doesn't forward fill.
-            # This is a different behavior backtesting data sources which do forward fill dataframes
-            # returned by get_historical_prices. We should consider making TradierData do the same.
-            # self.check_length(bars=bars, length=length)
+            self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
             self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
-
-            # TODO: TradierData doesn't send back the last N bars in this case. It sends back
-            # the bars in between the start and end date, which are calculated incorrectly if
-            # we wanted to get the last N bars. Also, sometimes there are no minute bars because
-            # stuff didn't trade, and if the last minute bar wasn't this test will fail.
-            # self.check_minute_bars(
-            #     bars=bars,
-            #     now=now,
-            #     data_source_tz=data_source._tzinfo,
-            #     market=market,
-            # )
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+            )
 
     def test_get_historical_option_prices(self):
         data_source = self._create_data_source()

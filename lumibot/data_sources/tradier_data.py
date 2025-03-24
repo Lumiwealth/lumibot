@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from datetime import datetime, date, timedelta
+import datetime as dt
 from decimal import Decimal
 from typing import Union
 import pytz
@@ -9,7 +9,12 @@ import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars
-from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit, get_trading_days
+from lumibot.tools.helpers import (
+    create_options_symbol,
+    parse_timestep_qty_and_unit,
+    get_trading_days,
+    date_n_trading_days_from_date
+)
 from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
@@ -63,7 +68,8 @@ class TradierData(DataSource):
             paper: bool = True,
             max_workers: int = 20,
             delay: int = 0,
-            tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+            tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
+            remove_incomplete_current_bar: bool = False
     ) -> None:
         """
         Initializes the trading account with the specified parameters.
@@ -79,6 +85,11 @@ class TradierData(DataSource):
           Set to 0 for no delay. Defaults to 0.
         - tzinfo (pytz.timezone, optional): Timezone for data adjustments. Determines how datetime objects
           are adjusted when retrieving historical data. Defaults to the `LUMIBOT_DEFAULT_TIMEZONE`.
+        - remove_incomplete_current_bar (bool, optional): Default False.
+          Whether to remove the incomplete current bar from the data.
+          Tradier includes incomplete bars for the current bar (ie: it gives you a daily bar for the current day even if
+          the day isn't over yet). Some Lumibot users night not expect that, so this option will remove the incomplete
+          bar from the data.
 
         Returns:
         - None
@@ -89,6 +100,7 @@ class TradierData(DataSource):
         self._paper = paper
         self.max_workers = min(max_workers, 50)
         self.tradier = Tradier(account_number, access_token, paper)
+        self._remove_incomplete_current_bar = remove_incomplete_current_bar
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
         if isinstance(base_asset, tuple):
@@ -155,7 +167,7 @@ class TradierData(DataSource):
         ----------
         asset : Asset
             The option asset to get the chain information for.
-        expiry : str | datetime.datetime | datetime.date
+        expiry : str | dt.datetime | dt.date
             The expiry date of the option chain.
         chains : dict
             The chains dictionary created by `get_chains` method. This is used
@@ -201,7 +213,7 @@ class TradierData(DataSource):
             The number of bars to get.
         timestep : str
             The timestep to get the bars at. Accepts "day" or "minute".
-        timeshift : datetime.timedelta
+        timeshift : dt.timedelta
             The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
             you would set timeshift to 1 hour.
         quote : Asset
@@ -212,7 +224,6 @@ class TradierData(DataSource):
             Whether to include after hours data.
         """
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
-
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
         # Parse the timestep
@@ -231,59 +242,32 @@ class TradierData(DataSource):
             symbol = asset.symbol
 
         # Create end time
+        now = dt.datetime.now(self._tzinfo)
         if self._delay:
-            end_date = datetime.now(self._tzinfo) - self._delay
+            end_dt = now - self._delay
         else:
-            end_date = datetime.now(self._tzinfo)
+            end_dt = now
 
         if timeshift is not None:
-            if not isinstance(timeshift, timedelta):
+            if not isinstance(timeshift, dt.timedelta):
                 raise TypeError("timeshift must be a timedelta")
-            end_date = end_date - timeshift
+            end_dt = end_dt - timeshift
 
-        # Calculate the start date
-        td, _ = self.convert_timestep_str_to_timedelta(timestep)
         if timestep == 'day':
-            # Existing day timestep logic remains the same
-            max_days_of_long_weekend = 3
-            weeks_requested = length // 5  # Full trading week is 5 days
-            extra_padding_days = weeks_requested * max_days_of_long_weekend
-            extra_padding_days = max(5, extra_padding_days)  # Get at least 5 days
-            td = timedelta(days=length + extra_padding_days)
-            tcal_start_date = end_date - td
-            trading_days = get_trading_days(
-                market="NYSE",  # The only market for tradier
-                start_date=tcal_start_date,
-                end_date=end_date + timedelta(days=max_days_of_long_weekend)  # end_date is exclusive here.
-            )
-            # Filter out trading days when the market_open is after the end_date
-            trading_days = trading_days[trading_days['market_open'] < end_date]
-            # Now, start_date is the length bars before the last trading day
-            start_date = trading_days.index[-length]
+            days_needed = length
         else:
             # For minute bars, calculate additional days needed accounting for weekends/holidays
             minutes_per_day = 390  # ~6.5 hours of trading per day
             days_needed = (length // minutes_per_day) + 1
 
-            # Account for weekends and holidays
-            max_days_of_long_weekend = 3
-            weeks_requested = days_needed // 5
-            extra_padding_days = weeks_requested * max_days_of_long_weekend
-            extra_padding_days = max(5, extra_padding_days)
-
-            # Get trading days to ensure we have enough market days
-            tcal_start_date = end_date - timedelta(days=(days_needed + extra_padding_days))
-            trading_days = get_trading_days(
-                market="NYSE",  # The only market for tradier
-                start_date=tcal_start_date,
-                end_date=end_date + timedelta(days=max_days_of_long_weekend)
-            )
-
-            # Filter out trading days after end_date
-            trading_days = trading_days[trading_days['market_open'] < end_date]
-
-            # Set start_date to the beginning of the earliest needed trading day
-            start_date = trading_days.index[max(-len(trading_days), -days_needed - 2)]
+        start_date = date_n_trading_days_from_date(
+            n_days=days_needed,
+            start_datetime=end_dt,
+            # TODO: pass market into DataSource
+            # This works for now. Crypto gets more bars but throws them out.
+            market='NYSE'
+        )
+        start_dt = self._tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
         # Check what timestep we are using, different endpoints are required for different timesteps
         try:
@@ -291,16 +275,16 @@ class TradierData(DataSource):
                 df = self.tradier.market.get_timesales(
                     symbol,
                     interval=timestep_qty,
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_dt,
+                    end_date=end_dt,
                     session_filter="all" if include_after_hours else "open",
                 )
             else:
                 df = self.tradier.market.get_historical_quotes(
                     symbol,
                     interval=parsed_timestep_unit,
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_dt,
+                    end_date=end_dt,
                     session_filter="all" if include_after_hours else "open",
                 )
         except Exception as e:
@@ -314,7 +298,7 @@ class TradierData(DataSource):
             df = df.drop(columns=["timestamp"])
 
         # If the index contains date objects, convert and handle timezone
-        if isinstance(df.index[0], date):  # Check if the index contains date objects
+        if isinstance(df.index[0], dt.date):  # Check if the index contains date objects
             df.index = pd.to_datetime(df.index)  # Always ensure it's a DatetimeIndex
 
             # Check if the index is timezone-naive or already timezone-aware
@@ -324,15 +308,15 @@ class TradierData(DataSource):
                 df.index = df.index.tz_convert(self._tzinfo)
 
         # Check for incomplete bars
-        now = datetime.now(self._tzinfo)
-        if parsed_timestep_unit == "minute":
-            # For minute bars, remove the current minute
-            current_minute = now.replace(second=0, microsecond=0)
-            df = df[df.index < current_minute]
-        else:
-            # For daily bars, remove today's bar if market is open
-            current_date = now.date()
-            df = df[df.index.date < current_date]
+        if self._remove_incomplete_current_bar:
+            if timestep == "minute":
+                # For minute bars, remove the current minute
+                current_minute = now.replace(second=0, microsecond=0)
+                df = df[df.index < current_minute]
+            else:
+                # For daily bars, remove today's bar if market is open
+                current_date = now.date()
+                df = df[df.index.date < current_date]
 
         # Ensure df only contains the last N bars
         if len(df) > length:

@@ -1,6 +1,6 @@
 import logging
 import math
-from datetime import datetime, timedelta
+import datetime as dt
 from decimal import Decimal
 from typing import Union, Tuple, Optional
 import pytz
@@ -32,7 +32,8 @@ from lumibot import (
 from lumibot.tools.helpers import (
     get_decimals,
     quantize_to_num_decimals,
-    get_trading_days
+    get_trading_days,
+    date_n_trading_days_from_date
 )
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
@@ -146,10 +147,11 @@ class AlpacaData(DataSource):
           Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. Set to 0 if on a paid plan. Default is 16.
         - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in 
           dataframes are adjusted to this timezone. Useful for setting UTC for crypto. Default is None.
-        - remove_incomplete_current_bar (bool, optional): Whether to remove the incomplete current bar from the data.
+        - remove_incomplete_current_bar (bool, optional): Default False.
+          Whether to remove the incomplete current bar from the data.
           Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current day even if
-          the day isn't over yet). That's not how lumibot does it, but it is probably what most Alpaca users expect
-          so the default is False (leave incomplete bar in the data).
+          the day isn't over yet). Some Lumibot users night not expect that, so this option will remove the incomplete
+          bar from the data.
 
         Returns:
         - None
@@ -271,7 +273,7 @@ class AlpacaData(DataSource):
             asset: Asset,
             length: int,
             timestep: str = "",
-            timeshift: Optional[timedelta] = None,
+            timeshift: Optional[dt.timedelta] = None,
             quote: Optional[Asset] = None,
             exchange: Optional[str] = None,
             include_after_hours: bool = True
@@ -308,7 +310,7 @@ class AlpacaData(DataSource):
             asset: Asset,
             length: int,
             timestep: str = "",
-            timeshift: Optional[timedelta] = None,
+            timeshift: Optional[dt.timedelta] = None,
             quote: Optional[Asset] = None,
             exchange: Optional[str] = None,
             include_after_hours: bool = True
@@ -316,77 +318,36 @@ class AlpacaData(DataSource):
 
         timeframe = self._parse_source_timestep(timestep, reverse=True)
 
-        now = datetime.now(self._tzinfo)
+        now = dt.datetime.now(self._tzinfo)
 
         # Create end time
-        if asset.asset_type != Asset.AssetType.CRYPTO and isinstance(self._delay, timedelta):
+        if asset.asset_type != Asset.AssetType.CRYPTO and isinstance(self._delay, dt.timedelta):
             # Stocks/options need delay for last 15 minutes
             end_dt = now - self._delay
         else:
             end_dt = now
 
         if timeshift is not None:
-            if not isinstance(timeshift, timedelta):
+            if not isinstance(timeshift, dt.timedelta):
                 raise TypeError("timeshift must be a timedelta")
             end_dt = end_dt - timeshift
 
-        # # Round to the next full day or minute because alpaca end dates are exclusive
-        # if timestep == 'day':
-        #     end_dt = end_dt + timedelta(days=1)
-        #     end_dt = end_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        # else:
-        #     end_dt = end_dt + timedelta(minutes=1)
-        #     end_dt = end_dt.replace(second=0, microsecond=0)
-
         # Calculate the start_dt
-        td, _ = self.convert_timestep_str_to_timedelta(timestep)
         if timestep == 'day':
-            # Existing day timestep logic remains the same
-            max_days_of_long_weekend = 3
-            weeks_requested = length // 5  # Full trading week is 5 days
-            extra_padding_days = weeks_requested * max_days_of_long_weekend
-            extra_padding_days = max(5, extra_padding_days)  # Get at least 5 days
-            td = timedelta(days=length + extra_padding_days)
-            tcal_start_date = end_dt - td
-            trading_days = get_trading_days(
-                # This works for now. Crypto gets more bars but throws them out.
-                # TODO: pass market into DataSource
-                market="NYSE",
-                start_date=tcal_start_date,
-                end_date=end_dt + timedelta(days=max_days_of_long_weekend),  # end_date is exclusive here.
-                tzinfo=self._tzinfo,
-            )
-            # Filter out trading days when the market_open is after the end_date
-            trading_days = trading_days[trading_days['market_open'] < end_dt]
-            # Now, start_date is the length bars before the last trading day
-            start_dt = trading_days.index[-length]
+            days_needed = length
         else:
             # For minute bars, calculate additional days needed accounting for weekends/holidays
             minutes_per_day = 390  # ~6.5 hours of trading per day
             days_needed = (length // minutes_per_day) + 1
 
-            # Account for weekends and holidays
-            max_days_of_long_weekend = 3
-            weeks_requested = days_needed // 5
-            extra_padding_days = weeks_requested * max_days_of_long_weekend
-            extra_padding_days = max(5, extra_padding_days)
-
-            # Get trading days to ensure we have enough market days
-            tcal_start_date = end_dt - timedelta(days=(days_needed + extra_padding_days))
-            trading_days = get_trading_days(
-                # This works for now. Crypto gets more bars but throws them out.
-                # TODO: pass market into DataSource
-                market="NYSE",
-                start_date=tcal_start_date,
-                end_date=end_dt + timedelta(days=max_days_of_long_weekend),
-                tzinfo=self._tzinfo,
-            )
-
-            # Filter out trading days after end_dt
-            trading_days = trading_days[trading_days['market_open'] < end_dt]
-
-            # Set start_date to the beginning of the earliest needed trading day
-            start_dt = trading_days.index[max(-len(trading_days), -days_needed - 2)]
+        start_date = date_n_trading_days_from_date(
+            n_days=days_needed,
+            start_datetime=end_dt,
+            # TODO: pass market into DataSource
+            # This works for now. Crypto gets more bars but throws them out.
+            market='NYSE'
+        )
+        start_dt = self._tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
         # Make API request based on asset type
         try:

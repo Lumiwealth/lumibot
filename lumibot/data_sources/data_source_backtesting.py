@@ -9,7 +9,7 @@ import csv
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
 from lumibot.tools.helpers import (
-    date_n_days_from_date,
+    date_n_trading_days_from_date,
     get_trading_days,
     get_trading_times,
     get_timezone_from_datetime

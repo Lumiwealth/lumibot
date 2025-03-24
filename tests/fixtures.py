@@ -291,7 +291,8 @@ class BaseDataSourceTester:
             now: datetime,
             data_source_tz: pytz.tzinfo = None,
             time_check: time | None = None,
-            market: str = 'NYSE'
+            market: str = 'NYSE',
+            remove_incomplete_current_bar: bool = False,
     ):
         assert bars.df.index[-1] <= now
         timestamp = bars.df.index[-1]
@@ -312,9 +313,13 @@ class BaseDataSourceTester:
 
             if market_open <= now <= market_close:
                 # Only check during market hours since that when strategies run.
-                # Check that the last bar is the latest complete bar, which
-                # is the bar from the previous trading date.
-                assert bars.df.index[-1].date() == trading_days.index[-2].date()
+                if remove_incomplete_current_bar:
+                    # Check that the last bar is the latest complete bar, which
+                    # is the bar from the previous trading date.
+                    assert bars.df.index[-1].date() == trading_days.index[-2].date()
+                else:
+                    # Check that the last bar is the bar from today.
+                    assert bars.df.index[-1].date() == trading_days.index[-1].date()
 
     # noinspection PyMethodMayBeStatic
     def check_minute_bars(
@@ -323,7 +328,8 @@ class BaseDataSourceTester:
             bars: Bars,
             now: datetime,
             data_source_tz: pytz.tzinfo = None,
-            market: str = 'NYSE'
+            market: str = 'NYSE',
+            remove_incomplete_current_bar: bool = False,
     ):
         assert bars.df.index[-1] <= now
 
@@ -341,7 +347,12 @@ class BaseDataSourceTester:
 
             if market_open <= now <= market_close:
                 # Only check during market hours since that when strategies run.
-                # Check that the last bar is the latest complete bar, which
-                # is some bar before the current minute's bar. We're not guaranteed
-                # to have bars every minute because trades don't always happen every minute.
-                assert bars.df.index[-1] < now.replace(second=0, microsecond=0)
+                if remove_incomplete_current_bar:
+                    # Check that the last bar is the latest complete bar, which
+                    # is some bar before the current minute's bar. We're not guaranteed
+                    # to have bars every minute because trades don't always happen every minute.
+                    assert bars.df.index[-1] < now.replace(second=0, microsecond=0)
+                else:
+                    # Check that the last bar is perhaps the current minutes bar.
+                    # We're not guaranteed to have bars every minute because trades don't always happen every minute.
+                    assert bars.df.index[-1] <= now.replace(second=0, microsecond=0)

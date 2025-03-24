@@ -22,7 +22,7 @@ if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your 
 # @pytest.mark.skip()
 class TestAlpacaData(BaseDataSourceTester):
 
-    def _create_data_source(self, tzinfo: pytz.tzinfo = None, remove_incomplete_current_bar=True) -> DataSource:
+    def _create_data_source(self, tzinfo: pytz.tzinfo = None, remove_incomplete_current_bar=False) -> DataSource:
         return AlpacaData(
             config=ALPACA_TEST_CONFIG,
             tzinfo=tzinfo,
@@ -73,6 +73,35 @@ class TestAlpacaData(BaseDataSourceTester):
                 data_source_tz=data_source._tzinfo,
                 time_check=time(0,0),
                 market=market
+            )
+
+    def test_get_historical_prices_daily_bars_stock_remove_incomplete_current_bar(self):
+        data_source = self._create_data_source(remove_incomplete_current_bar=True)
+        asset = Asset("SPY")
+        quote_asset = Asset('USD', asset_type='forex')
+        timestep = "day"
+        market = 'NYSE'
+        now = datetime.now(data_source._tzinfo)
+
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote_asset,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0,0),
+                market=market,
+                remove_incomplete_current_bar=True
             )
 
     def test_get_historical_prices_daily_bars_stock_tuple(self):

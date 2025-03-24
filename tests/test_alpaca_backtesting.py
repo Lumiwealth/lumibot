@@ -1414,7 +1414,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             market="NYSE",
             warm_up_trading_days: int = 0,
             auto_adjust: bool = True,
-            remove_incomplete_current_bar: bool = True
+            remove_incomplete_current_bar: bool = False
     ):
         """
         Create an instance of AlpacaBacktesting with default or provided parameters.
@@ -1655,6 +1655,92 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 now=now,
                 data_source_tz=data_source._tzinfo,
                 market=market,
+            )
+
+    def test_get_historical_prices_minute_bars_stock_remove_incomplete_current_bar(self):
+        tzinfo = pytz.timezone("America/New_York")
+        datetime_start = tzinfo.localize(datetime(2025, 2, 19))
+        datetime_end = tzinfo.localize(datetime(2025, 2, 22))
+        market = "NYSE"
+        timestep = "minute"
+        asset = Asset("SPY")
+
+        data_source = self._create_data_source(
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            market=market,
+            timestep=timestep,
+            remove_incomplete_current_bar=True
+        )
+
+        now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
+        data_source._datetime = now
+
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+                remove_incomplete_current_bar=True
+            )
+
+        now = tzinfo.localize(datetime(2025, 2, 21, 10, 0))
+        data_source._datetime = now
+
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+                remove_incomplete_current_bar=True
+            )
+
+        with pytest.raises(Exception):
+            length = -1
+            bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+
+        # check tuple support
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        asset_tuple = (asset, quote)
+        for length in [1, 30]:
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+                remove_incomplete_current_bar=True
             )
 
     def test_get_historical_prices_minute_bars_crypto(self):

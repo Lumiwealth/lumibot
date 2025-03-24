@@ -203,7 +203,7 @@ def get_trading_times(
     return pd.DatetimeIndex(trading_minutes)
 
 
-def date_n_days_from_date(
+def date_n_trading_days_from_date(
         n_days: int,
         start_datetime: dt.datetime,
         market: str = "NYSE"

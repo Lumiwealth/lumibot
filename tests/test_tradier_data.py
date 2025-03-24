@@ -24,11 +24,12 @@ if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'
 # @pytest.mark.skip()
 class TestTradierData(BaseDataSourceTester):
 
-    def _create_data_source(self) -> DataSource:
+    def _create_data_source(self, remove_incomplete_current_bar=False) -> DataSource:
         return TradierData(
             account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
             access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
-            paper=True
+            paper=True,
+            remove_incomplete_current_bar=remove_incomplete_current_bar
         )
 
     def test_basics(self):
@@ -140,9 +141,9 @@ class TestTradierData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
+            now = datetime.now(data_source._tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset,
                 length=length,
@@ -166,6 +167,7 @@ class TestTradierData(BaseDataSourceTester):
         asset_tuple = (asset, quote_asset)
         self.check_get_last_price(data_source, asset_tuple)
         for length in [1, 30]:
+            now = datetime.now(data_source._tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset_tuple,
                 length=length,
@@ -184,15 +186,68 @@ class TestTradierData(BaseDataSourceTester):
                 market=market,
             )
 
+    def test_get_historical_prices_daily_bars_stock_remove_incomplete_current_bar(self):
+        data_source = self._create_data_source(remove_incomplete_current_bar=True)
+        asset = Asset("SPY")
+        quote_asset = Asset('USD', asset_type='forex')
+        timestep = "day"
+        market = 'NYSE'
+
+        for length in [1, 30]:
+            now = datetime.now(data_source._tzinfo)
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote_asset,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0,0),
+                market=market,
+                remove_incomplete_current_bar=True
+            )
+
+        # test tuple
+        asset_tuple = (asset, quote_asset)
+        self.check_get_last_price(data_source, asset_tuple)
+        for length in [1, 30]:
+            now = datetime.now(data_source._tzinfo)
+            bars = data_source.get_historical_prices(
+                asset=asset_tuple,
+                length=length,
+                timestep=timestep,
+                include_after_hours=True
+            )
+
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_daily_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                time_check=time(0,0),
+                market=market,
+                remove_incomplete_current_bar=True
+            )
+
     def test_get_historical_prices_minute_bars_stock_regular_hours(self):
         data_source = self._create_data_source()
         timestep = "minute"
-        now = datetime.now(data_source._tzinfo)
         quote_asset = Asset('USD', asset_type='forex')
         market='NYSE'
         asset = Asset('SPY', asset_type='stock')
 
         for length in [1, 30]:
+            now = datetime.now(data_source._tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset,
                 length=length,
@@ -209,6 +264,34 @@ class TestTradierData(BaseDataSourceTester):
                 data_source_tz=data_source._tzinfo,
                 market=market,
             )
+
+    def test_get_historical_prices_minute_bars_stock_regular_hours_remove_incomplete_current_bar(self):
+        data_source = self._create_data_source(remove_incomplete_current_bar=True)
+        timestep = "minute"
+        quote_asset = Asset('USD', asset_type='forex')
+        market='NYSE'
+        asset = Asset('SPY', asset_type='stock')
+
+        for length in [1, 30]:
+            now = datetime.now(data_source._tzinfo)
+            bars = data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote_asset,
+                include_after_hours=False,
+            )
+            self.check_length(bars=bars, length=length)
+            self.check_columns(bars=bars)
+            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_minute_bars(
+                bars=bars,
+                now=now,
+                data_source_tz=data_source._tzinfo,
+                market=market,
+                remove_incomplete_current_bar=True
+            )
+
 
     def test_get_historical_option_prices(self):
         data_source = self._create_data_source()

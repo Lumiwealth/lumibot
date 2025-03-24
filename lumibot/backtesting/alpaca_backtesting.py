@@ -18,7 +18,7 @@ from lumibot import (
     LUMIBOT_CACHE_FOLDER,
 )
 from lumibot.tools.helpers import (
-    date_n_days_from_date,
+    date_n_trading_days_from_date,
     get_trading_days,
     get_trading_times,
     get_timezone_from_datetime,
@@ -153,7 +153,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         end_dt = self._tzinfo.localize(end_dt)  # Use localize instead of tzinfo in constructor
 
         if warm_up_trading_days > 0:
-            warm_up_start_dt = date_n_days_from_date(
+            warm_up_start_dt = date_n_trading_days_from_date(
                 n_days=warm_up_trading_days,
                 start_datetime=start_dt,
                 market=self._market,

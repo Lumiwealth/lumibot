@@ -7,7 +7,7 @@ import pytest
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools.helpers import (
     has_more_than_n_decimal_places,
-    date_n_days_from_date,
+    date_n_trading_days_from_date,
     get_trading_days,
     get_trading_times,
     get_timezone_from_datetime,
@@ -31,13 +31,13 @@ def test_has_more_than_n_decimal_places():
 
 def test_date_n_bars_from_date_valid_input(mocker):
     start_datetime = dt.datetime(2025, 1, 17)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=1,
         start_datetime=start_datetime,
     )
     assert result == dt.datetime(2025, 1, 16).date()
 
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=4,
         start_datetime=start_datetime,
     )
@@ -45,7 +45,7 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
     # test skipping holidays (MLK) (and also a long weekend)
     start_datetime = dt.datetime(2025, 1, 21)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=1,
         start_datetime=start_datetime,
     )
@@ -53,7 +53,7 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
     # test days in the future using negative bars
     start_datetime = dt.datetime(2025, 1, 16)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=-1,
         start_datetime=start_datetime,
     )
@@ -61,7 +61,7 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
     # test skipping holidays (MLK) (and also a long weekend)
     start_datetime = dt.datetime(2025, 1, 17)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=-1,
         start_datetime=start_datetime,
     )
@@ -70,7 +70,7 @@ def test_date_n_bars_from_date_valid_input(mocker):
     # test some more dates
 
     start_datetime = dt.datetime(2019, 3, 1)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=30,
         start_datetime=start_datetime,
     )
@@ -79,23 +79,23 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
 def test_date_n_bars_from_date_zero_bars():
     start_datetime = dt.datetime(2023, 10, 15)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=0,
         start_datetime=start_datetime
     )
     assert result == dt.datetime(2023, 10, 15).date()
 
 
-def test_date_n_days_from_date_with_24_7_market():
+def test_date_n_trading_days_from_date_with_24_7_market():
     start_datetime = dt.datetime(2024, 1, 13, tzinfo=pytz.UTC)
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=5,
         start_datetime=start_datetime,
         market="24/7"
     )
     assert result == dt.datetime(2024, 1, 8).date()
 
-    result = date_n_days_from_date(
+    result = date_n_trading_days_from_date(
         n_days=-5,
         start_datetime=start_datetime,
         market="24/7"

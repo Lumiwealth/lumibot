@@ -61,7 +61,7 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
             filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
-                buffered_schedule.index <= end_timestamp)]
+                    buffered_schedule.index <= end_timestamp)]
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
@@ -80,14 +80,14 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
 
 
 def get_price_data_from_polygon(
-    api_key: str,
-    asset: Asset,
-    start: datetime,
-    end: datetime,
-    timespan: str = "minute",
-    quote_asset: Optional[Asset] = None,
-    force_cache_update: bool = False,
-    max_workers: int = 10,
+        api_key: str,
+        asset: Asset,
+        start: datetime,
+        end: datetime,
+        timespan: str = "minute",
+        quote_asset: Optional[Asset] = None,
+        force_cache_update: bool = False,
+        max_workers: int = 10,
 ) -> Optional[pd.DataFrame]:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
@@ -172,8 +172,8 @@ def get_price_data_from_polygon(
 
     # Download data in parallel with a progress bar.
     pbar = tqdm(total=total_queries,
-            desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
-            dynamic_ncols=True)
+                desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
+                dynamic_ncols=True)
 
     def fetch_chunk(start_date: datetime, end_date: datetime):
         return polygon_client.get_aggs(
@@ -276,9 +276,9 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
 
     # Stock/Option Asset for Backtesting - Assuming NYSE trading days
     elif (
-        asset.asset_type == Asset.AssetType.INDEX
-        or asset.asset_type == Asset.AssetType.STOCK
-        or asset.asset_type == Asset.AssetType.OPTION
+            asset.asset_type == Asset.AssetType.INDEX
+            or asset.asset_type == Asset.AssetType.STOCK
+            or asset.asset_type == Asset.AssetType.OPTION
     ):
         cal = mcal.get_calendar("NYSE")
 
@@ -408,174 +408,216 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
 
 
 def get_missing_dates(
-    df_all: Optional[pd.DataFrame],
-    asset: Asset,
-    start: datetime,
-    end: datetime
+        df_all: Optional[pd.DataFrame],
+        asset: Asset,
+        start: datetime,
+        end: datetime
 ) -> List[datetime.date]:
     """
-    Check if we have data for the full range
-    Later Query to Polygon will pad an extra full day to start/end dates so that there should never
-    be any gap with intraday data missing.
+    Determine which trading dates are missing from the cache.
+
+    A date is considered "checked" if any row exists in the cache (whether it contains real
+    data or a dummy row indicating a missing query). Trading dates are determined from the asset's
+    calendar (via `get_trading_dates()`).
 
     Parameters
     ----------
-    df_all : pd.DataFrame
-        Data loaded from the cache file
+    df_all : Optional[pd.DataFrame]
+        The DataFrame loaded from the cache (may be None or empty).
     asset : Asset
-        Asset we are getting data for
+        The asset for which data is being requested.
     start : datetime
-        Start date for the data requested
+        The start datetime of the requested range.
     end : datetime
-        End date for the data requested
+        The end datetime of the requested range.
 
     Returns
     -------
-    list[datetime.date]
-        A list of dates that we need to get data for
+    List[datetime.date]
+        A sorted list of date objects representing the trading dates that are missing from the cache.
     """
+    # Get all trading dates from the asset calendar.
     trading_dates = get_trading_dates(asset, start, end)
-
-    # For Options, don't need any dates passed the expiration date
+    # For options, limit to dates on or before the expiration.
     if asset.asset_type == "option":
-        trading_dates = [x for x in trading_dates if x <= asset.expiration]
-
+        trading_dates = [d for d in trading_dates if d <= asset.expiration]
     if df_all is None or df_all.empty:
         return trading_dates
-
-    # It is possible to have full day gap in the data if previous queries were far apart
-    # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
-    # Whole days are easy to check for because we can just check the dates in the index
-    dates = pd.Series(df_all.index.date).unique()
-    missing_dates = sorted(set(trading_dates) - set(dates))
-
-    # Find any dates with nan values in the df_all DataFrame. This happens for some infrequently traded assets, but
-    # it is difficult to know if the data is actually missing or if it is just infrequent trading, query for it again.
-    missing_dates += df_all[df_all.isnull().all(axis=1)].index.date.tolist()
-
-    # make sure the dates are unique
-    missing_dates = list(set(missing_dates))
-    missing_dates.sort()
-
-    # finally, filter out any dates that are not in start/end range (inclusive)
+    # Use only the date portion of the cache index.
+    cached_dates = {d.date() for d in df_all.index}
+    missing_dates = sorted(set(trading_dates) - cached_dates)
+    # Ensure the missing dates fall within the requested range.
     missing_dates = [d for d in missing_dates if start.date() <= d <= end.date()]
-
     return missing_dates
 
 
-def load_cache(cache_file):
-    """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
-    df_feather = pd.read_feather(cache_file)
-
-    # Set the 'datetime' column as the index of the DataFrame
-    df_feather.set_index("datetime", inplace=True)
-
-    df_feather.index = pd.to_datetime(
-        df_feather.index
-    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
-    df_feather = df_feather.sort_index()
-
-    # Check if the index is already timezone aware
-    if df_feather.index.tzinfo is None:
-        # Set the timezone to UTC
-        df_feather.index = df_feather.index.tz_localize("UTC")
-
-    return df_feather
-
-def update_cache(cache_file, df_all, missing_dates=None):
-    """Update the cache file with the new data.  Missing dates are added as empty (all NaN) 
-    rows before it is saved to the cache file.
+def load_cache(cache_file: Path) -> pd.DataFrame:
+    """
+    Load cached data from a Feather file and return a DataFrame with a UTC‐aware DateTimeIndex.
 
     Parameters
     ----------
     cache_file : Path
-        The path to the cache file
-    df_all : pd.DataFrame
-        The DataFrame with the data we want to cache
-    missing_dates : list[datetime.date]
-        A list of dates that are missing bars from Polygon"""
+        The path to the Feather cache file.
 
+    Returns
+    -------
+    pd.DataFrame
+        The DataFrame containing the cached data with the 'datetime' column set as the index.
+
+    Raises
+    ------
+    KeyError
+        If the 'datetime' column is not found in the cache file.
+    """
+    df = pd.read_feather(cache_file)
+    if "datetime" not in df.columns:
+        raise KeyError(f"'datetime' column not found in {cache_file}")
+    # Set 'datetime' column as index and convert to datetime objects
+    df.set_index("datetime", inplace=True)
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+    # Ensure index is UTC‐aware
+    if df.index.tzinfo is None:
+        df.index = df.index.tz_localize("UTC")
+    else:
+        df.index = df.index.tz_convert("UTC")
+    return df
+
+
+def update_cache(
+        cache_file: Path,
+        df_all: Optional[pd.DataFrame],
+        missing_dates: Optional[List[datetime.date]] = None
+) -> pd.DataFrame:
+    """
+    Update the cache file by adding any missing dates as dummy rows.
+
+    For each date in `missing_dates` that is not already present in the cache,
+    a dummy row is added (with a "missing" flag set to True). This ensures that
+    dates which were queried but returned no data are recorded, so that they
+    will not be re-downloaded on subsequent runs.
+
+    Parameters
+    ----------
+    cache_file : Path
+        The path to the cache file.
+    df_all : Optional[pd.DataFrame]
+        The existing cached DataFrame (may be None or empty).
+    missing_dates : Optional[List[datetime.date]]
+        List of date objects for which data is missing.
+
+    Returns
+    -------
+    pd.DataFrame
+        The updated DataFrame (which is also saved to the cache file).
+    """
+    # Ensure we have a DataFrame to work with.
     if df_all is None:
         df_all = pd.DataFrame()
 
-    if missing_dates:
-        missing_df = pd.DataFrame(
-            [datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ) for d in missing_dates],
-            columns=["datetime"])
-        missing_df.set_index("datetime", inplace=True)
-        # Set the timezone to UTC
-        missing_df.index = missing_df.index.tz_convert("UTC")
-        df_concat = pd.concat([df_all, missing_df]).sort_index()
-        # Let's be careful and check for duplicates to avoid corrupting the feather file.
-        if df_concat.index.duplicated().any():
-            logging.warn(f"Duplicate index entries found when trying to update Polygon cache {cache_file}")
-            if df_all.index.duplicated().any():
-                logging.warn("The duplicate index entries were already in df_all")
+    # If there is cached data, ensure the index is UTC‐aware and sorted.
+    if not df_all.empty:
+        df_all.index = pd.to_datetime(df_all.index)
+        if df_all.index.tzinfo is None:
+            df_all.index = df_all.index.tz_localize("UTC")
         else:
-            # All good, persist with the missing dates added
-            df_all = df_concat
+            df_all.index = df_all.index.tz_convert("UTC")
+        df_all = df_all.sort_index()
 
-    if len(df_all) > 0:
-        # Create the directory if it doesn't exist
+    # Determine dates already present in the cache (from the index).
+    cached_dates = {d.date() for d in df_all.index} if not df_all.empty else set()
+    dummy_rows = []
+    # For every missing date not in the cache, create a dummy row.
+    for d in missing_dates or []:
+        if d not in cached_dates:
+            # Create a datetime at the start of the day using the default timezone,
+            # then convert to UTC.
+            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ)
+            dt_utc = dt.astimezone(timezone.utc)
+            dummy_rows.append((dt_utc, {"missing": True}))
+    # If any dummy rows were created, add them to the DataFrame.
+    if dummy_rows:
+        missing_df = pd.DataFrame(
+            [row for dt, row in dummy_rows],
+            index=[dt for dt, row in dummy_rows]
+        )
+        missing_df.index.name = "datetime"
+        df_all = pd.concat([df_all, missing_df])
+        df_all = df_all.sort_index()
+    # Save the updated DataFrame to the cache file.
+    if not df_all.empty:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Reset the index to convert DatetimeIndex to a regular column
-        df_all_reset = df_all.reset_index()
-
-        # Save the data to a feather file
-        df_all_reset.to_feather(cache_file)
+        df_to_save = df_all.reset_index()
+        df_to_save.to_feather(cache_file)
+    return df_all
 
 
 def update_polygon_data(df_all, result):
     """
-    Update the DataFrame with the new data from Polygon
+    Update the DataFrame with the new data from Polygon.
+
     Parameters
     ----------
     df_all : pd.DataFrame
-        A DataFrame with the data we already have
+        A DataFrame with the data we already have.
     result : list
-        A List of dictionaries with the new data from Polygon
+        A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
+
+    Returns
+    -------
+    pd.DataFrame
+        The updated DataFrame.
     """
     df = pd.DataFrame(result)
-    if not df.empty:
-        # Rename columns
-        df = df.rename(
-            columns={
-                "o": "open",
-                "h": "high",
-                "l": "low",
-                "c": "close",
-                "v": "volume",
-            }
-        )
+    if df.empty:
+        return df_all
 
-        # Create a datetime column and set it as the index
-        timestamp_col = "t" if "t" in df.columns else "timestamp"
-        df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
-        df = df.set_index("datetime").sort_index()
+    # Rename columns
+    df = df.rename(
+        columns={
+            "o": "open",
+            "h": "high",
+            "l": "low",
+            "c": "close",
+            "v": "volume",
+        }
+    )
 
-        # Set the timezone to UTC
-        df.index = df.index.tz_localize("UTC")
+    # Create a datetime column and set it as the index
+    timestamp_col = "t" if "t" in df.columns else "timestamp"
+    df = df.assign(datetime=pd.to_datetime(df[timestamp_col], unit="ms"))
+    df = df.set_index("datetime").sort_index()
 
-        if df_all is None or df_all.empty:
-            df_all = df
-        else:
-            df_all = pd.concat([df_all, df]).sort_index()
-            df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+    # Localize the index to UTC
+    df.index = df.index.tz_localize("UTC")
+
+    # Remove any existing rows that are completely empty so the new data can replace them
+    if df_all is not None:
+        df_all = df_all.dropna(how="all")
+
+    if df_all is None or df_all.empty:
+        df_all = df
+    else:
+        # Merge new data with existing data.
+        df_all = pd.concat([df_all, df]).sort_index()
+        # Remove duplicate rows – using keep="last" so that new data overrides cached NaNs.
+        df_all = df_all[~df_all.index.duplicated(keep="last")]
 
     return df_all
 
+
 def get_chains_cached(
-    api_key: str,
-    asset: Asset,
-    quote: Asset = None,
-    exchange: str = None,
-    current_date: date = None,
-    polygon_client: Optional["PolygonClient"] = None,
+        api_key: str,
+        asset: Asset,
+        quote: Asset = None,
+        exchange: str = None,
+        current_date: date = None,
+        polygon_client: Optional["PolygonClient"] = None,
 ) -> dict:
     """
-    Retrieve an option chain for a given asset and historical date using Polygon, 
+    Retrieve an option chain for a given asset and historical date using Polygon,
     with caching to reduce repeated downloads during backtests.
 
     Parameters
@@ -589,10 +631,10 @@ def get_chains_cached(
     exchange : str, optional
         The exchange to consider (e.g., "NYSE").
     current_date : datetime.date, optional
-        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function 
+        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function
         will return None immediately (no chain is fetched).
     polygon_client : PolygonClient, optional
-        A reusable PolygonClient instance; if None, one will be created using the 
+        A reusable PolygonClient instance; if None, one will be created using the
         given api_key.
 
     Returns
@@ -617,13 +659,13 @@ def get_chains_cached(
 
     Notes
     -----
-    1) We do *not* use the real system date in this function because it is purely 
+    1) We do *not* use the real system date in this function because it is purely
        historical/backtest-oriented.
-    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
+    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date
        exists, it is reused directly.
-    3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
+    3) Otherwise, the function downloads fresh data from Polygon, then saves it under
        `LUMIBOT_CACHE_FOLDER/polygon/option_chains/{symbol}_{date}.feather`.
-    4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
+    4) By default, we fetch both 'expired=True' and 'expired=False', so you get
        historical + near-future options for your specified date.
     """
     logging.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
@@ -682,7 +724,8 @@ def get_chains_cached(
         f"No suitable recent file found for {asset.symbol} on {current_date}. "
         "Downloading from Polygon..."
     )
-    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
+    print(
+        f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
 
     option_contracts = {
         "Multiplier": None,
@@ -690,7 +733,7 @@ def get_chains_cached(
         "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
     }
 
-    # 6) We do not use real "today" at all. By default, let's fetch both expired & unexpired 
+    # 6) We do not use real "today" at all. By default, let's fetch both expired & unexpired
     #    to ensure we get all relevant strikes near that historical date.
     expired_list = [True, False]
 
@@ -711,7 +754,7 @@ def get_chains_cached(
 
         exg = c.primary_exchange
         right = c.contract_type.upper()  # "CALL" or "PUT"
-        exp_date = c.expiration_date     # "YYYY-MM-DD"
+        exp_date = c.expiration_date  # "YYYY-MM-DD"
         strike = c.strike_price
 
         option_contracts["Multiplier"] = c.shares_per_contract
@@ -748,14 +791,14 @@ class PolygonClient(RESTClient):
         """
         Factory method to create a RESTClient or PolygonClient instance.
 
-        The method uses environment variables to determine default values for the API key 
-        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults 
+        The method uses environment variables to determine default values for the API key
+        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults
         to the value of the `POLYGON_API_KEY` environment variable.
         If the environment variable is not set, it defaults to False.
 
         Keyword Arguments:
         api_key : str, optional
-            The API key to authenticate with the service. Defaults to the value of the 
+            The API key to authenticate with the service. Defaults to the value of the
             `POLYGON_API_KEY` environment variable if not provided.
 
         Returns:

@@ -2,7 +2,7 @@ import logging
 import math
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Union
+from typing import Union, Tuple, Optional
 import pytz
 import time
 
@@ -31,7 +31,8 @@ from lumibot import (
 )
 from lumibot.tools.helpers import (
     get_decimals,
-    quantize_to_num_decimals
+    quantize_to_num_decimals,
+    get_trading_days
 )
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
@@ -254,23 +255,35 @@ class AlpacaData(DataSource):
         return price
 
     def get_historical_prices(
-            self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
-    ):
+            self,
+            asset: Asset,
+            length: int,
+            timestep: str = "",
+            timeshift: Optional[timedelta] = None,
+            quote: Optional[Asset] = None,
+            exchange: Optional[str] = None,
+            include_after_hours: bool = True
+    ) -> Optional[Bars]:
+
         """Get bars for a given asset"""
+
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
+            )
 
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if not timestep:
             timestep = self.get_timestep()
 
-        df = self._pull_source_symbol_bars(
-            asset,
-            length,
+        df = self._get_dataframe_from_api(
+            asset=asset,
+            length=length,
             timestep=timestep,
             timeshift=timeshift,
             quote=quote,
-            exchange=exchange,
-            include_after_hours=include_after_hours,
+            include_after_hours=include_after_hours
         )
         if df is None:
             return None
@@ -278,197 +291,177 @@ class AlpacaData(DataSource):
         bars = self._parse_source_symbol_bars(df, asset, quote=quote, length=length)
         return bars
 
-    def _get_dataframe_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None, include_after_hours=True) -> pd.DataFrame | None:
-        """
-        Gets historical bar data for the given asset and time parameters.
+    def _get_dataframe_from_api(
+            self,
+            asset: Asset,
+            length: int,
+            timestep: str = "",
+            timeshift: Optional[timedelta] = None,
+            quote: Optional[Asset] = None,
+            exchange: Optional[str] = None,
+            include_after_hours: bool = True
+    ) -> Optional[pd.DataFrame]:
 
-        Args:
-            asset: Asset object or tuple (asset, quote)
-            freq: Bar frequency (e.g. "1Min", "1Day")
-            limit: Maximum number of bars to return
-            end: End datetime (timezone aware)
-            start: Start datetime (timezone aware)
-            quote: Quote asset for crypto pairs
+        timeframe = self._parse_source_timestep(timestep, reverse=True)
 
-        Returns:
-            DataFrame with OHLCV data and timezone aware index
-        """
+        now = datetime.now(self._tzinfo)
 
-        # Set default limit
-        if not limit:
-            limit = 1000
-
-        # Handle end time
-        if not end:
-            if asset.asset_type != Asset.AssetType.CRYPTO:
-                # Stocks/options need delay for last 15 minutes
-                end = datetime.now(self._tzinfo) - self._delay
-            else:
-                end = datetime.now(self._tzinfo)
-
-            if str(freq) == "1Day":
-                # Round to the next full day
-                end = end + timedelta(days=1)
-                end = end.replace(hour=0, minute=0, second=0, microsecond=0)
-            else:
-                # Round to last full minute
-                end = end + timedelta(minutes=1)
-                end = end.replace(second=0, microsecond=0)
-
-        # Initialize pagination parameters
-        max_bars_per_request = 5000
-        df_list = []
-        remaining_bars = limit
-        current_end = end
-
-        while remaining_bars > 0:
-            # Calculate request size for this iteration
-            request_size = min(remaining_bars, max_bars_per_request)
-
-            # Calculate start time based on frequency and asset type
-            if str(freq) == "1Day":
-                # For daily bars, directly calculate days
-                if asset.asset_type == Asset.AssetType.CRYPTO:
-                    request_start = current_end - timedelta(days=request_size)
-                else:
-                    # For stocks/options, account for weekends (multiply by 7/5)
-                    calendar_days = math.ceil(request_size * 7 / 5)
-                    request_start = current_end - timedelta(days=calendar_days)
-
-            elif str(freq) == "1Min":
-                if asset.asset_type == Asset.AssetType.CRYPTO:
-                    # Crypto trades 24/7, so direct minute calculation
-                    request_start = current_end - timedelta(minutes=request_size)
-                else:
-                    # For stocks/options with extended hours (12 hours per day)
-                    minutes_per_day = 12 * 60
-                    trading_days = math.ceil(request_size / minutes_per_day)
-                    calendar_days = math.ceil(trading_days * 7 / 5)
-                    request_start = current_end - timedelta(days=calendar_days)
-
-            else:
-                # For other frequencies, treat similar to minutes
-                request_start = current_end - timedelta(minutes=request_size)
-
-            # Make API request based on asset type
-            try:
-                if asset.asset_type == Asset.AssetType.CRYPTO:
-                    symbol = f"{asset.symbol}/{quote.symbol}"
-                    client = self._get_crypto_client()
-                    params = CryptoBarsRequest(
-                        symbol_or_symbols=symbol,
-                        timeframe=freq,
-                        start=request_start,
-                        end=current_end
-                    )
-                    barset = client.get_crypto_bars(params)
-
-                elif asset.asset_type == Asset.AssetType.OPTION:
-                    strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-                    date = asset.expiration.strftime("%y%m%d")
-                    symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-                    client = self._get_option_client()
-                    params = OptionBarsRequest(
-                        symbol_or_symbols=symbol,
-                        timeframe=freq,
-                        start=request_start,
-                        end=current_end
-                    )
-                    barset = client.get_option_bars(params)
-
-                else:  # Stock/ETF
-                    symbol = asset.symbol
-                    client = self._get_stock_client()
-                    params = StockBarsRequest(
-                        symbol_or_symbols=symbol,
-                        timeframe=freq,
-                        start=request_start,
-                        end=current_end
-                    )
-                    barset = client.get_stock_bars(params)
-
-                chunk_df = barset.df
-
-                if not chunk_df.empty:
-                    df_list.append(chunk_df)
-                    received_bars = len(chunk_df)
-                    remaining_bars -= received_bars
-                    current_end = chunk_df.index[0][1]  # Start next request from earliest received data
-                else:
-                    break  # No more data available
-
-            except Exception as e:
-                logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
-                break
-
-            # Rate limiting pause
-            time.sleep(0.1)
-
-        # Handle case where no data was received
-        if not df_list:
-            logging.warning(f"No pricing data available from Alpaca for {symbol}")
-            return None
+        # Create end time
+        if asset.asset_type != Asset.AssetType.CRYPTO and isinstance(self._delay, timedelta):
+            # Stocks/options need delay for last 15 minutes
+            end_dt = now - self._delay
         else:
-            # Combine all chunks and process the final dataframe
-            df = pd.concat(df_list)
-            df = df.reset_index(level=0, drop=True)  # Remove MultiIndex
+            end_dt = now
 
-            # Handle timezone conversion
-            if hasattr(df.index, 'tz'):
-                if df.index.tz is not None:
-                    df.index = df.index.tz_convert(self._tzinfo)
-                else:
-                    df.index = self._tzinfo.localize(df.index)
+        if timeshift is not None:
+            if not isinstance(timeshift, timedelta):
+                raise TypeError("timeshift must be a timedelta")
+            end_dt = end_dt - timeshift
 
-            # Clean up the dataframe
-            df = df[~df.index.duplicated(keep="first")]
-            df = df.sort_index()
-            df = df.iloc[-limit:]  # Ensure we don't exceed the requested limit
-            df = df[df.close > 0]
+        # # Round to the next full day or minute because alpaca end dates are exclusive
+        # if timestep == 'day':
+        #     end_dt = end_dt + timedelta(days=1)
+        #     end_dt = end_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        # else:
+        #     end_dt = end_dt + timedelta(minutes=1)
+        #     end_dt = end_dt.replace(second=0, microsecond=0)
 
-            if len(df) < limit:
-                logging.warning(
-                    f"Only got {len(df)} bars for {symbol} while {limit} were requested"
-                )
+        # Calculate the start_dt
+        td, _ = self.convert_timestep_str_to_timedelta(timestep)
+        if timestep == 'day':
+            # Existing day timestep logic remains the same
+            max_days_of_long_weekend = 3
+            weeks_requested = length // 5  # Full trading week is 5 days
+            extra_padding_days = weeks_requested * max_days_of_long_weekend
+            extra_padding_days = max(5, extra_padding_days)  # Get at least 5 days
+            td = timedelta(days=length + extra_padding_days)
+            tcal_start_date = end_dt - td
+            trading_days = get_trading_days(
+                # This works for now. Crypto gets more bars but throws them out.
+                # TODO: pass market into DataSource
+                market="NYSE",
+                start_date=tcal_start_date,
+                end_date=end_dt + timedelta(days=max_days_of_long_weekend),  # end_date is exclusive here.
+                tzinfo=self._tzinfo,
+            )
+            # Filter out trading days when the market_open is after the end_date
+            trading_days = trading_days[trading_days['market_open'] < end_dt]
+            # Now, start_date is the length bars before the last trading day
+            start_dt = trading_days.index[-length]
+        else:
+            # For minute bars, calculate additional days needed accounting for weekends/holidays
+            minutes_per_day = 390  # ~6.5 hours of trading per day
+            days_needed = (length // minutes_per_day) + 1
 
-        if not include_after_hours and str(freq) == "1Min" and self._tzinfo == pytz.timezone("America/New_York"):
-            # Filter the data to only include regular market hours (9:30 AM to 4:00 PM ET)
-            df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
+            # Account for weekends and holidays
+            max_days_of_long_weekend = 3
+            weeks_requested = days_needed // 5
+            extra_padding_days = weeks_requested * max_days_of_long_weekend
+            extra_padding_days = max(5, extra_padding_days)
 
-        df = df.sort_index()
-        return df
-
-    def _pull_source_symbol_bars(
-            self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None,
-            include_after_hours=True
-    ) -> pd.DataFrame | None:
-
-        if exchange is not None:
-            logging.warning(
-                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
+            # Get trading days to ensure we have enough market days
+            tcal_start_date = end_dt - timedelta(days=(days_needed + extra_padding_days))
+            trading_days = get_trading_days(
+                # This works for now. Crypto gets more bars but throws them out.
+                # TODO: pass market into DataSource
+                market="NYSE",
+                start_date=tcal_start_date,
+                end_date=end_dt + timedelta(days=max_days_of_long_weekend),
+                tzinfo=self._tzinfo,
             )
 
-        if timeshift or asset.asset_type == Asset.AssetType.CRYPTO:
-            # Crypto asset prices are not delayed.
-            asset_timeshift = timeshift
+            # Filter out trading days after end_dt
+            trading_days = trading_days[trading_days['market_open'] < end_dt]
+
+            # Set start_date to the beginning of the earliest needed trading day
+            start_dt = trading_days.index[max(-len(trading_days), -days_needed - 2)]
+
+        # Make API request based on asset type
+        try:
+            if asset.asset_type == Asset.AssetType.CRYPTO:
+                symbol = f"{asset.symbol}/{quote.symbol}"
+                client = self._get_crypto_client()
+
+                # noinspection PyArgumentList
+                params = CryptoBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                barset = client.get_crypto_bars(params)
+
+            elif asset.asset_type == Asset.AssetType.OPTION:
+                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                date = asset.expiration.strftime("%y%m%d")
+                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                client = self._get_option_client()
+
+                # noinspection PyArgumentList
+                params = OptionBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                barset = client.get_option_bars(params)
+
+            else:  # Stock/ETF
+                symbol = asset.symbol
+                client = self._get_stock_client()
+
+                # noinspection PyArgumentList
+                params = StockBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                barset = client.get_stock_bars(params)
+
+            df = barset.df
+
+        except Exception as e:
+            logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+            return None
+
+        # Handle case where no data was received
+        if df.empty:
+            logging.warning(f"No pricing data available from Alpaca for {symbol}")
+            return None
+
+        # Remove MultiIndex
+        df = df.reset_index(level=0, drop=True)
+
+        # Timezone conversion
+        if hasattr(df.index, 'tz'):
+            if df.index.tz is not None:
+                df.index = df.index.tz_convert(self._tzinfo)
+            else:
+                df.index = self._tzinfo.localize(df.index)
+
+        # Clean up the dataframe
+        df = df[~df.index.duplicated(keep="first")]
+        df = df.sort_index()
+        df = df[df.close > 0]
+
+        if not include_after_hours and timestep == 'minute' and self._tzinfo == pytz.timezone("America/New_York"):
+            # Filter data to include only regular market hours
+            df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
+
+        # Check for incomplete bars
+        if timestep == "minute":
+            # For minute bars, remove the current minute
+            current_minute = now.replace(second=0, microsecond=0)
+            df = df[df.index < current_minute]
         else:
-            # Alpaca throws an error if we don't do this and don't have a data subscription because
-            # they require a subscription for historical data less than 15 minutes old
-            asset_timeshift = self._delay
+            # For daily bars, remove today's bar if market is open
+            current_date = now.date()
+            df = df[df.index.date < current_date]
 
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        kwargs = dict(limit=length)
-        if asset_timeshift:
-            end = datetime.now(tz=self._tzinfo) - asset_timeshift  # Create datetime directly in target timezone
-            kwargs["end"] = end
-
-        df = self._get_dataframe_from_api(
-            asset=asset,
-            freq=parsed_timestep,
-            quote=quote,
-            include_after_hours=include_after_hours,
-            **kwargs
-        )
+        # Ensure df only contains the last N bars
+        if len(df) > length:
+            df = df.iloc[-length:]
 
         return df
 

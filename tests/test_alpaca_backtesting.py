@@ -1606,7 +1606,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                market=market,
+                market=market
             )
 
         now = tzinfo.localize(datetime(2025, 2, 21, 10, 0))
@@ -1686,7 +1686,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                market=market,
+                market=market
             )
 
         now = tzinfo.localize(datetime(2025, 2, 21, 10, 0))
@@ -1766,7 +1766,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 now=now,
                 data_source_tz=data_source._tzinfo,
                 time_check=time(0 ,0),
-                market=market,
+                market=market
             )
 
         # MLK was 1/20 so long 3 day weekend
@@ -1828,7 +1828,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 now=now,
                 data_source_tz=data_source._tzinfo,
                 time_check=time(0 ,0),
-                market=market,
+                market=market
             )
 
         with pytest.raises(Exception):

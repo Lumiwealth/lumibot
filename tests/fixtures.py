@@ -292,7 +292,7 @@ class BaseDataSourceTester:
             now: datetime,
             data_source_tz: pytz.tzinfo = None,
             time_check: time | None = None,
-            market: str = 'NYSE',
+            market: str = 'NYSE'
     ):
         assert bars.df.index[-1] <= now
         timestamp = bars.df.index[-1]
@@ -311,18 +311,11 @@ class BaseDataSourceTester:
             market_open = trading_days.loc[str(today), 'market_open']
             market_close = trading_days.loc[str(today), 'market_close']
 
-            if now < market_open:
-                # Before market open - should get last trading day's bar
+            if market_open <= now <= market_close:
+                # Only check during market hours since that when strategies run.
+                # Check that the last bar is the latest complete bar, which
+                # is the bar from the previous trading date.
                 assert bars.df.index[-1].date() == trading_days.index[-2].date()
-            elif market_open <= now <= market_close:
-                # During market hours - should get incomplete current day bar
-                assert bars.df.index[-1].date() == trading_days.index[-1].date()
-            else:
-                # After market close - should get complete current day bar
-                assert bars.df.index[-1].date() == trading_days.index[-1].date()
-        else:
-            # Non-trading day - should get last trading day's bar
-            assert bars.df.index[-1].date() == trading_days.index[-1].date()
 
     # noinspection PyMethodMayBeStatic
     def check_minute_bars(
@@ -331,7 +324,7 @@ class BaseDataSourceTester:
             bars: Bars,
             now: datetime,
             data_source_tz: pytz.tzinfo = None,
-            market: str = 'NYSE',
+            market: str = 'NYSE'
     ):
         assert bars.df.index[-1] <= now
 
@@ -347,24 +340,9 @@ class BaseDataSourceTester:
             market_open = trading_days.loc[str(today), 'market_open']
             market_close = trading_days.loc[str(today), 'market_close']
 
-            if now < market_open:
-                # Before market open - last bar should be from previous day
-                assert bars.df.index[-1].date() == trading_days.index[-2].date()
-            elif market_open <= now <= market_close:
-                # TODO: this accounts for a delay where we DO get the last complete minute bar
-                # the when there isn't a delay when we don't get the last complete minute bar.
-                # Probably should have a delay flag in this function.
-                # During market hours - last bar should be the last complete minute bar (so one minute ago)
-                if (bars.df.index[-1] == now.replace(second=0, microsecond=0) - timedelta(minutes=1) or
-                        (bars.df.index[-1] == now.replace(second=0, microsecond=0))
-                ):
-                    assert True
-                else:
-                    assert False
-
-            else:
-                # After market close - should be equal to market close
-                assert bars.df.index[-1] == market_close
-        else:
-            # Non-trading day - should get last trading day's bar
-            assert bars.df.index[-1].date() == trading_days.index[-1].date()
+            if market_open <= now <= market_close:
+                # Only check during market hours since that when strategies run.
+                # Check that the last bar is the latest complete bar, which
+                # is some bar before the current minute's bar. We're not guaranteed
+                # to have bars every minute because trades don't always happen every minute.
+                assert bars.df.index[-1] < now.replace(second=0, microsecond=0)

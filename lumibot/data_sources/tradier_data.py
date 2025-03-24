@@ -217,18 +217,21 @@ class TradierData(DataSource):
         else:
             symbol = asset.symbol
 
-        end_date = datetime.now().astimezone(self._tzinfo)
+        # Create end time
+        if self._delay:
+            end_date = datetime.now(self._tzinfo) - self._delay
+        else:
+            end_date = datetime.now(self._tzinfo)
 
-        # Calculate the end date
-        if timeshift:
+        if timeshift is not None:
+            if not isinstance(timeshift, timedelta):
+                raise TypeError("timeshift must be a timedelta")
             end_date = end_date - timeshift
 
         # Calculate the start date
         td, _ = self.convert_timestep_str_to_timedelta(timestep)
-        start_date = end_date - (td * length)
-
-        if timestep == 'day' and timeshift is None:
-            # What we really want is the last n bars, not the bars from the last n days.
+        if timestep == 'day':
+            # Existing day timestep logic remains the same
             max_days_of_long_weekend = 3
             weeks_requested = length // 5  # Full trading week is 5 days
             extra_padding_days = weeks_requested * max_days_of_long_weekend
@@ -236,14 +239,38 @@ class TradierData(DataSource):
             td = timedelta(days=length + extra_padding_days)
             tcal_start_date = end_date - td
             trading_days = get_trading_days(
-                market='NYSE',
+                market="NYSE",  # The only market for tradier
                 start_date=tcal_start_date,
-                end_date=end_date+timedelta(days=max_days_of_long_weekend)  # end_date is exclusive here.
+                end_date=end_date + timedelta(days=max_days_of_long_weekend)  # end_date is exclusive here.
             )
-            # Filer out trading days when the market_open is after the end_date
+            # Filter out trading days when the market_open is after the end_date
             trading_days = trading_days[trading_days['market_open'] < end_date]
             # Now, start_date is the length bars before the last trading day
             start_date = trading_days.index[-length]
+        else:
+            # For minute bars, calculate additional days needed accounting for weekends/holidays
+            minutes_per_day = 390  # ~6.5 hours of trading per day
+            days_needed = (length // minutes_per_day) + 1
+
+            # Account for weekends and holidays
+            max_days_of_long_weekend = 3
+            weeks_requested = days_needed // 5
+            extra_padding_days = weeks_requested * max_days_of_long_weekend
+            extra_padding_days = max(5, extra_padding_days)
+
+            # Get trading days to ensure we have enough market days
+            tcal_start_date = end_date - timedelta(days=(days_needed + extra_padding_days))
+            trading_days = get_trading_days(
+                market="NYSE",  # The only market for tradier
+                start_date=tcal_start_date,
+                end_date=end_date + timedelta(days=max_days_of_long_weekend)
+            )
+
+            # Filter out trading days after end_date
+            trading_days = trading_days[trading_days['market_open'] < end_date]
+
+            # Set start_date to the beginning of the earliest needed trading day
+            start_date = trading_days.index[max(-len(trading_days), -days_needed - 2)]
 
         # Check what timestep we are using, different endpoints are required for different timesteps
         try:
@@ -282,6 +309,17 @@ class TradierData(DataSource):
                 df.index = df.index.tz_localize(self._tzinfo)
             else:  # Already timezone-aware, convert to data source timezone
                 df.index = df.index.tz_convert(self._tzinfo)
+
+        # Check for incomplete bars
+        now = datetime.now(self._tzinfo)
+        if parsed_timestep_unit == "minute":
+            # For minute bars, remove the current minute
+            current_minute = now.replace(second=0, microsecond=0)
+            df = df[df.index < current_minute]
+        else:
+            # For daily bars, remove today's bar if market is open
+            current_date = now.date()
+            df = df[df.index.date < current_date]
 
         # Ensure df only contains the last N bars
         if len(df) > length:

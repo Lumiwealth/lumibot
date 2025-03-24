@@ -1,5 +1,7 @@
 import logging
 import os
+from typing import Optional
+
 import pytz
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_EVEN
@@ -75,13 +77,17 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 - market (str): Indicates the stock exchange or market (e.g., "NYSE"). Defaults to "NYSE".
                 - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults 
                   to True.
+                remove_incomplete_current_bar (bool): Whether to remove the incomplete current bar from the data.
+                  Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current
+                  day even if the day isn't over yet). That's not how lumibot does it, but it is probably
+                  what most Alpaca users expect so the default is False (leave incomplete bar in the data).
 
         Raises:
             ValueError: If the `config` argument is None or lacks a valid paper account setup.
 
         """
         self._datetime = None
-        
+
         # Call the base class.
         super().__init__(
             datetime_start=datetime_start,
@@ -100,6 +106,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._data_store: dict[str, pd.DataFrame] = {}
         self._refreshed_keys = {}
         self._refresh_cache: bool = kwargs.get('refresh_cache', False)
+        self._remove_incomplete_current_bar = kwargs.get('remove_incomplete_current_bar', False)
 
         if config is None:
             raise ValueError("Config cannot be None. Please provide a valid configuration.")
@@ -194,8 +201,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         return asset, quote
 
     def get_last_price(
-            self, 
-            asset: Asset, 
+            self,
+            asset: Asset,
             quote: Asset | None = None,
             exchange: str | None = None
     ) -> float | Decimal | None:
@@ -208,7 +215,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             length=1,  # Get one bar
             timestep=self._timestep,
             quote=quote,
-            timeshift=None  # Get the current bar
+            remove_incomplete_current_bar=False  # We want the incomplete bar (aka current bar) for get_last_price
         )
 
         if bars is None or bars.df.empty:
@@ -231,7 +238,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             timeshift: timedelta | None = None,
             quote: Asset | None = None,
             exchange: str | None = None,
-            include_after_hours: bool = True
+            include_after_hours: bool = True,
+            remove_incomplete_current_bar: Optional[bool] = None,
     ) -> Bars | None:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
@@ -270,6 +278,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
         """
         if length <= 0:
             raise ValueError("Length must be positive.")
+
+        if remove_incomplete_current_bar is None:
+            remove_incomplete_current_bar = self._remove_incomplete_current_bar
 
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
@@ -320,9 +331,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Convert index to date objects for comparison
             dates = df.index.date
             current_index = dates.searchsorted(search_date)
+
+            # Adjust to get the bar before the search date, if applicable
+            if remove_incomplete_current_bar and current_index > 0 and dates[current_index] == search_date:
+                current_index -= 1
+
         else:
             # For minute bars, find the exact minute
             current_index = df.index.searchsorted(search_datetime)
+
+            # Adjust to get the bar before the search time, if applicable
+            if remove_incomplete_current_bar and current_index > 0 and df.index[current_index] == search_datetime:
+                current_index -= 1
 
         if current_index >= len(df):
             raise ValueError(f"Datetime {search_datetime} not found in the dataset for {key}.")
@@ -656,4 +676,3 @@ class AlpacaBacktesting(DataSourceBacktesting):
             df[column] = df[column].fillna(df['open'])
 
         return df
-

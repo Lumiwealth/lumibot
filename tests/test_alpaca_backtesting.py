@@ -1414,6 +1414,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             market="NYSE",
             warm_up_trading_days: int = 0,
             auto_adjust: bool = True,
+            remove_incomplete_current_bar: bool = True
     ):
         """
         Create an instance of AlpacaBacktesting with default or provided parameters.
@@ -1427,6 +1428,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             market=market,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
+            remove_incomplete_current_bar=remove_incomplete_current_bar,
         )
 
     def test_get_last_price_daily_bars_stock(self):

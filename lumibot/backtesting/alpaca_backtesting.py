@@ -39,8 +39,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
     def __init__(
             self,
-            datetime_start: datetime,
-            datetime_end: datetime,
+            datetime_start: datetime | None = None,
+            datetime_end: datetime | None = None,
             backtesting_started: datetime | None = None,
             config: dict | None = None,
             api_key: str | None = None,

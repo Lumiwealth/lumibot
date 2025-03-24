@@ -2,7 +2,7 @@ from datetime import datetime, time
 import logging
 from decimal import Decimal
 from typing import Union
-from zoneinfo import ZoneInfo
+import pytz
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -35,16 +35,17 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    trading_hours_start : time or None. Only applicable when timestep is 'minute'.
+    trading_hours_start : datetime.time or None. Only applicable when timestep is 'minute'.
         If not supplied, then default is 0000 hrs.
-    trading_hours_end : time or None. Only applicable when timestep is 'minute'.
+    trading_hours_end : datetime.time or None. Only applicable when timestep is 'minute'.
         If not supplied, then default is 2359 hrs (inclusive).
     timestep : str
         Either "minute" (default) or "day"
-    tzinfo : ZoneInfo or None
+    tzinfo : pytz.BaseTzInfo or None
         If not None, then localize the timezone of the dataframe to the
-        given timezone as a string. The values can be any supported by tz_localize,
-        e.g. "America/New_York", "UTC", etc.
+        given timezone. This must be a timezone object supported by
+        `pytz`, e.g., `pytz.timezone('America/New_York')`.
+
 
     Attributes
     ----------
@@ -61,9 +62,9 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    trading_hours_start : time or None
+    trading_hours_start : datetime.time or None
         If not supplied, then default is 0001 hrs.
-    trading_hours_end : time or None
+    trading_hours_end : datetime.time or None
         If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
@@ -119,9 +120,13 @@ class Data:
         trading_hours_end=time(23, 59),
         timestep="minute",
         quote=None,
-        tzinfo: ZoneInfo = None,
+        tzinfo: pytz.BaseTzInfo = None,  # Changed to explicitly use pytz.BaseTzInfo
+
     ):
         self.asset = asset
+
+        if tzinfo is not None and not isinstance(tzinfo, pytz.BaseTzInfo):
+            raise TypeError(f"`tzinfo` must be an instance of `pytz.BaseTzInfo`. Got {type(tzinfo)} instead.")
 
         if self.asset.asset_type == "crypto" and quote is None:
             raise ValueError(
@@ -166,13 +171,13 @@ class Data:
                     self.df = self.df.set_index(date_col)
                     break
 
+        # Handling timezone localization
         if tzinfo is not None:
             if self.df.index.tz is None:
                 self.df.index = self.df.index.tz_localize(tzinfo)
             else:
                 self.df.index = self.df.index.tz_convert(tzinfo)
         else:
-            # If no timezone was passed in, use the default timezone.
             self.df = self.set_date_format(self.df)
 
         self.df = self.df.sort_index()
@@ -195,18 +200,18 @@ class Data:
 
         Parameters
         ----------
-        trading_hours_start : time
+        trading_hours_start : datetime.time
             The start time of the trading hours.
 
-        trading_hours_end : time
+        trading_hours_end : datetime.time
             The end time of the trading hours.
 
         Returns
         -------
-        trading_hours_start : time
+        trading_hours_start : datetime.time
             The start time of the trading hours.
 
-        trading_hours_end : time
+        trading_hours_end : datetime.time
             The end time of the trading hours.
         """
         # Set the trading hours start and end times.
@@ -412,7 +417,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime
+        dt : datetime.datetime
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
@@ -435,7 +440,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime
+        dt : datetime.datetime
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
@@ -514,7 +519,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime
+        dt : datetime.datetime
             The datetime to get the data.
         length : int
             The number of periods to get the data.
@@ -584,7 +589,7 @@ class Data:
 
         Parameters
         ----------
-        dt : datetime
+        dt : datetime.datetime
             The datetime to get the data.
         length : int
             The number of periods to get the data.

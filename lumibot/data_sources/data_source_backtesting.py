@@ -27,8 +27,8 @@ class DataSourceBacktesting(DataSource, ABC):
 
     def __init__(
              self,
-            datetime_start: datetime,
-            datetime_end: datetime,
+            datetime_start: datetime | None = None,
+            datetime_end: datetime | None = None,
             backtesting_started: datetime | None = None,
             config: dict | None = None,
             api_key: str | None = None,
@@ -42,7 +42,6 @@ class DataSourceBacktesting(DataSource, ABC):
             api_key=api_key,
             delay=delay
         )
-
 
         if backtesting_started is None:
             _backtesting_started = dt.datetime.now()

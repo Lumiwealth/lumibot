@@ -58,19 +58,32 @@ class TradierData(DataSource):
 
     def __init__(
             self,
-            account_number,
-            access_token,
-            paper=True,
-            max_workers=20,
+            account_number: str,
+            access_token: str,
+            paper: bool = True,
+            max_workers: int = 20,
+            delay: int = 0,
+            tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+    ) -> None:
+        """
+        Initializes the trading account with the specified parameters.
 
-            # A delay parameter to control how many minutes to delay non-crypto data for.
-            # Set to zero for no delay
-            delay=0,
+        Parameters:
+        - account_number (str): The account number used for accessing the trading account.
+        - access_token (str): The access token for authenticating requests.
+        - paper (bool, optional): Indicates whether to use the paper trading environment.
+          Defaults to True.
+        - max_workers (int, optional): The maximum number of workers for parallel processing.
+          Defaults to 20.
+        - delay (int, optional): A delay parameter to control how many minutes to delay non-crypto data for.
+          Set to 0 for no delay. Defaults to 0.
+        - tzinfo (pytz.timezone, optional): Timezone for data adjustments. Determines how datetime objects
+          are adjusted when retrieving historical data. Defaults to the `LUMIBOT_DEFAULT_TIMEZONE`.
 
-            # Setting this causes all calls to historical data endpoints to request data in this timezone
-            # and datetimes in dataframes are adjusted to this timezone.
-            tzinfo=pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
-    ):
+        Returns:
+        - None
+        """
+
         super().__init__(api_key=access_token, delay=delay, tzinfo=tzinfo)
         self._account_number = account_number
         self._paper = paper

@@ -1,6 +1,5 @@
 from decimal import Decimal
 from typing import List, Any
-from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, time
 import pytz
 
@@ -168,9 +167,9 @@ def load_pandas_data_from_alpaca_cached_data(
     )
 
     if asset_type == "crypto":
-        tzinfo = ZoneInfo("America/Chicago")
+        tzinfo = pytz.timezone("America/Chicago")
     else:
-        tzinfo = ZoneInfo("America/New_York")
+        tzinfo = pytz.timezone("America/New_York")
 
     df = pd.read_csv(
         csv_path,

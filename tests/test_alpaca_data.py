@@ -22,8 +22,12 @@ if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your 
 # @pytest.mark.skip()
 class TestAlpacaData(BaseDataSourceTester):
 
-    def _create_data_source(self, tzinfo: pytz.tzinfo = None) -> DataSource:
-        return AlpacaData(ALPACA_TEST_CONFIG, tzinfo=tzinfo)
+    def _create_data_source(self, tzinfo: pytz.tzinfo = None, remove_incomplete_current_bar=True) -> DataSource:
+        return AlpacaData(
+            config=ALPACA_TEST_CONFIG,
+            tzinfo=tzinfo,
+            remove_incomplete_current_bar=remove_incomplete_current_bar
+        )
 
     def test_get_last_price_crypto(self):
         data_source = self._create_data_source()

@@ -128,25 +128,37 @@ class AlpacaData(DataSource):
 
     def __init__(
             self,
-            config,
-            max_workers=20,
-            chunk_size=100,
+            config: dict,
+            max_workers: int = 20,
+            chunk_size: int = 100,
+            delay: Optional[int] = 16,
+            tzinfo: Optional[pytz.timezone] = None,
+            remove_incomplete_current_bar: bool = False
+    ) -> None:
+        """
+        Initializes the Alpaca Data Source.
 
-            # A delay parameter to control how many minutes to delay non-crypto data for.
-            # Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan.
-            # Set the delay to 0 if you are on a paid plan.
-            delay=16,
+        Parameters:
+        - config (dict): Configuration containing API keys for Alpaca.
+        - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
+        - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
+        - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
+          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. Set to 0 if on a paid plan. Default is 16.
+        - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in 
+          dataframes are adjusted to this timezone. Useful for setting UTC for crypto. Default is None.
+        - remove_incomplete_current_bar (bool, optional): Whether to remove the incomplete current bar from the data.
+          Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current day even if
+          the day isn't over yet). That's not how lumibot does it, but it is probably what most Alpaca users expect
+          so the default is False (leave incomplete bar in the data).
 
-            # Setting this causes all calls to historical data endpoints to request data in this timezone
-            # and datetimes in dataframes are adjusted to this timezone. Useful if you want UTC time for
-            # crypto for example.
-            tzinfo=None
-    ):
-
+        Returns:
+        - None
+        """
         super().__init__(delay=delay, tzinfo=tzinfo)
 
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)
+        self._remove_incomplete_current_bar = remove_incomplete_current_bar
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -450,14 +462,15 @@ class AlpacaData(DataSource):
             df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
 
         # Check for incomplete bars
-        if timestep == "minute":
-            # For minute bars, remove the current minute
-            current_minute = now.replace(second=0, microsecond=0)
-            df = df[df.index < current_minute]
-        else:
-            # For daily bars, remove today's bar if market is open
-            current_date = now.date()
-            df = df[df.index.date < current_date]
+        if self._remove_incomplete_current_bar:
+            if timestep == "minute":
+                # For minute bars, remove the current minute
+                current_minute = now.replace(second=0, microsecond=0)
+                df = df[df.index < current_minute]
+            else:
+                # For daily bars, remove today's bar if market is open
+                current_date = now.date()
+                df = df[df.index.date < current_date]
 
         # Ensure df only contains the last N bars
         if len(df) > length:

@@ -25,7 +25,7 @@ bulk_congress_trading_data_csv = "bulk_congress_trading_data.csv"
     -----------
     This module interacts with QuiverQuant's bulk Congress trading endpoint to fetch,
     store, and process congressional trading data for specific Bioguide IDs.
-    
+
     The `QuiverHelper` class helps download data from QuiverQuant, caches the data in a CSV file,
     and provides methods for retrieving and calculating portfolios based on transaction histories.
 """
@@ -40,11 +40,11 @@ class QuiverHelper:
     strategy : Strategy
         The parent strategy that this helper is part of.
     bulk_congress_trading_downloads : list
-        A list that keeps track of dictionary objects representing 
-        downloaded Congress trading data (including bioguide_id, 
+        A list that keeps track of dictionary objects representing
+        downloaded Congress trading data (including bioguide_id,
         download datetime, and the list of transaction data).
     bulk_congress_trading_df : pd.DataFrame
-        A pandas DataFrame that stores all downloaded Congress trading data 
+        A pandas DataFrame that stores all downloaded Congress trading data
         from CSV or newly fetched from QuiverQuant.
     """
 
@@ -56,7 +56,7 @@ class QuiverHelper:
         ----------
         strategy : Strategy
             The strategy that this component belongs to.
-        
+
         Returns
         -------
         None
@@ -118,10 +118,9 @@ class QuiverHelper:
                 columns=["bioguide_id", "download_datetime", "data"]
             )
 
-    def fetch_congress_trading_data(self, bioguide_id, page=1, page_size=50, retries=3):
+    def fetch_congress_trading_data(self, bioguide_id, page=1, page_size=50, max_retries=5):
         """
-        Fetch paginated Congress trading data from QuiverQuant's bulk endpoint 
-        for a specific bioguide_id, handling rate limiting and retry logic.
+        Fetch paginated Congress trading data with improved error handling and retry logic.
 
         Parameters
         ----------
@@ -131,8 +130,8 @@ class QuiverHelper:
             The page number to fetch (defaults to 1).
         page_size : int, optional
             Number of results per page (defaults to 50).
-        retries : int, optional
-            Number of times to retry the request in case of certain errors (defaults to 3).
+        max_retries : int, optional
+            Maximum number of retry attempts (defaults to 5).
 
         Returns
         -------
@@ -142,15 +141,13 @@ class QuiverHelper:
         Raises
         ------
         Exception
-            If the data cannot be fetched successfully after the specified number of retries.
+            If the data cannot be fetched successfully after all retries are exhausted.
         """
-        # Prepare the headers needed for authentication and data format
         headers = {
             "Authorization": f"Bearer {api_token}",
             "Accept": "application/json"
         }
-        
-        # Prepare query parameters
+
         params = {
             "page": page,
             "page_size": page_size,
@@ -158,40 +155,58 @@ class QuiverHelper:
             "version": "V1"
         }
 
-        # Attempt fetching up to 'retries' times
-        for attempt in range(retries):
+        for attempt in range(max_retries):
             try:
-                # Send the GET request to the QuiverQuant API
+                # Add a small delay between requests to avoid rate limiting
+                if attempt > 0:
+                    # Exponential backoff: 2^attempt seconds (1, 2, 4, 8, 16...)
+                    wait_time = min(2 ** attempt, 60)  # Cap at 60 seconds
+                    self.strategy.log_message(f"Retry attempt {attempt + 1}, waiting {wait_time} seconds...")
+                    time.sleep(wait_time)
+
                 response = requests.get(
-                    bulk_congress_trading_url, headers=headers, params=params
+                    bulk_congress_trading_url,
+                    headers=headers,
+                    params=params,
+                    timeout=30  # Add timeout to prevent hanging
                 )
-                
-                # If the request was unsuccessful, raise an HTTPError
-                response.raise_for_status()
 
-                # If successful, return the JSON response (list of trading data)
-                return response.json()
-
-            except requests.exceptions.HTTPError as e:
-                # Specifically handle 429 Too Many Requests
-                if response.status_code == 429:
-                    self.strategy.log_message("Rate limit exceeded. Retrying after 60 seconds...")
-                    time.sleep(60)  # Sleep 60 seconds before retry
+                # Handle different status codes
+                if response.status_code == 200:
+                    return response.json()
+                elif response.status_code == 429:  # Rate limit
+                    self.strategy.log_message("Rate limit exceeded. Waiting before retry...")
+                    time.sleep(60)
+                    continue
+                elif response.status_code == 500:  # Internal Server Error
+                    self.strategy.log_message(f"Server error on page {page}. Retrying...")
+                    # If it's the last retry, return empty list instead of failing
+                    if attempt == max_retries - 1:
+                        self.strategy.log_message(f"Server error persisted for page {page}. Skipping...")
+                        return []
+                    continue
                 else:
-                    # For other HTTP errors, just raise again
-                    raise e
-            except Exception as e:
-                # Catch all other exceptions and re-raise them after printing
-                self.strategy.log_message(f"An error occurred: {e}")
-                raise e
+                    response.raise_for_status()
 
-        # If we've exhausted all retries, raise an exception
-        raise Exception(f"Failed to fetch data after {retries} retries.")
+            except requests.exceptions.Timeout:
+                self.strategy.log_message(f"Request timed out on attempt {attempt + 1}")
+                if attempt == max_retries - 1:
+                    return []
+            except requests.exceptions.RequestException as e:
+                self.strategy.log_message(f"Request error on attempt {attempt + 1}: {str(e)}")
+                if attempt == max_retries - 1:
+                    return []
+            except Exception as e:
+                self.strategy.log_message(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+                if attempt == max_retries - 1:
+                    return []
+
+        return []  # Return empty list if all retries failed
 
     def get_trading_data_for_bioguide(self, bioguide_id, as_of_date):
         """
-        Fetch paginated results for a specific congressperson by bioguide_id and 
-        filter transactions by 'as_of_date'. Uses local caching to avoid repeated 
+        Fetch paginated results for a specific congressperson by bioguide_id and
+        filter transactions by 'as_of_date'. Uses local caching to avoid repeated
         downloads within a 24-hour window.
 
         Parameters
@@ -209,7 +224,7 @@ class QuiverHelper:
         # Check if data for this bioguide_id already exists in our DataFrame
         existing_entry = self.bulk_congress_trading_df[
             self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
-        ]
+            ]
         if not existing_entry.empty:
             # If found, check how long it's been since the last download
             last_download_time = existing_entry["download_datetime"].iloc[0]
@@ -239,15 +254,18 @@ class QuiverHelper:
         while True:
             # Fetch the data for this page
             data = self.fetch_congress_trading_data(bioguide_id, page, page_size)
-            
+
             if not data:
-                # If there is no more data, stop fetching
+                # If there is no more data or we got an empty response due to errors, stop fetching
                 break
-            
+
+            # Add a small delay between page requests to avoid rate limiting
+            time.sleep(1)
+
             # Accumulate results
             total_results.extend(data)
             self.strategy.log_message(f"Fetched {len(data)} results from page {page}.")
-            
+
             # Increment page to fetch the next set of results
             page += 1
 
@@ -263,10 +281,10 @@ class QuiverHelper:
         if not existing_entry.empty:
             # 1) Find which columns are shared by both DataFrames
             shared_cols = self.bulk_congress_trading_df.columns.intersection(new_entry.columns)
-            
+
             # 2) Create a mask for the rows to update
             mask = self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
-            
+
             # 3) Assign only the shared columns (this avoids mismatched column errors)
             self.bulk_congress_trading_df.loc[mask, shared_cols] = (
                 new_entry.loc[:, shared_cols].iloc[0].values
@@ -292,13 +310,13 @@ class QuiverHelper:
 
     def calculate_portfolio(self, transactions, as_of_date):
         """
-        Calculate the portfolio of a given congressperson (or set of transactions) 
+        Calculate the portfolio of a given congressperson (or set of transactions)
         up to a specified date. Only includes tickers with positive holdings.
 
         Parameters
         ----------
         transactions : list
-            A list of dictionaries, each representing a single transaction 
+            A list of dictionaries, each representing a single transaction
             with keys like 'Ticker', 'TransactionDate', 'Transaction', and 'Amount'.
         as_of_date : datetime.date
             Only include transactions on or before this date.
@@ -306,9 +324,9 @@ class QuiverHelper:
         Returns
         -------
         dict
-            A dictionary where the keys are tickers and the values are the 
+            A dictionary where the keys are tickers and the values are the
             cumulative holding amounts (only if positive).
-        
+
         Raises
         ------
         ValueError
@@ -333,11 +351,11 @@ class QuiverHelper:
                 ticker = transaction["Ticker"]
                 amount = float(transaction["Amount"])
                 action = transaction["Transaction"]
-                
+
                 # If the ticker is not in the portfolio yet, initialize to 0
                 if ticker not in portfolio:
                     portfolio[ticker] = 0.0
-                
+
                 # Adjust holdings based on the transaction action
                 if action == "Purchase":
                     portfolio[ticker] += amount
@@ -346,8 +364,8 @@ class QuiverHelper:
 
         # Filter out tickers with zero or negative holdings
         portfolio = {
-            ticker: holdings 
-            for ticker, holdings in portfolio.items() 
+            ticker: holdings
+            for ticker, holdings in portfolio.items()
             if holdings > 0
         }
 

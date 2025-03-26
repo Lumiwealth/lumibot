@@ -6,6 +6,7 @@ import logging
 import pandas as pd
 
 from lumibot.backtesting import AlpacaBacktesting, BacktestingBroker
+from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset, Bars
 from lumibot.tools import (
@@ -1399,6 +1400,84 @@ class TestAlpacaBacktesting:
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["avg_fill_price"] == 94153.05  # Open of '2025-01-13T00:00:00-06:00'
+
+    def test_amzn_day_1d_dump_benchmark_stats(
+            self,
+            asset: Asset = Asset('AMZN'),
+            market: str = 'NYSE',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/New_York'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+            lookback_length: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        refresh_cache = False
+
+        strategy: BacktestingTestStrategy
+        results, strategy = BuyAndHold.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset='AMZN',
+            analyze_backtest=False,
+            show_progress_bar=False,
+            parameters={
+                "buy_symbol": 'AMZN'
+            },
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+        assert not strategy._benchmark_returns_df.empty
+
+    def test_amzn_day_1m_dump_benchmark_stats(
+            self,
+            asset: Asset = Asset('AMZN'),
+            market: str = 'NYSE',
+            timestep: str = 'minute',
+            sleeptime: str = '30M',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/New_York'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+            lookback_length: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        refresh_cache = False
+
+        strategy: BacktestingTestStrategy
+        results, strategy = BuyAndHold.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset='AMZN',
+            analyze_backtest=False,
+            show_progress_bar=False,
+            parameters={
+                "buy_symbol": 'AMZN'
+            },
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+        assert not strategy._benchmark_returns_df.empty
 
 
 class TestAlpacaBacktestingDataSource(BaseDataSourceTester):

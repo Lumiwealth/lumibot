@@ -868,7 +868,7 @@ class _Strategy:
                 timestep = self.broker.data_source._timestep
                 key = self.broker.data_source._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
                 df = self.broker.data_source._data_store[key]
-                df = df[self._backtesting_start:self._backtesting_end]
+                df = df.loc[self._backtesting_start:self._backtesting_end].copy()
                 df["return"] = df["close"].pct_change(fill_method=None)
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()
                 self._benchmark_returns_df = df

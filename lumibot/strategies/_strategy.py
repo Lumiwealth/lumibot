@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, inspect, text
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
+from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting, AlpacaBacktesting
 from ..entities import Asset, Position, Order, Data
 from ..tools import (
     create_tearsheet,
@@ -860,6 +860,17 @@ class _Strategy:
                 # Add the symbol_cumprod column
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()
 
+                self._benchmark_returns_df = df
+
+            if type(self.broker.data_source) == AlpacaBacktesting:
+                benchmark_asset = self._benchmark_asset
+                asset, quote = self.broker.data_source._sanitize_base_and_quote_asset(benchmark_asset, self._quote_asset)
+                timestep = self.broker.data_source._timestep
+                key = self.broker.data_source._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
+                df = self.broker.data_source._data_store[key]
+                df = df[self._backtesting_start:self._backtesting_end]
+                df["return"] = df["close"].pct_change(fill_method=None)
+                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
                 self._benchmark_returns_df = df
 
             # If we are using any other data source, then get the benchmark returns from yahoo

@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from threading import Event
 import datetime
-from typing import Union
+from typing import Union, List
 
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price
@@ -147,7 +147,7 @@ class Order:
         error_message: str = None,
         child_orders: Union[list, None] = None,
         tag: str = "",
-        status: OrderStatus = "unprocessed",
+        status: OrderStatus = "unprocessed"
     ):
         """Order class for managing individual orders.
 

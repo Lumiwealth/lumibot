@@ -1,12 +1,12 @@
 import logging
 from collections import defaultdict, OrderedDict
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
-from typing import Union, Dict, List
+from typing import Union
 
 import pandas as pd
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars, Data
+from lumibot.entities import Asset, Bars
 
 
 class PandasData(DataSourceBacktesting):
@@ -21,44 +21,15 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(
-            self,
-            datetime_start: datetime,
-            datetime_end: datetime,
-            config: dict | None = None,
-            api_key: str | None = None,
-            show_progress_bar: bool = True,
-            delay: int | None = None,
-            pandas_data: dict | list = None,
-            auto_adjust: bool = True,
-            *args,
-            **kwargs
-    ):
-        """
-        Initialize a PandasData instance.
-    
-        pandas_data can be one of these:
-            List(Data)  <-- preferred. Be sure to include quote assets.
-            Dict[Asset, Data]
-            Dict[(Asset, Asset), Data]
-        """
-        super().__init__(
-            datetime_start=datetime_start,
-            datetime_end=datetime_end,
-            config=config,
-            api_key=api_key,
-            show_progress_bar=show_progress_bar,
-            delay=delay,
-        )
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
+        super().__init__(*args, **kwargs)
         self.name = "pandas"
+        self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
+        self._data_store = self.pandas_data
         self._date_index = None
         self._date_supply = None
         self._timestep = "minute"
-
-        # pandas_data is an ordered dict, where the key is an Asset tuple, and the value is a lumibot.Data object.
-        self.pandas_data: OrderedDict[(Asset, Asset), Data] = self._set_pandas_data_keys(pandas_data)
-        self._data_store = self.pandas_data
 
     @staticmethod
     def _set_pandas_data_keys(pandas_data):

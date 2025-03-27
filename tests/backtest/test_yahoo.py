@@ -1,14 +1,8 @@
-from datetime import datetime
-from decimal import Decimal
+import datetime
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.entities import Asset
-
-from tests.fixtures import (
-    BacktestingTestStrategy
-)
 
 
 class YahooPriceTest(Strategy):
@@ -32,7 +26,6 @@ class YahooPriceTest(Strategy):
 
 
 class TestYahooBacktestFull:
-
     def test_yahoo_last_price(self):
         """
         Test the YahooDataBacktesting class by running a backtest and checking that the strategy object is returned
@@ -40,8 +33,8 @@ class TestYahooBacktestFull:
         """
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
-        backtesting_start = datetime(2023, 11, 1)
-        backtesting_end = datetime(2023, 11, 2)
+        backtesting_start = datetime.datetime(2023, 11, 1)
+        backtesting_end = datetime.datetime(2023, 11, 2)
 
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
@@ -67,56 +60,3 @@ class TestYahooBacktestFull:
         last_price = round(last_price, 2)
 
         assert last_price == 419.20  # This is the correct price for 2023-11-01 (the open price)
-
-    def test_single_stock_day_bars_america_new_york(self):
-        backtesting_start = datetime(2025, 1, 13)
-        backtesting_end = datetime(2025, 1, 18)
-        sleeptime = '1D'
-        market = 'NYSE'
-
-        strategy: BacktestingTestStrategy
-        results, strategy = BacktestingTestStrategy.run_backtest(
-            datasource_class=YahooDataBacktesting,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            benchmark_asset=None,
-            analyze_backtest=False,
-            show_progress_bar=False,
-            parameters={
-                "asset": Asset('AMZN', asset_type='stock'),
-                "sleeptime": sleeptime,
-                "market": market
-            },
-        )
-        assert results
-        assert strategy
-        assert strategy.broker
-        assert isinstance(strategy.broker, BacktestingBroker)
-        assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, YahooDataBacktesting)
-
-        # Data source tests
-        data_source = strategy.broker.data_source
-        assert data_source.datetime_start.isoformat() == "2025-01-13T00:00:00-05:00"
-        assert data_source.datetime_end.isoformat() == '2025-01-17T23:59:00-05:00'
-        
-        df = list(data_source._data_store.values())[0]
-        assert not df.empty
-
-        # daily bars are indexed at close for yahoo. Weird.
-        assert df.index[0].isoformat() == "1997-05-15T16:00:00-04:00"
-
-        # Trading strategy tests
-        # check when trading iterations happened
-        last_prices = strategy.last_prices
-        last_price_keys = list(last_prices.keys())
-        assert len(last_prices) == 5 # number of trading iterations
-        assert last_price_keys[0] == '2025-01-13T09:30:00-05:00'
-        assert last_price_keys[-1] == '2025-01-17T09:30:00-05:00'
-        assert last_prices['2025-01-13T09:30:00-05:00'] == 218.05999755859375
-
-        order_tracker = strategy.order_tracker
-        assert order_tracker["iteration_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["submitted_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["filled_at"].isoformat() == '2025-01-13T09:30:00-05:00'
-        assert order_tracker["avg_fill_price"] == 218.06

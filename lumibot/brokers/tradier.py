@@ -22,7 +22,7 @@ class Tradier(Broker):
     Broker that connects to Tradier API to place orders and retrieve data. Tradier API only supports Order streaming
     for live accounts, paper trading accounts must use a 'polling' method to retrieve order updates. This class will
     still use a CustomStream object to process order updates (which can be confusing!), but this will more seamlessly
-    match what other LumiBrokers are doing without requiring changes to the strategy_executor. This
+    match what other LumiBrokers are doing without requiring changes to the stategy_executor. This
     polling method will also work for Live accounts, so it will be used by default. However, future updates will be
     made to natively support websocket streaming for Live accounts.
 
@@ -93,7 +93,7 @@ class Tradier(Broker):
                 access_token=access_token,
                 paper=paper,
                 max_workers=max_workers,
-                delay=0,
+                delay=15 if paper else 0,
             )
 
         super().__init__(

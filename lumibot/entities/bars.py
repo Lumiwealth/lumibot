@@ -113,8 +113,6 @@ class Bars:
         self.quote = quote
         self._raw = raw
 
-        df = df.copy()
-
         if "dividend" in df.columns:
             df.loc[:, "price_change"] = df["close"].pct_change(fill_method=None)
             df.loc[:, "dividend_yield"] = df["dividend"] / df["close"]

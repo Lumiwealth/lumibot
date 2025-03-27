@@ -1,8 +1,7 @@
-from datetime import datetime, time
+import datetime
 import logging
 from decimal import Decimal
 from typing import Union
-import pytz
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -35,22 +34,23 @@ class Data:
     date_end : Datetime or None
         Ending date for this data, if not provided then last date in
         the dataframe.
-    trading_hours_start : datetime.time or None. Only applicable when timestep is 'minute'.
-        If not supplied, then default is 0000 hrs.
-    trading_hours_end : datetime.time or None. Only applicable when timestep is 'minute'.
-        If not supplied, then default is 2359 hrs (inclusive).
+    trading_hours_start : datetime.time or None
+        If not supplied, then default is 0001 hrs.
+    trading_hours_end : datetime.time or None
+        If not supplied, then default is 2359 hrs.
     timestep : str
         Either "minute" (default) or "day"
-    tzinfo : pytz.BaseTzInfo or None
+    localize_timezone : str or None
         If not None, then localize the timezone of the dataframe to the
-        given timezone. This must be a timezone object supported by
-        `pytz`, e.g., `pytz.timezone('America/New_York')`.
-
+        given timezone as a string. The values can be any supported by tz_localize,
+        e.g. "US/Eastern", "UTC", etc.
 
     Attributes
     ----------
     asset : Asset Object
         Asset object to which this data is attached.
+    sybmol : str
+        The underlying or stock symbol as a string.
     df : dataframe
         Pandas dataframe containing OHLCV etc trade data. Loaded by user
         from csv.
@@ -116,21 +116,18 @@ class Data:
         df,
         date_start=None,
         date_end=None,
-        trading_hours_start=time(0, 0),
-        trading_hours_end=time(23, 59),
+        trading_hours_start=datetime.time(0, 0),
+        trading_hours_end=datetime.time(23, 59),
         timestep="minute",
         quote=None,
-        tzinfo: pytz.BaseTzInfo = None,  # Changed to explicitly use pytz.BaseTzInfo
-
+        timezone=None,
     ):
         self.asset = asset
-
-        if tzinfo is not None and not isinstance(tzinfo, pytz.BaseTzInfo):
-            raise TypeError(f"`tzinfo` must be an instance of `pytz.BaseTzInfo`. Got {type(tzinfo)} instead.")
+        self.symbol = self.asset.symbol
 
         if self.asset.asset_type == "crypto" and quote is None:
             raise ValueError(
-                f"A crypto asset {asset.symbol} was added to data without a corresponding"
+                f"A crypto asset {self.symbol} was added to data without a corresponding"
                 f"`quote` asset. Please add the quote asset. For example, if trying to add "
                 f"`BTCUSD` to data, you would need to add `USD` as the quote asset."
                 f"Quote must be provided for crypto assets."
@@ -171,15 +168,10 @@ class Data:
                     self.df = self.df.set_index(date_col)
                     break
 
-        # Handling timezone localization
-        if tzinfo is not None:
-            if self.df.index.tz is None:
-                self.df.index = self.df.index.tz_localize(tzinfo)
-            else:
-                self.df.index = self.df.index.tz_convert(tzinfo)
-        else:
-            self.df = self.set_date_format(self.df)
+        if timezone is not None:
+            self.df.index = self.df.index.tz_localize(timezone)
 
+        self.df = self.set_date_format(self.df)
         self.df = self.df.sort_index()
 
         self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
@@ -196,7 +188,7 @@ class Data:
         self.datetime_end = self.df.index[-1]
 
     def set_times(self, trading_hours_start, trading_hours_end):
-        """Set the start and end times for the data. The default is 0000 hrs to 2359 hrs.
+        """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
 
         Parameters
         ----------
@@ -219,8 +211,8 @@ class Data:
             ts = trading_hours_start
             te = trading_hours_end
         else:
-            ts = time(0, 0)
-            te = time(23, 59, 59, 999999)
+            ts = datetime.time(0, 0)
+            te = datetime.time(23, 59, 59, 999999)
         return ts, te
 
     def columns(self, df):
@@ -243,7 +235,7 @@ class Data:
     def set_dates(self, date_start, date_end):
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
-            if dt and not isinstance(dt, datetime):
+            if dt and not isinstance(dt, datetime.datetime):
                 raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} " f"was entered")
 
         if not date_start:
@@ -287,15 +279,14 @@ class Data:
 
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
-        idx = idx[(idx >= self.datetime_start) & (
-                idx <= self.datetime_end.replace(hour=23, minute=59, second=59, microsecond=999999))]
-
+        idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+        
         # Ensure that the DataFrame's index is unique by dropping duplicate timestamps.
         self.df = self.df[~self.df.index.duplicated(keep='first')]
-
-        # After all time series merged, adjust the local dataframe to reindex and fill nan's.
+        
+        # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
-
+        
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
             df.loc[df["volume"].isna(), "volume"] = 0
@@ -395,9 +386,8 @@ class Data:
             if getattr(self, "iter_index_dict", None) is None:
                 self.repair_times_and_fill(self.df.index)
 
-            # Convert `dt` to a pandas.Timestamp
-            if pd.Timestamp(dt) in self.iter_index_dict:
-                i = self.iter_index_dict[pd.Timestamp(dt)]
+            if dt in self.iter_index_dict:
+                i = self.iter_index_dict[dt]
             else:
                 # If not found, get the last known data
                 i = self.iter_index.asof(dt)
@@ -428,6 +418,8 @@ class Data:
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
+        timestep : str
+            The frequency of the data to get the last price.
         timeshift : int
             The number of periods to shift the data.
 
@@ -451,6 +443,8 @@ class Data:
             The datetime to get the last price.
         length : int
             The number of periods to get the last price.
+        timestep : str
+            The frequency of the data to get the last price.
         timeshift : int
             The number of periods to shift the data.
 
@@ -565,9 +559,9 @@ class Data:
         ----------
         timestep : str
             The frequency of the data to get the data.
-        start_date : datetime
+        start_date : datetime.datetime
             The start date to get the data for.
-        end_date : datetime
+        end_date : datetime.datetime
             The end date to get the data for.
 
         Returns
@@ -628,18 +622,8 @@ class Data:
             "volume": "sum",
         }
         if timestep == "day" and self.timestep == "minute":
-            # Length needs to be the number of minute bars per day * number of days to get.
-            # The number of bars depends on the trading hours in the day.
-            dt1 = datetime.combine(datetime.today(), self.trading_hours_end)
-            dt2 = datetime.combine(datetime.today(), self.trading_hours_start)
-
-            # Calculate difference and convert to minutes
-            diff = dt2 - dt1
-            diff_minutes = abs(int(diff.total_seconds() / 60))
-
-            # Calculate the number of minute bars we need
-            length = diff_minutes * num_periods
-
+            # If the data is minute data and we are requesting daily data then multiply the length by 1440
+            length = length * 1440
             unit = "D"
             data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
 
@@ -682,9 +666,9 @@ class Data:
             The frequency of the data to get the data. Only minute and day are supported.
         exchange : str
             The exchange to get the data for.
-        start_date : datetime
+        start_date : datetime.datetime
             The start date to get the data for.
-        end_date : datetime
+        end_date : datetime.datetime
             The end date to get the data for.
 
         Returns

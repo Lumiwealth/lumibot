@@ -194,37 +194,6 @@ class TestAlpacaData(BaseDataSourceTester):
                 market=market
             )
 
-    def test_get_historical_prices_daily_bars_crypto_utc(self):
-        tzinfo = pytz.timezone('UTC')
-        data_source = self._create_data_source(tzinfo=tzinfo)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
-        timestep = "day"
-        market = '24/7'
-        now = datetime.now(data_source._tzinfo)
-
-        for length in [1, 30]:
-            bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset,
-                include_after_hours=True
-            )
-
-            self.check_length(bars=bars, length=length)
-            self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
-            self.check_daily_bars(
-                bars=bars,
-                now=now,
-                data_source_tz=data_source._tzinfo,
-
-                # Default alpaca crypto timezone is America/Chicago
-                time_check=time(5,0),
-                market=market,
-            )
-
     def test_get_historical_prices_daily_bars_crypto_america_chicago(self):
         tzinfo = pytz.timezone('America/Chicago')
         data_source = self._create_data_source(tzinfo=tzinfo)

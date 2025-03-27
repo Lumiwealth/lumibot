@@ -864,10 +864,14 @@ class _Strategy:
 
             if type(self.broker.data_source) == AlpacaBacktesting:
                 benchmark_asset = self._benchmark_asset
-                asset, quote = self.broker.data_source._sanitize_base_and_quote_asset(benchmark_asset, self._quote_asset)
-                timestep = self.broker.data_source._timestep
-                key = self.broker.data_source._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
-                df = self.broker.data_source._data_store[key]
+
+                df = self.broker.data_source.get_historical_prices_between_dates(
+                    base_asset=benchmark_asset
+                )
+
+                if df is None or df.empty:
+                    logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
+                    return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
                 df["return"] = df["close"].pct_change(fill_method=None)
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()

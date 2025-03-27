@@ -1422,7 +1422,7 @@ class TestAlpacaBacktesting:
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             minutes_before_closing=0,
-            benchmark_asset='AMZN',
+            benchmark_asset=Asset('AMZN'),
             analyze_backtest=False,
             show_progress_bar=False,
             parameters={
@@ -1439,6 +1439,91 @@ class TestAlpacaBacktesting:
         )
 
         assert not strategy._benchmark_returns_df.empty
+        assert strategy._benchmark_returns_df.index[0] == backtesting_start
+        assert strategy._benchmark_returns_df.iloc[0].open == 218.06
+
+    def test_amzn_day_1d_benchmark_asset_loaded_when_benchmark_asset_not_in_strategy(
+            self,
+            asset: Asset = Asset('AMZN'),
+            market: str = 'NYSE',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/New_York'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+            lookback_length: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        refresh_cache = False
+
+        strategy: BacktestingTestStrategy
+        results, strategy = BuyAndHold.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset=Asset('SPY'),
+            analyze_backtest=False,
+            show_progress_bar=False,
+            parameters={
+                "buy_symbol": 'AMZN'
+            },
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+        assert not strategy._benchmark_returns_df.empty
+        assert strategy._benchmark_returns_df.index[0] == backtesting_start
+        assert strategy._benchmark_returns_df.iloc[0].open == 574.04
+
+
+    def test_amzn_day_1d_benchmark_asset_loaded_when_benchmark_asset_is_crypto(
+            self,
+            asset: Asset = Asset('AMZN'),
+            market: str = '24/7',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+            lookback_length: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        refresh_cache = False
+
+        strategy: BacktestingTestStrategy
+        results, strategy = BuyAndHold.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset=Asset('BTC', asset_type=Asset.AssetType.CRYPTO),
+            analyze_backtest=False,
+            show_progress_bar=False,
+            parameters={
+                "buy_symbol": 'AMZN'
+            },
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+        assert not strategy._benchmark_returns_df.empty
+        assert strategy._benchmark_returns_df.index[0] == backtesting_start
+        assert strategy._benchmark_returns_df.iloc[0].open == 94066.35
 
     def test_amzn_day_1m_dump_benchmark_stats(
             self,

@@ -242,16 +242,19 @@ class AlpacaBacktesting(DataSourceBacktesting):
             remove_incomplete_current_bar: Optional[bool] = None,
     ) -> Bars | None:
         """
+        Get bars for an asset by delegating to get_historical_prices_between_dates
+        for fetching the historical data, followed by additional processing.
+
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
         For example, with a length of 10 and a timestep of "day", and now timeshift, this
         would return the last 10 daily bars.
-    
+
         - Higher-level method that returns a `Bars` object
         - Handles timezone conversions automatically
         - Includes additional metadata and processing
         - Preferred for strategy development and backtesting
         - Returns normalized data with consistent format across data sources
-    
+
         Parameters
         ----------
         asset : Asset
@@ -270,19 +273,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
             The exchange to get the bars for.
         include_after_hours : bool
             Whether to include after hours data.
-    
+
         Returns
         -------
-        pd.DataFrame | None
+        Bars | None
             The bars for the asset.
         """
         if length <= 0:
             raise ValueError("Length must be positive.")
 
+        # Default values for arguments
         if remove_incomplete_current_bar is None:
             remove_incomplete_current_bar = self._remove_incomplete_current_bar
-
-        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if timestep is None:
             timestep = self._timestep
@@ -290,77 +292,62 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if quote is None:
             quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
 
-        key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
-
-        if self._refresh_cache and key not in self._refreshed_keys:
-            # If we need are refreshing cache and we didn't refresh this key's cache yet, refresh it.
-            self._download_and_cache_ohlcv_data(
-                base_asset=asset,
-                quote_asset=quote,
-                timestep=timestep,
-                market=self._market,
-                tzinfo=self._tzinfo,
-                data_datetime_start=self._data_datetime_start,
-                data_datetime_end=self._data_datetime_end,
-                auto_adjust=self._auto_adjust,
-            )
-            self._refreshed_keys[key] = True
-        elif key not in self._data_store and not self._load_ohlcv_into_data_store(key):
-            # If not refreshing or already refreshed, try to load from cache or download
-            self._download_and_cache_ohlcv_data(
-                base_asset=asset,
-                quote_asset=quote,
-                timestep=timestep,
-                market=self._market,
-                tzinfo=self._tzinfo,
-                data_datetime_start=self._data_datetime_start,
-                data_datetime_end=self._data_datetime_end,
-                auto_adjust=self._auto_adjust,
-            )
-
-        df = self._data_store[key]
-
-        # Locate the index of self._datetime adjusted by timeshift
+        # Determine search target datetime
         search_datetime = self._datetime
         if timeshift:
             search_datetime = self._datetime - timeshift
 
+        try:
+            # Fetch historical prices during the backtest using the dedicated function
+            df = self.get_historical_prices_between_dates(
+                base_asset=asset,
+                quote_asset=quote,
+                timestep=timestep,
+                data_datetime_start=self._data_datetime_start,
+                data_datetime_end=self._data_datetime_end,
+                auto_adjust=self._auto_adjust
+            )
+        except Exception as e:
+            # Handle errors if fetching data fails
+            raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}")
+
+        # Ensure sufficient bars are available
+        if length > len(df):
+            raise ValueError(
+                f"Not enough historical data. Requested {length} bars but only {len(df)} available."
+            )
+
+        # Adjust the search based on timestep
         if timestep == 'day':
-            # For daily bars, find the index of any bar on the same day
+            # For daily bars
             search_date = search_datetime.date()
-            # Convert index to date objects for comparison
             dates = df.index.date
             current_index = dates.searchsorted(search_date)
 
-            # Adjust to get the bar before the search date, if applicable
+            # Adjust for incomplete current bar
             if remove_incomplete_current_bar and current_index > 0 and dates[current_index] == search_date:
                 current_index -= 1
-
         else:
-            # For minute bars, find the exact minute
+            # For minute bars
             current_index = df.index.searchsorted(search_datetime)
 
-            # Adjust to get the bar before the search time, if applicable
+            # Adjust for incomplete current bar
             if remove_incomplete_current_bar and current_index > 0 and df.index[current_index] == search_datetime:
                 current_index -= 1
 
+        # Handle data retrieval and slicing
+        if current_index < 0:
+            raise ValueError(f"Datetime {search_datetime} not found in the dataset.")
+
         if current_index >= len(df):
-            raise ValueError(f"Datetime {search_datetime} not found in the dataset for {key}.")
+            raise ValueError(f"Datetime {search_datetime} exceeds the dataset range.")
 
         if length == 1:
-            result = df.iloc[[current_index]]
+            result_df = df.iloc[[current_index]]
         else:
-            # pandas slicing is exclusive of end... increment current_index so it's included
-            current_index += 1
-            if current_index - length < 0:
-                raise ValueError(
-                    f"Not enough historical data. Requested {length} bars but only have {current_index} "
-                    f"bars before the reference time."
-                )
-            result = df.iloc[current_index - length:current_index]
+            result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
 
-        bars = Bars(result, self.SOURCE, asset=asset, quote=quote)
-        return bars
+        return Bars(result_df, self.SOURCE, asset=asset, quote=quote)
 
     def get_chains(self, asset, quote=None):
         """Mock implementation for getting option chains"""
@@ -450,7 +437,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             data_datetime_start: datetime = None,
             data_datetime_end: datetime = None,
             auto_adjust: bool = None,
-    ) -> None:
+    ) -> pd.DataFrame:
         if base_asset is None:
             raise ValueError("The parameter 'base_asset' cannot be None.")
         if quote_asset is None:
@@ -487,7 +474,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         filename = f"{key}.csv"
         filepath = os.path.join(cache_dir, filename)
 
-        logging.info(f"Fetching data for {key}")
+        logging.info(f"Fetching and caching data for {key}")
 
         if base_asset.asset_type == 'crypto':
             client = self._crypto_client
@@ -553,6 +540,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # Store in _data_store
         df.set_index('timestamp', inplace=True)
         self._data_store[key] = df
+        logging.info(f"Finished fetching and caching data for {key}")
+        return df
 
     def _load_ohlcv_into_data_store(self, key: str) -> bool:
         """
@@ -592,11 +581,81 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
             df.set_index('timestamp', inplace=True)
             self._data_store[key] = df
-            logging.info(f"Loaded data for key: {key} from cache.")
+            logging.info(f"Loaded cached data for key: {key} from cache.")
             return True
         except Exception as e:
             logging.error(f"Failed to load cached data for key: {key}. Error: {e}")
             return False
+
+    def get_historical_prices_between_dates(
+            self,
+            *,
+            base_asset: Asset = None,
+            quote_asset: Asset = None,
+            timestep: str = None,
+            market: str = None,
+            tzinfo: pytz.tzinfo = None,
+            data_datetime_start: datetime = None,
+            data_datetime_end: datetime = None,
+            auto_adjust: bool = None,
+    ) -> pd.DataFrame:
+
+        if base_asset is None:
+            raise ValueError("Base asset must be provided.")
+
+        if quote_asset is None:
+            quote_asset = self.LUMIBOT_DEFAULT_QUOTE_ASSET
+
+        asset, quote = self._sanitize_base_and_quote_asset(base_asset, quote_asset)
+
+        if timestep is None:
+            timestep = self._timestep
+
+        if market is None:
+            market = self._market
+
+        if tzinfo is None:
+            tzinfo = self._tzinfo
+
+        if data_datetime_start is None:
+            data_datetime_start = self._data_datetime_start
+
+        if data_datetime_end is None:
+            data_datetime_end = self._data_datetime_end
+
+        if auto_adjust is None:
+            auto_adjust = self._auto_adjust
+
+        key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
+
+        if self._refresh_cache and key not in self._refreshed_keys:
+            # If we need are refreshing cache and we didn't refresh this key's cache yet, refresh it.
+            self._download_and_cache_ohlcv_data(
+                base_asset=asset,
+                quote_asset=quote,
+                timestep=timestep,
+                market=market,
+                tzinfo=tzinfo,
+                data_datetime_start=data_datetime_start,
+                data_datetime_end=data_datetime_end,
+                auto_adjust=auto_adjust
+            )
+            self._refreshed_keys[key] = True
+        elif key not in self._data_store and not self._load_ohlcv_into_data_store(key):
+            # If not refreshing or already refreshed, try to load from cache or download
+            self._download_and_cache_ohlcv_data(
+                base_asset=asset,
+                quote_asset=quote,
+                timestep=timestep,
+                market=market,
+                tzinfo=tzinfo,
+                data_datetime_start=data_datetime_start,
+                data_datetime_end=data_datetime_end,
+                auto_adjust=auto_adjust
+            )
+
+        df = self._data_store[key]
+        return df
 
     def _reindex_and_fill(
             self,

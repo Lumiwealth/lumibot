@@ -25,7 +25,7 @@ bulk_congress_trading_data_csv = "bulk_congress_trading_data.csv"
     -----------
     This module interacts with QuiverQuant's bulk Congress trading endpoint to fetch,
     store, and process congressional trading data for specific Bioguide IDs.
-
+    
     The `QuiverHelper` class helps download data from QuiverQuant, caches the data in a CSV file,
     and provides methods for retrieving and calculating portfolios based on transaction histories.
 """
@@ -161,7 +161,7 @@ class QuiverHelper:
                 if attempt > 0:
                     # Exponential backoff: 2^attempt seconds (1, 2, 4, 8, 16...)
                     wait_time = min(2 ** attempt, 60)  # Cap at 60 seconds
-                    self.strategy.log_message(f"Retry attempt {attempt + 1}, waiting {wait_time} seconds...")
+                    self.strategy.log_message(f"Retry attempt {attempt+1}, waiting {wait_time} seconds...")
                     time.sleep(wait_time)
 
                 response = requests.get(
@@ -189,15 +189,15 @@ class QuiverHelper:
                     response.raise_for_status()
 
             except requests.exceptions.Timeout:
-                self.strategy.log_message(f"Request timed out on attempt {attempt + 1}")
+                self.strategy.log_message(f"Request timed out on attempt {attempt+1}")
                 if attempt == max_retries - 1:
                     return []
             except requests.exceptions.RequestException as e:
-                self.strategy.log_message(f"Request error on attempt {attempt + 1}: {str(e)}")
+                self.strategy.log_message(f"Request error on attempt {attempt+1}: {str(e)}")
                 if attempt == max_retries - 1:
                     return []
             except Exception as e:
-                self.strategy.log_message(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+                self.strategy.log_message(f"Unexpected error on attempt {attempt+1}: {str(e)}")
                 if attempt == max_retries - 1:
                     return []
 
@@ -224,7 +224,7 @@ class QuiverHelper:
         # Check if data for this bioguide_id already exists in our DataFrame
         existing_entry = self.bulk_congress_trading_df[
             self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
-            ]
+        ]
         if not existing_entry.empty:
             # If found, check how long it's been since the last download
             last_download_time = existing_entry["download_datetime"].iloc[0]

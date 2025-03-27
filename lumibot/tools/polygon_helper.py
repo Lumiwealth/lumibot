@@ -61,7 +61,7 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
             filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
-                    buffered_schedule.index <= end_timestamp)]
+                buffered_schedule.index <= end_timestamp)]
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
@@ -80,14 +80,14 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
 
 
 def get_price_data_from_polygon(
-        api_key: str,
-        asset: Asset,
-        start: datetime,
-        end: datetime,
-        timespan: str = "minute",
-        quote_asset: Optional[Asset] = None,
-        force_cache_update: bool = False,
-        max_workers: int = 10,
+    api_key: str,
+    asset: Asset,
+    start: datetime,
+    end: datetime,
+    timespan: str = "minute",
+    quote_asset: Optional[Asset] = None,
+    force_cache_update: bool = False,
+    max_workers: int = 10,
 ) -> Optional[pd.DataFrame]:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
@@ -172,8 +172,8 @@ def get_price_data_from_polygon(
 
     # Download data in parallel with a progress bar.
     pbar = tqdm(total=total_queries,
-                desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
-                dynamic_ncols=True)
+            desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
+            dynamic_ncols=True)
 
     def fetch_chunk(start_date: datetime, end_date: datetime):
         return polygon_client.get_aggs(
@@ -276,9 +276,9 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
 
     # Stock/Option Asset for Backtesting - Assuming NYSE trading days
     elif (
-            asset.asset_type == Asset.AssetType.INDEX
-            or asset.asset_type == Asset.AssetType.STOCK
-            or asset.asset_type == Asset.AssetType.OPTION
+        asset.asset_type == Asset.AssetType.INDEX
+        or asset.asset_type == Asset.AssetType.STOCK
+        or asset.asset_type == Asset.AssetType.OPTION
     ):
         cal = mcal.get_calendar("NYSE")
 
@@ -408,10 +408,10 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
 
 
 def get_missing_dates(
-        df_all: Optional[pd.DataFrame],
-        asset: Asset,
-        start: datetime,
-        end: datetime
+    df_all: Optional[pd.DataFrame],
+    asset: Asset,
+    start: datetime,
+    end: datetime
 ) -> List[datetime.date]:
     """
     Determine which trading dates are missing from the cache.
@@ -484,11 +484,10 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
         df.index = df.index.tz_convert("UTC")
     return df
 
-
 def update_cache(
-        cache_file: Path,
-        df_all: Optional[pd.DataFrame],
-        missing_dates: Optional[List[datetime.date]] = None
+    cache_file: Path,
+    df_all: Optional[pd.DataFrame],
+    missing_dates: Optional[List[datetime.date]] = None
 ) -> pd.DataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
@@ -552,7 +551,6 @@ def update_cache(
         df_to_save.to_feather(cache_file)
     return df_all
 
-
 def update_polygon_data(df_all, result):
     """
     Update the DataFrame with the new data from Polygon.
@@ -607,14 +605,13 @@ def update_polygon_data(df_all, result):
 
     return df_all
 
-
 def get_chains_cached(
-        api_key: str,
-        asset: Asset,
-        quote: Asset = None,
-        exchange: str = None,
-        current_date: date = None,
-        polygon_client: Optional["PolygonClient"] = None,
+    api_key: str,
+    asset: Asset,
+    quote: Asset = None,
+    exchange: str = None,
+    current_date: date = None,
+    polygon_client: Optional["PolygonClient"] = None,
 ) -> dict:
     """
     Retrieve an option chain for a given asset and historical date using Polygon,
@@ -724,8 +721,7 @@ def get_chains_cached(
         f"No suitable recent file found for {asset.symbol} on {current_date}. "
         "Downloading from Polygon..."
     )
-    print(
-        f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
+    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
 
     option_contracts = {
         "Multiplier": None,
@@ -754,7 +750,7 @@ def get_chains_cached(
 
         exg = c.primary_exchange
         right = c.contract_type.upper()  # "CALL" or "PUT"
-        exp_date = c.expiration_date  # "YYYY-MM-DD"
+        exp_date = c.expiration_date     # "YYYY-MM-DD"
         strike = c.strike_price
 
         option_contracts["Multiplier"] = c.shares_per_contract

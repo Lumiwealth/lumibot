@@ -7,6 +7,8 @@ from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.backtesting import AlpacaBacktesting
 from lumibot.tools.pandas import print_full_pandas_dataframes
 from lumibot.traders.debug_log_trader import DebugLogTrader
+from lumibot.entities import Asset
+
 
 print_full_pandas_dataframes()
 
@@ -41,8 +43,8 @@ if __name__ == "__main__":
         exit()
 
     tzinfo = pytz.timezone('America/Chicago')
-    backtesting_start = tzinfo.localize(datetime(2025, 1, 1))
-    backtesting_end = tzinfo.localize(datetime(2025, 2, 1))
+    backtesting_start = tzinfo.localize(datetime(2024, 1, 1))
+    backtesting_end = tzinfo.localize(datetime(2024, 2, 1))
     timestep = 'minute'
     auto_adjust = True
     warm_up_trading_days = 0
@@ -53,13 +55,13 @@ if __name__ == "__main__":
         backtesting_start=backtesting_start,
         backtesting_end=backtesting_end,
         minutes_before_closing=0,
-        benchmark_asset=None,
-        analyze_backtest=False,
+        benchmark_asset=Asset("BTC", asset_type=Asset.AssetType.CRYPTO),
+        analyze_backtest=True,
         parameters=parameters,
 
         # For seeing logs (if using DebugLogTrader, set show_progress_bar to false)
-        # trader_class=DebugLogTrader,
-        # show_progress_bar=False,
+        trader_class=DebugLogTrader,
+        # show_progress_bar=True,
 
         # AlpacaBacktesting kwargs
         timestep=timestep,

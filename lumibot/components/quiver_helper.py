@@ -40,11 +40,11 @@ class QuiverHelper:
     strategy : Strategy
         The parent strategy that this helper is part of.
     bulk_congress_trading_downloads : list
-        A list that keeps track of dictionary objects representing
-        downloaded Congress trading data (including bioguide_id,
+        A list that keeps track of dictionary objects representing 
+        downloaded Congress trading data (including bioguide_id, 
         download datetime, and the list of transaction data).
     bulk_congress_trading_df : pd.DataFrame
-        A pandas DataFrame that stores all downloaded Congress trading data
+        A pandas DataFrame that stores all downloaded Congress trading data 
         from CSV or newly fetched from QuiverQuant.
     """
 
@@ -56,7 +56,7 @@ class QuiverHelper:
         ----------
         strategy : Strategy
             The strategy that this component belongs to.
-
+        
         Returns
         -------
         None
@@ -147,7 +147,7 @@ class QuiverHelper:
             "Authorization": f"Bearer {api_token}",
             "Accept": "application/json"
         }
-
+        
         params = {
             "page": page,
             "page_size": page_size,
@@ -170,7 +170,7 @@ class QuiverHelper:
                     params=params,
                     timeout=30  # Add timeout to prevent hanging
                 )
-
+                
                 # Handle different status codes
                 if response.status_code == 200:
                     return response.json()
@@ -205,8 +205,8 @@ class QuiverHelper:
 
     def get_trading_data_for_bioguide(self, bioguide_id, as_of_date):
         """
-        Fetch paginated results for a specific congressperson by bioguide_id and
-        filter transactions by 'as_of_date'. Uses local caching to avoid repeated
+        Fetch paginated results for a specific congressperson by bioguide_id and 
+        filter transactions by 'as_of_date'. Uses local caching to avoid repeated 
         downloads within a 24-hour window.
 
         Parameters
@@ -254,18 +254,18 @@ class QuiverHelper:
         while True:
             # Fetch the data for this page
             data = self.fetch_congress_trading_data(bioguide_id, page, page_size)
-
+            
             if not data:
                 # If there is no more data or we got an empty response due to errors, stop fetching
                 break
-
+            
             # Add a small delay between page requests to avoid rate limiting
             time.sleep(1)
-
+            
             # Accumulate results
             total_results.extend(data)
             self.strategy.log_message(f"Fetched {len(data)} results from page {page}.")
-
+            
             # Increment page to fetch the next set of results
             page += 1
 
@@ -281,10 +281,10 @@ class QuiverHelper:
         if not existing_entry.empty:
             # 1) Find which columns are shared by both DataFrames
             shared_cols = self.bulk_congress_trading_df.columns.intersection(new_entry.columns)
-
+            
             # 2) Create a mask for the rows to update
             mask = self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
-
+            
             # 3) Assign only the shared columns (this avoids mismatched column errors)
             self.bulk_congress_trading_df.loc[mask, shared_cols] = (
                 new_entry.loc[:, shared_cols].iloc[0].values
@@ -310,13 +310,13 @@ class QuiverHelper:
 
     def calculate_portfolio(self, transactions, as_of_date):
         """
-        Calculate the portfolio of a given congressperson (or set of transactions)
+        Calculate the portfolio of a given congressperson (or set of transactions) 
         up to a specified date. Only includes tickers with positive holdings.
 
         Parameters
         ----------
         transactions : list
-            A list of dictionaries, each representing a single transaction
+            A list of dictionaries, each representing a single transaction 
             with keys like 'Ticker', 'TransactionDate', 'Transaction', and 'Amount'.
         as_of_date : datetime.date
             Only include transactions on or before this date.
@@ -324,9 +324,9 @@ class QuiverHelper:
         Returns
         -------
         dict
-            A dictionary where the keys are tickers and the values are the
+            A dictionary where the keys are tickers and the values are the 
             cumulative holding amounts (only if positive).
-
+        
         Raises
         ------
         ValueError
@@ -351,11 +351,11 @@ class QuiverHelper:
                 ticker = transaction["Ticker"]
                 amount = float(transaction["Amount"])
                 action = transaction["Transaction"]
-
+                
                 # If the ticker is not in the portfolio yet, initialize to 0
                 if ticker not in portfolio:
                     portfolio[ticker] = 0.0
-
+                
                 # Adjust holdings based on the transaction action
                 if action == "Purchase":
                     portfolio[ticker] += amount
@@ -364,8 +364,8 @@ class QuiverHelper:
 
         # Filter out tickers with zero or negative holdings
         portfolio = {
-            ticker: holdings
-            for ticker, holdings in portfolio.items()
+            ticker: holdings 
+            for ticker, holdings in portfolio.items() 
             if holdings > 0
         }
 

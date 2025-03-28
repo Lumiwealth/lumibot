@@ -118,7 +118,8 @@ class Bars:
             df.loc[:, "dividend_yield"] = df["dividend"] / df["close"]
             df.loc[:, "return"] = df["dividend_yield"] + df["price_change"]
         else:
-            df.loc[:, "return"] = df["close"].pct_change(fill_method=None)
+            df = df.assign(return_=df["close"].pct_change(fill_method=None))
+            df.rename(columns={"return_": "return"}, inplace=True)
 
         self.df = df
 

@@ -1369,12 +1369,13 @@ class _Strategy:
         settings_file=None,
         indicators_file=None,
         tearsheet_csv_file=None,
-        base_filename="",  # This is the base filename for the backtest
+        base_filename=None
     ):
         if not self._analyze_backtest:
             return
 
-        name = self._name
+        if not base_filename:
+            base_filename = self._name
 
         # Filename defaults
         if not logdir:

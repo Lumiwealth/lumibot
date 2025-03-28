@@ -703,6 +703,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     'volume': [0.0]
                 })
 
+                # Remove any all-NA columns from `missing_row`
+                missing_row = missing_row.dropna(axis=1, how='all')
+
+                # Proceed with the concatenation
                 df = pd.concat([df, missing_row], ignore_index=True)
 
             # Sort by timestamp

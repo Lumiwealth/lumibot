@@ -757,6 +757,7 @@ class _Strategy:
         self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
+            self._stats = self._stats.sort_index()
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
 
         return self._stats

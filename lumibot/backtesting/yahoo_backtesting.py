@@ -8,4 +8,5 @@ class YahooDataBacktesting(YahooData):
     """
 
     def __init__(self, datetime_start, datetime_end, **kwargs):
-        YahooData.__init__(self, datetime_start, datetime_end, **kwargs)
+        # Call super().__init__ to ensure the MRO is followed correctly
+        super().__init__(self, datetime_start=datetime_start, datetime_end=datetime_end, **kwargs)

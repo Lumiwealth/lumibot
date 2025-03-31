@@ -22,12 +22,20 @@ class YahooData(DataSourceBacktesting):
     ]
 
     def __init__(self, *args, auto_adjust=True, datetime_start=None, datetime_end=None, **kwargs):
+        # Log received parameters BEFORE applying defaults
+        logger.info(f"YahooData.__init__ received: datetime_start={datetime_start}, datetime_end={datetime_end}")
+        
         # Set default date range if not provided
         if datetime_start is None:
+            logger.info("YahooData.__init__: datetime_start is None, using default.")
             datetime_start = datetime.now() - timedelta(days=365)
         if datetime_end is None:
+            logger.info("YahooData.__init__: datetime_end is None, using default.")
             datetime_end = datetime.now()
             
+        # Log the dates being passed to super().__init__
+        logger.info(f"YahooData.__init__ calling super().__init__ with: datetime_start={datetime_start}, datetime_end={datetime_end}")
+        
         # Pass datetime_start and datetime_end as keyword arguments only, not as positional args
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, **kwargs)
         self.name = "yahoo"
@@ -140,6 +148,9 @@ class YahooData(DataSourceBacktesting):
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
+        # Log the current backtest datetime being processed
+        logger.info(f"Inside _pull_source_symbol_bars for {asset.symbol}: self._datetime = {self._datetime}, requesting length {length}")
+        
         if exchange is not None:
             logger.warning(
                 f"the exchange parameter is not implemented for YahooData, but {exchange} was passed as the exchange"
@@ -169,11 +180,12 @@ class YahooData(DataSourceBacktesting):
             for sym in symbols_to_try:
                 logger.info(f"Attempting to fetch futures data for symbol: {sym}")
                 try:
+                    # Fetch data using the helper without restricting dates here
                     data = YahooHelper.get_symbol_data(
                         sym,
                         interval=interval,
                         auto_adjust=self.auto_adjust,
-                        last_needed_datetime=self.datetime_end,
+                        last_needed_datetime=self.datetime_end, # Keep this if needed for caching logic
                     )
                     if data is not None and data.shape[0] > 0:
                         logger.info(f"Successfully fetched data for futures symbol: {sym}")
@@ -183,7 +195,8 @@ class YahooData(DataSourceBacktesting):
                     logger.warning(f"Error fetching data for symbol {sym}: {str(e)}")
             
             if data is None or data.shape[0] == 0:
-                message = f"{self.SOURCE} did not return data for symbol {asset.symbol}. Tried: {symbols_to_try}. Make sure this symbol is valid."
+                # Use self.datetime_start and self.datetime_end in the error message for clarity
+                message = f"{self.SOURCE} did not return data for symbol {asset.symbol}. Tried: {symbols_to_try}. Make sure this symbol is valid and data exists for the period {self.datetime_start} to {self.datetime_end}."
                 logging.error(message)
                 return None
                 
@@ -194,21 +207,34 @@ class YahooData(DataSourceBacktesting):
                 logger.info(f"Updating asset symbol from {asset.symbol} to successful format: {successful_symbol}")
                 # We don't modify the asset directly, but we store the successful format for reference
 
+        # --- Revised Filtering Logic ---
+        # Use the current backtest datetime as the reference point
+        current_dt = self.to_default_timezone(self._datetime)
+
         if timestep == "day":
-            # Get the previous days bar
-            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
-            end = dt - timedelta(days=1)
+            # For daily data, we want bars up to and including the current backtest day.
+            # Filter data strictly *before* the start of the *next* day.
+            end_filter = (current_dt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         else:
-            end = self._datetime.replace(second=59, microsecond=999999)
+            # For intraday, filter up to the current datetime
+            end_filter = current_dt
 
         if timeshift:
             # Ensure timeshift is a timedelta object
             if isinstance(timeshift, int):
                 timeshift = timedelta(days=timeshift)
-            end = end - timeshift
+            end_filter = end_filter - timeshift
 
-        end = self.to_default_timezone(end)
-        result_data = data[data.index < end]
+        # Filter the data store. Use '<' to get data strictly before the end_filter.
+        result_data = data[data.index < end_filter]
+
+        # Log if insufficient data is available before taking the tail
+        if len(result_data) < length:
+            logger.warning(
+                f"Insufficient historical data for {asset.symbol} before {end_filter} "
+                f"to satisfy length {length}. Available: {len(result_data)}. "
+                f"Check backtest start date and data availability."
+            )
 
         result = result_data.tail(length)
         return result
@@ -234,7 +260,12 @@ class YahooData(DataSourceBacktesting):
                     missing_assets.append(asset.symbol)
 
         if missing_assets:
-            dfs = YahooHelper.get_symbols_data(missing_assets, interval=interval, auto_adjust=self.auto_adjust)
+            # Fetch data using the helper without restricting dates here
+            dfs = YahooHelper.get_symbols_data(
+                missing_assets, 
+                interval=interval, 
+                auto_adjust=self.auto_adjust
+            )
             for symbol, df in dfs.items():
                 # Find the corresponding asset for this symbol
                 for asset in assets:

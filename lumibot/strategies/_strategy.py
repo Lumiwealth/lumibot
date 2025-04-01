@@ -1190,7 +1190,7 @@ class _Strategy:
         logdir = "logs"
         if logfile is None and save_logfile:
             logfile = f"{logdir}/{base_filename}_logs.csv"
-        if stats_file is None:
+        if stats_file is None and save_logfile:
             stats_file = f"{logdir}/{base_filename}_stats.csv"
 
         # #############################################

@@ -349,8 +349,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
     # @pytest.mark.skip()
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns(
-            self,
-            pandas_data_fixture
+            self
     ):
         """
         This tests that the yahoo data_source calculates adjusted returns for bars and that they
@@ -361,7 +360,6 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            pandas_data=pandas_data_fixture
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)
@@ -373,8 +371,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
     # @pytest.mark.skip()
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(
-            self,
-            pandas_data_fixture
+            self
     ):
         # Test getting 2 bars into the future (which is what the backtesting does when trying to fill orders
         # for the next trading day)
@@ -383,7 +380,6 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            pandas_data=pandas_data_fixture
         )
 
         length = 2
@@ -403,8 +399,7 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
 
     # @pytest.mark.skip()
     def test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(
-            self,
-            pandas_data_fixture
+            self
     ):
         # Get MLK day in 2019
         mlk_day = self.get_mlk_day(2019)
@@ -418,7 +413,6 @@ class TestDatasourceBacktestingGetHistoricalPricesDailyData:
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            pandas_data=pandas_data_fixture
         )
         bars = data_source.get_historical_prices(asset=self.asset, length=self.length, timestep=self.timestep)
         check_bars(bars=bars, length=self.length)

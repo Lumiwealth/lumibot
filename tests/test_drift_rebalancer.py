@@ -1,5 +1,6 @@
 from typing import Union
 from datetime import datetime, timedelta
+from unittest.mock import patch
 from decimal import Decimal
 import pytest
 
@@ -14,6 +15,7 @@ from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Order, Asset
 from lumibot.credentials import POLYGON_CONFIG
+from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
 
 print_full_pandas_dataframes()
 set_pandas_float_display_precision(precision=5)
@@ -1622,3 +1624,26 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["type"] == "limit"
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
+
+    @patch("lumibot.strategies.Strategy")
+    def test_returns_decimal(self, MockStrategy):
+        mock_strategy = MockStrategy()
+        mock_strategy.get_last_price.return_value = 123.45
+
+        asset = Asset(symbol="AAPL")
+        quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+        price = get_last_price_or_raise(mock_strategy, asset, quote)
+
+        assert price == Decimal("123.45")
+
+    @patch("lumibot.strategies.Strategy")
+    def test_raises_value_error_on_none(self, MockStrategy):
+        mock_strategy = MockStrategy()
+        mock_strategy.get_last_price.return_value = None
+
+        asset = Asset(symbol="AAPL")
+        quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+        with pytest.raises(ValueError, match="DriftRebalancer could not get_last_price for AAPL-USD."):
+            get_last_price_or_raise(mock_strategy, asset, quote)
+

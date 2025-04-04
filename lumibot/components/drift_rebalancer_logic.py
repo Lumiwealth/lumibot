@@ -4,7 +4,7 @@ import time
 
 import pandas as pd
 
-from lumibot.entities import Asset
+from lumibot.entities import Asset, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.entities.order import Order
 from lumibot.tools.pandas import prettify_dataframe_with_decimals
@@ -323,7 +323,6 @@ class DriftCalculationLogic:
                 raise ValueError(f"Invalid drift_type: {self.drift_type}")
 
 
-
 class DriftOrderLogic:
 
     def __init__(
@@ -462,11 +461,20 @@ class DriftOrderLogic:
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
                 order_value = row["target_value"] - row["current_value"]
-                quantity = min(order_value, cash_position) / limit_price
+                desired_quantity = min(order_value, cash_position) / limit_price
+
+                adjusted_quantity = self.adjust_quantity_for_fees(
+                    desired_quantity,
+                    last_price,
+                    Order.OrderSide.BUY,
+                    self.strategy.buy_trading_fees,
+                    cash_position
+                )
+
                 if self.fractional_shares:
-                    quantity = quantity.quantize(Decimal('1.000000000'))
+                    quantity = adjusted_quantity.quantize(Decimal('1.000000000'))
                 else:
-                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
+                    quantity = adjusted_quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
 
                 if quantity > 0:
                     order = self.place_order(
@@ -489,7 +497,7 @@ class DriftOrderLogic:
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
             return last_price * (1 - self.acceptable_slippage)
-        elif side == "buy":
+        else:
             return last_price * (1 + self.acceptable_slippage)
 
     def get_current_cash_position(self) -> Decimal:
@@ -539,3 +547,45 @@ class DriftOrderLogic:
             self.strategy.logger.info(msg)
 
         return rebalance_needed
+
+    # noinspection PyMethodMayBeStatic
+    def calculate_trading_costs(
+            self,
+            quantity: Decimal,
+            price: Decimal,
+            trading_fees: List[TradingFee] | TradingFee
+    ) -> Decimal:
+        """Calculates the total trading costs for an order."""
+        total_cost = Decimal(0)
+        if isinstance(trading_fees, TradingFee):
+            trading_fees = [trading_fees]
+        for fee in trading_fees:
+            total_cost += fee.flat_fee
+            total_cost += quantity * price * fee.percent_fee
+        return total_cost
+
+    def adjust_quantity_for_fees(
+            self,
+            desired_quantity: Decimal,
+            last_price: Decimal,
+            side: str,
+            trading_fees: List[TradingFee] | TradingFee,
+            capital_available: Decimal
+    ) -> Decimal:
+        """Adjusts the desired quantity to account for trading fees and available capital."""
+        if isinstance(trading_fees, TradingFee):
+            trading_fees = [trading_fees]
+
+        if side == "buy":
+            fees = self.calculate_trading_costs(desired_quantity, last_price, trading_fees)
+            total_cost = desired_quantity * last_price + fees
+
+            if total_cost <= capital_available:
+                return desired_quantity  # Affordable
+            else:
+                # Reduce quantity until affordable
+                affordable_quantity = (capital_available - fees) / last_price
+                return max(Decimal(0), affordable_quantity)
+
+        else:  # Selling logic remains unchanged
+            return desired_quantity

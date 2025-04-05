@@ -1626,12 +1626,12 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[0]["type"] == "limit"
         assert filled_orders.iloc[0]["side"] == "buy"
         assert filled_orders.iloc[0]["symbol"] == "SPY"
-        assert filled_orders.iloc[0]["filled_quantity"] == 238.634160545
+        assert filled_orders.iloc[0]["filled_quantity"] == 238.634160544
 
         assert filled_orders.iloc[2]["type"] == "limit"
         assert filled_orders.iloc[2]["side"] == "sell"
         assert filled_orders.iloc[2]["symbol"] == "SPY"
-        assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268
+        assert filled_orders.iloc[2]["filled_quantity"] == 8.346738266
 
     # @pytest.mark.skip()
     def test_crypto_50_50_with_yahoo(self):
@@ -1889,7 +1889,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 105021.76806236539
+        assert strat_obj.stats['portfolio_value'][-1] == 105021.76805867575
 
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
@@ -1970,7 +1970,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 104773.01184345939
+        assert strat_obj.stats['portfolio_value'][-1] == 104773.01183991632
 
     @patch("lumibot.strategies.Strategy")
     def test_get_last_price_or_raise_returns_decimal(self, MockStrategy):

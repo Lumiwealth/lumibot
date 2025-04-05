@@ -8,6 +8,7 @@ from lumibot.entities import Asset, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.entities.order import Order
 from lumibot.tools.pandas import prettify_dataframe_with_decimals
+from lumibot.tools.helpers import quantize_to_num_decimals
 
 
 class DriftType:
@@ -502,7 +503,8 @@ class DriftOrderLogic:
 
     def get_current_cash_position(self) -> Decimal:
         self.strategy.update_broker_balances(force_update=True)
-        return Decimal(self.strategy.cash)
+        cash = quantize_to_num_decimals(self.strategy.cash, 2)
+        return Decimal(str(cash))
 
     def place_order(
             self,

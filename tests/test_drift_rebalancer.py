@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 from decimal import Decimal
 import pytest
+from unittest.mock import PropertyMock
+
 
 import pandas as pd
 import pytz
@@ -19,6 +21,7 @@ from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display
 from lumibot.entities import Order, Asset, TradingFee
 from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
 from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
+from lumibot.tools.helpers import quantize_to_num_decimals
 
 print_full_pandas_dataframes()
 set_pandas_float_display_precision(precision=5)
@@ -1524,6 +1527,26 @@ class TestDriftOrderLogic:
         )
 
         assert adjusted_quantity == desired_quantity
+
+    def test_get_current_cash_position(self, mocker):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        # Use mocker to mock the cash property
+        mocker.patch.object(
+            type(strategy), "cash", new_callable=PropertyMock(return_value=Decimal("15000.50"))
+        )
+
+        cash_position = strategy.order_logic.get_current_cash_position()
+        assert cash_position == Decimal("15000.50")
+
+        mocker.patch.object(
+            type(strategy), "cash", new_callable=PropertyMock(return_value=Decimal("15000.666666"))
+        )
+
+        cash_position = strategy.order_logic.get_current_cash_position()
+        assert cash_position == Decimal("15000.67")
 
 
 # @pytest.mark.skip()

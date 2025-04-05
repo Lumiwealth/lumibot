@@ -389,7 +389,7 @@ class DriftOrderLogic:
                     total_value = df["current_value"].sum()
                     if self.fractional_shares:
                         quantity = total_value / limit_price
-                        quantity = quantity.quantize(Decimal('1.000000000'))
+                        quantity = quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
                     else:
                         quantity = total_value // limit_price
                 if quantity > 0:
@@ -411,7 +411,7 @@ class DriftOrderLogic:
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
                 quantity = (row["current_value"] - row["target_value"]) / limit_price
                 if self.fractional_shares:
-                    quantity = quantity.quantize(Decimal('1.000000000'))
+                    quantity = quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
                 else:
                     quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
 
@@ -472,7 +472,7 @@ class DriftOrderLogic:
                 )
 
                 if self.fractional_shares:
-                    quantity = adjusted_quantity.quantize(Decimal('1.000000000'))
+                    quantity = adjusted_quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
                 else:
                     quantity = adjusted_quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
 

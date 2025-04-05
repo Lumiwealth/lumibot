@@ -1546,7 +1546,7 @@ class TestDriftOrderLogic:
         )
 
         cash_position = strategy.order_logic.get_current_cash_position()
-        assert cash_position == Decimal("15000.67")
+        assert cash_position == Decimal("15000.66")
 
 
 # @pytest.mark.skip()

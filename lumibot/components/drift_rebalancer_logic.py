@@ -503,8 +503,9 @@ class DriftOrderLogic:
 
     def get_current_cash_position(self) -> Decimal:
         self.strategy.update_broker_balances(force_update=True)
-        cash = quantize_to_num_decimals(self.strategy.cash, 2)
-        return Decimal(str(cash))
+        cash_position = Decimal(str(self.strategy.cash))
+        cash_position = cash_position.quantize(Decimal('1.00'), rounding=ROUND_DOWN)
+        return cash_position
 
     def place_order(
             self,

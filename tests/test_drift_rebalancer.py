@@ -1959,6 +1959,7 @@ class TestDriftRebalancer:
         assert results
 
         trades_df = strat_obj.broker._trade_event_log_df
+        assert trades_df.iloc[-1]["trade_cost"] >= 0.0
 
         # Get all the filled limit orders
         filled_orders = trades_df[(trades_df["status"] == "fill")]

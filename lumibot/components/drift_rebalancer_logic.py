@@ -466,7 +466,7 @@ class DriftOrderLogic:
 
                 adjusted_quantity = self.adjust_quantity_for_fees(
                     desired_quantity,
-                    last_price,
+                    limit_price,
                     Order.OrderSide.BUY,
                     self.strategy.buy_trading_fees,
                     cash_position
@@ -570,7 +570,7 @@ class DriftOrderLogic:
     def adjust_quantity_for_fees(
             self,
             desired_quantity: Decimal,
-            last_price: Decimal,
+            price: Decimal,
             side: str,
             trading_fees: List[TradingFee] | TradingFee,
             capital_available: Decimal
@@ -580,14 +580,14 @@ class DriftOrderLogic:
             trading_fees = [trading_fees]
 
         if side == "buy":
-            fees = self.calculate_trading_costs(desired_quantity, last_price, trading_fees)
-            total_cost = desired_quantity * last_price + fees
+            fees = self.calculate_trading_costs(desired_quantity, price, trading_fees)
+            total_cost = desired_quantity * price + fees
 
-            if total_cost <= capital_available:
+            if total_cost < capital_available:
                 return desired_quantity  # Affordable
             else:
                 # Reduce quantity until affordable
-                affordable_quantity = (capital_available - fees) / last_price
+                affordable_quantity = (capital_available - fees) / price
                 return max(Decimal(0), affordable_quantity)
 
         else:  # Selling logic remains unchanged

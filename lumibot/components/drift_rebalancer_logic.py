@@ -222,10 +222,10 @@ class DriftCalculationLogic:
         positions = self.strategy.get_positions()
         for position in positions:
             symbol = position.symbol
-            current_quantity = Decimal(position.quantity)
+            current_quantity = Decimal(str(position.quantity))
             if position.asset == self.strategy.quote_asset:
                 is_quote_asset = True
-                current_value = Decimal(position.quantity)
+                current_value = Decimal(str(position.quantity))
             else:
                 is_quote_asset = False
                 last_price = get_last_price_or_raise(self.strategy, position.asset, self.strategy.quote_asset)
@@ -430,9 +430,6 @@ class DriftOrderLogic:
             # Sleep to allow sell orders to fill
             time.sleep(self.fill_sleeptime)
 
-        for order in sell_orders:
-            self.strategy.logger.info(f"Submitted sell order: {order}")
-
         # Get current cash position from the broker
         cash_position = self.get_current_cash_position()
 
@@ -478,6 +475,13 @@ class DriftOrderLogic:
                     quantity = adjusted_quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
 
                 if quantity > 0:
+                    if quantity * limit_price > cash_position:
+                        self.strategy.logger.error(
+                            f"Quantity {quantity} of {base_asset.symbol} * limit_price: {limit_price:.2f}"
+                            f"is more than cash: {cash_position}. Not sending order."
+                        )
+                        continue
+
                     order = self.place_order(
                         base_asset=base_asset,
                         quantity=quantity,
@@ -491,9 +495,6 @@ class DriftOrderLogic:
                         f"Ran out of cash to buy {quantity} of {base_asset.symbol}. "
                         f"Cash: {cash_position} and limit_price: {limit_price:.2f}"
                     )
-
-        for order in buy_orders:
-            self.strategy.logger.info(f"Submitted buy order: {order}")
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":
@@ -531,6 +532,7 @@ class DriftOrderLogic:
                 quote=quote_asset
             )
 
+        self.strategy.logger.info(f"Submitting order: {order}")
         self.strategy.submit_order(order)
         return order
 
@@ -573,7 +575,7 @@ class DriftOrderLogic:
             price: Decimal,
             side: str,
             trading_fees: List[TradingFee] | TradingFee,
-            capital_available: Decimal
+            buying_power: Decimal
     ) -> Decimal:
         """Adjusts the desired quantity to account for trading fees and available capital."""
         if isinstance(trading_fees, TradingFee):
@@ -583,11 +585,11 @@ class DriftOrderLogic:
             fees = self.calculate_trading_costs(desired_quantity, price, trading_fees)
             total_cost = desired_quantity * price + fees
 
-            if total_cost < capital_available:
+            if total_cost < buying_power:
                 return desired_quantity  # Affordable
             else:
                 # Reduce quantity until affordable
-                affordable_quantity = (capital_available - fees) / price
+                affordable_quantity = (buying_power - fees) / price
                 return max(Decimal(0), affordable_quantity)
 
         else:  # Selling logic remains unchanged

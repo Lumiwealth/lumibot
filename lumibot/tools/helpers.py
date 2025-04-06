@@ -460,7 +460,6 @@ def quantize_to_num_decimals(num: float, num_decimals: int) -> float:
     return float(quantized_num)
 
 
-
 def has_more_than_n_decimal_places(number: float, n: int) -> bool:
     """Return True if the number has more than n decimal places, False otherwise."""
 

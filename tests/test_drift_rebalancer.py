@@ -1994,7 +1994,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 104773.01183991632
+        assert strat_obj.stats['portfolio_value'][-1] == 104767.7476530826
 
     @patch("lumibot.strategies.Strategy")
     def test_get_last_price_or_raise_returns_decimal(self, MockStrategy):

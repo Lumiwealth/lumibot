@@ -38,7 +38,8 @@ from .strategy_executor import StrategyExecutor
 from ..credentials import (
     THETADATA_CONFIG, 
     STRATEGY_NAME, 
-    BROKER, 
+    BROKER,
+    DATA_SOURCE,
     POLYGON_API_KEY, 
     DISCORD_WEBHOOK_URL, 
     DB_CONNECTION_STR,
@@ -124,6 +125,7 @@ class _Strategy:
     def __init__(
         self,
         broker=None,
+        data_source=None,
         minutes_before_closing=1,
         minutes_before_opening=60,
         minutes_after_closing=0,
@@ -161,7 +163,7 @@ class _Strategy:
         broker : Broker
             The broker to use for the strategy. Required. For backtesting, use the BacktestingBroker class.
         data_source : DataSource
-            The data source to use for the strategy. Required.
+            The data source to use for the strategy. If not specified, uses the broker's default data source.
         minutes_before_closing : int
             The number of minutes before closing that the before_market_closes lifecycle method will be called and the
             strategy will be stopped.
@@ -274,6 +276,19 @@ class _Strategy:
         
         if self.broker == None:
             self.broker = BROKER
+
+        # Handle data source initialization
+        self._data_source = data_source
+        if self._data_source is None:
+            self._data_source = DATA_SOURCE
+            
+        # If we have a custom data source, attach it to the broker
+        if self._data_source is not None and self.broker is not None:
+            # Store the original data source for reference
+            self._original_broker_data_source = self.broker.data_source
+            
+            # Set the custom data source
+            self.broker.data_source = self._data_source
 
         self.hide_positions = HIDE_POSITIONS
         self.hide_trades = HIDE_TRADES
@@ -1799,10 +1814,12 @@ class _Strategy:
                 )
 
         # Create a message to send to Discord (round the values to 2 decimal places)
+        cash_str = f"{cash:,.2f}" if cash is not None else "N/A"
+        portfolio_value_str = f"{portfolio_value:,.2f}" if portfolio_value is not None else "N/A"
         message = f"""
                 **Update for {self._name}**
-                **Account Value:** ${portfolio_value:,.2f}
-                **Cash:** ${cash:,.2f}
+                **Account Value:** ${portfolio_value_str}
+                **Cash:** ${cash_str}
                 {returns_text}
                 **Positions:**
                 {positions_text}

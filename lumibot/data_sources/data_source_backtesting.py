@@ -32,9 +32,17 @@ class DataSourceBacktesting(DataSource, ABC):
         log_backtest_progress_to_file=False,
         **kwargs
     ):
-        # Make sure we pass api_key to the parent class but not datetime_start and datetime_end
-        # as they are specific to DataSourceBacktesting
-        super().__init__(api_key=api_key)
+        # Pass only api_key to parent class, not datetime_start and datetime_end
+        # Remove any datetime_start or datetime_end from kwargs to avoid them being passed twice
+        if 'datetime_start' in kwargs:
+            # If datetime_start was also passed as a keyword arg, prioritize the keyword arg value
+            datetime_start = kwargs.pop('datetime_start')
+        if 'datetime_end' in kwargs:
+            # If datetime_end was also passed as a keyword arg, prioritize the keyword arg value
+            datetime_end = kwargs.pop('datetime_end')
+            
+        # Initialize parent class
+        super().__init__(api_key=api_key, **kwargs)
 
         if backtesting_started is None:
             _backtesting_started = dt.datetime.now()

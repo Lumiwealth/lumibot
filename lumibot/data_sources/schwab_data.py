@@ -26,17 +26,79 @@ class SchwabData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "Schwab"
 
-    def __init__(self, client=None):
+    def __init__(self, client=None, api_key=None, secret=None, account_number=None):
         """
         Initialize the Schwab data source with a client connection.
         
         Args:
             client: Schwab API client instance
+            api_key: Schwab API key (used if client is None)
+            secret: Schwab API secret (used if client is None)
+            account_number: Schwab account number (used if client is None)
         """
         super().__init__()
-        self.client = client
-        if client is None:
+        
+        # If client is provided, use it
+        if client is not None:
+            self.client = client
+        else:
+            # Otherwise try to create a client with provided credentials
+            self.client = self.create_schwab_client(api_key, secret, account_number)
+            
+        if self.client is None:
             logging.warning(colored("SchwabData initialized without client. Methods will not work until a client is provided.", "yellow"))
+    
+    @staticmethod
+    def create_schwab_client(api_key=None, secret=None, account_number=None):
+        """
+        Create and return a Schwab client instance.
+        
+        Args:
+            api_key (str): Schwab API key
+            secret (str): Schwab API secret
+            account_number (str): Schwab account number
+            
+        Returns:
+            client: Configured Schwab client or None if credentials are missing
+        """
+        if not all([api_key, secret, account_number]):
+            # Try to load from environment variables
+            import os
+            api_key = api_key or os.environ.get('SCHWAB_API_KEY')
+            secret = secret or os.environ.get('SCHWAB_SECRET')
+            account_number = account_number or os.environ.get('SCHWAB_ACCOUNT_NUMBER')
+            
+            if not all([api_key, secret, account_number]):
+                logging.warning(colored("Missing Schwab API credentials. Ensure SCHWAB_API_KEY, SCHWAB_SECRET, and SCHWAB_ACCOUNT_NUMBER are set in .env file or passed as parameters.", "yellow"))
+                return None
+        
+        try:
+            # Import Schwab-specific libraries
+            import os
+            from schwab.auth import easy_client
+            
+            # Get the current folder for token path
+            current_folder = os.path.dirname(os.path.realpath(__file__))
+            token_path = os.path.join(current_folder, 'token.json')
+            
+            # Create Schwab API client
+            client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
+            
+            logging.info(colored(f"Successfully created Schwab client", "green"))
+            return client
+        except Exception as e:
+            logging.error(colored(f"Error creating Schwab client: {e}", "red"))
+            return None
+
+    def set_client(self, client):
+        """
+        Set the client for this data source.
+        
+        Args:
+            client: Schwab API client instance
+        """
+        self.client = client
+        logging.info(colored("Schwab client set for data source", "green"))
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """

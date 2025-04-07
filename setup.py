@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.10.6",
+    version="3.11.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -32,7 +32,7 @@ setuptools.setup(
         "scipy>=1.13.0",
         "quantstats-lumi>=0.3.3",
         "python-dotenv",  # Secret Storage
-        "ccxt>=4.3.74",
+        "ccxt>=4.4.68",
         "termcolor",
         "jsonpickle",
         "apscheduler>=3.10.4",

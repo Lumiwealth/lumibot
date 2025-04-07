@@ -21,7 +21,7 @@ class YahooData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1m", "1 minute"]},
     ]
 
-    def __init__(self, *args, auto_adjust=True, datetime_start=None, datetime_end=None, **kwargs):
+    def __init__(self, *args, auto_adjust=False, datetime_start=None, datetime_end=None, **kwargs):
         # Log received parameters BEFORE applying defaults
         logger.info(f"YahooData.__init__ received: datetime_start={datetime_start}, datetime_end={datetime_end}")
         
@@ -67,6 +67,7 @@ class YahooData(DataSourceBacktesting):
                 "Stock Splits": "stock_splits",
             },
         )
+
         data["price_change"] = data["close"].pct_change()
         data["dividend_yield"] = data["dividend"] / data["close"]
         data["return"] = data["dividend_yield"] + data["price_change"]

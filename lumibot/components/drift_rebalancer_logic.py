@@ -197,7 +197,7 @@ class DriftCalculationLogic:
         if self.drift_type == DriftType.ABSOLUTE:
             # The absolute value of all the weights are less than the drift_threshold
             # then we will never trigger a rebalance. This happens by design when strategies
-            # derived from DriftRebalancer decide to have no positions for example. 
+            # derived from DriftRebalancer decide to have no positions for example.
             if all([abs(item['weight']) < self.drift_threshold for item in portfolio_weights]):
                 self.strategy.logger.info(
                     f"All target weights are less than the drift_threshold: {self.drift_threshold}. "

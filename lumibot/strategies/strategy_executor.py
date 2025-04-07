@@ -953,7 +953,7 @@ class StrategyExecutor(Thread):
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None:
                 # Format the date to be used in the log message.
-                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S %Z")
                 self.strategy.log_message(f"Strategy will check in again at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.

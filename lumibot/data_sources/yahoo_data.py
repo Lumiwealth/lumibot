@@ -192,7 +192,12 @@ class YahooData(DataSourceBacktesting):
                         successful_symbol = sym
                         break
                 except Exception as e:
-                    logger.warning(f"Error fetching data for symbol {sym}: {str(e)}")
+                    logger.warning(f"_pull_source_symbol_bars: Error fetching data for symbol {sym}: {str(e)}")
+                    # Print the traceback for debugging
+                    import traceback
+                    traceback.print_exc()
+
+                
             
             if data is None or data.shape[0] == 0:
                 # Use self.datetime_start and self.datetime_end in the error message for clarity

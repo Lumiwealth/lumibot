@@ -98,7 +98,6 @@ class YahooHelper:
             return df
         
         if auto_adjust:
-            del df["Adj Ratio"]
             del df["Close"]
             del df["Open"]
             del df["High"]
@@ -113,7 +112,7 @@ class YahooHelper:
                 inplace=True,
             )
         else:
-            for col in ["Adj Ratio", "Adj Open", "Adj High", "Adj Low"]:
+            for col in ["Adj Open", "Adj High", "Adj Low"]:
                 if col in df.columns:
                     del df[col]
 

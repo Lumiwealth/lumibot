@@ -219,7 +219,8 @@ class YahooData(DataSourceBacktesting):
         if timestep == "day":
             # For daily data, we want bars up to and including the current backtest day.
             # Filter data strictly *before* the start of the *next* day.
-            end_filter = (current_dt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+            end_filter = dt - timedelta(days=1)
         else:
             # For intraday, filter up to the current datetime
             end_filter = current_dt

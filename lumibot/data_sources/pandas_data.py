@@ -78,16 +78,48 @@ class PandasData(DataSourceBacktesting):
         return pcal
 
     def clean_trading_times(self, dt_index, pcal):
-        # Used to fill in blanks in the data, on trading days, within market trading hours.
+        """
+        Fill in blanks in the data on trading days within market trading hours.
+
+        Parameters:
+        dt_index (DatetimeIndex): The original datetime index.
+        pcal (DataFrame): A calendar DataFrame containing "market_open" and "market_close" columns,
+                            indexed by dates.
+
+        Returns:
+        DatetimeIndex: The cleaned index with one-minute frequency within the market hours.
+        """
+        # Ensure the datetime index is in datetime format and drop duplicate timestamps
+        dt_index = pd.to_datetime(dt_index).drop_duplicates()
+
+        # Create a DataFrame with dt_index as the index and sort it
         df = pd.DataFrame(range(len(dt_index)), index=dt_index)
         df = df.sort_index()
+
+        # Create a column for the date portion only
         df["dates"] = df.index.date
-        df = df.merge(pcal[["market_open", "market_close"]], left_on="dates", right_index=True)
+
+        # Merge with the trading calendar on the 'dates' column to get market open/close times.
+        # Use a left join to keep all rows from the original index.
+        df = df.merge(
+            pcal[["market_open", "market_close"]],
+            left_on="dates",
+            right_index=True,
+            how="left"
+        )
+
         if self._timestep == "minute":
+            # Resample to a 1-minute frequency, using pad to fill missing times.
+            # At this point, the index is unique so asfreq will work correctly.
             df = df.asfreq("1min", method="pad")
-            result_index = df.loc[(df.index >= df["market_open"]) & (df.index <= df["market_close"]), :].index
+
+            # Filter to include only the rows that fall within market open and close times.
+            result_index = df.loc[
+                (df.index >= df["market_open"]) & (df.index <= df["market_close"])
+            ].index
         else:
             result_index = df.index
+
         return result_index
 
     def get_trading_days_pandas(self):

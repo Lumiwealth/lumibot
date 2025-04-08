@@ -745,7 +745,7 @@ class BacktestingBroker(Broker):
                 df_original = ohlc.df
 
                 # Make sure that we are only getting the prices for the current time exactly or in the future
-                df = df_original[df_original.index >= self.datetime]
+                df = df_original[df_original.index >= self.datetime.replace(second=0, microsecond=0)]
 
                 # If the dataframe is empty, then we should get the last row of the original dataframe
                 # because it is the best data we have

@@ -44,7 +44,7 @@ class DataSourceBacktesting(DataSource, ABC):
             datetime_end = kwargs.pop('datetime_end')
 
         # Initialize parent class
-        super().__init__(api_key=api_key, delay=delay, **kwargs)
+        super().__init__(api_key=api_key, delay=delay, config=config, **kwargs)
 
         if backtesting_started is None:
             _backtesting_started = dt.datetime.now()

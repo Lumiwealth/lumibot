@@ -69,7 +69,8 @@ class TradierData(DataSource):
             max_workers: int = 20,
             delay: int = 0,
             tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
-            remove_incomplete_current_bar: bool = False
+            remove_incomplete_current_bar: bool = False,
+            **kwargs
     ) -> None:
         """
         Initializes the trading account with the specified parameters.

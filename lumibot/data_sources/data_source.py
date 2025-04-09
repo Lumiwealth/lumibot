@@ -29,7 +29,8 @@ class DataSource(ABC):
             self,
             api_key: str | None = None,
             delay: int | None = None,
-            tzinfo=None
+            tzinfo=None,
+            **kwargs
     ):
         """
 

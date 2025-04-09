@@ -693,6 +693,7 @@ class BacktestingBroker(Broker):
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
+            # TODO: One day... I will purge all this crypto tuple stuff.
             asset = order.asset if order.asset.asset_type != "crypto" else (order.asset, order.quote)
 
             price = None
@@ -704,18 +705,21 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
-            if data_source_name in ["CCXT", "YAHOO"]:
-                # If we're using the CCXT data source, we don't need to timeshift the data
-                if data_source_name == "CCXT":
+            if data_source_name in ["CCXT", "YAHOO", "ALPACA"]:
+                if data_source_name in ["CCXT", "ALPACA"]:
+                    # If we're using the CCXT or Alpaca data source, we don't need to timeshift the data.
+                    # We fill at the open price of the current bar.
                     timeshift = None
                 else:
+                    # Yahoo requires a negative timedelta so that we get today
+                    # (normally would get yesterday's data to prevent lookahead bias)
                     timeshift = timedelta(
                         days=-1
-                    )  # Is negative so that we get today (normally would get yesterday's data to prevent lookahead bias)
+                    )
 
-                ohlc = strategy.get_historical_prices(
-                    asset,
-                    1,
+                ohlc = self.data_source.get_historical_prices(
+                    asset=asset,
+                    length=1,
                     quote=order.quote,
                     timeshift=timeshift,
                 )
@@ -730,9 +734,9 @@ class BacktestingBroker(Broker):
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
-                ohlc = strategy.get_historical_prices(
-                    asset,
-                    2,
+                ohlc = self.data_source.get_historical_prices(
+                    asset=asset,
+                    length=2,
                     quote=order.quote,
                     timeshift=-2,
                     timestep=self.data_source._timestep,
@@ -744,7 +748,7 @@ class BacktestingBroker(Broker):
 
                 df_original = ohlc.df
 
-                # Make sure that we are only getting the prices for the current time exactly or in the future
+                # # Make sure that we are only getting the prices for the current time exactly or in the future
                 df = df_original[df_original.index >= self.datetime]
 
                 # If the dataframe is empty, then we should get the last row of the original dataframe

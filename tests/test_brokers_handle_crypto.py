@@ -1,6 +1,5 @@
 import pytest
 from datetime import datetime, timedelta
-from typing_extensions import assert_type
 
 import pytz
 from lumibot.entities import Asset, Order, Bars
@@ -25,7 +24,7 @@ class TestBrokerHandlesCrypto:
         # test_get_last_price
         asset = Asset(symbol='BTC-USD')
         last_price = broker.get_last_price(asset)
-        assert_type(last_price, float)
+        assert isinstance(last_price, float)
         assert last_price > 0.0
 
         # test_get_historical_prices
@@ -35,7 +34,7 @@ class TestBrokerHandlesCrypto:
             timestep=self.timestep
         )
 
-        assert_type(bars, Bars)
+        assert isinstance(bars, Bars)
         assert len(bars.df) == self.length
         # get the date of the last bar, which should be the day before the start date
         last_date = bars.df.index[-1]
@@ -83,7 +82,7 @@ class TestBrokerHandlesCrypto:
 
         # test_get_last_price
         last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)
-        assert_type(last_price, float)
+        assert isinstance(last_price, float)
         assert last_price > 0.0
 
         # test_get_historical_prices
@@ -94,7 +93,7 @@ class TestBrokerHandlesCrypto:
             quote=self.quote
         )
 
-        assert_type(bars, Bars)
+        assert isinstance(bars, Bars)
         assert len(bars.df) == self.length
         # get the date of the last bar, which should be the day before the start date
         last_date = bars.df.index[-1]
@@ -126,7 +125,7 @@ class TestBrokerHandlesCrypto:
 
         # test_get_last_price
         last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)
-        assert_type(last_price, float)
+        assert isinstance(last_price, float)
         assert last_price > 0.0
 
         # test_get_historical_prices
@@ -137,7 +136,7 @@ class TestBrokerHandlesCrypto:
             quote=self.quote
         )
 
-        assert_type(bars, Bars)
+        assert isinstance(bars, Bars)
         assert len(bars.df) == self.length
         # get the date of the last bar, which should be the day before the start date
         last_date = bars.df.index[-1]
@@ -176,7 +175,7 @@ class TestBrokerHandlesCrypto:
 
         # test_get_last_price
         last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)
-        assert_type(last_price, float)
+        assert isinstance(last_price, float)
         assert last_price > 0.0
 
         # test_get_historical_prices
@@ -187,7 +186,7 @@ class TestBrokerHandlesCrypto:
             quote=self.quote
         )
 
-        assert_type(bars, Bars)
+        assert isinstance(bars, Bars)
         assert len(bars.df) == self.length
         # get the date of the last bar, which should be the day before the start date
         last_date = bars.df.index[-1]

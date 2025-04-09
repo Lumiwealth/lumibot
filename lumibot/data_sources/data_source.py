@@ -6,6 +6,7 @@ import traceback
 import time
 from decimal import Decimal
 from typing import Union
+import pytz
 
 import pandas as pd
 
@@ -24,7 +25,13 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, api_key=None, delay=None, **kwargs):
+    def __init__(
+            self,
+            api_key: str | None = None,
+            delay: int | None = None,
+            tzinfo=None,
+            **kwargs
+    ):
         """
 
         Parameters
@@ -39,6 +46,10 @@ class DataSource(ABC):
         self._timestep = None
         self._api_key = api_key
         self._delay = timedelta(minutes=delay) if delay else None
+
+        if tzinfo is None:
+            tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
+        self._tzinfo = tzinfo
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -74,8 +85,14 @@ class DataSource(ABC):
     ) -> Bars:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
-        For example, with a length of 10 and a timestep of "1day", and now timeshift, this
+        For example, with a length of 10 and a timestep of "day", and no timeshift, this
         would return the last 10 daily bars.
+
+        - Higher-level method that returns a `Bars` object
+        - Handles timezone conversions automatically
+        - Includes additional metadata and processing
+        - Preferred for strategy development and backtesting
+        - Returns normalized data with consistent format across data sources
 
         Parameters
         ----------
@@ -84,7 +101,7 @@ class DataSource(ABC):
         length : int
             The number of bars to get.
         timestep : str
-            The timestep to get the bars at. For example, "1minute" or "1hour" or "1day".
+            The timestep to get the bars at. Accepts "day" "hour" or "minute".
         timeshift : datetime.timedelta
             The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
             you would set timeshift to 1 hour.
@@ -205,16 +222,14 @@ class DataSource(ABC):
         start_date = end_date - period_length
         return start_date, end_date
 
-    @classmethod
-    def localize_datetime(cls, dt):
+    def localize_datetime(self, dt):
         if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
-            return cls.to_default_timezone(dt)
+            return self.to_default_timezone(dt)
         else:
-            return cls.DEFAULT_PYTZ.localize(dt, is_dst=None)
+            return self._tzinfo.localize(dt, is_dst=None)
 
-    @classmethod
-    def to_default_timezone(cls, dt):
-        return dt.astimezone(cls.DEFAULT_PYTZ)
+    def to_default_timezone(self, dt):
+        return dt.astimezone(self._tzinfo)
 
     def get_timestep(self):
         return self._timestep if self._timestep else self.MIN_TIMESTEP
@@ -317,17 +332,25 @@ class DataSource(ABC):
         include_after_hours=True,
     ):
         """Get bars for the list of assets"""
+        if not isinstance(assets, list):
+            assets = [assets]
 
         def process_chunk(chunk):
             chunk_result = {}
             for asset in chunk:
+                if isinstance(asset, tuple):
+                    base_asset = asset[0]
+                    quote_asset = asset[1]
+                else:
+                    base_asset = asset
+                    quote_asset = quote
                 try:
                     chunk_result[asset] = self.get_historical_prices(
-                        asset,
-                        length,
+                        asset=base_asset,
+                        length=length,
                         timestep=timestep,
                         timeshift=timeshift,
-                        quote=quote,
+                        quote=quote_asset,
                         exchange=exchange,
                         include_after_hours=include_after_hours,
                     )
@@ -336,7 +359,7 @@ class DataSource(ABC):
                     time.sleep(0.1)
                 except Exception as e:
                     # Log once per asset to avoid spamming with a huge traceback
-                    logging.warning(f"Error retrieving data for {asset.symbol}: {e}")
+                    logging.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
                     tb = traceback.format_exc()
                     logging.warning(tb)  # This prints the traceback
                     chunk_result[asset] = None
@@ -506,8 +529,8 @@ class DataSource(ABC):
 
         # Convert the expiration to be a datetime with 4pm New York time
         expiration = datetime.combine(expiration, datetime.min.time())
-        expiration = self.DEFAULT_PYTZ.localize(expiration)
-        expiration = expiration.astimezone(self.DEFAULT_PYTZ)
+        expiration = self._tzinfo.localize(expiration)
+        expiration = expiration.astimezone(self._tzinfo)
         expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
 
         # Calculate the days to expiration, but allow for fractional days

@@ -1,19 +1,27 @@
 from typing import Union
 from datetime import datetime, timedelta
+from unittest.mock import patch
 from decimal import Decimal
 import pytest
+from unittest.mock import PropertyMock
+
 
 import pandas as pd
+import pytz
 
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
 from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
-from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
+from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting, \
+    AlpacaBacktesting
 from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-from lumibot.entities import Order, Asset
-from lumibot.credentials import POLYGON_CONFIG
+from lumibot.entities import Order, Asset, TradingFee
+from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
+from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
+from lumibot.tools.helpers import quantize_to_num_decimals
 
 print_full_pandas_dataframes()
 set_pandas_float_display_precision(precision=5)
@@ -1405,6 +1413,141 @@ class TestDriftOrderLogic:
         strategy.order_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 0
 
+    def test_calculate_trading_costs_with_percent_fees(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        quantity = Decimal("100")
+        price = Decimal("50")
+
+        total_cost = strategy.order_logic.calculate_trading_costs(
+            quantity,
+            price,
+            TradingFee(percent_fee=Decimal("0.0025"))
+        )
+        assert total_cost == Decimal("12.50")
+
+    def test_calculate_trading_costs_with_flat_fees(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        quantity = Decimal("100")
+        price = Decimal("50")
+
+        total_cost = strategy.order_logic.calculate_trading_costs(
+            quantity,
+            price,
+            TradingFee(flat_fee=Decimal("1.00"))
+        )
+        assert total_cost == Decimal("1.00")
+
+    def test_calculate_trading_costs_with_both_fee_types(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        quantity = Decimal("100")
+        price = Decimal("50")
+
+        total_cost = strategy.order_logic.calculate_trading_costs(
+            quantity,
+            price,
+            [TradingFee(flat_fee=Decimal("1.00")), TradingFee(percent_fee=Decimal("0.0025"))]
+        )
+        assert total_cost == Decimal("13.50")
+
+    def test_calculate_trading_costs_no_fees(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        quantity = Decimal("100")
+        price = Decimal("50")
+
+        total_cost = strategy.order_logic.calculate_trading_costs(quantity, price, [])
+        assert total_cost == Decimal("0")
+
+    def test_adjust_quantity_for_fees_buy_affordable(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        desired_quantity = Decimal("10")
+        last_price = Decimal("5")
+        capital_available = Decimal("100")
+        side = "buy"
+
+        adjusted_quantity = strategy.order_logic.adjust_quantity_for_fees(
+            desired_quantity,
+            last_price,
+            side,
+            TradingFee(percent_fee=Decimal("0.0025")),
+            capital_available
+        )
+        assert adjusted_quantity == Decimal("10")
+
+    def test_adjust_quantity_for_fees_buy_not_affordable(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        desired_quantity = Decimal("20")
+        last_price = Decimal("50")
+        capital_available = Decimal("950")  # Not enough to buy at the desired quantity
+        side = "buy"
+
+        adjusted_quantity = strategy.order_logic.adjust_quantity_for_fees(
+            desired_quantity,
+            last_price,
+            side,
+            TradingFee(percent_fee=Decimal("0.0025")),
+            capital_available
+        )
+
+        assert adjusted_quantity == Decimal("18.9500")
+
+    def test_adjust_quantity_for_fees_sell(self):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        desired_quantity = Decimal("50")
+        last_price = Decimal("10")
+        capital_available = Decimal("1000")
+        side = "sell"
+
+        adjusted_quantity = strategy.order_logic.adjust_quantity_for_fees(
+            desired_quantity,
+            last_price,
+            side,
+            TradingFee(percent_fee=Decimal("0.0025")),
+            capital_available
+        )
+
+        assert adjusted_quantity == desired_quantity
+
+    def test_get_current_cash_position(self, mocker):
+        strategy = MockStrategyWithOrderLogic(
+            broker=self.backtesting_broker,
+            order_type=Order.OrderType.LIMIT
+        )
+        # Use mocker to mock the cash property
+        mocker.patch.object(
+            type(strategy), "cash", new_callable=PropertyMock(return_value=Decimal("15000.50"))
+        )
+
+        cash_position = strategy.order_logic.get_current_cash_position()
+        assert cash_position == Decimal("15000.50")
+
+        mocker.patch.object(
+            type(strategy), "cash", new_callable=PropertyMock(return_value=Decimal("15000.666666"))
+        )
+
+        cash_position = strategy.order_logic.get_current_cash_position()
+        assert cash_position == Decimal("15000.66")
+
 
 # @pytest.mark.skip()
 class TestDriftRebalancer:
@@ -1413,7 +1556,7 @@ class TestDriftRebalancer:
     backtesting_end = datetime(2019, 2, 28)
 
     # @pytest.mark.skip()
-    def test_classic_60_60(self, pandas_data_fixture):
+    def test_classic_60_40(self, pandas_data_fixture):
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
@@ -1440,16 +1583,11 @@ class TestDriftRebalancer:
             datasource_class=PandasDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
-            pandas_data=list(pandas_data_fixture.values()),
+            pandas_data=pandas_data_fixture,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            include_cash_positions=True,
-            # quiet_logs=False,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1468,7 +1606,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["filled_quantity"] == 7.0
 
     # @pytest.mark.skip()
-    def test_classic_60_60_with_fractional(self, pandas_data_fixture):
+    def test_classic_60_40_with_fractional(self, pandas_data_fixture):
         parameters = {
             "market": "NYSE",
             "sleeptime": "1D",
@@ -1496,16 +1634,11 @@ class TestDriftRebalancer:
             datasource_class=PandasDataBacktesting,
             backtesting_start=self.backtesting_start,
             backtesting_end=self.backtesting_end,
-            pandas_data=list(pandas_data_fixture.values()),
+            pandas_data=pandas_data_fixture,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            include_cash_positions=True,
-            # quiet_logs=False,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1516,12 +1649,12 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[0]["type"] == "limit"
         assert filled_orders.iloc[0]["side"] == "buy"
         assert filled_orders.iloc[0]["symbol"] == "SPY"
-        assert filled_orders.iloc[0]["filled_quantity"] == 238.634160545
+        assert filled_orders.iloc[0]["filled_quantity"] == 238.634160544
 
         assert filled_orders.iloc[2]["type"] == "limit"
         assert filled_orders.iloc[2]["side"] == "sell"
         assert filled_orders.iloc[2]["symbol"] == "SPY"
-        assert filled_orders.iloc[2]["filled_quantity"] == 8.346738268
+        assert filled_orders.iloc[2]["filled_quantity"] == 8.346738266
 
     # @pytest.mark.skip()
     def test_crypto_50_50_with_yahoo(self):
@@ -1556,13 +1689,9 @@ class TestDriftRebalancer:
             backtesting_start=start_date,
             backtesting_end=end_date,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1620,13 +1749,9 @@ class TestDriftRebalancer:
             backtesting_start=start_date,
             backtesting_end=end_date,
             parameters=parameters,
-            show_plot=False,
-            show_tearsheet=False,
-            save_tearsheet=False,
-            show_indicators=False,
-            save_logfile=False,
+            benchmark_asset=None,
+            analyze_backtest=False,
             show_progress_bar=False,
-            include_cash_positions=True,
         )
 
         trades_df = strat_obj.broker._trade_event_log_df
@@ -1640,3 +1765,256 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["type"] == "limit"
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
+
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_crypto_50_50_with_alpaca(
+            self,
+            market: str = 'NYSE',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        refresh_cache = False
+        parameters = {
+            "market": "24/7",
+            "sleeptime": sleeptime,
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.03",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='BTC', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                },
+                {
+                    "base_asset": Asset(symbol='ETH', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                }
+            ],
+            "shorting": False,
+            "fractional_shares": True
+        }
+
+        strat_obj: Strategy
+        results, strat_obj = DriftRebalancer.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            show_progress_bar=False,
+            parameters=parameters,
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "BTC"
+        assert filled_orders.iloc[1]["type"] == "limit"
+        assert filled_orders.iloc[1]["side"] == "buy"
+        assert filled_orders.iloc[1]["symbol"] == "ETH"
+
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_crypto_50_50_with_alpaca_modern_way(
+            self,
+            market: str = '24/7',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        refresh_cache = False
+        parameters = {
+            "market": market,
+            "sleeptime": sleeptime,
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.03",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='BTC', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                },
+                {
+                    "base_asset": Asset(symbol='ETH', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                }
+            ],
+            "shorting": False,
+            "fractional_shares": True
+        }
+
+        data_source = AlpacaBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            show_progress_bar=False,
+            parameters=parameters,
+
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+        broker = BacktestingBroker(data_source=data_source)
+        strat_obj = DriftRebalancer(
+            broker=broker,
+            parameters=parameters,
+            minutes_before_closing=0,
+            benchmark_asset=None,
+            analyze_backtest=False,
+        )
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(strat_obj)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=True)
+        assert results
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "BTC"
+        assert filled_orders.iloc[1]["type"] == "limit"
+        assert filled_orders.iloc[1]["side"] == "buy"
+        assert filled_orders.iloc[1]["symbol"] == "ETH"
+
+        assert strat_obj.stats['portfolio_value'][-1] == 105021.76805867575
+
+    @pytest.mark.skipif(
+        not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
+        reason="This test requires an alpaca API key"
+    )
+    def test_crypto_50_50_with_alpaca_with_fees(
+            self,
+            market: str = '24/7',
+            timestep: str = 'day',
+            sleeptime: str = '1D',
+            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            auto_adjust: bool = True,
+            warm_up_trading_days: int = 0,
+    ):
+        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
+        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
+        trading_fee = TradingFee(percent_fee=0.0025)
+        refresh_cache = False
+        parameters = {
+            "market": market,
+            "sleeptime": sleeptime,
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.03",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "portfolio_weights": [
+                {
+                    "base_asset": Asset(symbol='BTC', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                },
+                {
+                    "base_asset": Asset(symbol='ETH', asset_type='crypto'),
+                    "weight": Decimal("0.5")
+                }
+            ],
+            "shorting": False,
+            "fractional_shares": True
+        }
+
+        data_source = AlpacaBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            show_progress_bar=False,
+            parameters=parameters,
+
+            timestep=timestep,
+            market=market,
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
+        )
+        broker = BacktestingBroker(data_source=data_source)
+        strat_obj = DriftRebalancer(
+            broker=broker,
+            parameters=parameters,
+            minutes_before_closing=0,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            buy_trading_fees=[trading_fee],
+            sell_trading_fees=[trading_fee],
+        )
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(strat_obj)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=True)
+        assert results
+
+        trades_df = strat_obj.broker._trade_event_log_df
+        assert trades_df.iloc[-1]["trade_cost"] >= 0.0
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        assert filled_orders.iloc[0]["type"] == "limit"
+        assert filled_orders.iloc[0]["side"] == "buy"
+        assert filled_orders.iloc[0]["symbol"] == "BTC"
+        assert filled_orders.iloc[1]["type"] == "limit"
+        assert filled_orders.iloc[1]["side"] == "buy"
+        assert filled_orders.iloc[1]["symbol"] == "ETH"
+
+        assert strat_obj.stats['portfolio_value'][-1] == 104767.7476530826
+
+    @patch("lumibot.strategies.Strategy")
+    def test_get_last_price_or_raise_returns_decimal(self, MockStrategy):
+        mock_strategy = MockStrategy()
+        mock_strategy.get_last_price.return_value = 123.45
+
+        asset = Asset(symbol="AAPL")
+        quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+        price = get_last_price_or_raise(mock_strategy, asset, quote)
+
+        assert price == Decimal("123.45")
+
+    @patch("lumibot.strategies.Strategy")
+    def test_get_last_price_or_raise_raises_value_error_on_none(self, MockStrategy):
+        mock_strategy = MockStrategy()
+        mock_strategy.get_last_price.return_value = None
+
+        asset = Asset(symbol="AAPL")
+        quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+        with pytest.raises(ValueError, match="DriftRebalancer could not get_last_price for AAPL-USD."):
+            get_last_price_or_raise(mock_strategy, asset, quote)
+

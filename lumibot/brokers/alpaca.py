@@ -19,6 +19,8 @@ from lumibot.tools.helpers import has_more_than_n_decimal_places
 
 from .broker import Broker
 
+logger = logging.getLogger(__name__)
+
 
 # Create our own OrderData class to pass to the API because this is easier to work with
 # than the ones Alpaca provides, and because the new classes are missing bracket orders
@@ -481,16 +483,16 @@ class Alpaca(Broker):
             order.set_error(e)
             message = str(e)
             if "stop price must not be greater than base price / 1.001" in message:
-                logging.info(
+                logger.error(
                     colored(
                         f"{order} did not go through because the share base price became lesser than the stop loss price.",
                         color="red",
                     )
                 )
             else:
-                logging.info(
+                logger.error(
                     colored(
-                        f"{order} did not go through. The following error occured: {e}",
+                        f"{order} did not go through. The following error occurred: {e}",
                         color="red",
                     )
                 )
@@ -518,7 +520,7 @@ class Alpaca(Broker):
                 conformed = True
 
             if conformed:
-                logging.warning(
+                logger.warning(
                     f"Order {order} was changed to conform to Alpaca's requirements. "
                     f"The limit price was changed from {orig_price} to {order.limit_price}."
                 )
@@ -590,7 +592,7 @@ class Alpaca(Broker):
                 identifier = logged_order.id
                 stored_order = self.get_tracked_order(identifier)
                 if stored_order is None:
-                    logging.debug(f"Untracked order {identifier} was logged by broker {self.name}")
+                    logger.debug(f"Untracked order {identifier} was logged by broker {self.name}")
                     return False
 
                 price = trade_update.price
@@ -604,7 +606,7 @@ class Alpaca(Broker):
 
                 return True
             except ValueError:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
         self.stream.loop = asyncio.new_event_loop()
         loop = self.stream.loop
@@ -618,12 +620,12 @@ class Alpaca(Broker):
                 self._stream_established()
                 loop.run_until_complete(self.stream.run())
             except KeyboardInterrupt:
-                logging.info("Exiting on Interrupt")
+                logger.info("Exiting on Interrupt")
                 should_renew = False
             except Exception as e:
                 m = "consume cancelled" if isinstance(e, CancelledError) else e
-                logging.error(f"error while consuming ws messages: {m}")
-                logging.error(traceback.format_exc())
+                logger.error(f"error while consuming ws messages: {m}")
+                logger.error(traceback.format_exc())
                 loop.run_until_complete(self.stream.close(should_renew))
                 if loop.is_running():
                     loop.close()

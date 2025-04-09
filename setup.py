@@ -49,7 +49,7 @@ setuptools.setup(
         "holidays",
         "psutil",
         "openai",
-        "schwab-py"
+        "schwab-py>=1.5.0"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

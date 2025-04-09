@@ -36,7 +36,7 @@ class InteractiveBrokersRESTData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "InteractiveBrokersREST"
 
-    def __init__(self, config):
+    def __init__(self, config, **kwargs):
         if config["API_URL"] is None:
             self.port = "4234"
             self.base_url = f"https://localhost:{self.port}/v1/api"
@@ -399,6 +399,11 @@ class InteractiveBrokersRESTData(DataSource):
                 response.status_code = 503
                 response._content = str.encode(f'{{"error": "{e}"}}')
 
+            # Check if the status code is 401
+            if response.status_code == 401:
+                logging.error(colored("401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).", "red"))
+                return None
+            
             retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
             
             if re_msg is None and not is_error:
@@ -770,7 +775,7 @@ class InteractiveBrokersRESTData(DataSource):
                 quote=quote,
             )
 
-        url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
+        url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}startTime={start_time}"
 
         if exchange:
             url += f"&exchange={exchange}"
@@ -891,7 +896,7 @@ class InteractiveBrokersRESTData(DataSource):
             logging.error(colored(f"Response: {response}", "red"))
             return None
 
-        if asset.asset_type == "option":
+        if asset.asset_type == Asset.AssetType.OPTION:
             exchange = next(
                 (section["exchange"] for section in response[0]["sections"] if section["secType"] == "OPT"),
                 None,
@@ -906,7 +911,7 @@ class InteractiveBrokersRESTData(DataSource):
                     "strike": asset.strike,
                 },
             )
-        elif asset.asset_type == "future":
+        elif asset.asset_type == Asset.AssetType.FUTURE:
             exchange = next(
                 (section["exchange"] for section in response[0]["sections"] if section["secType"] == "FUT"),
                 None,
@@ -920,6 +925,8 @@ class InteractiveBrokersRESTData(DataSource):
                     "multiplier": asset.multiplier,
                 },
             )
+        elif asset.asset_type == Asset.AssetType.CONT_FUTURE:
+            return underlying_conid
         elif asset.asset_type in ["stock", "forex", "index"]:
             return underlying_conid
 

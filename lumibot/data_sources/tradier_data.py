@@ -55,7 +55,7 @@ class TradierData(DataSource):
         },
     ]
 
-    def __init__(self, account_number, access_token, paper=True, max_workers=20, delay=None):
+    def __init__(self, account_number, access_token, paper=True, max_workers=20, delay=None, **kwargs):
         super().__init__(api_key=access_token, delay=delay)
         self._account_number = account_number
         self._paper = paper

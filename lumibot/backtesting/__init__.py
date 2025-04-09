@@ -6,3 +6,4 @@ from .polygon_backtesting import PolygonDataBacktesting
 from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 from .ccxt_backtesting import CcxtBacktesting
+from .interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting

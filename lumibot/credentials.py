@@ -386,7 +386,6 @@ if not is_backtesting or is_backtesting.lower() == "false":
 
 elif is_backtesting.lower() == "true":
     IS_BACKTESTING = True
-    # ...existing backtesting code...
 else:
     # Log a warning if the value is not a boolean
     colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")

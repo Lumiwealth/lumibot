@@ -24,7 +24,7 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, api_key=None, delay=None):
+    def __init__(self, api_key=None, delay=None, **kwargs):
         """
 
         Parameters

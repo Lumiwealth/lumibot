@@ -14,7 +14,7 @@ class ExampleBrokerData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "ExampleBroker"
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
 
     # Method stubs with logging for not yet implemented methods

@@ -26,7 +26,7 @@ class SchwabData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "Schwab"
 
-    def __init__(self, client=None, api_key=None, secret=None, account_number=None):
+    def __init__(self, client=None, api_key=None, secret=None, account_number=None, **kwargs):
         """
         Initialize the Schwab data source with a client connection.
         

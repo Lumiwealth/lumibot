@@ -129,13 +129,14 @@ class Asset:
         PUT = "PUT"
 
     class AssetType(StrEnum):
-        STOCK = "stock"
-        OPTION = "option"
-        FUTURE = "future"
-        FOREX = "forex"
-        CRYPTO = "crypto"
-        INDEX = "index"
-        MULTILEG = "multileg"
+        STOCK = "stock" # Stock
+        OPTION = "option" # Option
+        FUTURE = "future" # Future
+        CONT_FUTURE = "cont_future" # Continuous future
+        FOREX = "forex" # Forex or cash
+        CRYPTO = "crypto" # Crypto
+        INDEX = "index" # Index
+        MULTILEG = "multileg" # Multileg option
 
     # Pull the rights from the OptionRight class
     _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]

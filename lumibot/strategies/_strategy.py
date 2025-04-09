@@ -22,7 +22,7 @@ from sqlalchemy import create_engine, inspect, text
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
+from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting, InteractiveBrokersRESTBacktesting
 from ..entities import Asset, Position, Order
 from ..tools import (
     create_tearsheet,
@@ -55,6 +55,7 @@ from ..credentials import (
     BACKTESTING_START,
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
+    INTERACTIVE_BROKERS_REST_CONFIG,
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -1260,6 +1261,18 @@ class _Strategy:
                 password=thetadata_password,
                 pandas_data=pandas_data,
                 use_quote_data=use_quote_data,
+                show_progress_bar=show_progress_bar,
+                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                **kwargs,
+            )
+        elif datasource_class == InteractiveBrokersRESTBacktesting:
+            data_source = datasource_class(
+                backtesting_start,
+                backtesting_end,
+                config=INTERACTIVE_BROKERS_REST_CONFIG,
+                auto_adjust=auto_adjust,
+                pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,

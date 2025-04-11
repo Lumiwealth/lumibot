@@ -148,6 +148,8 @@ if _btl is not None:
         colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
         logger.warning(colored_message)
         BACKTESTING_QUIET_LOGS = True
+else:
+    BACKTESTING_QUIET_LOGS = None
 
 _btl = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR", None)
 if _btl is not None:
@@ -159,6 +161,8 @@ if _btl is not None:
         colored_message = termcolor.colored(f"BACKTESTING_SHOW_PROGRESS_BAR must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
         logger.warning(colored_message)
         BACKTESTING_SHOW_PROGRESS_BAR = True
+else:
+    BACKTESTING_SHOW_PROGRESS_BAR = None
 
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")

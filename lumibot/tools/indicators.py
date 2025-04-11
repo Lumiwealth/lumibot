@@ -355,8 +355,31 @@ def plot_indicators(
         # Get the file name for the CSV file by removing the .html extension and adding .csv
         csv_file = plot_file_html.replace(".html", ".csv")
 
-        # Export chart markers and lines to CSV
-        chart_markers_df.to_csv(csv_file, mode="a")
+        # Export chart markers and lines to CSV - combine them and sort by datetime
+        if chart_markers_df is not None and not chart_markers_df.empty and chart_lines_df is not None and not chart_lines_df.empty:
+            # Add type column to both dataframes
+            chart_markers_df = chart_markers_df.copy()
+            chart_markers_df["type"] = "marker"
+            
+            chart_lines_df = chart_lines_df.copy()
+            chart_lines_df["type"] = "line"
+            
+            # Both markers and lines exist - combine them and sort by datetime
+            combined_df = pd.concat([chart_markers_df, chart_lines_df], ignore_index=True)
+            combined_df = combined_df.sort_values(by="datetime")
+            combined_df.to_csv(csv_file, index=False)
+        elif chart_markers_df is not None and not chart_markers_df.empty:
+            # Only markers exist
+            chart_markers_df = chart_markers_df.copy()
+            chart_markers_df["type"] = "marker"
+            chart_markers_df = chart_markers_df.sort_values(by="datetime")
+            chart_markers_df.to_csv(csv_file, index=False)
+        elif chart_lines_df is not None and not chart_lines_df.empty:
+            # Only lines exist
+            chart_lines_df = chart_lines_df.copy()
+            chart_lines_df["type"] = "line"
+            chart_lines_df = chart_lines_df.sort_values(by="datetime")
+            chart_lines_df.to_csv(csv_file, index=False)
 
 
 def plot_returns(

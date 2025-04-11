@@ -196,8 +196,8 @@ class Trader:
             if self.quiet_logs:
                 logger.setLevel(logging.ERROR)
 
-            # Ensure console has minimal logging to keep things clean during backtesting
-            stream_handler.setLevel(logging.ERROR)
+                # Ensure console has minimal logging to keep things clean during backtesting
+                stream_handler.setLevel(logging.ERROR)
 
         else:
             # Live trades should always have full logging.

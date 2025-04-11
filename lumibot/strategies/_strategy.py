@@ -58,6 +58,8 @@ from ..credentials import (
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
     INTERACTIVE_BROKERS_REST_CONFIG,
+    BACKTESTING_QUIET_LOGS,
+    BACKTESTING_SHOW_PROGRESS_BAR
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -1260,7 +1262,13 @@ class _Strategy:
                 "the original positional arguments for backtesting. \n\n"
             )
             return None
+        
+        if BACKTESTING_QUIET_LOGS is not None:
+            quiet_logs = BACKTESTING_QUIET_LOGS
 
+        if BACKTESTING_SHOW_PROGRESS_BAR is not None:
+            show_progress_bar = BACKTESTING_SHOW_PROGRESS_BAR
+        
         self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:

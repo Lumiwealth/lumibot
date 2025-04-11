@@ -137,6 +137,29 @@ STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 # Flag to determine if backtest progress should be logged to a file (True/False)
 LOG_BACKTEST_PROGRESS_TO_FILE = os.environ.get("LOG_BACKTEST_PROGRESS_TO_FILE")
 
+# Determine if backtesting logs should be quiet via env variable (default True)
+_btl = os.environ.get("BACKTESTING_QUIET_LOGS", None)
+if _btl is not None:
+    if _btl.lower() == "true":
+        BACKTESTING_QUIET_LOGS = True
+    elif _btl.lower() == "false":
+        BACKTESTING_QUIET_LOGS = False
+    else:
+        colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        logger.warning(colored_message)
+        BACKTESTING_QUIET_LOGS = True
+
+_btl = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR", None)
+if _btl is not None:
+    if _btl.lower() == "true":
+        BACKTESTING_SHOW_PROGRESS_BAR = True
+    elif _btl.lower() == "false":
+        BACKTESTING_SHOW_PROGRESS_BAR = False
+    else:
+        colored_message = termcolor.colored(f"BACKTESTING_SHOW_PROGRESS_BAR must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        logger.warning(colored_message)
+        BACKTESTING_SHOW_PROGRESS_BAR = True
+
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
 

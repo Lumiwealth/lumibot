@@ -175,7 +175,18 @@ class StrategyExecutor(Thread):
                     for order_attr in order_attrs:
                         olumi = getattr(order_lumi, order_attr)
                         obroker = getattr(order, order_attr)
-                        if olumi != obroker:
+
+                        if isinstance(olumi, (int, float)) and isinstance(obroker, (int, float)):
+                            # Compare with tolerance for numeric types
+                            epsilon = 1e-9
+                            if abs(olumi - obroker) > epsilon:
+                                setattr(order_lumi, order_attr, obroker)
+                                self.strategy.logger.warning(
+                                    f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                    f"to be {obroker} because what we have in memory does not match the broker."
+                                )
+                                self.strategy.logger.warning(f"Difference in {order_attr}: {abs(olumi - obroker)}")
+                        elif olumi != obroker:  # Direct comparison for other types
                             setattr(order_lumi, order_attr, obroker)
                             self.strategy.logger.warning(
                                 f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "

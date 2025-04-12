@@ -491,11 +491,6 @@ class DriftOrderLogic:
                     )
                     buy_orders.append(order)
                     cash_position -= quantity * limit_price
-                else:
-                    self.strategy.logger.info(
-                        f"Ran out of cash to buy {quantity} of {base_asset.symbol}. "
-                        f"Cash: {cash_position} and limit_price: {limit_price:.2f}"
-                    )
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
         if side == "sell":

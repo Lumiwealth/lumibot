@@ -119,6 +119,10 @@ class Vars:
     def set(self, name, value):
         self._vars_dict[name] = value
 
+    def get(self, name, default=None):
+        """Gets the value of a variable, returning a default value if it doesn't exist."""
+        return self._vars_dict.get(name, default)
+
     def all(self):
         return self._vars_dict.copy()
 

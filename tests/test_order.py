@@ -322,3 +322,7 @@ class TestOrderAdvanced:
         assert order.child_orders[1].is_stop_order()
         assert order.child_orders[1].stop_price == 99.0
         assert order.child_orders[1].stop_limit_price == 99.10
+
+    def test_is_equivalent_status(self):
+        assert Order.is_equivalent_status("pending_new", Order.OrderStatus.NEW)
+

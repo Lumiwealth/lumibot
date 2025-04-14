@@ -409,8 +409,8 @@ def plot_indicators(
                     bgcolor="white",
                 ),
                 rangeslider=dict(
-                    visible=False,
-                    thickness=0.15  # Make the range slider height shorter than the plot height
+                    visible=True,
+                    thickness=0.05  # Make the range slider height shorter to avoid layout issues
                 ),
                 row=i,
                 col=1

@@ -264,7 +264,7 @@ def plot_indicators(
         cols=1,
         subplot_titles=subplot_titles,
         shared_xaxes=False,  # Do not use shared x-axes
-        vertical_spacing=0.1  # Increase spacing between subplots for better separation
+        vertical_spacing=0.15,  # Increase spacing between subplots to prevent range slider overlap,
     )
 
     has_chart_data = False
@@ -366,9 +366,9 @@ def plot_indicators(
 
     if has_chart_data:
         # Set title and layout
-        # Calculate height based on number of subplots to prevent squishing
-        # Base height of 600px plus 400px for each additional subplot
-        height = 600 + (num_subplots - 1) * 400
+        # Calculate height based on number of subplots
+        # 400px per subplot
+        height = num_subplots * 400
 
         fig.update_layout(
             title_text=f"Indicators for {strategy_name}",
@@ -410,7 +410,7 @@ def plot_indicators(
                 ),
                 rangeslider=dict(
                     visible=True,
-                    thickness=0.05  # Make the range slider height shorter to avoid layout issues
+                    thickness=0.02  # Make the range slider height shorter to make line graph appear taller
                 ),
                 row=i,
                 col=1

@@ -368,7 +368,7 @@ def plot_indicators(
         # Set title and layout
         # Calculate height based on number of subplots
         # 400px per subplot
-        height = num_subplots * 400
+        height = max(800, num_subplots * 400)
 
         fig.update_layout(
             title_text=f"Indicators for {strategy_name}",

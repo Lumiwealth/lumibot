@@ -152,7 +152,7 @@ class TestIndicators:
         """Test the default behavior (unnamed lines)"""
         strategy_name = "TestDefaultIndicatorStrategy"
         strategy_class = TestDefaultIndicatorStrategy
-        backtesting_start = DateTime(2019, 1, 1)
+        backtesting_start = DateTime(2019, 1, 2)
         backtesting_end = DateTime(2019, 3, 1)
 
         result = strategy_class.backtest(
@@ -178,7 +178,7 @@ class TestIndicators:
         """Test the named lines"""
         strategy_name = "TestIndicatorStrategy"
         strategy_class = TestIndicatorStrategy
-        backtesting_start = DateTime(2019, 1, 1)
+        backtesting_start = DateTime(2019, 1, 2)
         backtesting_end = DateTime(2019, 3, 1)
 
         result = strategy_class.backtest(

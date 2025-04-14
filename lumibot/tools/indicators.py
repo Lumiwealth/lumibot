@@ -415,10 +415,15 @@ def plot_indicators(
 
     if has_chart_data:
         # Set title and layout
+        # Calculate height based on number of subplots to prevent squishing
+        # Base height of 600px plus 400px for each additional subplot
+        height = 600 + (num_subplots - 1) * 400
+
         fig.update_layout(
             title_text=f"Indicators for {strategy_name}",
             title_font_size=30,
             template="plotly_dark",
+            height=height,  # Dynamic height based on number of subplots
         )
 
         # Range selector buttons

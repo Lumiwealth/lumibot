@@ -227,63 +227,44 @@ def plot_indicators(
 
     logger.info("\nCreating indicators plot...")
 
+    # Assign "default_plot" as plot_name for markers and lines that don't have one
+    if chart_markers_df is not None and not chart_markers_df.empty:
+        chart_markers_df = chart_markers_df.copy()
+        if "plot_name" not in chart_markers_df.columns:
+            chart_markers_df["plot_name"] = "default_plot"
+        else:
+            chart_markers_df["plot_name"] = chart_markers_df["plot_name"].fillna("default_plot")
+
+    if chart_lines_df is not None and not chart_lines_df.empty:
+        chart_lines_df = chart_lines_df.copy()
+        if "plot_name" not in chart_lines_df.columns:
+            chart_lines_df["plot_name"] = "default_plot"
+        else:
+            chart_lines_df["plot_name"] = chart_lines_df["plot_name"].fillna("default_plot")
+
     # Get unique plot_names from markers and lines
     plot_names = set()
 
     if chart_markers_df is not None and not chart_markers_df.empty:
-        if "plot_name" in chart_markers_df.columns:
-            plot_names.update(chart_markers_df["plot_name"].dropna().unique())
+        plot_names.update(chart_markers_df["plot_name"].unique())
 
     if chart_lines_df is not None and not chart_lines_df.empty:
-        if "plot_name" in chart_lines_df.columns:
-            plot_names.update(chart_lines_df["plot_name"].dropna().unique())
+        plot_names.update(chart_lines_df["plot_name"].unique())
 
     # Convert to sorted list to ensure consistent order
     plot_names = sorted(list(plot_names))
 
-    # Check if there are any markers or lines with plot_name=None or plot_name="default_plot"
-    has_main_plot_data = False
-    if chart_markers_df is not None and not chart_markers_df.empty:
-        if "plot_name" in chart_markers_df.columns:
-            has_main_plot_data = has_main_plot_data or (chart_markers_df["plot_name"].isna().any()) or ((chart_markers_df["plot_name"] == "default_plot").any())
-        else:
-            has_main_plot_data = True  # If plot_name column doesn't exist, all markers go to main plot
-
-    if chart_lines_df is not None and not chart_lines_df.empty:
-        if "plot_name" in chart_lines_df.columns:
-            has_main_plot_data = has_main_plot_data or (chart_lines_df["plot_name"].isna().any()) or ((chart_lines_df["plot_name"] == "default_plot").any())
-        else:
-            has_main_plot_data = True  # If plot_name column doesn't exist, all lines go to main plot
-
-    # Create a main plot only if there is data for it
-    has_main_plot = has_main_plot_data
-
-    # Ensure we have at least one plot even if there's only one unnamed line
-    if not has_main_plot and len(plot_names) == 0 and chart_lines_df is not None and not chart_lines_df.empty:
-        has_main_plot = True
-
-    # Create a subplot for each unique plot_name plus one for the main plot if needed
-    if has_main_plot:
-        num_subplots = len(plot_names) + 1
-        subplot_titles = ["Main Plot"] + plot_names
-    else:
-        num_subplots = len(plot_names)
-        subplot_titles = plot_names
-
     # Ensure num_subplots is at least 1 to avoid ValueError in make_subplots
-    if num_subplots == 0:
-        num_subplots = 1
-        subplot_titles = ["Main Plot"]
-        has_main_plot = True
+    num_subplots = max(1, len(plot_names))
+    subplot_titles = plot_names if num_subplots > 0 else ["default_plot"]
 
-    # Create subplots with shared x-axes
+    # Create subplots without shared x-axes
     fig = make_subplots(
         rows=num_subplots,
         cols=1,
-        specs=[[{"secondary_y": True}] for _ in range(num_subplots)],
         subplot_titles=subplot_titles,
-        shared_xaxes=True,
-        vertical_spacing=0.05  # Reduce spacing between subplots
+        shared_xaxes=False,  # Do not use shared x-axes
+        vertical_spacing=0.1  # Increase spacing between subplots for better separation
     )
 
     has_chart_data = False
@@ -300,15 +281,10 @@ def plot_indicators(
 
     # Plot the chart markers
     if chart_markers_df is not None and not chart_markers_df.empty:
-        chart_markers_df = chart_markers_df.copy()
         chart_markers_df["detail_text"] = chart_markers_df.apply(generate_marker_plotly_text, axis=1)
 
-        # Ensure plot_name column exists
-        if "plot_name" not in chart_markers_df.columns:
-            chart_markers_df["plot_name"] = None
-
         # Group by plot_name first, then by name
-        for plot_name, plot_df in chart_markers_df.groupby("plot_name", dropna=False):
+        for plot_name, plot_df in chart_markers_df.groupby("plot_name"):
             # Loop over the marker names for this plot_name
             for marker_name, group_df in plot_df.groupby("name"):
                 # Get the marker symbol
@@ -318,21 +294,11 @@ def plot_indicators(
                 marker_size = group_df["size"].iloc[0]
                 marker_size = marker_size if marker_size else 25
 
-                # If color is not set, set it to black
+                # If color is not set, set it to white
                 group_df.loc[:, "color"] = group_df["color"].fillna("white")
 
                 # Determine which subplot to use
-                if plot_name is None or plot_name == "default_plot":
-                    # Use the main plot (first subplot)
-                    row = 1
-                else:
-                    # Find the index of the plot_name in plot_names
-                    if has_main_plot:
-                        # Add 2 because the main plot is at index 1
-                        row = plot_names.index(plot_name) + 2
-                    else:
-                        # No main plot, so the first plot_name is at index 1
-                        row = plot_names.index(plot_name) + 1
+                row = plot_names.index(plot_name) + 1
 
                 # Create a new trace for this marker name
                 fig.add_trace(
@@ -365,32 +331,17 @@ def plot_indicators(
 
     # Plot the chart lines
     if chart_lines_df is not None and not chart_lines_df.empty:
-        chart_lines_df = chart_lines_df.copy()
         chart_lines_df["detail_text"] = chart_lines_df.apply(generate_line_plotly_text, axis=1)
 
-        # Ensure plot_name column exists
-        if "plot_name" not in chart_lines_df.columns:
-            chart_lines_df["plot_name"] = None
-
         # Group by plot_name first, then by name
-        for plot_name, plot_df in chart_lines_df.groupby("plot_name", dropna=False):
+        for plot_name, plot_df in chart_lines_df.groupby("plot_name"):
             # Loop over the line names for this plot_name
             for line_name, group_df in plot_df.groupby("name"):
                 # Get the color for this line name
                 color = group_df["color"].iloc[0]
 
                 # Determine which subplot to use
-                if plot_name is None or plot_name == "default_plot":
-                    # Use the main plot (first subplot)
-                    row = 1
-                else:
-                    # Find the index of the plot_name in plot_names
-                    if has_main_plot:
-                        # Add 2 because the main plot is at index 1
-                        row = plot_names.index(plot_name) + 2
-                    else:
-                        # No main plot, so the first plot_name is at index 1
-                        row = plot_names.index(plot_name) + 1
+                row = plot_names.index(plot_name) + 1
 
                 # Create a new trace for this line name
                 fig.add_trace(
@@ -424,6 +375,7 @@ def plot_indicators(
             title_font_size=30,
             template="plotly_dark",
             height=height,  # Dynamic height based on number of subplots
+            margin=dict(t=150)  # Add more space between title and first subplot
         )
 
         # Range selector buttons
@@ -437,14 +389,8 @@ def plot_indicators(
 
         # Update axes for all subplots
         for i in range(1, num_subplots + 1):
-            # Determine the appropriate plot name for this subplot
-            if has_main_plot:
-                if i == 1:  # Main plot is the first subplot
-                    plot_title = "Main Plot"
-                else:
-                    plot_title = plot_names[i - 2]  # Adjust index for main plot
-            else:
-                plot_title = plot_names[i - 1]  # No main plot adjustment needed
+            # Get the plot name for this subplot
+            plot_title = plot_names[i - 1]
 
             # Set y-axes titles for each subplot
             fig.update_yaxes(
@@ -453,43 +399,22 @@ def plot_indicators(
                 row=i,
                 col=1
             )
-            fig.update_yaxes(
-                title_text="Secondary Value",
-                secondary_y=True,
+
+            # Add range selector and range slider to each subplot
+            fig.update_xaxes(
+                rangeselector=dict(
+                    buttons=rangeselector_buttons,
+                    font=dict(color="black"),
+                    activecolor="grey",
+                    bgcolor="white",
+                ),
+                rangeslider=dict(
+                    visible=False,
+                    thickness=0.15  # Make the range slider height shorter than the plot height
+                ),
                 row=i,
                 col=1
             )
-
-            # Add range selector only to the first subplot (top)
-            if i == 1:
-                fig.update_xaxes(
-                    rangeselector=dict(
-                        buttons=rangeselector_buttons,
-                        font=dict(color="black"),
-                        activecolor="grey",
-                        bgcolor="white",
-                    ),
-                    row=i,
-                    col=1
-                )
-
-                if num_subplots == 2:
-                    # If there are only two subplots, (the main plot and the slider, show the slider)
-                    fig.update_xaxes(
-                        rangeslider_visible=True,
-                        row=i,
-                        col=1
-                    )
-
-            else:
-                # Otherwise there are more then one subplots.
-                # Only add rangeslider to the last subplot (bottom)
-                # and hide it for all other subplots
-                fig.update_xaxes(
-                    rangeslider_visible=(i == num_subplots),
-                    row=i,
-                    col=1
-                )
 
         # Create graph
         fig.write_html(plot_file_html, auto_open=show_indicators)

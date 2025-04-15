@@ -1413,7 +1413,7 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
         >>> self.submit_order([order1, order2])
         """
-        
+
         if isinstance(order, list):
             # Submit multiple orders
             # Validate orders
@@ -1422,10 +1422,10 @@ class Strategy(_Strategy):
             for o in order:
                 if not self._validate_order(o):
                     return
-                
+
                 if o.asset.asset_type != "option":
                     default_multileg = False
-            
+
             if 'is_multileg' not in kwargs:
                 kwargs['is_multileg'] = default_multileg
 
@@ -2027,10 +2027,10 @@ class Strategy(_Strategy):
         return self.broker.get_chain(chains)
 
     def get_chain_full_info(
-            self, 
+            self,
             asset: Asset,
-            expiry: Union[str, datetime.datetime, datetime.date], 
-            chains: dict = None, 
+            expiry: Union[str, datetime.datetime, datetime.date],
+            chains: dict = None,
             underlying_price: float = None,
             risk_free_rate: float = None,
             strike_min: float = None,
@@ -2193,7 +2193,7 @@ class Strategy(_Strategy):
         timestamp : datetime.datetime | pd.Timestamp
             The timestamp for which the first Friday of the month is
             needed.
-        
+
         Returns
         -------
         datetime.datetime
@@ -2659,14 +2659,15 @@ class Strategy(_Strategy):
         )
 
     def add_marker(
-            self, 
-            name: str, 
+            self,
+            name: str,
             value: float = None,
-            color: str = "blue", 
+            color: str = "blue",
             symbol: str = "circle",
             size: int = None,
             detail_text: str = None,
-            dt: Union[datetime.datetime, pd.Timestamp] = None
+            dt: Union[datetime.datetime, pd.Timestamp] = None,
+            plot_name: str = "default_plot"
             ):
         """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
 
@@ -2686,6 +2687,8 @@ class Strategy(_Strategy):
             The text to display when the marker is hovered over.
         dt : datetime.datetime or pandas.Timestamp
             The datetime of the marker. Default is the current datetime.
+        plot_name : str
+            The name of the subplot to add the marker to. If "default_plot" (the default value) or None, the marker will be added to the main plot.
 
         Example
         -------
@@ -2748,7 +2751,12 @@ class Strategy(_Strategy):
         if len(self._chart_markers_list) > 0:
             timestamp = dt.timestamp()
             for marker in self._chart_markers_list:
-                if marker["timestamp"] == timestamp and marker["name"] == name and marker["symbol"] == symbol:
+                if (
+                        marker["timestamp"] == timestamp
+                        and marker["name"] == name
+                        and marker["symbol"] == symbol
+                        and marker['plot_name'] == plot_name
+                ):
                     return None
 
         new_marker = {
@@ -2760,6 +2768,7 @@ class Strategy(_Strategy):
             "size": size,
             "value": value,
             "detail_text": detail_text,
+            "plot_name": plot_name,
         }
 
         self._chart_markers_list.append(new_marker)
@@ -2780,14 +2789,15 @@ class Strategy(_Strategy):
         return df
 
     def add_line(
-            self, 
-            name: str, 
-            value: float, 
+            self,
+            name: str,
+            value: float,
             color: str = None,
             style: str = "solid",
             width: int = None,
             detail_text: str = None,
-            dt: Union[datetime.datetime, pd.Timestamp] = None
+            dt: Union[datetime.datetime, pd.Timestamp] = None,
+            plot_name: str = "default_plot"
             ):
         """Adds a line data point to the indicator chart. This can be used to add lines such as bollinger bands, prices for specific assets, or any other line you want to add to the chart.
 
@@ -2807,6 +2817,8 @@ class Strategy(_Strategy):
             The text to display when the line is hovered over.
         dt : datetime.datetime or pandas.Timestamp
             The datetime of the line. Default is the current datetime.
+        plot_name : str
+            The name of the subplot to add the line to. If "default_plot" (the default value) or None, the line will be added to the main plot.
 
         Example
         -------
@@ -2871,6 +2883,7 @@ class Strategy(_Strategy):
                 "style": style,
                 "width": width,
                 "detail_text": detail_text,
+                "plot_name": plot_name,
             }
         )
 
@@ -2889,12 +2902,12 @@ class Strategy(_Strategy):
 
     def write_backtest_settings(self, settings_file: str):
         """Writes the backtest settings to a file.
-        
+
         Parameters
         ----------
         settings_file : str
             The file path to write the settings to.
-            
+
         Returns
         -------
         None
@@ -3706,10 +3719,10 @@ class Strategy(_Strategy):
         pass
 
     def on_partially_filled_order(
-            self, 
-            position: Position, 
-            order: Order, 
-            price: float, 
+            self,
+            position: Position,
+            order: Order,
+            price: float,
             quantity: Union[float, int],
             multiplier: float
             ):
@@ -3823,7 +3836,7 @@ class Strategy(_Strategy):
 
         trader.add_strategy(self)
         trader.run_all()
-    
+
     @classmethod
     def backtest(
         self,

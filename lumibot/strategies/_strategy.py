@@ -1025,6 +1025,7 @@ class _Strategy:
         quiet_logs = False,
         trader_class = Trader,
         include_cash_positions=False,
+        save_stats_file = True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1212,7 +1213,7 @@ class _Strategy:
         logdir = "logs"
         if logfile is None and save_logfile:
             logfile = f"{logdir}/{base_filename}_logs.csv"
-        if stats_file is None and save_logfile:
+        if stats_file is None and save_stats_file:
             stats_file = f"{logdir}/{base_filename}_stats.csv"
 
         # #############################################

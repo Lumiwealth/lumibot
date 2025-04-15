@@ -3864,6 +3864,7 @@ class Strategy(_Strategy):
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,
+        save_stats_file: bool = True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -4025,6 +4026,7 @@ class Strategy(_Strategy):
             show_progress_bar=show_progress_bar,
             quiet_logs=quiet_logs,
             trader_class=trader_class,
+            save_stats_file=save_stats_file,
             **kwargs,
         )
         return results

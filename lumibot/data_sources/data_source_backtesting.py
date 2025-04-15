@@ -135,7 +135,17 @@ class DataSourceBacktesting(DataSource, ABC):
                 elapsed = now_wall - self.backtesting_started
                 eta = (elapsed * (100 / percent)) - elapsed if percent > 0 else None
                 log_eta = eta if eta is not None else None
-                log_portfolio_value = f'{portfolio_value:,.2f}' if portfolio_value is not None else ""
+                if portfolio_value is not None:
+                    if isinstance(portfolio_value, (int, float)):
+                        log_portfolio_value = f'{portfolio_value:,.2f}'
+                    else:
+                        try:
+                            # Try to convert string to float for formatting
+                            log_portfolio_value = f'{float(portfolio_value):,.2f}'
+                        except (ValueError, TypeError):
+                            log_portfolio_value = str(portfolio_value)
+                else:
+                    log_portfolio_value = ""
                 self.log_backtest_progress_to_csv(percent, elapsed, log_eta, log_portfolio_value)
 
     def log_backtest_progress_to_csv(self, percent, elapsed, log_eta, portfolio_value):

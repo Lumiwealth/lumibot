@@ -401,6 +401,16 @@ class Alpaca(Broker):
 
         return orders
 
+    def _validate_custom_params(self, params):
+        """
+        Validate custom params for submitting to orders
+        """
+        # Define allowlist of acceptable custom parameters, add more as needed
+        ALLOWED_PARAMS = {'extended_hours'}
+        if params:
+            return {k: v for k, v in params.items() if k in ALLOWED_PARAMS}
+        return {}
+
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
@@ -450,6 +460,7 @@ class Alpaca(Broker):
 
         # INJECT STRATEGY‑LEVEL CUSTOM_PARAMS
         if getattr(order, "custom_params", None):
+            validated_params = self._validate_custom_params(order.custom_params)
             kwargs.update(order.custom_params)
 
         if order.order_class in [Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]:

@@ -448,6 +448,10 @@ class Alpaca(Broker):
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
 
+        # INJECT STRATEGY‑LEVEL CUSTOM_PARAMS
+        if getattr(order, "custom_params", None):
+            kwargs.update(order.custom_params)
+
         if order.order_class in [Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]:
             child_limit_orders = [child for child in order.child_orders if child.order_type == Order.OrderType.LIMIT]
             child_stop_orders = [child for child in order.child_orders if child.is_stop_order()]

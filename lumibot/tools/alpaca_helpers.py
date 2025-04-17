@@ -14,9 +14,10 @@ def sanitize_base_and_quote_asset(base_asset, quote_asset) -> tuple[Asset, Asset
     # Handle string case
     if isinstance(asset, str):
         # Check if the string matches an option contract
-        pattern = r'^[A-Z]{1,5}\d{6,7}[CP]\d{8}$'
+        pattern = r'^[A-Z]{1,6}\d{6}[CP]\d{8}$'
         if re.match(pattern, asset) is not None:
-            asset = Asset(symbol=asset, asset_type=Asset.AssetType.OPTION)
+            # Use Asset.symbol2asset to ensure full Asset parsing everywhere in lumibot
+            asset = Asset.symbol2asset(asset)
         else:
             asset = Asset(symbol=asset)
 

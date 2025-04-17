@@ -226,7 +226,6 @@ class AlpacaData(DataSource):
         )
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
-
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if asset.asset_type == Asset.AssetType.CRYPTO:
@@ -241,18 +240,28 @@ class AlpacaData(DataSource):
             # The price is the average of the bid and ask
             price = (latest_quote.bid_price + latest_quote.ask_price) / 2
             num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
+            price = quantize_to_num_decimals(price, num_decimals)
+            return price
 
         elif asset.asset_type == Asset.AssetType.OPTION:
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-            logging.info(f"Getting {asset} option price")
-            client = self._get_option_client()
-            params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
-            trade = client.get_option_latest_trade(params)
-            print(f'This {trade} {symbol}')
-            price = trade[symbol].price
-            num_decimals = get_decimals(price)
+            # Defensive: Only try to fetch price if all option fields are present
+            if not (asset.symbol and asset.expiration and asset.right and asset.strike):
+                logging.error(f"Missing required fields for option symbol: {asset}")
+                return None
+            try:
+                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                date = asset.expiration.strftime("%y%m%d")
+                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                client = self._get_option_client()
+                params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
+                trade = client.get_option_latest_trade(params)
+                price = trade[symbol].price
+                num_decimals = get_decimals(price)
+                price = quantize_to_num_decimals(price, num_decimals)
+                return price
+            except Exception as e:
+                logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+                return None
         else:
             # Stocks
             symbol = asset.symbol
@@ -263,10 +272,8 @@ class AlpacaData(DataSource):
             # The price is the average of the bid and ask
             price = (latest_quote.bid_price + latest_quote.ask_price) / 2
             num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
-
-        price = quantize_to_num_decimals(price, num_decimals)
-
-        return price
+            price = quantize_to_num_decimals(price, num_decimals)
+            return price
 
     def get_historical_prices(
             self,
@@ -442,3 +449,65 @@ class AlpacaData(DataSource):
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars
+
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange=None):
+        """
+        Get the latest quote for an asset (stock, option, or crypto).
+        Returns a dictionary with bid, ask, last, and other fields if available.
+        Always includes 'bid' and 'ask' keys (with 0.0 if not available for options).
+        """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
+        if asset.asset_type == Asset.AssetType.CRYPTO:
+            symbol = f"{asset.symbol}/{quote.symbol if quote else 'USD'}"
+            client = self._get_crypto_client()
+            from alpaca.data.requests import CryptoLatestQuoteRequest
+            req = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+            result = client.get_crypto_latest_quote(req)
+            q = result[list(result.keys())[0]]
+            return {
+                "bid": getattr(q, "bid_price", None),
+                "ask": getattr(q, "ask_price", None),
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "exchange": getattr(q, "exchange", None),
+                "timestamp": getattr(q, "timestamp", None),
+                "symbol": symbol,
+            }
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            # Note: Alpaca only supports "market" and "limit" as valid order types for multi-leg orders.
+            # If you pass "credit" or "debit" as the type, Alpaca will return an "invalid order type" error.
+            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = asset.expiration.strftime("%y%m%d")
+            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+            client = self._get_option_client()
+            from alpaca.data.requests import OptionLatestTradeRequest
+            req = OptionLatestTradeRequest(symbol_or_symbols=symbol)
+            trade = client.get_option_latest_trade(req)
+            t = trade[symbol]
+            # Option trades may not have bid/ask, so set to 0.0 for compatibility with downstream code
+            price = t.price if hasattr(t, "price") and t.price is not None else 0.0
+            return {
+                "bid": price,
+                "ask": price,
+                "last": price,
+                "price": price,
+                "size": getattr(t, "size", None),
+                "exchange": getattr(t, "exchange", None),
+                "conditions": getattr(t, "conditions", None),
+                "timestamp": getattr(t, "timestamp", None),
+                "symbol": symbol,
+            }
+        else:
+            # Stocks
+            symbol = asset.symbol
+            client = self._get_stock_client()
+            from alpaca.data.requests import StockLatestQuoteRequest
+            req = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+            q = client.get_stock_latest_quote(req)[symbol]
+            return {
+                "bid": getattr(q, "bid_price", None),
+                "ask": getattr(q, "ask_price", None),
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "exchange": getattr(q, "exchange", None),
+                "timestamp": getattr(q, "timestamp", None),
+                "symbol": symbol,
+            }

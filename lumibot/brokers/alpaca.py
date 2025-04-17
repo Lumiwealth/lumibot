@@ -401,8 +401,134 @@ class Alpaca(Broker):
 
         return orders
 
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+        """
+        Submit multiple orders to the broker. Supports multi-leg (MLeg) orders for options.
+        """
+        if not orders or len(orders) == 0:
+            return
+
+        if is_multileg:
+            tag = orders[0].tag if hasattr(orders[0], "tag") and orders[0].tag else orders[0].strategy
+            parent_order = self._submit_multileg_order(orders, order_type, duration, price, tag)
+            return [parent_order]
+        else:
+            sub_orders = []
+            for order in orders:
+                sub_orders.append(self._submit_order(order))
+            return sub_orders
+
+    def _submit_multileg_order(self, orders, order_type="limit", duration="day", price=None, tag=None):
+        """
+        Submit a multi-leg (MLeg) options order to Alpaca.
+
+        Note:
+        - Tradier uses "credit" for net credit (receive premium) and "debit" for net debit (pay premium).
+        - Alpaca only supports "market" and "limit" for multi-leg orders.
+        - We convert "credit" and "debit" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
+        - The sign of the limit price (positive/negative) is not used by Alpaca to distinguish credit/debit.
+        - Alpaca requires that the leg ratio quantities are relatively prime (GCD == 1).
+        """
+        # Convert Tradier-specific order types to Alpaca-supported types
+        if order_type in ("credit", "debit"):
+            order_type = "limit"
+        # All legs must have the same underlying symbol
+        symbol = orders[0].asset.symbol
+        qty = str(orders[0].quantity)
+        # Compose legs
+        legs = []
+        leg_quantities = []
+        for order in orders:
+            # Format option symbol
+            if order.asset.asset_type == Asset.AssetType.OPTION:
+                strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                date = order.asset.expiration.strftime("%y%m%d")
+                option_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
+            else:
+                option_symbol = order.asset.symbol
+            # Determine position_intent (buy_to_open, sell_to_open, etc.)
+            position_intent = getattr(order, "position_intent", None)
+            if not position_intent:
+                # Check if we have an open position in this option
+                pos = self.get_tracked_position(order.strategy, order.asset)
+                if pos is not None and pos.quantity != 0:
+                    # Closing position
+                    if order.side == "buy":
+                        position_intent = "buy_to_close"
+                    elif order.side == "sell":
+                        position_intent = "sell_to_close"
+                else:
+                    # Opening position
+                    if order.side == "buy":
+                        position_intent = "buy_to_open"
+                    elif order.side == "sell":
+                        position_intent = "sell_to_open"
+            # Collect leg quantities for GCD check
+            leg_qty = int(abs(order.quantity))
+            leg_quantities.append(leg_qty)
+            legs.append({
+                "symbol": option_symbol,
+                "ratio_qty": str(order.quantity),
+                "side": order.side,
+                "position_intent": position_intent
+            })
+        # Ensure leg ratio quantities are relatively prime (GCD == 1)
+        from math import gcd
+        from functools import reduce
+        if len(leg_quantities) > 1:
+            leg_gcd = reduce(gcd, leg_quantities)
+            if leg_gcd > 1:
+                # Divide all ratio_qty by GCD to make them relatively prime
+                for i, leg in enumerate(legs):
+                    orig_qty = int(leg["ratio_qty"])
+                    new_qty = int(orig_qty // leg_gcd)
+                    leg["ratio_qty"] = str(new_qty)
+                qty = str(int(qty) // leg_gcd)
+        # Compose order payload
+        kwargs = {
+            "order_class": "mleg",
+            "qty": qty,
+            "type": order_type or "limit",
+            "time_in_force": duration,
+            "legs": legs,
+        }
+        # For limit/credit/debit orders, price is required
+        if (order_type in ["limit", "credit", "debit", None]) and price is None:
+            raise ValueError("limit price is required for limit orders (multi-leg) on Alpaca.")
+        if price is not None:
+            # Ensure limit price is at most 2 decimal places (Alpaca requirement)
+            limit_price = round(float(price), 2)
+            kwargs["limit_price"] = limit_price
+        # Submit order
+        try:
+            response = self.api.submit_order(order_data=OrderData(**kwargs))
+            parent_asset = Asset(symbol=symbol)
+            parent_order = Order(
+                identifier=response.id,
+                asset=parent_asset,
+                strategy=orders[0].strategy,
+                order_class=Order.OrderClass.MULTILEG,
+                side=orders[0].side,
+                quantity=orders[0].quantity,
+                order_type=orders[0].order_type,
+                time_in_force=duration,
+                limit_price=price,
+                tag=tag,
+                status=Order.OrderStatus.SUBMITTED
+            )
+            for o in orders:
+                o.parent_identifier = parent_order.identifier
+            parent_order.child_orders = orders
+            parent_order.update_raw(response)
+            self._unprocessed_orders.append(parent_order)
+            return parent_order
+        except Exception as e:
+            for o in orders:
+                o.set_error(e)
+            raise
+
     def _submit_order(self, order):
-        """Submit an order for an asset"""
+        """Submit an order for an asset (single-leg, including options)"""
 
         # For Alpaca, only "gtc" and "ioc" orders are supported for crypto
         # TODO: change this if Alpaca allows new order types for crypto
@@ -415,12 +541,13 @@ class Alpaca(Broker):
 
         qty = str(order.quantity)
 
-        if order.asset.asset_type == Asset.AssetType.CRYPTO:
-            trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
-        elif order.asset.asset_type == Asset.AssetType.OPTION:
+        # Compose symbol for option
+        if order.asset.asset_type == Asset.AssetType.OPTION:
             strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
             date = order.asset.expiration.strftime("%y%m%d")
             trade_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
+        elif order.asset.asset_type == Asset.AssetType.CRYPTO:
+            trade_symbol = f"{order.asset.symbol}/{order.quote.symbol}"
         else:
             trade_symbol = order.asset.symbol
 
@@ -434,7 +561,7 @@ class Alpaca(Broker):
         limit_price = order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
         kwargs = {
             "symbol": trade_symbol,
-            "qty": qty,
+            "qty": str(order.quantity),
             "side": order.side,
             "type": alpaca_type,
             "order_class": order.order_class,
@@ -629,3 +756,10 @@ class Alpaca(Broker):
                 loop.run_until_complete(self.stream.close(should_renew))
                 if loop.is_running():
                     loop.close()
+
+    def get_quote(self, asset: Asset, quote: Asset = None):
+        """
+        Get the latest quote for an asset (stock, option, or crypto).
+        Returns a dictionary with bid, ask, last, and other fields if available.
+        """
+        return self.data_source.get_quote(asset, quote)

@@ -1,4 +1,5 @@
 import inspect
+import math
 import time
 import traceback
 import json
@@ -175,12 +176,58 @@ class StrategyExecutor(Thread):
                     for order_attr in order_attrs:
                         olumi = getattr(order_lumi, order_attr)
                         obroker = getattr(order, order_attr)
-                        if olumi != obroker:
+                        if olumi is not None and obroker is not None:  # Ensure both values are not None
+                            if isinstance(olumi, float) and isinstance(obroker, float):
+                                # check if both are floats
+                                if not math.isclose(olumi, obroker, abs_tol=1e-9):
+                                    setattr(order_lumi, order_attr, obroker)
+                                    self.strategy.logger.warning(
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker "
+                                        f"and both are floats"
+                                    )
+                            elif isinstance(olumi, (int, float)) and isinstance(obroker, (int, float)):
+                                # check if both are ints
+                                if isinstance(olumi, int) and isinstance(obroker, int):
+                                    if olumi != obroker:
+                                        setattr(order_lumi, order_attr, obroker)
+                                        self.strategy.logger.warning(
+                                            f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                            f"to be {obroker} because what we have in memory does not match the broker "
+                                            f"and both are ints."
+                                        )
+                                elif not math.isclose(float(olumi), float(obroker), abs_tol=1e-9):
+                                    # Convert to float for comparison
+                                    setattr(order_lumi, order_attr, obroker)
+                                    self.strategy.logger.warning(
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker "
+                                        f"and one is float and one is int."
+                                    )
+
+                            elif type(olumi) == type(obroker):  # Compare if types are the same
+                                if olumi != obroker:
+                                    setattr(order_lumi, order_attr, obroker)
+                                    self.strategy.logger.warning(
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker "
+                                        f"and they are both the same type: {type(olumi)}."
+                                    )
+                            else:
+                                setattr(order_lumi, order_attr, obroker)  # Update if types are different
+                                self.strategy.logger.warning(
+                                    f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                    f"to be {obroker} because what we have in memory does not match the broker "
+                                    f"and the types are different."
+                                )
+                        elif olumi != obroker:  # Handle cases where one or both are None
                             setattr(order_lumi, order_attr, obroker)
                             self.strategy.logger.warning(
                                 f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                f"to be {obroker} because what we have in memory does not match the broker."
+                                f"to be {obroker} because what we have in memory does not match the broker "
+                                f" and one or both are none."
                             )
+
                 else:
                     # If it is the brokers first iteration then fully process the order because it is likely
                     # that the order was filled/canceled/etc before the strategy started. This is also a recovery

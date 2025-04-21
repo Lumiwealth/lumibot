@@ -10,6 +10,10 @@ from typing import Union
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
 from alpaca.trading.stream import TradingStream
+from alpaca.trading.requests import ReplaceOrderRequest
+from alpaca.data.historical.option import OptionHistoricalDataClient
+from alpaca.data.requests import OptionSnapshotRequest
+
 from dateutil import tz
 from termcolor import colored
 
@@ -341,47 +345,112 @@ class Alpaca(Broker):
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
-
-        # If the symbol includes a slash, then it is a crypto order and only the first part of
-        # the symbol is the real symbol
-        if "/" in response.symbol:
-            symbol = response.symbol.split("/")[0]
+        # Handle missing symbol and fallback to raw if possible
+        if isinstance(response, dict):
+            resp_raw = response
+        elif hasattr(response, '_raw') and isinstance(response._raw, dict):
+            resp_raw = response._raw
         else:
-            symbol = response.symbol
+            resp_raw = {}
 
-        # Alpaca Order type/class mostly matches LumiBot's Order type/class with exceptons of 'mleg' and 'trailing_stop'
-        limit_price = response.limit_price if response.order_type != Order.OrderType.STOP_LIMIT else None
-        stop_limit_price = response.limit_price if response.order_type == Order.OrderType.STOP_LIMIT else None
-        order_class = response.order_class if response.order_class != "mleg" else Order.OrderClass.MULTILEG
-        order_type = response.order_type if response.order_type != "trailing_stop" else Order.OrderType.TRAIL
+        # Primary symbol from attribute or raw JSON
+        resp_symbol = getattr(response, 'symbol', None) or resp_raw.get('symbol')
+
+        # Fallback: for multi-leg parent orders, use the first leg's symbol
+        if resp_symbol is None:
+            first_leg_symbol = None
+            legs = resp_raw.get('legs') if isinstance(resp_raw, dict) else None
+            if legs is None and hasattr(response, 'legs'):
+                legs = getattr(response, 'legs')
+            if isinstance(legs, list) and legs:
+                first_leg = legs[0]
+                if isinstance(first_leg, dict):
+                    first_leg_symbol = first_leg.get('symbol')
+                else:
+                    first_leg_symbol = getattr(first_leg, 'symbol', None)
+            if first_leg_symbol:
+                resp_symbol = first_leg_symbol
+            else:
+                raise ValueError(f"Order symbol is missing in response for order id {getattr(response, 'id', None)}")
+
+        # Parse crypto symbol format
+        if "/" in resp_symbol:
+            symbol = resp_symbol.split("/")[0]
+        else:
+            symbol = resp_symbol
+
+        # Retrieve order fields, falling back to raw JSON for multi-leg legs
+        if isinstance(response, dict):
+            resp_raw = response
+        elif hasattr(response, '_raw') and isinstance(response._raw, dict):
+            resp_raw = response._raw
+        else:
+            resp_raw = {}
+
+        # Asset class for mapping
+        asset_class_value = getattr(response, 'asset_class', None) or resp_raw.get('asset_class')
+        # Fallback: try to get asset_class from first leg if missing
+        if asset_class_value is None:
+            legs = resp_raw.get('legs') if isinstance(resp_raw, dict) else None
+            if legs is None and hasattr(response, 'legs'):
+                legs = getattr(response, 'legs')
+            if isinstance(legs, list) and legs:
+                first_leg = legs[0]
+                if isinstance(first_leg, dict):
+                    asset_class_value = first_leg.get('asset_class')
+                else:
+                    asset_class_value = getattr(first_leg, 'asset_class', None)
+        # Quantity and side
+        qty_value = getattr(response, 'qty', None) or resp_raw.get('qty')
+        side_value = getattr(response, 'side', None) or resp_raw.get('side')
+
+        # Determine order and class types
+        order_type_value = getattr(response, 'order_type', None) or resp_raw.get('type')
+        order_class_raw = getattr(response, 'order_class', None) or resp_raw.get('order_class')
+        order_class_value = order_class_raw if order_class_raw != "mleg" else Order.OrderClass.MULTILEG
+
+        # Prices and limits
+        limit_price_value = getattr(response, 'limit_price', None) or resp_raw.get('limit_price')
+        stop_price_value = getattr(response, 'stop_price', None) or resp_raw.get('stop_price')
+        trail_price_value = getattr(response, 'trail_price', None) or resp_raw.get('trail_price')
+        trail_percent_value = getattr(response, 'trail_percent', None) or resp_raw.get('trail_percent')
+        stop_limit_price = limit_price_value if order_type_value == Order.OrderType.STOP_LIMIT or order_type_value == "stop_limit" else None
+
+        # Time in force and status
+        time_in_force_value = getattr(response, 'time_in_force', None) or resp_raw.get('time_in_force')
+        status_value = getattr(response, 'status', None) or resp_raw.get('status')
+
+        # Identifier
+        identifier_value = getattr(response, 'id', None) or resp_raw.get('id')
+
+        # Construct Order object
         order = Order(
             strategy_name,
             Asset(
                 symbol=symbol,
-                asset_type=self.map_asset_type(response.asset_class),
+                asset_type=self.map_asset_type(asset_class_value),
             ),
-            Decimal(response.qty),
-            response.side,
-            limit_price=limit_price,  # order.py always converts to 'float'. Crypto issue?
-            stop_price=response.stop_price,
+            Decimal(qty_value),
+            side_value,
+            limit_price=limit_price_value if order_type_value != Order.OrderType.STOP_LIMIT else None,
+            stop_price=stop_price_value,
             stop_limit_price=stop_limit_price,
-            trail_price=response.trail_price if response.trail_price else None,
-            trail_percent=response.trail_percent if response.trail_percent else None,
-            time_in_force=response.time_in_force,
-            order_class=order_class,
-            order_type=order_type,
-
+            trail_price=trail_price_value if trail_price_value else None,
+            trail_percent=trail_percent_value if trail_percent_value else None,
+            time_in_force=time_in_force_value,
+            order_class=order_class_value,
+            order_type=order_type_value if order_type_value != "trailing_stop" else Order.OrderType.TRAIL,
             # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
             quote=Asset(symbol="USD", asset_type="forex"),
         )
-        order.set_identifier(response.id)
-        order.status = response.status
+        order.set_identifier(identifier_value)
+        order.status = status_value
         order.update_raw(response)
         return order
 
     def _pull_broker_order(self, identifier):
         """Get a broker order representation by its id"""
-        response = self.api.get_order(identifier)
+        response = self.api.get_order_by_id(identifier)
         return response
 
     def _pull_broker_all_orders(self):
@@ -558,19 +627,51 @@ class Alpaca(Broker):
         elif order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
             alpaca_type = Order.OrderType.MARKET
 
-        limit_price = order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
+        # Validate stop-limit orders must have both stop and limit prices
+        if order.order_type == Order.OrderType.STOP_LIMIT and (order.stop_price is None or order.stop_limit_price is None):
+            raise ValueError("stop limit orders require both stop and limit price")
+
+        # Determine raw prices
+        raw_limit = order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
+        raw_stop = order.stop_price
+        raw_trail = order.trail_price
+        raw_trail_pct = order.trail_percent
+
+        # Helper to round according to asset type
+        def _round_price(val: float) -> float:
+            if order.asset.asset_type == Asset.AssetType.STOCK:
+                return round(val, 2) if val >= 1.0 else round(val, 4)
+            if order.asset.asset_type == Asset.AssetType.CRYPTO:
+                return round(val, 9)
+            # options and others: use 3 decimals by default
+            return round(val, 3)
+
+        # Apply rounding
+        limit_price = _round_price(float(raw_limit)) if raw_limit is not None else None
+        stop_price = _round_price(float(raw_stop)) if raw_stop is not None else None
+        trail_price = _round_price(float(raw_trail)) if raw_trail is not None else None
+        trail_percent = _round_price(float(raw_trail_pct)) if raw_trail_pct is not None else None
+
+        # Map extended side values to simple buy/sell for Alpaca API
+        side = order.side
+        if side in ("buy_to_open", "buy_to_close"):
+            side = "buy"
+        elif side in ("sell_to_open", "sell_to_close"):
+            side = "sell"
+
+        # Build kwargs with rounded values and mapped side
         kwargs = {
             "symbol": trade_symbol,
             "qty": str(order.quantity),
-            "side": order.side,
+            "side": side, # Use the mapped side value
             "type": alpaca_type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
             # Crypto can use 9 decimal places on Alpaca
-            "limit_price": str(limit_price) if limit_price else None,
-            "stop_price": str(order.stop_price) if order.stop_price else None,
-            "trail_price": str(order.trail_price) if order.trail_price else None,
-            "trail_percent": str(order.trail_percent) if order.trail_percent else None,
+            "limit_price": str(limit_price) if limit_price is not None else None,
+            "stop_price": str(stop_price) if stop_price is not None else None,
+            "trail_price": str(trail_price) if trail_price is not None else None,
+            "trail_percent": str(trail_percent) if trail_percent is not None else None,
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
@@ -598,6 +699,39 @@ class Alpaca(Broker):
                     )
 
         try:
+            # Conform stop/stop_limit prices for stocks to Alpaca's minimum increment (0.01)
+            if order.asset.asset_type == Asset.AssetType.STOCK:
+                # Conform stop_price
+                if order.is_stop_order() and order.stop_price is not None:
+                    orig_stop = order.stop_price
+                    conformed = False
+                    if has_more_than_n_decimal_places(order.stop_price, 2):
+                        order.stop_price = round(order.stop_price, 2)
+                        conformed = True
+                    if conformed:
+                        logger.warning(
+                            f"Order {order} was changed to conform to Alpaca's requirements. "
+                            f"The stop price was changed from {orig_stop} to {order.stop_price}."
+                        )
+                    # Update kwargs for stop_price
+                    if "stop_price" in kwargs:
+                        kwargs["stop_price"] = str(order.stop_price)
+                # Conform stop_limit_price
+                if order.order_type == Order.OrderType.STOP_LIMIT and order.stop_limit_price is not None:
+                    orig_stop_limit = order.stop_limit_price
+                    conformed = False
+                    if has_more_than_n_decimal_places(order.stop_limit_price, 2):
+                        order.stop_limit_price = round(order.stop_limit_price, 2)
+                        conformed = True
+                    if conformed:
+                        logger.warning(
+                            f"Order {order} was changed to conform to Alpaca's requirements. "
+                            f"The stop limit price was changed from {orig_stop_limit} to {order.stop_limit_price}."
+                        )
+                    # Update kwargs for stop_loss.limit_price if present
+                    if "stop_loss" in kwargs and "limit_price" in kwargs["stop_loss"]:
+                        kwargs["stop_loss"]["limit_price"] = float(order.stop_limit_price)
+
             order_data = OrderData(**kwargs)
             response = self.api.submit_order(order_data=order_data)
 
@@ -613,6 +747,20 @@ class Alpaca(Broker):
                 logger.error(
                     colored(
                         f"{order} did not go through because the share base price became lesser than the stop loss price.",
+                        color="red",
+                    )
+                )
+            elif "sub-penny increment does not fulfill minimum pricing criteria" in message:
+                logger.error(
+                    colored(
+                        f"{order} did not go through because the stop price or stop limit price does not conform to Alpaca's minimum increment (0.01).",
+                        color="red",
+                    )
+                )
+            elif "stop limit orders require both stop and limit price" in message:
+                logger.error(
+                    colored(
+                        f"{order} did not go through because both stop and limit price must be set for stop limit orders.",
                         color="red",
                     )
                 )
@@ -667,14 +815,63 @@ class Alpaca(Broker):
         """
         self.api.cancel_order_by_id(order.identifier)
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
-        """
-        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
-        only allowed to change the limit price and/or stop price. If you want to change the quantity,
-        you must cancel the order and submit a new one.
-        """
-        raise NotImplementedError("AlpacaBroker modify order is not implemented.")
+
+    def _modify_order(
+            self,
+            order: Order,
+            limit_price: float | None = None,
+            stop_price: float | None = None,
+        ):
+            """
+            Modify an existing Alpaca order via TradingClient.
+            No‑ops if already filled or canceled. Only limit and/or stop price
+            can be changed—quantity changes still require cancel + new submit.
+            """
+            # Must have been submitted
+            if not order.identifier:
+                raise ValueError(
+                    "Order identifier is missing; cannot modify. Did you submit the order?"
+                )
+
+            # Fetch latest order status from Alpaca
+            try:
+                latest_order = self.api.get_order_by_id(order.identifier)
+                latest_status = getattr(latest_order, "status", None)
+            except Exception as e:
+                logger.error(f"Could not fetch latest order status from Alpaca: {e}")
+                return
+
+            # Skip if done
+            if str(latest_status).lower() in ("filled", "canceled", "canceled_by_user"):
+                return
+
+            # Gather only provided fields
+            update_kwargs: dict[str, float] = {}
+            if limit_price is not None:
+                update_kwargs["limit_price"] = limit_price
+            if stop_price is not None:
+                update_kwargs["stop_price"] = stop_price
+
+            # Nothing to do?
+            if not update_kwargs:
+                return
+
+            # Build the replace request
+            replace_req = ReplaceOrderRequest(**update_kwargs)
+
+            # Try to replace the order on Alpaca, handle APIError for accepted status
+            try:
+                self.api.replace_order_by_id(
+                    order_id=order.identifier,
+                    order_data=replace_req,
+                )
+            except Exception as e:
+                # If error is "cannot replace order in accepted status", just log and skip
+                if hasattr(e, "args") and e.args and "cannot replace order in accepted status" in str(e.args[0]):
+                    logger.info(f"Order {order.identifier} cannot be modified because it is still in 'accepted' status (Alpaca).")
+                    return
+                else:
+                    raise
 
     # =======Account functions=========
 

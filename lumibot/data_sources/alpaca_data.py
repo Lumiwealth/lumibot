@@ -8,6 +8,8 @@ import time
 
 import pandas as pd
 import re
+import requests
+from collections import defaultdict
 from alpaca.data.historical import (
     CryptoHistoricalDataClient,
     StockHistoricalDataClient,
@@ -20,6 +22,7 @@ from alpaca.data.requests import (
     StockLatestQuoteRequest,
     OptionBarsRequest,
     OptionLatestTradeRequest,
+    OptionChainRequest,
 )
 from alpaca.data.timeframe import TimeFrame
 
@@ -46,59 +49,39 @@ class AlpacaData(DataSource):
     TIMESTEP_MAPPING = [
         {
             "timestep": "minute",
-            "representations": [TimeFrame.Minute, "minute"],
+            "representations": [TimeFrame.Minute, "minute", "1m"],
         },
         {
             "timestep": "5 minutes",
-            "representations": [
-                [f"5{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": [TimeFrame(5, TimeFrame.Minute), "5minute", "5m"],
         },
         {
             "timestep": "10 minutes",
-            "representations": [
-                [f"10{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": [TimeFrame(10, TimeFrame.Minute), "10minute", "10m"],
         },
         {
             "timestep": "15 minutes",
-            "representations": [
-                [f"15{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": [TimeFrame(15, TimeFrame.Minute), "15minute", "15m"],
         },
         {
             "timestep": "30 minutes",
-            "representations": [
-                [f"30{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": [TimeFrame(30, TimeFrame.Minute), "30minute", "30m"],
         },
         {
             "timestep": "hour",
-            "representations": [
-                [f"{TimeFrame.Hour}", "hour"],
-            ],
-        },
-        {
-            "timestep": "1 hour",
-            "representations": [
-                [f"{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": [TimeFrame.Hour, "1hour", "1h"],
         },
         {
             "timestep": "2 hours",
-            "representations": [
-                [f"2{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": [TimeFrame(2, TimeFrame.Hour), "2hour", "2h"],
         },
         {
             "timestep": "4 hours",
-            "representations": [
-                [f"4{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": [TimeFrame(4, TimeFrame.Hour), "4hour", "4h"],
         },
         {
             "timestep": "day",
-            "representations": [TimeFrame.Day, "day"],
+            "representations": [TimeFrame.Day, "day", "1d"],
         },
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
@@ -218,12 +201,61 @@ class AlpacaData(DataSource):
 
     def get_chains(self, asset: Asset, quote=None, exchange: str = None):
         """
-        Alpaca doesn't support option trading. This method is here to comply with the DataSource interface
+        Retrieves the option chain for the given underlying symbol using Alpaca's Python SDK.
+        Returns a dict with:
+          - "Multiplier": contract multiplier (usually 100)
+          - "Exchange": exchange identifier (set to "unknown")
+          - "Chains": dict with keys "CALL" and "PUT", each mapping expiration dates to sorted strike lists
         """
-        raise NotImplementedError(
-            "Lumibot AlpacaData does not support get_chains() options data. If you need this "
-            "feature, please use a different data source."
-        )
+        symbol = asset.symbol
+        client = self._get_option_client()
+        # Build and send the chain request
+        req = OptionChainRequest(underlying_symbol=symbol)
+        chain_data: dict = client.get_option_chain(req)
+        # Prepare the output structure
+        chains = {"Multiplier": 100, "Exchange": "unknown", "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
+        # Iterate through snapshots by contract symbol
+        for contract_symbol, snap in chain_data.items():
+            # Parse the contract symbol (e.g., SPY271217P00830000)
+            # Format: UnderlyingYYMMDDTypeStrike(8 digits, 3 decimals)
+            try:
+                # Extract components using regex or string slicing
+                match = re.match(r"([A-Z]+)(\d{6})([CP])(\d{8})", contract_symbol)
+                if not match:
+                    logging.warning(f"Could not parse contract symbol: {contract_symbol}")
+                    continue
+
+                underlying, date_str, type_char, strike_str = match.groups()
+
+                # Check if the parsed underlying matches the requested symbol
+                if underlying != symbol:
+                    continue
+
+                # Parse expiration date
+                yy = int(date_str[:2]) + 2000
+                mm = int(date_str[2:4])
+                dd = int(date_str[4:6])
+                exp_date = f"{yy:04d}-{mm:02d}-{dd:02d}"
+
+                # Option type
+                ctype = "CALL" if type_char == "C" else "PUT"
+
+                # Strike price (price * 1000)
+                strike = float(strike_str) / 1000.0
+
+                if ctype in chains["Chains"]:
+                    chains["Chains"][ctype][exp_date].append(strike)
+
+            except Exception as e:
+                logging.warning(f"Error parsing contract symbol {contract_symbol}: {e}")
+                continue
+
+        # Deduplicate and sort
+        for ctype in ("CALL", "PUT"):
+            for exp_date, strikes in chains["Chains"][ctype].items():
+                chains["Chains"][ctype][exp_date] = sorted(list(set(strikes)))
+
+        return chains
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
@@ -260,7 +292,7 @@ class AlpacaData(DataSource):
                 price = quantize_to_num_decimals(price, num_decimals)
                 return price
             except Exception as e:
-                logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+                logging.debug(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
                 return None
         else:
             # Stocks
@@ -323,7 +355,7 @@ class AlpacaData(DataSource):
             include_after_hours: bool = True
     ) -> Optional[pd.DataFrame]:
 
-        timeframe = self._parse_source_timestep(timestep, reverse=True)
+        timeframe = self._parse_source_timestep(timestep, reverse=False)
 
         now = dt.datetime.now(self._tzinfo)
 
@@ -511,3 +543,37 @@ class AlpacaData(DataSource):
                 "timestamp": getattr(q, "timestamp", None),
                 "symbol": symbol,
             }
+
+    def query_greeks(self, asset: Asset):
+        """
+        Get the option greeks for an option asset via Alpaca Market Data API.
+        Returns a dict mapping greek names to float values, e.g., {'delta': ..., 'gamma': ..., 'theta': ..., 'vega': ..., 'rho': ...}.
+        """
+        # Only options have greeks
+        if asset.asset_type != Asset.AssetType.OPTION:
+            return {}
+
+        # Format option symbol for Alpaca Data API
+        strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+        date = asset.expiration.strftime("%y%m%d")
+        option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+
+        # Initialize the historical data client
+        client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+        request = OptionSnapshotRequest(symbol_or_symbols=option_symbol)
+        try:
+            snapshots = client.get_option_snapshot(request)
+            snapshot = snapshots.get(option_symbol)
+            if not snapshot or not snapshot.greeks:
+                return {}
+            greeks_obj = snapshot.greeks
+            return {
+                'delta': greeks_obj.delta,
+                'gamma': greeks_obj.gamma,
+                'theta': greeks_obj.theta,
+                'vega': greeks_obj.vega,
+                'rho': greeks_obj.rho,
+            }
+        except Exception as e:
+            logging.error(f"Error fetching greeks from Alpaca Data API: {e}")
+            return {}

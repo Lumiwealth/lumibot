@@ -108,6 +108,7 @@ class Alpaca(Broker):
         option=["us_option"],
         future=[],
         forex=[],
+        crypto=["crypto", "CRYPTO"],  # Added support for crypto asset class names
     )
 
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None):
@@ -333,8 +334,10 @@ class Alpaca(Broker):
 
     # =======Orders and assets functions=========
     def map_asset_type(self, alpaca_type):
+        # Make mapping case-insensitive for robustness
+        alpaca_type_lower = alpaca_type.lower() if isinstance(alpaca_type, str) else alpaca_type
         for k, v in self.ASSET_TYPE_MAP.items():
-            if alpaca_type in v:
+            if alpaca_type_lower in [x.lower() for x in v]:
                 return k
         raise ValueError(f"The type {alpaca_type} is not in the ASSET_TYPE_MAP in the Alpaca Module.")
 

@@ -70,7 +70,7 @@ def sanitize_base_and_quote_asset(
         parsed_quote = quote_input
 
     elif isinstance(quote_input, str):
-        parsed_quote = Asset(quote_input, Asset.AssetType.CASH)
+        parsed_quote = Asset(quote_input, Asset.AssetType.FOREX)
 
     elif quote_input is None:
         parsed_quote = Asset(

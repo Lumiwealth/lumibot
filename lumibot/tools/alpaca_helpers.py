@@ -8,7 +8,6 @@ from lumibot import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_AS
 
 _OPTION_SYMBOL_RE = re.compile(r'^([A-Z]+)(\d{6})([CP])(\d{8})$')
 
-
 def sanitize_base_and_quote_asset(
     base_asset: Union[str, Asset, Tuple[Union[str, Asset], Union[str, Asset]]],
     quote_asset: Optional[Union[str, Asset]] = None
@@ -25,7 +24,7 @@ def sanitize_base_and_quote_asset(
 
     For quote_asset:
     - If provided and is an Asset, it's used directly.
-    - If provided and is a string, it's treated as CASH.
+    - If provided and is a string, it's treated as CASH (FOREX).
     - If not provided, the default quote asset (USD CASH) is used.
     """
     # Handle tuple input
@@ -45,6 +44,7 @@ def sanitize_base_and_quote_asset(
             base_sym, quote_sym = asset_input.split('/', 1)
             parsed_asset = Asset(base_sym, Asset.AssetType.CRYPTO)
             quote_input = quote_sym
+
         else:
             m = _OPTION_SYMBOL_RE.match(asset_input)
             if m:
@@ -52,8 +52,9 @@ def sanitize_base_and_quote_asset(
                 expiration = dt.datetime.strptime(exp_str, '%y%m%d').date()
                 strike = Decimal(int(strike_str)) / Decimal('1000')
                 right = 'call' if right_char.upper() == 'C' else 'put'
+                # Use the full option symbol as the Asset.symbol
                 parsed_asset = Asset(
-                    underlying,
+                    asset_input,
                     Asset.AssetType.OPTION,
                     expiration=expiration,
                     strike=strike,
@@ -68,16 +69,13 @@ def sanitize_base_and_quote_asset(
     # Parse quote asset
     if isinstance(quote_input, Asset):
         parsed_quote = quote_input
-
     elif isinstance(quote_input, str):
         parsed_quote = Asset(quote_input, Asset.AssetType.FOREX)
-
     elif quote_input is None:
         parsed_quote = Asset(
             LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
             LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
         )
-
     else:
         raise TypeError(f"Unsupported type for quote_asset: {type(quote_input)}")
 

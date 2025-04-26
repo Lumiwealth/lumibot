@@ -281,6 +281,7 @@ SCHWAB_CONFIG = {
 BITUNIX_CONFIG = {
     "API_KEY": os.environ.get("BITUNIX_API_KEY"),
     "API_SECRET": os.environ.get("BITUNIX_API_SECRET"),
+    "MARGIN_COIN": os.environ.get("BITUNIX_MARGIN_COIN", "USDT"), # Add MARGIN_COIN, default to USDT
 }
 
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")

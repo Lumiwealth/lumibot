@@ -11,6 +11,8 @@ class BitUnixClient:
     """
 
     BASE_URL = "https://fapi.bitunix.com"
+    # Base URL for spot (spot REST prefix is /api/spot/…)
+    SPOT_BASE_URL = "https://openapi.bitunix.com"
     DEFAULT_HEADERS = {
         "language": "en-US",
         "Content-Type": "application/json",
@@ -27,16 +29,17 @@ class BitUnixClient:
     def _timestamp(self) -> str:
         return str(int(time.time() * 1000))
 
-    def _sign(self, params: Dict[str, Any], nonce: str, timestamp: str) -> str:
-        # Build ASCII-sorted "key+value" string
-        qs = "".join(f"{k}{v}" for k, v in sorted(params.items()))
+    def _sign(self, params: Dict[str, Any], body: Optional[Dict[str, Any]], nonce: str, timestamp: str) -> str:
+        # Merge params & JSON‑body dicts for signing
+        merged = {**params, **(body or {})}
+        qs = "".join(f"{k}{v}" for k, v in sorted(merged.items()))
         first = hashlib.sha256((nonce + timestamp + self.api_key + qs).encode()).hexdigest()
         return hashlib.sha256((first + self.secret_key).encode()).hexdigest()
 
-    def _headers(self, params: Dict[str, Any]) -> Dict[str, str]:
+    def _headers(self, params: Dict[str, Any], body: Optional[Dict[str, Any]]) -> Dict[str, str]:
         nonce     = self._nonce()
         timestamp = self._timestamp()
-        sign      = self._sign(params, nonce, timestamp)
+        sign      = self._sign(params, body, nonce, timestamp)
 
         return {
             **self.DEFAULT_HEADERS,
@@ -63,9 +66,12 @@ class BitUnixClient:
             json:     JSON body for POST/PUT
         """
         params = params or {}
-        headers = self._headers(params)
+        headers = self._headers(params, json)
 
-        url = self.BASE_URL + endpoint
+        if endpoint.startswith("/api/spot/"):
+            url = self.SPOT_BASE_URL + endpoint
+        else:
+            url = self.BASE_URL + endpoint
         resp = requests.request(
             method=method.upper(),
             url=url,
@@ -75,13 +81,26 @@ class BitUnixClient:
             timeout=self.timeout,
         )
         resp.raise_for_status()
+        # If the business code is non‑zero, emit a debug log with details
+        try:
+            payload = resp.json()
+            if isinstance(payload, dict) and payload.get("code") not in (0, None):
+                import logging
+                logging.getLogger(__name__).debug(
+                    "BitUnix business error %s on %s %s: %s",
+                    payload.get("code"), method.upper(), endpoint, payload
+                )
+        except Exception:
+            # Wasn't JSON or other error – ignore, will be caught by caller if needed
+            pass
         return resp.json()
 
     # ——— Example wrappers ———
 
     def get_account(self, margin_coin: str = "USDT") -> Dict[str, Any]:
         """
-        Retrieve account metrics for the specified `margin_coin`.
+        Retrieve FUTURES account metrics for the specified `margin_coin`.
+        This might also include spot balances depending on the API implementation.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {... account fields ...}}``
@@ -101,18 +120,19 @@ class BitUnixClient:
         """
         return self._request(
             method="GET",
-            endpoint="/api/v1/futures/position/list",
+            endpoint="/api/v1/futures/position/get_pending_positions",
             params={"marginCoin": margin_coin},
         )
 
     def place_order(
         self,
-        symbol:      str,
-        side:        str,
-        type:        str,
-        quantity:    float,
-        price:       Optional[float] = None,
-        margin_coin: str = "USDT",
+        symbol: str,
+        side: str,
+        orderType: str,
+        qty: float,
+        price: Optional[float] = None,
+        marginCoin: str = "USDT",
+        clientId: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -123,30 +143,88 @@ class BitUnixClient:
         """
         body = {
             "symbol":      symbol,
-            "side":        side,   # "BUY" or "SELL"
-            "type":        type,   # "LIMIT", "MARKET", etc.
-            "quantity":    quantity,
-            "marginCoin":  margin_coin,
-            **({ "price": price } if price is not None else {}),
+            "side":        side,        # BUY / SELL
+            "orderType":   orderType,   # LIMIT / MARKET / ...
+            "qty":         qty,
+            "marginCoin":  marginCoin,
+            **({"price": price}      if price is not None else {}),
+            **({"clientId": clientId} if clientId is not None else {}),
             **kwargs,
         }
         return self._request(
             method="POST",
-            endpoint="/api/v1/futures/order",
+            endpoint="/api/v1/futures/trade/place_order",
             json=body,
         )
 
-    def cancel_order(self, order_id: str, symbol: str, margin_coin: str = "USDT") -> Dict[str, Any]:
+    def cancel_order(self, order_id: str) -> Dict[str, Any]:
         """
-        Cancel one order by `order_id`.
-
-        Returns:
-            Dict[str, Any]: ``{"code": int, "msg": str, "data": {"orderId": str, "status": str}}``
+        Cancel a single FUTURES order.
         """
         return self._request(
-            method="DELETE",
-            endpoint="/api/v1/futures/order",
-            params={"orderId": order_id, "symbol": symbol, "marginCoin": margin_coin},
+            method="POST",
+            endpoint="/api/v1/futures/trade/cancel_orders",
+            json={"orderIds": order_id},
+        )
+
+    # ---------- Spot wrappers ----------
+
+    def place_spot_order(
+        self,
+        symbol: str,
+        side: int,
+        type: int,
+        volume: float,
+        price: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Place a SPOT order.
+
+        side: 1 = SELL, 2 = BUY
+        type: 1 = LIMIT, 2 = MARKET
+        volume: base‑currency quantity for LIMIT, quote‑currency amount for MARKET
+        """
+        body = {
+            "symbol": symbol,
+            "side": side,
+            "type": type,
+            "volume": volume,
+            **({"price": price} if price is not None else {}),
+        }
+        return self._request(
+            method="POST",
+            endpoint="/api/spot/v1/order/place_order",
+            json=body,
+        )
+
+    def cancel_spot_order(self, order_id: str, symbol: str) -> Dict[str, Any]:
+        """
+        Cancel a single SPOT order.
+        """
+        return self._request(
+            method="POST",
+            endpoint="/api/spot/v1/order/cancel",
+            json={"orderIdList": [{"orderId": order_id, "symbol": symbol}]},
+        )
+
+    def spot_last_price(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get last traded price for a SPOT pair.
+        """
+        return self._request(
+            method="GET",
+            endpoint="/api/spot/v1/market/last_price",
+            params={"symbol": symbol},
+        )
+
+    def spot_depth(self, symbol: str, precision: int = 5) -> Dict[str, Any]:
+        """
+        Order‑book snapshot for SPOT.
+        """
+        return self._request(
+            method="GET",
+            endpoint="/api/spot/v1/market/depth",
+            params={"symbol": symbol, "precision": precision},
         )
 
 

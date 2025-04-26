@@ -87,12 +87,10 @@ class BitunixData(DataSource):
             self.client_symbols.add(symbol)
             
             try:
-                resp = self.client.get_tickers(symbol)
+                resp = self.client.spot_last_price(symbol)
                 if resp and resp.get("code") == 0:
-                    data = resp.get("data", [])
-                    if data and len(data) > 0:
-                        price_str = data[0].get("lastPrice")
-                        return Decimal(price_str) if price_str else None
+                    price_str = resp.get("data")
+                    return Decimal(price_str) if price_str else None
             except Exception as e:
                 return None
         
@@ -226,7 +224,7 @@ class BitunixData(DataSource):
         
         try:
             # Get depth data with level 5 (adjust if BitUnix uses different naming)
-            resp = self.client.get_depth(symbol, limit="5")
+            resp = self.client.spot_depth(symbol, precision=5)
             
             if resp and resp.get("code") == 0:
                 depth_data = resp.get("data", {})

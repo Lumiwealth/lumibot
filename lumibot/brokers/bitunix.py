@@ -1,4 +1,5 @@
 import logging, time, traceback
+import decimal
 from decimal import Decimal
 from typing import Optional, List, Dict, Tuple, Any
 import pandas as pd
@@ -8,6 +9,8 @@ import hashlib
 import json
 import os
 import requests
+
+from lumibot.trading_builtins import PollingStream
 
 from lumibot.data_sources.bitunix_data import BitunixData
 from lumibot.brokers import Broker, LumibotBrokerAPIError
@@ -29,30 +32,45 @@ class Bitunix(Broker):
     
     # Default quote asset for crypto transactions
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset("USDT", Asset.AssetType.CRYPTO)
+    DEFAULT_MARGIN_COIN = "USDT" # Default margin coin for futures
+    DEFAULT_POLL_INTERVAL = 5  # seconds between polling cycles
 
-    def __init__(self, config, max_workers: int = 1, chunk_size: int = 100, connect_stream: bool = False, data_source=None):
+    def __init__(self, config, max_workers: int = 1, chunk_size: int = 100, connect_stream: bool = True, poll_interval: Optional[float] = None, data_source=None): # Changed connect_stream default back to True
+        # Ensure _stream_loop exists before calling super, so _launch_stream doesn’t error
+        self._stream_loop = None
         if isinstance(config, dict):
             api_key = config.get("API_KEY")
             api_secret = config.get("API_SECRET")
+            # Get margin coin from config, default to USDT
+            self.margin_coin = config.get("MARGIN_COIN", self.DEFAULT_MARGIN_COIN)
         else:
             api_key = getattr(config, "API_KEY", None)
             api_secret = getattr(config, "API_SECRET", None)
+            self.margin_coin = getattr(config, "MARGIN_COIN", self.DEFAULT_MARGIN_COIN)
+
         if not api_key or not api_secret:
             raise ValueError("API_KEY and API_SECRET must be provided in config")
+
+        # Initialize API client and WS attributes BEFORE calling super().__init__
+        self.api = BitUnixClient(api_key=api_key, secret_key=api_secret)
+        self.api_secret = api_secret  # needed for signing
+        # Private-channel URL per BitUnix docs (kept for reference, but not used for polling)
+        self.ws_url = "wss://fapi.bitunix.com/private/"
+
         if not data_source:
             data_source = BitunixData(config, max_workers=max_workers, chunk_size=chunk_size)
+            # Share the client instance with the data source if it was just created
+            data_source.client = self.api
+
+        self.poll_interval = poll_interval or self.DEFAULT_POLL_INTERVAL
         super().__init__(
             name="bitunix",
-            connect_stream=connect_stream,
+            connect_stream=connect_stream, # Use connect_stream to enable _run_stream thread
             data_source=data_source,
             config=config,
             max_workers=max_workers,
         )
-        # WebSocket streaming configuration
-        self.api = BitUnixClient(api_key=api_key, secret_key=api_secret)
-        self.api_secret = api_secret  # needed for signing
-        self.ws_url = "wss://openapi.bitunix.com:443/ws-api/v1"
-        self._stream_loop = None
+        # Removed asyncio task creation: self._poll_task = asyncio.get_event_loop().create_task(self._poll_loop())
 
     def get_timestamp(self):
         return time.time()
@@ -68,91 +86,124 @@ class Bitunix(Broker):
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> Optional[Tuple[float, float, float]]:
         """
-        Fetches SPOT balances and FUTURES balances.
-        Returns tuple of (total_cash, gross_spot_value, net_liquidation_value)
+        Fetches SPOT and FUTURES balances and returns a tuple of (total_cash, gross_spot_value, net_liquidation_value)
         """
         total_cash = gross_spot = net_liquidation = 0.0
-        quote_symbol = quote_asset.symbol
+        futures_margin_coin_symbol = self.margin_coin
+        primary_quote_asset = self.LUMIBOT_DEFAULT_QUOTE_ASSET
 
-        # SPOT balances
-        try:
-            # Using the account balance endpoint for spot assets
-            resp = self.api.get_account()
-            self.logger.info(resp)
-            # Check if the response is valid
-            if resp and resp.get("code") == 0:
-                balances = resp.get("data", {}).get("balances", [])
-                for balance in balances:
-                    asset_symbol = balance.get("asset", "")
-                    free_amount = Decimal(balance.get("free", "0"))
-                    locked_amount = Decimal(balance.get("locked", "0"))
-                    total_amount = free_amount + locked_amount
-                    
-                    if total_amount > 0:
-                        if asset_symbol == quote_symbol:
-                            # This is the quote currency, add to cash
-                            total_cash += float(total_amount)
-                            net_liquidation += float(total_amount)
-                        else:
-                            # For other assets, get market value in quote currency
-                            try:
-                                price = self.data_source.get_last_price(
-                                    Asset(asset_symbol, Asset.AssetType.CRYPTO),
-                                    quote_asset
-                                )
-                                if price:
-                                    value = float(total_amount * price)
-                                    gross_spot += value
-                                    net_liquidation += value
-                            except Exception:
-                                logger.warning(f"Could not get price for {asset_symbol}")
-        except Exception:
-            logger.error("Error fetching spot balances")
-            logger.error(traceback.format_exc())
+        # ---------- 1) FUTURES wallet ----------
+        fut_resp = self.api.get_account(margin_coin=futures_margin_coin_symbol)
+        if isinstance(fut_resp, dict):
+            data = fut_resp.get("data", [])
+            if isinstance(data, list) and data:
+                fut_data = data[0]
+            elif isinstance(data, dict):
+                fut_data = data
+            else:
+                fut_data = {}
+            # Add available futures margin to cash
+            available_amt = Decimal(fut_data.get("available", "0") or "0")
+            if available_amt:
+                if futures_margin_coin_symbol == primary_quote_asset.symbol:
+                    total_cash += float(available_amt)
+                else:
+                    conv_price = self.data_source.get_last_price(
+                        Asset(futures_margin_coin_symbol, Asset.AssetType.CRYPTO),
+                        primary_quote_asset
+                    )
+                    if conv_price:
+                        total_cash += float(available_amt * conv_price)
+            # Compute equity
+            available     = Decimal(fut_data.get("available", "0") or "0")
+            frozen        = Decimal(fut_data.get("frozen",    "0") or "0")
+            margin        = Decimal(fut_data.get("margin",    "0") or "0")
+            cross_pnl     = Decimal(fut_data.get("crossUnrealizedPNL", "0") or "0")
+            isolation_pnl = Decimal(fut_data.get("isolationUnrealizedPNL", "0") or "0")
+            fut_equity    = available + frozen + margin + cross_pnl + isolation_pnl
+            if futures_margin_coin_symbol == primary_quote_asset.symbol:
+                net_liquidation += float(fut_equity)
+            else:
+                conv_price = self.data_source.get_last_price(
+                    Asset(futures_margin_coin_symbol, Asset.AssetType.CRYPTO),
+                    primary_quote_asset
+                )
+                if conv_price:
+                    net_liquidation += float(fut_equity * conv_price)
+        else:
+            logger.warning("Unexpected futures account response type: %s", type(fut_resp))
 
-        # FUTURES balances and positions
-        try:
-            fut_resp = self.api.get_account(margin_coin=quote_symbol)
-            if fut_resp and fut_resp.get("code") == 0:
-                data = fut_resp.get("data") or {}
-                margin_balance = Decimal(data.get("marginBalance", "0"))
-                unrealized_pnl  = Decimal(data.get("unrealizedPnl",    "0"))
-                net_liquidation += float(margin_balance + unrealized_pnl)
-        except Exception:
-            logger.warning("Error fetching futures balances, skipping")
-            logger.warning(traceback.format_exc())
-        
+        # ---------- 2) SPOT wallet ----------
+        spot_resp = self.api._request(
+            method="GET",
+            endpoint="/api/spot/v1/user/account",
+        )
+        if isinstance(spot_resp, dict):
+            data_list = spot_resp.get("data", [])
+            if isinstance(data_list, list):
+                for bal in data_list:
+                    asset_sym = bal.get("coin", "")
+                    free      = Decimal(str(bal.get("balance", 0) or 0))
+                    locked    = Decimal(str(bal.get("balanceLocked", 0) or 0))
+                    total_amt = free + locked
+                    if total_amt == 0:
+                        continue
+                    if asset_sym == primary_quote_asset.symbol:
+                        total_cash      += float(total_amt)
+                        net_liquidation += float(total_amt)
+                    else:
+                        px = self.data_source.get_last_price(
+                            Asset(asset_sym, Asset.AssetType.CRYPTO),
+                            primary_quote_asset
+                        )
+                        if px:
+                            val             = float(total_amt * px)
+                            gross_spot     += val
+                            net_liquidation += val
+            else:
+                logger.warning("Unexpected spot data format: %s", spot_resp)
+        else:
+            logger.warning("Unexpected spot account response type: %s", type(spot_resp))
+
         return (total_cash, gross_spot, net_liquidation)
 
     def _pull_positions(self, strategy) -> List[Position]:
         """
         Retrieves both SPOT and FUTURES positions.
+        Spot positions are inferred from the main account balances.
+        Futures positions are fetched from the history endpoint.
         """
         positions=[]
         strategy_name = strategy.name if strategy else ""
 
-        # SPOT positions from balances
+        # SPOT positions from balances (inferred from main account endpoint)
         try:
-            resp = self.api.get_account()
+            # Use the main account endpoint
+            resp = self.api.get_account(margin_coin=self.LUMIBOT_DEFAULT_QUOTE_ASSET.symbol) # Use default quote
             if resp and resp.get("code") == 0:
+                # Check if 'balances' key exists for spot-like assets
                 balances = resp.get("data", {}).get("balances", [])
-                
-                for balance in balances:
-                    asset_symbol = balance.get("asset", "")
-                    free_amount = Decimal(balance.get("free", "0"))
-                    locked_amount = Decimal(balance.get("locked", "0"))
-                    total_amount = free_amount + locked_amount
-                    
-                    # Only create positions for non-zero, non-quote assets
-                    if total_amount > 0 and asset_symbol != self.LUMIBOT_DEFAULT_QUOTE_ASSET.symbol:
-                        asset = Asset(asset_symbol, Asset.AssetType.CRYPTO)
-                        position = Position(strategy_name, asset, total_amount)
-                        positions.append(position)
+                if balances:
+                    for balance in balances:
+                        asset_symbol = balance.get("asset", "")
+                        free_amount = Decimal(balance.get("free", "0"))
+                        locked_amount = Decimal(balance.get("locked", "0"))
+                        total_amount = free_amount + locked_amount
+
+                        # Only create positions for non-zero, non-quote assets
+                        if total_amount > 0 and asset_symbol != self.LUMIBOT_DEFAULT_QUOTE_ASSET.symbol:
+                            # Assume these are spot crypto assets
+                            asset = Asset(asset_symbol, Asset.AssetType.CRYPTO)
+                            position = Position(strategy_name, asset, total_amount)
+                            positions.append(position)
+                else:
+                     #logger.info("No 'balances' key in account response, cannot infer spot positions.")
+                     pass
         except Exception:
-            logger.error("Error fetching spot positions")
+            logger.error("Error fetching spot positions from account balance")
             logger.error(traceback.format_exc())
 
-        # FUTURES positions (use history endpoint)
+        # FUTURES positions (use history endpoint - unchanged)
         try:
             resp = self.api.get_history_positions(symbol=None, skip=0, limit=100)
             if resp and resp.get("code") == 0:
@@ -208,7 +259,8 @@ class Bitunix(Broker):
         # Determine symbol format based on asset type
         if order.asset.asset_type == Asset.AssetType.FUTURE:
             symbol = order.asset.symbol
-            margin_coin = order.quote.symbol if order.quote else "USDT"
+            # Use configured margin coin
+            margin_coin = self.margin_coin 
         else:
             # Spot trading pair
             symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
@@ -227,43 +279,28 @@ class Bitunix(Broker):
                     "symbol": symbol,
                     "side": self._map_side_to_bitunix(order.side),
                     "orderType": self._map_type_to_bitunix(order.order_type),
-                    "quantity": quantity,
+                    "qty": quantity,
                     "marginCoin": margin_coin,
-                    "clientOrderId": client_order_id,
+                    "clientId": client_order_id,
                 }
-                
-                # Add optional parameters
                 if price is not None:
                     params["price"] = price
-                
-                # Add leverage if specified
-                if hasattr(order, "leverage") and order.leverage:
-                    params["leverage"] = order.leverage
-                
-                # Determine if this is opening or closing a position
-                position_side = "OPEN"
-                if hasattr(order, "reduce_only") and order.reduce_only:
-                    position_side = "CLOSE"
-                params["tradeSide"] = position_side
-                
                 # Submit order
                 response = self.api.place_order(**params)
             else:
                 # SPOT order
+                side_code = 2 if order.side == Order.OrderSide.BUY else 1   # 2 = buy, 1 = sell
+                type_code = 1 if order.order_type == Order.OrderType.LIMIT else 2  # 1 = limit, 2 = market
                 params = {
                     "symbol": symbol,
-                    "side": self._map_side_to_bitunix(order.side),
-                    "type": self._map_type_to_bitunix(order.order_type),
-                    "quantity": quantity,
-                    "clientOrderId": client_order_id,
+                    "side": side_code,
+                    "type": type_code,
+                    "volume": quantity,
                 }
-                
-                # Add price for limit orders
                 if price is not None:
                     params["price"] = price
-                
-                # Submit order
-                response = self.api.place_order(**params)
+
+                response = self.api.place_spot_order(**params)
             
             # Process response
             if response and response.get("code") == 0:
@@ -275,20 +312,24 @@ class Bitunix(Broker):
                     order.status = Order.OrderStatus.SUBMITTED
                     order.update_raw(response)
                     self._unprocessed_orders.append(order)
-                    self.stream.dispatch(self.NEW_ORDER, order=order)
+                    # Use self._process_trade_event for consistency
+                    self._process_trade_event(order, self.NEW_ORDER)
                 else:
                     error_msg = f"No order ID in response: {response}"
                     order.set_error(LumibotBrokerAPIError(error_msg))
-                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+                    # Use self._process_trade_event for consistency
+                    self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(error_msg))
             else:
                 error_msg = f"Error placing order: {response}"
                 order.set_error(LumibotBrokerAPIError(error_msg))
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+                # Use self._process_trade_event for consistency
+                self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(error_msg))
                 
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
             order.set_error(e)
-            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+            # Use self._process_trade_event for consistency
+            self._process_trade_event(order, self.ERROR_ORDER, error=e)
             
         return order
 
@@ -302,34 +343,28 @@ class Bitunix(Broker):
         try:
             # Determine symbol format based on asset type
             if order.asset.asset_type == Asset.AssetType.FUTURE:
-                symbol = order.asset.symbol
-                margin_coin = order.quote.symbol if order.quote else "USDT"
-                
-                # Cancel futures order
-                response = self.api.cancel_order(
-                    order_id=order.identifier,
-                    symbol=symbol,
-                    margin_coin=margin_coin
-                )
+                response = self.api.cancel_order(order_id=order.identifier)
             else:
-                # Spot order
                 symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
-                
-                # Cancel spot order
-                response = self.api.cancel_order(
+                response = self.api.cancel_spot_order(
                     order_id=order.identifier,
                     symbol=symbol
                 )
-                
             # Check response
             if response and response.get("code") == 0:
-                order.status = Order.OrderStatus.CANCELED
-                self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                # Use self._process_trade_event for consistency
+                self._process_trade_event(order, self.CANCELED_ORDER)
             else:
-                raise LumibotBrokerAPIError(f"Failed to cancel order: {response}")
-                
+                # Log error but don't raise, let polling handle final state
+                logger.error(f"Failed to cancel order {order.identifier}: {response}")
+                # Optionally dispatch an error event if immediate feedback is needed
+                # self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Failed to cancel order: {response}"))
         except Exception as e:
-            raise LumibotBrokerAPIError(f"Error canceling order: {str(e)}")
+             # Log error but don't raise, let polling handle final state
+            logger.error(f"Error canceling order {order.identifier}: {str(e)}")
+            # Optionally dispatch an error event
+            # self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Error canceling order: {str(e)}"))
+            pass # Don't raise, rely on polling
 
     def _pull_broker_order(self, identifier: str, asset_type: Asset.AssetType=Asset.AssetType.CRYPTO) -> Optional[Dict]:
         """
@@ -505,68 +540,35 @@ class Bitunix(Broker):
 
     async def _authenticate_ws(self, ws: websockets.WebSocketClientProtocol):
         """Authenticate on the private WebSocket channel using API key and secret."""
-        timestamp = str(int(time.time() * 1000))
-        nonce = str(int(time.time() * 1000000))
-        
-        # Create signature according to BitUnix WebSocket API docs
+        timestamp = str(int(time.time()))
+        nonce = str(int(time.time() * 1_000_000))
         digest = hashlib.sha256((nonce + timestamp + self.api.api_key).encode()).hexdigest()
         sign = hashlib.sha256((digest + self.api_secret).encode()).hexdigest()
-        
-        auth_payload = {
-            "op": "login", 
+        await ws.send(json.dumps({
+            "op": "login",
             "args": [{
                 "apiKey": self.api.api_key,
                 "timestamp": timestamp,
                 "nonce": nonce,
                 "sign": sign
             }]
-        }
-        await ws.send(json.dumps(auth_payload))
-        
-        # Wait for auth response
-        response = await ws.recv()
-        auth_resp = json.loads(response)
-        
-        if auth_resp.get("code") != 0:
-            logger.error(f"WebSocket authentication failed: {auth_resp}")
-            raise Exception(f"WebSocket authentication failed: {auth_resp}")
+        }))
+        # Loop until login response arrives
+        while True:
+            raw = await ws.recv()
+            msg = json.loads(raw)
+            if msg.get("op") == "connect":
+                continue
+            if msg.get("op") == "login":
+                if msg.get("code") != 0:
+                    raise Exception(f"WebSocket auth failed: {msg}")
+                break
 
-    async def _subscribe_channels(self, ws: websockets.WebSocketClientProtocol):
-        """Subscribe to necessary public and private channels."""
-        # Get tracked symbols from data source
-        symbols = getattr(self.data_source, "client_symbols", set())
-        
-        # Create subscription arguments
-        args = []
-        for symbol in symbols:
-            # Market data channels
-            args.extend([
-                {"ch": "market.kline.1m", "symbol": symbol},
-                {"ch": "market.depth", "symbol": symbol},
-                {"ch": "market.ticker", "symbol": symbol}
-            ])
-        
-        # Add private channels for all symbols
-        args.extend([
-            {"ch": "user.order"},
-            {"ch": "user.trade"},
-            {"ch": "user.position"}
-        ])
-        
-        # Subscribe
-        subscribe_payload = {"op": "subscribe", "args": args}
-        await ws.send(json.dumps(subscribe_payload))
-        
-        # Wait for subscription response
-        response = await ws.recv()
-        sub_resp = json.loads(response)
-        
-        if sub_resp.get("code") != 0:
-            logger.warning(f"Some WebSocket subscriptions may have failed: {sub_resp}")
+    # Subscription logic is now handled in _run_stream per new spec
 
     def _get_stream_object(self):
-        """Use the broker itself as the stream handler."""
-        return self
+        """Returns the stream object for polling."""
+        return PollingStream(self)
 
     def _register_stream_events(self):
         """No-op: WS messages are handled directly in _handle_stream_message."""
@@ -576,6 +578,10 @@ class Bitunix(Broker):
         """Parse incoming WS messages and dispatch Lumibot events."""
         try:
             msg = json.loads(message)
+            # Auto‑reply to server ping
+            if msg.get("op") == "ping" and "ping" in msg:
+                await self._ws.send(json.dumps({"op": "ping", "pong": msg["ping"], "ping": int(time.time())}))
+                return
             channel = msg.get('ch') or msg.get('method')
             data = msg.get('data', {})
             
@@ -613,34 +619,76 @@ class Bitunix(Broker):
             logger.error(traceback.format_exc())
 
     def _run_stream(self):
-        """Start the WebSocket loop and feed messages into the handler."""
-        if self._stream_loop and not self._stream_loop.is_closed():
-            return
-        self._stream_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._stream_loop)
+        """
+        Run the polling loop in the stream thread.
+        Polls BitUnix REST endpoints for order and position updates.
+        """
+        # Signal that the "stream" (polling loop) is established
+        self._stream_established()
+        logger.info(f"Bitunix polling loop started with interval: {self.poll_interval}s")
 
-        async def _keep_running():
-            backoff = 1
-            while True:
-                try:
-                    async with websockets.connect(self._get_ws_url()) as ws:
-                        # Authenticate
-                        await self._authenticate_ws(ws)
-                        # Subscribe to channels
-                        await self._subscribe_channels(ws)
-                        # Mark stream as established
-                        self._stream_established()
-                        logger.info("BitUnix WebSocket connected and subscribed")
-                        
-                        # Process messages
-                        async for message in ws:
-                            await self._handle_stream_message(message)
-                except Exception as e:
-                    logger.warning(f"BitUnix WS disconnected: {str(e)}, reconnecting in {backoff} seconds")
-                    await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, 60)  # Exponential backoff with 60-second max
+        while True:
+            try:
+                # 1) Poll open orders and dispatch new/cancel/filled events
+                # Fetch all potentially relevant orders (open and recently closed might be needed)
+                # Using get_history_orders might be more comprehensive than get_pending_orders
+                # Adjust status filter as needed, e.g., fetch NEW, PARTIALLY_FILLED
+                all_orders_raw = self._pull_broker_all_orders(status=None) # Fetch all states initially
+                
+                processed_ids = set() # Keep track of orders processed in this cycle
 
-        self._stream_loop.run_until_complete(_keep_running())
+                for od in all_orders_raw:
+                    order_obj = self._parse_broker_order(od, self._strategy_name)
+                    if order_obj:
+                        processed_ids.add(order_obj.identifier)
+                        # Check against tracked orders to detect changes
+                        tracked_order = self.get_tracked_order(order_obj.identifier)
+
+                        # If untracked or status changed, process the update
+                        if tracked_order is None or tracked_order.status != order_obj.status:
+                            status = order_obj.status
+                            event = None
+                            if status == Order.OrderStatus.SUBMITTED:
+                                event = self.NEW_ORDER
+                            elif status == Order.OrderStatus.PARTIALLY_FILLED:
+                                event = self.PARTIALLY_FILLED_ORDER
+                            elif status == Order.OrderStatus.FILLED:
+                                event = self.FILLED_ORDER
+                            elif status == Order.OrderStatus.CANCELED:
+                                event = self.CANCELED_ORDER
+                            elif status == Order.OrderStatus.ERROR:
+                                event = self.ERROR_ORDER
+                            
+                            if event:
+                                # Calculate filled data for trade events
+                                price = float(order_obj.avg_fill_price) if order_obj.avg_fill_price else None
+                                qty = float(order_obj.filled_quantity) if order_obj.filled_quantity else 0
+                                self._process_trade_event(order_obj, event, price=price, filled_quantity=qty)
+                        elif tracked_order: # Ensure tracked_order is not None
+                             # Order exists and status hasn't changed, update raw data if needed
+                             tracked_order.update_raw(od) # Use the raw dict 'od' directly
+
+                # Check for orders that were tracked but disappeared (e.g., fully filled/canceled between polls)
+                # This part might be complex and depends on how reliably _pull_broker_all_orders works
+                # For simplicity, we rely on the polled data containing final states.
+
+                # 2) Poll positions to update any position-based logic if needed
+                # This might be less critical if position updates are derived from fills
+                # positions = self._pull_positions(getattr(self, "_strategy", None))
+                # for pos in positions:
+                #     # Dispatching position updates frequently might be noisy
+                #     # Consider dispatching only on significant changes if needed
+                #     # self.stream.dispatch(self.UPDATED_POSITION, position=pos)
+                #     pass # Position polling might be optional depending on strategy needs
+
+            except requests.exceptions.RequestException as e:
+                 logger.warning(f"Bitunix polling network error: {e}")
+            except Exception as e:
+                logger.error("Bitunix polling error: %s", e)
+                logger.error(traceback.format_exc())
+
+            # Wait for the next polling interval
+            time.sleep(self.poll_interval)
 
     def _modify_order(self, order: Order, price: float = None, quantity: float = None):
         """

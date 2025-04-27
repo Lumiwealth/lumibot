@@ -929,13 +929,14 @@ class Broker(ABC):
         return quantity
 
     def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object=None):
-        """parse a list of broker orders into a
-        list of order objects"""
+        """parse a list of broker orders into a list of order objects"""
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                # First try to parse the parent order
                 order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
+                # skip if parsing returned None
+                #if order is None:
+                #    continue
 
                 # Check if it is a multileg order and Parse the legs
                 if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):

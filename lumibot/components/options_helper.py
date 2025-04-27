@@ -780,8 +780,13 @@ class OptionsHelper:
         self.strategy.log_message("Executing orders...", color="blue")
         if limit_type:
             limit_price = self.calculate_multileg_limit_price(orders, limit_type)
-            self.strategy.log_message(f"Submitting orders with limit price {limit_price}", color="blue")
-            self.strategy.submit_orders(orders, is_multileg=True, price=limit_price)
+            self.strategy.log_message(f"Submitting limit multileg orders at price {limit_price}", color="blue")
+            # convert each child to a LIMIT at the aggregated price
+            for order in orders:
+                order.order_type = Order.OrderType.LIMIT
+                order.limit_price = limit_price
+            # now submit as a true limit multileg
+            self.strategy.submit_orders(orders, is_multileg=True)
         else:
             self.strategy.log_message("Submitting orders without a limit price.", color="blue")
             self.strategy.submit_orders(orders, is_multileg=True)

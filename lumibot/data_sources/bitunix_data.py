@@ -80,19 +80,6 @@ class BitunixData(DataSource):
                     return Decimal(price_str) if price_str else None
             except Exception as e:
                 return None
-        else:
-            # For spot, construct symbol and use ticker
-            symbol = f"{asset.symbol}{quote.symbol}" if quote else asset.symbol
-            # Add to tracked symbols
-            self.client_symbols.add(symbol)
-            
-            try:
-                resp = self.client.spot_last_price(symbol)
-                if resp and resp.get("code") == 0:
-                    price_str = resp.get("data")
-                    return Decimal(price_str) if price_str else None
-            except Exception as e:
-                return None
         
         return None
 
@@ -210,53 +197,6 @@ class BitunixData(DataSource):
             traceback.print_exc()
             return None
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
-        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
-        
-        # Determine symbol format based on asset type
-        if asset.asset_type == Asset.AssetType.FUTURE:
-            symbol = asset.symbol
-        else:
-            symbol = f"{asset.symbol}{quote.symbol}"
-            
-        # Add to tracked symbols
-        self.client_symbols.add(symbol)
-        
-        try:
-            # Get depth data with level 5 (adjust if BitUnix uses different naming)
-            resp = self.client.spot_depth(symbol, precision=5)
-            
-            if resp and resp.get("code") == 0:
-                depth_data = resp.get("data", {})
-                bids = depth_data.get("bids", [])
-                asks = depth_data.get("asks", [])
-                
-                # Extract bid and ask prices if available
-                bid = Decimal(bids[0][0]) if bids and len(bids[0]) >= 1 else Decimal('0')
-                ask = Decimal(asks[0][0]) if asks and len(asks[0]) >= 1 else Decimal('0')
-                
-                # Calculate last as midpoint if both available
-                last = (bid + ask) / 2 if bid > 0 and ask > 0 else None
-                
-                return {
-                    "bid": bid,
-                    "ask": ask,
-                    "last": last,
-                    "symbol": symbol,
-                    "timestamp": int(time.time() * 1000),  # Use current time as timestamp
-                }
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            
-        # Return empty quote if there was an error
-        return {
-            "bid": Decimal('0'),
-            "ask": Decimal('0'),
-            "last": None,
-            "symbol": symbol,
-            "timestamp": int(time.time() * 1000),
-        }
 
     def _parse_source_symbol_bars(self, df: pd.DataFrame, asset: Asset, quote: Asset = None, length: int = None) -> Bars:
         """

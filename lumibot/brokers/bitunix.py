@@ -4,7 +4,9 @@ from decimal import Decimal
 from typing import Optional, List, Dict, Tuple, Any
 import pandas as pd
 import asyncio
+import threading
 import websockets
+import websockets.exceptions as ws_exc
 import hashlib
 import json
 import os
@@ -56,6 +58,8 @@ class Bitunix(Broker):
             api_key = getattr(config, "API_KEY", None)
             api_secret = getattr(config, "API_SECRET", None)
             self.margin_coin = getattr(config, "MARGIN_COIN", self.DEFAULT_MARGIN_COIN)
+        # Track current leverage per symbol to avoid redundant API calls
+        self.current_leverage: Dict[str, int] = {}
 
         if not api_key or not api_secret:
             raise ValueError("API_KEY and API_SECRET must be provided in config")
@@ -65,11 +69,31 @@ class Bitunix(Broker):
         self.api_secret = api_secret  # needed for signing
         # Private-channel URL per BitUnix docs (kept for reference, but not used for polling)
         self.ws_url = "wss://fapi.bitunix.com/private/"
-
+        '''
+        # Set default futures position mode to hedge
+        try:
+            response = self.api.change_position_mode("HEDGE")
+            # Check response code for success
+            if response and response.get("code") == 0:
+                logger.info(
+                    f"Default position mode set to {response.get('data', [{}])[0].get('positionMode')}"
+                )
+            else:
+                # Log specific error if code is not 0
+                logger.warning(
+                    f"Failed to set default position mode to HEDGE. API Response: {response}"
+                )
+        except Exception as e:
+            # Log exception details
+            logger.warning(f"Failed to set default position mode to HEDGE due to an exception: {e}")
+            logger.debug(traceback.format_exc()) # Add debug level traceback for more detail if needed
+        '''
         if not data_source:
             data_source = BitunixData(config, max_workers=max_workers, chunk_size=chunk_size)
             # Share the client instance with the data source if it was just created
             data_source.client = self.api
+            # Share the client_symbols set with the broker for WebSocket subscriptions
+            self.client_symbols = data_source.client_symbols
 
         self.poll_interval = poll_interval or self.DEFAULT_POLL_INTERVAL
         super().__init__(
@@ -79,7 +103,6 @@ class Bitunix(Broker):
             config=config,
             max_workers=max_workers,
         )
-        # Removed asyncio task creation: self._poll_task = asyncio.get_event_loop().create_task(self._poll_loop())
 
     def get_timestamp(self):
         return time.time()
@@ -222,7 +245,14 @@ class Bitunix(Broker):
         if order.asset.asset_type == Asset.AssetType.FUTURE:
             symbol = order.asset.symbol
             # Use configured margin coin
-            margin_coin = self.margin_coin 
+            margin_coin = "USDT"
+            # Ensure symbol ends with margin_coin (e.g., BTCUSDT)
+            if not symbol.endswith(margin_coin):
+                symbol = f"{symbol}{margin_coin}"
+            if symbol == margin_coin:
+                error_msg = f"Invalid symbol: symbol cannot be the same as margin coin ({margin_coin})"
+                order.set_error(LumibotBrokerAPIError(error_msg))
+                return order
         else:
             # Spot trading pair
             symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
@@ -236,6 +266,18 @@ class Bitunix(Broker):
 
         try:
             if order.asset.asset_type == Asset.AssetType.FUTURE:
+                # Ensure desired leverage is set
+                leverage = order.asset.leverage
+                try:
+                    if self.current_leverage.get(symbol) != leverage:
+                        lev_resp = self.api.change_leverage(symbol=symbol, leverage=leverage, margin_coin=margin_coin)
+                        if not lev_resp or lev_resp.get("code") != 0:
+                            logger.warning(f"Failed to set leverage for {symbol} to {leverage}x: {lev_resp}")
+                        else:
+                            logger.info(f"Set leverage for {symbol} to {leverage}x")
+                            self.current_leverage[symbol] = leverage
+                except Exception as e:
+                    logger.warning(f"Error setting leverage for {symbol} to {leverage}: {e}")
                 # FUTURES order
                 params = {
                     "symbol": symbol,
@@ -258,6 +300,8 @@ class Bitunix(Broker):
                         f"data={response.get('data') if isinstance(response, dict) else None}"
                     )
                     order.set_error(LumibotBrokerAPIError(err_msg))
+                    # Attach full response for debugging
+                    order.update_raw(response)
                     self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=err_msg)
                     return order
                 # Success handling only
@@ -304,6 +348,8 @@ class Bitunix(Broker):
                 else:
                     error_msg = f"Error placing order: {response}"
                     order.set_error(LumibotBrokerAPIError(error_msg))
+                    # Attach full response for debugging
+                    order.update_raw(response)
                     self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
@@ -559,14 +605,14 @@ class Bitunix(Broker):
                 return
             channel = msg.get('ch') or msg.get('method')
             data = msg.get('data', {})
-            
+
             # Process order updates
             if channel and 'order' in channel:
                 # Try to parse order update
                 order_update = self._parse_broker_order(data, self._strategy_name)
                 if not order_update:
                     return
-                    
+
                 # Determine appropriate event based on order status
                 status = order_update.status
                 if status == Order.OrderStatus.SUBMITTED:
@@ -579,14 +625,16 @@ class Bitunix(Broker):
                     event = self.CANCELED_ORDER
                 elif status == Order.OrderStatus.ERROR:
                     event = self.ERROR_ORDER
+                    # Log detailed error information for failed orders
+                    logger.error(f"Order {order_update.identifier} failed with error status. Raw response: {order_update.raw_data}")
                 else:
                     # Unrecognized status, skip processing
                     return
-                    
+
                 # Calculate filled data for trade events
                 price = float(order_update.avg_fill_price) if order_update.avg_fill_price else None
                 qty = float(order_update.filled_quantity) if order_update.filled_quantity else 0
-                
+
                 # Dispatch event via broker's trade event processor
                 self._process_trade_event(order_update, event, price=price, filled_quantity=qty)
         except Exception as e:
@@ -595,75 +643,131 @@ class Bitunix(Broker):
 
     def _run_stream(self):
         """
-        Run the polling loop in the stream thread.
-        Polls BitUnix REST endpoints for order and position updates.
+        Run the WebSocket listener in its own thread with a dedicated event loop.
         """
-        # Signal that the "stream" (polling loop) is established
+        # Signal that the "stream" (WebSocket listener) is established
         self._stream_established()
-        logger.info(f"Bitunix polling loop started with interval: {self.poll_interval}s")
+        logger.info(f"Starting Bitunix WebSocket listener in thread: {threading.current_thread().name}")
 
+        self._ws = None
+        loop = None  # Initialize loop to None
+        try:
+            # Create and set a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            # Run the connection and listening coroutine within this loop
+            loop.run_until_complete(self._connect_and_listen())
+        except Exception as e:
+            logger.error(f"Error in Bitunix WebSocket main loop: {e}")
+            logger.error(traceback.format_exc())
+        finally:
+            if loop and loop.is_running():
+                loop.close()
+                logger.info("Bitunix WebSocket event loop closed.")
+
+    async def _connect_and_listen(self):
+        """Connection and listening loop for BitUnix WebSocket."""
         while True:
+            ping_task = None
             try:
-                # 1) Poll open orders and dispatch new/cancel/filled events
-                # Fetch all potentially relevant orders (open and recently closed might be needed)
-                # Using get_history_orders might be more comprehensive than get_pending_orders
-                # Adjust status filter as needed, e.g., fetch NEW, PARTIALLY_FILLED
-                all_orders_raw = self._pull_broker_all_orders(status=None) # Fetch all states initially
-                
-                processed_ids = set() # Keep track of orders processed in this cycle
+                # Connect to private WebSocket
+                async with websockets.connect(self.ws_url + "Main") as ws:
+                    self._ws = ws
+                    # 1) Authenticate
+                    nonce = self.api._nonce()
+                    timestamp = self.api._timestamp()
+                    sign = self.api._sign({}, None, nonce, timestamp)
+                    login_msg = {
+                        "op": "login",
+                        "args": [
+                            {
+                                "apiKey": self.api.api_key,
+                                "nonce": nonce,
+                                "timestamp": timestamp,
+                                "sign": sign
+                            }
+                        ]
+                    }
+                    await ws.send(json.dumps(login_msg))
+                    # Wait for login confirmation before subscribing, ignoring intermediate connect acks
+                    while True:
+                        login_response_raw = await ws.recv()
+                        login_response = json.loads(login_response_raw)
+                        # Skip initial connect acknowledgement
+                        if login_response.get("op") == "connect":
+                            continue
+                        # Expect login response next
+                        if login_response.get("op") != "login":
+                            continue
+                        # Check login success
+                        if login_response.get("code") != 0:
+                            raise Exception(f"WebSocket auth failed: {login_response}")
+                        break
 
-                for od in all_orders_raw:
-                    order_obj = self._parse_broker_order(od, self._strategy_name)
-                    if order_obj:
-                        processed_ids.add(order_obj.identifier)
-                        # Check against tracked orders to detect changes
-                        tracked_order = self.get_tracked_order(order_obj.identifier)
+                    # 2) Subscribe to order channel for each symbol we're tracking (futures order updates)
+                    for symbol in self.client_symbols:
+                        nonce = self.api._nonce()
+                        timestamp = self.api._timestamp()
+                        sign = self.api._sign({"symbol": symbol}, None, nonce, timestamp)
+                        sub_msg = {
+                            "id": f"subscribe_order_{symbol}",
+                            "method": "order.subscribe",
+                            "params": {
+                                "symbol": symbol,
+                                "nonce": nonce,
+                                "timestamp": timestamp,
+                                "apiKey": self.api.api_key,
+                                "sign": sign
+                            }
+                        }
+                        await ws.send(json.dumps(sub_msg))
+                        logger.info(f"Subscribed to order channel for {symbol}")
 
-                        # If untracked or status changed, process the update
-                        if tracked_order is None or tracked_order.status != order_obj.status:
-                            status = order_obj.status
-                            event = None
-                            if status == Order.OrderStatus.SUBMITTED:
-                                event = self.NEW_ORDER
-                            elif status == Order.OrderStatus.PARTIALLY_FILLED:
-                                event = self.PARTIALLY_FILLED_ORDER
-                            elif status == Order.OrderStatus.FILLED:
-                                event = self.FILLED_ORDER
-                            elif status == Order.OrderStatus.CANCELED:
-                                event = self.CANCELED_ORDER
-                            elif status == Order.OrderStatus.ERROR:
-                                event = self.ERROR_ORDER
-                            
-                            if event:
-                                # Calculate filled data for trade events
-                                price = float(order_obj.avg_fill_price) if order_obj.avg_fill_price else None
-                                qty = float(order_obj.filled_quantity) if order_obj.filled_quantity else 0
-                                self._process_trade_event(order_obj, event, price=price, filled_quantity=qty)
-                        elif tracked_order: # Ensure tracked_order is not None
-                             # Order exists and status hasn't changed, update raw data if needed
-                             tracked_order.update_raw(od) # Use the raw dict 'od' directly
+                    # 3) Periodically send ping messages to maintain the connection
+                    async def send_ping(ws):
+                        while True:
+                            try:
+                                nonce = self.api._nonce()
+                                timestamp = self.api._timestamp()
+                                sign = self.api._sign({}, None, nonce, timestamp)
+                                ping_msg = {
+                                    "id": "ping",
+                                    "method": "ping",
+                                    "params": {
+                                        "nonce": nonce,
+                                        "timestamp": timestamp,
+                                        "apiKey": self.api.api_key,
+                                        "sign": sign
+                                    }
+                                }
+                                await ws.send(json.dumps(ping_msg))
+                                await asyncio.sleep(30)
+                            except asyncio.CancelledError:
+                                break
 
-                # Check for orders that were tracked but disappeared (e.g., fully filled/canceled between polls)
-                # This part might be complex and depends on how reliably _pull_broker_all_orders works
-                # For simplicity, we rely on the polled data containing final states.
+                    ping_task = asyncio.create_task(send_ping(ws))
 
-                # 2) Poll positions to update any position-based logic if needed
-                # This might be less critical if position updates are derived from fills
-                # positions = self._pull_positions(getattr(self, "_strategy", None))
-                # for pos in positions:
-                #     # Dispatching position updates frequently might be noisy
-                #     # Consider dispatching only on significant changes if needed
-                #     # self.stream.dispatch(self.UPDATED_POSITION, position=pos)
-                #     pass # Position polling might be optional depending on strategy needs
+                    # 4) Listen for messages and process them using the handler
+                    async for message in ws:
+                        await self._handle_stream_message(message)
 
-            except requests.exceptions.RequestException as e:
-                 logger.warning(f"Bitunix polling network error: {e}")
+            except ws_exc.ConnectionClosedError as e:
+                logger.warning(f"BitUnix WS disconnected unexpectedly: code={e.code}, reason={e.reason}. Reconnecting in 5s...")
+                await asyncio.sleep(5)
+            except ws_exc.ConnectionClosedOK as e:
+                logger.info(f"BitUnix WS closed normally: code={e.code}, reason={e.reason}. Reconnecting in 5s...")
+                await asyncio.sleep(5)
             except Exception as e:
-                logger.error("Bitunix polling error: %s", e)
+                logger.error(f"Error in BitUnix WebSocket connection: {e}")
                 logger.error(traceback.format_exc())
-
-            # Wait for the next polling interval
-            time.sleep(self.poll_interval)
+                await asyncio.sleep(10)  # Longer delay after unexpected errors
+            finally:
+                if ping_task:
+                    ping_task.cancel()
+                    try:
+                        await ping_task
+                    except asyncio.CancelledError:
+                        pass
 
     def _modify_order(self, order: Order, price: float = None, quantity: float = None):
         """

@@ -218,7 +218,7 @@ class StrategyExecutor(Thread):
                                 self.strategy.logger.warning(
                                     f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
                                     f"to be {obroker} because what we have in memory does not match the broker "
-                                    f"and the types are different."
+                                    f"and the types are different. olumi:{type(olumi)} obroker: {type(obroker)}."
                                 )
                         elif olumi != obroker:  # Handle cases where one or both are None
                             setattr(order_lumi, order_attr, obroker)

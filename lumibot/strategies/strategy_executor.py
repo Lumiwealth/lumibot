@@ -4,6 +4,7 @@ import time
 import traceback
 import json
 from datetime import datetime, timedelta
+from decimal import Decimal
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
@@ -186,7 +187,7 @@ class StrategyExecutor(Thread):
                                         f"to be {obroker} because what we have in memory does not match the broker "
                                         f"and both are floats"
                                     )
-                            elif isinstance(olumi, (int, float)) and isinstance(obroker, (int, float)):
+                            elif isinstance(olumi, (int, float, Decimal)) and isinstance(obroker, (int, float, Decimal)):
                                 # check if both are ints
                                 if isinstance(olumi, int) and isinstance(obroker, int):
                                     if olumi != obroker:

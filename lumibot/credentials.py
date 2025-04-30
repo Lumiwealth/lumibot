@@ -253,7 +253,7 @@ INTERACTIVE_BROKERS_CONFIG = {
 INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_USERNAME": os.environ.get("IB_USERNAME"),
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
-    "ACCOUNT_ID": os.environ.get("ACCOUNT_ID"),
+    "IB_ACCOUNT_ID": os.environ.get("IB_ACCOUNT_ID"),
     "API_URL": os.environ.get("IB_API_URL"),
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }

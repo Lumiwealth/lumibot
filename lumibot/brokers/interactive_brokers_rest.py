@@ -272,8 +272,16 @@ class InteractiveBrokersREST(Broker):
             multiplier = contract_details["multiplier"]
             maturity_date = contract_details["maturity_date"]  # in YYYYMMDD
 
+            # Add debug logging for maturity_date
+            logging.debug(f"Parsing contract: symbol={symbol}, secType={secType}, maturity_date={maturity_date}")
+
             # Format the datetime object as a string that matches the format in DATE_MAP[secType]
-            expiration = datetime.datetime.strptime(maturity_date, DATE_MAP[secType])
+            try:
+                expiration_dt = datetime.datetime.strptime(maturity_date, DATE_MAP[secType])
+                expiration = expiration_dt.date()  # Use .date() for consistency
+            except Exception as e:
+                logging.error(f"Failed to parse maturity_date '{maturity_date}' for {symbol}: {e}")
+                expiration = None
 
         asset = Asset(symbol=symbol, asset_type=secType, multiplier=multiplier)
 
@@ -471,7 +479,7 @@ class InteractiveBrokersREST(Broker):
                         logging.error(f"Expected option pattern not found in contract '{contract_desc}'.")
                         continue  # Skip if pattern does not match
 
-                    contract_details = details_match.group(0)
+                    contract_details = details_match.group(0);
                     
                     # Parse components from the details
                     expiry_raw = contract_details[:6]      # First six digits (YYMMDD format)
@@ -501,7 +509,7 @@ class InteractiveBrokersREST(Broker):
                     right = Asset.OptionRight.CALL if right_raw.upper() == "C" else Asset.OptionRight.PUT
 
                     # Extract the underlying symbol, assumed to be the first word in contract_desc
-                    underlying_asset_raw = contract_desc.split()[0]
+                    underlying_asset_raw = contract_desc.split()[0];
                     
                     # Ensure underlying symbol is alphanumeric and non-empty
                     if not underlying_asset_raw.isalnum():
@@ -585,16 +593,30 @@ class InteractiveBrokersREST(Broker):
                     )
                 )
             elif order.asset.asset_type == Asset.AssetType.OPTION:
+                # Format expiration date for logging
+                expiration_str = None
+                if hasattr(order.asset, "expiration") and order.asset.expiration is not None:
+                    if hasattr(order.asset.expiration, "strftime"):
+                        expiration_str = order.asset.expiration.strftime("%Y-%m-%d")
+                    else:
+                        expiration_str = str(order.asset.expiration)
                 logging.info(
                     colored(
-                        f"Order executed successfully: Ticker: {order.asset.symbol}, Expiration Date: {order.asset.expiration}, Strike: {order.asset.strike}, Right: {order.asset.right}, Quantity: {order.quantity}, Side: {order.side}",
+                        f"Order executed successfully: Ticker: {order.asset.symbol}, Expiration Date: {expiration_str}, Strike: {order.asset.strike}, Right: {order.asset.right}, Quantity: {order.quantity}, Side: {order.side}",
                         "green",
                     )
                 )
             elif order.asset.asset_type == Asset.AssetType.FUTURE:
+                # Format expiration date for logging
+                expiration_str = None
+                if hasattr(order.asset, "expiration") and order.asset.expiration is not None:
+                    if hasattr(order.asset.expiration, "strftime"):
+                        expiration_str = order.asset.expiration.strftime("%Y-%m-%d")
+                    else:
+                        expiration_str = str(order.asset.expiration)
                 logging.info(
                     colored(
-                        f"Order executed successfully: Ticker: {order.asset.symbol}, Expiration Date: {order.asset.expiration}, Multiplier: {order.asset.multiplier}, Quantity: {order.quantity}",
+                        f"Order executed successfully: Ticker: {order.asset.symbol}, Expiration Date: {expiration_str}, Multiplier: {order.asset.multiplier}, Quantity: {order.quantity}",
                         "green",
                     )
                 )
@@ -650,6 +672,27 @@ class InteractiveBrokersREST(Broker):
                 )
 
     def _submit_order(self, order: Order) -> Order:
+        # Ensure futures orders have expiration set
+        if (
+            hasattr(order.asset, "asset_type")
+            and order.asset.asset_type == Asset.AssetType.FUTURE
+            and getattr(order.asset, "expiration", None) is None
+        ):
+            logging.warning(
+                colored(
+                    f"Futures order for {order.asset.symbol} submitted without expiration. "
+                    f"Consider specifying expiration when creating the Asset.",
+                    "yellow"
+                )
+            )
+            # Optionally, auto-fill expiration with nearest expiry (uncomment below if desired)
+            conid = self.data_source._get_earliest_future_conid(order.asset.symbol)
+            if conid:
+                contract_details = self.data_source.get_contract_details(conid)
+                if contract_details and "maturity_date" in contract_details:
+                    order.asset.expiration = datetime.datetime.strptime(contract_details["maturity_date"], "%Y%m%d").date()
+                    logging.info(colored(f"Auto-filled expiration for {order.asset.symbol}: {order.asset.expiration}", "yellow"))
+
         try:
             order_data = self.get_order_data_from_orders([order])
             response = self.data_source.execute_order(order_data)

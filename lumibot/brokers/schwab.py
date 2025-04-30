@@ -7,6 +7,9 @@ import traceback
 import re
 from datetime import datetime, timedelta
 from pytz import timezone
+import threading
+from threading import Thread
+from flask import Flask
 
 from termcolor import colored
 from lumibot.brokers import Broker
@@ -14,13 +17,12 @@ from lumibot.entities import Order, Asset, Position
 from lumibot.data_sources import SchwabData
 
 # Import Schwab specific libraries
-from schwab.auth import easy_client
+from schwab.auth import easy_client, client_from_login_flow
 from schwab.client import Client
 from schwab.streaming import StreamClient
 
 # Import PollingStream class
 from lumibot.trading_builtins import PollingStream
-from threading import Thread  # Add this import
 
 class Schwab(Broker):
     """
@@ -81,13 +83,22 @@ class Schwab(Broker):
             logging.error(colored("Missing Schwab API credentials. Ensure SCHWAB_API_KEY, SCHWAB_SECRET, and SCHWAB_ACCOUNT_NUMBER are set in .env file.", "red"))
             raise ValueError("Missing Schwab API credentials")
             
+        # Smart redirect URI detection
+        redirect_uri = (
+            os.getenv("SCHWAB_REDIRECT_URI") or
+            (f"https://{os.getenv('REPLIT_APP_URL')}/schwab-login"
+                if os.getenv('REPLIT_APP_URL') else None) or
+            (f"https://{os.getenv('RENDER_EXTERNAL_URL')}/schwab-login"
+                if os.getenv('RENDER_EXTERNAL_URL') else None) or
+            'https://127.0.0.1:8182'
+        )
         # Get the current folder for token path
         current_folder = os.path.dirname(os.path.realpath(__file__))
         token_path = os.path.join(current_folder, 'token.json')
-        
         try:
             # Create Schwab API client
-            self.client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
+            self.client = easy_client(api_key, secret, redirect_uri, token_path)
+            self._ensure_cloud_login(redirect_uri, token_path)
             
             # Get account numbers and find the hash value for the specified account number
             response = self.client.get_account_numbers()
@@ -1623,3 +1634,30 @@ class Schwab(Broker):
                 self._filled_positions.append(position)
         
         logging.debug(f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}")
+    
+    def _ensure_cloud_login(self, redirect_uri: str, token_path: str):
+        """Spin up a one-time /schwab-login web route if token.json is missing."""
+        if os.path.exists(token_path):
+            return
+
+        app = Flask("schwab-login")
+
+        @app.route("/schwab-login")
+        def schwab_login():
+            client_from_login_flow(
+                api_key      = self.client.api_key,
+                app_secret   = self.client.app_secret,
+                callback_url = redirect_uri,
+                token_path   = token_path,
+                interactive  = False
+            )
+            return "✅ Schwab token saved. You can close this tab."
+
+        logging.info(
+            colored(f"[Schwab] First-time setup: open {redirect_uri} "
+                    "in your browser, complete login, then restart the bot.", "green")
+        )
+        threading.Thread(
+            target=lambda: app.run(host="0.0.0.0", port=8080, debug=False),
+            daemon=True
+        ).start()

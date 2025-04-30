@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.11.11",
+    version="3.12.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -49,7 +49,8 @@ setuptools.setup(
         "holidays",
         "psutil",
         "openai",
-        "schwab-py>=1.5.0"
+        "schwab-py>=1.5.0",
+        "Flask>=2.3"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

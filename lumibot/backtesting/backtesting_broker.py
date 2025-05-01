@@ -159,8 +159,12 @@ class BacktestingBroker(Broker):
         market_open = self._trading_days.at[market_close_time, 'market_open']
         market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
+        # If we're before the market opens for the found trading day,
+        # count the whole time until that day's market close so the clock
+        # can advance instead of stalling.
         if now < market_open:
-            return None
+            delta = market_close - now
+            return delta.total_seconds()
 
         delta = market_close - now
         return delta.total_seconds()
@@ -180,15 +184,17 @@ class BacktestingBroker(Broker):
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
 
-        result = self.get_time_to_close()
+        time_to_close = self.get_time_to_close()
 
-        if result is None:
-            time_to_close = 0
-        else:
-            time_to_close = result
-
+        # Allow the caller to specify a buffer (in minutes) before the actual close
         if timedelta is not None:
             time_to_close -= 60 * timedelta
+
+        # Only advance time if there is something to advance;
+        # this prevents infinite zero‑second loops.
+        if time_to_close <= 0:
+            return
+
         self._update_datetime(time_to_close)
 
     # =========Positions functions==================

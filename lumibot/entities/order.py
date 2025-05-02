@@ -1053,9 +1053,13 @@ class Order:
 
         if not status1 or not status2:
             return False
-        elif status1.lower() in [status2.lower(), STATUS_ALIAS_MAP.get(status2.lower(), "")]:
+        elif status1.lower() == status2.lower():  # Direct match check
             return True
-        # open/new status is equivalent
+        elif status1.lower() in STATUS_ALIAS_MAP.get(status2.lower(), []):
+            return True
+        elif status2.lower() in STATUS_ALIAS_MAP.get(status1.lower(), []):
+            # Bidirectional alias check
+            return True
         elif {status1.lower(), status2.lower()}.issubset({"open", "new"}):
             return True
         else:

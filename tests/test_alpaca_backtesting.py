@@ -1601,35 +1601,36 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         datetime_end = tzinfo.localize(datetime(2025, 3, 1))
         market = "NYSE"
         timestep = "day"
-        asset = Asset("SPY")
+        asset = Asset("FNGS") # Use an ETN which doesn't pay dividends or split
 
         data_source = self._create_data_source(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             market=market,
             timestep=timestep,
+            refresh_cache=True
         )
 
         now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 610.1600  # open price of the daily bar
+        assert price == 60.1  # open price of the daily bar
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 610.1600  # open price of the daily bar
+        assert price == 60.1  # open price of the daily bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 15, 59))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 610.1600  # open price of the daily bar
+        assert price == 60.1  # open price of the daily bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 16, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 610.1600  # open price of the daily bar
+        assert price == 60.1  # open price of the daily bar
 
         # test tuple
         quote = Asset("USD", Asset.AssetType.FOREX)
@@ -1683,7 +1684,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         datetime_end = tzinfo.localize(datetime(2025, 2, 22))
         market = "NYSE"
         timestep = "minute"
-        asset = Asset("SPY")
+        asset = Asset("FNGS")  # Use an ETN which doesn't pay dividends or split
 
         data_source = self._create_data_source(
             datetime_start=datetime_start,
@@ -1695,18 +1696,18 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 610.1700  # open price of the minute bar
+        assert price == 60.1  # open price of the minute bar
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 610.1700  # open price of the minute bar
+        assert price == 60.1  # open price of the minute bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 15, 59))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 599.9700 # open price of the minute bar
+        assert price == 57.7306 # open price of the minute bar
 
     def test_get_last_price_minute_bars_crypto(self):
         tzinfo = pytz.timezone("America/Chicago")

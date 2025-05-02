@@ -172,22 +172,33 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
     Returns
     -------
-    pd.DataFrame
+    pd.DataFrame or None
         A dataframe with the returns for the symbol. Includes the columns:
         - pct_change: The percent change in the Close price
         - div_yield: The dividend yield
         - return: The pct_change + div_yield
         - symbol_cumprod: The cumulative product of (1 + return)
+        Returns None if no data is available for the symbol.
 
     """
     # Fetch the symbol data
     returns_df = yh.get_symbol_data(symbol)
+
+    # Check if returns_df is None or empty
+    if returns_df is None or returns_df.empty:
+        logging.warning(f"No data available for symbol {symbol}. Returning None.")
+        return None
 
     # Make sure we are working with a copy to avoid SettingWithCopyWarning
     returns_df = returns_df.copy()
 
     # Filter the DataFrame based on date range
     returns_df = returns_df.loc[(returns_df.index.date >= start.date()) & (returns_df.index.date <= end.date())]
+
+    # Check if filtered DataFrame is empty
+    if returns_df.empty:
+        logging.warning(f"No data available for symbol {symbol} in the specified date range. Returning empty DataFrame.")
+        return returns_df
 
     # Calculate percentage change and dividend yield
     returns_df.loc[:, "pct_change"] = returns_df["Close"].pct_change()
@@ -207,6 +218,11 @@ def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     start = to_datetime_aware(start)
     end = to_datetime_aware(end)
     benchmark_df = get_symbol_returns(symbol, start, end)
+
+    # Check if benchmark_df is None
+    if benchmark_df is None:
+        logging.warning(f"Could not get returns for {symbol}. Skipping performance calculation.")
+        return
 
     risk_free_rate = get_risk_free_rate()
 

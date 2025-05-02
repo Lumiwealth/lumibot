@@ -272,9 +272,11 @@ TRADEOVATE_CONFIG = {
 
 # Schwab Configuration
 SCHWAB_CONFIG = {
-    "SCHWAB_API_KEY": os.environ.get("SCHWAB_API_KEY"),
-    "SCHWAB_SECRET": os.environ.get("SCHWAB_SECRET"),
-    "SCHWAB_ACCOUNT_NUMBER": os.environ.get("SCHWAB_ACCOUNT_NUMBER"),
+    # Only these three matter
+    "SCHWAB_TOKEN":          os.getenv("SCHWAB_TOKEN"),          # optional
+    "SCHWAB_ACCOUNT_NUMBER": os.getenv("SCHWAB_ACCOUNT_NUMBER"), # required
+    "SCHWAB_APP_KEY":        os.getenv("SCHWAB_APP_KEY"),        # required, loaded from env
+    "SCHWAB_APP_SECRET":     os.getenv("SCHWAB_APP_SECRET"),     # required, loaded from env
 }
 
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
@@ -327,7 +329,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
         elif TRADEOVATE_CONFIG["USERNAME"]:
             broker = Tradeovate(TRADEOVATE_CONFIG)
-        elif SCHWAB_CONFIG["SCHWAB_API_KEY"]:
+        # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
+        elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
             broker = Schwab(SCHWAB_CONFIG)
         elif COINBASE_CONFIG["apiKey"]:
             broker = Ccxt(COINBASE_CONFIG)
@@ -374,13 +377,10 @@ if not is_backtesting or is_backtesting.lower() == "false":
                     data_source._update_datetime_limits(BACKTESTING_START, BACKTESTING_END)
             elif data_source_name.lower() == "schwab":
                 from .data_sources import SchwabData
-                # Create the data source with explicit credentials
+                # Only pass account_number, never api_key/secret
                 data_source = SchwabData(
-                    api_key=SCHWAB_CONFIG["SCHWAB_API_KEY"],
-                    secret=SCHWAB_CONFIG["SCHWAB_SECRET"],
                     account_number=SCHWAB_CONFIG["SCHWAB_ACCOUNT_NUMBER"]
                 )
-                
                 # If broker is also Schwab, share the client
                 if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
                     data_source.set_client(broker.client)

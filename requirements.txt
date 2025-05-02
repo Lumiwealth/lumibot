@@ -16,7 +16,7 @@ scipy>=1.13.0
 quantstats-lumi>=0.3.3
 python-dotenv  # Secret Storage
 ccxt>=4.3.74
-termcolor
+termcolor>=2.0
 jsonpickle
 apscheduler>=3.10.4
 appdirs
@@ -33,3 +33,4 @@ holidays
 psutil
 openai
 schwab-py>=1.5.0
+Flask>=2.3

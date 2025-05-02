@@ -62,16 +62,17 @@ Schwab uses OAuth2 for authentication. The first time you run your strategy, a b
 .. warning::
    If your refresh token expires (after 7 days without re-auth), you must repeat the browser login flow.
 
-**One-click cloud login  (Replit · Render · any PaaS)**
+**First-time Schwab login (cloud or local)**
 
-Deploy your bot and watch the logs.  
-The first time Lumibot detects that `token.json` is missing, it prints a URL like:
+- **Cloud (Replit, Render, etc.):**  
+  Deploy the bot and watch the logs for a green line:  
+  `Open https://…/schwab-login in your browser`  
+  Click, sign in, hit **Allow**, wait for “✅ Schwab token saved”, then restart the bot.  
+  That’s it—no weekly re-login as long as the bot stays active.
 
-    https://my-bot.repl.co/schwab-login
-
-1. Open that link once, sign in to Schwab, click **Allow**.  
-2. You’ll see “✅ Schwab token saved”.  
-3. Restart the service (or let Replit auto-restart). Done.
+- **Local laptop:**  
+  Deploy the bot and Lumibot opens a browser window automatically (same as before).  
+  Complete the login and you’re set.
 
 As long as your bot checks Schwab at least once per day, the token
 auto-refreshes and you will *not* be asked to log in again.  

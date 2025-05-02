@@ -66,7 +66,7 @@ STATS_TABLE_NAME = "strategy_tracker"
 
 class SafeJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for Lumibot objects.
-    
+
     Handles:
     - Objects with to_dict() method -> dictionary 
     - datetime.date and datetime.datetime -> ISO format string
@@ -77,11 +77,11 @@ class SafeJSONEncoder(json.JSONEncoder):
         # Handle objects with to_dict method (Asset, Order, Position etc)
         if hasattr(obj, 'to_dict'):
             return obj.to_dict()
-            
+
         # Handle dates and times
         if isinstance(obj, (datetime.date, datetime.datetime)):
             return obj.isoformat()
-            
+
         # Handle Decimal
         if isinstance(obj, Decimal):
             return float(obj)
@@ -89,7 +89,7 @@ class SafeJSONEncoder(json.JSONEncoder):
         # Handle sets
         if isinstance(obj, set):
             return list(obj)
-            
+
         return super().default(obj)
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
@@ -275,7 +275,7 @@ class _Strategy:
 
         elif STRATEGY_NAME is not None:
             self._name = STRATEGY_NAME
-        
+
         else:
             self._name = self.__class__.__name__
 
@@ -285,7 +285,7 @@ class _Strategy:
 
         # Set the log level to INFO so that all logs INFO and above are displayed
         self.logger.setLevel(logging.INFO)
-        
+
         if self.broker == None:
             self.broker = BROKER
 
@@ -293,12 +293,12 @@ class _Strategy:
         self._data_source = data_source
         if self._data_source is None:
             self._data_source = DATA_SOURCE
-            
+
         # If we have a custom data source, attach it to the broker
         if self._data_source is not None and self.broker is not None:
             # Store the original data source for reference
             self._original_broker_data_source = self.broker.data_source
-            
+
             # Set the custom data source
             self.broker.data_source = self._data_source
 
@@ -315,7 +315,7 @@ class _Strategy:
 
         self.live_config = LIVE_CONFIG
         self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
-        
+
         if account_history_db_connection_str: 
             self.db_connection_str = account_history_db_connection_str  
             logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
@@ -323,7 +323,7 @@ class _Strategy:
             self.db_connection_str = db_connection_str
         else:
             self.db_connection_str = DB_CONNECTION_STR if DB_CONNECTION_STR else None
-            
+
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
 
@@ -679,7 +679,7 @@ class _Strategy:
                     else:
                         price = self.broker.data_source.get_last_price(asset)
                         prices[asset] = price
-                        
+
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
@@ -919,6 +919,18 @@ class _Strategy:
                     self._backtesting_start,
                     backtesting_end_adjusted,
                 )
+
+                # Handle the case where get_symbol_returns returns None
+                if self._benchmark_returns_df is None:
+                    self.logger.warning(
+                        f"Could not get benchmark returns for {benchmark_symbol}. "
+                        f"This may be due to network issues or the symbol not being available. "
+                        f"Creating an empty DataFrame for benchmark returns."
+                    )
+                    # Create an empty DataFrame with the required columns
+                    self._benchmark_returns_df = pd.DataFrame(
+                        columns=["pct_change", "div_yield", "return", "symbol_cumprod"]
+                    )
 
     def plot_returns_vs_benchmark(
         self,
@@ -1250,7 +1262,7 @@ class _Strategy:
             # Try getting the Theta Data credentials from credentials
             thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
             thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
-            
+
             # Check again if theta data username and pass are set
             if (thetadata_username is None or thetadata_password is None) and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
                 raise ValueError(
@@ -1273,13 +1285,13 @@ class _Strategy:
                 "the original positional arguments for backtesting. \n\n"
             )
             return None
-        
+
         if BACKTESTING_QUIET_LOGS is not None:
             quiet_logs = BACKTESTING_QUIET_LOGS
 
         if BACKTESTING_SHOW_PROGRESS_BAR is not None:
             show_progress_bar = BACKTESTING_SHOW_PROGRESS_BAR
-        
+
         self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
@@ -1397,7 +1409,7 @@ class _Strategy:
         )
 
         return result[name], strategy
-        
+
     def write_backtest_settings(self, settings_file):
         """
         Redefined in the Strategy class to that it has access to all the needed variables.
@@ -1524,10 +1536,10 @@ class _Strategy:
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
-        
+
         # Check if self.lumiwealth_api_key has been set, if not, return
         if not hasattr(self, "lumiwealth_api_key") or self.lumiwealth_api_key is None or self.lumiwealth_api_key == "":
-        
+
             # TODO: Set this to a warning once the API is ready
             # Log that we are not sending the update to the cloud
             self.logger.debug("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on our website, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
@@ -1544,7 +1556,7 @@ class _Strategy:
 
         # Get the current orders
         orders = self.get_orders()
-        
+
         LUMIWEALTH_URL = "https://listener.lumiwealth.com/portfolio_events"
 
         headers = {
@@ -1818,7 +1830,7 @@ class _Strategy:
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
-        
+
         # Check if we should hide positions
         if self.hide_positions:
             # Log that we are hiding positions in the account summary
@@ -1987,7 +1999,7 @@ class _Strategy:
 
                     # Create the table by saving this empty DataFrame to the database
                     self.to_sql(stats_new, stats_table_name, if_exists='replace', index=True)
-                
+
                 # Load the stats dataframe from the database
                 stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
                 return stats_df
@@ -2019,7 +2031,7 @@ class _Strategy:
                 else:
                     self.logger.error("Max retries reached for to_sql. Failing operation.")
                     raise
-    
+
     def backup_variables_to_db(self):
         if self.is_backtesting:
             return

@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, ROUND_UP
 import time
 
 import pandas as pd
@@ -385,7 +385,7 @@ class DriftOrderLogic:
                 base_asset = row["base_asset"]
                 quantity = row["current_quantity"]
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
-                limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
+                limit_price = self.calculate_limit_price(last_price=last_price, side="sell", asset=base_asset)
                 if quantity == 0 and self.shorting:
                     # Create a 100% short position.
                     total_value = df["current_value"].sum()
@@ -410,7 +410,7 @@ class DriftOrderLogic:
 
                 base_asset = row["base_asset"]
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
-                limit_price = self.calculate_limit_price(last_price=last_price, side="sell")
+                limit_price = self.calculate_limit_price(last_price=last_price, side="sell", asset=base_asset)
                 quantity = (row["current_value"] - row["target_value"]) / limit_price
                 if self.fractional_shares:
                     quantity = quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
@@ -441,7 +441,7 @@ class DriftOrderLogic:
                 base_asset = row["base_asset"]
                 quantity = abs(row["current_quantity"])
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
-                limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
+                limit_price = self.calculate_limit_price(last_price=last_price, side="buy", asset=base_asset)
                 order = self.place_order(
                     base_asset=base_asset,
                     quantity=quantity,
@@ -458,7 +458,7 @@ class DriftOrderLogic:
 
                 base_asset = row["base_asset"]
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
-                limit_price = self.calculate_limit_price(last_price=last_price, side="buy")
+                limit_price = self.calculate_limit_price(last_price=last_price, side="buy", asset=base_asset)
                 order_value = row["target_value"] - row["current_value"]
                 desired_quantity = min(order_value, cash_position) / limit_price
 
@@ -491,17 +491,22 @@ class DriftOrderLogic:
                     )
                     buy_orders.append(order)
                     cash_position -= quantity * limit_price
-                else:
-                    self.strategy.logger.info(
-                        f"Ran out of cash to buy {quantity} of {base_asset.symbol}. "
-                        f"Cash: {cash_position} and limit_price: {limit_price:.2f}"
-                    )
 
-    def calculate_limit_price(self, *, last_price: Decimal, side: str) -> Decimal:
+    def calculate_limit_price(self, *, last_price: Decimal, side: str, asset: Asset) -> Decimal:
         if side == "sell":
-            return last_price * (1 - self.acceptable_slippage)
+            limit_price = last_price * (1 - self.acceptable_slippage)
         else:
-            return last_price * (1 + self.acceptable_slippage)
+            limit_price = last_price * (1 + self.acceptable_slippage)
+
+        if asset.asset_type != Asset.AssetType.CRYPTO:
+            # reduce to 2 decimals
+            if side == "buy":
+                limit_price = limit_price.quantize(Decimal('1.00'), rounding=ROUND_DOWN)
+            else:
+                limit_price = limit_price.quantize(Decimal('1.00'), rounding=ROUND_UP)
+
+        return limit_price
+
 
     def get_current_cash_position(self) -> Decimal:
         self.strategy.update_broker_balances(force_update=True)

@@ -1234,9 +1234,10 @@ class TestDriftOrderLogic:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
         )
+        asset = Asset("AAPL", "stock")
         df = pd.DataFrame({
             "symbol": ["AAPL"],
-            "base_asset": [Asset("AAPL", "stock")],
+            "base_asset": [asset],
             "is_quote_asset": False,
             "current_quantity": [Decimal("10")],
             "current_value": [Decimal("1000")],
@@ -1250,7 +1251,7 @@ class TestDriftOrderLogic:
             acceptable_slippage=Decimal("0.005")
         )
         strategy.order_logic.rebalance(drift_df=df)
-        limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="sell")
+        limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="sell", asset=asset)
         assert limit_price == Decimal("119.4")
 
     def test_calculate_limit_price_when_buying(self):
@@ -1258,9 +1259,10 @@ class TestDriftOrderLogic:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT,
         )
+        asset = Asset("AAPL", "stock")
         df = pd.DataFrame({
             "symbol": ["AAPL"],
-            "base_asset": [Asset("AAPL", "stock")],
+            "base_asset": [asset],
             "is_quote_asset": False,
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
@@ -1274,7 +1276,7 @@ class TestDriftOrderLogic:
             acceptable_slippage=Decimal("0.005")
         )
         strategy.order_logic.rebalance(drift_df=df)
-        limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="buy")
+        limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="buy", asset=asset)
         assert limit_price == Decimal("120.6")
 
     def test_buying_whole_shares(self):
@@ -1649,12 +1651,12 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[0]["type"] == "limit"
         assert filled_orders.iloc[0]["side"] == "buy"
         assert filled_orders.iloc[0]["symbol"] == "SPY"
-        assert filled_orders.iloc[0]["filled_quantity"] == 238.634160544
+        assert filled_orders.iloc[0]["filled_quantity"] == 238.635007755
 
         assert filled_orders.iloc[2]["type"] == "limit"
         assert filled_orders.iloc[2]["side"] == "sell"
         assert filled_orders.iloc[2]["symbol"] == "SPY"
-        assert filled_orders.iloc[2]["filled_quantity"] == 8.346738266
+        assert filled_orders.iloc[2]["filled_quantity"] == 8.347327921
 
     # @pytest.mark.skip()
     def test_crypto_50_50_with_yahoo(self):

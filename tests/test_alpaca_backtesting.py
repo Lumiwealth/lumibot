@@ -1608,7 +1608,6 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             datetime_end=datetime_end,
             market=market,
             timestep=timestep,
-            refresh_cache=True
         )
 
         now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))

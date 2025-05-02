@@ -6,4 +6,4 @@ This is mission critical code, so we need to ensure that it works as expected an
 You can find the tests in the `tests` directory and be compatible with pytest.
 You can run the tests with `pytest` and check the coverage with `pytest --cov`.
 
-We need a high level of test coverage, so please make sure to add tests for any new functionality you add.
+We need a high level of test coverage, so please make sure to add tests for any new functionality you add. Additionally, ensure that all tests are well-documented and follow best practices.

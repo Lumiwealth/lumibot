@@ -126,8 +126,11 @@ class BitUnixClient:
 
     def get_account(self, margin_coin: str = "USDT") -> Dict[str, Any]:
         """
-        Retrieve FUTURES account metrics for the specified `margin_coin`.
+        Retrieve FUTURES account metrics for the specified quote asset (`margin_coin`).
         This might also include spot balances depending on the API implementation.
+
+        Args:
+            margin_coin: The symbol of the quote asset (e.g., "USDT").
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {... account fields ...}}``
@@ -140,7 +143,10 @@ class BitUnixClient:
 
     def get_positions(self, margin_coin: str = "USDT") -> Dict[str, Any]:
         """
-        List all open positions under the given `margin_coin`.
+        List all open positions under the given quote asset (`margin_coin`).
+
+        Args:
+            margin_coin: The symbol of the quote asset (e.g., "USDT").
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...position...}, ... ]}``
@@ -207,6 +213,13 @@ class BitUnixClient:
         """
         Add or remove margin from an existing position.
 
+        Args:
+            symbol: The trading pair symbol.
+            amount: The amount of margin to add/remove.
+            margin_coin: The symbol of the quote asset (e.g., "USDT").
+            side: Position side (optional).
+            position_id: Position ID (optional).
+
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {"positionId": str, "margin": str}}``
         """
@@ -232,6 +245,11 @@ class BitUnixClient:
         """
         Change leverage for one symbol.
 
+        Args:
+            symbol: The trading pair symbol.
+            leverage: The desired leverage multiplier.
+            margin_coin: The symbol of the quote asset (e.g., "USDT").
+
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {"symbol": str, "leverage": int}}``
         """
@@ -250,6 +268,11 @@ class BitUnixClient:
     ) -> Dict[str, Any]:
         """
         Switch isolated / cross margin for a symbol.
+
+        Args:
+            symbol: The trading pair symbol.
+            margin_mode: "ISOLATED" or "CROSSED".
+            margin_coin: The symbol of the quote asset (e.g., "USDT").
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {"symbol": str, "marginMode": str}}``
@@ -282,6 +305,10 @@ class BitUnixClient:
     ) -> Dict[str, Any]:
         """
         Query current leverage setting and margin mode.
+
+        Args:
+            symbol: The trading pair symbol.
+            margin_coin: The symbol of the quote asset (e.g., "USDT").
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {"leverage": int, "marginMode": str}}``

@@ -16,13 +16,6 @@ class BitunixFuturesExample(Strategy):
         # Set the market to 24/7 for crypto futures
         self.set_market("24/7")
 
-        # Set the quote asset (usually USDT for Bitunix futures)
-        # Ensure BITUNIX_CONFIG includes MARGIN_COIN or set it explicitly
-        margin_coin = BITUNIX_CONFIG.get("MARGIN_COIN", "USDT")
-        self._quote_asset = (Asset(symbol=margin_coin, asset_type=Asset.AssetType.CRYPTO))
-
-        logging.info(f"Initialized BitunixFuturesExample with quote asset: {self.quote_asset}")
-
 
     def on_trading_iteration(self):
         if not self.first_iteration:
@@ -38,14 +31,14 @@ class BitunixFuturesExample(Strategy):
         self.log_message(f"Current positions: {positions}")
 
         cash = self.get_cash()
-        self.log_message(f"Current cash ({self.quote_asset.symbol}): {cash}")
+        self.log_message(f"Current cash {cash}")
 
         # Get the last price of BTC/USDT (or your quote asset)
         try:
             # Ensure the base asset type is correct (crypto or future depending on broker needs)
             btc_asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
-            last_price = self.get_last_price(btc_asset, quote=self.quote_asset)
-            self.log_message(f"Last price for {btc_asset.symbol}/{self.quote_asset.symbol}: {last_price}")
+            last_price = self.get_last_price(btc_asset)
+            self.log_message(f"Last price for {btc_asset.symbol}: {last_price}")
         except Exception as e:
             self.log_message(f"Could not get last price for BTC: {e}", color="red")
 
@@ -69,8 +62,8 @@ class BitunixFuturesExample(Strategy):
                 asset=asset,
                 quantity=quantity_to_trade,
                 side=Order.OrderSide.BUY,
-                order_type=Order.OrderType.MARKET,
-                quote=self.quote_asset # Explicitly pass quote asset if needed by broker implementation
+                order_type=Order.OrderType.LIMIT,
+                limit_price=0.19
             )
             submitted_order = self.submit_order(order)
 
@@ -140,8 +133,7 @@ class BitunixFuturesExample(Strategy):
                         asset=pos.asset, # Use the asset from the position object
                         quantity=close_quantity,
                         side=close_side,
-                        order_type=Order.OrderType.MARKET,
-                        quote=self.quote_asset # Explicitly pass quote asset
+                        order_type=Order.OrderType.MARKET
                     )
                     submitted_close_order = self.submit_order(close_order_req)
 
@@ -178,7 +170,7 @@ class BitunixFuturesExample(Strategy):
 
 if __name__ == "__main__":
     # Ensure Bitunix credentials are set in .env or environment variables
-    # BITUNIX_CONFIG should contain API_KEY, API_SECRET, MARGIN_COIN, TRADING_MODE='FUTURES'
+    # BITUNIX_CONFIG should contain API_KEY, API_SECRET
     if not BITUNIX_CONFIG or not BITUNIX_CONFIG.get("API_KEY") or not BITUNIX_CONFIG.get("API_SECRET"):
         print("Error: Bitunix API Key or Secret not found in credentials. Please set them in your .env file or environment variables.")
     elif BITUNIX_CONFIG.get("TRADING_MODE", "").upper() != "FUTURES":

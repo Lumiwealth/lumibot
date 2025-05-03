@@ -1,16 +1,7 @@
 import logging, time, traceback
-import decimal
 from decimal import Decimal
 from typing import Optional, List, Dict, Tuple, Any
 import pandas as pd
-import asyncio
-import threading
-import websockets
-import websockets.exceptions as ws_exc
-import hashlib
-import json
-import os
-import requests
 
 from lumibot.trading_builtins import PollingStream
 
@@ -34,7 +25,7 @@ class Bitunix(Broker):
     
     # Default quote asset for crypto transactions
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset("USDT", Asset.AssetType.CRYPTO)
-    DEFAULT_MARGIN_COIN = "USDT" # Default margin coin for futures
+
     DEFAULT_POLL_INTERVAL = 5  # seconds between polling cycles
 
     def __init__(self, config, max_workers: int = 1, chunk_size: int = 100, connect_stream: bool = True, poll_interval: Optional[float] = None, data_source=None):
@@ -52,12 +43,10 @@ class Bitunix(Broker):
         if isinstance(config, dict):
             api_key = config.get("API_KEY")
             api_secret = config.get("API_SECRET")
-            # Get margin coin from config, default to USDT
-            self.margin_coin = config.get("MARGIN_COIN", self.DEFAULT_MARGIN_COIN)
         else:
             api_key = getattr(config, "API_KEY", None)
             api_secret = getattr(config, "API_SECRET", None)
-            self.margin_coin = getattr(config, "MARGIN_COIN", self.DEFAULT_MARGIN_COIN)
+        
         # Track current leverage per symbol to avoid redundant API calls
         self.current_leverage: Dict[str, int] = {}
 
@@ -104,6 +93,12 @@ class Bitunix(Broker):
             max_workers=max_workers,
         )
 
+    def get_quote_asset(self):
+        self.quote_assets.clear()
+        self.quote_assets.add(Asset("USDT", Asset.AssetType.CRYPTO))
+        
+        return Asset("USDT", Asset.AssetType.CRYPTO)  
+
     def get_timestamp(self):
         return time.time()
 
@@ -119,15 +114,16 @@ class Bitunix(Broker):
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> Optional[Tuple[float, float, float]]:
         """
         Fetches FUTURES balances and returns a tuple of (total_cash, gross_spot_value, net_liquidation_value)
-        Only the available margin coin is used for cash.
+        Only the available quote asset is used for cash.
         """
         total_cash = gross_spot = net_liquidation = 0.0
-        futures_margin_coin_symbol = self.margin_coin
-        primary_quote_asset = self.LUMIBOT_DEFAULT_QUOTE_ASSET
 
         # ---------- FUTURES wallet only ----------
-        fut_resp = self.api.get_account(margin_coin=futures_margin_coin_symbol)
-        if isinstance(fut_resp, dict):
+        # Force margin_coin to USDT as it's the most common for futures balances
+        # and might avoid errors like "This futures does not allow trading" if another asset is used.
+        fut_resp = self.api.get_account(margin_coin="USDT") # Use "USDT" explicitly
+        # {'code': 0, 'data': {'marginCoin': 'USDT', 'available': '-187.067355065', 'frozen': '0', 'margin': '186.683', 'transfer': '0', 'positionMode': 'HEDGE', 'crossUnrealizedPNL': '-3.663', 'isolationUnrealizedPNL': '0', 'bonus': '0'}, 'msg': 'result.success'}
+        try:
             data = fut_resp.get("data", {})
 
             # Compute equity
@@ -137,21 +133,13 @@ class Bitunix(Broker):
             cross_pnl     = Decimal(data.get("crossUnrealizedPNL", "0") or "0")
             isolation_pnl = Decimal(data.get("isolationUnrealizedPNL", "0") or "0")
             fut_equity    = total_cash + frozen + margin + cross_pnl + isolation_pnl
-            if futures_margin_coin_symbol == primary_quote_asset.symbol:
-                net_liquidation = float(fut_equity)
-            else:
-                conv_price = self.data_source.get_last_price(
-                    Asset(futures_margin_coin_symbol, Asset.AssetType.CRYPTO),
-                    primary_quote_asset
-                )
-                if conv_price:
-                    net_liquidation = float(fut_equity * conv_price)
-        else:
+            net_liquidation = float(fut_equity) # Assuming balance is already in USDT
+        except Exception as e:
             logger.warning("Unexpected futures account response type: %s", type(fut_resp))
+            logger.warning(e)
 
-        # Spot wallet is not used in futures-only mode
-
-        return (total_cash, gross_spot, net_liquidation)
+        total_cash = float(total_cash)
+        return total_cash, gross_spot, net_liquidation
 
     def _pull_positions(self, strategy) -> List[Position]:
         """
@@ -162,36 +150,9 @@ class Bitunix(Broker):
         positions = []
         strategy_name = strategy.name if strategy else ""
 
-        # SPOT positions from balances (inferred from main account endpoint)
-        try:
-            # Use the main account endpoint
-            resp = self.api.get_account(margin_coin=self.LUMIBOT_DEFAULT_QUOTE_ASSET.symbol) # Use default quote
-            if resp and resp.get("code") == 0:
-                # Check if 'balances' key exists for spot-like assets
-                balances = resp.get("data", {}).get("balances", [])
-                if balances:
-                    for balance in balances:
-                        asset_symbol = balance.get("asset", "")
-                        free_amount = Decimal(balance.get("free", "0"))
-                        locked_amount = Decimal(balance.get("locked", "0"))
-                        total_amount = free_amount + locked_amount
-
-                        # Only create positions for non-zero, non-quote assets
-                        if total_amount > 0 and asset_symbol != self.LUMIBOT_DEFAULT_QUOTE_ASSET.symbol:
-                            # Assume these are spot crypto assets
-                            asset = Asset(asset_symbol, Asset.AssetType.CRYPTO)
-                            position = Position(strategy_name, asset, total_amount)
-                            positions.append(position)
-                else:
-                    #logger.info("No 'balances' key in account response, cannot infer spot positions.")
-                    pass
-        except Exception:
-            logger.error("Error fetching spot positions from account balance")
-            logger.error(traceback.format_exc())
-
         # FUTURES positions from open positions endpoint
         try:
-            resp = self.api.get_positions(margin_coin=self.margin_coin)
+            resp = self.api.get_positions(margin_coin=self.get_quote_asset().symbol) # Use first get_quote_asset().symbol
             if resp and resp.get("code") == 0:
                 for p in resp.get("data", []):
                     sym = p.get("symbol", "")
@@ -270,13 +231,12 @@ class Bitunix(Broker):
         # Determine symbol format based on asset type
         if order.asset.asset_type == Asset.AssetType.FUTURE:
             symbol = order.asset.symbol
-            # Use configured margin coin
-            margin_coin = "USDT"
-            # Ensure symbol ends with margin_coin (e.g., BTCUSDT)
-            if not symbol.endswith(margin_coin):
-                symbol = f"{symbol}{margin_coin}"
-            if symbol == margin_coin:
-                error_msg = f"Invalid symbol: symbol cannot be the same as margin coin ({margin_coin})"
+            quote_symbol = self.get_quote_asset().symbol
+            # Ensure symbol ends with quote_symbol (e.g., BTCUSDT)
+            if not symbol.endswith(quote_symbol):
+                symbol = f"{symbol}{quote_symbol}"
+            if symbol == quote_symbol:
+                error_msg = f"Invalid symbol: symbol cannot be the same as quote asset ({quote_symbol})"
                 order.set_error(LumibotBrokerAPIError(error_msg))
                 return order
         else:
@@ -299,7 +259,7 @@ class Bitunix(Broker):
                 leverage = order.asset.leverage
                 try:
                     if self.current_leverage.get(symbol) != leverage:
-                        lev_resp = self.api.change_leverage(symbol=symbol, leverage=leverage, margin_coin=margin_coin)
+                        lev_resp = self.api.change_leverage(symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol) # Use quote_asset.symbol
                         if not lev_resp or lev_resp.get("code") != 0:
                             logger.warning(f"Failed to set leverage for {symbol} to {leverage}x: {lev_resp}")
                         else:
@@ -584,219 +544,128 @@ class Bitunix(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _get_ws_url(self) -> str:
-        """Return the WebSocket URL for BitUnix streams."""
-        return self.ws_url
+    # --- Polling-based stream implementation ---
 
-    async def _authenticate_ws(self, ws: websockets.WebSocketClientProtocol):
-        """Authenticate on the private WebSocket channel using API key and secret."""
-        timestamp = str(int(time.time()))
-        nonce = str(int(time.time() * 1_000_000))
-        digest = hashlib.sha256((nonce + timestamp + self.api.api_key).encode()).hexdigest()
-        sign = hashlib.sha256((digest + self.api_secret).encode()).hexdigest()
-        await ws.send(json.dumps({
-            "op": "login",
-            "args": [{
-                "apiKey": self.api.api_key,
-                "timestamp": timestamp,
-                "nonce": nonce,
-                "sign": sign
-            }]
-        }))
-        # Loop until login response arrives
-        while True:
-            raw = await ws.recv()
-            msg = json.loads(raw)
-            if msg.get("op") == "connect":
+    def do_polling(self):
+        """
+        Polls Bitunix for order status updates and dispatches events.
+        """
+        # Pull current positions and sync with Lumibot's positions
+        self.sync_positions(None)
+
+        # Get all open orders from Bitunix and dispatch them to the stream for processing
+        raw_orders = self._pull_broker_all_orders()
+        stored_orders = {x.identifier: x for x in self.get_all_orders()}
+        for order_row in raw_orders:
+            order = self._parse_broker_order(order_row, strategy_name=self._strategy_name)
+            if not order:
                 continue
-            if msg.get("op") == "login":
-                if msg.get("code") != 0:
-                    raise Exception(f"WebSocket auth failed: {msg}")
-                break
+            # Process all orders
+            if order.identifier not in stored_orders:
+                if self._first_iteration:
+                    if order.status == Order.OrderStatus.FILLED:
+                        self._process_trade_event(order, self.FILLED_ORDER, price=order.avg_fill_price, filled_quantity=order.quantity)
+                    elif order.status == Order.OrderStatus.CANCELED:
+                        self._process_trade_event(order, self.CANCELED_ORDER)
+                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                        self._process_trade_event(order, self.PARTIALLY_FILLED_ORDER, price=order.avg_fill_price, filled_quantity=order.quantity)
+                    elif order.status == Order.OrderStatus.SUBMITTED:
+                        self._process_trade_event(order, self.NEW_ORDER)
+                    elif order.status == Order.OrderStatus.ERROR:
+                        self._process_trade_event(order, self.ERROR_ORDER, error=order.error_message)
+                else:
+                    self._process_trade_event(order, self.NEW_ORDER)
+            else:
+                stored_order = stored_orders[order.identifier]
+                stored_order.quantity = order.quantity
+                stored_order.broker_create_date = order.broker_create_date
+                stored_order.broker_update_date = order.broker_update_date
+                if order.avg_fill_price:
+                    stored_order.avg_fill_price = order.avg_fill_price
+                # Status has changed since last time we saw it, dispatch the new status.
+                if not order.equivalent_status(stored_order):
+                    if order.status == Order.OrderStatus.SUBMITTED:
+                        self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                    elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+                        self.stream.dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
+                    elif order.status == Order.OrderStatus.FILLED:
+                        self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
+                    elif order.status == Order.OrderStatus.CANCELED:
+                        self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                    elif order.status == Order.OrderStatus.ERROR:
+                        msg = order_row.get("msg", f"{self.name} encountered an error with order {order.identifier} | {order}")
+                        self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                else:
+                    stored_order.status = order.status
 
-    # Subscription logic is now handled in _run_stream per new spec
+        # See if there are any tracked (active) orders that are no longer in the broker's list, dispatch as cancelled
+        tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        broker_ids = [o.get("orderId") for o in raw_orders if "orderId" in o]
+        for order_id, order in tracked_orders.items():
+            if order_id not in broker_ids:
+                logger.debug(
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. Dispatching as cancelled."
+                )
+                if order.is_active():
+                    self.stream.dispatch(self.CANCELED_ORDER, order=order)
 
     def _get_stream_object(self):
-        """Returns the stream object for polling."""
-        return PollingStream(self)
+        """Returns the polling stream object."""
+        return PollingStream(self.poll_interval)
 
     def _register_stream_events(self):
-        """No-op: WS messages are handled directly in _handle_stream_message."""
-        pass
+        """Register polling event for Bitunix."""
+        broker = self
 
-    async def _handle_stream_message(self, message: str):
-        """Parse incoming WS messages and dispatch Lumibot events."""
-        try:
-            msg = json.loads(message)
-            # Auto‑reply to server ping
-            if msg.get("op") == "ping" and "ping" in msg:
-                await self._ws.send(json.dumps({"op": "ping", "pong": msg["ping"], "ping": int(time.time())}))
-                return
-            channel = msg.get('ch') or msg.get('method')
-            data = msg.get('data', {})
+        @broker.stream.add_action(PollingStream.POLL_EVENT)
+        def on_trade_event_poll():
+            self.do_polling()
 
-            # Process order updates
-            if channel and 'order' in channel:
-                # Try to parse order update
-                order_update = self._parse_broker_order(data, self._strategy_name)
-                if not order_update:
-                    return
+        @broker.stream.add_action(broker.NEW_ORDER)
+        def on_trade_event_new(order):
+            logger.info(f"Processing action for new order {order}")
+            try:
+                broker._process_trade_event(order, broker.NEW_ORDER)
+                return True
+            except Exception:
+                logger.error(traceback.format_exc())
 
-                # Determine appropriate event based on order status
-                status = order_update.status
-                if status == Order.OrderStatus.SUBMITTED:
-                    event = self.NEW_ORDER
-                elif status == Order.OrderStatus.PARTIALLY_FILLED:
-                    event = self.PARTIALLY_FILLED_ORDER
-                elif status == Order.OrderStatus.FILLED:
-                    event = self.FILLED_ORDER
-                elif status == Order.OrderStatus.CANCELED:
-                    event = self.CANCELED_ORDER
-                elif status == Order.OrderStatus.ERROR:
-                    event = self.ERROR_ORDER
-                    # Log detailed error information for failed orders
-                    logger.error(f"Order {order_update.identifier} failed with error status. Raw response: {order_update.raw_data}")
-                else:
-                    # Unrecognized status, skip processing
-                    return
+        @broker.stream.add_action(broker.FILLED_ORDER)
+        def on_trade_event_fill(order, price, filled_quantity):
+            logger.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
+            try:
+                broker._process_trade_event(order, broker.FILLED_ORDER, price=price, filled_quantity=filled_quantity)
+                return True
+            except Exception:
+                logger.error(traceback.format_exc())
 
-                # Calculate filled data for trade events
-                price = float(order_update.avg_fill_price) if order_update.avg_fill_price else None
-                qty = float(order_update.filled_quantity) if order_update.filled_quantity else 0
+        @broker.stream.add_action(broker.CANCELED_ORDER)
+        def on_trade_event_cancel(order):
+            logger.info(f"Processing action for cancelled order {order}")
+            try:
+                broker._process_trade_event(order, broker.CANCELED_ORDER)
+            except Exception:
+                logger.error(traceback.format_exc())
 
-                # Dispatch event via broker's trade event processor
-                self._process_trade_event(order_update, event, price=price, filled_quantity=qty)
-        except Exception as e:
-            logger.error(f"Error processing WebSocket message: {str(e)}")
-            logger.error(traceback.format_exc())
+        @broker.stream.add_action(broker.ERROR_ORDER)
+        def on_trade_event_error(order, error_msg):
+            logger.error(f"Processing action for error order {order} | {error_msg}")
+            try:
+                if order.is_active():
+                    broker._process_trade_event(order, broker.ERROR_ORDER)
+                logger.error(error_msg)
+                order.set_error(error_msg)
+            except Exception:
+                logger.error(traceback.format_exc())
 
     def _run_stream(self):
-        """
-        Run the WebSocket listener in its own thread with a dedicated event loop.
-        """
-        # Signal that the "stream" (WebSocket listener) is established
         self._stream_established()
-        logger.info(f"Starting Bitunix WebSocket listener in thread: {threading.current_thread().name}")
-
-        self._ws = None
-        loop = None  # Initialize loop to None
         try:
-            # Create and set a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            # Run the connection and listening coroutine within this loop
-            loop.run_until_complete(self._connect_and_listen())
+            self.stream._run()
         except Exception as e:
-            logger.error(f"Error in Bitunix WebSocket main loop: {e}")
-            logger.error(traceback.format_exc())
-        finally:
-            if loop and loop.is_running():
-                loop.close()
-                logger.info("Bitunix WebSocket event loop closed.")
+            logger.error(f"Error running Bitunix polling stream: {e}")
 
-    async def _connect_and_listen(self):
-        """Connection and listening loop for BitUnix WebSocket."""
-        while True:
-            ping_task = None
-            try:
-                # Connect to private WebSocket
-                async with websockets.connect(self.ws_url + "Main") as ws:
-                    self._ws = ws
-                    # 1) Authenticate
-                    nonce = self.api._nonce()
-                    timestamp = self.api._timestamp()
-                    sign = self.api._sign({}, None, nonce, timestamp)
-                    login_msg = {
-                        "op": "login",
-                        "args": [
-                            {
-                                "apiKey": self.api.api_key,
-                                "nonce": nonce,
-                                "timestamp": timestamp,
-                                "sign": sign
-                            }
-                        ]
-                    }
-                    await ws.send(json.dumps(login_msg))
-                    # Wait for login confirmation before subscribing, ignoring intermediate connect acks
-                    while True:
-                        login_response_raw = await ws.recv()
-                        login_response = json.loads(login_response_raw)
-                        # Skip initial connect acknowledgement
-                        if login_response.get("op") == "connect":
-                            continue
-                        # Expect login response next
-                        if login_response.get("op") != "login":
-                            continue
-                        # Check login success
-                        if login_response.get("code") != 0:
-                            raise Exception(f"WebSocket auth failed: {login_response}")
-                        break
-
-                    # 2) Subscribe to order channel for each symbol we're tracking (futures order updates)
-                    for symbol in self.client_symbols:
-                        nonce = self.api._nonce()
-                        timestamp = self.api._timestamp()
-                        sign = self.api._sign({"symbol": symbol}, None, nonce, timestamp)
-                        sub_msg = {
-                            "id": f"subscribe_order_{symbol}",
-                            "method": "order.subscribe",
-                            "params": {
-                                "symbol": symbol,
-                                "nonce": nonce,
-                                "timestamp": timestamp,
-                                "apiKey": self.api.api_key,
-                                "sign": sign
-                            }
-                        }
-                        await ws.send(json.dumps(sub_msg))
-                        logger.info(f"Subscribed to order channel for {symbol}")
-
-                    # 3) Periodically send ping messages to maintain the connection
-                    async def send_ping(ws):
-                        while True:
-                            try:
-                                nonce = self.api._nonce()
-                                timestamp = self.api._timestamp()
-                                sign = self.api._sign({}, None, nonce, timestamp)
-                                ping_msg = {
-                                    "id": "ping",
-                                    "method": "ping",
-                                    "params": {
-                                        "nonce": nonce,
-                                        "timestamp": timestamp,
-                                        "apiKey": self.api.api_key,
-                                        "sign": sign
-                                    }
-                                }
-                                await ws.send(json.dumps(ping_msg))
-                                await asyncio.sleep(30)
-                            except asyncio.CancelledError:
-                                break
-
-                    ping_task = asyncio.create_task(send_ping(ws))
-
-                    # 4) Listen for messages and process them using the handler
-                    async for message in ws:
-                        await self._handle_stream_message(message)
-
-            except ws_exc.ConnectionClosedError as e:
-                logger.warning(f"BitUnix WS disconnected unexpectedly: code={e.code}, reason={e.reason}. Reconnecting in 5s...")
-                await asyncio.sleep(5)
-            except ws_exc.ConnectionClosedOK as e:
-                logger.info(f"BitUnix WS closed normally: code={e.code}, reason={e.reason}. Reconnecting in 5s...")
-                await asyncio.sleep(5)
-            except Exception as e:
-                logger.error(f"Error in BitUnix WebSocket connection: {e}")
-                logger.error(traceback.format_exc())
-                await asyncio.sleep(10)  # Longer delay after unexpected errors
-            finally:
-                if ping_task:
-                    ping_task.cancel()
-                    try:
-                        await ping_task
-                    except asyncio.CancelledError:
-                        pass
+    # ...existing code...
 
     def _modify_order(self, order: Order, price: float = None, quantity: float = None):
         """
@@ -852,9 +721,11 @@ class Bitunix(Broker):
             if pos.asset == asset:
                 return pos
         return None
-
+    
     def get_historical_account_value(self, start_date=None, end_date=None, frequency=None) -> dict:
         """
-        Fetch historical account value using Bitunix API.
+        Not implemented: Bitunix does not support historical account value retrieval.
         """
+        self.logger.error("get_historical_account_value is not implemented for Bitunix broker.")
         return {}
+    

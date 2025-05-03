@@ -67,22 +67,25 @@ class BitunixData(DataSource):
             quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
         return asset, quote
 
-    def get_last_price(self, asset: Asset, quote: Asset = None, **kwargs) -> Optional[Decimal]:
+    def get_last_price(self, asset: Asset, quote: Asset = Asset("USDT", Asset.AssetType.CRYPTO), **kwargs) -> Optional[Decimal]:
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
-        symbol = asset.symbol
-        
         if asset.asset_type == Asset.AssetType.FUTURE:
-            # For futures, use mark price
-            try:
-                resp = self.client.get_mark_price(symbol)
-                if resp and resp.get("code") == 0:
-                    price_str = resp.get("data", {}).get("markPrice")
-                    return Decimal(price_str) if price_str else None
-            except Exception as e:
-                return None
+            symbol = asset.symbol
+        else:
+            symbol = f"{asset.symbol}USDT"
         
+        # For futures, use mark price
+        try:
+            resp = self.client.get_funding_rate(symbol)
+            if resp and resp.get("code") == 0:
+                price_str = resp.get("data", {}).get("markPrice")
+                return Decimal(price_str) if price_str else None
+        except Exception as e:
+            print(e)
+            return None
+    
         return None
-
+    
     def _parse_source_timestep(self, timestep: str) -> str:
         """Convert Lumibot timestep to BitUnix interval format."""
         normalized = self.get_timestep_from_string(timestep)

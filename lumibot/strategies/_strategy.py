@@ -338,7 +338,7 @@ class _Strategy:
         else:
             self.strategy_id = strategy_id
 
-        self._quote_asset = quote_asset
+        self._quote_asset = quote_asset if self.broker.name != "bitunix" else Asset("USDT", Asset.AssetType.CRYPTO)
 
         # Check if self.broker is set
         if self.broker is None:

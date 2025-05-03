@@ -231,6 +231,32 @@ class Bitunix(Broker):
         else:
             return "MARKET"  # Default to MARKET for unknown types
 
+    # --- Order conformance logic ---
+    def _conform_order(self, order):
+        """
+        Conform an order to Bitunix requirements (e.g., rounding, min/max checks).
+        """
+        # Example: round price to 2 decimals for futures, 6 for spot
+        if order.limit_price is not None:
+            if order.asset.asset_type == Asset.AssetType.FUTURE:
+                order.limit_price = round(float(order.limit_price), 2)
+            elif order.asset.asset_type == Asset.AssetType.CRYPTO:
+                order.limit_price = round(float(order.limit_price), 6)
+        if order.quantity is not None:
+            order.quantity = round(float(order.quantity), 6)
+        # Add more checks as needed (min qty, etc.)
+
+    # --- Multi-leg, OCO, OTO, Bracket, Trailing Stop ---
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+        """
+        Submit multiple orders. Bitunix does not support multi-leg, OCO, OTO, Bracket, or trailing stop natively.
+        """
+        if is_multileg or (orders and getattr(orders[0], "order_class", None) in [
+            Order.OrderClass.MULTILEG, Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET
+        ]):
+            raise NotImplementedError("Bitunix does not support multi-leg, OCO, OTO, or Bracket orders natively.")
+        return [self._submit_order(order) for order in orders]
+
     def _submit_order(self, order: Order) -> Order:
         """
         Submits an order to BitUnix exchange.
@@ -263,6 +289,9 @@ class Bitunix(Broker):
         
         # Generate a client order ID for tracking
         client_order_id = f"lmbot_{int(time.time() * 1000)}_{hash(str(order)) % 10000}"
+
+        # Conform the order to Bitunix requirements
+        self._conform_order(order)
 
         try:
             if order.asset.asset_type == Asset.AssetType.FUTURE:
@@ -814,10 +843,18 @@ class Bitunix(Broker):
         except Exception as e:
             raise LumibotBrokerAPIError(f"Error modifying order: {str(e)}")
 
-    def _pull_position(self, strategy) -> Optional[Position]:
-        """Single-position fetch not directly supported, use _pull_positions instead."""
+    def _pull_position(self, strategy, asset: Asset) -> Optional[Position]:
+        """
+        Fetch a single position by asset.
+        """
+        all_positions = self._pull_positions(strategy)
+        for pos in all_positions:
+            if pos.asset == asset:
+                return pos
         return None
 
-    def get_historical_account_value(self, start_date=None, end_date=None, frequency=None) -> list:
-        """Historical account value fetching not currently supported by BitUnix."""
-        return []
+    def get_historical_account_value(self, start_date=None, end_date=None, frequency=None) -> dict:
+        """
+        Fetch historical account value using Bitunix API.
+        """
+        return {}

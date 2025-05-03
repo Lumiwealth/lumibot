@@ -11,7 +11,7 @@ class BitunixFuturesExample(Strategy):
 
     def initialize(self):
         # Set the time between trading iterations
-        self.sleeptime = "1M"  # Run every minute initially, adjust as needed
+        self.sleeptime = "1s"  # Run every minute initially, adjust as needed
 
         # Set the market to 24/7 for crypto futures
         self.set_market("24/7")
@@ -25,14 +25,6 @@ class BitunixFuturesExample(Strategy):
             # self.stop_backtest() # Uncomment if running in backtest and want to stop
             return
 
-        self.log_message("Starting Bitunix Futures Demo...")
-
-        positions = self.get_positions()
-        self.log_message(f"Current positions: {positions}")
-
-        cash = self.get_cash()
-        self.log_message(f"Current cash {cash}")
-
         # Get the last price of BTC/USDT (or your quote asset)
         try:
             # Ensure the base asset type is correct (crypto or future depending on broker needs)
@@ -41,6 +33,14 @@ class BitunixFuturesExample(Strategy):
             self.log_message(f"Last price for {btc_asset.symbol}: {last_price}")
         except Exception as e:
             self.log_message(f"Could not get last price for BTC: {e}", color="red")
+
+        self.log_message("Starting Bitunix Futures Demo...")
+
+        positions = self.get_positions()
+        self.log_message(f"Current positions: {positions}")
+
+        cash = self.get_cash()
+        self.log_message(f"Current cash {cash}")
 
 
         """

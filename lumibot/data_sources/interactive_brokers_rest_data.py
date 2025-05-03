@@ -37,6 +37,9 @@ class InteractiveBrokersRESTData(DataSource):
     SOURCE = "InteractiveBrokersREST"
 
     def __init__(self, config, **kwargs):
+        # Call superclass constructor
+        super().__init__(**kwargs)
+
         if config["API_URL"] is None:
             self.port = "4234"
             self.base_url = f"https://localhost:{self.port}/v1/api"
@@ -44,7 +47,7 @@ class InteractiveBrokersRESTData(DataSource):
             self.api_url = config["API_URL"]
             self.base_url = f"{self.api_url}/v1/api"
 
-        self.account_id = config["ACCOUNT_ID"] if "ACCOUNT_ID" in config else None
+        self.account_id = config["IB_ACCOUNT_ID"] if "IB_ACCOUNT_ID" in config else None
 
         # Check if we are running on a server
         running_on_server = (
@@ -62,6 +65,21 @@ class InteractiveBrokersRESTData(DataSource):
 
     def start(self, ib_username, ib_password):
         if not self.running_on_server:
+            # --- ensure we have the patched IBeam (>=0.5.7) ---
+            # For stability, we use a fixed version by default.
+            # To use the latest, set IBEAM_DOCKER_TAG in your config/env.
+            ibeam_tag = os.environ.get("IBEAM_DOCKER_TAG", "0.5.7")
+            # ibeam_tag = "latest"  # Uncomment to always use latest (not recommended for production)
+            try:
+                subprocess.run(
+                    ["docker", "pull", f"voyz/ibeam:{ibeam_tag}"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            except Exception as e:
+                logging.warning(colored(f"Could not pull IBeam image: {e}", "yellow"))
+
             # Check if Docker is installed
             docker_version_check = subprocess.run(
                 ["docker", "--version"],
@@ -98,6 +116,8 @@ class InteractiveBrokersRESTData(DataSource):
                 "IBEAM_REQUEST_RETRIES": "1",
                 "IBEAM_PAGE_LOAD_TIMEOUT": "30",
                 "IBEAM_INPUTS_DIR": inputs_dir,
+                # NEW – always flip the web-portal to paper accounts
+                "IBEAM_USE_PAPER_ACCOUNT": "true",
             }
 
             env_args = [f"--env={key}={value}" for key, value in env_variables.items()]
@@ -128,7 +148,8 @@ class InteractiveBrokersRESTData(DataSource):
                     f"{self.port}:{self.port}",
                     "-v",
                     volume_mount,
-                    "voyz/ibeam",
+                    # Use the selected tag (default: 0.5.7, can override with env)
+                    f"voyz/ibeam:{ibeam_tag}",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -690,6 +711,78 @@ class InteractiveBrokersRESTData(DataSource):
 
         return chains
 
+    def _get_earliest_future_conid(self, symbol: str, exchange: str = "CME"):
+        """
+        Fetch the conid for the earliest-expiring continuous future for a given symbol and exchange.
+        """
+        url = f"{self.base_url}/trsrv/futures"
+        params = {"symbols": symbol, "secType": "CONTFUT", "exchange": exchange}
+        try:
+            response = requests.get(url, params=params, verify=False)
+            if response.status_code != 200:
+                logging.error(colored(f"Failed to retrieve security definition for {symbol}: {response.text}", "red"))
+                return None
+            contracts = response.json().get(symbol, [])
+            if not contracts:
+                logging.error(colored(f"No contracts found for {symbol} on {exchange}", "red"))
+                return None
+            # Pick the earliest expiration
+            earliest = min(contracts, key=lambda d: int(d["expirationDate"]))
+            return earliest["conid"]
+        except Exception as e:
+            logging.error(colored(f"Error fetching continuous future conid: {e}", "red"))
+            return None
+
+    def _get_futures_conid(self, asset: Asset, exchange: str = "CME"):
+        """
+        Returns the correct conid for a futures asset.
+        If expiration is set, returns the specific contract conid.
+        If expiration is None, returns the continuous/earliest contract conid.
+        """
+        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+            if getattr(asset, "expiration", None) is None:
+                return self._get_earliest_future_conid(asset.symbol, exchange)
+            else:
+                return self._get_specific_future_conid(asset, exchange)
+        return None
+
+    def _get_specific_future_conid(self, asset: Asset, exchange: str = "CME"):
+        """
+        Returns the conid for a specific futures contract (with expiration).
+        """
+        self.ping_iserver()
+        url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
+        response = self.get_from_endpoint(url, "Getting Underlying conid")
+        if (
+            isinstance(response, list)
+            and len(response) > 0
+            and isinstance(response[0], dict)
+            and "conid" in response[0]
+        ):
+            underlying_conid = int(response[0]["conid"])
+        else:
+            logging.error(
+                colored(
+                    f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}",
+                    "red",
+                )
+            )
+            logging.error(colored(f"Response: {response}", "red"))
+            return None
+        exchange_val = next(
+            (section["exchange"] for section in response[0]["sections"] if section["secType"] == "FUT"),
+            exchange,
+        )
+        return self._get_conid_for_derivative(
+            underlying_conid,
+            asset,
+            exchange=exchange_val,
+            sec_type="FUT",
+            additional_params={
+                "multiplier": asset.multiplier,
+            },
+        )
+
     def get_historical_prices(
         self,
         asset,
@@ -725,16 +818,19 @@ class InteractiveBrokersRESTData(DataSource):
 
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
-
         if not timestep:
             timestep = self.get_timestep()
-
         if timeshift:
             start_time = (datetime.now() - timeshift).strftime("%Y%m%d-%H:%M:%S")
         else:
             start_time = datetime.now().strftime("%Y%m%d-%H:%M:%S")
 
-        conid = self.get_conid_from_asset(asset=asset)
+        # --- Use helper for futures conid ---
+        conid = None
+        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+            conid = self._get_futures_conid(asset, exchange or "CME")
+        else:
+            conid = self.get_conid_from_asset(asset=asset)
 
         # Determine the period based on the timestep and length
         # TODO fix wtvr this is
@@ -776,7 +872,8 @@ class InteractiveBrokersRESTData(DataSource):
             )
 
         url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}startTime={start_time}"
-
+        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE and getattr(asset, "expiration", None) is None:
+            url += "&continuous=true"
         if exchange:
             url += f"&exchange={exchange}"
 
@@ -851,17 +948,21 @@ class InteractiveBrokersRESTData(DataSource):
         return bars
 
     def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+        """
+        Get the last price for an asset.
+        For futures, always use get_market_snapshot (the official IBKR endpoint for all asset types).
+        """
         field = "last_price"
-        response = self.get_market_snapshot(asset, [field])  # TODO add exchange
+        response = self.get_market_snapshot(asset, [field])  # Always use this for all asset types
 
         if response is None or field not in response:
-            if asset.asset_type in ["option", "future"]:
+            if getattr(asset, "asset_type", None) in ["option", "future"]:
                 logging.debug(
-                    f"Failed to get {field} for asset {asset.symbol} with strike {asset.strike} and expiration date {asset.expiration}"
+                    f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} with strike {getattr(asset, 'strike', None)} and expiration date {getattr(asset, 'expiration', None)}"
                 )
             else:
                 logging.debug(
-                    f"Failed to get {field} for asset {asset.symbol} of type {asset.asset_type}"
+                    f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} of type {getattr(asset, 'asset_type', None)}"
                 )
             return None
 
@@ -874,6 +975,9 @@ class InteractiveBrokersRESTData(DataSource):
         return float(price)
 
     def get_conid_from_asset(self, asset: Asset):
+        # --- Use helper for futures conid ---
+        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+            return self._get_futures_conid(asset, "CME")
         self.ping_iserver()
         # Get conid of underlying
         url = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"

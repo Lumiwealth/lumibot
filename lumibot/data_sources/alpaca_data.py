@@ -49,39 +49,59 @@ class AlpacaData(DataSource):
     TIMESTEP_MAPPING = [
         {
             "timestep": "minute",
-            "representations": [TimeFrame.Minute, "minute", "1m"],
+            "representations": [TimeFrame.Minute, "minute"],
         },
         {
             "timestep": "5 minutes",
-            "representations": [TimeFrame(5, TimeFrame.Minute), "5minute", "5m"],
+            "representations": [
+                [f"5{TimeFrame.Minute}", "minute"],
+            ],
         },
         {
             "timestep": "10 minutes",
-            "representations": [TimeFrame(10, TimeFrame.Minute), "10minute", "10m"],
+            "representations": [
+                [f"10{TimeFrame.Minute}", "minute"],
+            ],
         },
         {
             "timestep": "15 minutes",
-            "representations": [TimeFrame(15, TimeFrame.Minute), "15minute", "15m"],
+            "representations": [
+                [f"15{TimeFrame.Minute}", "minute"],
+            ],
         },
         {
             "timestep": "30 minutes",
-            "representations": [TimeFrame(30, TimeFrame.Minute), "30minute", "30m"],
+            "representations": [
+                [f"30{TimeFrame.Minute}", "minute"],
+            ],
         },
         {
             "timestep": "hour",
-            "representations": [TimeFrame.Hour, "1hour", "1h"],
+            "representations": [
+                [f"{TimeFrame.Hour}", "hour"],
+            ],
+        },
+        {
+            "timestep": "1 hour",
+            "representations": [
+                [f"{TimeFrame.Hour}", "hour"],
+            ],
         },
         {
             "timestep": "2 hours",
-            "representations": [TimeFrame(2, TimeFrame.Hour), "2hour", "2h"],
+            "representations": [
+                [f"2{TimeFrame.Hour}", "hour"],
+            ],
         },
         {
             "timestep": "4 hours",
-            "representations": [TimeFrame(4, TimeFrame.Hour), "4hour", "4h"],
+            "representations": [
+                [f"4{TimeFrame.Hour}", "hour"],
+            ],
         },
         {
             "timestep": "day",
-            "representations": [TimeFrame.Day, "day", "1d"],
+            "representations": [TimeFrame.Day, "day"],
         },
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
@@ -355,7 +375,7 @@ class AlpacaData(DataSource):
             include_after_hours: bool = True
     ) -> Optional[pd.DataFrame]:
 
-        timeframe = self._parse_source_timestep(timestep, reverse=False)
+        timeframe = self._parse_source_timestep(timestep, reverse=True)
 
         now = dt.datetime.now(self._tzinfo)
 

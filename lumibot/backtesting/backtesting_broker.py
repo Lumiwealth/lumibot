@@ -175,8 +175,16 @@ class BacktestingBroker(Broker):
         self.process_pending_orders(strategy=strategy)
 
         time_to_open = self.get_time_to_open()
+
+        # Allow the caller to specify a buffer (in minutes) before the actual open
         if timedelta:
             time_to_open -= 60 * timedelta
+
+        # Only advance time if there is something positive to advance;
+        # prevents zero or negative time updates.
+        if time_to_open <= 0:
+            return
+
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
@@ -185,6 +193,10 @@ class BacktestingBroker(Broker):
         self.process_pending_orders(strategy=strategy)
 
         time_to_close = self.get_time_to_close()
+
+        # If get_time_to_close returns None (e.g., market already closed or error), return early.
+        if time_to_close is None:
+            return
 
         # Allow the caller to specify a buffer (in minutes) before the actual close
         if timedelta is not None:

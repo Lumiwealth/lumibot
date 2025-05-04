@@ -2,7 +2,25 @@
 # ------------------------------------------------------------------
 name: LumiBot CI/CD
 
-on: [pull_request]
+# ──────────────────────────────────────────────────────────────────
+# Run the workflow on:
+#   • every PR targeting our main branches         – as before
+#   • every direct push to those branches          – NEW (so the
+#     default-branch README can find a successful
+#     run and the workflow can commit coverage.svg)
+# ──────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+# ──────────────────────────────────────────────────────────────────
+# Give GITHUB_TOKEN write rights so the job can push coverage.svg
+# (read-only is the default for workflows since Oct 2023)
+# ──────────────────────────────────────────────────────────────────
+permissions:
+  contents: write
 # permissions:
 #   # Gives the action the necessary permissions for publishing new
 #   # comments in pull requests.
@@ -14,6 +32,7 @@ on: [pull_request]
 #   # workflow that launched this workflow, and download the related
 #   # artifact that contains the comment to be published
 #   actions: read
+
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
@@ -68,14 +87,18 @@ jobs:
           retention-days: 7
 
       # ------------------------------------------------------------
-      # Create / update the SVG badge (adds a commit to the PR branch)
+      # Create / update the SVG badge (only on direct pushes to our
+      # main branches, never on PRs/forks so we avoid permission woes)
+      # ------------------------------------------------------------
       - name: Generate coverage badge
-        uses: tj-actions/coverage-badge-py@v2   #  [oai_citation:0‡GitHub](https://github.com/tj-actions/coverage-badge-py?utm_source=chatgpt.com)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        uses: tj-actions/coverage-badge-py@v2   #  [oai_citation:0‡GitHub](https://github.com/tj-actions/coverage-badge-py)
         with:
           output: coverage.svg
 
       # Only commit if the badge actually changed
       - name: Detect changed badge
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
         id: verify
         uses: tj-actions/verify-changed-files@v16
         with:

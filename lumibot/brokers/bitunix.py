@@ -116,7 +116,6 @@ class Bitunix(Broker):
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> Optional[Tuple[float, float, float]]:
         """
-        Fetches FUTURES balances and returns a tuple of (total_cash, gross_spot_value, net_liquidation_value)
         Only the available quote asset is used for cash.
         """
         total_cash = gross_spot = net_liquidation = 0.0
@@ -146,8 +145,7 @@ class Bitunix(Broker):
 
     def _pull_positions(self, strategy) -> List[Position]:
         """
-        Retrieves both SPOT and FUTURES positions.
-        Spot positions are inferred from the main account balances.
+        Retrieves FUTURES positions.
         Futures positions are fetched from the open positions endpoint.
         """
         positions = []
@@ -196,21 +194,6 @@ class Bitunix(Broker):
         else:
             return "MARKET"  # Default to MARKET for unknown types
 
-    # --- Order conformance logic ---
-    def _conform_order(self, order):
-        """
-        Conform an order to Bitunix requirements (e.g., rounding, min/max checks).
-        """
-        # Example: round price to 2 decimals for futures, 6 for spot
-        if order.limit_price is not None:
-            if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
-                order.limit_price = round(float(order.limit_price), 2)
-            elif order.asset.asset_type == Asset.AssetType.CRYPTO:
-                order.limit_price = round(float(order.limit_price), 6)
-        if order.quantity is not None:
-            order.quantity = round(float(order.quantity), 6)
-        # Add more checks as needed (min qty, etc.)
-
     # --- Multi-leg, OCO, OTO, Bracket, Trailing Stop ---
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
@@ -225,7 +208,7 @@ class Bitunix(Broker):
     def _submit_order(self, order: Order) -> Order:
         """
         Submits an order to BitUnix exchange.
-        Handles both SPOT and FUTURES orders.
+        Handles FUTURES orders.
         """
         if order.asset.asset_type not in (Asset.AssetType.CRYPTO_FUTURE):
             error_msg = f"Asset type {order.asset.asset_type} not supported by BitUnix"
@@ -244,8 +227,9 @@ class Bitunix(Broker):
                 order.set_error(LumibotBrokerAPIError(error_msg))
                 return order
         else:
-            # Spot trading pair
-            symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
+            error_msg = f"Invalid asset type: asset can only be CRYPTO_FUTURE"
+            order.set_error(LumibotBrokerAPIError(error_msg))
+            return order
 
         # Prepare quantity and price
         quantity = abs(float(order.quantity))
@@ -253,9 +237,6 @@ class Bitunix(Broker):
         
         # Generate a client order ID for tracking
         client_order_id = f"lmbot_{int(time.time() * 1000)}_{hash(str(order)) % 10000}"
-
-        # Conform the order to Bitunix requirements
-        self._conform_order(order)
 
         try:
             if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
@@ -309,41 +290,7 @@ class Bitunix(Broker):
                 else:
                     error_msg = f"No order ID in response: {response}"
                     order.set_error(LumibotBrokerAPIError(error_msg))
-                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
-            else:
-                # SPOT order
-                side_code = 2 if order.side == Order.OrderSide.BUY else 1   # 2 = buy, 1 = sell
-                type_code = 1 if order.order_type == Order.OrderType.LIMIT else 2  # 1 = limit, 2 = market
-                params = {
-                    "symbol": symbol,
-                    "side": side_code,
-                    "type": type_code,
-                    "volume": quantity,
-                }
-                if price is not None:
-                    params["price"] = price
-
-                response = self.api.place_spot_order(**params)
-                # Process response
-                if response and response.get("code") == 0:
-                    data = response.get("data", {})
-                    order_id = data.get("orderId")
-                    if order_id:
-                        order.identifier = order_id
-                        order.status = Order.OrderStatus.SUBMITTED
-                        order.update_raw(response)
-                        self._unprocessed_orders.append(order)
-                        self._process_trade_event(order, self.NEW_ORDER)
-                    else:
-                        error_msg = f"No order ID in response: {response}"
-                        order.set_error(LumibotBrokerAPIError(error_msg))
-                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
-                else:
-                    error_msg = f"Error placing order: {response}"
-                    order.set_error(LumibotBrokerAPIError(error_msg))
-                    # Attach full response for debugging
-                    order.update_raw(response)
-                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)                
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
             order.set_error(e)
@@ -352,9 +299,9 @@ class Bitunix(Broker):
 
     def cancel_order(self, order: Order):
         """
-        Cancels a SPOT or FUTURES order.
+        Cancels a FUTURES order.
         """
-        if not order.identifier or order.is_final():
+        if not order.identifier:
             return
             
         try:
@@ -391,19 +338,6 @@ class Bitunix(Broker):
 
     def _pull_broker_all_orders(self, symbol: Optional[str] = None, status: Optional[str] = None) -> List[Dict]:
         all_orders = []
-
-        # Fetch SPOT open orders
-        try:
-            spot_open_resp = self.api.get_pending_orders(symbol=symbol)
-            if spot_open_resp and spot_open_resp.get("code") == 0:
-                data = spot_open_resp.get("data") or {}
-                spot_orders = data.get("orderList", [])
-
-                if len(spot_orders) > 0:
-                    all_orders.extend(spot_orders)
-        except Exception:
-            logger.warning("Error fetching spot open orders")
-        
         # Fetch FUTURES open orders
         try:
             fut_open_resp = self.api.get_pending_orders(symbol=symbol)
@@ -470,7 +404,6 @@ class Bitunix(Broker):
             if ap:
                 price_avg = Decimal(str(ap))
                         
-            # Determine if this is a futures or spot order based on symbol format
             asset = Asset(symbol, Asset.AssetType.CRYPTO_FUTURE)
             quote = None
             
@@ -729,10 +662,6 @@ class Bitunix(Broker):
                     logger.warning("Failed to flash close position %s: %s", position_id, resp)
                 else:
                     logger.info("Flash-closed position %s (%s)", position_id, pos.asset.symbol)
-        # Delegate non-futures (e.g. spot) back to base behavior if any remain
-        non_futures = [p for p in positions if p.asset.asset_type != Asset.AssetType.CRYPTO_FUTURE and p.quantity != 0]
-        if non_futures:
-            super().sell_all(strategy_name, cancel_open_orders=False, strategy=strategy, is_multileg=is_multileg)
 
     def close_position(self, strategy_name: str, asset: Asset):
         """Close one FUTURE position via flash_close_position."""

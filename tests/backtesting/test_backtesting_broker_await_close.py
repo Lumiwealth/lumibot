@@ -81,7 +81,7 @@ class TestBacktestingBrokerAwaitClose(unittest.TestCase):
         # Assertions
         self.broker.process_pending_orders.assert_called_once_with(strategy=self.mock_strategy)
         self.broker.get_time_to_close.assert_called_once()
-        # _update_datetime should NOT be called if time_to_close is None or <= 0
+        # _update_datetime should NOT be called if get_time_to_close returns None
         self.broker._update_datetime.assert_not_called()
 
     def test_await_close_with_buffer(self):
@@ -110,7 +110,7 @@ class TestBacktestingBrokerAwaitClose(unittest.TestCase):
         base_time_to_close = (market_close_time - self.mock_datetime).total_seconds() # 120 seconds
         buffer_minutes = 3 # 180 seconds buffer
 
-        # Mock get_time_to_close returning the base value
+        # Mock get_time_to_close returning the base value (positive)
         self.broker.get_time_to_close.return_value = base_time_to_close
 
         # Call the method under test with the buffer
@@ -119,8 +119,9 @@ class TestBacktestingBrokerAwaitClose(unittest.TestCase):
         # Assertions
         self.broker.process_pending_orders.assert_called_once_with(strategy=self.mock_strategy)
         self.broker.get_time_to_close.assert_called_once()
-        # _update_datetime should NOT be called because calculated time_to_close is <= 0
-        self.broker._update_datetime.assert_not_called()
+        # _update_datetime should be called with 1 because calculated time_to_close is <= 0
+        # but the initial time_to_close was positive.
+        self.broker._update_datetime.assert_called_once_with(1)
 
     def test_await_close_when_already_past_close_no_buffer(self):
         """Test _await_market_to_close when current time is past market close (no buffer)."""
@@ -135,7 +136,7 @@ class TestBacktestingBrokerAwaitClose(unittest.TestCase):
         # Assertions
         self.broker.process_pending_orders.assert_called_once_with(strategy=self.mock_strategy)
         self.broker.get_time_to_close.assert_called_once()
-        # _update_datetime should NOT be called
+        # _update_datetime should NOT be called because initial get_time_to_close was <= 0
         self.broker._update_datetime.assert_not_called()
 
     # Remove the old simulation tests as they are replaced by direct method calls

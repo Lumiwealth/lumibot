@@ -195,22 +195,24 @@ class BacktestingBroker(Broker):
 
         result = self.get_time_to_close()
 
+        # If get_time_to_close returned None (e.g., market already closed or error), do nothing.
         if result is None:
-            time_to_close = 0
-        else:
-            time_to_close = result
+            return
+
+        time_to_close = result
 
         if timedelta is not None:
             time_to_close -= 60 * timedelta
         
-        # Ensure we always advance time in backtesting mode
-        # If time_to_close is 0 or negative, advance by at least 1 second
-        # to prevent infinite loops
-        if time_to_close <= 0:
-            logging.debug("Market already closed or no time left to close. Advancing time by 1 second.")
-            time_to_close = 1
-        
-        self._update_datetime(time_to_close)
+        # Only advance time if there is positive time remaining.
+        if time_to_close > 0:
+            self._update_datetime(time_to_close)
+        # If the calculated time is non-positive, but the market was initially open (result > 0),
+        # advance by a minimal amount to prevent potential infinite loops if called repeatedly near close.
+        elif result >= 0: # Check original result was positive
+             logging.debug("Calculated time to close is non-positive. Advancing time by 1 second.")
+             self._update_datetime(1)
+        # Otherwise (result <= 0 initially), do nothing, market is already closed.
 
     # =========Positions functions==================
     def _pull_broker_position(self, asset):

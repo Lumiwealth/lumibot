@@ -132,6 +132,7 @@ class Asset:
         STOCK = "stock" # Stock
         OPTION = "option" # Option
         FUTURE = "future" # Future
+        CRYPTO_FUTURE = "crypto_future" # Crypto Future
         CONT_FUTURE = "cont_future" # Continuous future
         FOREX = "forex" # Forex or cash
         CRYPTO = "crypto" # Crypto

@@ -19,6 +19,7 @@ class Bitunix(Broker):
         stock=[],
         option=[],
         future=["future"],
+        crypto_future=["future"],    # new crypto‐futures
         forex=[],
         crypto=["crypto"],
     )
@@ -94,8 +95,10 @@ class Bitunix(Broker):
         )
 
     def get_quote_asset(self):
-        self.quote_assets.clear()
-        self.quote_assets.add(Asset("USDT", Asset.AssetType.CRYPTO))
+        # Only clear and set quote_assets if USDT is not the only asset
+        if not (len(self.quote_assets) == 1 and Asset("USDT", Asset.AssetType.CRYPTO) in self.quote_assets):
+            self.quote_assets.clear()
+            self.quote_assets.add(Asset("USDT", Asset.AssetType.CRYPTO))
         
         return Asset("USDT", Asset.AssetType.CRYPTO)  
 
@@ -165,9 +168,10 @@ class Bitunix(Broker):
                         qty = abs(qty)
                     entry = Decimal(str(p.get("entryPrice", "0")))
                     if qty != 0 and sym:
-                        asset = Asset(sym, Asset.AssetType.FUTURE)
+                        asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
                         pos = Position(strategy_name, asset, qty)
                         pos.average_entry_price = entry
+                        pos._raw = p                         # attach raw dict to capture positionId
                         positions.append(pos)
         except Exception as e:
             logger.warning("Error fetching futures positions: %s", e)
@@ -199,7 +203,7 @@ class Bitunix(Broker):
         """
         # Example: round price to 2 decimals for futures, 6 for spot
         if order.limit_price is not None:
-            if order.asset.asset_type == Asset.AssetType.FUTURE:
+            if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
                 order.limit_price = round(float(order.limit_price), 2)
             elif order.asset.asset_type == Asset.AssetType.CRYPTO:
                 order.limit_price = round(float(order.limit_price), 6)
@@ -223,13 +227,13 @@ class Bitunix(Broker):
         Submits an order to BitUnix exchange.
         Handles both SPOT and FUTURES orders.
         """
-        if order.asset.asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE):
+        if order.asset.asset_type not in (Asset.AssetType.CRYPTO_FUTURE):
             error_msg = f"Asset type {order.asset.asset_type} not supported by BitUnix"
             order.set_error(LumibotBrokerAPIError(error_msg))
             return order
 
         # Determine symbol format based on asset type
-        if order.asset.asset_type == Asset.AssetType.FUTURE:
+        if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
             symbol = order.asset.symbol
             quote_symbol = self.get_quote_asset().symbol
             # Ensure symbol ends with quote_symbol (e.g., BTCUSDT)
@@ -254,7 +258,7 @@ class Bitunix(Broker):
         self._conform_order(order)
 
         try:
-            if order.asset.asset_type == Asset.AssetType.FUTURE:
+            if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
                 # Ensure desired leverage is set
                 leverage = order.asset.leverage
                 try:
@@ -354,15 +358,8 @@ class Bitunix(Broker):
             return
             
         try:
-            # Determine symbol format based on asset type
-            if order.asset.asset_type == Asset.AssetType.FUTURE:
-                response = self.api.cancel_order(order_id=order.identifier)
-            else:
-                symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
-                response = self.api.cancel_spot_order(
-                    order_id=order.identifier,
-                    symbol=symbol
-                )
+            response = self.api.cancel_order(order_id=order.identifier)
+
             # Check response
             if response and response.get("code") == 0:
                 # Use self._process_trade_event for consistency
@@ -370,14 +367,14 @@ class Bitunix(Broker):
             else:
                 # Log error but don't raise, let polling handle final state
                 logger.error(f"Failed to cancel order {order.identifier}: {response}")
-                # Optionally dispatch an error event if immediate feedback is needed
-                # self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Failed to cancel order: {response}"))
+                # Dispatch an error event if immediate feedback is needed
+                self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Failed to cancel order: {response}"))
         except Exception as e:
              # Log error but don't raise, let polling handle final state
             logger.error(f"Error canceling order {order.identifier}: {str(e)}")
-            # Optionally dispatch an error event
-            # self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Error canceling order: {str(e)}"))
-            pass # Don't raise, rely on polling
+            # Dispatch an error event
+            self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Error canceling order: {str(e)}"))
+            pass
 
     def _pull_broker_order(self, identifier: str, asset_type: Asset.AssetType=Asset.AssetType.CRYPTO) -> Optional[Dict]:
         """
@@ -474,26 +471,8 @@ class Bitunix(Broker):
                 price_avg = Decimal(str(ap))
                         
             # Determine if this is a futures or spot order based on symbol format
-            is_future = False
-            if symbol.endswith("PERP") or "-" in symbol:
-                is_future = True
-                asset = Asset(symbol, Asset.AssetType.FUTURE)
-                quote = None
-            else:
-                # For spot, extract base and quote from symbol
-                # Assuming USDT is the quote currency - adjust if needed
-                base_symbol = symbol
-                quote_symbol = "USDT"
-                
-                # Try to extract base/quote if a common quote currency is found
-                for common_quote in ["USDT", "BTC", "BUSD", "ETH"]:
-                    if symbol.endswith(common_quote):
-                        base_symbol = symbol[:-len(common_quote)]
-                        quote_symbol = common_quote
-                        break
-                
-                asset = Asset(base_symbol, Asset.AssetType.CRYPTO)
-                quote = Asset(quote_symbol, Asset.AssetType.CRYPTO)
+            asset = Asset(symbol, Asset.AssetType.CRYPTO_FUTURE)
+            quote = None
             
             # Map order side
             side = Order.OrderSide.BUY if side_raw.upper() == "BUY" else Order.OrderSide.SELL
@@ -676,7 +655,7 @@ class Bitunix(Broker):
             
         try:
             # Determine symbol format based on asset type
-            if order.asset.asset_type == Asset.AssetType.FUTURE:
+            if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
                 symbol = order.asset.symbol
             else:
                 symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
@@ -728,4 +707,47 @@ class Bitunix(Broker):
         """
         self.logger.error("get_historical_account_value is not implemented for Bitunix broker.")
         return {}
-    
+
+    def sell_all(self, strategy_name, cancel_open_orders: bool = True, strategy=None, is_multileg: bool = False):
+        """Override sell_all to use flash_close_position for futures."""
+        # Optional: cancel any open orders first
+        if cancel_open_orders:
+            super().sell_all(strategy_name, cancel_open_orders=True, strategy=strategy, is_multileg=is_multileg)
+        # Fetch current positions
+        positions = self._pull_positions(strategy)
+        # Flash-close all futures positions
+        for pos in positions:
+            if pos.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE) and pos.quantity != 0:
+                raw = getattr(pos, "_raw", {})
+                position_id = raw.get("positionId")
+                if not position_id:
+                    logger.warning("No positionId for %s, skipping flash close", pos.asset.symbol)
+                    continue
+                side = "SELL" if pos.quantity > 0 else "BUY"
+                resp = self.api.flash_close_position(position_id=position_id, side=side)
+                if not resp or resp.get("code") != 0:
+                    logger.warning("Failed to flash close position %s: %s", position_id, resp)
+                else:
+                    logger.info("Flash-closed position %s (%s)", position_id, pos.asset.symbol)
+        # Delegate non-futures (e.g. spot) back to base behavior if any remain
+        non_futures = [p for p in positions if p.asset.asset_type != Asset.AssetType.CRYPTO_FUTURE and p.quantity != 0]
+        if non_futures:
+            super().sell_all(strategy_name, cancel_open_orders=False, strategy=strategy, is_multileg=is_multileg)
+
+    def close_position(self, strategy_name: str, asset: Asset):
+        """Close one FUTURE position via flash_close_position."""
+        # find matching raw position
+        for pos in self._pull_positions(None):
+            if pos.asset == asset and pos.quantity != 0 and pos.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
+                raw = getattr(pos, "_raw", {})
+                pid = raw.get("positionId")
+                if not pid:
+                    logger.warning("No positionId for %s, skipping", asset.symbol)
+                    return
+                side = "SELL" if pos.quantity > 0 else "BUY"
+                resp = self.api.flash_close_position(position_id=pid, side=side)
+                if not resp or resp.get("code") != 0:
+                    logger.warning("Flash close failed for %s: %s", pid, resp)
+                else:
+                    logger.info("Flash closed position %s", pid)
+                return

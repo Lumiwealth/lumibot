@@ -155,6 +155,12 @@ class Position:
             An order that can be used to sell this position.
 
         """
+        # Prevent use for crypto futures
+        if getattr(self.asset, "asset_type", None) == "crypto_future":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("get_selling_order is not supported for crypto futures. Use the broker's close_position method instead.")
+            return None
         order = None
         if self.quantity < 0:
             order = entities.Order(

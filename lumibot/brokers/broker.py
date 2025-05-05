@@ -1082,6 +1082,14 @@ class Broker(ABC):
 
         self.submit_orders(orders, is_multileg=is_multileg)
 
+    def close_position(self, strategy_name: str, asset: Asset):
+        """Default: close one position by submitting its sell order and return it."""
+        pos = self.get_tracked_position(strategy_name, asset)
+        if pos and pos.quantity != 0:
+            order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
+            return self.submit_order(order)
+        return None
+
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):

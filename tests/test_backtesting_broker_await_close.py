@@ -4,16 +4,14 @@ import pandas as pd
 from datetime import datetime, time, timedelta
 import pytz
 
-# Assuming the BacktestingBroker class is importable like this
-# Adjust the import path if necessary based on your project structure
+# Try importing BacktestingBroker, and if it fails, add the project root to sys.path and retry
 try:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
-    from lumibot.entities import Asset # Import Asset if needed by mocked methods
+    from lumibot.entities import Asset
 except ImportError:
-    # Add path modification if running tests directly and lumibot is not installed
     import sys
     import os
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.entities import Asset
 

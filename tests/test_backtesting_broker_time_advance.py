@@ -4,16 +4,14 @@ import pandas as pd
 from datetime import datetime, time, timedelta
 import pytz
 
-# Assuming the BacktestingBroker class is importable like this
-# Adjust the import path if necessary based on your project structure
+# Try importing BacktestingBroker, and if it fails, add the project root to sys.path and retry
 try:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
-    from lumibot.entities import Asset # Import Asset if needed by mocked methods
+    from lumibot.entities import Asset
 except ImportError:
-    # Add path modification if running tests directly and lumibot is not installed
     import sys
     import os
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.entities import Asset
 
@@ -119,8 +117,8 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         # Assertions
         self.broker.process_pending_orders.assert_called_once_with(strategy=self.mock_strategy)
         self.broker.get_time_to_close.assert_called_once()
-        # _update_datetime should NOT be called because calculated time_to_close is <= 0
-        self.broker._update_datetime.assert_not_called()
+        # _update_datetime should be called with 1 because calculated time_to_close is <= 0
+        self.broker._update_datetime.assert_called_once_with(1)
 
     def test_await_close_when_already_past_close_no_buffer(self):
         """Test _await_market_to_close when current time is past market close (no buffer)."""

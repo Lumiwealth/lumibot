@@ -8,6 +8,7 @@ import csv
 
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
+from lumibot.tools.helpers import get_timezone_from_datetime
 
 
 class DataSourceBacktesting(DataSource, ABC):
@@ -20,17 +21,18 @@ class DataSourceBacktesting(DataSource, ABC):
     IS_BACKTESTING_DATA_SOURCE = True
 
     def __init__(
-        self,
-        datetime_start=None,
-        datetime_end=None,
-        backtesting_started=None,
-        config=None,
-        api_key=None,
-        pandas_data=None,
-        show_progress_bar=True,
-        progress_csv_path=None,
-        log_backtest_progress_to_file=False,
-        **kwargs
+             self,
+            datetime_start: datetime | None = None,
+            datetime_end: datetime | None = None,
+            backtesting_started: datetime | None = None,
+            config: dict | None = None,
+            api_key: str | None = None,
+            show_progress_bar: bool = True,
+            progress_csv_path = None,
+            log_backtest_progress_to_file = False,
+            delay: int | None = None,
+            pandas_data: dict | list = None,
+            **kwargs
     ):
         # Pass only api_key to parent class, not datetime_start and datetime_end
         # Remove any datetime_start or datetime_end from kwargs to avoid them being passed twice
@@ -40,9 +42,9 @@ class DataSourceBacktesting(DataSource, ABC):
         if 'datetime_end' in kwargs:
             # If datetime_end was also passed as a keyword arg, prioritize the keyword arg value
             datetime_end = kwargs.pop('datetime_end')
-            
+
         # Initialize parent class
-        super().__init__(api_key=api_key, **kwargs)
+        super().__init__(api_key=api_key, delay=delay, config=config, **kwargs)
 
         if backtesting_started is None:
             _backtesting_started = dt.datetime.now()
@@ -55,6 +57,7 @@ class DataSourceBacktesting(DataSource, ABC):
         self._iter_count = None
         self.backtesting_started = _backtesting_started
         self.log_backtest_progress_to_file = log_backtest_progress_to_file
+        self._tzinfo = get_timezone_from_datetime(self.datetime_start)
 
         # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
         self.datetime_end -= timedelta(minutes=1)
@@ -132,7 +135,17 @@ class DataSourceBacktesting(DataSource, ABC):
                 elapsed = now_wall - self.backtesting_started
                 eta = (elapsed * (100 / percent)) - elapsed if percent > 0 else None
                 log_eta = eta if eta is not None else None
-                log_portfolio_value = f'{portfolio_value:,.2f}' if portfolio_value is not None else ""
+                if portfolio_value is not None:
+                    if isinstance(portfolio_value, (int, float)):
+                        log_portfolio_value = f'{portfolio_value:,.2f}'
+                    else:
+                        try:
+                            # Try to convert string to float for formatting
+                            log_portfolio_value = f'{float(portfolio_value):,.2f}'
+                        except (ValueError, TypeError):
+                            log_portfolio_value = str(portfolio_value)
+                else:
+                    log_portfolio_value = ""
                 self.log_backtest_progress_to_csv(percent, elapsed, log_eta, log_portfolio_value)
 
     def log_backtest_progress_to_csv(self, percent, elapsed, log_eta, portfolio_value):

@@ -1,14 +1,20 @@
 import logging
 from collections import defaultdict
-from datetime import datetime, date, timedelta
+import datetime as dt
 from decimal import Decimal
 from typing import Union
+import pytz
 
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars
-from lumibot.tools.helpers import create_options_symbol, parse_timestep_qty_and_unit, get_trading_days
+from lumibot.tools.helpers import (
+    create_options_symbol,
+    parse_timestep_qty_and_unit,
+    get_trading_days,
+    date_n_trading_days_from_date
+)
 from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
@@ -55,12 +61,60 @@ class TradierData(DataSource):
         },
     ]
 
-    def __init__(self, account_number, access_token, paper=True, max_workers=20, delay=None):
-        super().__init__(api_key=access_token, delay=delay)
+    def __init__(
+            self,
+            account_number: str,
+            access_token: str,
+            paper: bool = True,
+            max_workers: int = 20,
+            delay: int = 0,
+            tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
+            remove_incomplete_current_bar: bool = False,
+            **kwargs
+    ) -> None:
+        """
+        Initializes the trading account with the specified parameters.
+
+        Parameters:
+        - account_number (str): The account number used for accessing the trading account.
+        - access_token (str): The access token for authenticating requests.
+        - paper (bool, optional): Indicates whether to use the paper trading environment.
+          Defaults to True.
+        - max_workers (int, optional): The maximum number of workers for parallel processing.
+          Defaults to 20.
+        - delay (int, optional): A delay parameter to control how many minutes to delay non-crypto data for.
+          Set to 0 for no delay. Defaults to 0.
+        - tzinfo (pytz.timezone, optional): Timezone for data adjustments. Determines how datetime objects
+          are adjusted when retrieving historical data. Defaults to the `LUMIBOT_DEFAULT_TIMEZONE`.
+        - remove_incomplete_current_bar (bool, optional): Default False.
+          Whether to remove the incomplete current bar from the data.
+          Tradier includes incomplete bars for the current bar (ie: it gives you a daily bar for the current day even if
+          the day isn't over yet). Some Lumibot users night not expect that, so this option will remove the incomplete
+          bar from the data.
+
+        Returns:
+        - None
+        """
+
+        super().__init__(api_key=access_token, delay=delay, tzinfo=tzinfo)
         self._account_number = account_number
         self._paper = paper
         self.max_workers = min(max_workers, 50)
         self.tradier = Tradier(account_number, access_token, paper)
+        self._remove_incomplete_current_bar = remove_incomplete_current_bar
+
+    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+        if isinstance(base_asset, tuple):
+            quote = base_asset[1]
+            asset = base_asset[0]
+        else:
+            asset = base_asset
+            quote = quote_asset
+
+        if isinstance(asset, str):
+            raise NotImplementedError(f"TradierData doesn't support string assets like: {asset} yet.")
+
+        return asset, quote
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
@@ -114,7 +168,7 @@ class TradierData(DataSource):
         ----------
         asset : Asset
             The option asset to get the chain information for.
-        expiry : str | datetime.datetime | datetime.date
+        expiry : str | dt.datetime | dt.date
             The expiry date of the option chain.
         chains : dict
             The chains dictionary created by `get_chains` method. This is used
@@ -159,8 +213,8 @@ class TradierData(DataSource):
         length : int
             The number of bars to get.
         timestep : str
-            The timestep to get the bars at. For example, "minute" or "day".
-        timeshift : datetime.timedelta
+            The timestep to get the bars at. Accepts "day" or "minute".
+        timeshift : dt.timedelta
             The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
             you would set timeshift to 1 hour.
         quote : Asset
@@ -170,7 +224,7 @@ class TradierData(DataSource):
         include_after_hours : bool
             Whether to include after hours data.
         """
-
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
         # Parse the timestep
@@ -188,31 +242,33 @@ class TradierData(DataSource):
         else:
             symbol = asset.symbol
 
-        end_date = datetime.now()
+        # Create end time
+        now = dt.datetime.now(self._tzinfo)
+        if self._delay:
+            end_dt = now - self._delay
+        else:
+            end_dt = now
 
-        # Use pytz to get the US/Eastern timezone
-        eastern = LUMIBOT_DEFAULT_PYTZ
+        if timeshift is not None:
+            if not isinstance(timeshift, dt.timedelta):
+                raise TypeError("timeshift must be a timedelta")
+            end_dt = end_dt - timeshift
 
-        # Convert datetime object to US/Eastern timezone
-        end_date = end_date.astimezone(eastern)
+        if timestep == 'day':
+            days_needed = length
+        else:
+            # For minute bars, calculate additional days needed accounting for weekends/holidays
+            minutes_per_day = 390  # ~6.5 hours of trading per day
+            days_needed = (length // minutes_per_day) + 1
 
-        # Calculate the end date
-        if timeshift:
-            end_date = end_date - timeshift
-
-        # Calculate the start date
-        td, _ = self.convert_timestep_str_to_timedelta(timestep)
-        start_date = end_date - (td * length)
-
-        if timestep == 'day' and timeshift is None:
-            # What we really want is the last n bars, not the bars from the last n days.
-            # get twice as many days as we need to ensure we get enough bars, then add 3 days for long weekends
-            tcal_start_date = end_date - (td * length * 2 + timedelta(days=3))
-            trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
-            # Filer out trading days when the market_open is after the end_date
-            trading_days = trading_days[trading_days['market_open'] < end_date]
-            # Now, start_date is the length bars before the last trading day
-            start_date = trading_days.index[-length]
+        start_date = date_n_trading_days_from_date(
+            n_days=days_needed,
+            start_datetime=end_dt,
+            # TODO: pass market into DataSource
+            # This works for now. Crypto gets more bars but throws them out.
+            market='NYSE'
+        )
+        start_dt = self._tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
         # Check what timestep we are using, different endpoints are required for different timesteps
         try:
@@ -220,16 +276,16 @@ class TradierData(DataSource):
                 df = self.tradier.market.get_timesales(
                     symbol,
                     interval=timestep_qty,
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_dt,
+                    end_date=end_dt,
                     session_filter="all" if include_after_hours else "open",
                 )
             else:
                 df = self.tradier.market.get_historical_quotes(
                     symbol,
                     interval=parsed_timestep_unit,
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_dt,
+                    end_date=end_dt,
                     session_filter="all" if include_after_hours else "open",
                 )
         except Exception as e:
@@ -243,14 +299,29 @@ class TradierData(DataSource):
             df = df.drop(columns=["timestamp"])
 
         # If the index contains date objects, convert and handle timezone
-        if isinstance(df.index[0], date):  # Check if the index contains date objects
+        if isinstance(df.index[0], dt.date):  # Check if the index contains date objects
             df.index = pd.to_datetime(df.index)  # Always ensure it's a DatetimeIndex
 
             # Check if the index is timezone-naive or already timezone-aware
-            if df.index.tz is None:  # Naive index, localize to America/New_York
-                df.index = df.index.tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
-            else:  # Already timezone-aware, convert to America/New_York
-                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+            if df.index.tz is None:  # Naive index, localize to data source timezone
+                df.index = df.index.tz_localize(self._tzinfo)
+            else:  # Already timezone-aware, convert to data source timezone
+                df.index = df.index.tz_convert(self._tzinfo)
+
+        # Check for incomplete bars
+        if self._remove_incomplete_current_bar:
+            if timestep == "minute":
+                # For minute bars, remove the current minute
+                current_minute = now.replace(second=0, microsecond=0)
+                df = df[df.index < current_minute]
+            else:
+                # For daily bars, remove today's bar if market is open
+                current_date = now.date()
+                df = df[df.index.date < current_date]
+
+        # Ensure df only contains the last N bars
+        if len(df) > length:
+            df = df.iloc[-length:]
 
         # Convert the dataframe to a Bars object
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
@@ -274,6 +345,7 @@ class TradierData(DataSource):
         float or Decimal or none
            Price of the asset
         """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         symbol = None
         try:
@@ -313,6 +385,7 @@ class TradierData(DataSource):
         dict
            Quote of the asset in the format of a dictionary, eg. {"bid": 100.0, "ask": 101.0, "last": 100.5}
         """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if asset.asset_type == "option":
             symbol = create_options_symbol(

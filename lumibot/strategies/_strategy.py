@@ -1,5 +1,7 @@
 import datetime
 import logging
+from typing import Union, List, Dict
+
 from termcolor import colored
 from asyncio.log import logger
 from decimal import Decimal
@@ -22,8 +24,8 @@ from sqlalchemy import create_engine, inspect, text
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
-from ..entities import Asset, Position, Order
+from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting, AlpacaBacktesting, InteractiveBrokersRESTBacktesting
+from ..entities import Asset, Position, Order, Data
 from ..tools import (
     create_tearsheet,
     day_deduplicate,
@@ -55,6 +57,9 @@ from ..credentials import (
     BACKTESTING_START,
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
+    INTERACTIVE_BROKERS_REST_CONFIG,
+    BACKTESTING_QUIET_LOGS,
+    BACKTESTING_SHOW_PROGRESS_BAR
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -114,6 +119,10 @@ class Vars:
     def set(self, name, value):
         self._vars_dict[name] = value
 
+    def get(self, name, default=None):
+        """Gets the value of a variable, returning a default value if it doesn't exist."""
+        return self._vars_dict.get(name, default)
+
     def all(self):
         return self._vars_dict.copy()
 
@@ -132,7 +141,8 @@ class _Strategy:
         sleeptime="1M",
         stats_file=None,
         risk_free_rate=None,
-        benchmark_asset="SPY",
+        benchmark_asset: str | Asset | None = "SPY",
+        analyze_backtest: bool = True,
         backtesting_start=None,
         backtesting_end=None,
         quote_asset=Asset(symbol="USD", asset_type="forex"),
@@ -177,9 +187,11 @@ class _Strategy:
             The file name to save the stats to.
         risk_free_rate : float
             The risk-free rate to use for calculating the Sharpe ratio.
-        benchmark_asset : Asset or str
+        benchmark_asset : Asset or str or None
             The asset to use as the benchmark for the strategy. Defaults to "SPY". Strings are converted to
-            Asset objects with an asset_type="stock".
+            Asset objects with an asset_type="stock". None, means don't benchmark the strategy.
+        analyze_backtest: bool
+            Run the backtest_analysis function at the end.
         backtesting_start : datetime.datetime
             The date and time to start backtesting from. Required for backtesting.
         backtesting_end : datetime.datetime
@@ -346,6 +358,7 @@ class _Strategy:
             self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
 
         self._benchmark_asset = benchmark_asset
+        self._analyze_backtest = analyze_backtest
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
         if self.is_backtesting:
@@ -520,7 +533,7 @@ class _Strategy:
                 f"Order must be an Order object. You entered {order}."
             )
             return False
-        
+
         # Check if the order does not have a quantity of zero
         if order.quantity == 0:
             self.logger.error(
@@ -714,7 +727,7 @@ class _Strategy:
                     multiplier = 1
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                portfolio_value += float(quantity) * price * multiplier
+                portfolio_value += float(quantity) * float(price) * multiplier
             self._portfolio_value = portfolio_value
         return portfolio_value
 
@@ -766,6 +779,7 @@ class _Strategy:
         self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
+            self._stats = self._stats.sort_index()
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
 
         return self._stats
@@ -803,7 +817,7 @@ class _Strategy:
         logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
-        if not self.is_backtesting:
+        if not self.is_backtesting or not self._benchmark_asset:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
             # Need to adjust the backtesting end date because the data from Yahoo
@@ -869,6 +883,21 @@ class _Strategy:
                 # Add the symbol_cumprod column
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()
 
+                self._benchmark_returns_df = df
+
+            if type(self.broker.data_source) == AlpacaBacktesting:
+                benchmark_asset = self._benchmark_asset
+
+                df = self.broker.data_source.get_historical_prices_between_dates(
+                    base_asset=benchmark_asset
+                )
+
+                if df is None or df.empty:
+                    logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
+                    return
+                df = df.loc[self._backtesting_start:self._backtesting_end].copy()
+                df["return"] = df["close"].pct_change(fill_method=None)
+                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
                 self._benchmark_returns_df = df
 
             # If we are using any other data source, then get the benchmark returns from yahoo
@@ -969,11 +998,12 @@ class _Strategy:
         auto_adjust = False,
         name = None,
         budget = None,
-        benchmark_asset = "SPY",
+        benchmark_asset: str | Asset | None="SPY",
+        analyze_backtest: bool = True,
         plot_file_html = None,
         trades_file = None,
         settings_file = None,
-        pandas_data = None,
+        pandas_data: Union[List, Dict[Asset, Data]] = None,
         quote_asset = Asset(symbol="USD", asset_type="forex"),
         starting_positions = None,
         show_plot = None,
@@ -995,6 +1025,7 @@ class _Strategy:
         quiet_logs = False,
         trader_class = Trader,
         include_cash_positions=False,
+        save_stats_file = True,
         **kwargs,
     ):
         """Backtest a strategy.
@@ -1028,9 +1059,11 @@ class _Strategy:
             The name of the strategy.
         budget : float
             The initial budget to use for the backtest.
-        benchmark_asset : str or Asset
+        benchmark_asset : str or Asset or None
             The benchmark asset to use for the backtest to compare to. If it is a string then it will be converted
-            to a stock Asset object.
+            to a stock Asset object. If it is None, no benchmarking will occur.
+        analyze_backtest: bool = True
+            Run the backtest_analysis method on the strategy.
         plot_file_html : str
             The file to write the plot html to.
         trades_file : str
@@ -1118,6 +1151,7 @@ class _Strategy:
             name = self.__name__
 
         self._name = name
+        self._analyze_backtest = analyze_backtest
 
         # If backtesting_start is None, then check the BACKTESTING_START environment variable
         if backtesting_start is None and BACKTESTING_START is not None:
@@ -1179,7 +1213,7 @@ class _Strategy:
         logdir = "logs"
         if logfile is None and save_logfile:
             logfile = f"{logdir}/{base_filename}_logs.csv"
-        if stats_file is None:
+        if stats_file is None and save_stats_file:
             stats_file = f"{logdir}/{base_filename}_stats.csv"
 
         # #############################################
@@ -1233,7 +1267,13 @@ class _Strategy:
                 "the original positional arguments for backtesting. \n\n"
             )
             return None
+        
+        if BACKTESTING_QUIET_LOGS is not None:
+            quiet_logs = BACKTESTING_QUIET_LOGS
 
+        if BACKTESTING_SHOW_PROGRESS_BAR is not None:
+            show_progress_bar = BACKTESTING_SHOW_PROGRESS_BAR
+        
         self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
@@ -1265,10 +1305,22 @@ class _Strategy:
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
                 **kwargs,
             )
-        else:
+        elif datasource_class == InteractiveBrokersRESTBacktesting:
             data_source = datasource_class(
                 backtesting_start,
                 backtesting_end,
+                config=INTERACTIVE_BROKERS_REST_CONFIG,
+                auto_adjust=auto_adjust,
+                pandas_data=pandas_data,
+                show_progress_bar=show_progress_bar,
+                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                **kwargs,
+            )
+        else:
+            data_source = datasource_class(
+                datetime_start=backtesting_start,
+                datetime_end=backtesting_end,
                 config=config,
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
@@ -1302,6 +1354,7 @@ class _Strategy:
             risk_free_rate=risk_free_rate,
             stats_file=stats_file,
             benchmark_asset=benchmark_asset,
+            analyze_backtest=analyze_backtest,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
             pandas_data=pandas_data,
@@ -1358,9 +1411,13 @@ class _Strategy:
         settings_file=None,
         indicators_file=None,
         tearsheet_csv_file=None,
-        base_filename="",  # This is the base filename for the backtest
+        base_filename=None
     ):
-        name = self._name
+        if not self._analyze_backtest:
+            return
+
+        if not base_filename:
+            base_filename = self._name
 
         # Filename defaults
         if not logdir:

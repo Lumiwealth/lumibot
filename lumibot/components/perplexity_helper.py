@@ -32,11 +32,11 @@ class PerplexityHelper:
         ValueError
             If no API key is provided or found in the environment.
         """
-        if not api_key:
+        if not api_key or api_key.lower() == 'your_api_key_here':
             import os
             api_key = os.getenv("PERPLEXITY_API_KEY")
             if not api_key:
-                raise ValueError("API key is required for PerplexityHelper. Set it as PERPLEXITY_API_KEY in your environment or pass it directly.")
+                raise ValueError("API key is required for PerplexityHelper. Set it as PERPLEXITY_API_KEY in your environment or your secrets")
         
         self.api_key = api_key
         self.client = OpenAI(
@@ -257,11 +257,20 @@ Return only valid JSON following the schema.
 """
         return system_prompt
 
-    def _send_request(self, system_msg: str, user_query: str, model: str = "sonar", temperature: int = 0, retries: int = 3) -> str:
+    def _send_request(
+        self,
+        system_msg: str,
+        user_query: str,
+        model: str = "sonar",
+        temperature: int = 0,
+        retries: int = 3,
+        max_tokens: int = 35000,
+        stream: bool = False
+    ) -> str:
         """
         Sends a request to the Perplexity API using the provided system message and user query.
         Implements a retry loop to mitigate transient failures.
-        Additional parameters like 'max_tokens' and 'top_p' are included to encourage complete output.
+        Additional parameters like 'max_tokens' and 'stream' are included to encourage complete output.
         
         Parameters
         ----------
@@ -275,6 +284,10 @@ Return only valid JSON following the schema.
             The temperature setting (default is 0).
         retries : int, optional
             Number of retry attempts (default is 3).
+        max_tokens : int, optional
+            The maximum number of tokens to generate (default is 2000).
+        stream : bool, optional
+            Whether to enable streaming for longer responses (default is False).
         
         Returns
         -------
@@ -288,23 +301,43 @@ Return only valid JSON following the schema.
         """
         for attempt in range(1, retries + 1):
             try:
-                completion = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": user_query}
-                    ],
-                    temperature=temperature,
-                    max_tokens=500,    # Increased for longer output
-                    top_p=0.9,         # Nucleus sampling
-                    stream=False
-                )
-                # Validate the response structure.
-                if (not completion.choices or
-                    not hasattr(completion.choices[0], "message") or
-                    not hasattr(completion.choices[0].message, "content")):
-                    raise ValueError("Invalid response structure from API.")
-                response_text = completion.choices[0].message.content
+                if stream:
+                    # stream chunks for longer responses
+                    response_chunks = self.client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": system_msg},
+                            {"role": "user", "content": user_query}
+                        ],
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=0.9,
+                        stream=True
+                    )
+                    response_text = ""
+                    for chunk in response_chunks:
+                        # accumulate streamed content
+                        delta = getattr(chunk.choices[0], "delta", None)
+                        if delta and getattr(delta, "content", None):
+                            response_text += delta.content
+                else:
+                    completion = self.client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": system_msg},
+                            {"role": "user", "content": user_query}
+                        ],
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=0.9,
+                        stream=False
+                    )
+                    # Validate the response structure.
+                    if (not completion.choices or
+                        not hasattr(completion.choices[0], "message") or
+                        not hasattr(completion.choices[0].message, "content")):
+                        raise ValueError("Invalid response structure from API.")
+                    response_text = completion.choices[0].message.content
                 if not response_text.strip():
                     raise ValueError("Received empty response from API.")
                 return response_text

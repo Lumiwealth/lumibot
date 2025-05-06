@@ -137,6 +137,33 @@ STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 # Flag to determine if backtest progress should be logged to a file (True/False)
 LOG_BACKTEST_PROGRESS_TO_FILE = os.environ.get("LOG_BACKTEST_PROGRESS_TO_FILE")
 
+# Determine if backtesting logs should be quiet via env variable (default True)
+_btl = os.environ.get("BACKTESTING_QUIET_LOGS", None)
+if _btl is not None:
+    if _btl.lower() == "true":
+        BACKTESTING_QUIET_LOGS = True
+    elif _btl.lower() == "false":
+        BACKTESTING_QUIET_LOGS = False
+    else:
+        colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        logger.warning(colored_message)
+        BACKTESTING_QUIET_LOGS = True
+else:
+    BACKTESTING_QUIET_LOGS = None
+
+_btl = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR", None)
+if _btl is not None:
+    if _btl.lower() == "true":
+        BACKTESTING_SHOW_PROGRESS_BAR = True
+    elif _btl.lower() == "false":
+        BACKTESTING_SHOW_PROGRESS_BAR = False
+    else:
+        colored_message = termcolor.colored(f"BACKTESTING_SHOW_PROGRESS_BAR must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        logger.warning(colored_message)
+        BACKTESTING_SHOW_PROGRESS_BAR = True
+else:
+    BACKTESTING_SHOW_PROGRESS_BAR = None
+
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
 
@@ -226,7 +253,7 @@ INTERACTIVE_BROKERS_CONFIG = {
 INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_USERNAME": os.environ.get("IB_USERNAME"),
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
-    "ACCOUNT_ID": os.environ.get("ACCOUNT_ID"),
+    "IB_ACCOUNT_ID": os.environ.get("IB_ACCOUNT_ID"),
     "API_URL": os.environ.get("IB_API_URL"),
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
@@ -386,7 +413,6 @@ if not is_backtesting or is_backtesting.lower() == "false":
 
 elif is_backtesting.lower() == "true":
     IS_BACKTESTING = True
-    # ...existing backtesting code...
 else:
     # Log a warning if the value is not a boolean
     colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")

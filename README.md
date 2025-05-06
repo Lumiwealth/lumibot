@@ -1,3 +1,6 @@
+[![CI Status](https://github.com/Lumiwealth/lumibot/actions/workflows/lumibot-ci-cd.yml/badge.svg?branch=dev)](https://github.com/Lumiwealth/lumibot/actions/workflows/lumibot-ci-cd.yml)
+[![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/dev/coverage.svg)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Lumiwealth/lumibot/dev/htmlcov/index.html)
+
 # Lumibot - A Backtesting and Trading Library for Stocks, Options, Crypto, Futures, FOREX and More!
 
 Lumibot is a backtesting and trading library for stocks, options, crypto, futures and more. It is made so that the same code you use for backtesting can be used for live trading, making it easy to transition from backtesting to live trading. Lumibot is a highly flexible library that allows you to create your own strategies and indicators, and backtest them on historical data. It is also highly optimized for speed, so you can backtest your strategies quickly and efficiently.

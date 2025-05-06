@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.11.0",
+    version="3.12.10",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -13,6 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
+    license="MIT",  # Add license argument
     install_requires=[
         "polygon-api-client>=1.13.3",
         "alpaca-py>=0.28.1",
@@ -49,11 +50,10 @@ setuptools.setup(
         "holidays",
         "psutil",
         "openai",
-        "schwab-py"
+        "schwab-py>=1.5.0"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.10",

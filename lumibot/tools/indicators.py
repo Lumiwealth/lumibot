@@ -227,7 +227,45 @@ def plot_indicators(
 
     logger.info("\nCreating indicators plot...")
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Assign "default_plot" as plot_name for markers and lines that don't have one
+    if chart_markers_df is not None and not chart_markers_df.empty:
+        chart_markers_df = chart_markers_df.copy()
+        if "plot_name" not in chart_markers_df.columns:
+            chart_markers_df["plot_name"] = "default_plot"
+        else:
+            chart_markers_df["plot_name"] = chart_markers_df["plot_name"].fillna("default_plot")
+
+    if chart_lines_df is not None and not chart_lines_df.empty:
+        chart_lines_df = chart_lines_df.copy()
+        if "plot_name" not in chart_lines_df.columns:
+            chart_lines_df["plot_name"] = "default_plot"
+        else:
+            chart_lines_df["plot_name"] = chart_lines_df["plot_name"].fillna("default_plot")
+
+    # Get unique plot_names from markers and lines
+    plot_names = set()
+
+    if chart_markers_df is not None and not chart_markers_df.empty:
+        plot_names.update(chart_markers_df["plot_name"].unique())
+
+    if chart_lines_df is not None and not chart_lines_df.empty:
+        plot_names.update(chart_lines_df["plot_name"].unique())
+
+    # Convert to sorted list to ensure consistent order
+    plot_names = sorted(list(plot_names))
+
+    # Ensure num_subplots is at least 1 to avoid ValueError in make_subplots
+    num_subplots = max(1, len(plot_names))
+    subplot_titles = plot_names if num_subplots > 0 else ["default_plot"]
+
+    # Create subplots without shared x-axes
+    fig = make_subplots(
+        rows=num_subplots,
+        cols=1,
+        subplot_titles=subplot_titles,
+        shared_xaxes=False,  # Do not use shared x-axes
+        vertical_spacing=0.15,  # Increase spacing between subplots to prevent range slider overlap,
+    )
 
     has_chart_data = False
 
@@ -243,38 +281,41 @@ def plot_indicators(
 
     # Plot the chart markers
     if chart_markers_df is not None and not chart_markers_df.empty:
-        chart_markers_df = chart_markers_df.copy()
         chart_markers_df["detail_text"] = chart_markers_df.apply(generate_marker_plotly_text, axis=1)
 
-        # Loop over the marker names and create a new trace for each one
-        for marker_name in chart_markers_df["name"].unique():
-            # Get the marker data for this marker name
-            marker_df = chart_markers_df.loc[chart_markers_df["name"] == marker_name]
+        # Group by plot_name first, then by name
+        for plot_name, plot_df in chart_markers_df.groupby("plot_name"):
+            # Loop over the marker names for this plot_name
+            for marker_name, group_df in plot_df.groupby("name"):
+                # Get the marker symbol
+                marker_symbol = group_df["symbol"].iloc[0]
 
-            # Get the marker symbol
-            marker_symbol = marker_df["symbol"].iloc[0]
+                # Get the marker size
+                marker_size = group_df["size"].iloc[0]
+                marker_size = marker_size if marker_size else 25
 
-            # Get the marker size
-            marker_size = marker_df["size"].iloc[0]
-            marker_size = marker_size if marker_size else 25
+                # If color is not set, set it to white
+                group_df.loc[:, "color"] = group_df["color"].fillna("white")
 
-            # If color is not set, set it to black
-            marker_df.loc[:, "color"] = marker_df["color"].fillna("white")
+                # Determine which subplot to use
+                row = plot_names.index(plot_name) + 1
 
-            # Create a new trace for this marker name
-            fig.add_trace(
-                go.Scatter(
-                    x=marker_df["datetime"],
-                    y=marker_df["value"],
-                    mode="markers",
-                    name=marker_name,
-                    marker_color=marker_df["color"],
-                    marker_size=marker_size,
-                    marker_symbol=marker_symbol,
-                    hovertemplate=f"{marker_name}<br>%{{text}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
-                    text=marker_df["detail_text"],
+                # Create a new trace for this marker name
+                fig.add_trace(
+                    go.Scatter(
+                        x=group_df["datetime"],
+                        y=group_df["value"],
+                        mode="markers",
+                        name=marker_name,
+                        marker_color=group_df["color"],
+                        marker_size=marker_size,
+                        marker_symbol=marker_symbol,
+                        hovertemplate=f"{marker_name}<br>%{{text}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
+                        text=group_df["detail_text"],
+                    ),
+                    row=row,
+                    col=1
                 )
-            )
 
         has_chart_data = True
 
@@ -290,29 +331,32 @@ def plot_indicators(
 
     # Plot the chart lines
     if chart_lines_df is not None and not chart_lines_df.empty:
-        chart_lines_df = chart_lines_df.copy()
         chart_lines_df["detail_text"] = chart_lines_df.apply(generate_line_plotly_text, axis=1)
 
-        # Loop over the line names and create a new trace for each one
-        for line_name in chart_lines_df["name"].unique():
-            # Get the line data for this line name
-            line_df = chart_lines_df.loc[chart_lines_df["name"] == line_name]
+        # Group by plot_name first, then by name
+        for plot_name, plot_df in chart_lines_df.groupby("plot_name"):
+            # Loop over the line names for this plot_name
+            for line_name, group_df in plot_df.groupby("name"):
+                # Get the color for this line name
+                color = group_df["color"].iloc[0]
 
-            # Get the color for this line name
-            color = line_df["color"].iloc[0]
+                # Determine which subplot to use
+                row = plot_names.index(plot_name) + 1
 
-            # Create a new trace for this line name
-            fig.add_trace(
-                go.Scatter(
-                    x=line_df["datetime"],
-                    y=line_df["value"],
-                    mode="lines",
-                    name=line_name,
-                    line_color=color,
-                    hovertemplate=f"{line_name}<br>%{{text}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
-                    text=line_df["detail_text"],
+                # Create a new trace for this line name
+                fig.add_trace(
+                    go.Scatter(
+                        x=group_df["datetime"],
+                        y=group_df["value"],
+                        mode="lines",
+                        name=line_name,
+                        line_color=color,
+                        hovertemplate=f"{line_name}<br>%{{text}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>",
+                        text=group_df["detail_text"],
+                    ),
+                    row=row,
+                    col=1
                 )
-            )
 
         has_chart_data = True
 
@@ -322,32 +366,55 @@ def plot_indicators(
 
     if has_chart_data:
         # Set title and layout
+        # Calculate height based on number of subplots
+        # 400px per subplot
+        height = max(800, num_subplots * 400)
+
         fig.update_layout(
             title_text=f"Indicators for {strategy_name}",
             title_font_size=30,
             template="plotly_dark",
-            xaxis_rangeselector_font_color="black",
-            xaxis_rangeselector_activecolor="grey",
-            xaxis_rangeselector_bgcolor="white",
+            height=height,  # Dynamic height based on number of subplots
+            margin=dict(t=150)  # Add more space between title and first subplot
         )
 
-        # Set y-axes titles
-        fig.update_yaxes(title_text="Axis 1", secondary_y=False)
-        fig.update_yaxes(title_text="Axis 2", secondary_y=True)
-        fig.update_xaxes(
-            rangeslider_visible=True,
-            rangeselector=dict(
-                buttons=list(
-                    [
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="YTD", step="year", stepmode="todate"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all"),
-                    ]
-                )
-            ),
-        )
+        # Range selector buttons
+        rangeselector_buttons = list([
+            dict(count=1, label="1m", step="month", stepmode="backward"),
+            dict(count=6, label="6m", step="month", stepmode="backward"),
+            dict(count=1, label="YTD", step="year", stepmode="todate"),
+            dict(count=1, label="1y", step="year", stepmode="backward"),
+            dict(step="all"),
+        ])
+
+        # Update axes for all subplots
+        for i in range(1, num_subplots + 1):
+            # Get the plot name for this subplot
+            plot_title = plot_names[i - 1]
+
+            # Set y-axes titles for each subplot
+            fig.update_yaxes(
+                title_text=plot_title,
+                secondary_y=False,
+                row=i,
+                col=1
+            )
+
+            # Add range selector and range slider to each subplot
+            fig.update_xaxes(
+                rangeselector=dict(
+                    buttons=rangeselector_buttons,
+                    font=dict(color="black"),
+                    activecolor="grey",
+                    bgcolor="white",
+                ),
+                rangeslider=dict(
+                    visible=True,
+                    thickness=0.02  # Make the range slider height shorter to make line graph appear taller
+                ),
+                row=i,
+                col=1
+            )
 
         # Create graph
         fig.write_html(plot_file_html, auto_open=show_indicators)
@@ -355,8 +422,31 @@ def plot_indicators(
         # Get the file name for the CSV file by removing the .html extension and adding .csv
         csv_file = plot_file_html.replace(".html", ".csv")
 
-        # Export chart markers and lines to CSV
-        chart_markers_df.to_csv(csv_file, mode="a")
+        # Export chart markers and lines to CSV - combine them and sort by datetime
+        if chart_markers_df is not None and not chart_markers_df.empty and chart_lines_df is not None and not chart_lines_df.empty:
+            # Add type column to both dataframes
+            chart_markers_df = chart_markers_df.copy()
+            chart_markers_df["type"] = "marker"
+
+            chart_lines_df = chart_lines_df.copy()
+            chart_lines_df["type"] = "line"
+
+            # Both markers and lines exist - combine them and sort by datetime
+            combined_df = pd.concat([chart_markers_df, chart_lines_df], ignore_index=True)
+            combined_df = combined_df.sort_values(by="datetime")
+            combined_df.to_csv(csv_file, index=False)
+        elif chart_markers_df is not None and not chart_markers_df.empty:
+            # Only markers exist
+            chart_markers_df = chart_markers_df.copy()
+            chart_markers_df["type"] = "marker"
+            chart_markers_df = chart_markers_df.sort_values(by="datetime")
+            chart_markers_df.to_csv(csv_file, index=False)
+        elif chart_lines_df is not None and not chart_lines_df.empty:
+            # Only lines exist
+            chart_lines_df = chart_lines_df.copy()
+            chart_lines_df["type"] = "line"
+            chart_lines_df = chart_lines_df.sort_values(by="datetime")
+            chart_lines_df.to_csv(csv_file, index=False)
 
 
 def plot_returns(

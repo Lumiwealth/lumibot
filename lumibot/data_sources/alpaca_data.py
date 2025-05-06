@@ -1,22 +1,44 @@
 import logging
-from datetime import datetime, timedelta, timezone
+import math
+import datetime as dt
 from decimal import Decimal
-from typing import Union
+from typing import Union, Tuple, Optional
+import pytz
+import time
 
 import pandas as pd
 import re
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient, OptionHistoricalDataClient
+import requests
+from collections import defaultdict
+from alpaca.data.historical import (
+    CryptoHistoricalDataClient,
+    StockHistoricalDataClient,
+    OptionHistoricalDataClient
+)
 from alpaca.data.requests import (
     CryptoBarsRequest,
     CryptoLatestQuoteRequest,
     StockBarsRequest,
-    StockLatestTradeRequest,
+    StockLatestQuoteRequest,
+    OptionBarsRequest,
     OptionLatestTradeRequest,
-    OptionBarsRequest
+    OptionChainRequest,
 )
 from alpaca.data.timeframe import TimeFrame
 
 from lumibot.entities import Asset, Bars
+from lumibot import (
+    LUMIBOT_DEFAULT_TIMEZONE,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
+)
+from lumibot.tools.helpers import (
+    get_decimals,
+    quantize_to_num_decimals,
+    get_trading_days,
+    date_n_trading_days_from_date
+)
+from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 from .data_source import DataSource
 
@@ -54,6 +76,12 @@ class AlpacaData(DataSource):
             ],
         },
         {
+            "timestep": "hour",
+            "representations": [
+                [f"{TimeFrame.Hour}", "hour"],
+            ],
+        },
+        {
             "timestep": "1 hour",
             "representations": [
                 [f"{TimeFrame.Hour}", "hour"],
@@ -76,6 +104,7 @@ class AlpacaData(DataSource):
             "representations": [TimeFrame.Day, "day"],
         },
     ]
+    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
@@ -83,13 +112,58 @@ class AlpacaData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
-    def __init__(self, config, max_workers=20, chunk_size=100):
-        super().__init__()
-        # Alpaca authorize 200 requests per minute and per API key
-        # Setting the max_workers for multithreading with a maximum
-        # of 200
+    def _get_stock_client(self):
+        """Lazily initialize and return the stock client."""
+        if self._stock_client is None:
+            self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
+        return self._stock_client
+
+    def _get_crypto_client(self):
+        """Lazily initialize and return the crypto client."""
+        if self._crypto_client is None:
+            self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
+        return self._crypto_client
+
+    def _get_option_client(self):
+        """Lazily initialize and return the option client."""
+        if self._option_client is None:
+            self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+        return self._option_client
+
+    def __init__(
+            self,
+            config: dict,
+            max_workers: int = 20,
+            chunk_size: int = 100,
+            delay: Optional[int] = 16,
+            tzinfo: Optional[pytz.timezone] = None,
+            remove_incomplete_current_bar: bool = False
+    ) -> None:
+        """
+        Initializes the Alpaca Data Source.
+
+        Parameters:
+        - config (dict): Configuration containing API keys for Alpaca.
+        - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
+        - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
+        - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
+          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. Set to 0 if on a paid plan. Default is 16.
+        - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in 
+          dataframes are adjusted to this timezone. Useful for setting UTC for crypto. Default is None.
+        - remove_incomplete_current_bar (bool, optional): Default False.
+          Whether to remove the incomplete current bar from the data.
+          Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current day even if
+          the day isn't over yet). Some Lumibot users night not expect that, so this option will remove the incomplete
+          bar from the data.
+
+        Returns:
+        - None
+        """
+        super().__init__(delay=delay, tzinfo=tzinfo)
+
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)
+        self._remove_incomplete_current_bar = remove_incomplete_current_bar
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -98,6 +172,10 @@ class AlpacaData(DataSource):
 
         # Connection to alpaca REST API
         self.config = config
+
+        # Initialize these to none so they will be lazily created and kept around
+        # for better performance.
+        self._stock_client = self._crypto_client = self._option_client = None
 
         if isinstance(config, dict) and "API_KEY" in config:
             self.api_key = config["API_KEY"]
@@ -137,227 +215,385 @@ class AlpacaData(DataSource):
         else:
             self.version = "v2"
 
+    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+        asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
+        return asset, quote
+
     def get_chains(self, asset: Asset, quote=None, exchange: str = None):
         """
-        Alpaca doesn't support option trading. This method is here to comply with the DataSource interface
+        Retrieves the option chain for the given underlying symbol using Alpaca's Python SDK.
+        Returns a dict with:
+          - "Multiplier": contract multiplier (usually 100)
+          - "Exchange": exchange identifier (set to "unknown")
+          - "Chains": dict with keys "CALL" and "PUT", each mapping expiration dates to sorted strike lists
         """
-        raise NotImplementedError(
-            "Lumibot AlpacaData does not support get_chains() options data. If you need this "
-            "feature, please use a different data source."
-        )
+        symbol = asset.symbol
+        client = self._get_option_client()
+        # Build and send the chain request
+        req = OptionChainRequest(underlying_symbol=symbol)
+        chain_data: dict = client.get_option_chain(req)
+        # Prepare the output structure
+        chains = {"Multiplier": 100, "Exchange": "unknown", "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
+        # Iterate through snapshots by contract symbol
+        for contract_symbol, snap in chain_data.items():
+            # Parse the contract symbol (e.g., SPY271217P00830000)
+            # Format: UnderlyingYYMMDDTypeStrike(8 digits, 3 decimals)
+            try:
+                # Extract components using regex or string slicing
+                match = re.match(r"([A-Z]+)(\d{6})([CP])(\d{8})", contract_symbol)
+                if not match:
+                    logging.warning(f"Could not parse contract symbol: {contract_symbol}")
+                    continue
+
+                underlying, date_str, type_char, strike_str = match.groups()
+
+                # Check if the parsed underlying matches the requested symbol
+                if underlying != symbol:
+                    continue
+
+                # Parse expiration date
+                yy = int(date_str[:2]) + 2000
+                mm = int(date_str[2:4])
+                dd = int(date_str[4:6])
+                exp_date = f"{yy:04d}-{mm:02d}-{dd:02d}"
+
+                # Option type
+                ctype = "CALL" if type_char == "C" else "PUT"
+
+                # Strike price (price * 1000)
+                strike = float(strike_str) / 1000.0
+
+                if ctype in chains["Chains"]:
+                    chains["Chains"][ctype][exp_date].append(strike)
+
+            except Exception as e:
+                logging.warning(f"Error parsing contract symbol {contract_symbol}: {e}")
+                continue
+
+        # Deduplicate and sort
+        for ctype in ("CALL", "PUT"):
+            for exp_date, strikes in chains["Chains"][ctype].items():
+                chains["Chains"][ctype][exp_date] = sorted(list(set(strikes)))
+
+        return chains
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
-        if quote is not None:
-            # If the quote is not None, we use it even if the asset is a tuple
-            if type(asset) == Asset and asset.asset_type == Asset.AssetType.STOCK:
-                symbol = asset.symbol
-            elif isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol}/{quote.symbol}"
-            else:
-                symbol = f"{asset.symbol}/{quote.symbol}"
-        elif type(asset) == Asset and asset.asset_type == Asset.AssetType.OPTION:
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-        elif isinstance(asset, tuple):
-            symbol = f"{asset[0].symbol}/{asset[1].symbol}"
-        elif isinstance(asset, str):
-            symbol = asset
-        else:
-            symbol = asset.symbol
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
-        if (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.CRYPTO) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.CRYPTO):
-            client = CryptoHistoricalDataClient()
+        if asset.asset_type == Asset.AssetType.CRYPTO:
+            symbol = f"{asset.symbol}/{quote.symbol}"
+            client = self._get_crypto_client()
             quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
-            quote = client.get_crypto_latest_quote(quote_params)
+            latest_quote = client.get_crypto_latest_quote(quote_params)
 
             # Get the first item in the dictionary
-            quote = quote[list(quote.keys())[0]]
+            latest_quote = latest_quote[list(latest_quote.keys())[0]]
 
             # The price is the average of the bid and ask
-            price = (quote.bid_price + quote.ask_price) / 2
-        elif (isinstance(asset, tuple) and asset[0].asset_type == Asset.AssetType.OPTION) or (isinstance(asset, Asset) and asset.asset_type == Asset.AssetType.OPTION):
-            logging.info(f"Getting {asset} option price")
-            client = OptionHistoricalDataClient(self.api_key, self.api_secret)
-            params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
-            trade = client.get_option_latest_trade(params)
-            print(f'This {trade} {symbol}')
-            price = trade[symbol].price
+            price = (latest_quote.bid_price + latest_quote.ask_price) / 2
+            num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
+            price = quantize_to_num_decimals(price, num_decimals)
+            return price
+
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            # Defensive: Only try to fetch price if all option fields are present
+            if not (asset.symbol and asset.expiration and asset.right and asset.strike):
+                logging.error(f"Missing required fields for option symbol: {asset}")
+                return None
+            try:
+                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                date = asset.expiration.strftime("%y%m%d")
+                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                client = self._get_option_client()
+                params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
+                trade = client.get_option_latest_trade(params)
+                price = trade[symbol].price
+                num_decimals = get_decimals(price)
+                price = quantize_to_num_decimals(price, num_decimals)
+                return price
+            except Exception as e:
+                logging.debug(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+                return None
         else:
             # Stocks
-            client = StockHistoricalDataClient(self.api_key, self.api_secret)
-            params = StockLatestTradeRequest(symbol_or_symbols=symbol)
-            trade = client.get_stock_latest_trade(params)[symbol]
-            price = trade.price
+            symbol = asset.symbol
+            client = self._get_stock_client()
+            params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+            latest_quote = client.get_stock_latest_quote(params)[symbol]
 
-        return price
+            # The price is the average of the bid and ask
+            price = (latest_quote.bid_price + latest_quote.ask_price) / 2
+            num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
+            price = quantize_to_num_decimals(price, num_decimals)
+            return price
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
-    ):
+            self,
+            asset: Asset,
+            length: int,
+            timestep: str = "",
+            timeshift: Optional[dt.timedelta] = None,
+            quote: Optional[Asset] = None,
+            exchange: Optional[str] = None,
+            include_after_hours: bool = True
+    ) -> Optional[Bars]:
+
         """Get bars for a given asset"""
-        if isinstance(asset, str):
-            # Check if the string matches an option contract
-            pattern = r'^[A-Z]{1,5}\d{6,7}[CP]\d{8}$'
-            if re.match(pattern, asset) is not None:
-                asset = Asset(symbol=asset, asset_type=Asset.AssetType.OPTION)
-            else:
-                asset = Asset(symbol=asset)
+
+        if exchange is not None:
+            logging.warning(
+                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
+            )
+
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if not timestep:
             timestep = self.get_timestep()
 
-        response = self._pull_source_symbol_bars(
-            asset,
-            length,
+        df = self._get_dataframe_from_api(
+            asset=asset,
+            length=length,
             timestep=timestep,
             timeshift=timeshift,
             quote=quote,
-            exchange=exchange,
-            include_after_hours=include_after_hours,
+            include_after_hours=include_after_hours
         )
-        if isinstance(response, float):
-            return response
-        elif response is None:
+        if df is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(df, asset, quote=quote, length=length)
         return bars
 
-    def get_barset_from_api(self, asset, freq, limit=None, end=None, start=None, quote=None):
-        """
-        gets historical bar data for the given stock symbol
-        and time params.
+    def _get_dataframe_from_api(
+            self,
+            asset: Asset,
+            length: int,
+            timestep: str = "",
+            timeshift: Optional[dt.timedelta] = None,
+            quote: Optional[Asset] = None,
+            exchange: Optional[str] = None,
+            include_after_hours: bool = True
+    ) -> Optional[pd.DataFrame]:
 
-        outputs a dataframe open, high, low, close columns and
-        a UTC timezone aware index.
-        """
-        if isinstance(asset, tuple):
-            if quote is None:
-                quote = asset[1]
-            asset = asset[0]
+        timeframe = self._parse_source_timestep(timestep, reverse=True)
 
-        if not limit:
-            limit = 1000
+        now = dt.datetime.now(self._tzinfo)
 
-        if not end:
-            # Alpaca limitation of not getting the most recent 15 minutes
-            # TODO: This is only needed if you dont have a paid alpaca subscription
-            end = datetime.now(timezone.utc) - timedelta(minutes=15)
+        # Create end time
+        if asset.asset_type != Asset.AssetType.CRYPTO and isinstance(self._delay, dt.timedelta):
+            # Stocks/options need delay for last 15 minutes
+            end_dt = now - self._delay
+        else:
+            end_dt = now
 
-        if not start:
-            if str(freq) == "1Min":
-                if datetime.now().weekday() == 0:  # for Mondays as prior days were off
-                    loop_limit = (
-                        limit + 4896
-                    )  # subtract 4896 minutes to take it from Monday to Friday, as there is no data between Friday 4:00 pm and Monday 9:30 pm causing an incomplete or empty dataframe
-                else:
-                    loop_limit = limit
+        if timeshift is not None:
+            if not isinstance(timeshift, dt.timedelta):
+                raise TypeError("timeshift must be a timedelta")
+            end_dt = end_dt - timeshift
 
-            elif str(freq) == "1Day":
-                weeks_requested = limit // 5  # Full trading week is 5 days
-                extra_padding_days = weeks_requested * 3  # to account for 3day weekends
-                loop_limit = max(5, limit + extra_padding_days)  # Get at least 5 days
+        # Calculate the start_dt
+        if timestep == 'day':
+            days_needed = length
+        else:
+            # For minute bars, calculate additional days needed accounting for weekends/holidays
+            minutes_per_day = 390  # ~6.5 hours of trading per day
+            days_needed = (length // minutes_per_day) + 1
 
-        df = []  # to use len(df) below without an error
+        start_date = date_n_trading_days_from_date(
+            n_days=days_needed,
+            start_datetime=end_dt,
+            # TODO: pass market into DataSource
+            # This works for now. Crypto gets more bars but throws them out.
+            market='NYSE'
+        )
+        start_dt = self._tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
-        # arbitrary limit of upto 4 calls after which it will give up
-        while loop_limit / limit <= 64 and len(df) < limit:
-            if str(freq) == "1Min":
-                start = end - timedelta(minutes=loop_limit)
-
-            elif str(freq) == "1Day":
-                start = end - timedelta(days=loop_limit)
-
+        # Make API request based on asset type
+        try:
             if asset.asset_type == Asset.AssetType.CRYPTO:
                 symbol = f"{asset.symbol}/{quote.symbol}"
+                client = self._get_crypto_client()
 
-                client = CryptoHistoricalDataClient()
-                params = CryptoBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
+                # noinspection PyArgumentList
+                params = CryptoBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
                 barset = client.get_crypto_bars(params)
 
             elif asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
                 date = asset.expiration.strftime("%y%m%d")
                 symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                client = self._get_option_client()
 
-                client = OptionHistoricalDataClient(self.api_key, self.api_secret)
-                params = OptionBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
+                # noinspection PyArgumentList
+                params = OptionBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                barset = client.get_option_bars(params)
 
-                try:
-                    barset = client.get_option_bars(params)
-                except Exception as e:
-                    logging.error(f"Could not get option pricing data from Alpaca for {symbol} with the following error: {e}")
-                    return None
-            else:
+            else:  # Stock/ETF
                 symbol = asset.symbol
+                client = self._get_stock_client()
 
-                client = StockHistoricalDataClient(self.api_key, self.api_secret)
-                params = StockBarsRequest(symbol_or_symbols=symbol, timeframe=freq, start=start, end=end)
-
-                try:
-                    barset = client.get_stock_bars(params)
-                except Exception as e:
-                    logging.error(f"Could not get pricing data from Alpaca for {symbol} with the following error: {e}")
-                    return None
+                # noinspection PyArgumentList
+                params = StockBarsRequest(
+                    symbol_or_symbols=symbol,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                barset = client.get_stock_bars(params)
 
             df = barset.df
 
-            # Alpaca now returns a dataframe with a MultiIndex. We only want an index of timestamps
-            df = df.reset_index(level=0, drop=True)
+        except Exception as e:
+            logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+            return None
 
-            if df.empty:
-                logging.error(f"Could not get any pricing data from Alpaca for {symbol}, the DataFrame came back empty")
-                return None
+        # Handle case where no data was received
+        if df.empty:
+            logging.warning(f"No pricing data available from Alpaca for {symbol}")
+            return None
 
-            df = df[~df.index.duplicated(keep="first")]
-            df = df.iloc[-limit:]
-            df = df[df.close > 0]
-            loop_limit *= 2
+        # Remove MultiIndex
+        df = df.reset_index(level=0, drop=True)
 
-        if len(df) < limit:
-            logging.warning(
-                f"Dataframe for {symbol} has {len(df)} rows while {limit} were requested. Further data does not exist for Alpaca"
-            )
+        # Timezone conversion
+        if hasattr(df.index, 'tz'):
+            if df.index.tz is not None:
+                df.index = df.index.tz_convert(self._tzinfo)
+            else:
+                df.index = self._tzinfo.localize(df.index)
+
+        # Clean up the dataframe
+        df = df[~df.index.duplicated(keep="first")]
+        df = df.sort_index()
+        df = df[df.close > 0]
+
+        if not include_after_hours and timestep == 'minute' and self._tzinfo == pytz.timezone("America/New_York"):
+            # Filter data to include only regular market hours
+            df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
+
+        # Check for incomplete bars
+        if self._remove_incomplete_current_bar:
+            if timestep == "minute":
+                # For minute bars, remove the current minute
+                current_minute = now.replace(second=0, microsecond=0)
+                df = df[df.index < current_minute]
+            else:
+                # For daily bars, remove today's bar if market is open
+                current_date = now.date()
+                df = df[df.index.date < current_date]
+
+        # Ensure df only contains the last N bars
+        if len(df) > length:
+            df = df.iloc[-length:]
 
         return df
 
-    def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
-    ):
-        """pull broker bars for a list assets"""
-        if timeshift is None and timestep == "day":
-            # Alpaca throws an error if we don't do this and don't have a data subscription because
-            # they require a subscription for historical data less than 15 minutes old
-            timeshift = timedelta(minutes=16)
-
-        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
-        kwargs = dict(limit=length)
-        if timeshift:
-            end = datetime.now() - timeshift
-            end = self.to_default_timezone(end)
-            kwargs["end"] = end
-
-        result = {}
-        for asset in assets:
-            data = self.get_barset_from_api(asset, parsed_timestep, quote=quote, **kwargs)
-            result[asset] = data
-
-        return result
-
-    def _pull_source_symbol_bars(
-        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
-    ):
-        if exchange is not None:
-            logging.warning(
-                f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
-            )
-
-        """pull broker bars for a given asset"""
-        response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
-        return response[asset]
-
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        # TODO: Alpaca return should also include dividends
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars
+
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange=None):
+        """
+        Get the latest quote for an asset (stock, option, or crypto).
+        Returns a dictionary with bid, ask, last, and other fields if available.
+        Always includes 'bid' and 'ask' keys (with 0.0 if not available for options).
+        """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
+        if asset.asset_type == Asset.AssetType.CRYPTO:
+            symbol = f"{asset.symbol}/{quote.symbol if quote else 'USD'}"
+            client = self._get_crypto_client()
+            from alpaca.data.requests import CryptoLatestQuoteRequest
+            req = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+            result = client.get_crypto_latest_quote(req)
+            q = result[list(result.keys())[0]]
+            return {
+                "bid": getattr(q, "bid_price", None),
+                "ask": getattr(q, "ask_price", None),
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "exchange": getattr(q, "exchange", None),
+                "timestamp": getattr(q, "timestamp", None),
+                "symbol": symbol,
+            }
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            # Note: Alpaca only supports "market" and "limit" as valid order types for multi-leg orders.
+            # If you pass "credit" or "debit" as the type, Alpaca will return an "invalid order type" error.
+            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = asset.expiration.strftime("%y%m%d")
+            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+            client = self._get_option_client()
+            from alpaca.data.requests import OptionLatestTradeRequest
+            req = OptionLatestTradeRequest(symbol_or_symbols=symbol)
+            trade = client.get_option_latest_trade(req)
+            t = trade[symbol]
+            # Option trades may not have bid/ask, so set to 0.0 for compatibility with downstream code
+            price = t.price if hasattr(t, "price") and t.price is not None else 0.0
+            return {
+                "bid": price,
+                "ask": price,
+                "last": price,
+                "price": price,
+                "size": getattr(t, "size", None),
+                "exchange": getattr(t, "exchange", None),
+                "conditions": getattr(t, "conditions", None),
+                "timestamp": getattr(t, "timestamp", None),
+                "symbol": symbol,
+            }
+        else:
+            # Stocks
+            symbol = asset.symbol
+            client = self._get_stock_client()
+            from alpaca.data.requests import StockLatestQuoteRequest
+            req = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+            q = client.get_stock_latest_quote(req)[symbol]
+            return {
+                "bid": getattr(q, "bid_price", None),
+                "ask": getattr(q, "ask_price", None),
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "exchange": getattr(q, "exchange", None),
+                "timestamp": getattr(q, "timestamp", None),
+                "symbol": symbol,
+            }
+
+    def query_greeks(self, asset: Asset):
+        """
+        Get the option greeks for an option asset via Alpaca Market Data API.
+        Returns a dict mapping greek names to float values, e.g., {'delta': ..., 'gamma': ..., 'theta': ..., 'vega': ..., 'rho': ...}.
+        """
+        # Only options have greeks
+        if asset.asset_type != Asset.AssetType.OPTION:
+            return {}
+
+        # Format option symbol for Alpaca Data API
+        strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+        date = asset.expiration.strftime("%y%m%d")
+        option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+
+        # Initialize the historical data client
+        client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+        request = OptionSnapshotRequest(symbol_or_symbols=option_symbol)
+        try:
+            snapshots = client.get_option_snapshot(request)
+            snapshot = snapshots.get(option_symbol)
+            if not snapshot or not snapshot.greeks:
+                return {}
+            greeks_obj = snapshot.greeks
+            return {
+                'delta': greeks_obj.delta,
+                'gamma': greeks_obj.gamma,
+                'theta': greeks_obj.theta,
+                'vega': greeks_obj.vega,
+                'rho': greeks_obj.rho,
+            }
+        except Exception as e:
+            logging.error(f"Error fetching greeks from Alpaca Data API: {e}")
+            return {}

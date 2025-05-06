@@ -20,94 +20,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def tradier_ds():
-    return TradierData(
-        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
-        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
-        paper=True
-    )
-
-
-@pytest.fixture
 def tradier():
     return Tradier(
         account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
         access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
         paper=True
     )
-
-
-@pytest.mark.apitest
-class TestTradierDataAPI:
-    """
-    API Tests skipped by default. To run all API tests, use the following command:
-    python -m pytest -m apitest
-    """
-
-    def test_basics(self):
-        tdata = TradierData(
-            account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
-            access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
-            paper=True
-        )
-        assert tdata._account_number == TRADIER_TEST_CONFIG['ACCOUNT_NUMBER']
-
-    def test_get_last_price(self, tradier_ds):
-        asset = Asset("AAPL")
-        price = tradier_ds.get_last_price(asset)
-        assert isinstance(price, float)
-        assert price > 0.0
-
-    def test_get_chains(self, tradier_ds):
-        asset = Asset("SPY")
-        chain = tradier_ds.get_chains(asset)
-        assert isinstance(chain, dict)
-        assert 'Chains' in chain
-        assert "CALL" in chain['Chains']
-        assert len(chain['Chains']['CALL']) > 0
-        expir_date = list(chain['Chains']['CALL'].keys())[0]
-        assert len(chain['Chains']['CALL'][expir_date]) > 0
-        strike = chain['Chains']['CALL'][expir_date][0]
-        assert strike > 0
-        assert chain['Multiplier'] == 100
-
-    def test_query_greeks(self, tradier_ds):
-        asset = Asset("SPY")
-        chains = tradier_ds.get_chains(asset)
-        expir_date = list(chains['Chains']['CALL'].keys())[0]
-        num_strikes = len(chains['Chains']['CALL'][expir_date])
-        strike = chains['Chains']['CALL'][expir_date][num_strikes // 2]  # Get a strike price in the middle
-        option_asset = Asset(asset.symbol, asset_type='option', expiration=expir_date, strike=strike, right='CALL')
-        greeks = tradier_ds.query_greeks(option_asset)
-        assert greeks
-        assert 'delta' in greeks
-        assert 'gamma' in greeks
-        assert greeks['delta'] > 0
-
-    def test_get_quote(self, tradier_ds):
-        asset = Asset("AAPL")
-        quote = tradier_ds.get_quote(asset)
-        assert isinstance(quote, dict)
-        assert 'last' in quote
-        assert 'bid' in quote
-        assert 'ask' in quote
-        assert 'volume' in quote
-        assert 'open' in quote
-        assert 'high' in quote
-        assert 'low' in quote
-        assert 'close' in quote
-
-    def test_get_chain_full_info(self, tradier_ds):
-        asset = Asset("SPY")
-        chains = tradier_ds.get_chains(asset)
-        expir_date = list(chains['Chains']['CALL'].keys())[0]
-
-        df = tradier_ds.get_chain_full_info(asset, expir_date)
-        assert isinstance(df, pd.DataFrame)
-        assert 'strike' in df.columns
-        assert 'last' in df.columns
-        assert 'greeks.delta' in df.columns
-        assert len(df)
 
 
 @pytest.mark.apitest

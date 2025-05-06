@@ -13,7 +13,7 @@ import os
 import time
 import requests
 import urllib3
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -739,7 +739,10 @@ class InteractiveBrokersRESTData(DataSource):
         If expiration is set, returns the specific contract conid.
         If expiration is None, returns the continuous/earliest contract conid.
         """
-        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+        if getattr(asset, "asset_type", None) in {
+            Asset.AssetType.FUTURE,
+            Asset.AssetType.CONT_FUTURE
+        }:
             if getattr(asset, "expiration", None) is None:
                 return self._get_earliest_future_conid(asset.symbol, exchange)
             else:
@@ -821,13 +824,16 @@ class InteractiveBrokersRESTData(DataSource):
         if not timestep:
             timestep = self.get_timestep()
         if timeshift:
-            start_time = (datetime.now() - timeshift).strftime("%Y%m%d-%H:%M:%S")
+            start_time = (datetime.now(timezone.utc) - timeshift).strftime("%Y%m%d-%H:%M:%S")
         else:
-            start_time = datetime.now().strftime("%Y%m%d-%H:%M:%S")
+            start_time = datetime.now(timezone.utc).strftime("%Y%m%d-%H:%M:%S")
 
         # --- Use helper for futures conid ---
         conid = None
-        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+        if getattr(asset, "asset_type", None) in {
+                Asset.AssetType.FUTURE,
+                Asset.AssetType.CONT_FUTURE,
+        }:
             conid = self._get_futures_conid(asset, exchange or "CME")
         else:
             conid = self.get_conid_from_asset(asset=asset)
@@ -871,7 +877,7 @@ class InteractiveBrokersRESTData(DataSource):
                 quote=quote,
             )
 
-        url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}startTime={start_time}"
+        url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
         if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE and getattr(asset, "expiration", None) is None:
             url += "&continuous=true"
         if exchange:

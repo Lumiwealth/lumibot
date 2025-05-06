@@ -1,5 +1,5 @@
 [![CI Status](https://github.com/Lumiwealth/lumibot/actions/workflows/lumibot-ci-cd.yml/badge.svg?branch=dev)](https://github.com/Lumiwealth/lumibot/actions/workflows/lumibot-ci-cd.yml)
-[![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/dev/coverage.svg)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Lumiwealth/lumibot/dev/htmlcov/index.html)
+[![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/badge/coverage.svg)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Lumiwealth/lumibot/badge/Lumibot/index.html)
 
 # Lumibot - A Backtesting and Trading Library for Stocks, Options, Crypto, Futures, FOREX and More!
 

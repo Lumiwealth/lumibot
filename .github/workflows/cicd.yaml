@@ -75,7 +75,7 @@ jobs:
         run: |
           coverage run
           coverage xml -o coverage.xml          #  -> for badge
-          coverage html                         #  -> nice downloadable
+          coverage html -d Lumibot              #  -> output to Lumibot folder
           coverage report
 
       # Make the HTML report downloadable from the Actions artefacts tab
@@ -83,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-html
-          path: htmlcov
+          path: Lumibot
           retention-days: 7
 
       # ------------------------------------------------------------
@@ -92,7 +92,7 @@ jobs:
       # ------------------------------------------------------------
       - name: Generate coverage badge
         if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
-        uses: tj-actions/coverage-badge-py@v2   #  [oai_citation:0‡GitHub](https://github.com/tj-actions/coverage-badge-py)
+        uses: tj-actions/coverage-badge-py@v2
         with:
           output: coverage.svg
 
@@ -104,11 +104,16 @@ jobs:
         with:
           files: coverage.svg
 
-      - name: Commit updated badge
+      # Commit updated badge to badge branch
+      - name: Commit updated badge to badge branch
         if: steps.verify.outputs.files_changed == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          git fetch origin badge:badge || git checkout --orphan badge
+          git checkout badge || git checkout --orphan badge
+          cp coverage.svg .
           git add coverage.svg
-          git commit -m "ci: update coverage badge"
-          git push
+          git commit -m "ci: update coverage badge" || echo "No changes to commit"
+          git push origin badge:badge
+          git checkout $GITHUB_REF_NAME

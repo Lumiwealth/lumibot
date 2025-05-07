@@ -71,12 +71,12 @@ backtesting_start = os.environ.get("BACKTESTING_START")
 backtesting_end = os.environ.get("BACKTESTING_END")
 
 # Check if the dates are not None and not empty strings before parsing
-BACKTESTING_START = None
+BACKTESTING_START_ENV = None
 if backtesting_start:
-    BACKTESTING_START = parser.parse(backtesting_start)
-BACKTESTING_END = None
+    BACKTESTING_START_ENV = parser.parse(backtesting_start)
+BACKTESTING_END_ENV = None
 if backtesting_end:
-    BACKTESTING_END = parser.parse(backtesting_end)
+    BACKTESTING_END_ENV = parser.parse(backtesting_end)
 
 # Check if we should hide trades
 hide_trades = os.environ.get("HIDE_TRADES")
@@ -369,9 +369,6 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 # The class will handle defaults internally
                 data_source = YahooData()
                 
-                # Only set dates if they're explicitly provided in environment variables
-                if BACKTESTING_START and BACKTESTING_END:
-                    data_source._update_datetime_limits(BACKTESTING_START, BACKTESTING_END)
             elif data_source_name.lower() == "schwab":
                 from .data_sources import SchwabData
                 # Create the data source with explicit credentials

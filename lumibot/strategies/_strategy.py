@@ -54,8 +54,8 @@ from ..credentials import (
     SHOW_TEARSHEET,
     LIVE_CONFIG,
     POLYGON_MAX_MEMORY_BYTES,
-    BACKTESTING_START,
-    BACKTESTING_END,
+    BACKTESTING_START_ENV,
+    BACKTESTING_END_ENV,
     LOG_BACKTEST_PROGRESS_TO_FILE,
     INTERACTIVE_BROKERS_REST_CONFIG,
     BACKTESTING_QUIET_LOGS,
@@ -362,9 +362,13 @@ class _Strategy:
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
         if self.is_backtesting:
-            if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
-                self._backtesting_start = self.broker.data_source.datetime_start
-                self._backtesting_end = self.broker.data_source.datetime_end
+            if BACKTESTING_START_ENV and BACKTESTING_END_ENV:
+                self._backtesting_start = BACKTESTING_START_ENV
+                self._backtesting_end = BACKTESTING_END_ENV
+            
+            else:
+                self._backtesting_start = backtesting_start
+                self._backtesting_end = backtesting_end
 
         # Force start immediately if we are backtesting
         self.force_start_immediately = force_start_immediately

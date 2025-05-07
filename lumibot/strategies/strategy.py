@@ -1749,11 +1749,18 @@ class Strategy(_Strategy):
         """
         Close a single position for the specified asset.
 
+        This method attempts to close an open position for the given asset. For most brokers, this is done by submitting a market sell order for the open position. For crypto futures brokers (such as Bitunix), this may use a broker-specific fast-close or "flash close" endpoint to close the position immediately at market price.
+
         Args:
             asset (str or Asset): The symbol or Asset object identifying the position to close.
 
         Returns:
             Any: The broker.close_position result, or None if no action was taken.
+
+        Notes:
+            - For crypto futures (e.g., Bitunix), this will use the broker's flash close endpoint if available.
+            - For spot/stock/futures brokers, this will submit a market sell order for the open position.
+            - If no open position exists, this method does nothing.
         """
         asset_obj = self._sanitize_user_asset(asset)
         result = self.broker.close_position(self.name, asset_obj)
@@ -1764,11 +1771,17 @@ class Strategy(_Strategy):
         """
         Close multiple positions for the specified assets.
 
+        Iterates over the provided list of assets and attempts to close each open position. See `close_position` for details on how each position is closed.
+
         Args:
             assets (list[str or Asset]): Symbols or Asset objects identifying the positions to close.
 
         Returns:
             list: Results from each `close_position` call, or None if no action was taken.
+
+        Notes:
+            - For crypto futures (e.g., Bitunix), this will use the broker's flash close endpoint if available.
+            - For spot/stock/futures brokers, this will submit a market sell order for each open position.
         """
         results = []
         for asset in assets:

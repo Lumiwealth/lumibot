@@ -13,7 +13,22 @@ from lumibot.tools.bitunix_helpers import BitUnixClient
 logger = logging.getLogger(__name__)
 
 class Bitunix(Broker):
-    """A broker class that connects to the Bitunix exchange."""
+    """
+    A broker class that connects to the Bitunix exchange for crypto futures trading.
+
+    This broker is designed specifically for Bitunix's perpetual futures API. It supports submitting, tracking, and closing positions for crypto futures contracts (e.g., BTCUSDT perpetual). The broker uses Bitunix's REST API for all trading operations.
+
+    Key Features:
+    - Only supports crypto futures (TRADING_MODE must be "FUTURES").
+    - Uses Bitunix's "flash close" endpoint to close open futures positions instantly at market price.
+    - All positions and orders are managed using Bitunix's API conventions.
+    - Not suitable for spot trading or non-futures assets.
+
+    Notes:
+    - The `close_position` method will use Bitunix's flash close endpoint, which is faster and more reliable for closing futures positions than submitting a regular market order.
+    - All asset symbols should be the full Bitunix symbol (e.g., "BTCUSDT").
+    - Leverage and margin settings are managed per-symbol as needed.
+    """
 
     ASSET_TYPE_MAP = dict(
         stock=[],
@@ -658,7 +673,23 @@ class Bitunix(Broker):
                     logger.info("Flash-closed position %s (%s)", position_id, pos.asset.symbol)
 
     def close_position(self, strategy_name: str, asset: Asset):
-        """Close one FUTURE position via flash_close_position."""
+        """
+        Close one open crypto futures position via Bitunix's flash_close_position endpoint.
+
+        This method finds the open position for the given asset and, if found, uses Bitunix's "flash close" API to close the position at market price. This is the recommended way to close positions on Bitunix, as it is faster and more reliable than submitting a regular market order.
+
+        Args:
+            strategy_name (str): The name of the strategy requesting the close (not used for Bitunix, but required by interface).
+            asset (Asset): The Asset object representing the futures contract to close (e.g., Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)).
+
+        Returns:
+            None
+
+        Notes:
+            - Only works for open crypto futures positions.
+            - If no open position is found, or if the position cannot be closed, this method does nothing.
+            - For spot or non-futures assets, this method is not applicable.
+        """
         # find matching raw position
         for pos in self._pull_positions(None):
             if pos.asset == asset and pos.quantity != 0 and pos.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):

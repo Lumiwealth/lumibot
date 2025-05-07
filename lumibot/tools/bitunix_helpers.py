@@ -141,7 +141,7 @@ class BitUnixClient:
             params={"marginCoin": margin_coin},
         )
 
-    def get_positions(self, margin_coin: str = "USDT") -> Dict[str, Any]:
+    def get_positions(self) -> Dict[str, Any]:
         """
         List all open positions under the given quote asset (`margin_coin`).
 
@@ -153,8 +153,7 @@ class BitUnixClient:
         """
         return self._request(
             method="GET",
-            endpoint="/api/v1/futures/position/get_pending_positions",
-            params={"marginCoin": margin_coin},
+            endpoint="/api/v1/futures/position/get_pending_positions"
         )
 
     def place_order(

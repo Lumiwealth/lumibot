@@ -151,30 +151,30 @@ class Bitunix(Broker):
         positions = []
         strategy_name = strategy.name if strategy else ""
 
-        # FUTURES positions from open positions endpoint
         try:
-            resp = self.api.get_positions(margin_coin=self.get_quote_asset().symbol) # Use first get_quote_asset().symbol
+            resp = self.api.get_positions()
             if resp and resp.get("code") == 0:
                 for p in resp.get("data", []):
                     sym = p.get("symbol", "")
-                    # Determine quantity: use side to sign if provided, else assume positive
-                    qty = Decimal(str(p.get("positionAmt", p.get("maxQty", "0"))))
+                    # qty is now under "qty"
+                    qty = Decimal(str(p.get("qty", "0")))
+                    # Bitunix now uses "BUY"/"SELL"
                     side = p.get("side", "").upper()
-                    if side == "SHORT" or qty < 0:
+                    if side == "SELL":
                         qty = -abs(qty)
                     else:
                         qty = abs(qty)
-                    entry = Decimal(str(p.get("entryPrice", "0")))
+                    # entry price is avgOpenPrice (fallback to entryValue)
+                    entry = Decimal(str(p.get("avgOpenPrice", p.get("entryValue", "0"))))
                     if qty != 0 and sym:
                         asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
                         pos = Position(strategy_name, asset, qty)
                         pos.average_entry_price = entry
-                        pos._raw = p                         # attach raw dict to capture positionId
+                        pos._raw = p
                         positions.append(pos)
         except Exception as e:
             logger.warning("Error fetching futures positions: %s", e)
-            logger.warning(traceback.format_exc())
-
+            logger.debug(traceback.format_exc())
         return positions
 
     def _map_side_to_bitunix(self, side: Order.OrderSide) -> str:
@@ -218,14 +218,6 @@ class Bitunix(Broker):
         # Determine symbol format based on asset type
         if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
             symbol = order.asset.symbol
-            quote_symbol = self.get_quote_asset().symbol
-            # Ensure symbol ends with quote_symbol (e.g., BTCUSDT)
-            if not symbol.endswith(quote_symbol):
-                symbol = f"{symbol}{quote_symbol}"
-            if symbol == quote_symbol:
-                error_msg = f"Invalid symbol: symbol cannot be the same as quote asset ({quote_symbol})"
-                order.set_error(LumibotBrokerAPIError(error_msg))
-                return order
         else:
             error_msg = f"Invalid asset type: asset can only be CRYPTO_FUTURE"
             order.set_error(LumibotBrokerAPIError(error_msg))
@@ -591,7 +583,8 @@ class Bitunix(Broker):
             if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
                 symbol = order.asset.symbol
             else:
-                symbol = f"{order.asset.symbol}{order.quote.symbol}" if order.quote else order.asset.symbol
+                logger.error(f"Cannot modify order for asset type {order.asset.asset_type}")
+                return order
                 
             # Prepare modification parameters
             params = {
@@ -628,8 +621,9 @@ class Bitunix(Broker):
         """
         Fetch a single position by asset.
         """
-        all_positions = self._pull_positions(strategy)
-        for pos in all_positions:
+        # Reuse the multi‐position pull and filter by asset
+        positions = self._pull_positions(strategy)
+        for pos in positions:
             if pos.asset == asset:
                 return pos
         return None

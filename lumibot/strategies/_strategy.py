@@ -1153,26 +1153,32 @@ class _Strategy:
         self._name = name
         self._analyze_backtest = analyze_backtest
 
-        # If backtesting_start is None, then check the BACKTESTING_START environment variable
-        if backtesting_start is None and BACKTESTING_START is not None:
+        # Set backtesting_start: priority 1 - BACKTESTING_START env var, 2 - passed argument, 3 - default to 1 year ago
+        if BACKTESTING_START is not None:
             backtesting_start = BACKTESTING_START
-        # If backtesting_start is None, and BACKTESTING_START is not set, then set it to one year ago by default
-        elif backtesting_start is None:
+        elif backtesting_start is not None:
+            pass
+        else:
             backtesting_start = datetime.datetime.now() - datetime.timedelta(days=365)
-            # Warn the user that the backtesting_start is set to one year ago
             logging.warning(
-                colored(f"backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.", "yellow")
+            colored(
+                "backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.",
+                "yellow"
+            )
             )
 
-        # If backtesting_end is None, then check the BACKTESTING_END environment variable
-        if backtesting_end is None and BACKTESTING_END is not None:
+        # Set backtesting_end: priority 1 - BACKTESTING_END env var, 2 - passed argument, 3 - default to yesterday
+        if BACKTESTING_END is not None:
             backtesting_end = BACKTESTING_END
-        # If backtesting_end is None, and BACKTESTING_END is not set, then set it to the current date minus one day by default
-        elif backtesting_end is None:
+        elif backtesting_end is not None:
+            pass
+        else:
             backtesting_end = datetime.datetime.now() - datetime.timedelta(days=1)
-            # Warn the user that the backtesting_end is set to the current date
             logging.warning(
-                colored(f"backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.", "yellow")
+            colored(
+                "backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.",
+                "yellow"
+            )
             )
 
         # Create an adapter with 'strategy_name' set to the instance's name
@@ -1500,6 +1506,13 @@ class _Strategy:
             raise ValueError(
                 f"`backtesting_end` must be after `backtesting_start`. You passed in "
                 f"{backtesting_end} and {backtesting_start}"
+            )
+
+        # Check that backtesting_end is not in the future
+        now = datetime.datetime.now(backtesting_end.tzinfo) if backtesting_end.tzinfo else datetime.datetime.now()
+        if backtesting_end > now:
+            raise ValueError(
+                f"`backtesting_end` cannot be in the future. You passed in {backtesting_end}, now is {now}"
             )
 
     def send_update_to_cloud(self):

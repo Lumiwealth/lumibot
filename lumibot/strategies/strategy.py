@@ -768,7 +768,7 @@ class Strategy(_Strategy):
         """
 
         if not self.is_backtesting:
-            # Sleep for the the sleeptime in seconds.
+            # Sleep for the sleeptime in seconds.
             time.sleep(sleeptime)
 
         return self.broker.sleep(sleeptime)
@@ -1715,7 +1715,12 @@ class Strategy(_Strategy):
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 
-        return self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price)
+        result = self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price)
+        if limit_price is not None:
+            order.limit_price = limit_price
+        if stop_price is not None:
+            order.stop_price = stop_price
+        return result
 
     def sell_all(self, cancel_open_orders: bool = True, is_multileg: bool = False):
         """Sell all strategy positions.

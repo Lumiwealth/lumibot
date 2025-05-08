@@ -3,6 +3,7 @@ import datetime
 import logging
 import traceback
 from asyncio import CancelledError
+import time
 from datetime import timezone
 from decimal import Decimal
 from typing import Union
@@ -242,6 +243,35 @@ class Alpaca(Broker):
         curr_time = clock.timestamp.timestamp()
         time_to_close = closing_time - curr_time
         return time_to_close
+
+    def _await_market_to_close(self, timedelta=None, strategy=None):
+        """
+        Block execution until the regular-market close (live‑trading version).
+
+        Parameters
+        ----------
+        timedelta : int | None
+            Optional buffer in minutes before the official close to wake up.
+        strategy : Strategy | None
+            The calling strategy; forwarded so pending orders can be processed
+            the same way BacktestingBroker does.
+        """
+        # First, handle any orders waiting to be processed.
+        self.process_pending_orders(strategy=strategy)
+
+        # Seconds until the bell rings
+        time_to_close = self.get_time_to_close()
+
+        # Apply an optional buffer (minutes before close)
+        if timedelta is not None:
+            time_to_close -= 60 * timedelta
+
+        # Nothing to wait for?  Bail out early.
+        if time_to_close <= 0:
+            return
+
+        logger.info(f"Sleeping {time_to_close:.0f} seconds until market close")
+        time.sleep(time_to_close)
 
     # =========Positions functions==================
 

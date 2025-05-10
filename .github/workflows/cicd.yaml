@@ -45,6 +45,7 @@ jobs:
       POLYGON_IS_PAID_SUBSCRIPTION: $POLYGON_IS_PAID_SUBSCRIPTION
       THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
       THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+      YAHOO_FREE_PROXY_ENABLED: $YAHOO_FREE_PROXY_ENABLED
 
     steps:
       # ------------------------------------------------------------

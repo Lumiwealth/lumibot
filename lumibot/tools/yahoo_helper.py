@@ -51,7 +51,8 @@ class YahooHelper:
     # =========Internal initialization parameters and methods============
 
     CACHING_ENABLED = False
-    YAHOO_FREE_PROXY_ENABLED = os.environ.get("YAHOO_FREE_PROXY_ENABLED", "True") == "True"
+    # YAHOO_FREE_PROXY_ENABLED = os.environ.get("YAHOO_FREE_PROXY_ENABLED", "True") == "True"
+    YAHOO_FREE_PROXY_ENABLED = True
     LUMIBOT_YAHOO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, "yahoo")
 
     if not os.path.exists(LUMIBOT_YAHOO_CACHE_FOLDER):

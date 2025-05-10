@@ -2,6 +2,7 @@ import logging
 import os
 import pickle
 import time
+import random
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -69,7 +70,8 @@ class YahooHelper:
         This sleeps and optionally returns a proxy if PROXY_ENABLED is True, otherwise returns None.
         The most important thing this does is sleep. This prevents rate limiting by yahoo.
         """
-        time.sleep(2)
+        time.sleep(random.uniform(2, 5))
+
         if YahooHelper.YAHOO_FREE_PROXY_ENABLED:
             return FreeProxy(timeout=5).get()
         return None

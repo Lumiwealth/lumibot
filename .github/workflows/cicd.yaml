@@ -74,7 +74,7 @@ jobs:
       # ------------------------------------------------------------
       - name: Run Unit Tests with coverage
         run: |
-          coverage run
+          coverage run -m pytest -m "not apitest" -xvs
           coverage xml -o coverage.xml          #  -> for badge
           coverage html -d Lumibot              #  -> output to Lumibot folder
           coverage report

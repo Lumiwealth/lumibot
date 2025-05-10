@@ -51,7 +51,7 @@ class YahooHelper:
     # =========Internal initialization parameters and methods============
 
     CACHING_ENABLED = False
-    PROXY_ENABLED = False
+    YAHOO_FREE_PROXY_ENABLED = os.environ.get("YAHOO_FREE_PROXY_ENABLED", "True") == "True"
     LUMIBOT_YAHOO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, "yahoo")
 
     if not os.path.exists(LUMIBOT_YAHOO_CACHE_FOLDER):
@@ -70,7 +70,7 @@ class YahooHelper:
         The most important thing this does is sleep. This prevents rate limiting by yahoo.
         """
         time.sleep(2)
-        if YahooHelper.PROXY_ENABLED:
+        if YahooHelper.YAHOO_FREE_PROXY_ENABLED:
             return FreeProxy(timeout=5).get()
         return None
 

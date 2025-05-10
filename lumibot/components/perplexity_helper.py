@@ -5,8 +5,92 @@ import logging
 import re
 from openai import OpenAI
 
-# Configure basic logging
-logging.basicConfig(level=logging.INFO)
+# --- constants ---------------------------------------------------------------
+_MODEL_LIMITS = {
+    "sonar": 8000,
+    "sonar-pro": 8000,
+    "sonar-reasoning": 8000,
+    "sonar-reasoning-pro": 8000,
+    "sonar-deep-research": 8000,
+}
+_REASONING_MODELS = {"sonar-reasoning", "sonar-reasoning-pro"}
+
+# --- utilities ---------------------------------------------------------------
+def _strip_think_block(text: str) -> str:
+    """Remove the <think>…</think> preamble inserted by reasoning models."""
+    if text.startswith("<think>"):
+        return text.split("</think>", 1)[-1].lstrip()
+    return text
+
+def _build_response_format(schema_dict: dict) -> dict:
+    """Return the Perplexity response_format payload for strict JSON."""
+    return {"type": "json_schema", "json_schema": {"schema": schema_dict}}
+
+# --- Formal JSON Schema Definitions ------------------------------------------
+FINANCIAL_NEWS_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string"},
+        "analysis_summary": {"type": "string"},
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                    "asset_type": {"type": "string"},
+                    "headline": {"type": "string"},
+                    "confidence": {"type": "integer"},
+                    "sentiment_score": {"type": "integer"},
+                    "popularity_metric": {"type": "integer"},
+                    "volume_of_messages": {"type": ["integer", "null"]},
+                    "magnitude": {"type": "integer"},
+                    "type_of_news": {"type": ["string", "null"]},
+                    "price_targets": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "low": {"type": ["number", "null"]},
+                            "high": {"type": ["number", "null"]},
+                            "average": {"type": ["number", "null"]}
+                        },
+                        "additionalProperties": False
+                    },
+                    "additional_info": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "sector": {"type": ["string", "null"]},
+                            "recent_events": {"type": ["string", "null"]},
+                            "notable_executive_actions": {"type": ["string", "null"]},
+                            "macro_support": {"type": ["string", "null"]},
+                            "related_tickers": {"type": "array", "items": {"type": "string"}},
+                            "external_links": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "additionalProperties": False
+                    }
+                },
+                "required": ["symbol", "asset_type", "headline", "confidence", "sentiment_score", "popularity_metric", "magnitude"],
+                "additionalProperties": False
+            }
+        }
+    },
+    "required": ["query", "analysis_summary", "items"],
+    "additionalProperties": False
+}
+
+DEFAULT_GENERAL_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string"},
+        "response_summary": {"type": "string"},
+        "detailed_response": {"type": ["string", "null"]},
+        "symbols": {
+            "type": "array",
+            "items": {"type": "string"}
+        }
+    },
+    "required": ["query", "response_summary", "symbols"],
+    "additionalProperties": False
+}
 
 class PerplexityHelper:
     """
@@ -265,74 +349,47 @@ Return only valid JSON following the schema.
         temperature: int = 0,
         retries: int = 3,
         max_tokens: int = 35000,
-        stream: bool = False
+        stream: bool = None,
+        schema: dict = None
     ) -> str:
         """
         Sends a request to the Perplexity API using the provided system message and user query.
         Implements a retry loop to mitigate transient failures.
         Additional parameters like 'max_tokens' and 'stream' are included to encourage complete output.
-        
-        Parameters
-        ----------
-        system_msg : str
-            The system message (prompt) to send.
-        user_query : str
-            The user's query.
-        model : str, optional
-            The model to use (default is "sonar"). Supported models include "sonar", "sonar-pro", "sonar-reasoning", etc.
-        temperature : int, optional
-            The temperature setting (default is 0).
-        retries : int, optional
-            Number of retry attempts (default is 3).
-        max_tokens : int, optional
-            The maximum number of tokens to generate (default is 2000).
-        stream : bool, optional
-            Whether to enable streaming for longer responses (default is False).
-        
-        Returns
-        -------
-        str
-            The content of the API response.
-        
-        Raises
-        ------
-        Exception
-            Propagates the last exception if all retries fail.
         """
+        # Clamp max_tokens to model limit
+        safe_max_tokens = min(max_tokens, _MODEL_LIMITS.get(model, 8000))
+        # Enable streaming by default for big answers
+        if stream is None:
+            stream = safe_max_tokens >= 4000
+        # Build response_format if schema is provided
+        response_format = None
+        if schema:
+            response_format = _build_response_format(schema)
         for attempt in range(1, retries + 1):
             try:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_query}
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": safe_max_tokens,
+                    "top_p": 0.9,
+                    "stream": stream,
+                }
+                if response_format:
+                    payload["response_format"] = response_format
                 if stream:
-                    # stream chunks for longer responses
-                    response_chunks = self.client.chat.completions.create(
-                        model=model,
-                        messages=[
-                            {"role": "system", "content": system_msg},
-                            {"role": "user", "content": user_query}
-                        ],
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        top_p=0.9,
-                        stream=True
-                    )
+                    response_chunks = self.client.chat.completions.create(**payload)
                     response_text = ""
                     for chunk in response_chunks:
-                        # accumulate streamed content
                         delta = getattr(chunk.choices[0], "delta", None)
                         if delta and getattr(delta, "content", None):
                             response_text += delta.content
                 else:
-                    completion = self.client.chat.completions.create(
-                        model=model,
-                        messages=[
-                            {"role": "system", "content": system_msg},
-                            {"role": "user", "content": user_query}
-                        ],
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        top_p=0.9,
-                        stream=False
-                    )
-                    # Validate the response structure.
+                    completion = self.client.chat.completions.create(**payload)
                     if (not completion.choices or
                         not hasattr(completion.choices[0], "message") or
                         not hasattr(completion.choices[0].message, "content")):
@@ -340,6 +397,9 @@ Return only valid JSON following the schema.
                     response_text = completion.choices[0].message.content
                 if not response_text.strip():
                     raise ValueError("Received empty response from API.")
+                # Strip <think> block for reasoning models
+                if model in _REASONING_MODELS:
+                    response_text = _strip_think_block(response_text)
                 return response_text
             except Exception as e:
                 logging.error(f"Attempt {attempt} failed: {e}")
@@ -381,7 +441,7 @@ Return only valid JSON following the schema.
         """
         system_msg = self._build_financial_news_prompt(user_query)
         try:
-            assistant_text = self._send_request(system_msg, user_query)
+            assistant_text = self._send_request(system_msg, user_query, schema=FINANCIAL_NEWS_JSON_SCHEMA)
         except Exception as e:
             return {
                 "query": user_query,
@@ -404,7 +464,7 @@ Return only valid JSON following the schema.
         self._post_process_data(data)
         return data
 
-    def execute_general_query(self, user_query: str, custom_schema=None, model: str = "sonar") -> dict:
+    def execute_general_query(self, user_query: str, custom_schema=None, model: str = "sonar", max_tokens: int = 35000, stream: bool = None) -> dict:
         """
         Executes a general query using the Perplexity API.
         
@@ -468,6 +528,10 @@ Return only valid JSON following the schema.
         model : str, optional
             The model to use for the query. Supported models include "sonar", "sonar-pro", "sonar-reasoning", etc.
             The default model is "sonar".
+        max_tokens : int, optional
+            The maximum number of tokens to generate (default is 35000).
+        stream : bool, optional
+            Whether to enable streaming for longer responses (default is None, which enables streaming for large responses).
         
         Returns
         -------
@@ -542,8 +606,11 @@ Return only valid JSON following the schema.
         }
         """
         system_msg = self._build_general_prompt(user_query, custom_schema)
+        schema = None
+        if custom_schema is None:
+            schema = DEFAULT_GENERAL_JSON_SCHEMA
         try:
-            assistant_text = self._send_request(system_msg, user_query, model=model)
+            assistant_text = self._send_request(system_msg, user_query, model=model, max_tokens=max_tokens, stream=stream, schema=schema)
         except Exception as e:
             return {
                 "query": user_query,

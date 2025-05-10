@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
+from fp.fp import FreeProxy
 
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
@@ -50,6 +51,7 @@ class YahooHelper:
     # =========Internal initialization parameters and methods============
 
     CACHING_ENABLED = False
+    PROXY_ENABLED = False
     LUMIBOT_YAHOO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, "yahoo")
 
     if not os.path.exists(LUMIBOT_YAHOO_CACHE_FOLDER):
@@ -60,6 +62,17 @@ class YahooHelper:
             pass
     else:
         CACHING_ENABLED = True
+
+    @staticmethod
+    def sleep_and_get_proxy():
+        """
+        This sleeps and optionally returns a proxy if PROXY_ENABLED is True, otherwise returns None.
+        The most important thing this does is sleep. This prevents rate limiting by yahoo.
+        """
+        time.sleep(2)
+        if YahooHelper.PROXY_ENABLED:
+            return FreeProxy(timeout=5).get()
+        return None
 
     # ====================Caching methods=================================
 
@@ -96,7 +109,7 @@ class YahooHelper:
         # Check if df is empty
         if df is None or df.empty:
             return df
-        
+
         if auto_adjust:
             del df["Close"]
             del df["Open"]
@@ -140,7 +153,7 @@ class YahooHelper:
 
     @staticmethod
     def download_symbol_info(symbol):
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, proxy=YahooHelper.sleep_and_get_proxy())
 
         try:
             info = ticker.info
@@ -163,15 +176,15 @@ class YahooHelper:
 
     @staticmethod
     def get_symbol_info(symbol):
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, proxy=YahooHelper.sleep_and_get_proxy())
         return ticker.info
 
     @staticmethod
     def get_symbol_last_price(symbol):
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, proxy=YahooHelper.sleep_and_get_proxy())
 
         # Get the last price from the history
-        df = ticker.history(period="7d", auto_adjust=False)
+        df = ticker.history(period="7d", auto_adjust=False, proxy=YahooHelper.sleep_and_get_proxy())
         if df.empty:
             return None
 
@@ -204,19 +217,22 @@ class YahooHelper:
                     df = ticker.history(
                         interval=interval,
                         start=get_lumibot_datetime() - timedelta(days=7),
-                        auto_adjust=False
+                        auto_adjust=False,
+                        proxy=YahooHelper.sleep_and_get_proxy()
                     )
                 elif interval == "15m":
                     df = ticker.history(
                         interval=interval,
                         start=get_lumibot_datetime() - timedelta(days=60),
-                        auto_adjust=False
+                        auto_adjust=False,
+                        proxy=YahooHelper.sleep_and_get_proxy()
                     )
                 else:
                     df = ticker.history(
                         interval=interval,
                         period="max",
-                        auto_adjust=False
+                        auto_adjust=False,
+                        proxy=YahooHelper.sleep_and_get_proxy()
                     )
             except Exception as e:
                 logging.debug(f"{symbol}: Exception from ticker.history(): {e}")
@@ -292,6 +308,7 @@ class YahooHelper:
             group_by="ticker",
             auto_adjust=False,
             progress=False,
+            proxy=YahooHelper.sleep_and_get_proxy()
         )
 
         for i in df_yf.columns.levels[0]:

@@ -74,7 +74,7 @@ class BitunixFuturesExample(Strategy):
         try:
             self.log_message("Waiting 10 seconds before attempting to close position...")
             time.sleep(10)
-            #self.close_position(asset)
+            self.close_position(asset)
 
         except Exception as e:
             self.log_message(f"Error closing position: {e}", color="red")
@@ -85,7 +85,7 @@ class BitunixFuturesExample(Strategy):
             orders = self.get_orders()
             found_order_to_cancel = False
             for order in orders:
-                if order.asset.symbol == TEST_SYMBOL and order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE and order.status in [Order.OrderStatus.SUBMITTED, Order.OrderStatus.OPEN, Order.OrderStatus.PARTIALLY_FILLED]:
+                if order.asset.symbol == TEST_SYMBOL and order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE and order.status in [Order.OrderStatus.NEW, Order.OrderStatus.SUBMITTED, Order.OrderStatus.OPEN, Order.OrderStatus.PARTIALLY_FILLED]:
                     found_order_to_cancel = True
                     self.log_message(f"Found open order: {order.identifier} - {order.status}")
                     try:

@@ -128,35 +128,42 @@ class Bitunix(Broker):
 
     def get_time_to_close(self):
         return float("inf")
-
+    
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> Optional[Tuple[float, float, float]]:
         """
-        Only the available quote asset is used for cash.
+        Returns (cash, positions_value, total_liquidation_value)
         """
-        total_cash = gross_spot = net_liquidation = 0.0
-
         # ---------- FUTURES wallet only ----------
-        # Force margin_coin to USDT as it's the most common for futures balances
-        # and might avoid errors like "This futures does not allow trading" if another asset is used.
-        fut_resp = self.api.get_account(margin_coin="USDT") # Use "USDT" explicitly
-        # {'code': 0, 'data': {'marginCoin': 'USDT', 'available': '-187.067355065', 'frozen': '0', 'margin': '186.683', 'transfer': '0', 'positionMode': 'HEDGE', 'crossUnrealizedPNL': '-3.663', 'isolationUnrealizedPNL': '0', 'bonus': '0'}, 'msg': 'result.success'}
+        # Force margin_coin to USDT
+        fut_resp = self.api.get_account(margin_coin="USDT")
         try:
             data = fut_resp.get("data", {})
 
-            # Compute equity
-            total_cash     = Decimal(data.get("available", "0") or "0")
-            frozen        = Decimal(data.get("frozen",    "0") or "0")
-            margin        = Decimal(data.get("margin",    "0") or "0")
-            cross_pnl     = Decimal(data.get("crossUnrealizedPNL", "0") or "0")
-            isolation_pnl = Decimal(data.get("isolationUnrealizedPNL", "0") or "0")
-            fut_equity    = total_cash + frozen + margin + cross_pnl + isolation_pnl
-            net_liquidation = float(fut_equity) # Assuming balance is already in USDT
-        except Exception as e:
-            logger.warning("Unexpected futures account response type: %s", type(fut_resp))
-            logger.warning(e)
+            # cash components
+            available = Decimal(data.get("available", "0") or "0")
+            frozen = Decimal(data.get("frozen", "0") or "0")
+            margin = Decimal(data.get("margin", "0") or "0")
+            cross_pnl = Decimal(data.get("crossUnrealizedPNL", "0") or "0")
+            iso_pnl = Decimal(data.get("isolationUnrealizedPNL", "0") or "0")
 
-        total_cash = float(total_cash)
-        return total_cash, gross_spot, net_liquidation
+            # equity / net liquidation
+            fut_equity = available + frozen + margin + cross_pnl + iso_pnl
+            net_liquidation = float(fut_equity)
+
+        except Exception:
+            logger.warning("Unexpected futures account response: %s", fut_resp)
+            available = frozen = margin = cross_pnl = iso_pnl = Decimal("0")
+            net_liquidation = 0.0
+
+        cash = float(available)
+
+        # Compute total notional of open futures positions
+        positions_value = 0.0
+        for pos in self._pull_positions(strategy):
+            if pos.avg_fill_price:
+                positions_value += float(abs(pos.quantity) * pos.avg_fill_price)
+
+        return cash, positions_value, net_liquidation
 
     def _pull_positions(self, strategy) -> List[Position]:
         """
@@ -184,7 +191,7 @@ class Bitunix(Broker):
                     if qty != 0 and sym:
                         asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
                         pos = Position(strategy_name, asset, qty)
-                        pos.average_entry_price = entry
+                        pos.avg_fill_price = entry
                         pos._raw = p
                         positions.append(pos)
         except Exception as e:
@@ -309,6 +316,7 @@ class Bitunix(Broker):
         Cancels a FUTURES order.
         """
         if not order.identifier:
+            self.logger.warning("Specified order doesn't exist")
             return
             
         try:
@@ -356,13 +364,12 @@ class Bitunix(Broker):
                     all_orders.extend(fut_orders)
         except Exception:
             logger.warning("Error fetching futures open orders")
-        
         return all_orders
 
     def _map_status_from_bitunix(self, broker_status) -> Order.OrderStatus:
         """Maps BitUnix order status string to Lumibot OrderStatus enum."""
-        # Ensure broker_status is a string before uppercasing
-        status_str = str(broker_status).upper()
+        # Ensure broker_status is a string before uppercasing and strip trailing underscores and whitespace
+        status_str = str(broker_status).upper().rstrip('_').strip()
 
         status_map = {
             "NEW":               Order.OrderStatus.SUBMITTED,

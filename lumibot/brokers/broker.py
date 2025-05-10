@@ -874,12 +874,15 @@ class Broker(ABC):
 
     def get_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """get all tracked orders for a given strategy"""
+        # Allow filtering by Strategy instance or by name
+        if strategy is not None and not isinstance(strategy, str):
+            strategy_name = getattr(strategy, "name", getattr(strategy, "_name", None))
+        else:
+            strategy_name = strategy
         result = []
-        tracked_orders = self._tracked_orders
-        for order in tracked_orders:
-            if (strategy is None or order.strategy == strategy) and (asset is None or order.asset == asset):
+        for order in self._tracked_orders:
+            if (strategy_name is None or order.strategy == strategy_name) and (asset is None or order.asset == asset):
                 result.append(order)
-
         return result
 
     def get_all_orders(self) -> list[Order]:
@@ -1263,13 +1266,13 @@ class Broker(ABC):
             if order:
                 self._on_canceled_order(order)
         elif Order.is_equivalent_status(type_event, self.ERROR_ORDER):
-            # Pass the error object to _process_error_order
             order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
             if order:
-                # Notify subscriber about the error
+                # Notify subscriber about the error event
                 subscriber = self._get_subscriber(order.strategy)
                 if subscriber:
-                    subscriber.on_error_order(order=order)
+                    payload = dict(order=order, error=error)
+                    subscriber.add_event(subscriber.ERROR_ORDER, payload)
         elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
             # TODO: Implement modification logic and notification if needed
             self.logger.info(colored(f"Order was modified: {stored_order}", color="yellow"))

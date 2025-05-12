@@ -1,4 +1,5 @@
 from math import e, log
+import numpy as np
 
 try:
     from scipy.stats import norm
@@ -33,7 +34,7 @@ def impliedVolatility(className, args, callPrice=None, putPrice=None, high=500.0
             estimate = eval(className)(args, volatility=mid, performance=True).callPrice
         if putPrice:
             estimate = eval(className)(args, volatility=mid, performance=True).putPrice
-        if round(estimate, decimals) == target:
+        if np.round(estimate, decimals) == target:
             break
         elif estimate > target:
             high = mid
@@ -289,7 +290,7 @@ class BS:
 		
 		c = mibian.BS([1.4565, 1.45, 1, 30], callPrice=0.0359, putPrice=0.0306)
 		c.putCallParity			# Returns the put-call parity
-		"""
+	"""
 
     def __init__(self, args, volatility=None, callPrice=None, putPrice=None, performance=None):
         self.underlyingPrice = float(args[0])

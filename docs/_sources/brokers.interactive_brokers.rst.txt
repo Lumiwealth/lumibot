@@ -148,7 +148,7 @@ Add these variables to a `.env` file in the same directory as your strategy:
   * - `IB_PASSWORD`
     - Your Interactive Brokers password.
     - `password123`
-  * - `ACCOUNT_ID`
+  * - `IB_ACCOUNT_ID`
     - (Optional) An Interactive Brokers subaccount to trade on.
     - `U17369206`
   * - `IB_API_URL`

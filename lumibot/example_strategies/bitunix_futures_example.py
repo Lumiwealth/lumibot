@@ -39,10 +39,11 @@ class BitunixFuturesExample(Strategy):
 
         # ---------------------- 1) Place Test Market Order ----------------------
         asset = Asset(TEST_SYMBOL, Asset.AssetType.CRYPTO_FUTURE)
+        asset.leverage = 10  # Example: Set leverage to 10x for this order
         try:
             quantity_to_trade = 100
 
-            self.log_message(f"Attempting to place BUY LIMIT order for {quantity_to_trade} {asset}...")
+            self.log_message(f"Attempting to place BUY LIMIT order for {quantity_to_trade} {asset} at 10x leverage...")
             order = self.create_order(
                 asset=asset,
                 quantity=quantity_to_trade,

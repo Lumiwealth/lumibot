@@ -1,6 +1,9 @@
 from math import e, log
 import numpy as np
 
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
 try:
     from scipy.stats import norm
 except ImportError:

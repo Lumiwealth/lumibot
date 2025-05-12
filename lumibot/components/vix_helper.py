@@ -453,6 +453,17 @@ class VixHelper:
             # Get previous date as a Timestamp
             previous_date = pd.Timestamp(previous_dt)
 
+            # --- FIX: Normalize tz-awareness for index and lookup datetimes ---
+            if hasattr(self, 'historical_vix'):
+                idx = self.historical_vix.index
+                if idx.tz is not None and today_date.tzinfo is None:
+                    today_date = today_date.tz_localize(idx.tz)
+                    previous_date = previous_date.tz_localize(idx.tz)
+                elif idx.tz is None and today_date.tzinfo is not None:
+                    today_date = today_date.tz_localize(None)
+                    previous_date = previous_date.tz_localize(None)
+            # --- END FIX ---
+
             # Check if the historical VIX data is up to date
             if self.last_historical_vix_update is not None and self.last_historical_vix_update.date() == actual_dt.date():
                 # If we are using the open price, then return the open price for today
@@ -608,6 +619,17 @@ class VixHelper:
             # Get previous date as a Timestamp
             previous_date = pd.Timestamp(previous_dt)
 
+            # --- FIX: Normalize tz-awareness for index and lookup datetimes ---
+            if hasattr(self, 'historical_vix_1d'):
+                idx = self.historical_vix_1d.index
+                if idx.tz is not None and today_date.tzinfo is None:
+                    today_date = today_date.tz_localize(idx.tz)
+                    previous_date = previous_date.tz_localize(idx.tz)
+                elif idx.tz is None and today_date.tzinfo is not None:
+                    today_date = today_date.tz_localize(None)
+                    previous_date = previous_date.tz_localize(None)
+            # --- END FIX ---
+
             # Check if the historical VIX 1D data is up to date
             if self.last_historical_vix_1d_update is not None and self.last_historical_vix_1d_update.date() == actual_dt.date():
                 # If we are using the open price, then return the open price for today
@@ -689,6 +711,17 @@ class VixHelper:
 
             # Get previous date as a Timestamp
             previous_date = pd.Timestamp(previous_dt)
+
+            # --- FIX: Normalize tz-awareness for index and lookup datetimes ---
+            if hasattr(self, 'historical_gvz'):
+                idx = self.historical_gvz.index
+                if idx.tz is not None and today_date.tzinfo is None:
+                    today_date = today_date.tz_localize(idx.tz)
+                    previous_date = previous_date.tz_localize(idx.tz)
+                elif idx.tz is None and today_date.tzinfo is not None:
+                    today_date = today_date.tz_localize(None)
+                    previous_date = previous_date.tz_localize(None)
+            # --- END FIX ---
 
             # Check if the historical GVZ data is up to date
             if self.last_historical_gvz_update is not None and self.last_historical_gvz_update.date() == actual_dt.date():
@@ -967,6 +1000,17 @@ class VixHelper:
 
             # Get previous date as a Timestamp
             previous_date = pd.Timestamp(previous_dt)
+
+            # --- FIX: Normalize tz-awareness for index and lookup datetimes ---
+            if hasattr(self, 'historical_gvz'):
+                idx = self.historical_gvz.index
+                if idx.tz is not None and today_date.tzinfo is None:
+                    today_date = today_date.tz_localize(idx.tz)
+                    previous_date = previous_date.tz_localize(idx.tz)
+                elif idx.tz is None and today_date.tzinfo is not None:
+                    today_date = today_date.tz_localize(None)
+                    previous_date = previous_date.tz_localize(None)
+            # --- END FIX ---
 
             # Check if the historical GVZ data is up to date
             if self.last_historical_gvz_update is not None and self.last_historical_gvz_update.date() == actual_dt.date():

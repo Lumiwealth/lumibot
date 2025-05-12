@@ -15,6 +15,7 @@ class TestDefaultIndicatorStrategy(Strategy):
     """
     A strategy that adds the closing prices of each asset to a line.
     """
+    __test__ = False
 
     def initialize(self):
         self.sleeptime = "1D"
@@ -77,6 +78,7 @@ class TestIndicatorStrategy(Strategy):
     """
     A strategy that adds the closing prices of each asset to a line.
     """
+    __test__ = False
 
     def initialize(self):
         self.sleeptime = "1D"

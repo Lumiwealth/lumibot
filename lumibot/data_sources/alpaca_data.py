@@ -284,9 +284,9 @@ class AlpacaData(DataSource):
         quote_data = self.get_quote(asset, quote, exchange)
         if quote_data and 'last' in quote_data and quote_data['last'] is not None:
             return quote_data['last']
-        elif quote_data and 'bid' in quote_data:
+        elif quote_data and 'bid' in quote_data and quote_data['bid']:
             return quote_data['bid']
-        elif quote_data and 'ask' in quote_data:
+        elif quote_data and 'ask' in quote_data and quote_data['ask']:
             return quote_data['ask']
         return None
 
@@ -482,7 +482,7 @@ class AlpacaData(DataSource):
             return {
                 "bid": getattr(q, "bid_price", None),
                 "ask": getattr(q, "ask_price", None),
-                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price and q.ask_price else None,
                 "exchange": getattr(q, "exchange", None),
                 "timestamp": getattr(q, "timestamp", None),
                 "symbol": symbol,

@@ -33,3 +33,4 @@ holidays
 psutil
 openai
 schwab-py>=1.5.0
+free-proxy

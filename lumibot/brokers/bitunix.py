@@ -9,6 +9,7 @@ from lumibot.data_sources.bitunix_data import BitunixData
 from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +321,22 @@ class Bitunix(Broker):
             return
             
         try:
-            response = self.api.cancel_order(order_id=order.identifier)
+            # Retry up to 5 times on network error
+            max_retries = 5
+            response = None
+            for attempt in range(1, max_retries + 1):
+                response = self.api.cancel_order(order_id=order.identifier)
+                # succeeded
+                if response and response.get("code") == 0:
+                    break
+                # check for network error
+                msg = response.get("msg") if isinstance(response, dict) else ""
+                if "Network Error" not in msg:
+                    break
+                # wait before next retry
+                time.sleep(1)
+
+            print(order.identifier)
 
             # Check response
             if response and response.get("code") == 0:

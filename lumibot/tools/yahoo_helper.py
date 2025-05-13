@@ -98,7 +98,6 @@ class YahooHelper:
             return df
         
         if auto_adjust:
-            del df["Adj Ratio"]
             del df["Close"]
             del df["Open"]
             del df["High"]
@@ -113,7 +112,7 @@ class YahooHelper:
                 inplace=True,
             )
         else:
-            for col in ["Adj Ratio", "Adj Open", "Adj High", "Adj Low"]:
+            for col in ["Adj Open", "Adj High", "Adj Low"]:
                 if col in df.columns:
                     del df[col]
 
@@ -127,8 +126,11 @@ class YahooHelper:
         if df.empty:
             return df
 
+        # Ensure data is sorted by index before any other processing
+        df.sort_index(inplace=True)
+
         if df.index.tzinfo is None:
-            df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+            df.index = pd.to_datetime(df.index).tz_localize(LUMIBOT_DEFAULT_PYTZ)
         else:
             df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 
@@ -364,7 +366,7 @@ class YahooHelper:
         symbol,
         interval="1d",
         caching=True,
-        auto_adjust=False,
+        auto_adjust=False, # Keep parameter name consistent
         last_needed_datetime=None,
     ):
         if interval in ["1m", "15m", "1d"]:
@@ -374,7 +376,8 @@ class YahooHelper:
                 caching=caching,
                 last_needed_datetime=last_needed_datetime,
             )
-            return YahooHelper.format_df(df, False)
+            # Pass the received auto_adjust value to format_df
+            return YahooHelper.format_df(df, auto_adjust)
         else:
             raise ValueError("Unknown interval %s" % interval)
 

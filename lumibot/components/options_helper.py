@@ -1,4 +1,4 @@
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from typing import Optional, List, Dict, Union, Tuple
 from lumibot.entities import Asset, Order
 
@@ -348,6 +348,40 @@ class OptionsHelper:
         }
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
+    
+    def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> date:
+        """
+        Get the expiration date that is on or after a given date.
+
+        Parameters
+        ----------
+        dt : date
+            The starting date.
+        chains : dict
+            A dictionary containing option chains.
+        call_or_put : str
+            One of "call" or "put".
+
+        Returns
+        -------
+        date
+            The adjusted expiration date.
+        """
+        
+        # Make it all caps and get the specific chain.
+        call_or_put_caps = call_or_put.upper()
+        specific_chain = chains["Chains"][call_or_put_caps]
+
+        # Get the list of expiration dates as strings.
+        expiration_dates = list(specific_chain.keys())
+
+        # Since dt is a date object and expiration_dates contains strings, dt won't be found.
+        # Find the closest expiration date (as a string) and convert it back to a date.
+        if dt not in expiration_dates:
+            closest_str = min(expiration_dates, key=lambda x: abs(datetime.strptime(x, "%Y-%m-%d").date() - dt))
+            dt = datetime.strptime(closest_str, "%Y-%m-%d").date()
+
+        return dt
 
     # ============================================================
     # Order Building Functions (Build orders without submission)
@@ -746,8 +780,13 @@ class OptionsHelper:
         self.strategy.log_message("Executing orders...", color="blue")
         if limit_type:
             limit_price = self.calculate_multileg_limit_price(orders, limit_type)
-            self.strategy.log_message(f"Submitting orders with limit price {limit_price}", color="blue")
-            self.strategy.submit_orders(orders, is_multileg=True, price=limit_price)
+            self.strategy.log_message(f"Submitting limit multileg orders at price {limit_price}", color="blue")
+            # convert each child to a LIMIT at the aggregated price
+            for order in orders:
+                order.order_type = Order.OrderType.LIMIT
+                order.limit_price = limit_price
+            # now submit as a true limit multileg
+            self.strategy.submit_orders(orders, is_multileg=True)
         else:
             self.strategy.log_message("Submitting orders without a limit price.", color="blue")
             self.strategy.submit_orders(orders, is_multileg=True)

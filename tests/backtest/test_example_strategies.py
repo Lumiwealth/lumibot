@@ -107,10 +107,11 @@ class TestExampleStrategies:
         assert filled_orders.iloc[1]["price"] >= 405
 
         all_orders = strat_obj.broker.get_all_orders()
-        assert len(all_orders) == 3
+        assert len(all_orders) == 4
         entry_order = [o for o in all_orders if o.order_type == Order.OrderType.MARKET][0]
         limit_order = [o for o in all_orders if o.order_type == Order.OrderType.LIMIT][0]
         stop_order = [o for o in all_orders if o.order_type == Order.OrderType.STOP][0]
+        oco_order = [oco for oco in all_orders if oco.order_class == Order.OrderClass.OCO][0]
 
         assert entry_order.quantity == 10
         assert limit_order.quantity == 10
@@ -119,6 +120,7 @@ class TestExampleStrategies:
         assert entry_order.is_filled()
         assert limit_order.is_filled()
         assert stop_order.is_canceled()
+        assert oco_order.is_filled()
 
         assert entry_order.get_fill_price() > 1
         assert limit_order.get_fill_price() >= 405

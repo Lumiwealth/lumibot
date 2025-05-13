@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Union
 
 from termcolor import colored
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 from lumibot.data_sources import DataSource
 
 class ExampleBrokerData(DataSource):
@@ -14,7 +14,7 @@ class ExampleBrokerData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "ExampleBroker"
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
 
     # Method stubs with logging for not yet implemented methods
@@ -31,3 +31,7 @@ class ExampleBrokerData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         logging.error(colored("Method 'get_last_price' is not yet implemented.", "red"))
         return 0.0  # Return 0.0 as a placeholder
+    
+    def get_quote(self, asset: Asset, quote: Asset = None) -> Quote:
+        logging.error(colored("Method 'get_quote' is not yet implemented.", "red"))
+        return {}

@@ -227,7 +227,7 @@ class Data:
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
         if not df.index.tzinfo:
-            df.index = df.index.tz_localize(DEFAULT_PYTZ)
+            df.index = pd.to_datetime(df.index).tz_localize(DEFAULT_PYTZ)
         elif df.index.tzinfo != DEFAULT_PYTZ:
             df.index = df.index.tz_convert(DEFAULT_PYTZ)
         return df
@@ -280,24 +280,30 @@ class Data:
     def repair_times_and_fill(self, idx):
         # Trim the global index so that it is within the local data.
         idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
-
-        # After all time series merged, adjust the local dataframe to reindex and fill nan's.
+        
+        # Ensure that the DataFrame's index is unique by dropping duplicate timestamps.
+        self.df = self.df[~self.df.index.duplicated(keep='first')]
+        
+        # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
-        # Check if we have a volume column, if not then add it and fill with NaN
+        
+        # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
             df.loc[df["volume"].isna(), "volume"] = 0
         else:
             df["volume"] = None
+
+        # Forward fill all columns except for open, high, and low.
         df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
             :, ~df.columns.isin(["open", "high", "low"])
         ].ffill()
 
-        # Check if are missing any of close, open, high, low columns, if so then fill with NaN
+        # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:
             if col not in df.columns:
                 df[col] = None
 
-        # Check if we have open, high, low columns, if not then fill with close
+        # If there are any NaNs in open, high, or low, fill them with the close value.
         for col in ["open", "high", "low"]:
             try:
                 df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
@@ -306,10 +312,12 @@ class Data:
 
         self.df = df
 
+        # Set up iter_index and iter_index_dict for later use.
         iter_index = pd.Series(df.index)
         self.iter_index = pd.Series(iter_index.index, index=iter_index)
         self.iter_index_dict = self.iter_index.to_dict()
 
+        # Populate the datalines dictionary (assuming to_datalines is defined elsewhere).
         self.datalines = dict()
         self.to_datalines()
 

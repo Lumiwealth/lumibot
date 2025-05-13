@@ -2,6 +2,7 @@ import datetime as dt
 import os
 from time import sleep
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -10,17 +11,12 @@ from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
 from lumibot.credentials import TRADIER_TEST_CONFIG
 
-if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
-    pytest.skip("These tests requires a Tradier API key", allow_module_level=True)
 
-
-@pytest.fixture
-def tradier_ds():
-    return TradierData(
-        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
-        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
-        paper=True
-    )
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if 'API' in item.cls.__name__:
+            if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+                item.add_marker(pytest.mark.skip(reason="These tests require a Tradier API key"))
 
 
 @pytest.fixture
@@ -30,79 +26,6 @@ def tradier():
         access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
         paper=True
     )
-
-
-@pytest.mark.apitest
-class TestTradierDataAPI:
-    """
-    API Tests skipped by default. To run all API tests, use the following command:
-    python -m pytest -m apitest
-    """
-
-    def test_basics(self):
-        tdata = TradierData(
-            account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
-            access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
-            paper=True
-        )
-        assert tdata._account_number == TRADIER_TEST_CONFIG['ACCOUNT_NUMBER']
-
-    def test_get_last_price(self, tradier_ds):
-        asset = Asset("AAPL")
-        price = tradier_ds.get_last_price(asset)
-        assert isinstance(price, float)
-        assert price > 0.0
-
-    def test_get_chains(self, tradier_ds):
-        asset = Asset("SPY")
-        chain = tradier_ds.get_chains(asset)
-        assert isinstance(chain, dict)
-        assert 'Chains' in chain
-        assert "CALL" in chain['Chains']
-        assert len(chain['Chains']['CALL']) > 0
-        expir_date = list(chain['Chains']['CALL'].keys())[0]
-        assert len(chain['Chains']['CALL'][expir_date]) > 0
-        strike = chain['Chains']['CALL'][expir_date][0]
-        assert strike > 0
-        assert chain['Multiplier'] == 100
-
-    def test_query_greeks(self, tradier_ds):
-        asset = Asset("SPY")
-        chains = tradier_ds.get_chains(asset)
-        expir_date = list(chains['Chains']['CALL'].keys())[0]
-        num_strikes = len(chains['Chains']['CALL'][expir_date])
-        strike = chains['Chains']['CALL'][expir_date][num_strikes // 2]  # Get a strike price in the middle
-        option_asset = Asset(asset.symbol, asset_type='option', expiration=expir_date, strike=strike, right='CALL')
-        greeks = tradier_ds.query_greeks(option_asset)
-        assert greeks
-        assert 'delta' in greeks
-        assert 'gamma' in greeks
-        assert greeks['delta'] > 0
-
-    def test_get_quote(self, tradier_ds):
-        asset = Asset("AAPL")
-        quote = tradier_ds.get_quote(asset)
-        assert isinstance(quote, dict)
-        assert 'last' in quote
-        assert 'bid' in quote
-        assert 'ask' in quote
-        assert 'volume' in quote
-        assert 'open' in quote
-        assert 'high' in quote
-        assert 'low' in quote
-        assert 'close' in quote
-
-    def test_get_chain_full_info(self, tradier_ds):
-        asset = Asset("SPY")
-        chains = tradier_ds.get_chains(asset)
-        expir_date = list(chains['Chains']['CALL'].keys())[0]
-
-        df = tradier_ds.get_chain_full_info(asset, expir_date)
-        assert isinstance(df, pd.DataFrame)
-        assert 'strike' in df.columns
-        assert 'last' in df.columns
-        assert 'greeks.delta' in df.columns
-        assert len(df)
 
 
 @pytest.mark.apitest
@@ -230,6 +153,60 @@ class TestTradierBroker:
         option_order.side = "buy"
         assert broker._lumi_side2tradier(option_order) == "buy_to_open"
 
+    def test_pull_broker_all_orders(self, mocker):
+        """
+        Test the _pull_broker_all_orders function by mocking the get_orders() call.
+        """
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
+        mock_get_orders = mocker.patch.object(broker.tradier.orders, 'get_orders', return_value=pd.DataFrame([
+            {"id": 1, "symbol": "AAPL", "quantity": 10, "status": "filled", "side": "buy", "type": "market"},
+            {"id": 2, "symbol": "GOOGL", "quantity": 5, "status": "open", "side": "sell", "type": "market"},
+            {"id": 3, "symbol": "MSFT", "quantity": 15, "status": "open", "side": "buy",
+                "type": "limit", "price": 250.00003},
+            {"id": 4, "symbol": "TSLA", "quantity": 20, "status": "open", "side": "sell",
+                "type": "stop", "stop_price": 600.0091}
+        ]))
+
+        orders = broker._pull_broker_all_orders()
+        assert len(orders) == 4
+        assert orders[0]["id"] == 1
+        assert orders[0]["symbol"] == "AAPL"
+        assert orders[0]["quantity"] == 10
+        assert orders[0]["status"] == "filled"
+        assert orders[0]["side"] == "buy"
+        assert orders[0]["type"] == "market"
+        assert orders[0]["price"] is None
+        assert orders[0]["stop_price"] is None
+
+        assert orders[1]["id"] == 2
+        assert orders[1]["symbol"] == "GOOGL"
+        assert orders[1]["quantity"] == 5
+        assert orders[1]["status"] == "open"
+        assert orders[1]["side"] == "sell"
+        assert orders[1]["type"] == "market"
+        assert orders[1]["price"] is None
+        assert orders[1]["stop_price"] is None
+
+        assert orders[2]["id"] == 3
+        assert orders[2]["symbol"] == "MSFT"
+        assert orders[2]["quantity"] == 15
+        assert orders[2]["status"] == "open"
+        assert orders[2]["side"] == "buy"
+        assert orders[2]["type"] == "limit"
+        assert orders[2]["price"] == 250.0
+        assert orders[2]["stop_price"] is None
+
+        assert orders[3]["id"] == 4
+        assert orders[3]["symbol"] == "TSLA"
+        assert orders[3]["quantity"] == 20
+        assert orders[3]["status"] == "open"
+        assert orders[3]["side"] == "sell"
+        assert orders[3]["type"] == "stop"
+        assert orders[3]["stop_price"] == 600.01
+        assert orders[3]["price"] is None
+
+        mock_get_orders.assert_called_once()
+
     def test_parse_broker_order(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
         strategy = "strat_unittest"
@@ -242,6 +219,7 @@ class TestTradierBroker:
             "type": "market",
             "side": "buy",
             "symbol": stock_symbol,
+            "class": "equity",
             "quantity": 1,
             "status": "submitted",
             "tag": tag,
@@ -264,6 +242,7 @@ class TestTradierBroker:
             "type": "stop",
             "side": "sell",
             "symbol": option_symbol,
+            "class": "option",
             "quantity": 1,
             "status": "submitted",
             "tag": tag,
@@ -285,6 +264,101 @@ class TestTradierBroker:
         assert option_order.order_type == "stop"
         assert option_order.stop_price == 1.0
         assert option_order.tag == tag
+
+    def test_oco_parse_broker_order(self):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True)
+        strategy = "strat_unittest"
+        tag = "StressStrat"
+        stock_symbol = "SPY"
+        option_symbol = "SPY200101C00150000"
+
+        response = {
+            'avg_fill_price': np.nan,
+            'class': 'oco',
+            'create_date': '2025-02-26T20:52:33.982Z',
+            'duration': np.nan,
+            'exec_quantity': np.nan,
+            'id': 16710952,
+            'last_fill_price': np.nan,
+            'last_fill_quantity': np.nan,
+            'leg': [
+                {
+                    'avg_fill_price': 3.34,
+                    'class': 'option',
+                    'create_date': '2025-02-26T20:52:33.982Z',
+                    'duration': 'gtc',
+                    'exec_quantity': 1.0,
+                    'id': 16710953,
+                    'last_fill_price': 3.34,
+                    'last_fill_quantity': 1.0,
+                    'option_symbol': option_symbol,
+                    'price': 3.34,
+                    'quantity': 1.0,
+                    'remaining_quantity': 0.0,
+                    'side': 'sell_to_close',
+                    'status': 'filled',
+                    'symbol': stock_symbol,
+                    'transaction_date': '2025-02-26T20:58:31.116Z',
+                    'type': 'limit'
+                },
+                {
+                    'avg_fill_price': 0.0,
+                    'class': 'option',
+                    'create_date': '2025-02-26T20:52:33.982Z',
+                    'duration': 'gtc',
+                    'exec_quantity': 0.0,
+                    'id': 16710954,
+                    'last_fill_price': 0.0,
+                    'last_fill_quantity': 0.0,
+                    'option_symbol': option_symbol,
+                    'quantity': 1.0,
+                    'remaining_quantity': 0.0,
+                    'side': 'sell_to_close',
+                    'status': 'canceled',
+                    'stop_price': 2.78,
+                    'symbol': stock_symbol,
+                    'transaction_date': '2025-02-26T20:58:31.259Z',
+                    'type': 'stop'
+                }
+            ],
+            'option_symbol': np.nan,
+            'quantity': np.nan,
+            'remaining_quantity': np.nan,
+            'side': np.nan,
+            'status': 'filled',
+            'stop_price': np.nan,
+            'symbol': np.nan,
+            'tag': 'StressStrat',
+            'transaction_date': '2025-02-26T20:58:31.266Z',
+            'type': np.nan
+        }
+
+        # OCO Checks
+        oco_order = broker._parse_broker_order(response, strategy)
+        assert oco_order.identifier == 16710952
+        assert oco_order.strategy == strategy
+        assert oco_order.asset.symbol == stock_symbol
+        assert oco_order.quantity == 1
+        assert oco_order.side == "sell_to_close"
+        assert oco_order.is_filled()
+        assert oco_order.order_class == Order.OrderClass.OCO
+        assert oco_order.tag == tag
+        assert len(oco_order.child_orders) == 2
+
+        # Child Order Checks
+        limit_order = oco_order.child_orders[0]
+        assert limit_order.strategy == strategy
+        assert limit_order.asset.symbol == stock_symbol
+        assert limit_order.quantity == 1
+        assert limit_order.side == "sell_to_close"
+        assert limit_order.order_type == Order.OrderType.LIMIT
+
+        stop_order = oco_order.child_orders[1]
+        assert stop_order.strategy == strategy
+        assert stop_order.asset.symbol == stock_symbol
+        assert stop_order.quantity == 1
+        assert stop_order.side == "sell_to_close"
+        assert stop_order.order_type == Order.OrderType.STOP
 
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None)
@@ -325,6 +399,7 @@ class TestTradierBroker:
             "type": "market",
             "side": "buy",
             "symbol": "SPY",
+            "class": "equity",
             "quantity": stock_qty,
             "status": "pending",
             "duration": "day",
@@ -371,6 +446,7 @@ class TestTradierBroker:
             "type": "stop",
             "side": "sell",
             "symbol": "SPY",
+            "class": "equity",
             "quantity": stock_qty,
             "status": "open",
             "duration": "gtc",
@@ -458,6 +534,7 @@ class TestTradierBroker:
             "type": "limit",
             "side": "sell",
             "symbol": "SPY",
+            "class": "equity",
             "quantity": stock_qty,
             "status": "rejected",
             "reason_description": "API Error Msg",
@@ -474,9 +551,10 @@ class TestTradierBroker:
         assert len(known_orders) == 3, "Rejected orders still stay tracked."
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
-        assert len(broker._canceled_orders) == 2
+        assert len(broker._canceled_orders) == 1
+        assert len(broker._error_orders) == 1
         assert len(broker.get_all_orders()) == 3, "Includes Filled/Cancelled orders"
-        error_order = broker._canceled_orders[1]
+        error_order = broker._error_orders[0]
         assert error_order.identifier == 125
         assert error_order.order_type == "limit"
         assert error_order.status == "error"
@@ -499,8 +577,8 @@ class TestTradierBroker:
         assert len(known_orders) == 4
         assert len(broker._new_orders) == 0
         assert not len(broker._unprocessed_orders)
-        assert len(broker._canceled_orders) == 3
-        order = broker._canceled_orders[2]
+        assert len(broker._canceled_orders) == 2
+        order = broker._canceled_orders[-1]
         assert order.identifier == 126
         assert order.is_canceled()
 
@@ -510,6 +588,7 @@ class TestTradierBroker:
             "type": "market",
             "side": "buy",
             "symbol": "SPY",
+            "class": "equity",
             "quantity": stock_qty,
             "status": "filled",
             "duration": "day",
@@ -545,3 +624,122 @@ class TestTradierBroker:
         assert order.identifier == 127
         assert order.is_filled()
         assert order.get_fill_price() == 102.0
+
+        # ---------------------------------
+        # Include an OCO order case.
+        # Lumibot doesn't know about it, but the broker does. Add to Lumibot trackers
+        fifth_response = {
+            'id': 128,
+            'type': 'oco',
+            'side': 'buy',
+            'symbol': "SPY",
+            'class': 'oco',
+            'quantity': 1,
+            'avg_fill_price': None,
+            'status': 'open',
+            'tag': strategy,
+            'duration': 'gtc',
+            'create_date': dt.datetime.today(),
+            'leg': [
+                {
+                    'avg_fill_price': None,
+                    'class': 'equity',
+                    'create_date': dt.datetime.today(),
+                    'duration': 'gtc',
+                    'exec_quantity': None,
+                    'id': 129,
+                    'last_fill_price': None,
+                    'last_fill_quantity': None,
+                    'option_symbol': None,
+                    'price': 103.0,
+                    'quantity': 1.0,
+                    'remaining_quantity': 1.0,
+                    'side': 'buy_to_open',
+                    'status': 'open',
+                    'stop_price': None,
+                    'symbol': "SPY",
+                    'transaction_date': dt.datetime.today(),
+                    'type': 'limit',
+                    'tag': strategy,
+                },
+                {
+                    'avg_fill_price': None,
+                    'class': 'equity',
+                    'create_date': dt.datetime.today(),
+                    'duration': 'gtc',
+                    'exec_quantity': None,
+                    'id': 130,
+                    'last_fill_price': None,
+                    'last_fill_quantity': None,
+                    'option_symbol': "SPY",
+                    'price': None,
+                    'quantity': 1.0,
+                    'remaining_quantity': 1.0,
+                    'side': 'buy_to_open',
+                    'status': 'open',
+                    'stop_price': 101.0,
+                    'symbol': "SPY",
+                    'transaction_date': dt.datetime.today(),
+                    'type': 'stop',
+                    'tag': strategy,
+                }
+            ],
+        }
+        mock_get_orders.return_value = [first_response, second_response, third_response,
+                                         fourth_response, fifth_response]
+        broker.do_polling()
+        sleep(sleep_amt)
+        known_orders = broker.get_tracked_orders(strategy=strategy)
+        assert len(known_orders) == 5 + 3, "OCO and child orders are tracked."
+        assert len(broker._new_orders) == 3, "OCO and child orders are new."
+        assert not len(broker._unprocessed_orders)
+        assert len(broker.get_all_orders()) == 5 + 3, "Includes Filled/Cancelled orders and order not in Broker info"
+        oco_order = broker.get_order(128)
+        assert not oco_order.is_filled()
+        assert oco_order.is_active()
+        assert not oco_order.child_orders[0].is_filled()
+
+        # Update broker response for a Race condition fill - OCO and child limit order are marked as status=filled,
+        # but there is not a fill price provided yet.
+        fifth_response["status"] = "filled"
+        fifth_response["avg_fill_price"] = None
+        fifth_response["exec_quantity"] = 1
+        fifth_response["leg"][0]["status"] = "filled"
+        fifth_response["leg"][0]["avg_fill_price"] = None
+        fifth_response["leg"][0]["exec_quantity"] = 1
+        fifth_response["leg"][1]["status"] = "cancelled"
+        fifth_response["leg"][1]["avg_fill_price"] = None
+        mock_get_orders.return_value = [first_response, second_response, third_response,
+                                            fourth_response, fifth_response]
+        broker.do_polling()
+        sleep(sleep_amt)
+        known_orders = broker.get_tracked_orders(strategy=strategy)
+        assert len(known_orders) == 5 + 3, "OCO orders are tracked."
+        assert len(broker._new_orders) == 2, "OCO and limit are in incomplete fill state, Stop is canceled."
+        # OCO order status has not yet been updated to filled
+        oco_order = broker.get_order(128)
+        assert oco_order.identifier == 128
+        assert not oco_order.is_filled()
+        assert not oco_order.get_fill_price()
+        assert not oco_order.child_orders[0].is_filled()
+        assert oco_order.child_orders[0].is_active()
+        assert not oco_order.child_orders[1].is_filled()
+        assert not oco_order.child_orders[1].is_active()
+        assert oco_order.child_orders[1].is_canceled()
+
+        # OCO now has a fill price and should finally get filled
+        fifth_response["leg"][0]["avg_fill_price"] = 103.0
+        mock_get_orders.return_value = [first_response, second_response, third_response,
+                                            fourth_response, fifth_response]
+        broker.do_polling()
+        sleep(sleep_amt)
+        known_orders = broker.get_tracked_orders(strategy=strategy)
+        assert len(known_orders) == 5 + 3, "OCO orders are tracked."
+        assert len(broker._new_orders) == 0
+        assert not len(broker._unprocessed_orders)
+        oco_order = broker.get_order(128)
+        assert oco_order.identifier == 128
+        assert oco_order.is_filled()
+        assert oco_order.get_fill_price() == 103.0
+        assert oco_order.child_orders[0].is_filled()
+        assert oco_order.child_orders[0].get_fill_price() == 103.0

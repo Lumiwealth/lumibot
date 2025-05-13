@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab, Bitunix
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -134,6 +134,36 @@ if os.environ.get("DB_CONNECTION_STR"):
 # Name for the strategy to be used in the database
 STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 
+# Flag to determine if backtest progress should be logged to a file (True/False)
+LOG_BACKTEST_PROGRESS_TO_FILE = os.environ.get("LOG_BACKTEST_PROGRESS_TO_FILE")
+
+# Determine if backtesting logs should be quiet via env variable (default True)
+_btl = os.environ.get("BACKTESTING_QUIET_LOGS", None)
+if _btl is not None:
+    if _btl.lower() == "true":
+        BACKTESTING_QUIET_LOGS = True
+    elif _btl.lower() == "false":
+        BACKTESTING_QUIET_LOGS = False
+    else:
+        colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        logger.warning(colored_message)
+        BACKTESTING_QUIET_LOGS = True
+else:
+    BACKTESTING_QUIET_LOGS = None
+
+_btl = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR", None)
+if _btl is not None:
+    if _btl.lower() == "true":
+        BACKTESTING_SHOW_PROGRESS_BAR = True
+    elif _btl.lower() == "false":
+        BACKTESTING_SHOW_PROGRESS_BAR = False
+    else:
+        colored_message = termcolor.colored(f"BACKTESTING_SHOW_PROGRESS_BAR must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        logger.warning(colored_message)
+        BACKTESTING_SHOW_PROGRESS_BAR = True
+else:
+    BACKTESTING_SHOW_PROGRESS_BAR = None
+
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
 
@@ -190,6 +220,7 @@ TRADIER_TEST_CONFIG = {
     "PAPER": True
 }
 
+# Kraken Configuration
 KRAKEN_CONFIG = {
     # Add KRAKEN_API_KEY and KRAKEN_API_SECRET to your .env file or set them as secrets
     "exchange_id": "kraken",
@@ -199,15 +230,18 @@ KRAKEN_CONFIG = {
     "sandbox": False,
 }
 
+# Coinbase Configuration
 COINBASE_CONFIG = {
     # Add COINBASE_API_KEY and COINBASE_API_SECRET to your .env file or set them as secrets
     "exchange_id": "coinbase",
-    "apiKey": os.environ.get("COINBASE_API_KEY"),
-    "secret": os.environ.get("COINBASE_API_SECRET"),
+    "apiKey": os.environ.get("COINBASE_API_KEY_NAME"),   # API key name/identifier
+    "secret": os.environ.get("COINBASE_PRIVATE_KEY"),      # Your private key goes here
+    "password": os.environ.get("COINBASE_API_PASSPHRASE"),   # Passphrase if required
     "margin": False,
-    "sandbox": False,
+    "sandbox": os.environ.get("COINBASE_SANDBOX", "false").lower() == "true",
 }
 
+# Interactive Brokers Configuration
 INTERACTIVE_BROKERS_CONFIG = {
     "SOCKET_PORT": int(os.environ.get("INTERACTIVE_BROKERS_PORT")) if os.environ.get("INTERACTIVE_BROKERS_PORT") else None,
     "CLIENT_ID": int(os.environ.get("INTERACTIVE_BROKERS_CLIENT_ID")) if os.environ.get("INTERACTIVE_BROKERS_CLIENT_ID") else None,
@@ -215,14 +249,16 @@ INTERACTIVE_BROKERS_CONFIG = {
     "IB_SUBACCOUNT": os.environ.get("IB_SUBACCOUNT", None)
 }
 
+# Interactive Brokers REST Configuration
 INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_USERNAME": os.environ.get("IB_USERNAME"),
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
-    "ACCOUNT_ID": os.environ.get("ACCOUNT_ID"),
+    "IB_ACCOUNT_ID": os.environ.get("IB_ACCOUNT_ID"),
     "API_URL": os.environ.get("IB_API_URL"),
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
 
+# Tradeovate Configuration
 TRADEOVATE_CONFIG = {
     "USERNAME": os.environ.get("TRADEOVATE_USERNAME"),
     "DEDICATED_PASSWORD": os.environ.get("TRADEOVATE_DEDICATED_PASSWORD"),
@@ -234,37 +270,172 @@ TRADEOVATE_CONFIG = {
     "MD_URL": os.environ.get("TRADEOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
 }
 
+# Schwab Configuration
+SCHWAB_CONFIG = {
+    "SCHWAB_API_KEY": os.environ.get("SCHWAB_API_KEY"),
+    "SCHWAB_SECRET": os.environ.get("SCHWAB_SECRET"),
+    "SCHWAB_ACCOUNT_NUMBER": os.environ.get("SCHWAB_ACCOUNT_NUMBER"),
+}
+
+# Bitunix Configuration
+BITUNIX_CONFIG = {
+    "API_KEY": os.environ.get("BITUNIX_API_KEY"),
+    "API_SECRET": os.environ.get("BITUNIX_API_SECRET"),
+    "TRADING_MODE": os.environ.get("BITUNIX_TRADING_MODE", "FUTURES"), # Add TRADING_MODE, default to FUTURES
+}
+
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
 
-if IS_BACKTESTING:
-    broker = None
-else:
-    # If using Alpaca as a broker, set that as the broker
-    if ALPACA_CONFIG["API_KEY"]:
-        broker = Alpaca(ALPACA_CONFIG)
+# Get TRADING_BROKER and DATA_SOURCE from environment variables
+trading_broker_name = os.environ.get("TRADING_BROKER")
+data_source_name = os.environ.get("DATA_SOURCE")
 
-    # If using Tradier as a broker, set that as the broker
-    elif TRADIER_CONFIG["ACCESS_TOKEN"]:
-        broker = Tradier(TRADIER_CONFIG)
+broker = None
+data_source = None
 
-    # If using Coinbase as a broker, set that as the broker
-    elif COINBASE_CONFIG["apiKey"]:
-        broker = Ccxt(COINBASE_CONFIG)
-
-    # If using Kraken as a broker, set that as the broker
-    elif KRAKEN_CONFIG["apiKey"]:
-        broker = Ccxt(KRAKEN_CONFIG)
-
-    # If using Interactive Brokers as a broker, set that as the broker
-    elif INTERACTIVE_BROKERS_CONFIG["SOCKET_PORT"]:
-        broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
+# Check if we are backtesting or not
+is_backtesting = os.environ.get("IS_BACKTESTING")
+if not is_backtesting or is_backtesting.lower() == "false":
+    IS_BACKTESTING = False
     
-    # If using Interactive Brokers REST as a broker, set that as the broker
-    elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
-        broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+    # Determine which trading broker to use based on TRADING_BROKER environment variable or available configs
+    if trading_broker_name:
+        # Create broker instance based on explicitly specified name
+        if trading_broker_name.lower() == "alpaca":
+            broker = Alpaca(ALPACA_CONFIG)
+        elif trading_broker_name.lower() == "tradier":
+            broker = Tradier(TRADIER_CONFIG)
+        elif trading_broker_name.lower() == "ccxt":
+            broker = Ccxt(COINBASE_CONFIG)
+        elif trading_broker_name.lower() == "coinbase":
+            broker = Ccxt(COINBASE_CONFIG)
+        elif trading_broker_name.lower() == "kraken":
+            broker = Ccxt(KRAKEN_CONFIG)
+        elif trading_broker_name.lower() == "ib" or trading_broker_name.lower() == "interactivebrokers":
+            broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
+        elif trading_broker_name.lower() == "ibrest" or trading_broker_name.lower() == "interactivebrokersrest":
+            broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+        elif trading_broker_name.lower() == "tradeovate":
+            broker = Tradeovate(TRADEOVATE_CONFIG)
+        elif trading_broker_name.lower() == "schwab":
+            broker = Schwab(SCHWAB_CONFIG)
+        elif trading_broker_name.lower() == "bitunix":
+            broker = Bitunix(BITUNIX_CONFIG)
+        else:
+            colored_message = termcolor.colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
+            logger.error(colored_message)
+    else:
+        # Auto-detect broker based on available credentials if not explicitly specified
+        if ALPACA_CONFIG["API_KEY"]:
+            broker = Alpaca(ALPACA_CONFIG)
+        elif TRADIER_CONFIG["ACCESS_TOKEN"]:
+            broker = Tradier(TRADIER_CONFIG)
+        elif INTERACTIVE_BROKERS_CONFIG["CLIENT_ID"]:
+            broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
+        elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
+            broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+        elif TRADEOVATE_CONFIG["USERNAME"]:
+            broker = Tradeovate(TRADEOVATE_CONFIG)
+        elif SCHWAB_CONFIG["SCHWAB_API_KEY"]:
+            broker = Schwab(SCHWAB_CONFIG)
+        elif COINBASE_CONFIG["apiKey"]:
+            broker = Ccxt(COINBASE_CONFIG)
+        elif KRAKEN_CONFIG["apiKey"]:
+            broker = Ccxt(KRAKEN_CONFIG)
+        elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
+            broker = Bitunix(BITUNIX_CONFIG)
+    
+    # Determine if we should use a custom data source based on DATA_SOURCE environment variable
+    if data_source_name:
+        try:
+            # Import necessary data source classes
+            if data_source_name.lower() == "alpaca":
+                from .data_sources import AlpacaData
+                data_source = AlpacaData(ALPACA_CONFIG)
+            elif data_source_name.lower() == "tradier":
+                from .data_sources import TradierData
+                data_source = TradierData(TRADIER_CONFIG)
+            elif data_source_name.lower() == "ccxt":
+                from .data_sources import CcxtData
+                data_source = CcxtData(COINBASE_CONFIG)
+            elif data_source_name.lower() == "coinbase":
+                from .data_sources import CcxtData
+                data_source = CcxtData(COINBASE_CONFIG)
+            elif data_source_name.lower() == "kraken":
+                from .data_sources import CcxtData
+                data_source = CcxtData(KRAKEN_CONFIG)
+            elif data_source_name.lower() == "ib" or data_source_name.lower() == "interactivebrokers":
+                from .data_sources import InteractiveBrokersData
+                data_source = InteractiveBrokersData(INTERACTIVE_BROKERS_CONFIG)
+            elif data_source_name.lower() == "ibrest" or data_source_name.lower() == "interactivebrokersrest":
+                from .data_sources import InteractiveBrokersRESTData
+                data_source = InteractiveBrokersRESTData(INTERACTIVE_BROKERS_REST_CONFIG)
+            elif data_source_name.lower() == "polygon":
+                from .data_sources import PolygonData
+                data_source = PolygonData(api_key=POLYGON_API_KEY)
+            elif data_source_name.lower() == "yahoo":
+                from .data_sources import YahooData
+                
+                # Initialize YahooData without explicitly passing dates
+                # The class will handle defaults internally
+                data_source = YahooData()
+                
+                # Only set dates if they're explicitly provided in environment variables
+                if BACKTESTING_START and BACKTESTING_END:
+                    data_source._update_datetime_limits(BACKTESTING_START, BACKTESTING_END)
+            elif data_source_name.lower() == "schwab":
+                from .data_sources import SchwabData
+                # Create the data source with explicit credentials
+                data_source = SchwabData(
+                    api_key=SCHWAB_CONFIG["SCHWAB_API_KEY"],
+                    secret=SCHWAB_CONFIG["SCHWAB_SECRET"],
+                    account_number=SCHWAB_CONFIG["SCHWAB_ACCOUNT_NUMBER"]
+                )
+                
+                # If broker is also Schwab, share the client
+                if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
+                    data_source.set_client(broker.client)
+            elif data_source_name.lower() == "thetadata":
+                # Check if we have ThetaData configuration
+                if THETADATA_CONFIG["THETADATA_USERNAME"] and THETADATA_CONFIG["THETADATA_PASSWORD"]:
+                    from .data_sources import ThetaData
+                    data_source = ThetaData(
+                        username=THETADATA_CONFIG["THETADATA_USERNAME"],
+                        password=THETADATA_CONFIG["THETADATA_PASSWORD"]
+                    )
+                else:
+                    colored_message = termcolor.colored("Missing ThetaData credentials. Please set THETADATA_USERNAME and THETADATA_PASSWORD environment variables.", "red")
+                    logger.error(colored_message)
+            elif data_source_name.lower() == "bitunix":
+                from .data_sources import BitunixData
+                data_source = BitunixData(BITUNIX_CONFIG)
+                # If broker is also Bitunix, share the same client instance
+                if broker and broker.name.lower() == "bitunix" and hasattr(broker, "api"):
+                    data_source.client = broker.api
+            else:
+                colored_message = termcolor.colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
+                logger.error(colored_message)
+        except ImportError as e:
+            colored_message = termcolor.colored(f"Could not import data source {data_source_name}: {str(e)}", "red")
+            logger.error(colored_message)
+    
+    # If we have both a broker and a custom data source, set the broker's data source
+    if broker and data_source:
+        logger.info(termcolor.colored(f"Using {data_source_name} as data source for {broker.name} broker", "green"))
+        # Store the original data source for reference
+        original_broker_data_source = broker.data_source
+        
+        # Set the custom data source
+        broker.data_source = data_source
 
-    # If using Tradeovate as a broker, set that as the broker
-    elif TRADEOVATE_CONFIG["USERNAME"]:
-        broker = Tradeovate(TRADEOVATE_CONFIG)
+elif is_backtesting.lower() == "true":
+    IS_BACKTESTING = True
+else:
+    # Log a warning if the value is not a boolean
+    colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
+    logger.warning(colored_message)
+    IS_BACKTESTING = False
 
+# Export variables for use in strategies
 BROKER = broker
+DATA_SOURCE = data_source

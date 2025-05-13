@@ -2,7 +2,7 @@ import logging
 import uuid
 from collections import namedtuple
 from decimal import Decimal
-from enum import StrEnum
+from enum import Enum
 from threading import Event
 import datetime
 from typing import Union
@@ -10,26 +10,48 @@ from typing import Union
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price
 
+
+# Custom string enum implementation for Python 3.9 compatibility
+class StrEnum(str, Enum):
+    """
+    A string enum implementation that works with Python 3.9+
+    
+    This class extends str and Enum to create string enums that:
+    1. Can be used like strings (string methods, comparison)
+    2. Are hashable (for use in dictionaries, sets, etc.)
+    3. Can be used in string comparisons without explicit conversion
+    """
+    def __str__(self):
+        return self.value
+        
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+    
+    def __hash__(self):
+        # Use the hash of the enum member, not the string value
+        # This ensures proper hashability while maintaining enum identity
+        return super().__hash__()
+
+
 SELL = "sell"
 BUY = "buy"
 
 VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "cancelling", "canceled", "error", "cash_settled"]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
-    "cancel": "canceled", 
+    "cancel": "canceled",
     "cash": "cash_settled",
     "expired": "canceled",  # Alpaca/Tradier status
-    "filled": "fill",  # Alpaca/Tradier status
+    "filled": "fill",  # IBKR/Alpaca/Tradier status
     "partially_filled": "partial_filled",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
     "presubmitted": "new",  # IBKR status
-    "filled": "fill",  # IBKR status
-    "cancelled": "canceled",  # IBKR status
     "apicancelled": "canceled",  # IBKR status
     "pendingcancel": "cancelling",  # IBKR status
     "inactive": "error",  # IBKR status
-    "pendingsubmit": "new",  # IBKR status 
-    "presubmitted": "new",  # IBKR status
+    "pendingsubmit": "new",  # IBKR status
     "apipending": "new",  # IBKR status
     "rejected": "error",  # Tradier status
     "submit": "submitted",
@@ -45,7 +67,6 @@ STATUS_ALIAS_MAP = {
     "calculated": "open",  # Alpaca status
     "accepted_for_bidding": "open",  # Alpaca status
     "held": "open",  # Alpaca status
-    "expired": "canceled",  # Tradier status
 }
 
 NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaround to still access type(None)
@@ -1025,21 +1046,25 @@ class Order:
             return True
         else:
             return False
-    
+
     @classmethod
     def is_equivalent_status(cls, status1, status2) -> bool:
         """Returns if the 2 statuses passed are equivalent."""
 
         if not status1 or not status2:
             return False
-        elif status1.lower() in [status2.lower(), STATUS_ALIAS_MAP.get(status2.lower(), "")]:
+        elif status1.lower() == status2.lower():  # Direct match check
             return True
-        # open/new status is equivalent
+        elif status1.lower() in STATUS_ALIAS_MAP.get(status2.lower(), []):
+            return True
+        elif status2.lower() in STATUS_ALIAS_MAP.get(status1.lower(), []):
+            # Bidirectional alias check
+            return True
         elif {status1.lower(), status2.lower()}.issubset({"open", "new"}):
             return True
         else:
             return False
-    
+
     def set_error(self, error):
         self.status = "error"
         self._error = error

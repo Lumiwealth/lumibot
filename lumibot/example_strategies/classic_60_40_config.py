@@ -9,7 +9,7 @@ parameters = {
     "sleeptime": "1D",
     "drift_type": DriftType.RELATIVE,
     "drift_threshold": "0.1",
-    "order_type": Order.OrderType.MARKET,
+    "order_type": Order.OrderType.LIMIT,
     "acceptable_slippage": "0.005",  # 50 BPS
     "fill_sleeptime": 15,
     "portfolio_weights": [

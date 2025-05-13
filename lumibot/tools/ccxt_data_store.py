@@ -450,7 +450,7 @@ class CcxtCacheDB:
         else:
             dt_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="T")
 
-        df_complete = df.reindex(dt_range).fillna(method='ffill')
+        df_complete = df.reindex(dt_range).ffill()
         df_complete['missing'] = np.where(df_complete.index.isin(df.index), 0, 1)
         #  Change "datetime" to come to the front
         #  When inserting DB, make sure that the datetime comes to the first colmun.

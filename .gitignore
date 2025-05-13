@@ -12,8 +12,8 @@ lumibot/cache
 .pytest*
 
 # Development files
-venv
-.venv
+venv*
+.venv*
 logs
 *debug.py
 todos.txt
@@ -46,3 +46,4 @@ data/SRNE_Minute.csv
 .vscode/**
 *.tmp
 .env
+token.json

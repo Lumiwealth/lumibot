@@ -1,8 +1,10 @@
 import inspect
+import math
 import time
 import traceback
 import json
 from datetime import datetime, timedelta
+from decimal import Decimal
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
@@ -22,6 +24,7 @@ class StrategyExecutor(Thread):
     CANCELED_ORDER = "canceled"
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
+    ERROR_ORDER = "error"
 
     def __init__(self, strategy):
         super(StrategyExecutor, self).__init__()
@@ -175,15 +178,62 @@ class StrategyExecutor(Thread):
                     for order_attr in order_attrs:
                         olumi = getattr(order_lumi, order_attr)
                         obroker = getattr(order, order_attr)
-                        if olumi != obroker:
+                        if olumi is not None and obroker is not None:  # Ensure both values are not None
+                            if isinstance(olumi, float) and isinstance(obroker, float):
+                                # check if both are floats
+                                if not math.isclose(olumi, obroker, abs_tol=1e-9):
+                                    setattr(order_lumi, order_attr, obroker)
+                                    self.strategy.logger.warning(
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker "
+                                        f"and both are floats"
+                                    )
+                            elif isinstance(olumi, (int, float, Decimal)) and isinstance(obroker, (int, float, Decimal)):
+                                # check if both are ints
+                                if isinstance(olumi, int) and isinstance(obroker, int):
+                                    if olumi != obroker:
+                                        setattr(order_lumi, order_attr, obroker)
+                                        self.strategy.logger.warning(
+                                            f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                            f"to be {obroker} because what we have in memory does not match the broker "
+                                            f"and both are ints."
+                                        )
+                                elif not math.isclose(float(olumi), float(obroker), abs_tol=1e-9):
+                                    # Convert to float for comparison
+                                    setattr(order_lumi, order_attr, obroker)
+                                    self.strategy.logger.warning(
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker "
+                                        f"and one is float and one is int."
+                                    )
+
+                            elif type(olumi) == type(obroker):  # Compare if types are the same
+                                if olumi != obroker:
+                                    setattr(order_lumi, order_attr, obroker)
+                                    self.strategy.logger.warning(
+                                        f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                        f"to be {obroker} because what we have in memory does not match the broker "
+                                        f"and they are both the same type: {type(olumi)}."
+                                    )
+                            else:
+                                setattr(order_lumi, order_attr, obroker)  # Update if types are different
+                                self.strategy.logger.warning(
+                                    f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
+                                    f"to be {obroker} because what we have in memory does not match the broker "
+                                    f"and the types are different. olumi:{type(olumi)} obroker: {type(obroker)}."
+                                )
+                        elif olumi != obroker:  # Handle cases where one or both are None
                             setattr(order_lumi, order_attr, obroker)
                             self.strategy.logger.warning(
                                 f"We are adjusting the {order_attr} of the order {order_lumi}, from {olumi} "
-                                f"to be {obroker} because what we have in memory does not match the broker."
+                                f"to be {obroker} because what we have in memory does not match the broker "
+                                f" and one or both are none."
                             )
+
                 else:
                     # If it is the brokers first iteration then fully process the order because it is likely
-                    # that the order was filled/canceled/etc before the strategy started.
+                    # that the order was filled/canceled/etc before the strategy started. This is also a recovery
+                    # mechanism for bot restarts where the broker has orders that lumibot does not.
                     if self.broker._first_iteration:
                         if order.status == Order.OrderStatus.FILLED:
                             self.broker._process_new_order(order)
@@ -200,9 +250,11 @@ class StrategyExecutor(Thread):
                         # Add to order in lumibot.
                         self.broker._process_new_order(order)
 
+            broker_identifiers = self._get_all_order_identifiers(orders_broker)
             for order_lumi in orders_lumi:
                 # Remove lumibot orders if not in broker.
-                if order_lumi.identifier not in [order.identifier for order in orders_broker]:
+                # Check both main order IDs and child order IDs from broker
+                if order_lumi.identifier not in broker_identifiers:
                     # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
                     # However, active orders should not be dropped as they are still in effect and if they can't
                     # be found in the broker, they should be canceled because something went wrong.
@@ -215,6 +267,32 @@ class StrategyExecutor(Thread):
 
         self.broker._hold_trade_events = False
         self.broker.process_held_trades()
+
+    @staticmethod
+    def _get_all_order_identifiers(orders_broker: list[Order]) -> set:
+        """
+        Extract all order identifiers from a list of broker orders.
+
+        This function iterates through each order in orders_broker once,
+        collecting both the main order identifiers and their child order
+        identifiers into a single set.
+
+        Parameters
+        ----------
+        orders_broker : list
+            A list of Order objects from the broker
+
+        Returns
+        -------
+        set
+            A set containing all unique order identifiers
+        """
+        broker_identifiers = set()
+        for order in orders_broker:
+            broker_identifiers.add(order.identifier)
+            for child_order in order.child_orders:
+                broker_identifiers.add(child_order.identifier)
+        return broker_identifiers
 
     def add_event(self, event_name, payload):
         self.queue.put((event_name, payload))
@@ -272,6 +350,10 @@ class StrategyExecutor(Thread):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)
+
+        elif event == self.ERROR_ORDER:                             # <--- handle error
+            self.strategy.logger.error(f"Processing an error order, payload: {payload}")
+            self._on_error_order(**payload)
 
         else:
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
@@ -587,6 +669,25 @@ class StrategyExecutor(Thread):
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):
             self.strategy._filled_order_callback(self, position, order, price, quantity, multiplier)
+
+    @event_method
+    def _on_error_order(self, order, error=None):                 # <--- new handler
+        """
+        Use this lifecycle event to execute code
+        when an order error is reported
+        """
+        self.strategy.log_message("Executing the on_error_order event method", color="red")
+        if hasattr(self.strategy, "on_error_order"):
+            try:
+                self.strategy.on_error_order(order, error)
+            except TypeError:
+                try:
+                    self.strategy.on_error_order(order)
+                except Exception:
+                    self.strategy.logger.error("Error in on_error_order handler", exc_info=True)
+        else:
+            # no user handler defined—just log the error
+            self.strategy.logger.error(f"Unhandled order error: {order}, error: {error}")
 
     @staticmethod
     def _sleeptime_to_seconds(sleeptime):
@@ -924,7 +1025,7 @@ class StrategyExecutor(Thread):
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None:
                 # Format the date to be used in the log message.
-                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S %Z")
                 self.strategy.log_message(f"Strategy will check in again at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.

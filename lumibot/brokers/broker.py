@@ -18,6 +18,11 @@ from ..data_sources import DataSource
 from ..entities import Asset, Order, Position
 from ..trading_builtins import SafeList
 
+# Consolidate errors from different brokers into a single class that can be easily caught even
+# if the user decides to switch brokers.
+class LumibotBrokerAPIError(Exception):
+    pass
+
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
@@ -257,14 +262,15 @@ class Broker(ABC):
         pass
 
     @abstractmethod
-    def _pull_broker_all_orders(self) -> list[Order]:
+    def _pull_broker_all_orders(self) -> list[dict]:
         """
         Get the broker open orders
-        
+
         Returns
         -------
-        list[Order]
-            A list of order objects
+        list[dict]
+            A list of order responses from the broker query. These will be passed to _parse_broker_order() to
+             be converted to Order objects.
         """
         pass
 
@@ -365,8 +371,8 @@ class Broker(ABC):
     @property
     def _tracked_orders(self):
         return (self._unprocessed_orders.get_list() + self._new_orders.get_list() +
-                self._partially_filled_orders.get_list() + self._filled_orders.get_list() + 
-                self._error_orders.get_list() + self._canceled_orders.get_list())
+                self._partially_filled_orders.get_list() + self._filled_orders.get_list() +
+                self._error_orders.get_list() + self._canceled_orders.get_list() + self._placeholder_orders.get_list())
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
@@ -868,12 +874,15 @@ class Broker(ABC):
 
     def get_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """get all tracked orders for a given strategy"""
+        # Allow filtering by Strategy instance or by name
+        if strategy is not None and not isinstance(strategy, str):
+            strategy_name = getattr(strategy, "name", getattr(strategy, "_name", None))
+        else:
+            strategy_name = strategy
         result = []
-        tracked_orders = self._tracked_orders
-        for order in tracked_orders:
-            if (strategy is None or order.strategy == strategy) and (asset is None or order.asset == asset):
+        for order in self._tracked_orders:
+            if (strategy_name is None or order.strategy == strategy_name) and (asset is None or order.asset == asset):
                 result.append(order)
-
         return result
 
     def get_all_orders(self) -> list[Order]:
@@ -923,13 +932,14 @@ class Broker(ABC):
         return quantity
 
     def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object=None):
-        """parse a list of broker orders into a
-        list of order objects"""
+        """parse a list of broker orders into a list of order objects"""
         result = []
         if broker_orders is not None:
             for broker_order in broker_orders:
-                # First try to parse the parent order
                 order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
+                # skip if parsing returned None
+                #if order is None:
+                #    continue
 
                 # Check if it is a multileg order and Parse the legs
                 if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
@@ -958,7 +968,7 @@ class Broker(ABC):
             return order
         return None
 
-    def _pull_all_orders(self, strategy_name, strategy_object):
+    def _pull_all_orders(self, strategy_name, strategy_object) -> list[Order]:
         """Get a list of order objects representing the open
         orders"""
         response = self._pull_broker_all_orders()
@@ -1075,6 +1085,14 @@ class Broker(ABC):
 
         self.submit_orders(orders, is_multileg=is_multileg)
 
+    def close_position(self, strategy_name: str, asset: Asset):
+        """Default: close one position by submitting its sell order and return it."""
+        pos = self.get_tracked_position(strategy_name, asset)
+        if pos and pos.quantity != 0:
+            order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
+            return self.submit_order(order)
+        return None
+
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
@@ -1168,7 +1186,9 @@ class Broker(ABC):
 
             # Log that the trade event was received
             self.logger.info(
-                f"Processing held trade event. Trade event received for stored_order: {stored_order}, type_event: {type_event}, price: {price}, filled_quantity: {filled_quantity}, multiplier: {multiplier}"
+                f"Processing held trade event. Trade event received for stored_order: {stored_order}, "
+                f"type_event: {type_event}, ID: {stored_order.identifier}, price: {price}, "
+                f"filled_quantity: {filled_quantity}, multiplier: {multiplier}"
             )
 
             # Process the trade event
@@ -1180,18 +1200,21 @@ class Broker(ABC):
                 multiplier=multiplier,
             )
 
-    def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1):
+    def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1, error=None): # Add error parameter
         """process an occurred trading event and update the
         corresponding order"""
         # Log that the trade event was received
         self.logger.info(
-            f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} {stored_order.symbol}, processed by broker {self.name}"
+            f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} "
+            f"{stored_order.symbol} ID={stored_order.identifier}, processed by broker {self.name}"
         )
 
         if self._hold_trade_events and not self.IS_BACKTESTING_BROKER:
             # Log that the trade event was held
             self.logger.info(
-                f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol}, processed by broker {self.name}. self._hold_trade_events is {self._hold_trade_events}"
+                f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol} "
+                f"ID={stored_order.identifier}, processed by broker {self.name}. "
+                f"self._hold_trade_events is {self._hold_trade_events}"
             )
 
             # Hold the trade event
@@ -1207,9 +1230,9 @@ class Broker(ABC):
             return
 
         # for fill and partial_fill events, price and filled_quantity must be specified
-        if type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and (
-            price is None or filled_quantity is None
-        ):
+        if (type_event in [self.FILLED_ORDER, self.PARTIALLY_FILLED_ORDER] and
+                stored_order.order_class != Order.OrderClass.OCO and
+                (price is None or filled_quantity is None)):
             raise ValueError(
                 f"""For filled_order and partially_filled_order event,
                 price and filled_quantity must be specified.
@@ -1232,33 +1255,44 @@ class Broker(ABC):
                 raise ValueError(f"price must be a positive float, received {price} instead") from None
 
         if Order.is_equivalent_status(type_event, self.NEW_ORDER):
-            stored_order = self._process_new_order(stored_order)
-            self._on_new_order(stored_order)
-        if Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):
-            stored_order = self._process_placeholder_order(stored_order)
-            self._on_new_order(stored_order)
+            order = self._process_new_order(stored_order)
+            if order:
+                self._on_new_order(order)
+        elif Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):
+            order = self._process_placeholder_order(stored_order)
+            # No notification needed for placeholder
         elif Order.is_equivalent_status(type_event, self.CANCELED_ORDER):
-            # Do not cancel or re-cancel already completed orders
-            if stored_order.is_active():
-                stored_order = self._process_canceled_order(stored_order)
-                self._on_canceled_order(stored_order)
+            order = self._process_canceled_order(stored_order)
+            if order:
+                self._on_canceled_order(order)
+        elif Order.is_equivalent_status(type_event, self.ERROR_ORDER):
+            order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
+            if order:
+                # Notify subscriber about the error event
+                subscriber = self._get_subscriber(order.strategy)
+                if subscriber:
+                    payload = dict(order=order, error=error)
+                    subscriber.add_event(subscriber.ERROR_ORDER, payload)
         elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
-            # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
-            if stored_order.order_type == Order.OrderType.STOP:
-                stored_order.stop_price = price
-            elif stored_order.order_type == Order.OrderType.LIMIT:
-                stored_order.limit_price = price
+            # TODO: Implement modification logic and notification if needed
+            self.logger.info(colored(f"Order was modified: {stored_order}", color="yellow"))
+            # Update raw data if modification response is available (might need adjustment)
+            # stored_order.update_raw(modification_response_data)
+            # self._on_modified_order(stored_order) # Need to implement _on_modified_order
+            pass
         elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
-            self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
+            if position:
+                self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif Order.is_equivalent_status(type_event, self.FILLED_ORDER):
             position = self._process_filled_order(stored_order, price, filled_quantity)
-            self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
+            if position:
+                self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
             self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.order_type = self.CASH_SETTLED
         else:
-            self.logger.info(f"Unhandled type event {type_event} for {stored_order}")
+            self.logger.warning(f"Unknown trade event type: {type_event}")
 
         current_dt = self.data_source.get_datetime()
         new_row = {

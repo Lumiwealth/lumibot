@@ -1,6 +1,8 @@
-from datetime import datetime
+import datetime as dt
+import pytz
 
 from lumibot.strategies.strategy import Strategy
+from lumibot.credentials import ALPACA_TEST_CONFIG
 
 """
 Strategy Description
@@ -43,7 +45,7 @@ class BuyAndHold(Strategy):
         all_positions = self.get_positions()
 
         # If we don't own anything (other than USD), buy the asset
-        if len(all_positions) <= 1:  # Because we always have a cash position (USD)
+        if len(all_positions) == 0:
 
             # Calculate the quantity to buy
             quantity = int(self.portfolio_value // current_value)
@@ -57,19 +59,50 @@ if __name__ == "__main__":
     IS_BACKTESTING = True
 
     if IS_BACKTESTING:
-        from lumibot.backtesting import YahooDataBacktesting
+        from lumibot.backtesting import AlpacaBacktesting
 
-        # Backtest this strategy
-        backtesting_start = datetime(2023, 1, 1)
-        backtesting_end = datetime(2024, 9, 1)
+        if not IS_BACKTESTING:
+            print("This strategy is not meant to be run live. Please set IS_BACKTESTING to True.")
+            exit()
 
-        results = BuyAndHold.backtest(
-            YahooDataBacktesting,
-            backtesting_start,
-            backtesting_end,
-            benchmark_asset="SPY",
-            # show_progress_bar=False,
-            # quiet_logs=False,
+        if not ALPACA_TEST_CONFIG:
+            print("This strategy requires an ALPACA_TEST_CONFIG config file to be set.")
+            exit()
+
+        if not ALPACA_TEST_CONFIG['PAPER']:
+            print(
+                "Even though this is a backtest, and only uses the alpaca keys for the data source"
+                "you should use paper keys."
+            )
+            exit()
+
+        tzinfo = pytz.timezone('America/New_York')
+        backtesting_start = tzinfo.localize(dt.datetime(2023, 1, 1))
+        backtesting_end = tzinfo.localize(dt.datetime(2024, 9, 1))
+        timestep = 'day'
+        auto_adjust = True
+        warm_up_trading_days = 0
+        refresh_cache = False
+
+        results, strategy = BuyAndHold.run_backtest(
+            datasource_class=AlpacaBacktesting,
+            backtesting_start=backtesting_start,
+            backtesting_end=backtesting_end,
+            minutes_before_closing=0,
+            benchmark_asset='SPY',
+            analyze_backtest=True,
+            parameters={
+                "buy_symbol": "SPY",
+            },
+            show_progress_bar=True,
+
+            # AlpacaBacktesting kwargs
+            timestep=timestep,
+            market='NYSE',
+            config=ALPACA_TEST_CONFIG,
+            refresh_cache=refresh_cache,
+            warm_up_trading_days=warm_up_trading_days,
+            auto_adjust=auto_adjust,
         )
 
         # Print the results

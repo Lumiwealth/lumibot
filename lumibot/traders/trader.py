@@ -146,15 +146,17 @@ class Trader:
         if self.is_backtest_broker:
             logger.setLevel(logging.INFO)
             logger.info("Backtesting finished")
-            strat.backtest_analysis(
-                logdir=self.logdir,
-                show_plot=show_plot,
-                show_tearsheet=show_tearsheet,
-                save_tearsheet=save_tearsheet,
-                show_indicators=show_indicators,
-                tearsheet_file=tearsheet_file,
-                base_filename=base_filename,
-            )
+
+            if strat._analyze_backtest:
+                strat.backtest_analysis(
+                    logdir=self.logdir,
+                    show_plot=show_plot,
+                    show_tearsheet=show_tearsheet,
+                    save_tearsheet=save_tearsheet,
+                    show_indicators=show_indicators,
+                    tearsheet_file=tearsheet_file,
+                    base_filename=base_filename,
+                )
 
         return result
 
@@ -194,8 +196,8 @@ class Trader:
             if self.quiet_logs:
                 logger.setLevel(logging.ERROR)
 
-            # Ensure console has minimal logging to keep things clean during backtesting
-            stream_handler.setLevel(logging.ERROR)
+                # Ensure console has minimal logging to keep things clean during backtesting
+                stream_handler.setLevel(logging.ERROR)
 
         else:
             # Live trades should always have full logging.

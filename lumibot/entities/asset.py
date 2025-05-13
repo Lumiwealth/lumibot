@@ -1,9 +1,32 @@
-import logging
 from collections import UserDict
 from datetime import date, datetime
-from enum import StrEnum
+from enum import Enum
 
 from lumibot.tools import parse_symbol
+
+
+# Custom string enum implementation for Python 3.9 compatibility
+class StrEnum(str, Enum):
+    """
+    A string enum implementation that works with Python 3.9+
+    
+    This class extends str and Enum to create string enums that:
+    1. Can be used like strings (string methods, comparison)
+    2. Are hashable (for use in dictionaries, sets, etc.)
+    3. Can be used in string comparisons without explicit conversion
+    """
+    def __str__(self):
+        return self.value
+        
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+    
+    def __hash__(self):
+        # Use the hash of the enum member, not the string value
+        # This ensures proper hashability while maintaining enum identity
+        return super().__hash__()
 
 
 class Asset:
@@ -106,13 +129,15 @@ class Asset:
         PUT = "PUT"
 
     class AssetType(StrEnum):
-        STOCK = "stock"
-        OPTION = "option"
-        FUTURE = "future"
-        FOREX = "forex"
-        CRYPTO = "crypto"
-        INDEX = "index"
-        MULTILEG = "multileg"
+        STOCK = "stock" # Stock
+        OPTION = "option" # Option
+        FUTURE = "future" # Future
+        CRYPTO_FUTURE = "crypto_future" # Crypto Future
+        CONT_FUTURE = "cont_future" # Continuous future
+        FOREX = "forex" # Forex or cash
+        CRYPTO = "crypto" # Crypto
+        INDEX = "index" # Index
+        MULTILEG = "multileg" # Multileg option
 
     # Pull the rights from the OptionRight class
     _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
@@ -125,6 +150,7 @@ class Asset:
         strike: float = 0.0,
         right: str = None,
         multiplier: int = 1,
+        leverage: int = 1,
         precision: str = None,
         underlying_asset: "Asset" = None,
     ):
@@ -169,6 +195,9 @@ class Asset:
         self.multiplier = multiplier
         self.precision = precision
         self.underlying_asset = underlying_asset
+
+        # Leverage for futures assets (ignored for other asset types)
+        self.leverage = leverage if asset_type == self.AssetType.FUTURE else 1
 
         # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
         if self.underlying_asset is not None and self.symbol is None:
@@ -230,6 +259,7 @@ class Asset:
             return Asset(symbol=None)
 
     def __hash__(self):
+        # Original hash implementation - keep this unchanged
         return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))
 
     def __repr__(self):
@@ -320,6 +350,7 @@ class Asset:
             "strike": self.strike,
             "right": self.right,
             "multiplier": self.multiplier,
+            "leverage": self.leverage,
             "precision": self.precision,
             "underlying_asset": self.underlying_asset.to_dict() if self.underlying_asset else None,
         }
@@ -333,6 +364,7 @@ class Asset:
             strike=data["strike"],
             right=data["right"],
             multiplier=data["multiplier"],
+            leverage=data.get("leverage", 1),
             precision=data["precision"],
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data["underlying_asset"] else None,
         )

@@ -12,3 +12,5 @@ from .ccxt_backtesting_data import CcxtBacktestingData
 from .interactive_brokers_rest_data import InteractiveBrokersRESTData
 from .example_broker_data import ExampleBrokerData
 from .tradeovate_data import TradeovateData
+from .schwab_data import SchwabData
+from .bitunix_data import BitunixData

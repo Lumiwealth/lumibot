@@ -12,3 +12,5 @@ There are several different brokers that you can use to trade with Lumibot, and 
    brokers.interactive_brokers_legacy
    brokers.ccxt
    brokers.tradier
+   brokers.schwab
+   brokers.bitunix

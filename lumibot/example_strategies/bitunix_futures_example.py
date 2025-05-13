@@ -48,8 +48,7 @@ class BitunixFuturesExample(Strategy):
                 asset=asset,
                 quantity=quantity_to_trade,
                 side=Order.OrderSide.BUY,
-                order_type=Order.OrderType.LIMIT,
-                limit_price=0.25
+                order_type=Order.OrderType.MARKET, # can also do limits
             )
             submitted_order = self.submit_order(order)
 

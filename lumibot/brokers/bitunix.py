@@ -9,7 +9,6 @@ from lumibot.data_sources.bitunix_data import BitunixData
 from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -322,21 +321,7 @@ class Bitunix(Broker):
             
         try:
             # Retry up to 5 times on network error
-            max_retries = 5
-            response = None
-            for attempt in range(1, max_retries + 1):
-                response = self.api.cancel_order(order_id=order.identifier)
-                # succeeded
-                if response and response.get("code") == 0:
-                    break
-                # check for network error
-                msg = response.get("msg") if isinstance(response, dict) else ""
-                if "Network Error" not in msg:
-                    break
-                # wait before next retry
-                time.sleep(1)
-
-            print(order.identifier)
+            response = self.api.cancel_order(order_id=order.identifier)
 
             # Check response
             if response and response.get("code") == 0:
@@ -417,7 +402,7 @@ class Bitunix(Broker):
             symbol = response.get("symbol", "")
             status = response.get("status", "")
             side_raw = response.get("side", "")
-            order_type = response.get("type", "")
+            order_type = response.get("orderType", "")
             
             # Extract quantities and prices
             # fields use 'qty'/'tradeQty' for BitUnix
@@ -426,15 +411,17 @@ class Bitunix(Broker):
             # parse limit price only if numeric
             price_limit = None
             ps = response.get("price")
-            if ps and isinstance(ps, str) and ps.upper() != "MARKET":
+            if ps and isinstance(ps, str) and order_type != "MARKET":
                 price_limit = Decimal(ps)
             # parse average price
             price_avg = None
             ap = response.get("avgPrice")
             if ap:
                 price_avg = Decimal(str(ap))
+            
+            leverage=int(str(response.get("leverage", "1")))
                         
-            asset = Asset(symbol, Asset.AssetType.CRYPTO_FUTURE)
+            asset = Asset(symbol, Asset.AssetType.CRYPTO_FUTURE, leverage=leverage)
             quote = None
             
             # Map order side

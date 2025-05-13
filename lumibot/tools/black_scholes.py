@@ -1,5 +1,7 @@
 from math import e, log
 import numpy as np
+# suppress warnings for invalid operations (e.g. NaN * number)
+np.seterr(invalid='ignore')
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)

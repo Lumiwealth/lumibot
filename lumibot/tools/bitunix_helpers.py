@@ -196,10 +196,8 @@ class BitUnixClient:
         return self._request(
             method="POST",
             endpoint="/api/v1/futures/trade/cancel_orders",
-            json_body={"orderIds": order_id},
+            json_body={"orderList": [order_id]},
         )
-
-
 
     def adjust_position_margin(
         self,

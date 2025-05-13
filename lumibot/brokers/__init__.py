@@ -7,3 +7,4 @@ from .interactive_brokers_rest import InteractiveBrokersREST
 from .example_broker import ExampleBroker
 from .tradeovate import Tradeovate
 from .schwab import Schwab
+from .bitunix import Bitunix

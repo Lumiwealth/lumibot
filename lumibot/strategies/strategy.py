@@ -1508,7 +1508,6 @@ class Strategy(_Strategy):
         >>> order1 = self.create_order((asset_BTC, asset_quote), 0.1, "buy")
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
         >>> self.submit_orders([order1, order2])
-
         """
         #self.log_message("Warning: `submit_orders` is deprecated, please use `submit_order` instead.")
         return self.submit_order(orders, **kwargs)
@@ -1750,6 +1749,49 @@ class Strategy(_Strategy):
         >>> self.sell_all()
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
+
+    def close_position(self, asset):
+        """
+        Close a single position for the specified asset.
+
+        This method attempts to close an open position for the given asset. For most brokers, this is done by submitting a market sell order for the open position. For crypto futures brokers (such as Bitunix), this may use a broker-specific fast-close or "flash close" endpoint to close the position immediately at market price.
+
+        Args:
+            asset (str or Asset): The symbol or Asset object identifying the position to close.
+
+        Returns:
+            Any: The broker.close_position result, or None if no action was taken.
+
+        Notes:
+            - For crypto futures (e.g., Bitunix), this will use the broker's flash close endpoint if available.
+            - For spot/stock/futures brokers, this will submit a market sell order for the open position.
+            - If no open position exists, this method does nothing.
+        """
+        asset_obj = self._sanitize_user_asset(asset)
+        result = self.broker.close_position(self.name, asset_obj)
+        if result is not None:
+            return result
+
+    def close_positions(self, assets):
+        """
+        Close multiple positions for the specified assets.
+
+        Iterates over the provided list of assets and attempts to close each open position. See `close_position` for details on how each position is closed.
+
+        Args:
+            assets (list[str or Asset]): Symbols or Asset objects identifying the positions to close.
+
+        Returns:
+            list: Results from each `close_position` call, or None if no action was taken.
+
+        Notes:
+            - For crypto futures (e.g., Bitunix), this will use the broker's flash close endpoint if available.
+            - For spot/stock/futures brokers, this will submit a market sell order for each open position.
+        """
+        results = []
+        for asset in assets:
+            results.append(self.close_position(asset))
+        return results
 
     def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         """Takes an asset and returns the last known price
@@ -2716,8 +2758,8 @@ class Strategy(_Strategy):
 
         if value is not None and not isinstance(value, (float, int, np.float64)):
             raise ValueError(
-                f"Invalid value parameter in add_marker() method. Value must be a float or int but instead "
-                f"got {value}, which is a type {type(value)}."
+                f"Invalid value parameter in add_marker() method. Value must be a float or int but instead got {value}, "
+                f"which is a type {type(value)}."
             )
 
         if color is not None and not isinstance(color, str):
@@ -3159,13 +3201,13 @@ class Strategy(_Strategy):
 
         >>> # Get the data for SPY and TLT for the last 2 days
         >>> bars =  self.get_historical_prices_for_assets(["SPY", "TLT"], 2, "day")
-        >>> for asset in bars:
-        >>>     self.log_message(asset.df)
+        >>> for asset_bars in bars_list:
+        >>>     self.log_message(asset_bars.df)
 
         >>> # Get the data for AAPL and GOOG for the last 30 minutes
         >>> bars =  self.get_historical_prices_for_assets(["AAPL", "GOOG"], 30, "minute")
-        >>> for asset in bars:
-        >>>     self.log_message(asset.df)
+        >>> for asset_bars in bars_list:
+        >>>     self.log_message(asset_bars.df)
 
         >>> # Get the price data for EURUSD for the last 2 days
         >>> from lumibot.entities import Asset

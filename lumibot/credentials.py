@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab, Bitunix
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -277,6 +277,13 @@ SCHWAB_CONFIG = {
     "SCHWAB_ACCOUNT_NUMBER": os.environ.get("SCHWAB_ACCOUNT_NUMBER"),
 }
 
+# Bitunix Configuration
+BITUNIX_CONFIG = {
+    "API_KEY": os.environ.get("BITUNIX_API_KEY"),
+    "API_SECRET": os.environ.get("BITUNIX_API_SECRET"),
+    "TRADING_MODE": os.environ.get("BITUNIX_TRADING_MODE", "FUTURES"), # Add TRADING_MODE, default to FUTURES
+}
+
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
 
 # Get TRADING_BROKER and DATA_SOURCE from environment variables
@@ -312,6 +319,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = Tradeovate(TRADEOVATE_CONFIG)
         elif trading_broker_name.lower() == "schwab":
             broker = Schwab(SCHWAB_CONFIG)
+        elif trading_broker_name.lower() == "bitunix":
+            broker = Bitunix(BITUNIX_CONFIG)
         else:
             colored_message = termcolor.colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
             logger.error(colored_message)
@@ -333,6 +342,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = Ccxt(COINBASE_CONFIG)
         elif KRAKEN_CONFIG["apiKey"]:
             broker = Ccxt(KRAKEN_CONFIG)
+        elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
+            broker = Bitunix(BITUNIX_CONFIG)
     
     # Determine if we should use a custom data source based on DATA_SOURCE environment variable
     if data_source_name:
@@ -395,6 +406,12 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 else:
                     colored_message = termcolor.colored("Missing ThetaData credentials. Please set THETADATA_USERNAME and THETADATA_PASSWORD environment variables.", "red")
                     logger.error(colored_message)
+            elif data_source_name.lower() == "bitunix":
+                from .data_sources import BitunixData
+                data_source = BitunixData(BITUNIX_CONFIG)
+                # If broker is also Bitunix, share the same client instance
+                if broker and broker.name.lower() == "bitunix" and hasattr(broker, "api"):
+                    data_source.client = broker.api
             else:
                 colored_message = termcolor.colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
                 logger.error(colored_message)

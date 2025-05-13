@@ -24,6 +24,7 @@ class StrategyExecutor(Thread):
     CANCELED_ORDER = "canceled"
     FILLED_ORDER = "fill"
     PARTIALLY_FILLED_ORDER = "partial_fill"
+    ERROR_ORDER = "error"
 
     def __init__(self, strategy):
         super(StrategyExecutor, self).__init__()
@@ -350,6 +351,10 @@ class StrategyExecutor(Thread):
 
             self._on_partially_filled_order(**payload)
 
+        elif event == self.ERROR_ORDER:                             # <--- handle error
+            self.strategy.logger.error(f"Processing an error order, payload: {payload}")
+            self._on_error_order(**payload)
+
         else:
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
@@ -664,6 +669,25 @@ class StrategyExecutor(Thread):
         # Let our listener know that an order has been filled (set in the callback)
         if hasattr(self.strategy, "_filled_order_callback") and callable(self.strategy._filled_order_callback):
             self.strategy._filled_order_callback(self, position, order, price, quantity, multiplier)
+
+    @event_method
+    def _on_error_order(self, order, error=None):                 # <--- new handler
+        """
+        Use this lifecycle event to execute code
+        when an order error is reported
+        """
+        self.strategy.log_message("Executing the on_error_order event method", color="red")
+        if hasattr(self.strategy, "on_error_order"):
+            try:
+                self.strategy.on_error_order(order, error)
+            except TypeError:
+                try:
+                    self.strategy.on_error_order(order)
+                except Exception:
+                    self.strategy.logger.error("Error in on_error_order handler", exc_info=True)
+        else:
+            # no user handler defined—just log the error
+            self.strategy.logger.error(f"Unhandled order error: {order}, error: {error}")
 
     @staticmethod
     def _sleeptime_to_seconds(sleeptime):

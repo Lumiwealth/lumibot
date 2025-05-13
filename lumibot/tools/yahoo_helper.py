@@ -130,7 +130,7 @@ class YahooHelper:
         df.sort_index(inplace=True)
 
         if df.index.tzinfo is None:
-            df.index = df.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+            df.index = pd.to_datetime(df.index).tz_localize(LUMIBOT_DEFAULT_PYTZ)
         else:
             df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 

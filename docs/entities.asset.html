@@ -5,11 +5,11 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Bars" href="entities.bars.html" /><link rel="prev" title="Entities" href="entities.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
         <title>Asset - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
@@ -70,7 +70,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -85,22 +85,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -113,6 +154,8 @@
 <label class="overlay toc-overlay" for="__toc">
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
 
 <div class="announcement">
   <aside class="announcement-content">
@@ -140,7 +183,8 @@
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -289,7 +333,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -331,6 +374,8 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab API Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
 </ul>
 </li>
 </ul>
@@ -352,11 +397,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/entities.asset.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -366,9 +417,9 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="asset">
-<h1>Asset<a class="headerlink" href="#asset" title="Link to this heading">#</a></h1>
+<h1>Asset<a class="headerlink" href="#asset" title="Link to this heading">¶</a></h1>
 <p>An asset object represents securities such as stocks or options in Lumibot. Attributes that are tracked for assets are:</p>
 <ul class="simple">
 <li><p>symbol(str): Ticker symbol representing the stock or underlying for options. So for example if trading IBM calls the symbol would just be IBM.</p></li>
@@ -403,7 +454,7 @@
 <p>Assets may be created using the <code class="docutils literal notranslate"><span class="pre">Asset()</span></code> method as follows: <code class="docutils literal notranslate"><span class="pre">Asset(symbol,</span> <span class="pre">asset_type=option,</span> <span class="pre">**kwargs)</span></code> * see attributes above.</p>
 <p>Examples:</p>
 <p>For stocks:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 
 <span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s1">&#39;SPY&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">STOCK</span><span class="p">)</span>
 <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
@@ -411,7 +462,7 @@
 </pre></div>
 </div>
 <p>For futures:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 
 <span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="s1">&#39;ES&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FUTURE</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
@@ -421,10 +472,10 @@
 </pre></div>
 </div>
 <section id="module-entities.asset">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.asset" title="Link to this heading">#</a></h2>
+<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-entities.asset" title="Link to this heading">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.asset.Asset">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">Asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">AssetType.STOCK</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">date</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">precision</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#entities.asset.Asset" title="entities.asset.Asset"><span class="pre">Asset</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">Asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">AssetType.STOCK</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">date</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">right</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiplier</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leverage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">precision</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#entities.asset.Asset" title="entities.asset.Asset"><span class="pre">Asset</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>This is a base class for Assets including stocks, futures, options,
 forex, and crypto.</p>
@@ -448,7 +499,7 @@ default : 1</p></li>
 </dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.symbol">
-<span class="sig-name descname"><span class="pre">symbol</span></span><a class="headerlink" href="#entities.asset.Asset.symbol" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">symbol</span></span><a class="headerlink" href="#entities.asset.Asset.symbol" title="Link to this definition">¶</a></dt>
 <dd><p>The symbol used to retrieve stock quotes if stock. The underlying
 symbol if option. For Forex: The base currency.</p>
 <dl class="field-list simple">
@@ -460,7 +511,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.asset_type">
-<span class="sig-name descname"><span class="pre">asset_type</span></span><a class="headerlink" href="#entities.asset.Asset.asset_type" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">asset_type</span></span><a class="headerlink" href="#entities.asset.Asset.asset_type" title="Link to this definition">¶</a></dt>
 <dd><p>One of the following:
 - ‘stock’
 - ‘option’
@@ -477,7 +528,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.expiration">
-<span class="sig-name descname"><span class="pre">expiration</span></span><a class="headerlink" href="#entities.asset.Asset.expiration" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">expiration</span></span><a class="headerlink" href="#entities.asset.Asset.expiration" title="Link to this definition">¶</a></dt>
 <dd><p>Contract expiration dates for futures and options.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -488,7 +539,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.strike">
-<span class="sig-name descname"><span class="pre">strike</span></span><a class="headerlink" href="#entities.asset.Asset.strike" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">strike</span></span><a class="headerlink" href="#entities.asset.Asset.strike" title="Link to this definition">¶</a></dt>
 <dd><p>Contract strike price.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -499,7 +550,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.right">
-<span class="sig-name descname"><span class="pre">right</span></span><a class="headerlink" href="#entities.asset.Asset.right" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">right</span></span><a class="headerlink" href="#entities.asset.Asset.right" title="Link to this definition">¶</a></dt>
 <dd><p>Option call or put.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -510,7 +561,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.multiplier">
-<span class="sig-name descname"><span class="pre">multiplier</span></span><a class="headerlink" href="#entities.asset.Asset.multiplier" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">multiplier</span></span><a class="headerlink" href="#entities.asset.Asset.multiplier" title="Link to this definition">¶</a></dt>
 <dd><p>Contract leverage over the underlying.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -521,7 +572,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.precision">
-<span class="sig-name descname"><span class="pre">precision</span></span><a class="headerlink" href="#entities.asset.Asset.precision" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">precision</span></span><a class="headerlink" href="#entities.asset.Asset.precision" title="Link to this definition">¶</a></dt>
 <dd><p>Conversion currency.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -532,7 +583,7 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset._right">
-<span class="sig-name descname"><span class="pre">_right</span></span><a class="headerlink" href="#entities.asset.Asset._right" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">_right</span></span><a class="headerlink" href="#entities.asset.Asset._right" title="Link to this definition">¶</a></dt>
 <dd><p>Acceptable values for right.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -543,29 +594,29 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.asset.Asset.asset_type_must_be_one_of">
-<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">&#64;&quot;asset_type&quot;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.asset_type_must_be_one_of" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">&#64;&quot;asset_type&quot;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.asset_type_must_be_one_of" title="Link to this definition">¶</a></dt>
 <dd><p>validates asset types.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.asset.Asset.right_must_be_one_of">
-<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">&#64;&quot;right&quot;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.right_must_be_one_of" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">&#64;&quot;right&quot;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.right_must_be_one_of" title="Link to this definition">¶</a></dt>
 <dd><p>validates rights types.</p>
 </dd></dl>
 
 <p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for a stock.</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for a futures contract.</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;future&#39;</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2021</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">17</span><span class="p">))</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for an options contract.</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
 <span class="gp">&gt;&gt;&gt; </span>    <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;option&#39;</span><span class="p">,</span>
@@ -576,7 +627,7 @@ symbol if option. For Forex: The base currency.</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for a FOREX contract.</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">base_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;USD&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;forex&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">quote_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;EUR&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;forex&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s1">&#39;BUY&#39;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote_asset</span><span class="p">)</span>
@@ -584,7 +635,7 @@ symbol if option. For Forex: The base currency.</p>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create an Asset object for crypto.</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;crypto&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;USDT&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;crypto&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s1">&#39;BUY&#39;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
@@ -593,84 +644,94 @@ symbol if option. For Forex: The base currency.</p>
 </div>
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">AssetType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qualname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.AssetType" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StrEnum</span></code></p>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">AssetType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.AssetType" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#entities.asset.StrEnum" title="entities.asset.StrEnum"><code class="xref py py-class docutils literal notranslate"><span class="pre">StrEnum</span></code></a></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.CONT_FUTURE">
+<span class="sig-name descname"><span class="pre">CONT_FUTURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cont_future'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.CONT_FUTURE" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.CRYPTO">
-<span class="sig-name descname"><span class="pre">CRYPTO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'crypto'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.CRYPTO" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">CRYPTO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'crypto'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.CRYPTO" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="entities.asset.Asset.AssetType.CRYPTO_FUTURE">
+<span class="sig-name descname"><span class="pre">CRYPTO_FUTURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'crypto_future'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.CRYPTO_FUTURE" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.FOREX">
-<span class="sig-name descname"><span class="pre">FOREX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'forex'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.FOREX" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">FOREX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'forex'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.FOREX" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.FUTURE">
-<span class="sig-name descname"><span class="pre">FUTURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'future'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.FUTURE" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">FUTURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'future'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.FUTURE" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.INDEX">
-<span class="sig-name descname"><span class="pre">INDEX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'index'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.INDEX" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">INDEX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'index'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.INDEX" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.MULTILEG">
-<span class="sig-name descname"><span class="pre">MULTILEG</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'multileg'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.MULTILEG" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">MULTILEG</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'multileg'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.MULTILEG" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.OPTION">
-<span class="sig-name descname"><span class="pre">OPTION</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'option'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.OPTION" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">OPTION</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'option'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.OPTION" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.AssetType.STOCK">
-<span class="sig-name descname"><span class="pre">STOCK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stock'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.STOCK" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">STOCK</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'stock'</span></em><a class="headerlink" href="#entities.asset.Asset.AssetType.STOCK" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.asset.Asset.OptionRight">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OptionRight</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qualname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.OptionRight" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">StrEnum</span></code></p>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OptionRight</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.OptionRight" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#entities.asset.StrEnum" title="entities.asset.StrEnum"><code class="xref py py-class docutils literal notranslate"><span class="pre">StrEnum</span></code></a></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.OptionRight.CALL">
-<span class="sig-name descname"><span class="pre">CALL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'CALL'</span></em><a class="headerlink" href="#entities.asset.Asset.OptionRight.CALL" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">CALL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'CALL'</span></em><a class="headerlink" href="#entities.asset.Asset.OptionRight.CALL" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="entities.asset.Asset.OptionRight.PUT">
-<span class="sig-name descname"><span class="pre">PUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'PUT'</span></em><a class="headerlink" href="#entities.asset.Asset.OptionRight.PUT" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">PUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'PUT'</span></em><a class="headerlink" href="#entities.asset.Asset.OptionRight.PUT" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="id0">
-<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">asset_type_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.asset.Asset.from_dict">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.from_dict" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.from_dict" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.asset.Asset.is_valid">
-<span class="sig-name descname"><span class="pre">is_valid</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.is_valid" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">is_valid</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.is_valid" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">right_must_be_one_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.asset.Asset.symbol2asset">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">symbol2asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.symbol2asset" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">symbol2asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.symbol2asset" title="Link to this definition">¶</a></dt>
 <dd><p>Convert a symbol string to an Asset object. This is particularly useful for converting option symbols.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -687,15 +748,26 @@ symbol if option. For Forex: The base currency.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="entities.asset.Asset.to_dict">
-<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.to_dict" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.Asset.to_dict" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="entities.asset.AssetsMapping">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">AssetsMapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.AssetsMapping" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">AssetsMapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.AssetsMapping" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">UserDict</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="entities.asset.StrEnum">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">entities.asset.</span></span><span class="sig-name descname"><span class="pre">StrEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_class_name</span></span></em>, <em class="sig-param"><span class="positional-only-separator o"><abbr title="Positional-only parameter separator (PEP 570)"><span class="pre">/</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">names</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qualname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#entities.asset.StrEnum" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></p>
+<p>A string enum implementation that works with Python 3.9+</p>
+<p>This class extends str and Enum to create string enums that:
+1. Can be used like strings (string methods, comparison)
+2. Are hashable (for use in dictionaries, sets, etc.)
+3. Can be used in string comparisons without explicit conversion</p>
 </dd></dl>
 
 </section>
@@ -770,7 +842,9 @@ symbol if option. For Forex: The base currency.</p>
 <li><a class="reference internal" href="#entities.asset.Asset.asset_type_must_be_one_of"><code class="docutils literal notranslate"><span class="pre">Asset.asset_type_must_be_one_of()</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.right_must_be_one_of"><code class="docutils literal notranslate"><span class="pre">Asset.right_must_be_one_of()</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.AssetType"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType</span></code></a><ul>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.CONT_FUTURE"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.CONT_FUTURE</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.AssetType.CRYPTO"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.CRYPTO</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.Asset.AssetType.CRYPTO_FUTURE"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.CRYPTO_FUTURE</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.AssetType.FOREX"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.FOREX</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.AssetType.FUTURE"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.FUTURE</span></code></a></li>
 <li><a class="reference internal" href="#entities.asset.Asset.AssetType.INDEX"><code class="docutils literal notranslate"><span class="pre">Asset.AssetType.INDEX</span></code></a></li>
@@ -793,6 +867,7 @@ symbol if option. For Forex: The base currency.</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#entities.asset.AssetsMapping"><code class="docutils literal notranslate"><span class="pre">AssetsMapping</span></code></a></li>
+<li><a class="reference internal" href="#entities.asset.StrEnum"><code class="docutils literal notranslate"><span class="pre">StrEnum</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -807,8 +882,8 @@ symbol if option. For Forex: The base currency.</p>
     </aside>
   </div>
 </div><script src="_static/documentation_options.js?v=5929fcd5"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

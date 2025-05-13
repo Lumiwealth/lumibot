@@ -24,8 +24,10 @@ Coinbase:
 
     COINBASE_CONFIG = {
         "exchange_id": "coinbase",
-        "apiKey": "YOUR_API_KEY",
-        "secret": "YOUR_SECRET_KEY",
+        "apiKey": "COINBASE_API_KEY_NAME",   # API key name/identifier
+        "secret": "COINBASE_PRIVATE_KEY",      # Your private key goes here
+        "password": "COINBASE_API_PASSPHRASE",   # Passphrase if required
+        "margin": False,
         "sandbox": False,
     }
 

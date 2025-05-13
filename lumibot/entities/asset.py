@@ -132,6 +132,7 @@ class Asset:
         STOCK = "stock" # Stock
         OPTION = "option" # Option
         FUTURE = "future" # Future
+        CRYPTO_FUTURE = "crypto_future" # Crypto Future
         CONT_FUTURE = "cont_future" # Continuous future
         FOREX = "forex" # Forex or cash
         CRYPTO = "crypto" # Crypto
@@ -149,6 +150,7 @@ class Asset:
         strike: float = 0.0,
         right: str = None,
         multiplier: int = 1,
+        leverage: int = 1,
         precision: str = None,
         underlying_asset: "Asset" = None,
     ):
@@ -193,6 +195,9 @@ class Asset:
         self.multiplier = multiplier
         self.precision = precision
         self.underlying_asset = underlying_asset
+
+        # Leverage for futures assets (ignored for other asset types)
+        self.leverage = leverage if asset_type == self.AssetType.FUTURE else 1
 
         # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
         if self.underlying_asset is not None and self.symbol is None:
@@ -345,6 +350,7 @@ class Asset:
             "strike": self.strike,
             "right": self.right,
             "multiplier": self.multiplier,
+            "leverage": self.leverage,
             "precision": self.precision,
             "underlying_asset": self.underlying_asset.to_dict() if self.underlying_asset else None,
         }
@@ -358,6 +364,7 @@ class Asset:
             strike=data["strike"],
             right=data["right"],
             multiplier=data["multiplier"],
+            leverage=data.get("leverage", 1),
             precision=data["precision"],
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data["underlying_asset"] else None,
         )

@@ -189,14 +189,14 @@ class BitUnixClient:
             json_body=body,
         )
 
-    def cancel_order(self, order_id: str) -> Dict[str, Any]:
+    def cancel_order(self, order) -> Dict[str, Any]:
         """
         Cancel a single FUTURES order.
         """
         return self._request(
             method="POST",
             endpoint="/api/v1/futures/trade/cancel_orders",
-            json_body={"orderList": [order_id]},
+            json_body={"symbol": order.symbol, "orderList": [order.identifier]},
         )
 
     def adjust_position_margin(

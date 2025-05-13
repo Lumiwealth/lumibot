@@ -161,7 +161,8 @@ class Bitunix(Broker):
         positions_value = 0.0
         for pos in self._pull_positions(strategy):
             if pos.avg_fill_price:
-                positions_value += float(abs(pos.quantity) * pos.avg_fill_price)
+                # Convert both quantity and avg_fill_price to float before multiplication
+                positions_value += float(abs(pos.quantity)) * float(pos.avg_fill_price)
 
         return cash, positions_value, net_liquidation
 
@@ -235,6 +236,7 @@ class Bitunix(Broker):
         if order.asset.asset_type not in (Asset.AssetType.CRYPTO_FUTURE):
             error_msg = f"Asset type {order.asset.asset_type} not supported by BitUnix"
             order.set_error(LumibotBrokerAPIError(error_msg))
+            order.status = Order.OrderStatus.ERROR  # ensure status is enum
             return order
 
         # Determine symbol format based on asset type
@@ -243,6 +245,7 @@ class Bitunix(Broker):
         else:
             error_msg = f"Invalid asset type: asset can only be CRYPTO_FUTURE"
             order.set_error(LumibotBrokerAPIError(error_msg))
+            order.status = Order.OrderStatus.ERROR  # ensure status is enum
             return order
 
         # Prepare quantity and price
@@ -288,6 +291,7 @@ class Bitunix(Broker):
                         f"data={response.get('data') if isinstance(response, dict) else None}"
                     )
                     order.set_error(LumibotBrokerAPIError(err_msg))
+                    order.status = Order.OrderStatus.ERROR  # ensure status is enum
                     # Attach full response for debugging
                     order.update_raw(response)
                     self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=err_msg)
@@ -297,17 +301,19 @@ class Bitunix(Broker):
                 order_id = data.get("orderId")
                 if order_id:
                     order.identifier = order_id
-                    order.status = Order.OrderStatus.SUBMITTED
+                    order.status = Order.OrderStatus.SUBMITTED  # ensure status is enum
                     order.update_raw(response)
                     self._unprocessed_orders.append(order)
                     self._process_trade_event(order, self.NEW_ORDER)
                 else:
                     error_msg = f"No order ID in response: {response}"
                     order.set_error(LumibotBrokerAPIError(error_msg))
+                    order.status = Order.OrderStatus.ERROR  # ensure status is enum
                     self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)                
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
-            order.set_error(e)
+            order.set_error(LumibotBrokerAPIError(error_msg))
+            order.status = Order.OrderStatus.ERROR  # ensure status is enum
             self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
         return order
 

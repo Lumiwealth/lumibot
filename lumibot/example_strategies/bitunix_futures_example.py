@@ -49,7 +49,7 @@ class BitunixFuturesExample(Strategy):
                 quantity=quantity_to_trade,
                 side=Order.OrderSide.BUY,
                 order_type=Order.OrderType.LIMIT,
-                limit_price=0.18
+                limit_price=0.25
             )
             submitted_order = self.submit_order(order)
 
@@ -79,27 +79,6 @@ class BitunixFuturesExample(Strategy):
 
         except Exception as e:
             self.log_message(f"Error closing position: {e}", color="red")
-
-        # ---------------------- 2) Cancel Test Order (if still open) ----------------------
-        try:
-            self.log_message("Checking for open orders to cancel...")
-            orders = self.get_orders()
-            found_order_to_cancel = False
-            for order in orders:
-                if order.asset.symbol == TEST_SYMBOL and order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE and order.status in [Order.OrderStatus.NEW, Order.OrderStatus.SUBMITTED, Order.OrderStatus.OPEN, Order.OrderStatus.PARTIALLY_FILLED]:
-                    found_order_to_cancel = True
-                    self.log_message(f"Found open order: {order.identifier} - {order.status}")
-                    try:
-                        self.log_message(f"Attempting to cancel order: ID={order.identifier}")
-                        self.cancel_order(order)
-                        self.log_message(f"Order {order.identifier} cancellation submitted.")
-                    except Exception as e:
-                        self.log_message(f"Error cancelling order {order.identifier}: {e}", color="red")
-            if not found_order_to_cancel:
-                self.log_message(f"No open orders found for {TEST_SYMBOL} {Asset.AssetType.CRYPTO_FUTURE}.")
-
-        except Exception as e:
-            self.log_message(f"Error checking or cancelling orders: {e}", color="red")
 
         self.log_message("Demo complete.")
         self.log_message(f"Will sleep for {self.sleeptime}...")

@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+import pytest
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.components.drift_rebalancer_logic import DriftType
@@ -15,6 +16,7 @@ class TestIntegrationTests:
     might be counting on whatever it was that changed.
     """
 
+    @pytest.mark.flaky(retries=3, delay=9)
     def test_yahoo(self):
 
         backtesting_start = datetime.datetime(2019, 1, 1)

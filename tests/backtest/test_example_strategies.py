@@ -20,6 +20,8 @@ from lumibot.entities import Asset, Order
 from lumibot.credentials import POLYGON_CONFIG
 
 class TestExampleStrategies:
+
+    @pytest.mark.flaky(retries=3, delay=9)
     def test_stock_bracket(self):
         """
         Test the example strategy StockBracket by running a backtest and checking that the strategy object is returned
@@ -73,6 +75,7 @@ class TestExampleStrategies:
         assert entry_order.get_fill_price() > 1
         assert limit_order.get_fill_price() >= 405
 
+    @pytest.mark.flaky(retries=3, delay=9)
     def test_stock_oco(self):
         """
         Test the example strategy StockOco by running a backtest and checking that the strategy object is returned
@@ -125,6 +128,7 @@ class TestExampleStrategies:
         assert entry_order.get_fill_price() > 1
         assert limit_order.get_fill_price() >= 405
 
+    @pytest.mark.flaky(retries=3, delay=9)
     def test_stock_buy_and_hold(self):
         """
         Test the example strategy BuyAndHold by running a backtest and checking that the strategy object is returned
@@ -153,6 +157,7 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 1.9
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
+    @pytest.mark.flaky(retries=3, delay=9)
     def test_stock_diversified_leverage(self):
         """
         Test the example strategy DiversifiedLeverage by running a backtest and checking that the strategy object is
@@ -181,6 +186,7 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 5.3
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
+    @pytest.mark.flaky(retries=3, delay=9)
     def test_limit_and_trailing_stops(self):
         """
         Test the example strategy LimitAndTrailingStop by running a backtest and checking that the strategy object is

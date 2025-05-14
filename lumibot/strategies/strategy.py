@@ -1750,7 +1750,7 @@ class Strategy(_Strategy):
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
-    def close_position(self, asset):
+    def close_position(self, asset, fraction: float = 1.0):
         """
         Close a single position for the specified asset.
 
@@ -1768,7 +1768,7 @@ class Strategy(_Strategy):
             - If no open position exists, this method does nothing.
         """
         asset_obj = self._sanitize_user_asset(asset)
-        result = self.broker.close_position(self.name, asset_obj)
+        result = self.broker.close_position(self.name, asset_obj, fraction)
         if result is not None:
             return result
 

@@ -1,7 +1,7 @@
 import time
 import logging
 
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, Order, Position
 from lumibot.strategies.strategy import Strategy
 from lumibot.brokers import Bitunix
 from lumibot.credentials import BITUNIX_CONFIG  # Assuming Bitunix config is in credentials
@@ -15,71 +15,44 @@ class BitunixFuturesExample(Strategy):
 
         # Set the market to 24/7 for crypto futures
         self.set_market("24/7")
+        self.iter = 0
 
 
     def on_trading_iteration(self):
-        if not self.first_iteration:
-            self.log_message("Demo already completed in the first iteration.")
-            return
-
-        # Get the last price of BTC/USDT (or your quote asset)
-        try:
-            btc_asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
-            last_price = self.get_last_price(btc_asset)
-            self.log_message(f"Last price for {btc_asset.symbol}: {last_price}")
-        except Exception as e:
-            self.log_message(f"Could not get last price for BTC: {e}", color="red")
-
-        self.log_message("Starting Bitunix Futures Demo...")
-
-        cash = self.get_cash()
-        self.log_message(f"Current cash {cash}")
-
-        TEST_SYMBOL = "HBARUSDT"  # Use a symbol available on Bitunix Futures
-
-        # ---------------------- 1) Place Test Market Order ----------------------
+        self.iter += 1
+        TEST_SYMBOL = "HBARUSDT"
         asset = Asset(TEST_SYMBOL, Asset.AssetType.CRYPTO_FUTURE)
-        asset.leverage = 10  # Example: Set leverage to 10x for this order
-        try:
-            quantity_to_trade = 100
+        asset.leverage = 10
 
-            self.log_message(f"Attempting to place BUY LIMIT order for {quantity_to_trade} {asset} at 10x leverage...")
-            order = self.create_order(
-                asset=asset,
-                quantity=quantity_to_trade,
-                side=Order.OrderSide.BUY,
-                order_type=Order.OrderType.MARKET, # can also do limits
-            )
-            submitted_order = self.submit_order(order)
-
-            if submitted_order:
-                self.log_message(f"Placed order: ID={submitted_order.identifier}, Status={submitted_order.status}")
-                self.log_message("Waiting 10 seconds for order processing/fill...")
-                time.sleep(10)
-                # Refresh order status after waiting
-                order = self.get_order(submitted_order.identifier)
-                if order:
-                    self.log_message(f"Order status after wait: ID={order.identifier}, Status={order.status}")
+        if self.iter == 1:
+            # 1st iteration: open market position
+            try:
+                qty = 100
+                self.log_message(f"Iteration 1: placing BUY market order for {qty} {asset.symbol} at 10x")
+                order = self.create_order(asset=asset, quantity=qty, side=Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+                sub = self.submit_order(order)
+                if sub:
+                    self.log_message(f"Opened position ID={sub.identifier}, status={sub.status}")
                 else:
-                    self.log_message(f"Could not retrieve order {submitted_order.identifier} after wait.")
-            else:
-                self.log_message("Failed to submit order.", color="red")
-                order = None
+                    self.log_message("Failed to open position.", color="red")
+            except Exception as e:
+                self.log_message(f"Open error: {e}", color="red")
 
-        except Exception as e:
-            self.log_message(f"Error placing order: {e}", color="red")
-            order = None
+        elif self.iter == 2:
+            # 2nd iteration: close position
+            try:
+                self.log_message("Iteration 2: closing 50% then remainder")
+                self.close_position(asset, fraction=0.5)
+                time.sleep(10)
+                self.close_position(asset)
+                self.log_message("Position fully closed.")
+            except Exception as e:
+                self.log_message(f"Close error: {e}", color="red")
 
-        # ---------------------- 2) Close Position (if opened) ----------------------
-        try:
-            self.log_message("Waiting 10 seconds before attempting to close position...")
-            time.sleep(10)
-            self.close_position(asset)
+        else:
+            # no further actions
+            self.log_message("Demo complete. No further actions.")
 
-        except Exception as e:
-            self.log_message(f"Error closing position: {e}", color="red")
-
-        self.log_message("Demo complete.")
         self.log_message(f"Will sleep for {self.sleeptime}...")
 
 

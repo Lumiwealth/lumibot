@@ -172,6 +172,7 @@ class BitUnixClient:
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {"orderId": str, ... }}``
+            - If **reduceOnly** is True, Bitunix will reject the order if it would increase position size.
         """
         body = {
             "symbol":    symbol,

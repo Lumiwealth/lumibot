@@ -29,7 +29,7 @@ class BitunixFuturesExample(Strategy):
             try:
                 qty = 100
                 self.log_message(f"Iteration 1: placing BUY market order for {qty} {asset.symbol} at 10x")
-                order = self.create_order(asset=asset, quantity=qty, side=Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+                order = self.create_order(asset=asset, quantity=qty, side=Order.OrderSide.BUY, order_type=Order.OrderType.MARKET, secondary_limit_price=0.5, secondary_stop_price=0.01)
                 sub = self.submit_order(order)
                 if sub:
                     self.log_message(f"Opened position ID={sub.identifier}, status={sub.status}")

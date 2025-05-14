@@ -16,7 +16,7 @@ class TestIntegrationTests:
     might be counting on whatever it was that changed.
     """
 
-    @pytest.mark.flaky(retries=3, delay=9)
+    @pytest.mark.xfail(reason="yahoo sucks")
     def test_yahoo(self):
 
         backtesting_start = datetime.datetime(2019, 1, 1)

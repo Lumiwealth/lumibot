@@ -4,7 +4,6 @@
 pytest
 pytest-mock
 coverage
-pytest-retry
 
 # Linting modules
 ruff

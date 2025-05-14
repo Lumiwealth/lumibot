@@ -23,6 +23,7 @@ class TestIntegrationTests:
         data_source = YahooDataBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
+            benchmark_asset=None
         )
 
         broker = BacktestingBroker(data_source=data_source)

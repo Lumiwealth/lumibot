@@ -1086,7 +1086,7 @@ class OptionsHelper:
         self.strategy.log_message(f"Aggregated Greeks: {aggregated}", color="blue")
         return aggregated
 
-    def check_spread_profit(self, initial_cost: float, orders: List[Order]) -> Optional[float]:
+    def check_spread_profit(self, initial_cost: float, orders: List[Order], contract_multiplier: int = 100) -> Optional[float]:
         """
         Calculate the current profit or loss percentage of a spread based on updated market prices.
 
@@ -1110,7 +1110,7 @@ class OptionsHelper:
                 self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
                 return None
             multiplier = -1 if order.side.lower() == "buy" else 1
-            current_value += price * order.quantity * 100  # Options standard multiplier
+            current_value += price * order.quantity * contract_multiplier 
         profit_pct = ((current_value - initial_cost) / initial_cost) * 100
         self.strategy.log_message(f"Spread profit percentage: {profit_pct:.2f}%", color="blue")
         return profit_pct

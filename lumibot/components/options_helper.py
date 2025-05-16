@@ -1096,6 +1096,8 @@ class OptionsHelper:
             The initial net cost (or credit) of establishing the spread.
         orders : List[Order]
             The list of orders that constitute the spread.
+        contract_multiplier : int, optional
+            The Option contract multiplier to use (default is 100) 
 
         Returns
         -------

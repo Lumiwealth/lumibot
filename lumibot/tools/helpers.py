@@ -111,7 +111,7 @@ def get_trading_days(
             are to be retrieved. Defaults to "NYSE".
         start_date (str or datetime-like, optional): The start date for the
             range of trading days. Defaults to "1950-01-01".
-        end_date (str or datetime-like, optional): The end date (exclusive) for
+        end_date (str or datetime-like, optional): The end date (inclusive) for
             the range of trading days. If not specified, the current date is used.
             Defaults to None.
         tzinfo (pytz.timezone, optional): Timezone information used for
@@ -147,9 +147,9 @@ def get_trading_days(
     else:
         cal = mcal.get_calendar(market)
 
-    # Make end_date exclusive by moving it one day earlier
-    schedule_end = pd.Timestamp(end_date) - pd.Timedelta(days=1)
-    days = cal.schedule(start_date=start_date, end_date=schedule_end, tz=tzinfo)
+    # The end_date is now treated as inclusive.
+    # The pandas_market_calendars.schedule() method treats its end_date as inclusive.
+    days = cal.schedule(start_date=start_date, end_date=end_date, tz=tzinfo)
     days.market_open = days.market_open.apply(format_datetime)
     days.market_close = days.market_close.apply(format_datetime)
     return days

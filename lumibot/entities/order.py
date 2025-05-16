@@ -1096,7 +1096,11 @@ class Order:
     def get_increment(self):
         increment = self.quantity
         if self.side == SELL:
-            increment = -increment
+            if not self.is_option():
+                increment = -increment
+        if self.side == BUY:
+            if self.is_option():
+                increment = -increment
         return float(increment)
 
     def is_option(self):

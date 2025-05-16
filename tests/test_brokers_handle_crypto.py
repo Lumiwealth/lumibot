@@ -140,7 +140,7 @@ class TestBrokerHandlesCrypto:
         assert len(bars.df) == self.length
         # get the date of the last bar, which should be the day before the start date
         last_date = bars.df.index[-1]
-        assert last_date.date() == datetime.now().date()
+        assert last_date.date() == datetime.now(pytz.timezone("America/New_York")).date()
         last_price = bars.df['close'].iloc[-1]
         assert last_price > 0.0
 

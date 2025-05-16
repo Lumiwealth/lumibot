@@ -183,6 +183,9 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     # Fetch the symbol data
     returns_df = yh.get_symbol_data(symbol)
 
+    if returns_df is None:
+        return None
+
     # Make sure we are working with a copy to avoid SettingWithCopyWarning
     returns_df = returns_df.copy()
 

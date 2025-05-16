@@ -156,7 +156,10 @@ class YahooHelper:
 
     @staticmethod
     def download_symbol_info(symbol):
-        ticker = yf.Ticker(symbol, proxy=YahooHelper.sleep_and_get_proxy())
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
+        ticker = yf.Ticker(symbol)
 
         try:
             info = ticker.info
@@ -179,15 +182,21 @@ class YahooHelper:
 
     @staticmethod
     def get_symbol_info(symbol):
-        ticker = yf.Ticker(symbol, proxy=YahooHelper.sleep_and_get_proxy())
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
+        ticker = yf.Ticker(symbol)
         return ticker.info
 
     @staticmethod
     def get_symbol_last_price(symbol):
-        ticker = yf.Ticker(symbol, proxy=YahooHelper.sleep_and_get_proxy())
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
+        ticker = yf.Ticker(symbol)
 
         # Get the last price from the history
-        df = ticker.history(period="7d", auto_adjust=False, proxy=YahooHelper.sleep_and_get_proxy())
+        df = ticker.history(period="7d", auto_adjust=False)
         if df.empty:
             return None
 
@@ -216,26 +225,26 @@ class YahooHelper:
 
         for attempt in range(1, max_retries + 1):
             try:
+                proxy = YahooHelper.sleep_and_get_proxy()
+                if proxy:
+                    yf.set_config(proxy=proxy)
                 if interval == "1m":
                     df = ticker.history(
                         interval=interval,
                         start=get_lumibot_datetime() - timedelta(days=7),
-                        auto_adjust=False,
-                        proxy=YahooHelper.sleep_and_get_proxy()
+                        auto_adjust=False
                     )
                 elif interval == "15m":
                     df = ticker.history(
                         interval=interval,
                         start=get_lumibot_datetime() - timedelta(days=60),
-                        auto_adjust=False,
-                        proxy=YahooHelper.sleep_and_get_proxy()
+                        auto_adjust=False
                     )
                 else:
                     df = ticker.history(
                         interval=interval,
                         period="max",
-                        auto_adjust=False,
-                        proxy=YahooHelper.sleep_and_get_proxy()
+                        auto_adjust=False
                     )
             except Exception as e:
                 logging.debug(f"{symbol}: Exception from ticker.history(): {e}")
@@ -305,13 +314,15 @@ class YahooHelper:
             return {symbols[0]: item}
 
         result = {}
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
         tickers = yf.Tickers(" ".join(symbols))
         df_yf = tickers.history(
             period="max",
             group_by="ticker",
             auto_adjust=False,
-            progress=False,
-            proxy=YahooHelper.sleep_and_get_proxy()
+            progress=False
         )
 
         for i in df_yf.columns.levels[0]:

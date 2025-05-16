@@ -45,6 +45,10 @@ jobs:
       POLYGON_IS_PAID_SUBSCRIPTION: $POLYGON_IS_PAID_SUBSCRIPTION
       THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
       THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+      ALPACA_TEST_API_KEY: ${{secrets.ALPACA_TEST_API_KEY}} # Required for alpaca unit tests
+      ALPACA_TEST_API_SECRET: ${{secrets.ALPACA_TEST_API_SECRET}} # Required for alpaca unit tests
+      TRADIER_TEST_ACCESS_TOKEN: ${{secrets.TRADIER_TEST_ACCESS_TOKEN}} # Required for tradier unit tests
+      TRADIER_TEST_ACCOUNT_NUMBER: ${{secrets.TRADIER_TEST_ACCOUNT_NUMBER}} # Required for tradier unit tests
 
     steps:
       # ------------------------------------------------------------

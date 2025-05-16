@@ -463,10 +463,37 @@ def plot_returns(
 ):
     # If show plot is False, then we don't want to open the plot in the browser
     if not show_plot:
-        logging.info("show_plot is False, not creating the plot file.")
+        logging.info("show_plot is False, not creating the plot file or CSV.")
         return
 
-    logging.info("\nCreating trades plot...")
+    logging.info("\nCreating trades plot and CSV...")
+
+    # --- Start: CSV Generation for trades_df ---
+    trades_csv_file = plot_file_html.replace(".html", ".csv")
+    # Define standard columns for trades data
+    standard_trade_columns = [
+        "time", "side", "status", "filled_quantity", "symbol", "asset.asset_type",
+        "asset.right", "asset.strike", "asset.expiration", "price", "type",
+        "asset.multiplier", "trade_cost"
+    ]
+
+    if trades_df is None or trades_df.empty:
+        logging.info(f"No trades provided. Empty trades CSV file will be created: {trades_csv_file}")
+        # Create an empty DataFrame with standard headers for the CSV
+        empty_trades_for_csv = pd.DataFrame(columns=standard_trade_columns)
+        empty_trades_for_csv.to_csv(trades_csv_file, index=False)
+    else:
+        # Prepare a copy of trades_df for CSV export, ensuring standard columns
+        trades_df_for_csv = trades_df.copy()
+        # Add any missing standard columns (filled with NA)
+        for col in standard_trade_columns:
+            if col not in trades_df_for_csv.columns:
+                trades_df_for_csv[col] = pd.NA
+        # Select and reorder to standard columns, dropping any non-standard ones
+        trades_df_for_csv = trades_df_for_csv[standard_trade_columns]
+        trades_df_for_csv.to_csv(trades_csv_file, index=False)
+        logging.info(f"Trades data saved to CSV: {trades_csv_file}")
+    # --- End: CSV Generation for trades_df ---
 
     dfs_concat = []
 
@@ -503,12 +530,45 @@ def plot_returns(
     df_final["High"] = benchmark_df["high"] * high_ratio
     df_final["Low"] = benchmark_df["low"] * low_ratio
 
+    # Prepare trades data for merging into df_final for the plot
+    # `processed_trades_for_merge` will be indexed by 'time' and contain standard trade columns (excluding 'time')
     if trades_df is None or trades_df.empty:
-        logging.info("There were no trades in this backtest.")
-        return
+        logging.info("There were no trades in this backtest. Plot will not show trade markers.")
+        # Create a DataFrame with standard trade columns (all NaN) and df_final's index (if any)
+        # This ensures df_final gets all standard trade columns for consistent plotting.
+        _columns_for_merge = [col for col in standard_trade_columns if col != "time"]
+        if not df_final.index.empty:
+            processed_trades_for_merge = pd.DataFrame(index=df_final.index, columns=_columns_for_merge)
+        else: # df_final is empty, create an empty df with columns and time index
+            processed_trades_for_merge = pd.DataFrame(columns=_columns_for_merge)
+            processed_trades_for_merge.index = pd.to_datetime(processed_trades_for_merge.index) # ensure datetimeindex
+        processed_trades_for_merge.index.name = "time"
     else:
-        trades_df = trades_df.set_index("time")
-        df_final = df_final.merge(trades_df, how="outer", left_index=True, right_index=True)
+        # We have trades, prepare a copy
+        processed_trades_for_merge = trades_df.copy()
+        if 'time' in processed_trades_for_merge.columns:
+            processed_trades_for_merge['time'] = pd.to_datetime(processed_trades_for_merge['time'])
+            processed_trades_for_merge = processed_trades_for_merge.set_index('time')
+            
+            # Ensure all standard columns (excluding 'time') are present, filling missing ones with NA
+            _columns_to_ensure_in_merge = [col for col in standard_trade_columns if col != "time"]
+            for col in _columns_to_ensure_in_merge:
+                if col not in processed_trades_for_merge.columns:
+                    processed_trades_for_merge[col] = pd.NA
+            # Select only the standard columns for merging
+            processed_trades_for_merge = processed_trades_for_merge[[col for col in _columns_to_ensure_in_merge if col in processed_trades_for_merge.columns]]
+        else:
+            logging.warning("Trades data provided but 'time' column is missing. Cannot merge trades for plotting. Plot will not show trade markers.")
+            # Fallback to empty trades for merge to avoid errors and ensure consistent columns in df_final
+            _columns_for_merge = [col for col in standard_trade_columns if col != "time"]
+            if not df_final.index.empty:
+                processed_trades_for_merge = pd.DataFrame(index=df_final.index, columns=_columns_for_merge)
+            else:
+                processed_trades_for_merge = pd.DataFrame(columns=_columns_for_merge)
+                processed_trades_for_merge.index = pd.to_datetime(processed_trades_for_merge.index)
+            processed_trades_for_merge.index.name = "time"
+
+    df_final = df_final.merge(processed_trades_for_merge, how="outer", left_index=True, right_index=True)
 
     # Fix for minute timeframe backtests plotting
     # Converted to DatetimeIndex because index becomes Index type and UTC timezone in pd.concat
@@ -832,7 +892,8 @@ def create_tearsheet(
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
-
+    
+    '''
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
@@ -842,7 +903,7 @@ def create_tearsheet(
     if df_final["strategy"].sum() == 0:
         logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
-
+    '''
     # Set the name of the benchmark column so that quantstats can use it in the report
     df_final["benchmark"].name = str(benchmark_asset)
 

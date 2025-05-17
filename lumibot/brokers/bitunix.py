@@ -65,6 +65,7 @@ class Bitunix(Broker):
         
         # Track current leverage per symbol to avoid redundant API calls
         self.current_leverage: Dict[str, int] = {}
+        self.market = "24/7"  # Crypto exchanges are typically 24/7
 
         if not api_key or not api_secret:
             raise ValueError("API_KEY and API_SECRET must be provided in config")

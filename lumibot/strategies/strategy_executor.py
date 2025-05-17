@@ -67,6 +67,7 @@ class StrategyExecutor(Thread):
             "before_market_closes": None,
         }
 
+        self._market_closed_logged = False  # Track if closed message was logged
 
     @property
     def name(self):
@@ -498,8 +499,12 @@ class StrategyExecutor(Thread):
 
         # Check if we are in market hours.
         if not self.broker.is_market_open():
-            self.strategy.log_message("The market is not currently open, skipping this trading iteration", color="blue")
+            if not self._market_closed_logged:
+                self.strategy.log_message("The market is not currently open, skipping this trading iteration", color="blue")
+                self._market_closed_logged = True
             return
+        else:
+            self._market_closed_logged = False  # Reset when market opens
 
         # Send the account summary to Discord
         self.strategy.send_account_summary_to_discord()

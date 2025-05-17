@@ -1589,7 +1589,7 @@ class _Strategy:
 
         # Check if the message was sent successfully
         if response.status_code == 200:
-            self.logger.info("Update sent to the cloud successfully")
+            self.logger.debug("Update sent to the cloud successfully")
             return True
         else:
             self.logger.error(

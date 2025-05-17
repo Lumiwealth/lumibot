@@ -15,6 +15,8 @@ import requests
 import urllib3
 from datetime import datetime, timezone
 import pandas as pd
+import tempfile # Added
+import importlib.resources # Added
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -48,6 +50,7 @@ class InteractiveBrokersRESTData(DataSource):
             self.base_url = f"{self.api_url}/v1/api"
 
         self.account_id = config["IB_ACCOUNT_ID"] if "IB_ACCOUNT_ID" in config else None
+        self.temp_conf_path = None # Added for temporary conf.yaml path
 
         # Check if we are running on a server
         running_on_server = (
@@ -121,10 +124,26 @@ class InteractiveBrokersRESTData(DataSource):
             }
 
             env_args = [f"--env={key}={value}" for key, value in env_variables.items()]
-            conf_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "resources", "conf.yaml"
-            )
-            volume_mount = f"{conf_path}:{inputs_dir}"
+            
+            # Prepare conf.yaml for Docker mount
+            try:
+                # Create a temporary file to hold the conf.yaml content
+                # delete=False is important because Docker needs to access it by path
+                # and we'll clean it up manually in stop()
+                with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.yaml', encoding='utf-8') as tmp_conf_file:
+                    self.temp_conf_path = tmp_conf_file.name
+                    # Use importlib.resources to access package data reliably
+                    conf_content = importlib.resources.files('lumibot.resources').joinpath('conf.yaml').read_text(encoding='utf-8')
+                    tmp_conf_file.write(conf_content)
+                
+                volume_mount = f"{self.temp_conf_path}:{inputs_dir}"
+                logging.info(f"Using temporary conf.yaml for Docker mount: {self.temp_conf_path} -> {inputs_dir}")
+
+            except Exception as e:
+                logging.error(colored(f"Failed to prepare conf.yaml for Docker: {e}", "red"))
+                # Exit or raise, as this is critical for IBeam operation
+                exit(1)
+
 
             # Remove any existing container with the same name
             subprocess.run(
@@ -611,6 +630,15 @@ class InteractiveBrokersRESTData(DataSource):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+
+        # Clean up the temporary conf.yaml file
+        if self.temp_conf_path:
+            try:
+                os.remove(self.temp_conf_path)
+                logging.info(f"Removed temporary conf.yaml: {self.temp_conf_path}")
+                self.temp_conf_path = None
+            except OSError as e:
+                logging.warning(colored(f"Error removing temporary conf file {self.temp_conf_path}: {e}", "yellow"))
 
     def get_chains(self, asset: Asset, quote=None) -> dict:
         """

@@ -278,54 +278,17 @@ class AlpacaData(DataSource):
         return chains
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
-        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
-
-        if asset.asset_type == Asset.AssetType.CRYPTO:
-            symbol = f"{asset.symbol}/{quote.symbol}"
-            client = self._get_crypto_client()
-            quote_params = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
-            latest_quote = client.get_crypto_latest_quote(quote_params)
-
-            # Get the first item in the dictionary
-            latest_quote = latest_quote[list(latest_quote.keys())[0]]
-
-            # The price is the average of the bid and ask
-            price = (latest_quote.bid_price + latest_quote.ask_price) / 2
-            num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
-            price = quantize_to_num_decimals(price, num_decimals)
-            return price
-
-        elif asset.asset_type == Asset.AssetType.OPTION:
-            # Defensive: Only try to fetch price if all option fields are present
-            if not (asset.symbol and asset.expiration and asset.right and asset.strike):
-                logging.error(f"Missing required fields for option symbol: {asset}")
-                return None
-            try:
-                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-                date = asset.expiration.strftime("%y%m%d")
-                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-                client = self._get_option_client()
-                params = OptionLatestTradeRequest(symbol_or_symbols=symbol)
-                trade = client.get_option_latest_trade(params)
-                price = trade[symbol].price
-                num_decimals = get_decimals(price)
-                price = quantize_to_num_decimals(price, num_decimals)
-                return price
-            except Exception as e:
-                logging.debug(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
-                return None
-        else:
-            # Stocks
-            symbol = asset.symbol
-            client = self._get_stock_client()
-            params = StockLatestQuoteRequest(symbol_or_symbols=symbol)
-            latest_quote = client.get_stock_latest_quote(params)[symbol]
-
-            # The price is the average of the bid and ask
-            price = (latest_quote.bid_price + latest_quote.ask_price) / 2
-            num_decimals = max(get_decimals(latest_quote.bid_price), get_decimals(latest_quote.ask_price))
-            price = quantize_to_num_decimals(price, num_decimals)
-            return price
+        """
+        Get the last price for an asset by calling get_quote and returning the last price.
+        """
+        quote_data = self.get_quote(asset, quote, exchange)
+        if quote_data and 'last' in quote_data and quote_data['last'] is not None:
+            return quote_data['last']
+        elif quote_data and 'bid' in quote_data and quote_data['bid']:
+            return quote_data['bid']
+        elif quote_data and 'ask' in quote_data and quote_data['ask']:
+            return quote_data['ask']
+        return None
 
     def get_historical_prices(
             self,
@@ -519,7 +482,7 @@ class AlpacaData(DataSource):
             return {
                 "bid": getattr(q, "bid_price", None),
                 "ask": getattr(q, "ask_price", None),
-                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price and q.ask_price else None,
                 "exchange": getattr(q, "exchange", None),
                 "timestamp": getattr(q, "timestamp", None),
                 "symbol": symbol,
@@ -558,7 +521,7 @@ class AlpacaData(DataSource):
             return {
                 "bid": getattr(q, "bid_price", None),
                 "ask": getattr(q, "ask_price", None),
-                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price is not None and q.ask_price is not None else None,
+                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price and q.ask_price else None,
                 "exchange": getattr(q, "exchange", None),
                 "timestamp": getattr(q, "timestamp", None),
                 "symbol": symbol,

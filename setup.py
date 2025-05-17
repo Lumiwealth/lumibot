@@ -51,7 +51,8 @@ setuptools.setup(
         "holidays",
         "psutil",
         "openai",
-        "schwab-py>=1.5.0"
+        "schwab-py>=1.5.0",
+        "free-proxy"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1085,11 +1085,30 @@ class Broker(ABC):
 
         self.submit_orders(orders, is_multileg=is_multileg)
 
-    def close_position(self, strategy_name: str, asset: Asset):
-        """Default: close one position by submitting its sell order and return it."""
+    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.00):
+        """
+        Close a position for a given strategy and asset by submitting a sell order.
+
+        Parameters
+        ----------
+        strategy_name : str
+            Name of the strategy that owns the position.
+        asset : Asset
+            The asset whose position should be closed.
+        fraction : float, optional
+            Fraction of the position to close, between 0 and 1.0 (default is 1.0, meaning the full position).
+
+        Returns
+        -------
+        Order or None
+            The sell order submitted to close the position, or None if no open position exists
+            or the position quantity is zero.
+        """
         pos = self.get_tracked_position(strategy_name, asset)
         if pos and pos.quantity != 0:
             order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
+            if fraction is not 1.00:
+                order.quantity = order.quantity * fraction
             return self.submit_order(order)
         return None
 

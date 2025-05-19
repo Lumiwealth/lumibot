@@ -234,11 +234,9 @@ class Bitunix(Broker):
         Submits an order to BitUnix exchange.
         Handles FUTURES orders.
         """
-        if order.asset.asset_type not in (Asset.AssetType.CRYPTO_FUTURE):
-            error_msg = f"Asset type {order.asset.asset_type} not supported by BitUnix"
-            order.set_error(LumibotBrokerAPIError(error_msg))
-            order.status = Order.OrderStatus.ERROR  # ensure status is enum
-            return order
+        # Flag set by close_position() – when True we send a reduce‑only order
+        reduce_only = getattr(order, "reduce_only", False)
+
 
         # Determine symbol format based on asset type
         if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
@@ -257,66 +255,111 @@ class Bitunix(Broker):
         client_order_id = f"lmbot_{int(time.time() * 1000)}_{hash(str(order)) % 10000}"
 
         try:
-            if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
-                # Ensure desired leverage is set
-                leverage = order.asset.leverage
-                try:
-                    if self.current_leverage.get(symbol) != leverage:
-                        lev_resp = self.api.change_leverage(symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol) # Use quote_asset.symbol
-                        if not lev_resp or lev_resp.get("code") != 0:
-                            logger.warning(f"Failed to set leverage for {symbol} to {leverage}x: {lev_resp}")
-                        else:
-                            logger.info(f"Set leverage for {symbol} to {leverage}x")
-                            self.current_leverage[symbol] = leverage
-                except Exception as e:
-                    logger.warning(f"Error setting leverage for {symbol} to {leverage}: {e}")
-                # FUTURES order
-                params = {
-                    "symbol": symbol,
-                    "side": self._map_side_to_bitunix(order.side),
-                    "orderType": self._map_type_to_bitunix(order.order_type),
-                    "qty": quantity,
-                    "clientId": client_order_id,
-                }
-                if price is not None:
-                    params["price"] = price
-                # Submit order
-                response = self.api.place_order(**params)
-                self.logger.info(response)
-                # Immediately handle any non-zero API codes as errors
-                code = response.get("code") if isinstance(response, dict) else None
-                if code is None or code != 0:
-                    err_msg = (
-                        f"Error placing order: code={code}, "
-                        f"msg={response.get('msg') if isinstance(response, dict) else response}, "
-                        f"data={response.get('data') if isinstance(response, dict) else None}"
-                    )
-                    order.set_error(LumibotBrokerAPIError(err_msg))
-                    order.status = Order.OrderStatus.ERROR  # ensure status is enum
-                    # Attach full response for debugging
-                    order.update_raw(response)
-                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=err_msg)
-                    return order
-                # Success handling only
-                data = response.get("data", {})
-                order_id = data.get("orderId")
-                if order_id:
-                    order.identifier = order_id
-                    order.status = Order.OrderStatus.SUBMITTED  # ensure status is enum
-                    order.update_raw(response)
-                    self._unprocessed_orders.append(order)
-                    self._process_trade_event(order, self.NEW_ORDER)
-                else:
-                    error_msg = f"No order ID in response: {response}"
-                    order.set_error(LumibotBrokerAPIError(error_msg))
-                    order.status = Order.OrderStatus.ERROR  # ensure status is enum
-                    self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)                
+            # Ensure desired leverage is set
+            leverage = order.asset.leverage
+            try:
+                if self.current_leverage.get(symbol) != leverage:
+                    lev_resp = self.api.change_leverage(symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol) # Use quote_asset.symbol
+                    if not lev_resp or lev_resp.get("code") != 0:
+                        logger.warning(f"Failed to set leverage for {symbol} to {leverage}x: {lev_resp}")
+                    else:
+                        logger.info(f"Set leverage for {symbol} to {leverage}x")
+                        self.current_leverage[symbol] = leverage
+            except Exception as e:
+                logger.warning(f"Error setting leverage for {symbol} to {leverage}: {e}")
+            # FUTURES order
+            params = {
+                "symbol": symbol,
+                "side": self._map_side_to_bitunix(order.side),
+                "orderType": self._map_type_to_bitunix(order.order_type),
+                "qty": quantity,
+                "clientId": client_order_id,
+                **({"reduceOnly": True} if reduce_only else {}),
+            }
+            if price is not None:
+                params["price"] = price
+            
+            # TP/SL
+            tp = getattr(order, "secondary_limit_price", None) or getattr(order, "take_profit_price", None)
+            sl = getattr(order, "secondary_stop_price", None) or getattr(order, "stop_loss_price", None)
+
+            if tp is not None:
+                params["take_profit_price"] = float(tp)
+            
+            if sl is not None:
+                params["stop_loss_price"] = float(sl)
+
+            # Submit order
+            response = self.api.place_order(**params)
+            self.logger.info(response)
+            # Immediately handle any non-zero API codes as errors
+            code = response.get("code") if isinstance(response, dict) else None
+            if code is None or code != 0:
+                err_msg = (
+                    f"Error placing order: code={code}, "
+                    f"msg={response.get('msg') if isinstance(response, dict) else response}, "
+                    f"data={response.get('data') if isinstance(response, dict) else None}"
+                )
+                order.set_error(LumibotBrokerAPIError(err_msg))
+                order.status = Order.OrderStatus.ERROR  # ensure status is enum
+                # Attach full response for debugging
+                order.update_raw(response)
+                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=err_msg)
+                return order
+            # Success handling only
+            data = response.get("data", {})
+            order_id = data.get("orderId")
+            if order_id:
+                order.identifier = order_id
+                order.status = Order.OrderStatus.SUBMITTED  # ensure status is enum
+                order.update_raw(response)
+                self._unprocessed_orders.append(order)
+                self._process_trade_event(order, self.NEW_ORDER)
+            else:
+                error_msg = f"No order ID in response: {response}"
+                order.set_error(LumibotBrokerAPIError(error_msg))
+                order.status = Order.OrderStatus.ERROR  # ensure status is enum
+                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)                
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
             order.set_error(LumibotBrokerAPIError(error_msg))
             order.status = Order.OrderStatus.ERROR  # ensure status is enum
             self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
         return order
+
+    # ------------------------------------------------------------------
+    # Position‑closing helper using Bitunix reduce‑only orders
+    # ------------------------------------------------------------------
+    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.0):
+        """
+        Close all or part of an existing position using a reduce‑only
+        market order (tradeSide="CLOSE").
+
+        Parameters
+        ----------
+        strategy_name : str
+            Name of the strategy that owns the position.
+        asset : Asset
+            The asset whose position should be closed.
+        fraction : float, optional
+            Fraction of the position to close (0 < fraction ≤ 1). Defaults to 1 (full close).
+
+        Returns
+        -------
+        Optional[Order]
+            The submitted order, or ``None`` if no position exists.
+        """
+        # Retrieve the current tracked position
+        position = self.get_tracked_position(strategy_name, asset)
+        if not position or position.quantity == 0:
+            return None
+        
+        order = Order(strategy_name, asset, position.quantity * fraction)
+
+        # Mark as reduce‑only so `_submit_order` will send tradeSide="CLOSE"
+        setattr(order, "reduce_only", True)
+
+        return self.submit_order(order)
 
     def cancel_order(self, order: Order):
         """
@@ -688,37 +731,3 @@ class Bitunix(Broker):
                     logger.warning("Failed to flash close position %s: %s", position_id, resp)
                 else:
                     logger.info("Flash-closed position %s (%s)", position_id, pos.asset.symbol)
-
-    def close_position(self, strategy_name: str, asset: Asset):
-        """
-        Close one open crypto futures position via Bitunix's flash_close_position endpoint.
-
-        This method finds the open position for the given asset and, if found, uses Bitunix's "flash close" API to close the position at market price. This is the recommended way to close positions on Bitunix, as it is faster and more reliable than submitting a regular market order.
-
-        Args:
-            strategy_name (str): The name of the strategy requesting the close (not used for Bitunix, but required by interface).
-            asset (Asset): The Asset object representing the futures contract to close (e.g., Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)).
-
-        Returns:
-            None
-
-        Notes:
-            - Only works for open crypto futures positions.
-            - If no open position is found, or if the position cannot be closed, this method does nothing.
-            - For spot or non-futures assets, this method is not applicable.
-        """
-        # find matching raw position
-        for pos in self._pull_positions(None):
-            if pos.asset == asset and pos.quantity != 0 and pos.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
-                raw = getattr(pos, "_raw", {})
-                pid = raw.get("positionId")
-                if not pid:
-                    logger.warning("No positionId for %s, skipping", asset.symbol)
-                    return
-                side = "SELL" if pos.quantity > 0 else "BUY"
-                resp = self.api.flash_close_position(position_id=pid, side=side)
-                if not resp or resp.get("code") != 0:
-                    logger.warning("Flash close failed for %s: %s", pid, resp)
-                else:
-                    logger.info("Flash closed position %s", pid)
-                return

@@ -209,3 +209,14 @@ class BitunixData(DataSource):
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """Option chains not supported by BitUnix."""
         return {"Multiplier": 1, "Exchange": exchange or "", "Chains": {}}
+
+    def get_timestep_from_string(self, timestep: str) -> str:
+        """
+        Maps a string representation of a timestep to the normalized timestep.
+        """
+        ts = timestep.lower().strip()
+        for mapping in self.TIMESTEP_MAPPING:
+            if ts in [r.lower() for r in mapping["representations"]]:
+                return mapping["timestep"]
+        # Default to "minute" if not found
+        return "minute"

@@ -155,5 +155,26 @@ class TestBitunixBroker(unittest.TestCase):
         self.assertEqual(parsed_order.avg_fill_price, Decimal("3005.50"))
         self.assertIsNotNone(parsed_order.broker_create_date)
 
+    @patch("lumibot.data_sources.bitunix_data.BitunixData")
+    def test_parse_source_timestep(self, MockBitunixData):
+        mock_data_source = MockBitunixData.return_value
+        mock_data_source.client_symbols = set()
+
+        broker = Bitunix(self.config)
+
+        # Test all supported timesteps
+        self.assertEqual(broker._parse_source_timestep("1m"), "1m")
+        self.assertEqual(broker._parse_source_timestep("minute"), "1m")
+        self.assertEqual(broker._parse_source_timestep("3m"), "3m")
+        self.assertEqual(broker._parse_source_timestep("5m"), "5m")
+        self.assertEqual(broker._parse_source_timestep("15m"), "15m")
+        self.assertEqual(broker._parse_source_timestep("30m"), "30m")
+        self.assertEqual(broker._parse_source_timestep("1h"), "1h")
+        self.assertEqual(broker._parse_source_timestep("2h"), "2h")
+        self.assertEqual(broker._parse_source_timestep("4h"), "4h")
+        self.assertEqual(broker._parse_source_timestep("1d"), "1d")
+        # Test fallback/default
+        self.assertEqual(broker._parse_source_timestep("unknown"), "1m")
+
 if __name__ == "__main__":
     unittest.main()

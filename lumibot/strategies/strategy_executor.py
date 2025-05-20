@@ -697,6 +697,7 @@ class StrategyExecutor(Thread):
     @staticmethod
     def _sleeptime_to_seconds(sleeptime):
         """Convert the sleeptime to seconds"""
+
         val_err_msg = ("You can set the sleep time as an integer which will be interpreted as minutes. "
                        "eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string "
                        "with the duration numbers first, followed by the time units: 'M' for minutes, 'S' for seconds "
@@ -709,7 +710,7 @@ class StrategyExecutor(Thread):
             time_raw = int(sleeptime[:-1])
             if unit.lower() == "s":
                 return time_raw
-            elif unit.lower() == "m":
+            elif unit.lower() == "m" or unit.lower() == "t":
                 return time_raw * 60
             elif unit.lower() == "h":
                 return time_raw * 60 * 60
@@ -738,14 +739,14 @@ class StrategyExecutor(Thread):
         """
         if unit.lower() == "s":
             return secounds
-        elif unit.lower() == "m":
+        elif unit.lower() == "m" or unit.lower() == "t":
             return secounds // 60
         elif unit.lower() == "h":
             return secounds // (60 * 60)
         elif unit.lower() == "d":
             return secounds / (60 * 60 * 24)
         else:
-            raise ValueError("The unit must be 'S', 'M', 'H', or 'D'")
+            raise ValueError("The unit must be 'S', 'M', 'T', 'H', or 'D'")
 
     # This method calculates the trigger for the strategy based on the 'sleeptime' attribute of the strategy.
     def calculate_strategy_trigger(self, force_start_immediately=False):
@@ -778,7 +779,7 @@ class StrategyExecutor(Thread):
             raise ValueError(sleeptime_err_msg)  # If it's neither, raise an error with the defined message.
 
         # Check if the units are valid (S for seconds, M for minutes, H for hours, D for days).
-        if units not in "SMHDsmhd":
+        if units not in "TSMHDsmhd":
             raise ValueError(sleeptime_err_msg)
 
         # Assign the raw time to the target count for cron jobs so that later we can compare the current count to the
@@ -789,7 +790,7 @@ class StrategyExecutor(Thread):
         kwargs = {}
         if units in "Ss":
             kwargs["second"] = "*"
-        elif units in "Mm":
+        elif units in "MmTt":
             kwargs["minute"] = "*"
         elif units in "Hh":
             kwargs["hour"] = "*"
@@ -895,7 +896,7 @@ class StrategyExecutor(Thread):
         else:
             raise ValueError(sleeptime_err_msg)
 
-        if units not in "SMHDsmhd":
+        if units not in "TSMHDsmhd":
             raise ValueError(sleeptime_err_msg)
 
         strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)

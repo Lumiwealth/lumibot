@@ -114,9 +114,21 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git fetch origin badge:badge || git checkout --orphan badge
-          git checkout badge || git checkout --orphan badge
+          # Save the coverage.svg file temporarily
+          mv coverage.svg coverage.svg.tmp
+          # Try to fetch the badge branch, create it if it doesn't exist
+          git fetch origin badge || echo "Badge branch doesn't exist yet"
+          # Check if badge branch exists locally
+          if git show-ref --verify --quiet refs/heads/badge; then
+            git checkout badge
+          else
+            # Create a new orphan branch if it doesn't exist
+            git checkout --orphan badge
+            git rm -rf .
+          fi
+          # Restore the coverage.svg file
+          mv coverage.svg.tmp coverage.svg
           git add coverage.svg
           git commit -m "ci: update coverage badge" || echo "No changes to commit"
-          git push origin badge:badge
+          git push origin badge
           git checkout $GITHUB_REF_NAME

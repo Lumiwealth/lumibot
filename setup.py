@@ -47,7 +47,7 @@ setuptools.setup(
         "exchange_calendars>=4.5.2",
         "duckdb",
         "tabulate",
-        "thetadata",
+        "thetadata==0.9.11",
         "holidays",
         "psutil",
         "openai",

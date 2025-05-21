@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Union
+from datetime import datetime, timezone  # Added timezone
 
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset
@@ -34,6 +35,10 @@ class TestDataSource:
         }}
         mocker.patch.object(ds, 'get_chains', return_value=chains)
         mocker.patch.object(ds, 'get_last_price', return_value=1.0)
+
+        # Mock get_datetime to ensure time to expiration is positive
+        mock_current_time = datetime(2023, 11, 15, tzinfo=timezone.utc)  # A date before expiry "2023-12-01"
+        mocker.patch.object(ds, 'get_datetime', return_value=mock_current_time)
 
         asset = Asset("SPY")
         df_chain = ds.get_chain_full_info(asset, '2023-12-01', underlying_price=102, risk_free_rate=0.01)

@@ -760,6 +760,18 @@ class OptionsHelper:
     # Order Execution Functions (Build then submit orders)
     # ============================================================
 
+    def _determine_multileg_order_type(self, limit_price: float) -> str:
+        """
+        Determine the Tradier multileg order type based on the limit price.
+        Returns "debit" if price > 0, "credit" if price < 0, "even" if price == 0.
+        """
+        if limit_price > 0:
+            return "debit"
+        elif limit_price < 0:
+            return "credit"
+        else:
+            return "even"
+
     def execute_orders(self, orders: List[Order], limit_type: Optional[str] = None) -> bool:
         """
         Submit a list of orders as a multi-leg order.
@@ -780,13 +792,16 @@ class OptionsHelper:
         self.strategy.log_message("Executing orders...", color="blue")
         if limit_type:
             limit_price = self.calculate_multileg_limit_price(orders, limit_type)
-            self.strategy.log_message(f"Submitting limit multileg orders at price {limit_price}", color="blue")
-            # convert each child to a LIMIT at the aggregated price
-            for order in orders:
-                order.order_type = Order.OrderType.LIMIT
-                order.limit_price = limit_price
-            # now submit as a true limit multileg
-            self.strategy.submit_orders(orders, is_multileg=True)
+            order_type = self._determine_multileg_order_type(limit_price)
+            self.strategy.log_message(
+                f"Submitting multileg order at price {limit_price} as {order_type}", color="blue"
+            )
+            self.strategy.submit_orders(
+                orders,
+                is_multileg=True,
+                order_type=order_type,
+                price=abs(limit_price)
+            )
         else:
             self.strategy.log_message("Submitting orders without a limit price.", color="blue")
             self.strategy.submit_orders(orders, is_multileg=True)

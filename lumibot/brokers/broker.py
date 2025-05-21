@@ -874,12 +874,15 @@ class Broker(ABC):
 
     def get_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """get all tracked orders for a given strategy"""
+        # Allow filtering by Strategy instance or by name
+        if strategy is not None and not isinstance(strategy, str):
+            strategy_name = getattr(strategy, "name", getattr(strategy, "_name", None))
+        else:
+            strategy_name = strategy
         result = []
-        tracked_orders = self._tracked_orders
-        for order in tracked_orders:
-            if (strategy is None or order.strategy == strategy) and (asset is None or order.asset == asset):
+        for order in self._tracked_orders:
+            if (strategy_name is None or order.strategy == strategy_name) and (asset is None or order.asset == asset):
                 result.append(order)
-
         return result
 
     def get_all_orders(self) -> list[Order]:
@@ -1082,6 +1085,33 @@ class Broker(ABC):
 
         self.submit_orders(orders, is_multileg=is_multileg)
 
+    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.00):
+        """
+        Close a position for a given strategy and asset by submitting a sell order.
+
+        Parameters
+        ----------
+        strategy_name : str
+            Name of the strategy that owns the position.
+        asset : Asset
+            The asset whose position should be closed.
+        fraction : float, optional
+            Fraction of the position to close, between 0 and 1.0 (default is 1.0, meaning the full position).
+
+        Returns
+        -------
+        Order or None
+            The sell order submitted to close the position, or None if no open position exists
+            or the position quantity is zero.
+        """
+        pos = self.get_tracked_position(strategy_name, asset)
+        if pos and pos.quantity != 0:
+            order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
+            if fraction is not 1.00:
+                order.quantity = order.quantity * fraction
+            return self.submit_order(order)
+        return None
+
     # =========Subscribers/Strategies functions==============
 
     def _add_subscriber(self, subscriber):
@@ -1189,7 +1219,7 @@ class Broker(ABC):
                 multiplier=multiplier,
             )
 
-    def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1):
+    def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1, error=None): # Add error parameter
         """process an occurred trading event and update the
         corresponding order"""
         # Log that the trade event was received
@@ -1244,37 +1274,44 @@ class Broker(ABC):
                 raise ValueError(f"price must be a positive float, received {price} instead") from None
 
         if Order.is_equivalent_status(type_event, self.NEW_ORDER):
-            stored_order = self._process_new_order(stored_order)
-            self._on_new_order(stored_order)
+            order = self._process_new_order(stored_order)
+            if order:
+                self._on_new_order(order)
         elif Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):
-            stored_order = self._process_placeholder_order(stored_order)
-            self._on_new_order(stored_order)
+            order = self._process_placeholder_order(stored_order)
+            # No notification needed for placeholder
         elif Order.is_equivalent_status(type_event, self.CANCELED_ORDER):
-            # Do not cancel or re-cancel already completed orders
-            if stored_order.is_active():
-                stored_order = self._process_canceled_order(stored_order)
-                self._on_canceled_order(stored_order)
+            order = self._process_canceled_order(stored_order)
+            if order:
+                self._on_canceled_order(order)
         elif Order.is_equivalent_status(type_event, self.ERROR_ORDER):
-            # Errors can occur during submission when there is an API communication error or a broker error.
-            stored_order = self._process_error_order(stored_order, price)
-            self._on_canceled_order(stored_order)
+            order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
+            if order:
+                # Notify subscriber about the error event
+                subscriber = self._get_subscriber(order.strategy)
+                if subscriber:
+                    payload = dict(order=order, error=error)
+                    subscriber.add_event(subscriber.ERROR_ORDER, payload)
         elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
-            # Modify is only allowed to adjust the stop and limit price, not quantity or other attributes.
-            if stored_order.order_type == Order.OrderType.STOP:
-                stored_order.stop_price = price
-            elif stored_order.order_type == Order.OrderType.LIMIT:
-                stored_order.limit_price = price
+            # TODO: Implement modification logic and notification if needed
+            self.logger.info(colored(f"Order was modified: {stored_order}", color="yellow"))
+            # Update raw data if modification response is available (might need adjustment)
+            # stored_order.update_raw(modification_response_data)
+            # self._on_modified_order(stored_order) # Need to implement _on_modified_order
+            pass
         elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):
             stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
-            self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
+            if position:
+                self._on_partially_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif Order.is_equivalent_status(type_event, self.FILLED_ORDER):
             position = self._process_filled_order(stored_order, price, filled_quantity)
-            self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
+            if position:
+                self._on_filled_order(position, stored_order, price, filled_quantity, multiplier)
         elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
             self._process_cash_settlement(stored_order, price, filled_quantity)
             stored_order.order_type = self.CASH_SETTLED
         else:
-            self.logger.info(f"Unhandled type event {type_event} for {stored_order}")
+            self.logger.warning(f"Unknown trade event type: {type_event}")
 
         current_dt = self.data_source.get_datetime()
         new_row = {

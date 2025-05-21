@@ -323,12 +323,15 @@ Coinbase is a cryptocurrency broker that is easy to set up and operates across a
    * - **Secret**
      - **Description**
      - **Example**
-   * - COINBASE_API_KEY
-     - Your API key for Coinbase. **Required** if you are using Coinbase as your broker.
-     - STeea9fhIsznTMpIHQjUdEqOliTJ0JAvZ
-   * - COINBASE_API_SECRET
-     - Your API secret for Coinbase. **Required** if you are using Coinbase as your broker.
-     - NUzcnprsXjxxOUxRhQE5k2K1XnqLPcKH2XCUTIfkCw==
+   * - COINBASE_API_KEY_NAME
+     - Your API key name/identifier for Coinbase. **Required** if you are using Coinbase as your broker.
+     - organizations/a7df3e75-5gg5-4b0d-805c-e91c02fd63b8/apiKeys/1abb999e-8442-4607-lkc7-423eb8d478e3
+   * - COINBASE_PRIVATE_KEY
+     - Your private key for Coinbase. **Required** if you are using Coinbase as your broker.  
+     - -----BEGIN EC PRIVATE KEY-----\nPLjCAQEEIFOxfolkj7JmTkEUyctOqAq0hQt02SRBy7GnJHGQyb56jToAoGCCqGSM49\nAwEHoUQDQgAEg1VBKEVkqhy+9eHxeao7b7cMsbXXeB/Ggm2sYKEm2Ebrhq67Nobj\n5ze8ddf78UFICjOcooHovd+1oFcZZ+RLQ==\n-----END EC PRIVATE KEY-----\n"
+   * - COINBASE_API_PASSPHRASE
+     - Your API passphrase for Coinbase. **Optional** if you are using Coinbase as your broker.
+     - 123456
    * - COINBASE_IS_SANDBOX
      - **Set to "True"** to use the Coinbase sandbox (paper trading) API, **set to "False"** to use the Coinbase real money trading API. Defaults to False.
      - False
@@ -401,6 +404,28 @@ This is the legacy version of our Interactive Brokers implementation, which uses
    * - IB_SUBACCOUNT
      - Subaccount for Interactive Brokers. **Required** if you are using Interactive Brokers as your broker.
      - Subaccount1
+
+Schwab Configuration
+--------------------
+
+Charles Schwab provides API access for automated trading and market data through its developer platform. To create an account, visit the `Charles Schwab <https://www.schwab.com/>`_ website and follow the instructions to register for a developer account at `developer.schwab.com <https://developer.schwab.com>`_.
+
+.. list-table:: Schwab Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - SCHWAB_API_KEY
+     - Your Schwab API key obtained from the developer dashboard.
+     - your_api_key_here
+   * - SCHWAB_SECRET
+     - Your Schwab API secret obtained from the developer dashboard.
+     - your_api_secret_here
+   * - SCHWAB_ACCOUNT_NUMBER
+     - Your Schwab account number used for trading.
+     - 123456789
 
 General Environment Variables
 =============================

@@ -227,7 +227,7 @@ class Data:
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
         if not df.index.tzinfo:
-            df.index = df.index.tz_localize(DEFAULT_PYTZ)
+            df.index = pd.to_datetime(df.index).tz_localize(DEFAULT_PYTZ)
         elif df.index.tzinfo != DEFAULT_PYTZ:
             df.index = df.index.tz_convert(DEFAULT_PYTZ)
         return df

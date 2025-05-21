@@ -159,8 +159,12 @@ class BacktestingBroker(Broker):
         market_open = self._trading_days.at[market_close_time, 'market_open']
         market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
+        # If we're before the market opens for the found trading day,
+        # count the whole time until that day's market close so the clock
+        # can advance instead of stalling.
         if now < market_open:
-            return None
+            delta = market_close - now
+            return delta.total_seconds()
 
         delta = market_close - now
         return delta.total_seconds()
@@ -171,25 +175,44 @@ class BacktestingBroker(Broker):
         self.process_pending_orders(strategy=strategy)
 
         time_to_open = self.get_time_to_open()
+
+        # Allow the caller to specify a buffer (in minutes) before the actual open
         if timedelta:
             time_to_open -= 60 * timedelta
+
+        # Only advance time if there is something positive to advance;
+        # prevents zero or negative time updates.
+        if time_to_open <= 0:
+            return
+
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):
+        """Wait until market closes or specified time before close"""
         # Process outstanding orders first before waiting for market to close
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
 
         result = self.get_time_to_close()
 
+        # If get_time_to_close returned None (e.g., market already closed or error), do nothing.
         if result is None:
-            time_to_close = 0
-        else:
-            time_to_close = result
+            return
+
+        time_to_close = result
 
         if timedelta is not None:
             time_to_close -= 60 * timedelta
-        self._update_datetime(time_to_close)
+
+        # Only advance time if there is positive time remaining.
+        if time_to_close > 0:
+            self._update_datetime(time_to_close)
+        # If the calculated time is non-positive, but the market was initially open (result > 0),
+        # advance by a minimal amount to prevent potential infinite loops if called repeatedly near close.
+        elif result > 0:  # Only if original result was strictly positive
+            logging.debug("Calculated time to close is non-positive. Advancing time by 1 second.")
+            self._update_datetime(1)
+        # Otherwise (result <= 0 initially), do nothing, market is already closed.
 
     # =========Positions functions==================
     def _pull_broker_position(self, asset):

@@ -3,6 +3,7 @@ import datetime
 import logging
 import traceback
 from asyncio import CancelledError
+import time
 from datetime import timezone
 from decimal import Decimal
 from typing import Union
@@ -243,6 +244,35 @@ class Alpaca(Broker):
         time_to_close = closing_time - curr_time
         return time_to_close
 
+    def _await_market_to_close(self, timedelta=None, strategy=None):
+        """
+        Block execution until the regular-market close (live‑trading version).
+
+        Parameters
+        ----------
+        timedelta : int | None
+            Optional buffer in minutes before the official close to wake up.
+        strategy : Strategy | None
+            The calling strategy; forwarded so pending orders can be processed
+            the same way BacktestingBroker does.
+        """
+        # First, handle any orders waiting to be processed.
+        self.process_pending_orders(strategy=strategy)
+
+        # Seconds until the bell rings
+        time_to_close = self.get_time_to_close()
+
+        # Apply an optional buffer (minutes before close)
+        if timedelta is not None:
+            time_to_close -= 60 * timedelta
+
+        # Nothing to wait for?  Bail out early.
+        if time_to_close <= 0:
+            return
+
+        logger.info(f"Sleeping {time_to_close:.0f} seconds until market close")
+        time.sleep(time_to_close)
+
     # =========Positions functions==================
 
     def _get_balances_at_broker(self, quote_asset, strategy):
@@ -473,6 +503,17 @@ class Alpaca(Broker):
 
         return orders
 
+
+    def _validate_custom_params(self, params):
+        """
+        Validate custom params for submitting to orders
+        """
+        # Define allowlist of acceptable custom parameters, add more as needed
+        ALLOWED_PARAMS = {'extended_hours'}
+        if params:
+            return {k: v for k, v in params.items() if k in ALLOWED_PARAMS}
+        return {}
+
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
         Submit multiple orders to the broker. Supports multi-leg (MLeg) orders for options.
@@ -497,12 +538,12 @@ class Alpaca(Broker):
         Note:
         - Tradier uses "credit" for net credit (receive premium) and "debit" for net debit (pay premium).
         - Alpaca only supports "market" and "limit" for multi-leg orders.
-        - We convert "credit" and "debit" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
+        - We convert "credit", "debit", and "even" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
         - The sign of the limit price (positive/negative) is not used by Alpaca to distinguish credit/debit.
         - Alpaca requires that the leg ratio quantities are relatively prime (GCD == 1).
         """
         # Convert Tradier-specific order types to Alpaca-supported types
-        if order_type in ("credit", "debit"):
+        if order_type in ("credit", "debit", "even"):
             order_type = "limit"
         # All legs must have the same underlying symbol
         symbol = orders[0].asset.symbol
@@ -599,6 +640,7 @@ class Alpaca(Broker):
                 o.set_error(e)
             raise
 
+
     def _submit_order(self, order):
         """Submit an order for an asset (single-leg, including options)"""
 
@@ -678,6 +720,11 @@ class Alpaca(Broker):
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
+
+        # INJECT STRATEGY‑LEVEL CUSTOM_PARAMS
+        if getattr(order, "custom_params", None):
+            validated_params = self._validate_custom_params(order.custom_params)
+            kwargs.update(order.custom_params)
 
         if order.order_class in [Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]:
             child_limit_orders = [child for child in order.child_orders if child.order_type == Order.OrderType.LIMIT]

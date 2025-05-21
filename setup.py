@@ -52,6 +52,7 @@ setuptools.setup(
         "psutil",
         "openai",
         "schwab-py>=1.5.0",
+        "Flask>=2.3",
         "free-proxy"
     ],
     classifiers=[

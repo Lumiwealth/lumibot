@@ -153,6 +153,8 @@ class BitunixData(DataSource):
                 # Expected format from documentation - adjust if needed
                 if "t" in df.columns:  # Timestamp
                     df["ts"] = df["t"]
+                elif "time" in df.columns:  # Also handle 'time' column
+                    df["ts"] = df["time"]
                 if "o" in df.columns:  # Open
                     df["open"] = df["o"]
                 if "h" in df.columns:  # High
@@ -171,7 +173,7 @@ class BitunixData(DataSource):
                 
                 # Set timestamp as index
                 if "ts" in df.columns:
-                    df.index = pd.to_datetime(df["ts"], unit="ms")
+                    df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms")
                     # Convert timezone
                     df.index = df.index.tz_localize(pytz.utc).tz_convert(self._tzinfo)
                 

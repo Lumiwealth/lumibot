@@ -538,12 +538,12 @@ class Alpaca(Broker):
         Note:
         - Tradier uses "credit" for net credit (receive premium) and "debit" for net debit (pay premium).
         - Alpaca only supports "market" and "limit" for multi-leg orders.
-        - We convert "credit" and "debit" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
+        - We convert "credit", "debit", and "even" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
         - The sign of the limit price (positive/negative) is not used by Alpaca to distinguish credit/debit.
         - Alpaca requires that the leg ratio quantities are relatively prime (GCD == 1).
         """
         # Convert Tradier-specific order types to Alpaca-supported types
-        if order_type in ("credit", "debit"):
+        if order_type in ("credit", "debit", "even"):
             order_type = "limit"
         # All legs must have the same underlying symbol
         symbol = orders[0].asset.symbol

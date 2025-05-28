@@ -580,10 +580,17 @@ class BacktestingBroker(Broker):
             profit_loss = 0  # Short position can't gain more than the cash collected
 
         # Add the profit/loss to the cash position
-        new_cash = strategy.get_cash() + profit_loss
+        current_cash = strategy.get_cash()
+        if current_cash is None:
+            # self.strategy.logger.warning("strategy.get_cash() returned None during cash_settle_options_contract. Defaulting to 0.")
+            current_cash = Decimal(0)
+        else:
+            current_cash = Decimal(str(current_cash)) # Ensure it's Decimal
+
+        new_cash = current_cash + Decimal(str(profit_loss))
 
         # Update the cash position
-        strategy._set_cash_position(new_cash)
+        strategy._set_cash_position(float(new_cash)) # _set_cash_position expects float
 
         # Set the side
         if position.quantity > 0:

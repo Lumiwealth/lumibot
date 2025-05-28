@@ -249,7 +249,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
                 cache_file.parent.mkdir(parents=True, exist_ok=True)
                 splits_df.to_feather(splits_file_path)
         else:
-            logging.warn(f"Unexpected response getting splits for {asset.symbol} from Polygon.  Response: {splits}")
+            logging.warning(f"Unexpected response getting splits for {asset.symbol} from Polygon.  Response: {splits}")
     return force_cache_update
 
 

@@ -265,7 +265,9 @@ class TestExampleStrategies:
         """
         # Parameters
         backtesting_start = datetime.datetime(2023, 10, 16)
-        backtesting_end = datetime.datetime(2023, 10, 21)
+        # Extend backtesting_end to allow settlement on the next trading day (Monday, Oct 23rd)
+        # for options expiring on Friday, Oct 20th.
+        backtesting_end = datetime.datetime(2023, 10, 23, 23, 59, 59)
 
         # Execute Backtest
         results, strat_obj = OptionsHoldToExpiry.run_backtest(

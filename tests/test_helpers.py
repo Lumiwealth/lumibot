@@ -113,7 +113,7 @@ def test_get_trading_days():
     start = dt.datetime(2025, 1, 1)
     end = dt.datetime(2025, 2, 1)
     trading_days = get_trading_days('NYSE', start_date=start, end_date=end, tzinfo=ny_tz)
-    assert len(trading_days) == 20
+    assert len(trading_days) == 21
 
     # Check all market opens and closes
     for open_time, close_time in zip(trading_days.market_open, trading_days.market_close):

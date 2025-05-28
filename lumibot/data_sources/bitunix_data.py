@@ -1,5 +1,4 @@
 import time
-from decimal import Decimal
 from typing import Optional, Dict, Any
 
 import pandas as pd
@@ -67,7 +66,7 @@ class BitunixData(DataSource):
             quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
         return asset, quote
 
-    def get_last_price(self, asset: Asset, quote: Asset = Asset("USDT", Asset.AssetType.CRYPTO), **kwargs) -> Optional[Decimal]:
+    def get_last_price(self, asset: Asset, quote: Asset = Asset("USDT", Asset.AssetType.CRYPTO), **kwargs) -> Optional[float]:
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if asset.asset_type == Asset.AssetType.FUTURE:
             symbol = asset.symbol
@@ -79,7 +78,7 @@ class BitunixData(DataSource):
             resp = self.client.get_funding_rate(symbol)
             if resp and resp.get("code") == 0:
                 price_str = resp.get("data", {}).get("markPrice")
-                return Decimal(price_str) if price_str else None
+                return float(price_str) if price_str else None
         except Exception as e:
             print(e)
             return None

@@ -623,6 +623,9 @@ class Tradier(Broker):
         if avg_fill_price == 0.0 and not Order.is_equivalent_status(response["status"], Order.OrderStatus.FILLED):
             avg_fill_price = None
 
+        # Map Tradier order types to Lumi order types
+        lumi_order_type = self._tradier_type2lumi(self._extract_order_value(response, {}, "type"))
+
         # Create the order object
         order = Order(
             identifier=response["id"],
@@ -631,7 +634,7 @@ class Tradier(Broker):
             asset=asset,
             side=self._tradier_side2lumi(side),
             quantity=self._extract_order_value(response, limit_order, "quantity"),
-            order_type=self._extract_order_value(response, {}, "type"),
+            order_type=lumi_order_type,
             time_in_force=self._extract_order_value(response, limit_order, "duration"),
             limit_price=self._extract_order_value(response, limit_order, "price"),
             stop_price=self._extract_order_value(response, stop_order, "stop_price"),
@@ -646,6 +649,16 @@ class Tradier(Broker):
         order.broker_update_date = response["transaction_date"] if "transaction_date" in response else None
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
+
+    @staticmethod
+    def _tradier_type2lumi(order_type):
+        """
+        Map Tradier order types to Lumi order types.
+        Tradier may return 'debit', 'credit', or 'even' for multi-leg orders, which should be treated as 'limit'.
+        """
+        if order_type in ("debit", "credit", "even"):
+            return "limit"
+        return order_type
 
     @staticmethod
     def _extract_order_value(response, child_response, key):

@@ -174,8 +174,8 @@ class Strategy(_Strategy):
 
         By default, equals 1 minute. You can set the sleep time as an integer which will be interpreted as
         minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with
-        the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds
-        eg: ‘"300S"’ is 300 seconds, ‘"10M"’ is 10 minutes.
+        the duration numbers first, followed by the time units: 'M' for minutes, 'S' for seconds
+        eg: '300S' is 300 seconds, '10M' is 10 minutes.
 
         Returns
         -------
@@ -290,6 +290,8 @@ class Strategy(_Strategy):
 
         if type(quantity) is Decimal:
             quantity = float(quantity)
+        elif quantity is None:
+            quantity = 0.0
 
         return quantity
 
@@ -1093,7 +1095,7 @@ class Strategy(_Strategy):
         float
             The current portfolio value, which is the sum of the cash and net equity. This is the total value of your account, which is the amount of money you would have if you sold all your assets and closed all your positions. For crypto assets, this is the total value of your account in the quote asset (eg. USDT if that is your quote asset).
         """
-        return self.portfolio_value
+        return self._portfolio_value
 
     def get_cash(self):
         """Get the current cash value in your account.
@@ -1107,7 +1109,7 @@ class Strategy(_Strategy):
         float
             The current cash value. This is the amount of cash you have in your account, which is the amount of money you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your account (eg. USDT if that is your quote asset).
         """
-        return self.cash
+        return self._cash
 
     def get_positions(self, include_cash_positions: bool = False):
         """Get all positions for the account.
@@ -1750,7 +1752,7 @@ class Strategy(_Strategy):
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
-    def close_position(self, asset):
+    def close_position(self, asset, fraction: float = 1.0):
         """
         Close a single position for the specified asset.
 
@@ -1768,7 +1770,7 @@ class Strategy(_Strategy):
             - If no open position exists, this method does nothing.
         """
         asset_obj = self._sanitize_user_asset(asset)
-        result = self.broker.close_position(self.name, asset_obj)
+        result = self.broker.close_position(self.name, asset_obj, fraction)
         if result is not None:
             return result
 

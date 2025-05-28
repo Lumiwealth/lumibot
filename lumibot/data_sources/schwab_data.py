@@ -6,8 +6,9 @@ import pytz
 from termcolor import colored
 import pandas as pd
 from datetime import date, timedelta
+import os
 
-from lumibot.entities import Asset, Bars, Quote
+from lumibot.entities import Asset, Bars, Quote, Chains
 from lumibot.data_sources import DataSource
 from lumibot.tools import parse_timestep_qty_and_unit, get_trading_days
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
@@ -63,7 +64,6 @@ class SchwabData(DataSource):
         """
         if not all([api_key, secret, account_number]):
             # Try to load from environment variables
-            import os
             api_key = api_key or os.environ.get('SCHWAB_API_KEY')
             secret = secret or os.environ.get('SCHWAB_SECRET')
             account_number = account_number or os.environ.get('SCHWAB_ACCOUNT_NUMBER')
@@ -74,12 +74,17 @@ class SchwabData(DataSource):
         
         try:
             # Import Schwab-specific libraries
-            import os
             from schwab.auth import easy_client
             
-            # Get the current folder for token path
-            current_folder = os.path.dirname(os.path.realpath(__file__))
-            token_path = os.path.join(current_folder, 'token.json')
+            # Store Schwab token in the working directory (or override with SCHWAB_TOKEN_PATH)
+            token_path_value = os.environ.get('SCHWAB_TOKEN_PATH')
+            if token_path_value:
+                token_path = os.path.abspath(os.path.expanduser(token_path_value))
+            else:
+                token_path = os.path.join(os.getcwd(), 'schwab_token.json')
+
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(token_path), exist_ok=True)
             
             # Create Schwab API client
             client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
@@ -253,7 +258,11 @@ class SchwabData(DataSource):
             if not success:
                 logging.error(colored(f"No option data found for {asset.symbol}", "red"))
                 
-            return chains
+            # Wrap into Chains entity for richer interface (backwards-compatible: Chains inherits dict)
+            try:
+                return Chains(chains)
+            except Exception:
+                return chains
             
         except Exception as e:
             logging.error(colored(f"Error getting option chains for {asset.symbol}: {str(e)}", "red"))
@@ -367,7 +376,7 @@ class SchwabData(DataSource):
             
             # Set appropriate frequency_type and frequency based on timestep_unit
             if timestep_unit == "minute":
-                frequency_type = 'minute'
+                frequency_type = self.client.PriceHistory.FrequencyType.MINUTE
                 # Use the closest supported frequency value
                 if timestep_qty in [1, 5, 10, 15, 30]:
                     frequency = timestep_qty
@@ -377,7 +386,7 @@ class SchwabData(DataSource):
                     frequency = min(supported_frequencies, key=lambda x: abs(x - timestep_qty))
                     logging.warning(colored(f"Non-standard minute frequency: {timestep_qty}. Using closest supported frequency: {frequency}", "yellow"))
             elif timestep_unit == "hour":
-                frequency_type = 'minute'
+                frequency_type = self.client.PriceHistory.FrequencyType.MINUTE
                 # For hour, we need to convert to minutes
                 if timestep_qty == 1:
                     frequency = 30  # Use 30-minute candles for 1 hour
@@ -385,28 +394,45 @@ class SchwabData(DataSource):
                     frequency = 30  # Default to 30-minute candles
                     logging.warning(colored(f"Multiple hour timestep: {timestep_qty}. Using 30-minute frequency.", "yellow"))
             elif timestep_unit == "day":
-                frequency_type = 'daily'
-                frequency = 1
+                # daily handled below with helper call
+                frequency_type = None
+                frequency = None
             elif timestep_unit == "week":
-                frequency_type = 'weekly'
+                frequency_type = self.client.PriceHistory.FrequencyType.WEEKLY
                 frequency = 1
             elif timestep_unit == "month":
-                frequency_type = 'monthly'
+                frequency_type = self.client.PriceHistory.FrequencyType.MONTHLY
                 frequency = 1
             else:
                 logging.warning(colored(f"Unknown timestep unit: {timestep_unit}. Using 'daily' as default.", "yellow"))
-                frequency_type = 'daily'
+                frequency_type = self.client.PriceHistory.FrequencyType.DAILY
                 frequency = 1
             
             # Get price history using the simplified API function
-            response = self.client.get_price_history(
-                symbol=asset.symbol,
-                frequency_type=frequency_type,
-                frequency=frequency,
-                start_datetime=start_date,
-                end_datetime=end_date,
-                need_extended_hours_data=include_after_hours
-            )
+            if timestep_unit == "day":
+                response = self.client.get_price_history_every_day(
+                    asset.symbol,
+                    start_datetime=start_date,
+                    end_datetime=end_date,
+                    need_extended_hours_data=include_after_hours,
+                )
+            else:
+                # Convert raw frequency integer to Enum if required
+                freq_enum = frequency
+                try:
+                    if isinstance(frequency, int):
+                        freq_enum = self.client.PriceHistory.Frequency(frequency)
+                except Exception:
+                    pass
+
+                response = self.client.get_price_history(
+                    symbol=asset.symbol,
+                    frequency_type=frequency_type,
+                    frequency=freq_enum,
+                    start_datetime=start_date,
+                    end_datetime=end_date,
+                    need_extended_hours_data=include_after_hours
+                )
             
             # Check if the response is a Response object and handle accordingly
             if hasattr(response, 'status_code'):

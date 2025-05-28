@@ -2,10 +2,12 @@ import logging
 import os
 import pickle
 import time
+import random
 from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
+from fp.fp import FreeProxy
 
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
@@ -50,6 +52,8 @@ class YahooHelper:
     # =========Internal initialization parameters and methods============
 
     CACHING_ENABLED = False
+    # Temporarily disable FreeProxy by setting this to False
+    YAHOO_FREE_PROXY_ENABLED = False  # os.environ.get("YAHOO_FREE_PROXY_ENABLED", "True") == "True"
     LUMIBOT_YAHOO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, "yahoo")
 
     if not os.path.exists(LUMIBOT_YAHOO_CACHE_FOLDER):
@@ -60,6 +64,18 @@ class YahooHelper:
             pass
     else:
         CACHING_ENABLED = True
+
+    @staticmethod
+    def sleep_and_get_proxy():
+        """
+        This sleeps and optionally returns a proxy if PROXY_ENABLED is True, otherwise returns None.
+        The most important thing this does is sleep. This prevents rate limiting by yahoo.
+        """
+        time.sleep(random.uniform(2, 5))
+
+        if YahooHelper.YAHOO_FREE_PROXY_ENABLED:
+            return FreeProxy(timeout=5).get()
+        return None
 
     # ====================Caching methods=================================
 
@@ -96,7 +112,7 @@ class YahooHelper:
         # Check if df is empty
         if df is None or df.empty:
             return df
-        
+
         if auto_adjust:
             del df["Close"]
             del df["Open"]
@@ -140,6 +156,9 @@ class YahooHelper:
 
     @staticmethod
     def download_symbol_info(symbol):
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
         ticker = yf.Ticker(symbol)
 
         try:
@@ -163,11 +182,17 @@ class YahooHelper:
 
     @staticmethod
     def get_symbol_info(symbol):
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
         ticker = yf.Ticker(symbol)
         return ticker.info
 
     @staticmethod
     def get_symbol_last_price(symbol):
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
         ticker = yf.Ticker(symbol)
 
         # Get the last price from the history
@@ -200,6 +225,9 @@ class YahooHelper:
 
         for attempt in range(1, max_retries + 1):
             try:
+                proxy = YahooHelper.sleep_and_get_proxy()
+                if proxy:
+                    yf.set_config(proxy=proxy)
                 if interval == "1m":
                     df = ticker.history(
                         interval=interval,
@@ -286,12 +314,15 @@ class YahooHelper:
             return {symbols[0]: item}
 
         result = {}
+        proxy = YahooHelper.sleep_and_get_proxy()
+        if proxy:
+            yf.set_config(proxy=proxy)
         tickers = yf.Tickers(" ".join(symbols))
         df_yf = tickers.history(
             period="max",
             group_by="ticker",
             auto_adjust=False,
-            progress=False,
+            progress=False
         )
 
         for i in df_yf.columns.levels[0]:

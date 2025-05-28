@@ -7,3 +7,4 @@ from .order import Order
 from .position import Position
 from .trading_fee import TradingFee
 from .quote import Quote
+from .chains import Chains

@@ -45,6 +45,10 @@ jobs:
       POLYGON_IS_PAID_SUBSCRIPTION: $POLYGON_IS_PAID_SUBSCRIPTION
       THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
       THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+      ALPACA_TEST_API_KEY: ${{secrets.ALPACA_TEST_API_KEY}} # Required for alpaca unit tests
+      ALPACA_TEST_API_SECRET: ${{secrets.ALPACA_TEST_API_SECRET}} # Required for alpaca unit tests
+      TRADIER_TEST_ACCESS_TOKEN: ${{secrets.TRADIER_TEST_ACCESS_TOKEN}} # Required for tradier unit tests
+      TRADIER_TEST_ACCOUNT_NUMBER: ${{secrets.TRADIER_TEST_ACCOUNT_NUMBER}} # Required for tradier unit tests
 
     steps:
       # ------------------------------------------------------------
@@ -110,10 +114,24 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git fetch origin badge:badge || git checkout --orphan badge
-          git checkout badge || git checkout --orphan badge
-          cp coverage.svg .
+          # Save the coverage.svg file temporarily
+          mv coverage.svg coverage.svg.tmp
+          # Try to fetch the badge branch, create it if it doesn't exist
+          git fetch origin badge || echo "Badge branch doesn't exist yet"
+          # Check if badge branch exists locally
+          if git show-ref --verify --quiet refs/heads/badge; then
+            git checkout badge
+            # Pull latest changes to avoid non-fast-forward rejection
+            git pull origin badge --no-rebase || echo "Could not pull from badge branch, it might be new"
+          else
+            # Create a new orphan branch if it doesn't exist
+            git checkout --orphan badge
+            git rm -rf .
+          fi
+          # Restore the coverage.svg file
+          mv coverage.svg.tmp coverage.svg
           git add coverage.svg
           git commit -m "ci: update coverage badge" || echo "No changes to commit"
-          git push origin badge:badge
+          # Force push with lease to handle potential conflicts while still being safe
+          git push --force-with-lease origin badge
           git checkout $GITHUB_REF_NAME

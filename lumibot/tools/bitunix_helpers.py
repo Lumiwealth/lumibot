@@ -162,6 +162,8 @@ class BitUnixClient:
         side: str,
         orderType: str,
         qty: float,
+        take_profit_price: Optional[float] = None,
+        stop_loss_price: Optional[float] = None,
         price: Optional[float] = None,
         clientId: Optional[str] = None,
         tradeSide: str = "OPEN",
@@ -172,6 +174,8 @@ class BitUnixClient:
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {"orderId": str, ... }}``
+            - If **reduceOnly** is True, Bitunix will reject the order if it would increase position size.
+        Optionally include take_profit_price and/or stop_loss_price to attach TP/SL triggers in the same request.
         """
         body = {
             "symbol":    symbol,
@@ -181,6 +185,8 @@ class BitUnixClient:
             "qty":       qty,
             **({"price": price}      if price is not None else {}),
             **({"clientId": clientId} if clientId is not None else {}),
+            **({"tpPrice": take_profit_price} if take_profit_price is not None else {}),
+            **({"slPrice": stop_loss_price} if stop_loss_price is not None else {}),
             **kwargs,
         }
         return self._request(

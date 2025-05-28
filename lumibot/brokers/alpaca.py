@@ -503,6 +503,17 @@ class Alpaca(Broker):
 
         return orders
 
+
+    def _validate_custom_params(self, params):
+        """
+        Validate custom params for submitting to orders
+        """
+        # Define allowlist of acceptable custom parameters, add more as needed
+        ALLOWED_PARAMS = {'extended_hours'}
+        if params:
+            return {k: v for k, v in params.items() if k in ALLOWED_PARAMS}
+        return {}
+
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
         Submit multiple orders to the broker. Supports multi-leg (MLeg) orders for options.
@@ -527,12 +538,12 @@ class Alpaca(Broker):
         Note:
         - Tradier uses "credit" for net credit (receive premium) and "debit" for net debit (pay premium).
         - Alpaca only supports "market" and "limit" for multi-leg orders.
-        - We convert "credit" and "debit" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
+        - We convert "credit", "debit", and "even" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
         - The sign of the limit price (positive/negative) is not used by Alpaca to distinguish credit/debit.
         - Alpaca requires that the leg ratio quantities are relatively prime (GCD == 1).
         """
         # Convert Tradier-specific order types to Alpaca-supported types
-        if order_type in ("credit", "debit"):
+        if order_type in ("credit", "debit", "even"):
             order_type = "limit"
         # All legs must have the same underlying symbol
         symbol = orders[0].asset.symbol
@@ -629,6 +640,7 @@ class Alpaca(Broker):
                 o.set_error(e)
             raise
 
+
     def _submit_order(self, order):
         """Submit an order for an asset (single-leg, including options)"""
 
@@ -708,6 +720,11 @@ class Alpaca(Broker):
         }
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
+
+        # INJECT STRATEGY‑LEVEL CUSTOM_PARAMS
+        if getattr(order, "custom_params", None):
+            validated_params = self._validate_custom_params(order.custom_params)
+            kwargs.update(order.custom_params)
 
         if order.order_class in [Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]:
             child_limit_orders = [child for child in order.child_orders if child.order_type == Order.OrderType.LIMIT]

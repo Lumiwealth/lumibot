@@ -207,11 +207,13 @@ class VixHelper:
         vix_values = self.get_vix_values(dt, window, use_open=use_open)
 
         # Check if vix_values is not None
-        if vix_values is None:
+        if vix_values is None or len(vix_values) == 0:
             return None
 
         # Get the current VIX value
         vix = self.get_vix_value(dt, use_open=use_open)
+        if vix is None:
+            return None
 
         # Get the VIX percentile value
         vix_percentile = stats.percentileofscore(vix_values, vix)
@@ -245,13 +247,14 @@ class VixHelper:
         vix = self.get_vix_value(dt, use_open=use_open)
 
         # Plot the VIX value
-        self.strategy.add_line("vix", vix)
-
-        # Add a marker to the chart
-        self.strategy.add_marker("vix", symbol="square", color="blue", detail_text=f"VIX: {vix}", value=vix)
+        if vix is not None:
+            self.strategy.add_line("vix", vix)
+            self.strategy.add_marker("vix", symbol="square", color="blue", detail_text=f"VIX: {vix}", value=vix)
 
         # Check if the VIX is greater than the maximum VIX
-        if max_vix is not None and vix > max_vix:
+        if vix is None or max_vix is None:
+            return False
+        if vix > max_vix:
             # Log message that the VIX is too high
             self.strategy.log_message(
                 f"VIX is too high: {vix} which is greater than the max of {max_vix}",
@@ -294,8 +297,10 @@ class VixHelper:
         # Get the VIX value
         vix = self.get_vix_value(dt, use_open=use_open)
 
-        # Check if the VIX is greater than the minimum VIX
-        if min_vix is not None and vix < min_vix:
+        if vix is None or min_vix is None:
+            return False
+
+        if vix < min_vix:
             # Log message that the VIX is too low
             self.strategy.log_message(
                 f"VIX is too low: {vix} which is less than the min of {min_vix}",
@@ -396,7 +401,7 @@ class VixHelper:
         vix_values = self.get_vix_values(dt, download_window, use_open=use_open)
 
         # Check if vix_values is not None
-        if vix_values is None:
+        if vix_values is None or len(vix_values) == 0:
             return None
         
         # Convert the list to a pandas DataFrame
@@ -430,15 +435,15 @@ class VixHelper:
         """
         # Check if the window is None
         if window is None:
-            return [1000] * 1000
+            return None
 
         # Check if the current date is None
         if dt is None:
-            return [1000] * window
+            return None
         
         # If the current date is None, then return a super high value so it doesn't trigger trades
         if dt is None:
-            return [1000] * window
+            return None
 
         try:
             # Get the actual dt for the current date to speed this up for backtesting
@@ -501,90 +506,89 @@ class VixHelper:
 
         except Exception as e:
             self.strategy.log_message(f"ERROR: Failed to fetch live VIX values: {e}", color="red", broadcast=True)
-            return [1000] * window
+            return None
     
     def get_vix_value(self, current_dt=None, use_open=False):
-            """
-            Get the VIX value for the current date.
+        """
+        Get the VIX value for the current date.
 
-            Parameters
-            ----------
-            current_dt : datetime.datetime
-                The current datetime to get the VIX value.
-            use_open : bool
-                Whether to use the open price of the VIX.
+        Parameters
+        ----------
+        current_dt : datetime.datetime
+            The current datetime to get the VIX value.
+        use_open : bool
+            Whether to use the open price of the VIX.
 
-            Returns
-            -------
-            float
-                The VIX value for the current date.
-            """
+        Returns
+        -------
+        float
+            The VIX value for the current date.
+        """
 
-            # If the current date is None, then return a super high value so it doesn't trigger trades
-            if current_dt is None:
-                return 1000
+        # If the current date is None, then return a super high value so it doesn't trigger trades
+        if current_dt is None:
+            return None
 
-            try:
-                # Get the actual dt for the current date to speed this up for backtesting
-                actual_dt = datetime.datetime.now()
+        try:
+            # Get the actual dt for the current date to speed this up for backtesting
+            actual_dt = datetime.datetime.now()
 
-                # Subtract one day to get the previous day's date
-                previous_dt = current_dt - timedelta(days=1)
+            # Subtract one day to get the previous day's date
+            previous_dt = current_dt - timedelta(days=1)
 
-                # Get today as a Timestamp
-                today_date = pd.Timestamp(current_dt)
+            # Get today as a Timestamp
+            today_date = pd.Timestamp(current_dt)
 
-                # Get previous date as a Timestamp
-                previous_date = pd.Timestamp(previous_dt)
+            # Get previous date as a Timestamp
+            previous_date = pd.Timestamp(previous_dt)
 
-                # Check if the historical VIX data is up to date
-                if self.last_historical_vix_update is not None and self.last_historical_vix_update.date() == actual_dt.date():
-                    # If we are using the open price, then return the open price for today
-                    if use_open:
-                        # Get the row closest to today
-                        nearest_date = self.historical_vix.index.asof(today_date)
-                        vix_val = self.historical_vix.loc[nearest_date]['Open']
-                        return vix_val
-                    else:
-                        # Get the row closest to the previous date
-                        nearest_date = self.historical_vix.index.asof(previous_date)
-                        vix_val = self.historical_vix.loc[nearest_date]['Close']
-                        return vix_val
-                
-                vix = yf.Ticker("^VIX")
-                self.historical_vix = vix.history(period="max")
-
-                # Set the Date column as the index
-                self.historical_vix.index = pd.to_datetime(self.historical_vix.index)
-
-                # Set the last historical VIX date as the current date
-                self.last_historical_vix_update = actual_dt
-
+            # Check if the historical VIX data is up to date
+            if self.last_historical_vix_update is not None and self.last_historical_vix_update.date() == actual_dt.date():
                 # If we are using the open price, then return the open price for today
                 if use_open:
                     # Get the row closest to today
                     nearest_date = self.historical_vix.index.asof(today_date)
                     vix_val = self.historical_vix.loc[nearest_date]['Open']
-                
+                    return vix_val
                 else:
                     # Get the row closest to the previous date
                     nearest_date = self.historical_vix.index.asof(previous_date)
                     vix_val = self.historical_vix.loc[nearest_date]['Close']
-
-                # Add a marker to the chart to show the VIX value
-                self.strategy.add_marker(
-                    "vix_value",
-                    value=vix_val,
-                    symbol="square",
-                    color="blue",
-                )
-
-                return vix_val
+                    return vix_val
             
-            except Exception as e:
-                self.strategy.log_message(f"ERROR: Failed to fetch live VIX value: {e}", color="red", broadcast=True)
-                return 1000  # Default to a high value so it doesn't trigger trades
-            
+            vix = yf.Ticker("^VIX")
+            self.historical_vix = vix.history(period="max")
+
+            # Set the Date column as the index
+            self.historical_vix.index = pd.to_datetime(self.historical_vix.index)
+
+            # Set the last historical VIX date as the current date
+            self.last_historical_vix_update = actual_dt
+
+            # If we are using the open price, then return the open price for today
+            if use_open:
+                # Get the row closest to today
+                nearest_date = self.historical_vix.index.asof(today_date)
+                vix_val = self.historical_vix.loc[nearest_date]['Open']
+            else:
+                # Get the row closest to the previous date
+                nearest_date = self.historical_vix.index.asof(previous_date)
+                vix_val = self.historical_vix.loc[nearest_date]['Close']
+
+            # Add a marker to the chart to show the VIX value
+            self.strategy.add_marker(
+                "vix_value",
+                value=vix_val,
+                symbol="square",
+                color="blue",
+            )
+
+            return vix_val
+        
+        except Exception as e:
+            self.strategy.log_message(f"ERROR: Failed to fetch live VIX value: {e}", color="red", broadcast=True)
+            return None  # Return None if unable to fetch
+    
     def get_vix_1d_value(self, current_dt=None, use_open=False):
         """
         Get the VIX 1D value for the current date.
@@ -794,13 +798,14 @@ class VixHelper:
         gvz = self.get_gvz_value(dt, use_open=use_open)
 
         # Plot the GVZ value
-        self.strategy.add_line("gvz", gvz)
-
-        # Add a marker to the chart
-        self.strategy.add_marker("gvz", symbol="square", color="blue", detail_text=f"GVZ: {gvz}", value=gvz)
+        if gvz is not None:
+            self.strategy.add_line("gvz", gvz)
+            self.strategy.add_marker("gvz", symbol="square", color="blue", detail_text=f"GVZ: {gvz}", value=gvz)
 
         # Check if the GVZ is greater than the maximum GVZ
-        if max_gvz is not None and gvz > max_gvz:
+        if gvz is None or max_gvz is None:
+            return False
+        if gvz > max_gvz:
             # Log message that the GVZ is too high
             self.strategy.log_message(
                 f"GVZ is too high: {gvz} which is greater than the max of {max_gvz}",
@@ -843,8 +848,9 @@ class VixHelper:
         # Get the GVZ value
         gvz = self.get_gvz_value(dt, use_open=use_open)
 
-        # Check if the GVZ is greater than the minimum GVZ
-        if min_gvz is not None and gvz < min_gvz:
+        if gvz is None or min_gvz is None:
+            return False
+        if gvz < min_gvz:
             # Log message that the GVZ is too low
             self.strategy.log_message(
                 f"GVZ is too low: {gvz} which is less than the min of {min_gvz}",
@@ -941,12 +947,12 @@ class VixHelper:
         # Get the GVZ values for the window
         gvz_values = self.get_gvz_values(dt, window, use_open=use_open)
 
-        # Check if gvz_values is not None
-        if gvz_values is None:
+        if gvz_values is None or len(gvz_values) == 0:
             return None
 
-        # Get the current GVZ value
         gvz = self.get_gvz_value(dt, use_open=use_open)
+        if gvz is None:
+            return None
 
         # Get the GVZ percentile value
         gvz_percentile = stats.percentileofscore(gvz_values, gvz)
@@ -978,15 +984,14 @@ class VixHelper:
         """
         # Check if the window is None
         if window is None:
-            return [1000] * 1000
+            return None
 
         # Check if the current date is None
         if dt is None:
-            return [1000] * window
+            return None
         
-        # If the current date is None, then return a super high value so it doesn't trigger trades
         if dt is None:
-            return [1000] * window
+            return None
 
         try:
             # Get the actual dt for the current date to speed this up for backtesting
@@ -1049,57 +1054,7 @@ class VixHelper:
 
         except Exception as e:
             self.strategy.log_message(f"ERROR: Failed to fetch live GVZ values: {e}", color="red", broadcast=True)
-            return [1000] * window
-
-    def check_max_gvz_rsi(self, dt, max_gvz_rsi, rsi_window=14, use_open=False):
-        """
-        Check if the GVZ RSI is too high. If it is, log a message, add a marker to the chart, and return True.
-
-        Parameters
-        ----------
-        dt : datetime.datetime
-            The datetime to check the GVZ RSI value.
-        max_gvz_rsi : float
-            The maximum GVZ RSI value to create a condor.
-        rsi_window : int
-            The window (in days) to calculate the GVZ RSI.
-        use_open : bool
-            Whether to use the open price of the GVZ RSI value.
-
-        Returns
-        -------
-        bool
-            True if the GVZ RSI is too high, False otherwise.
-        """
-        # If max GVZ RSI is None, then return False
-        if max_gvz_rsi is None:
-            return False
-
-        # Get the GVZ RSI value
-        gvz_rsi = self.get_gvz_rsi_value(dt, rsi_window, use_open=use_open)
-
-        if gvz_rsi is None:
-            return False
-
-        # Plot the GVZ RSI value
-        self.strategy.add_line("gvz_rsi", gvz_rsi)
-
-        # Check if the GVZ RSI is greater than the maximum GVZ RSI
-        if max_gvz_rsi is not None and gvz_rsi > max_gvz_rsi:
-            # Log message that the GVZ RSI is too high
-            self.strategy.log_message(
-                f"GVZ RSI is too high: {gvz_rsi} which is greater than the max of {max_gvz_rsi}",
-                color="yellow", broadcast=True
-            )
-
-            # Add a marker to the chart
-            self.strategy.add_marker(
-                "gvz_rsi_too_high", symbol="circle", color="blue", detail_text=f"GVZ RSI too high: {gvz_rsi}"
-            )
-
-            return True
-        
-        return False
+            return None
 
     def get_gvz_rsi_value(self, dt, window=14, use_open=False):
         """
@@ -1129,8 +1084,7 @@ class VixHelper:
         # Get the GVZ values for the window
         gvz_values = self.get_gvz_values(dt, download_window, use_open=use_open)
 
-        # Check if gvz_values is not None
-        if gvz_values is None:
+        if gvz_values is None or len(gvz_values) == 0:
             return None
         
         # Convert the list to a pandas DataFrame
@@ -1143,3 +1097,612 @@ class VixHelper:
         gvz_rsi = gvz_df['RSI'].iloc[-1]
 
         return gvz_rsi
+    
+    def check_max_vix_1d(self, dt, max_vix_1d, use_open=False):
+        """
+        Check if the VIX 1D is too high. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the VIX 1D value.
+        max_vix_1d : float
+            The maximum VIX 1D value to create a condor.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX
+
+        Returns
+        -------
+        bool
+            True if the VIX 1D is too high, False otherwise.
+        """
+        # Get the VIX 1D value
+        vix_1d = self.get_vix_1d_value(dt, use_open=use_open)
+
+        # Plot the VIX 1D value
+        self.strategy.add_line("vix_1d", vix_1d)
+
+        # Check if the VIX 1D is greater than the maximum VIX 1D
+        if max_vix_1d is not None and vix_1d > max_vix_1d:
+            # Log message that the VIX 1D is too high
+            self.strategy.log_message(
+                f"VIX 1D is too high: {vix_1d} which is greater than the max of {max_vix_1d}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "vix_1d_too_high", symbol="circle", color="blue", detail_text=f"VIX 1D too high: {vix_1d}"
+            )
+
+            return True
+        
+        # Log message that the VIX 1D is within the limits
+        self.strategy.log_message(
+            f"VIX 1D is within the limits: {vix_1d} which is less than the max of {max_vix_1d}",
+            color="green", broadcast=True
+        )
+
+        return False
+    
+    def check_min_vix_1d(self, dt, min_vix_1d, use_open=False):
+        """
+        Check if the VIX 1D is too low. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the VIX 1D value.
+        min_vix_1d : float
+            The minimum VIX 1D value to create a condor.
+
+        Returns
+        -------
+        bool
+            True if the VIX 1D is too low, False otherwise.
+        """
+        # Get the VIX 1D value
+        vix_1d = self.get_vix_1d_value(dt, use_open=use_open)
+
+        # Check if the VIX 1D is greater than the minimum VIX 1D
+        if min_vix_1d is not None and vix_1d < min_vix_1d:
+            # Log message that the VIX 1D is too low
+            self.strategy.log_message(
+                f"VIX 1D is too low: {vix_1d} which is less than the min of {min_vix_1d}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "vix_1d_too_low", symbol="circle", color="blue", detail_text=f"VIX 1D too low: {vix_1d}"
+            )
+
+            return True
+        
+        return False
+    
+    def check_max_vix_percentile(self, dt, max_vix_percentile, vix_percentile_window, use_open=False):
+        """
+        Check if the VIX is too high based on the percentile. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the VIX value.
+        max_vix_percentile : float
+            The maximum VIX percentile value to create a condor.
+        vix_percentile_window : int
+            The window (in days) to calculate the VIX percentile.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX value.
+
+        Returns
+        -------
+        bool
+            True if the VIX is too high based on the percentile, False otherwise.
+        """
+        # Check if the max VIX percentile is not None
+        if max_vix_percentile is None:
+            return False
+        
+        # Check if the VIX percentile window is not None
+        if vix_percentile_window is None:
+            return False
+
+        # Get the VIX percentile value
+        vix_percentile = self.get_vix_percentile(dt, vix_percentile_window, use_open=use_open)
+
+        # Check if the VIX percentile is not None
+        if vix_percentile is None:
+            return False
+
+        # Check if the VIX is greater than the maximum VIX percentile
+        if max_vix_percentile is not None and vix_percentile > max_vix_percentile:
+            # Log message that the VIX is too high based on the percentile
+            self.strategy.log_message(
+                f"VIX is too high based on the percentile: {vix_percentile} which is greater than the max of {max_vix_percentile}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "vix_percentile_too_high", symbol="circle", color="blue", detail_text=f"VIX too high based on the percentile: {vix_percentile}"
+            )
+
+            return True
+        
+        # Log message that the VIX is within the limits based on the percentile
+        self.strategy.log_message(
+            f"VIX is within the limits based on the percentile: {vix_percentile} which is less than the max of {max_vix_percentile}",
+            color="green", broadcast=True
+        )
+        
+        return False
+    
+    def get_vix_percentile(self, dt, window, use_open=False):
+        """
+        Get the VIX percentile value for the given window.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the VIX percentile value.
+        window : int
+            The window (in days) to calculate the VIX percentile.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX
+
+        Returns
+        -------
+        float
+            The VIX percentile value.
+        """
+        # Check if dt is not None
+        if dt is None:
+            return None
+        
+        # Check if window is not None
+        if window is None:
+            return None
+
+        # Get the VIX values for the window
+        vix_values = self.get_vix_values(dt, window, use_open=use_open)
+
+        # Check if vix_values is not None
+        if vix_values is None or len(vix_values) == 0:
+            return None
+
+        # Get the current VIX value
+        vix = self.get_vix_value(dt, use_open=use_open)
+        if vix is None:
+            return None
+
+        # Get the VIX percentile value
+        vix_percentile = stats.percentileofscore(vix_values, vix)
+
+        # Add a marker to the chart
+        self.strategy.add_marker(
+            "vix_percentile", symbol="square", color="blue", value=vix_percentile, detail_text=f"VIX percentile: {vix_percentile}"
+        )
+
+        return vix_percentile
+
+    def check_max_vix(self, dt, max_vix, use_open=False):
+        """
+        Check if the VIX is too high. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the VIX value.
+        max_vix : float
+            The maximum VIX value to create a condor.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX value.
+
+        Returns
+        -------
+        bool
+            True if the VIX is too high, False otherwise.
+        """
+        # Get the VIX value
+        vix = self.get_vix_value(dt, use_open=use_open)
+
+        # Plot the VIX value
+        if vix is not None:
+            self.strategy.add_line("vix", vix)
+            self.strategy.add_marker("vix", symbol="square", color="blue", detail_text=f"VIX: {vix}", value=vix)
+
+        # Check if the VIX is greater than the maximum VIX
+        if vix is None or max_vix is None:
+            return False
+        if vix > max_vix:
+            # Log message that the VIX is too high
+            self.strategy.log_message(
+                f"VIX is too high: {vix} which is greater than the max of {max_vix}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "vix_too_high", symbol="circle", color="blue", detail_text=f"VIX too high: {vix}"
+            )
+
+            return True
+        
+        # Log message that the VIX is within the limits
+        self.strategy.log_message(
+            f"VIX is within the limits: {vix} which is less than the max of {max_vix}",
+            color="green", broadcast=True
+        )
+        
+        return False
+    
+    def check_min_vix(self, dt, min_vix, use_open=False):
+        """
+        Check if the VIX is too low. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the VIX value.
+        min_vix : float
+            The minimum VIX value to create a condor.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX value.
+
+        Returns
+        -------
+        bool
+            True if the VIX is too low, False otherwise.
+        """
+        # Get the VIX value
+        vix = self.get_vix_value(dt, use_open=use_open)
+
+        if vix is None or min_vix is None:
+            return False
+
+        if vix < min_vix:
+            # Log message that the VIX is too low
+            self.strategy.log_message(
+                f"VIX is too low: {vix} which is less than the min of {min_vix}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "vix_too_low", symbol="circle", color="blue", detail_text=f"VIX too low: {vix}"
+            )
+
+            return True
+        
+        return False
+    
+    def check_max_vix_rsi(self, dt, max_vix_rsi, rsi_window=14, use_open=False):
+        """
+        Check if the VIX RSI is too high. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the VIX RSI value.
+        max_vix_rsi : float
+            The maximum VIX RSI value to create a condor.
+        rsi_window : int
+            The window (in days) to calculate the VIX RSI.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX RSI value.
+
+        Returns
+        -------
+        bool
+            True if the VIX RSI is too high, False otherwise.
+        """
+        # If max VIX RSI is None, then return False
+        if max_vix_rsi is None:
+            return False
+
+        # Get the VIX RSI value
+        vix_rsi = self.get_vix_rsi_value(dt, rsi_window, use_open=use_open)
+
+        if vix_rsi is None:
+            return False
+
+        # Plot the VIX RSI value
+        self.strategy.add_line("vix_rsi", vix_rsi)
+
+        # Check if the VIX RSI is greater than the maximum VIX RSI
+        if max_vix_rsi is not None and vix_rsi > max_vix_rsi:
+            # Log message that the VIX RSI is too high
+            self.strategy.log_message(
+                f"VIX RSI is too high: {vix_rsi} which is greater than the max of {max_vix_rsi}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "vix_rsi_too_high", symbol="circle", color="blue", detail_text=f"VIX RSI too high: {vix_rsi}"
+            )
+
+            return True
+        
+        # Log message that the VIX RSI is within the limits
+        self.strategy.log_message(
+            f"VIX RSI is within the limits: {vix_rsi} which is less than the max of {max_vix_rsi}",
+            color="green", broadcast=True
+        )
+        
+        return False
+    
+    def get_vix_rsi_value(self, dt, window=14, use_open=False):
+        """
+        Get the VIX RSI value for the given datetime.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the VIX RSI value.
+        window : int
+            The window (in days) to calculate the VIX RSI.
+        use_open : bool
+            Whether to use the open price of the underlying asset to get the VIX RSI value.
+
+        Returns
+        -------
+        float
+            The VIX RSI value.
+        """
+        # Check if dt is not None
+        if dt is None:
+            return None
+        
+        # Data window. Get a 60% larger window for the VIX RSI calculation because of weekends and holidays
+        download_window = int(window * 1.6)
+
+        # Get the VIX values for the window
+        vix_values = self.get_vix_values(dt, download_window, use_open=use_open)
+
+        # Check if vix_values is not None
+        if vix_values is None or len(vix_values) == 0:
+            return None
+        
+        # Convert the list to a pandas DataFrame
+        vix_df = pd.DataFrame(vix_values, columns=['VIX'])
+
+        # Calculate the RSI
+        vix_df['RSI'] = ta.rsi(vix_df['VIX'], length=window)
+
+        # Get the last VIX RSI value
+        vix_rsi = vix_df['RSI'].iloc[-1]
+
+        return vix_rsi
+    
+    def get_gvz_value(self, current_dt=None, use_open=False):
+        """
+        Get the GVZ value for the current date.
+
+        Parameters
+        ----------
+        current_dt : datetime.datetime
+            The current datetime to get the GVZ value.
+        use_open : bool
+            Whether to use the open price of the GVZ.
+
+        Returns
+        -------
+        float
+            The GVZ value for the current date.
+        """
+
+        # If the current date is None, then return a super high value so it doesn't trigger trades
+        if current_dt is None:
+            return 1000
+
+        try:
+            # Get the actual dt for the current date to speed this up for backtesting
+            actual_dt = datetime.datetime.now()
+
+            # Subtract one day to get the previous day's date
+            previous_dt = current_dt - timedelta(days=1)
+
+            # Get today as a Timestamp
+            today_date = pd.Timestamp(current_dt)
+
+            # Get previous date as a Timestamp
+            previous_date = pd.Timestamp(previous_dt)
+
+            # --- FIX: Normalize tz-awareness for index and lookup datetimes ---
+            if hasattr(self, 'historical_gvz'):
+                idx = self.historical_gvz.index
+                if idx.tz is not None and today_date.tzinfo is None:
+                    today_date = today_date.tz_localize(idx.tz)
+                    previous_date = previous_date.tz_localize(idx.tz)
+                elif idx.tz is None and today_date.tzinfo is not None:
+                    today_date = today_date.tz_localize(None)
+                    previous_date = previous_date.tz_localize(None)
+            # --- END FIX ---
+
+            # Check if the historical GVZ data is up to date
+            if self.last_historical_gvz_update is not None and self.last_historical_gvz_update.date() == actual_dt.date():
+                # If we are using the open price, then return the open price for today
+                if use_open:
+                    # Get the row closest to today
+                    nearest_date = self.historical_gvz.index.asof(today_date)
+                    gvz_val = self.historical_gvz.loc[nearest_date]['Open']
+                    return gvz_val
+                else:
+                    # Get the row closest to the previous date
+                    nearest_date = self.historical_gvz.index.asof(previous_date)
+                    gvz_val = self.historical_gvz.loc[nearest_date]['Close']
+                    return gvz_val
+            
+            gvz = yf.Ticker("^GVZ")
+            self.historical_gvz = gvz.history(period="max")
+
+            # Set the Date column as the index
+            self.historical_gvz.index = pd.to_datetime(self.historical_gvz.index)
+
+            # Set the last historical GVZ date as the current date
+            self.last_historical_gvz_update = actual_dt
+
+            # If we are using the open price, then return the open price for today
+            if use_open:
+                # Get the row closest to today
+                nearest_date = self.historical_gvz.index.asof(today_date)
+                gvz_val = self.historical_gvz.loc[nearest_date]['Open']
+            else:
+                # Get the row closest to the previous date
+                nearest_date = self.historical_gvz.index.asof(previous_date)
+                gvz_val = self.historical_gvz.loc[nearest_date]['Close']
+
+            # Add a marker to the chart to show the GVZ value
+            self.strategy.add_marker(
+                "gvz_value",
+                value=gvz_val,
+                symbol="square",
+                color="blue",
+            )
+
+            return gvz_val
+
+        except Exception as e:
+            # Get the traceback
+            self.strategy.log_message(f"ERROR: Failed to fetch live GVZ value: {e}", color="red", broadcast=True)
+            traceback.print_exc()
+            return 1000
+
+    def get_gvz_percentile(self, dt, window, use_open=False):
+        """
+        Get the GVZ percentile value for the given window.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to get the GVZ percentile value.
+        window : int
+            The window (in days) to calculate the GVZ percentile.
+        use_open : bool
+            Whether to use the open price of the GVZ
+
+        Returns
+        -------
+        float
+            The GVZ percentile value.
+        """
+        # Check if dt is not None
+        if dt is None:
+            return None
+        
+        # Check if window is not None
+        if window is None:
+            return None
+
+        # Get the GVZ values for the window
+        gvz_values = self.get_gvz_values(dt, window, use_open=use_open)
+
+        if gvz_values is None or len(gvz_values) == 0:
+            return None
+
+        gvz = self.get_gvz_value(dt, use_open=use_open)
+        if gvz is None:
+            return None
+
+        # Get the GVZ percentile value
+        gvz_percentile = stats.percentileofscore(gvz_values, gvz)
+
+        # Add a marker to the chart
+        self.strategy.add_marker(
+            "gvz_percentile", symbol="square", color="blue", value=gvz_percentile, detail_text=f"GVZ percentile: {gvz_percentile}"
+        )
+
+        return gvz_percentile
+
+    def check_max_gvz(self, dt, max_gvz, use_open=False):
+        """
+        Check if the GVZ is too high. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the GVZ value.
+        max_gvz : float
+            The maximum GVZ value to create a condor.
+        use_open : bool
+            Whether to use the open price of the GVZ.
+
+        Returns
+        -------
+        bool
+            True if the GVZ is too high, False otherwise.
+        """
+        # Get the GVZ value
+        gvz = self.get_gvz_value(dt, use_open=use_open)
+
+        # Plot the GVZ value
+        if gvz is not None:
+            self.strategy.add_line("gvz", gvz)
+            self.strategy.add_marker("gvz", symbol="square", color="blue", detail_text=f"GVZ: {gvz}", value=gvz)
+
+        # Check if the GVZ is greater than the maximum GVZ
+        if gvz is None or max_gvz is None:
+            return False
+        if gvz > max_gvz:
+            # Log message that the GVZ is too high
+            self.strategy.log_message(
+                f"GVZ is too high: {gvz} which is greater than the max of {max_gvz}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "gvz_too_high", symbol="circle", color="blue", detail_text=f"GVZ too high: {gvz}"
+            )
+
+            return True
+        
+        # Log message that the GVZ is within the limits
+        self.strategy.log_message(
+            f"GVZ is within the limits: {gvz} which is less than the max of {max_gvz}",
+            color="green", broadcast=True
+        )
+        
+        return False
+
+    def check_min_gvz(self, dt, min_gvz, use_open=False):
+        """
+        Check if the GVZ is too low. If it is, log a message, add a marker to the chart, and return True.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime to check the GVZ value.
+        min_gvz : float
+            The minimum GVZ value to create a condor.
+        use_open : bool
+            Whether to use the open price of the GVZ.
+
+        Returns
+        -------
+        bool
+            True if the GVZ is too low, False otherwise.
+        """
+        # Get the GVZ value
+        gvz = self.get_gvz_value(dt, use_open=use_open)
+
+        if gvz is None or min_gvz is None:
+            return False
+        if gvz < min_gvz:
+            # Log message that the GVZ is too low
+            self.strategy.log_message(
+                f"GVZ is too low: {gvz} which is less than the min of {min_gvz}",
+                color="yellow", broadcast=True
+            )
+
+            # Add a marker to the chart
+            self.strategy.add_marker(
+                "gvz_too_low", symbol="circle", color="blue", detail_text=f"GVZ too low: {gvz}"
+            )
+
+            return True
+        
+        return False

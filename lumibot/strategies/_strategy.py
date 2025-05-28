@@ -408,20 +408,18 @@ class _Strategy:
             # Set initial positions if live trading.
             self.broker._set_initial_positions(self)
         else:
-            if budget is None:
-                if self.cash is None:
-                    # Default to $100,000 if no budget is set.
-                    budget = 100000
-                    self._set_cash_position(budget)
-                else:
-                    budget = self.cash
-            else:
-                self._set_cash_position(budget)
+            # If budget is not provided to run_backtest, default it
+            effective_budget = budget
+            if effective_budget is None:
+                effective_budget = 100000  # Default budget
+            
+            self._set_cash_position(effective_budget)
+            self._initial_budget = effective_budget # Store the budget used
 
-            # #############################################
             # ## TODO: Should all this just use _update_portfolio_value()?
             # ## START
-            self._portfolio_value = self.cash
+            # Portfolio value should start with the cash set by the budget
+            self._portfolio_value = self.cash # Calls property, should reflect effective_budget now
 
             store_assets = list(self.broker.data_source._data_store.keys())
             if len(store_assets) > 0:
@@ -444,7 +442,6 @@ class _Strategy:
             # END
             ##############################################
 
-        self._initial_budget = budget
         self._minutes_before_closing = minutes_before_closing
         self._minutes_before_opening = minutes_before_opening
         self._minutes_after_closing = minutes_after_closing
@@ -734,20 +731,28 @@ class _Strategy:
     def _update_cash(self, side, quantity, price, multiplier):
         """update the self.cash"""
         with self._executor.lock:
-            cash = self.cash
-            if cash is None:
-                cash = 0
+            cash_val = self.cash # Calls property
+            if cash_val is None: # Handle if property somehow still returns None despite the fix in its getter
+                # self.logger.warning("_update_cash: self.cash (property) returned None. Defaulting to 0.0 for calculation.")
+                cash_val = 0.0
+            
+            current_cash = Decimal(str(cash_val)) # Convert to Decimal robustly
+
+            # Ensure all operands are Decimal for precision
+            quantity_dec = Decimal(str(quantity))
+            price_dec = Decimal(str(price))
+            multiplier_dec = Decimal(str(multiplier))
 
             if side == "buy":
-                cash -= float(quantity) * price * multiplier
+                current_cash -= quantity_dec * price_dec * multiplier_dec
             if side == "sell":
-                cash += float(quantity) * price * multiplier
+                current_cash += quantity_dec * price_dec * multiplier_dec
 
-            self._set_cash_position(cash)
+            self._set_cash_position(float(current_cash)) # _set_cash_position expects float
 
             # Todo also update the cash asset in positions?
 
-            return self.cash
+            return self.cash # Return the updated cash by calling the property again
 
     def _update_cash_with_dividends(self):
         with self._executor.lock:
@@ -1589,7 +1594,7 @@ class _Strategy:
 
         # Check if the message was sent successfully
         if response.status_code == 200:
-            self.logger.info("Update sent to the cloud successfully")
+            self.logger.debug("Update sent to the cloud successfully")
             return True
         else:
             self.logger.error(
@@ -2317,3 +2322,41 @@ class _Strategy:
 
         else:
             return "Not enough data to calculate returns", stats_df
+
+    @property
+    def cash(self):
+        """Returns the current cash. This is the money that is not used for positions or
+        orders (in other words, the money that is available to buy new assets, or cash).
+
+        This property is updated whenever a transaction was filled by the broker or when dividends
+        are paid.
+
+        Crypto currencies are a form of cash. Therefore cash will always be zero.
+
+        Returns
+        -------
+        cash : float
+            The current cash.
+
+        Example
+        -------
+        >>> # Get the current cash available in the account
+        >>> self.log_message(self.cash)
+        """
+
+        self.update_broker_balances(force_update=False)
+
+        cash_position = self.get_position(self._quote_asset)
+        quantity = cash_position.quantity if cash_position else None
+
+        # This is not really true:
+        # if quantity is None:
+        #     self._set_cash_position(0)
+        #     quantity = 0
+
+        if type(quantity) is Decimal:
+            quantity = float(quantity)
+        elif quantity is None: # Ensure we return a float if cash position doesn't exist
+            quantity = 0.0
+
+        return quantity

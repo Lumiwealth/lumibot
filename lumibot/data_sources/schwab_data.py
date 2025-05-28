@@ -6,6 +6,7 @@ import pytz
 from termcolor import colored
 import pandas as pd
 from datetime import date, timedelta
+import os
 
 from lumibot.entities import Asset, Bars, Quote, Chains
 from lumibot.data_sources import DataSource
@@ -63,7 +64,6 @@ class SchwabData(DataSource):
         """
         if not all([api_key, secret, account_number]):
             # Try to load from environment variables
-            import os
             api_key = api_key or os.environ.get('SCHWAB_API_KEY')
             secret = secret or os.environ.get('SCHWAB_SECRET')
             account_number = account_number or os.environ.get('SCHWAB_ACCOUNT_NUMBER')
@@ -74,12 +74,17 @@ class SchwabData(DataSource):
         
         try:
             # Import Schwab-specific libraries
-            import os
             from schwab.auth import easy_client
             
-            # Get the current folder for token path
-            current_folder = os.path.dirname(os.path.realpath(__file__))
-            token_path = os.path.join(current_folder, 'token.json')
+            # Store Schwab token in the working directory (or override with SCHWAB_TOKEN_PATH)
+            token_path_value = os.environ.get('SCHWAB_TOKEN_PATH')
+            if token_path_value:
+                token_path = os.path.abspath(os.path.expanduser(token_path_value))
+            else:
+                token_path = os.path.join(os.getcwd(), 'schwab_token.json')
+
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(token_path), exist_ok=True)
             
             # Create Schwab API client
             client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)

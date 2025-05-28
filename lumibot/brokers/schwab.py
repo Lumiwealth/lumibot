@@ -81,6 +81,7 @@ class Schwab(Broker):
     ):
         # === Initialize error flag very early ===
         self.schwab_authorization_error = False
+        self._broker_fully_ready = False # Initialize new flag
         # === End Initialize error flag ===
 
         # === Prepare Data Source ===
@@ -172,7 +173,27 @@ class Schwab(Broker):
         logging.warning(f"SCHWAB_BACKEND_CALLBACK_URL (final): {schwab_backend_redirect_uri}")
         logging.warning(f"SCHWAB_TOKEN (env/config): {'<set>' if token_payload_env else '<not set>'}")
         logging.warning("==== [END DEBUG] ====")
-        token_path = Path(__file__).parent / "token.json"
+
+        # Determine where to store the Schwab token file.
+        # Priority:
+        #   1. Config value SCHWAB_TOKEN_PATH
+        #   2. Env var  SCHWAB_TOKEN_PATH
+        #   3. Fallback to the current working directory as "schwab_token.json"
+        token_path_value = (
+            config.get("SCHWAB_TOKEN_PATH") if config else None
+        ) or os.environ.get("SCHWAB_TOKEN_PATH")
+
+        if token_path_value:
+            token_path = Path(token_path_value).expanduser().resolve()
+        else:
+            token_path = Path.cwd() / "schwab_token.json"
+
+        # Ensure the directory exists (especially if a custom path was provided)
+        try:
+            token_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as _mkdir_e:
+            logging.warning(f"[Schwab] Could not create token directory {token_path.parent}: {_mkdir_e}")
+
         token_available_and_valid = False
 
         if token_payload_env:
@@ -257,15 +278,20 @@ class Schwab(Broker):
                 except Exception as e_write:
                     logging.error(f"[Schwab] Failed to write refreshed token to file: {e_write}")
 
+            # Build kwargs for token refresh – only include client_secret if it actually exists
+            refresh_kwargs = {
+                "client_id": api_key,
+                "grant_type": "refresh_token",
+            }
+            client_secret_env = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")
+            if client_secret_env:
+                refresh_kwargs["client_secret"] = client_secret_env
+
             oauth_session = _OAS(
                 client_id=api_key,
                 token=token_dict_for_session,
                 auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
-                auto_refresh_kwargs={
-                    "client_id": api_key,
-                    "client_secret": (config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")),
-                    "grant_type": "refresh_token",
-                },
+                auto_refresh_kwargs=refresh_kwargs,
                 token_updater=_update_token,
             )
             # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
@@ -274,10 +300,13 @@ class Schwab(Broker):
             # have a full token dict and build the OAuth2Session ourselves, so we can safely omit it here.
             self.client = Client(api_key=api_key, session=oauth_session)
             logging.info(f"[Schwab] Successfully initialized Schwab client from {token_path} (app_secret not used).")
-            logging.warning(
-                "[Schwab] Token auto-refresh by this client may not work as SCHWAB_APP_SECRET is not configured. "
-                "You may need to re-authenticate by providing a new SCHWAB_TOKEN or deleting token.json when the current token expires."
-            )
+            # Check if SCHWAB_APP_SECRET is available for auto-refresh warning
+            app_secret_for_refresh = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")
+            if not app_secret_for_refresh:
+                logging.warning(
+                    "[Schwab] Token auto-refresh by this client may not work as SCHWAB_APP_SECRET is not configured. "
+                    "You may need to re-authenticate by providing a new SCHWAB_TOKEN or deleting token.json when the current token expires."
+                )
         except Exception as e:
             logging.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logging.error(traceback.format_exc())
@@ -311,6 +340,9 @@ class Schwab(Broker):
                     hash_value = target_acc['hashValue']
                     logging.info(f"[Schwab] Retrieved account hash {hash_value} for account {self.account_number}.")
                     # Complete remaining setup (stream, data source linking, etc.)
+                    # Set hash_value on self before signaling readiness
+                    self.hash_value = hash_value
+                    self._broker_fully_ready = True # Signal readiness
                     self._finish_initialization(config, self.data_source, self.account_number, hash_value)
                 else:
                     logging.error("[Schwab] Unable to locate account hash in response from get_account_numbers(). API response: %s", accounts_json)
@@ -345,6 +377,9 @@ class Schwab(Broker):
             - Portfolio value = the total equity value of the account (aka. portfolio value).
         """
         # Add check for authorization error first
+        if not self._broker_fully_ready:
+            logging.warning(colored("[Schwab] Broker not fully ready. Cannot get balances.", "yellow"))
+            return 0.0, 0.0, 0.0
         if self.schwab_authorization_error:
             logging.warning(colored("Schwab authorization failed previously. Cannot get balances.", "yellow"))
             return 0.0, 0.0, 0.0
@@ -406,6 +441,9 @@ class Schwab(Broker):
     # Position methods
     def _pull_positions(self, strategy: 'Strategy') -> List[Position]:
         # Add check for authorization error first
+        if not self._broker_fully_ready:
+            logging.warning(colored("[Schwab] Broker not fully ready. Cannot pull positions.", "yellow"))
+            return []
         if self.schwab_authorization_error:
             logging.warning(colored("Schwab authorization failed previously. Cannot pull positions.", "yellow"))
             return []
@@ -604,6 +642,9 @@ class Schwab(Broker):
         volume of data returned while still capturing relevant recent orders.
         """
         # Add check for authorization error first
+        if not self._broker_fully_ready:
+            logging.warning(colored("[Schwab] Broker not fully ready. Cannot pull all orders.", "yellow"))
+            return []
         if self.schwab_authorization_error:
             logging.warning(colored("Schwab authorization failed previously. Cannot pull all orders.", "yellow"))
             return []
@@ -1848,6 +1889,9 @@ class Schwab(Broker):
         """
         # Add check for initialization status
         # This check should now work reliably as schwab_authorization_error always exists
+        if not self._broker_fully_ready: # Check new flag first
+            logging.debug(colored("[Schwab] Broker not fully ready, skipping position sync.", "yellow"))
+            return
         if not hasattr(self, '_filled_positions') or self.schwab_authorization_error:
              logging.warning(colored("[Schwab] Broker not fully initialized or in error state, skipping position sync.", "yellow"))
              return

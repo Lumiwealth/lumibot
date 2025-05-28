@@ -277,6 +277,7 @@ SCHWAB_CONFIG = {
     "SCHWAB_ACCOUNT_NUMBER": os.getenv("SCHWAB_ACCOUNT_NUMBER"), # required
     "SCHWAB_APP_KEY":        os.getenv("SCHWAB_APP_KEY"),        # required, loaded from env
     "SCHWAB_APP_SECRET":     os.getenv("SCHWAB_APP_SECRET"),     # required, loaded from env
+    "SCHWAB_BACKEND_CALLBACK_URL": os.getenv("SCHWAB_BACKEND_CALLBACK_URL"), # required for auth flow
 }
 
 # Bitunix Configuration

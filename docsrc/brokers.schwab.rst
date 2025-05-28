@@ -1,7 +1,98 @@
 Schwab
 ======
 
-Charles Schwab is a major US brokerage that now offers a modern Trader API for equities, options, and **futures *data* only (no trade endpoints yet)**. Lumibot supports Schwab for both live trading and data retrieval, using the official `schwab-py` library.
+Lumibot integrates directly with Charles Schwab's *Trader* API for equities and options.  Everything you need is built-in; no external wrapper is required.
+
+Prerequisites
+-------------
+
+1. A Schwab brokerage account that is **approved for API access** (apply once in the Schwab Developer Portal).
+2. A Schwab **App Key** (sometimes called *Consumer Key*) generated inside your Developer Portal application.
+3. The brokerage **account number** you want the bot to trade in.
+4. A **callback URL** (HTTPS) you entered when creating the app.  For local testing just use ``https://127.0.0.1:8182``.
+
+Environment variables
+---------------------
+
+Set the following before running your strategy (``.env`` file, Render secret, Replit secret, Docker env, etc.):
+
+.. list-table::
+   :widths: 30 70
+   :header-rows: 1
+
+   * - **Variable**
+     - **Purpose**
+   * - ``SCHWAB_ACCOUNT_NUMBER``
+     - The brokerage account to trade.
+   * - ``SCHWAB_TOKEN`` *(optional)*
+     - Base-64 payload pasted from the **first** OAuth login screen – only needed for headless deploys.
+   * - ``TRADING_BROKER`` *(optional)*
+     - Force Lumibot to select Schwab (``schwab``) even when other creds are present.
+
+First-time login
+----------------
+
+• **Desktop** – run your bot, a browser pops up, log in, click *Allow*.  A ``token.json`` file is written next to your strategy.  Restart and you're done.
+
+• **Headless / Render / Replit** – the console prints a one-time URL.  Open it on any device, log in, copy the payload string that appears, set it as ``SCHWAB_TOKEN`` and restart.
+
+Token life-cycle
+----------------
+
+* Access token ≈ 30 min; refresh token ≈ 7 days.
+* Lumibot automatically refreshes the token every ~25 min and rewrites ``token.json``.
+* As long as the bot is running (or restarted at least once a week) you will **never see the login page again**.
+* If the bot is **offline > 7 days** the refresh token expires – simply run the login flow once more.
+
+Supported functionality
+-----------------------
+
+* Equities and ETF trading (market, limit, stop, stop-limit).
+* Single-leg options (buy/sell, open/close).
+* Streaming quotes for equities/options.
+* Historical bars – up to 15 years daily, 6 months intraday.
+
+Multi-leg option spreads, advanced orders (OCO/OTO), and futures trades are not yet implemented.
+
+Example ``.env``
+----------------
+
+.. code-block:: bash
+
+   TRADING_BROKER=schwab
+   SCHWAB_ACCOUNT_NUMBER=12345678
+   # optional if deploying headless
+   SCHWAB_TOKEN=YOUR_TOKEN
+
+Example strategy snippet
+------------------------
+
+.. code-block:: python
+
+   from lumibot.entities import Asset
+
+   last = self.get_last_price("SPY")
+   chains = self.get_chains(Asset("SPY"))
+
+   first_expiry = chains.expirations("CALL")[0]
+   atm_strike  = min(chains.strikes(first_expiry), key=lambda s: abs(s-last))
+
+   contract = Asset(
+       symbol="SPY",
+       asset_type=Asset.AssetType.OPTION,
+       expiration=first_expiry,
+       strike=atm_strike,
+       right=Asset.OptionRight.CALL,
+   )
+   order = self.create_order(contract, 1, side="buy")
+   self.submit_order(order)
+
+Troubleshooting
+---------------
+
+* **401/400 errors** at login usually mean your callback URL does not match the value in the Developer Portal **exactly**.
+* Keep ``token.json`` out of version control.
+* Schwab's API still evolves; join the Lumibot Discord for the latest community fixes.
 
 .. note::
    Schwab API access requires a developer account and application approval. You must apply for API access and set up your app in the Schwab Developer Portal.
@@ -19,23 +110,46 @@ To use Schwab with Lumibot, you need to set the following environment variables 
     - **Description**
     - **Example**
   * - `SCHWAB_API_KEY`
-    - Your Schwab API key (Consumer Key) from the Developer Portal.
+    - (old name) – **use `SCHWAB_APP_KEY` instead**. Back-compat supported but
+      new projects should switch.
     - `abc123xyz`
-  * - `SCHWAB_SECRET`
-    - Your Schwab API secret.
+  * - `SCHWAB_APP_SECRET`
+    - Your Schwab API secret (Consumer Secret).
     - `supersecret`
   * - `SCHWAB_ACCOUNT_NUMBER`
     - Your Schwab brokerage account number.
     - `12345678`
-  * - `SCHWAB_REDIRECT_URI`
-    - (Optional) OAuth2 callback URI (default: `https://127.0.0.1:8182`)
+  * - `SCHWAB_BACKEND_CALLBACK_URL`
+    - The **exact** OAuth2 callback URL that you registered in the Developer
+      Portal. Defaults to `https://127.0.0.1:8182` for local flows.
     - `https://yourdomain.com/callback`
   * - `TRADING_BROKER`
     - (Optional) Set to `schwab` to force Schwab as the broker.
     - `schwab`
-  * - `SCHWAB_TOKEN_PATH`
-    - (Optional) Path to store OAuth token.json (default: strategy dir).
-    - `./token.json`
+  * - `SCHWAB_TOKEN`  
+      *(optional)*
+    - Base64url payload string returned by the **first** OAuth login.  Use it
+      when running in head-less environments (Render, Replit, Docker) so the
+      bot can bootstrap itself without an interactive prompt.
+    - `<big-string>`
+
+.. important::
+   `SCHWAB_TOKEN` is only read **once** (on first run) to build `token.json`.
+   After that, automatic refresh keeps the file current; you do **not** need to
+   rotate the env-var every 7 days.
+
+Token Life-cycle & Auto-refresh
+-------------------------------
+
+* Access-token ≈ 30 min, refresh-token ≈ 7 days (per Schwab policy).
+* Lumibot configures an `OAuth2Session` with ``auto_refresh_url`` so that tokens
+  refresh themselves quietly in the background every ~25 min.
+* The refreshed token is written back to `token.json`; it rolls the 7-day window
+  forward.  As long as the bot is running (or restarted at least once a week)
+  you never need to log in again.
+* Only if the service is **offline for >7 days** will the refresh-token expire.
+  In that case repeat the browser login once and redeploy the new payload or
+  token file.
 
 Creating an App & Getting Keys
 ------------------------------
@@ -67,12 +181,12 @@ Schwab uses OAuth2 for authentication. The first time you run your strategy, a b
 - **Cloud (Replit, Render, etc.):**  
   Deploy the bot and watch the logs for a green line:  
   `Open https://…/schwab-login in your browser`  
-  Click, sign in, hit **Allow**, wait for “✅ Schwab token saved”, then restart the bot.  
-  That’s it—no weekly re-login as long as the bot stays active.
+  Click, sign in, hit **Allow**, wait for "✅ Schwab token saved", then restart the bot.  
+  That's it—no weekly re-login as long as the bot stays active.
 
 - **Local laptop:**  
   Deploy the bot and Lumibot opens a browser window automatically (same as before).  
-  Complete the login and you’re set.
+  Complete the login and you're set.
 
 As long as your bot checks Schwab at least once per day, the token
 auto-refreshes and you will *not* be asked to log in again.  
@@ -151,7 +265,7 @@ Known Issues & Best Practices
 - Refresh tokens proactively (every 28–29 min) to avoid expiry.
 - Secure `token.json` (chmod 600) and rotate secrets regularly.
 - Use separate apps for sandbox and production.
-- **Attempting to place a futures order returns HTTP 400 “Unsupported instrument”.**
+- **Attempting to place a futures order returns HTTP 400 "Unsupported instrument".**
 - **No official docs for futures endpoints—implementation subject to change.**
 
 Example Strategy
@@ -168,8 +282,6 @@ You can provide your Schwab credentials in several ways:
 
    # .env
    TRADING_BROKER=schwab
-   SCHWAB_API_KEY=YOUR_APP_KEY
-   SCHWAB_SECRET=YOUR_APP_SECRET
    SCHWAB_ACCOUNT_NUMBER=XXXXXXXX
 
 Then, create your `main.py` (or `strategy.py`) file:

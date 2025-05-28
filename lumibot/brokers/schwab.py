@@ -26,271 +26,24 @@ from schwab.streaming import StreamClient
 from lumibot.trading_builtins import PollingStream
 import time
 from pathlib import Path
+import webbrowser
+import urllib.parse
+import base64
+import json
+import time
+import os
+import tempfile
+import traceback
+import dotenv
 
-def _sanitize_at_padding(tok: dict):
-    """Replace any '@' with '=' in access_token and refresh_token fields."""
-    for k in ("access_token", "refresh_token"):
-        if isinstance(tok.get(k), str):
-            tok[k] = tok[k].replace('@', '=')
+from requests_oauthlib import OAuth2Session
+from schwab.client import Client
 
-def _ensure_token_metadata(token_path: Path):
-    """
-    Ensure Schwab token file is in the format expected by schwab-py ≥ 1.5:
-    {
-        "creation_timestamp": ...,
-        "token": { ... }
-    }
-    """
-    import time, json
-    if not token_path.exists():
-        return
+from lumibot.tools import SchwabHelper
 
-    try: # Add try-except around file operations
-        with token_path.open("r+", encoding="utf-8") as fp:
-            tok_raw = json.load(fp)
-
-        # If already wrapped, just update the token part
-        if "creation_timestamp" in tok_raw and "token" in tok_raw:
-            creation_ts = tok_raw["creation_timestamp"]
-            tok = tok_raw["token"]
-        else:
-            creation_ts = int(time.time())
-            tok = tok_raw
-
-        # 1) REMOVED @ → = padding replacement here.
-        #    Tokens should be used as-is from Schwab.
-
-        # 2) add/patch mandatory fields inside the token
-        now_ms = int(time.time() * 1000)
-        defaults = {
-            "issued_at": now_ms,
-            "refresh_token_issued_at": now_ms,
-            "expires_in": 1800,
-            "refresh_token_expires_in": 90 * 24 * 3600, # Changed from 7776000 for clarity (90 days)
-            "token_type": "Bearer",
-            "scope": "api",
-        }
-        tok.update({k: v for k, v in defaults.items() if k not in tok})
-
-        # 3) strip legacy id_token (schwab-py rejects it)
-        tok.pop("id_token", None)
-
-        # 4) Write back as wrapped dict
-        wrapped = {
-            "creation_timestamp": creation_ts,
-            "token": tok,
-        }
-        # Use 'w' mode to overwrite the file completely
-        with token_path.open("w", encoding="utf-8") as fp:
-            json.dump(wrapped, fp)
-        logging.warning(f"[DEBUG] token.json written (wrapped by _ensure_token_metadata): {wrapped}")
-
-    except Exception as e:
-        logging.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
-        logging.error(traceback.format_exc())
-        # If error occurs, try to delete the potentially corrupted file
-        try:
-            token_path.unlink(missing_ok=True)
-            logging.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
-        except Exception as unlink_e:
-            logging.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
-
-
-def _is_token_valid_for_schwab_py(token_path: Path):
-    """
-    Returns True if the token at token_path has both access_token and refresh_token.
-    Accepts both wrapped and flat formats.
-    """
-    if not token_path.exists():
-        return False
-    import json
-    try:
-        with token_path.open("r", encoding="utf-8") as fp:
-            tok = json.load(fp)
-        # Accept both wrapped and flat token formats
-        if "access_token" in tok and "refresh_token" in tok:
-            return bool(tok.get("access_token") and tok.get("refresh_token"))
-        if "token" in tok and isinstance(tok["token"], dict):
-            t = tok["token"]
-            return bool(t.get("access_token") and t.get("refresh_token"))
-        return False
-    except Exception as e:
-        logging.error(f"[DEBUG] Exception in _is_token_valid_for_schwab_py: {e}")
-        return False
-
-# --- Helper Function ---
-# Modify helper signature to accept app_secret
-def _launch_botspot_helper(token_path: Path, api_key: str, app_secret: str, callback_url: str):
-    import os, sys, webbrowser, base64, logging, traceback, urllib.parse # Import urllib
-    from flask import Flask, request, redirect
-    from pathlib import Path
-    import termcolor # Make sure termcolor is imported if used here
-    # Import the function needed for manual code exchange
-    from schwab.auth import client_from_manual_flow
-
-    # Use passed-in credentials
-    APP_KEY = api_key
-    APP_SECRET = app_secret # Store app_secret for token exchange later
-    BOTSPOT = callback_url # Base callback URL
-
-    # --- REVERTED CHANGE ---
-    # Do NOT append appKey/appSecret to the redirect_uri sent to Schwab.
-    # The redirect_uri should be the registered callback URL.
-    # URL-encode the *base* callback URI for the redirect_uri parameter
-    encoded_redirect_uri = urllib.parse.quote(BOTSPOT, safe='')
-
-    # Construct the final Schwab authorization URL using the encoded base redirect_uri
-    url = (
-        "https://api.schwabapi.com/v1/oauth/authorize"
-        f"?response_type=code&client_id={APP_KEY}&redirect_uri={encoded_redirect_uri}&state=lumibot"
-    )
-    # Log the URL being opened
-    logging.info(f"[Schwab Helper] Opening Schwab authorization URL: {url}")
-    # Log the base callback URI used for redirect_uri
-    logging.info(f"[Schwab Helper] redirect_uri parameter sent to Schwab (encoded): {encoded_redirect_uri}")
-
-
-    app = Flask("schwab-oauth")
-
-    @app.route("/")
-    def index():
-        # Bootstrap 5, button, textarea, clear instructions
-        return (
-            """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <title>LumiBot - Schwab Login</title>
-                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-            </head>
-            <body class="bg-light">
-            <div class="container" style="max-width: 540px; margin-top: 48px;">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h3 class="card-title mb-3 text-primary">Connect Schwab to LumiBot</h3>
-                        <ol class="mb-3">
-                            <li>Click the button below to open Schwab's login page.</li>
-                            <li>Authorize LumiBot and copy the <b>code</b> you see on BotSpot.</li>
-                            <li>Paste the <b>code</b> below and click <b>Save Token</b>.</li>
-                        </ol>
-                        <div class="d-grid mb-3">
-                            <a href='""" + url + """' target="_blank" class="btn btn-primary btn-lg">
-                                <i class="bi bi-box-arrow-up-right"></i> Authorize Schwab Account
-                            </a>
-                        </div>
-                        <form method="post" id="tokenForm">
-                            <div class="mb-3">
-                                <label for="auth_code" class="form-label">Paste your Schwab <b>code</b>:</label>
-                                <textarea class="form-control" id="auth_code" name="t" rows="4" placeholder="Paste the authorization code here..." required></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Save Token</button>
-                        </form>
-                        <div id="msg" class="mt-3"></div>
-                    </div>
-                </div>
-                <div class="text-center text-muted mt-3" style="font-size:0.95em;">
-                    Need help? See the <a href="https://lumibot.lumiwealth.com/brokers.schwab.html" target="_blank">docs</a>.
-                </div>
-            </div>
-            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-            <script>
-            document.getElementById('tokenForm').onsubmit = async function(e) {
-                e.preventDefault();
-                var msg = document.getElementById('msg');
-                msg.textContent = '';
-                msg.className = '';
-                var code = document.getElementById('auth_code').value.trim(); // Get value from textarea
-                if (!code) {
-                    msg.textContent = 'Please paste your authorization code.'; // Updated message
-                    msg.className = 'alert alert-danger';
-                    return;
-                }
-                msg.textContent = 'Exchanging code for token...'; // Updated message
-                msg.className = 'alert alert-info';
-                let resp = await fetch('/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 't=' + encodeURIComponent(code) // Send the code
-                });
-                let text = await resp.text();
-                if (resp.ok && text.includes('token saved')) {
-                    msg.textContent = '✅ Token saved! Please restart LumiBot.';
-                    msg.className = 'alert alert-success';
-                    document.getElementById('auth_code').value = ''; // Clear textarea
-                } else {
-                    msg.textContent = 'Failed to save token: ' + text;
-                    msg.className = 'alert alert-danger';
-                }
-            };
-            </script>
-            </body>
-            </html>
-            """
-        )
-
-    @app.route("/", methods=["POST"])
-    def save():
-        # This now receives the authorization CODE
-        code = request.form.get("t", "").strip()
-        if not code:
-             return "error: no code provided", 400
-        try:
-            # Always remove any existing token.json before writing new one
-            if token_path.exists():
-                token_path.unlink()
-
-            logging.info(f"[Schwab Helper] Received code: {code[:10]}...") # Log received code (truncated)
-            logging.info(f"[Schwab Helper] Exchanging code using client_from_manual_flow...")
-            logging.info(f"[Schwab Helper]   api_key: {APP_KEY[:4]}...") # Use APP_KEY from outer scope
-            logging.info(f"[Schwab Helper]   callback_url: {BOTSPOT}") # Use BOTSPOT from outer scope
-            logging.info(f"[Schwab Helper]   token_path: {token_path}")
-
-            # Use client_from_manual_flow to handle the token exchange and save to token_path
-            # It requires api_key, app_secret, callback_url, token_path, and the code
-            client_from_manual_flow(
-                api_key=APP_KEY,        # Use APP_KEY from outer scope
-                app_secret=APP_SECRET,  # Use APP_SECRET from outer scope
-                callback_url=BOTSPOT,   # Use BOTSPOT (base callback URL) from outer scope
-                token_path=token_path,
-                code=code               # Pass the received code
-            )
-
-            # client_from_manual_flow creates token.json. Run _ensure_token_metadata for robustness.
-            logging.warning(f"[DEBUG] token.json written by client_from_manual_flow: {token_path}")
-            _ensure_token_metadata(token_path) # Ensure standard metadata format
-
-            # LOG: Confirm token was saved and print contents
-            try:
-                with token_path.open("r", encoding="utf-8") as fp:
-                    token_json = fp.read()
-                logging.warning(f"[DEBUG] token.json contents after POST (FULL, sensitive!): {token_json}")
-            except Exception as e:
-                logging.warning(f"[DEBUG] Could not read token.json after POST: {e}")
-
-            return "✅ token saved – you may close this tab."
-        except Exception as e:
-            logging.error(f"[DEBUG] Exception in / POST (token exchange): {e}")
-            logging.error(traceback.format_exc()) # Log traceback for exchange/saving errors
-            # Try to delete potentially bad token file if exchange failed
-            try:
-                token_path.unlink(missing_ok=True)
-            except: pass
-            return f"error exchanging code or saving token: {e}", 400
-
-    import threading
-    threading.Thread(
-        target=lambda: app.run(host="0.0.0.0", port=8080, debug=False),
-        daemon=True).start()
-
-    webbrowser.open("http://localhost:8080")
-    logging.info("[Schwab] waiting for token via http://localhost:8080 …")
-    # Wait for token.json to appear, then return (do not exit process)
-    while not token_path.exists():
-        time.sleep(2)
-    # LOG: Token file detected, continue
-    logging.warning("[DEBUG] token.json detected after helper, continuing broker initialization.")
+# ---- Lumiwealth default Schwab app configuration ----
+LUMI_DEFAULT_APP_KEY = "RfUVxotUc8p6CbeCwFmophgNZSat0TLv"
+LUMI_DEFAULT_CALLBACK = "https://api.botspot.trade/broker_oauth/schwab"
 
 class CustomLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
@@ -371,12 +124,15 @@ class Schwab(Broker):
         # Store if SchwabData was the goal for later client assignment
         self._is_schwab_data_intended = is_schwab_data_intended
 
+        # --- Market calendar setting ---
+        # StrategyExecutor relies on broker.market to decide whether trading is
+        # 24/7 or should follow an exchange calendar.  Derive it from config or
+        # env, else default to "NASDAQ" which is compatible with pandas-market-calendars.
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NASDAQ"
+
         # Load environment variables (still useful for fallback if config is missing keys)
         dotenv.load_dotenv()
-
-        logging.warning("==== [DEBUG] Schwab Broker Initialization ====")
-        logging.warning(f"config passed to __init__: {config}")
-
+        logging.warning("==== [DEBUG] Schwab Broker Initialization (New OAuth Flow) ====")
         config = config or {}
 
         # Account Number (Required) - Prioritize config, fallback to env
@@ -388,203 +144,185 @@ class Schwab(Broker):
         self.account_number = str(account_number)
 
         # API Key (Required) - Prioritize config, fallback to env
-        api_key = config.get("SCHWAB_APP_KEY") or os.environ.get("SCHWAB_APP_KEY")
+        api_key = config.get("SCHWAB_APP_KEY") or os.environ.get("SCHWAB_APP_KEY") or LUMI_DEFAULT_APP_KEY
         if not api_key:
-            # Set error flag before raising
             self.schwab_authorization_error = True
             raise ValueError("Schwab App Key (SCHWAB_APP_KEY) not found in config or environment variables.")
 
-        # === Load App Secret from config (preferred) or environment ===
-        app_secret = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")
-        if not app_secret:
-            # Set error flag before raising
+        # Remove all app_secret handling
+        logging.info("[Schwab] SCHWAB_APP_SECRET is no longer used by this Python client.")
+
+        schwab_backend_redirect_uri = (
+            config.get("SCHWAB_BACKEND_CALLBACK_URL")
+            or os.environ.get("SCHWAB_BACKEND_CALLBACK_URL")
+            or LUMI_DEFAULT_CALLBACK
+        )
+        if not schwab_backend_redirect_uri:
             self.schwab_authorization_error = True
-            raise ValueError("Schwab App Secret (SCHWAB_APP_SECRET) not found in config or environment variables. Please ensure it is set correctly.")
-        logging.warning(f"app_secret (final): {'<set>' if app_secret else '<not set>'}") # Log if set
-        # === End Load App Secret ===
+            raise ValueError(
+                "SCHWAB_BACKEND_CALLBACK_URL not found in config or environment variables. "
+                "This URL is your backend endpoint that Schwab redirects to after user authorization "
+                "(e.g., https://api.botspot.trade/broker_oauth/schwab) and is required for the new OAuth flow."
+            )
+        logging.info(f"[Schwab] Using SCHWAB_BACKEND_CALLBACK_URL: {schwab_backend_redirect_uri}")
 
-        # Callback URL (Required for helper) - Prioritize config, fallback to env, then default
-        callback_url = config.get("SCHWAB_CALLBACK") or os.environ.get("SCHWAB_CALLBACK") or "https://api.botspot.trade/broker_oauth/schwab" # Use HTTPS and correct default
-
-        # Token (Optional) - Prioritize config, fallback to env
-        token_str_env = config.get("SCHWAB_TOKEN") or os.environ.get("SCHWAB_TOKEN")
-
+        token_payload_env = config.get("SCHWAB_TOKEN") or os.environ.get("SCHWAB_TOKEN")
         logging.warning(f"account_number (final): {self.account_number}")
         logging.warning(f"api_key (final): {'<set>' if api_key else '<not set>'}")
+        logging.warning(f"SCHWAB_BACKEND_CALLBACK_URL (final): {schwab_backend_redirect_uri}")
+        logging.warning(f"SCHWAB_TOKEN (env/config): {'<set>' if token_payload_env else '<not set>'}")
         logging.warning("==== [END DEBUG] ====")
-
-        # Determine token path
         token_path = Path(__file__).parent / "token.json"
+        token_available_and_valid = False
 
-        # Check if token exists (file or env var)
-        has_file_token = token_path.exists() and token_path.stat().st_size > 0
-        has_env_token = bool(token_str_env) # Check if env var is set and not empty
-        logging.info(f"[Schwab] SCHWAB_TOKEN env value: {'<set>' if has_env_token else '<not set>'}")
-        logging.info(f"[Schwab] used_env_token: {has_env_token}") # Log if we intend to use env token
-        logging.info(f"[Schwab] token.json exists: {has_file_token}")
-        if has_file_token:
-             logging.info(f"[Schwab] token.json size: {token_path.stat().st_size} bytes")
-             try:
-                 with token_path.open("r", encoding="utf-8") as f_check:
-                     content_check = f_check.read()
-                 logging.warning(f"[DEBUG] token.json contents (FULL, sensitive!): {content_check}")
-             except Exception as read_err:
-                 logging.warning(f"[DEBUG] Could not read token.json for logging: {read_err}")
-
-
-        # --- Token Loading/Helper Logic ---
-        # Uses api_key, app_secret, callback_url defined above
-        if not has_file_token and not has_env_token:
-            logging.error(termcolor.colored("[Schwab] No Schwab token file found and SCHWAB_TOKEN env var not set. Launching login helper.", "red"))
-            logging.error(termcolor.colored(f"[Schwab] _launch_botspot_helper called: reason=no_token_file_and_no_env_token, api_key={api_key[:4]}..., callback={callback_url}", "red"))
-            # Pass app_secret to helper
-            _launch_botspot_helper(token_path, api_key, app_secret, callback_url)
-            print(colored("✅ Token saved! Please restart LumiBot to continue.", "green"))
-            os._exit(0) # Exit after helper runs
-
-        elif has_file_token:
-            logging.info(f"[Schwab] Attempting to load Schwab token from {token_path}")
+        if token_payload_env:
+            logging.info("[Schwab] SCHWAB_TOKEN environment variable found. Processing it.")
             try:
-                # Ensure metadata format BEFORE attempting to load
-                _ensure_token_metadata(token_path)
-                logging.warning(f"[DEBUG] token.json about to be read after ensure_metadata: {token_path.read_text()}")
-
-                # === REMOVED SANITIZE STEP ===
-                # The '@' character should NOT be replaced. easy_client expects the token as-is.
-
-                if not _is_token_valid_for_schwab_py(token_path):
-                     # Set error flag before raising
-                     self.schwab_authorization_error = True
-                     raise ValueError("Token file format invalid after metadata check.") # Updated error message
-
-                logging.info("[Schwab] token.json passed format check, calling easy_client...")
-                self.client = easy_client(
-                    api_key=api_key,
-                    app_secret=app_secret,
-                    callback_url=callback_url, # Use corrected callback_url
-                    token_path=str(token_path),
-                )
-                logging.info(f"[Schwab] Successfully loaded Schwab client from {token_path}")
-                # used_env_token = False # This variable wasn't used later, removed
-
-            except Exception as e:
-                logging.error(colored(f"[Schwab] Error loading token from {token_path}: {e}", "red"))
-                logging.error(traceback.format_exc())
-                token_path.unlink(missing_ok=True)
-                logging.error(termcolor.colored("[Schwab] Deleted potentially corrupt token file. Launching login helper.", "red"))
-                logging.error(termcolor.colored(f"[Schwab] _launch_botspot_helper called: reason=token_load_error, api_key={api_key[:4]}..., callback={callback_url}", "red"))
-                # Pass app_secret to helper
-                _launch_botspot_helper(token_path, api_key, app_secret, callback_url)
-                print(colored("✅ Token saved! Please restart LumiBot to continue.", "green"))
-                os._exit(0)
-
-        elif has_env_token:
-             logging.info("[Schwab] Attempting to load Schwab token from SCHWAB_TOKEN env var")
-             try:
-                 # Decode the base64 string from env var
-                 import base64, json, time
-                 code = token_str_env.strip()
-                 missing_padding = len(code) % 4
-                 if missing_padding:
-                     code += '=' * (4 - missing_padding)
-                 clean = base64.urlsafe_b64decode(code.encode('ascii'))
-                 tok = json.loads(clean)
-
-                 # --- REMOVED @ replacement ---
-                 # Tokens should be used as-is.
-
-                 # Wrap and add metadata (similar to _ensure_token_metadata but in memory)
-                 now_ms = int(time.time() * 1000)
-                 defaults = {
-                     "issued_at": now_ms, "refresh_token_issued_at": now_ms,
-                     "expires_in": 1800, "refresh_token_expires_in": 90 * 24 * 3600,
-                     "token_type": "Bearer", "scope": "api",
-                 }
-                 tok.update({k: v for k, v in defaults.items() if k not in tok})
-                 tok.pop("id_token", None) # Remove id_token
-
-                 # Write to temp file for easy_client
-                 import tempfile
-                 with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json", encoding="utf-8") as tmp_fp:
-                     wrapped = {"creation_timestamp": int(time.time()), "token": tok}
-                     json.dump(wrapped, tmp_fp)
-                     temp_token_path = tmp_fp.name
-                 logging.warning(f"[DEBUG] Wrote env token to temp file: {temp_token_path}")
-
-                 self.client = easy_client(
-                     api_key=api_key,
-                     app_secret=app_secret,
-                     callback_url=callback_url, # Use corrected callback_url
-                     token_path=temp_token_path,
-                 )
-                 logging.info("[Schwab] Successfully loaded Schwab client from SCHWAB_TOKEN env var")
-                 # Clean up temp file? Or let OS handle it? easy_client might keep handle. Let OS handle for now.
-                 # os.unlink(temp_token_path)
-
-             except Exception as e:
-                 logging.error(colored(f"[Schwab] Error loading token from SCHWAB_TOKEN env var: {e}", "red"))
-                 logging.error(traceback.format_exc())
-                 logging.error(termcolor.colored("[Schwab] Falling back to login helper.", "red"))
-                 logging.error(termcolor.colored(f"[Schwab] _launch_botspot_helper called: reason=env_token_load_error, api_key={api_key[:4]}..., callback={callback_url}", "red"))
-                 # Pass app_secret to helper
-                 _launch_botspot_helper(token_path, api_key, app_secret, callback_url)
-                 print(colored("✅ Token saved! Please restart LumiBot to continue.", "green"))
-                 os._exit(0)
-
-
-        # --- Post Client Initialization ---
-        # Get account numbers and find the hash value
-        try:
-            logging.warning("[DEBUG] About to call get_account_numbers() on Schwab client.")
-            if not self.client:
-                 # This should ideally not happen if token loading succeeded, but check just in case
-                 self.schwab_authorization_error = True # Set flag
-                 raise ConnectionError("Schwab client was not initialized before attempting to get account numbers.")
-
-            response = self.client.get_account_numbers()
-
-            if response.status_code == 200:
-                account_numbers_data = response.json()
-                found_hash = None
-                for account_info in account_numbers_data:
-                    if account_info.get("accountNumber") == self.account_number:
-                        found_hash = account_info.get("hashValue")
-                        break
-
-                if found_hash:
-                    # self.hash_value = found_hash # Set in _finish_initialization
-                    logging.info(f"[Schwab] Successfully found hash value for account {self.account_number}")
-                    # Call finish_initialization only after successful client load and hash retrieval
-                    # Pass the already initialized data_source (self.data_source)
-                    self._finish_initialization(config, self.data_source, self.account_number, found_hash)
+                SchwabHelper._save_payload_str_to_token_file(token_payload_env, token_path)
+                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                    SchwabHelper._ensure_token_metadata(token_path)
+                    if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                        token_available_and_valid = True
+                        logging.info(f"[Schwab] Token from SCHWAB_TOKEN env var processed, validated, and saved to {token_path}")
+                    else:
+                        logging.error(f"[Schwab] Token from SCHWAB_TOKEN env var became invalid after SchwabHelper._ensure_token_metadata. Deleting {token_path}.")
+                        token_path.unlink(missing_ok=True)
                 else:
-                    # Set error flag before raising
-                    self.schwab_authorization_error = True
-                    raise ValueError(f"Account number {self.account_number} not found in linked accounts.")
+                    logging.error(f"[Schwab] Token from SCHWAB_TOKEN env var resulted in an invalid token file at {token_path}. Deleting.")
+                    token_path.unlink(missing_ok=True)
+            except Exception as e:
+                logging.error(f"[Schwab] Error processing SCHWAB_TOKEN: {e}")
+                if token_path.exists(): token_path.unlink(missing_ok=True)
 
-            elif response.status_code == 401:
-                 logging.error(colored("[Schwab] Authorization Error (401) when getting account numbers. Token might be invalid or expired.", "red"))
-                 self.schwab_authorization_error = True # Set flag
-                 token_path.unlink(missing_ok=True) # Delete potentially bad token
-                 logging.error(termcolor.colored("[Schwab] Deleted potentially invalid token file. Launching login helper.", "red"))
-                 logging.error(termcolor.colored(f"[Schwab] _launch_botspot_helper called: reason=get_account_401, api_key={api_key[:4]}..., callback={callback_url}", "red"))
-                 # Pass app_secret to helper
-                 _launch_botspot_helper(token_path, api_key, app_secret, callback_url)
-                 print(colored("✅ Token saved! Please restart LumiBot to continue.", "green"))
-                 os._exit(0) # Exit after helper runs
-            else:
-                # Set error flag before raising
+        if not token_available_and_valid and token_path.exists() and token_path.stat().st_size > 0:
+            logging.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
+            try:
+                SchwabHelper._ensure_token_metadata(token_path)
+                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                    token_available_and_valid = True
+                    logging.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
+                else:
+                    logging.warning(f"[Schwab] Existing token file {token_path} is invalid after checks. Deleting.")
+                    token_path.unlink(missing_ok=True)
+            except Exception as e:
+                logging.warning(f"[Schwab] Error validating/fixing existing token file {token_path}: {e}. Deleting.")
+                if token_path.exists(): token_path.unlink(missing_ok=True)
+
+        if not token_available_and_valid:
+            logging.info("[Schwab] No valid token found. Initiating user authorization flow to obtain token payload.")
+            auth_success = SchwabHelper._initiate_schwab_auth_and_get_token_payload(api_key, schwab_backend_redirect_uri, token_path)
+            if not auth_success:
                 self.schwab_authorization_error = True
-                raise ConnectionError(f"Failed to get account numbers: {response.status_code} - {response.text}")
+                raise ConnectionError(
+                    "Schwab token acquisition failed via user authorization flow. "
+                    "Please check logs, ensure SCHWAB_APP_KEY and SCHWAB_BACKEND_CALLBACK_URL are correct, "
+                    "and that the backend OAuth flow is functioning. Restart to try again."
+                )
+            if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                SchwabHelper._ensure_token_metadata(token_path)
+                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                    token_available_and_valid = True
+                else:
+                    logging.error(f"[Schwab] Token became invalid after SchwabHelper._ensure_token_metadata post-auth. Deleting {token_path}.")
+                    if token_path.exists(): token_path.unlink(missing_ok=True)
+            else:
+                self.schwab_authorization_error = True
+                raise ConnectionError("Schwab token file is missing or invalid even after successful authorization flow.")
 
+        if not token_available_and_valid:
+            self.schwab_authorization_error = True
+            raise ConnectionError(f"Critical error: Schwab token could not be made available or validated at {token_path}.")
+
+        try:
+            logging.info(f"[Schwab] Loading token from {token_path} for manual client setup.")
+            with open(token_path, 'r', encoding='utf-8') as f:
+                wrapped_token_data = json.load(f)
+            token_dict_for_session = wrapped_token_data.get('token')
+            if not token_dict_for_session or 'access_token' not in token_dict_for_session:
+                raise ValueError("Token file is missing the 'token' object or 'access_token' within it.")
+
+            # Build an OAuth2Session that can automatically refresh the Schwab token.
+            from requests_oauthlib import OAuth2Session as _OAS
+
+            def _update_token(updated_token):
+                """Write refreshed token back to token.json so it persists across restarts."""
+                try:
+                    wrapped = {
+                        "creation_timestamp": int(time.time()),
+                        "token": updated_token,
+                    }
+                    with open(token_path, "w", encoding="utf-8") as fp:
+                        json.dump(wrapped, fp)
+                    logging.info(f"[Schwab] Token automatically refreshed and written to {token_path}")
+                except Exception as e_write:
+                    logging.error(f"[Schwab] Failed to write refreshed token to file: {e_write}")
+
+            oauth_session = _OAS(
+                client_id=api_key,
+                token=token_dict_for_session,
+                auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
+                auto_refresh_kwargs={
+                    "client_id": api_key,
+                    "client_secret": (config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")),
+                    "grant_type": "refresh_token",
+                },
+                token_updater=_update_token,
+            )
+            # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
+            # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.
+            # The secret is only needed when REFRESHING a token via the auth helpers, not when we already
+            # have a full token dict and build the OAuth2Session ourselves, so we can safely omit it here.
+            self.client = Client(api_key=api_key, session=oauth_session)
+            logging.info(f"[Schwab] Successfully initialized Schwab client from {token_path} (app_secret not used).")
+            logging.warning(
+                "[Schwab] Token auto-refresh by this client may not work as SCHWAB_APP_SECRET is not configured. "
+                "You may need to re-authenticate by providing a new SCHWAB_TOKEN or deleting token.json when the current token expires."
+            )
         except Exception as e:
-            logging.error(colored(f"Error during Schwab client initialization or getting account hash: {e}", "red"))
+            logging.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logging.error(traceback.format_exc())
-            self.schwab_authorization_error = True # Set flag on any error during init
-            # It's crucial to raise here to prevent proceeding with a broken state
-            raise ConnectionError(f"Schwab initialization failed: {e}") from e
+            if token_path.exists():
+                logging.warning(f"[Schwab] Deleting potentially corrupt token file: {token_path}")
+                token_path.unlink(missing_ok=True)
+            self.schwab_authorization_error = True
+            raise ConnectionError(
+                f"Failed to initialize Schwab client: {e}. "
+                "Consider deleting token.json and clearing SCHWAB_TOKEN env var, then restarting."
+            ) from e
 
-        # No more code should run here if an exception occurred above
+        # -------------------------------------------------------------
+        # Retrieve account hash (needed for all subsequent endpoints)
+        # -------------------------------------------------------------
+        try:
+            resp_accounts = self.client.get_account_numbers()
+            if hasattr(resp_accounts, 'status_code') and resp_accounts.status_code == 200:
+                accounts_json = resp_accounts.json()
+                # Find entry matching our account number; fall back to first
+                target_acc = None
+                for acc in accounts_json:
+                    if str(acc.get('accountNumber')) == str(self.account_number):
+                        target_acc = acc
+                        break
+                if not target_acc and accounts_json:
+                    target_acc = accounts_json[0]
+                    logging.warning(f"[Schwab] Could not match account number {self.account_number} – using first account hash from API response.")
+
+                if target_acc and 'hashValue' in target_acc:
+                    hash_value = target_acc['hashValue']
+                    logging.info(f"[Schwab] Retrieved account hash {hash_value} for account {self.account_number}.")
+                    # Complete remaining setup (stream, data source linking, etc.)
+                    self._finish_initialization(config, self.data_source, self.account_number, hash_value)
+                else:
+                    logging.error("[Schwab] Unable to locate account hash in response from get_account_numbers(). API response: %s", accounts_json)
+                    self.schwab_authorization_error = True
+            else:
+                code = getattr(resp_accounts, 'status_code', 'n/a')
+                logging.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
+                self.schwab_authorization_error = True
+        except Exception as e_acc:
+            logging.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))
+            logging.error(traceback.format_exc())
+            self.schwab_authorization_error = True
 
     # Account and balance methods
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
@@ -710,7 +448,7 @@ class Schwab(Broker):
                 elif asset_type == 'OPTION':
                     # Parse option details
                     option_symbol = instrument.get('symbol')
-                    option_parts = self._parse_option_symbol(option_symbol)
+                    option_parts = SchwabHelper._parse_option_symbol(option_symbol)
 
                     if option_parts is None:
                         logging.error(colored(f"Failed to parse option symbol: {option_symbol}", "red"))
@@ -848,65 +586,6 @@ class Schwab(Broker):
                 return position
                 
         return None
-
-    # Symbol parsing methods
-    def _parse_option_symbol(self, option_symbol):
-        """
-        Parse Schwab option symbol format (e.g., 'SPY   240801P00541000') into its components.
-        
-        Parameters
-        ----------
-        option_symbol : str
-            The option symbol in Schwab format.
-            
-        Returns
-        -------
-        dict
-            A dictionary containing the parsed components:
-            - 'underlying': The underlying symbol (e.g., 'SPY')
-            - 'expiry_date': The expiration date as a datetime.date object
-            - 'option_type': The option type ('CALL' or 'PUT')
-            - 'strike_price': The strike price as a float
-            
-        Returns None if parsing failed.
-        """
-        try:
-            # Define the regex pattern for the option symbol
-            # Format is: symbol(spaces)YYMMDD(C|P)strike(with padding zeros)
-            pattern = r'^(?P<underlying>[A-Z]+)\s+(?P<expiry>\d{6})(?P<type>[CP])(?P<strike>\d{8})$'
-
-            # Match the pattern with the option symbol
-            match = re.match(pattern, option_symbol)
-            if not match:
-                logging.error(colored(f"Invalid option symbol format: {option_symbol}", "red"))
-                return None
-
-            # Extract the parts from the regex match groups
-            underlying = match.group('underlying').strip()
-            expiry = match.group('expiry')
-            option_type = match.group('type')
-            strike_raw = match.group('strike')
-
-            # Convert expiry date string to a date object
-            # Format is YYMMDD, convert to YYYY-MM-DD
-            expiry_date = datetime.strptime(expiry, '%y%m%d').date()
-
-            # Convert strike price to a float (divide by 1000 to get actual price)
-            strike_price = int(strike_raw) / 1000
-
-            # Map option type to CALL or PUT
-            option_type_full = 'CALL' if option_type == 'C' else 'PUT'
-
-            return {
-                'underlying': underlying,
-                'expiry_date': expiry_date,
-                'option_type': option_type_full,
-                'strike_price': strike_price
-            }
-            
-        except Exception as e:
-            logging.error(colored(f"Error parsing option symbol {option_symbol}: {str(e)}", "red"))
-            return None
 
     # Order methods
     def _pull_broker_all_orders(self) -> list:
@@ -1242,7 +921,7 @@ class Schwab(Broker):
                     )
                 elif asset_type == Asset.AssetType.OPTION:
                     option_symbol = instrument.get("symbol", "")
-                    option_parts = self._parse_option_symbol(option_symbol)
+                    option_parts = SchwabHelper._parse_option_symbol(option_symbol)
                     
                     if not option_parts:
                         logging.error(colored(f"Failed to parse option symbol: {option_symbol} for order ID: {order_id}", "red"))
@@ -1782,38 +1461,38 @@ class Schwab(Broker):
                 expiration_date, 
                 option_type, 
                 strike_price_str
-            ).build();
-            
-            logging.info(colored(f"Created option symbol: {option_symbol}", "cyan"));
-            
+            ).build()
+
+            logging.info(colored(f"Created option symbol: {option_symbol}", "cyan"))
+
             # Create the order builder based on order side and type
-            order_builder = None;
+            order_builder = None
             
             # First determine if this is an opening or closing transaction
-            is_opening = False;
+            is_opening = False
             if order.side in [Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.SELL_TO_OPEN]:
-                is_opening = True;
+                is_opening = True
             elif order.side in [Order.OrderSide.BUY_TO_CLOSE, Order.OrderSide.SELL_TO_CLOSE]:
-                is_opening = False;
+                is_opening = False
             elif order.side == Order.OrderSide.BUY:
                 # Default to opening transaction for BUY
-                is_opening = True;
+                is_opening = True
             elif order.side == Order.OrderSide.SELL:
                 # Default to closing transaction for SELL
-                is_opening = False;
+                is_opening = False
             else:
                 logging.error(colored(f"Unsupported order side for options: {order.side}", "red"))
-                return None;
+                return None
             
             # Second, determine if this is a buy or sell action
-            is_buy = False;
+            is_buy = False
             if order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.BUY_TO_CLOSE]:
-                is_buy = True;
+                is_buy = True
             elif order.side in [Order.OrderSide.SELL, Order.OrderSide.SELL_TO_OPEN, Order.OrderSide.SELL_TO_CLOSE]:
-                is_buy = False;
+                is_buy = False
             else:
                 logging.error(colored(f"Unsupported order side for options: {order.side}", "red"))
-                return None;
+                return None
             
             # Select the appropriate template function based on side, opening/closing, and order type
             if order.order_type == Order.OrderType.MARKET:
@@ -1829,7 +1508,7 @@ class Schwab(Broker):
             elif order.order_type == Order.OrderType.LIMIT:
                 if limit_price is None:
                     logging.error(colored(f"Limit price is required for limit orders", "red"))
-                    return None;
+                    return None
                     
                 if is_buy and is_opening:
                     order_builder = option_buy_to_open_limit(option_symbol, quantity, limit_price)
@@ -1855,7 +1534,7 @@ class Schwab(Broker):
                 else:  # STOP_LIMIT
                     if limit_price is None:
                         logging.error(colored(f"Limit price is required for stop-limit orders", "red"))
-                        return None;
+                        return None
                         
                     if is_buy and is_opening:
                         order_builder = option_buy_to_open_limit(option_symbol, quantity, limit_price)
@@ -1874,28 +1553,28 @@ class Schwab(Broker):
                         if order.order_type == Order.OrderType.STOP:
                             order_spec["orderType"] = "STOP"
                         else:
-                            order_spec["orderType"] = "STOP_LIMIT";
+                            order_spec["orderType"] = "STOP_LIMIT"
                         
                         # Add stop price
-                        order_spec["stopPrice"] = str(order.stop_price);
+                        order_spec["stopPrice"] = str(order.stop_price)
                         
                         # Reconstruct builder with modified spec
-                        order_builder._order_spec = order_spec;
+                        order_builder._order_spec = order_spec
                     except Exception as e:
                         logging.error(colored(f"Failed to modify order builder for stop/stop-limit option order: {e}", "red"))
-                        return None;
+                        return None
             else:
                 logging.error(colored(f"Order type {order.order_type} not supported for options with Schwab templates.", "red"))
-                return None;
+                return None
 
            
                 
             if not order_builder:
                 logging.error(colored(f"Failed to create option order builder for side: {order.side}", "red"))
-                return None;
-                    
-            return order_builder;
-            
+                return None
+
+            return order_builder
+
         except Exception as e:
             logging.error(colored(f"Error creating option order builder: {e}", "red"))
             logging.error(traceback.format_exc())
@@ -1972,14 +1651,16 @@ class Schwab(Broker):
             
             # Create a new OrderBuilder with the direct spec
             # This bypasses all the OrderBuilder methods completely
-            new_builder = OrderBuilder();
+            new_builder = OrderBuilder()
             # Important: We're directly setting the order spec as the final product
             # That will be returned by build() later, not creating a nested structure
-            new_builder._order_spec = order_spec;
+           
+
+            new_builder._order_spec = order_spec
             
             # No need to call any setter methods since we've directly set the spec
-            return new_builder;
-            
+            return new_builder
+
         except Exception as e:
             logging.error(colored(f"Error creating futures order builder: {e}", "red"))
             logging.error(traceback.format_exc())
@@ -2214,31 +1895,3 @@ class Schwab(Broker):
                 self._filled_positions.append(position)
 
         logging.debug(f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}")
-    
-    def _ensure_cloud_login(self, redirect_uri: str, token_path: str):
-        """Spin up a one-time /schwab-login web route if token.json is missing."""
-        if os.path.exists(token_path):
-            return
-
-        app = Flask("schwab-login")
-
-        @app.route("/schwab-login")
-        def schwab_login():
-            client_from_login_flow(
-                api_key      = self.client.api_key,
-                app_secret   = self.client.app_secret,
-                callback_url = redirect_uri,
-                token_path   = token_path,
-                interactive  = False
-            )
-
-            return "✅ Schwab token saved. You can close this tab."
-
-        logging.info(
-            colored(f"[Schwab] First-time setup: open {redirect_uri} "
-                    "in your browser, complete login, then restart the bot.", "green")
-        )
-        threading.Thread(
-            target=lambda: app.run(host="0.0.0.0", port=8080, debug=False),
-            daemon=True
-        ).start()

@@ -253,7 +253,9 @@ class TestPolygonBacktestFull:
     def test_intraday_daterange(self):
         tzinfo = pytz.timezone("America/New_York")
         backtesting_start = tzinfo.localize(datetime.datetime(2024, 2, 7))
-        backtesting_end = datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
+        # Ensure backtesting_end uses the same tzinfo object as backtesting_start
+        dt_end_naive = datetime.datetime(2024, 2, 12, 8, 30, 0)
+        backtesting_end = tzinfo.localize(dt_end_naive)
 
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,

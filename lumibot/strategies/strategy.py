@@ -174,8 +174,8 @@ class Strategy(_Strategy):
 
         By default, equals 1 minute. You can set the sleep time as an integer which will be interpreted as
         minutes. eg: sleeptime = 50 would be 50 minutes. Conversely, you can enter the time as a string with
-        the duration numbers first, followed by the time units: ‘M’ for minutes, ‘S’ for seconds
-        eg: ‘"300S"’ is 300 seconds, ‘"10M"’ is 10 minutes.
+        the duration numbers first, followed by the time units: 'M' for minutes, 'S' for seconds
+        eg: '300S' is 300 seconds, '10M' is 10 minutes.
 
         Returns
         -------
@@ -290,6 +290,8 @@ class Strategy(_Strategy):
 
         if type(quantity) is Decimal:
             quantity = float(quantity)
+        elif quantity is None:
+            quantity = 0.0
 
         return quantity
 

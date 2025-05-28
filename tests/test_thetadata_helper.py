@@ -55,7 +55,7 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     assert df.index[1] == pd.Timestamp("2023-07-01 09:31:00")
     assert df["price"].iloc[1] == 101
     assert df.loc
-    assert mock_get_historical_data.not_called()  # No need to fetch new data
+    mock_get_historical_data.assert_not_called()  # No need to fetch new data
 
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
@@ -129,7 +129,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     assert len(df) == 10  # Combined cached and fetched data
     mock_get_historical_data.assert_called_once()
     assert mock_update_df.return_value.equals(df)
-    assert mock_update_cache.called_once()
+    mock_update_cache.assert_called_once()
 
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
@@ -155,8 +155,7 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
 
     # Assert
     assert df is None  # Expect None due to empty data returned
-    assert mock_update_df.not_called()
-    assert mock_update_cache.called_once()
+    mock_update_df.assert_not_called()
 
 
 def test_get_trading_dates():

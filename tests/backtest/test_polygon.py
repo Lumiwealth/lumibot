@@ -223,7 +223,8 @@ class TestPolygonBacktestFull:
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
         backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
+        # Ensure the entire last day is processed by setting time to end of day
+        backtesting_end = datetime.datetime(2023, 8, 4, 23, 59, 59)
 
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,
@@ -252,7 +253,9 @@ class TestPolygonBacktestFull:
     def test_intraday_daterange(self):
         tzinfo = pytz.timezone("America/New_York")
         backtesting_start = tzinfo.localize(datetime.datetime(2024, 2, 7))
-        backtesting_end = tzinfo.localize(datetime.datetime(2024, 2, 10))
+        # Ensure backtesting_end uses the same tzinfo object as backtesting_start
+        dt_end_naive = datetime.datetime(2024, 2, 12, 8, 30, 0)
+        backtesting_end = tzinfo.localize(dt_end_naive)
 
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,

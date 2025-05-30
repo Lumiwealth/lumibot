@@ -1109,7 +1109,7 @@ class Strategy(_Strategy):
         float
             The current cash value. This is the amount of cash you have in your account, which is the amount of money you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your account (eg. USDT if that is your quote asset).
         """
-        return self._cash
+        return self.cash
 
     def get_positions(self, include_cash_positions: bool = False):
         """Get all positions for the account.

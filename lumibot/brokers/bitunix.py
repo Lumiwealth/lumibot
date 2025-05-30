@@ -54,7 +54,7 @@ class Bitunix(Broker):
         if str(trading_mode).upper() != "FUTURES":
             print(f"Bitunix TRADING_MODE '{trading_mode}' is not supported yet. Please use another broker for spot trading.")
 
-        # Ensure _stream_loop exists before calling super, so _launch_stream doesn’t error
+        # Ensure _stream_loop exists before calling super, so _launch_stream doesn't error
         self._stream_loop = None
         if isinstance(config, dict):
             api_key = config.get("API_KEY")
@@ -342,7 +342,7 @@ class Bitunix(Broker):
         asset : Asset
             The asset whose position should be closed.
         fraction : float, optional
-            Fraction of the position to close (0 < fraction ≤ 1). Defaults to 1 (full close).
+            Fraction of the position to close (0 < fraction ≤ 1). Defaults to 1 (full close).
 
         Returns
         -------
@@ -696,7 +696,7 @@ class Bitunix(Broker):
         """
         Fetch a single position by asset.
         """
-        # Reuse the multi‐position pull and filter by asset
+        # Reuse the multi-position pull and filter by asset
         positions = self._pull_positions(strategy)
         for pos in positions:
             if pos.asset == asset:
@@ -731,3 +731,28 @@ class Bitunix(Broker):
                     logger.warning("Failed to flash close position %s: %s", position_id, resp)
                 else:
                     logger.info("Flash-closed position %s (%s)", position_id, pos.asset.symbol)
+
+    def _parse_source_timestep(self, timestep: str) -> str:
+        """
+        Convert Lumibot timestep to BitUnix interval format.
+        Delegates to the data source's implementation.
+        """
+        if hasattr(self.data_source, '_parse_source_timestep'):
+            return self.data_source._parse_source_timestep(timestep)
+        
+        # Fallback implementation if data source doesn't have the method
+        normalized = timestep.lower().strip()
+        
+        timestep_map = {
+            "1m": "1m", "minute": "1m",
+            "3m": "3m", 
+            "5m": "5m",
+            "15m": "15m",
+            "30m": "30m", 
+            "1h": "1h", "hour": "1h",
+            "2h": "2h",
+            "4h": "4h", 
+            "1d": "1d", "day": "1d", "d": "1d"
+        }
+        
+        return timestep_map.get(normalized, "1m")  # Default to 1m if unknown

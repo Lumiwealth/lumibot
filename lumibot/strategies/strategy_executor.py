@@ -640,9 +640,9 @@ class StrategyExecutor(Thread):
         # Calculate the value of the position
         order_value = price * float(quantity)
 
-        # If option, multiply % of portfolio by 100
+        # If option, multiply % of portfolio by multiplier 
         if order.asset.asset_type == Asset.AssetType.OPTION:
-            order_value = order_value * 100
+            order_value = order_value * multiplier 
 
         # Calculate the percent of the portfolio that this position represents
         percent_of_portfolio = order_value / portfolio_value

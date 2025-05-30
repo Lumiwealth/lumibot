@@ -266,7 +266,6 @@ class _Strategy:
         self.broker = broker
 
         # initialize cash variables
-        self._cash = None
         self._position_value = None
         self._portfolio_value = None
 
@@ -619,11 +618,12 @@ class _Strategy:
                 return False
 
             if broker_balances is not None:
-                (
-                    self._cash,
-                    self._position_value,
-                    self._portfolio_value,
-                ) = broker_balances
+                cash, position_value, portfolio_value = broker_balances
+                
+                # Update cash position instead of setting _cash directly
+                self._set_cash_position(cash)
+                self._position_value = position_value
+                self._portfolio_value = portfolio_value
 
                 self.last_broker_balances_update = datetime.datetime.now()
                 return True

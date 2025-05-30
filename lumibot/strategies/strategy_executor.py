@@ -1180,7 +1180,7 @@ class StrategyExecutor(Thread):
 
                     # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
                     if self.strategy.is_backtesting:
-                        raise RuntimeError("Exception encountered, stopping BackTest.") from e
+                        raise e  # Re-raise original exception to preserve error message for tests
 
                     # Only stop the strategy if it's time, otherwise keep running the bot
                     if not self._strategy_sleep():

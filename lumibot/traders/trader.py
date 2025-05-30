@@ -233,6 +233,13 @@ class Trader:
     def _join_pool(self):
         for strategy_thread in self._pool:
             strategy_thread.join()
+            
+        # For backtesting, check if any strategy failed and raise exception
+        if self.is_backtest_broker:
+            for strategy_thread in self._pool:
+                # Check if the thread stored an exception
+                if hasattr(strategy_thread, 'exception') and strategy_thread.exception is not None:
+                    raise strategy_thread.exception
 
     def _stop_pool(self, sig=None, frame=None):
         """Run all strategies on_abrupt_closing

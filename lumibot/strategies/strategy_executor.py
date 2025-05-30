@@ -38,6 +38,9 @@ class StrategyExecutor(Thread):
         self.broker = self.strategy.broker
         self.result = {}
         self._in_trading_iteration = False
+        
+        # Store any exception that occurs during execution
+        self.exception = None
 
         # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
         # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
@@ -1138,58 +1141,66 @@ class StrategyExecutor(Thread):
         return next_run_time
 
     def run(self):
-        # Overloading the broker sleep method
-        self.broker.sleep = self.safe_sleep
+        try:
+            # Overloading the broker sleep method
+            self.broker.sleep = self.safe_sleep
 
-        # Set the strategy name at the broker
-        self.broker.set_strategy_name(self.strategy._name)
+            # Set the strategy name at the broker
+            self.broker.set_strategy_name(self.strategy._name)
 
-        self._initialize()
+            self._initialize()
 
-        # Get the trading days based on the market that the strategy is trading on
-        market = self.broker.market
+            # Get the trading days based on the market that the strategy is trading on
+            market = self.broker.market
 
-        # Get the trading days based on the market that the strategy is trading on
-        self.broker._trading_days = get_trading_days(market)
+            # Get the trading days based on the market that the strategy is trading on
+            self.broker._trading_days = get_trading_days(market)
 
-        # Sort the trading days by market close time so that we can search them faster
-        self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
+            # Sort the trading days by market close time so that we can search them faster
+            self.broker._trading_days.sort_values('market_close', inplace=True)  # Ensure sorted order
 
-        # Set DataFrame index to market_close for fast lookups
-        self.broker._trading_days.set_index('market_close', inplace=True)
+            # Set DataFrame index to market_close for fast lookups
+            self.broker._trading_days.set_index('market_close', inplace=True)
 
-        #####
-        # The main loop for running any strategy
-        ####
-        while self.broker.should_continue() and self.should_continue:
+            #####
+            # The main loop for running any strategy
+            ####
+            while self.broker.should_continue() and self.should_continue:
+                try:
+                    self._run_trading_session()
+                except Exception as e:
+                    # The bot crashed so log the error, call the on_bot_crash method, and continue
+                    self.strategy.logger.error(e)
+                    self.strategy.logger.error(traceback.format_exc())
+                    try:
+                        self._on_bot_crash(e)
+                    except Exception as e1:
+                        self.strategy.logger.error(e1)
+                        self.strategy.logger.error(traceback.format_exc())
+
+                    # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
+                    if self.strategy.is_backtesting:
+                        raise RuntimeError("Exception encountered, stopping BackTest.") from e
+
+                    # Only stop the strategy if it's time, otherwise keep running the bot
+                    if not self._strategy_sleep():
+                        self.result = self.strategy._analysis
+                        return False
             try:
-                self._run_trading_session()
+                self._on_strategy_end()
             except Exception as e:
-                # The bot crashed so log the error, call the on_bot_crash method, and continue
                 self.strategy.logger.error(e)
                 self.strategy.logger.error(traceback.format_exc())
-                try:
-                    self._on_bot_crash(e)
-                except Exception as e1:
-                    self.strategy.logger.error(e1)
-                    self.strategy.logger.error(traceback.format_exc())
+                self._on_bot_crash(e)
+                self.result = self.strategy._analysis
+                return False
 
-                # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
-                if self.strategy.is_backtesting:
-                    raise RuntimeError("Exception encountered, stopping BackTest.") from e
-
-                # Only stop the strategy if it's time, otherwise keep running the bot
-                if not self._strategy_sleep():
-                    self.result = self.strategy._analysis
-                    return False
-        try:
-            self._on_strategy_end()
-        except Exception as e:
-            self.strategy.logger.error(e)
-            self.strategy.logger.error(traceback.format_exc())
-            self._on_bot_crash(e)
             self.result = self.strategy._analysis
+            return True
+            
+        except Exception as e:
+            # Store the exception so the main thread can check it
+            self.exception = e
+            self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
+            # Don't re-raise - let the main thread handle it
             return False
-
-        self.result = self.strategy._analysis
-        return True

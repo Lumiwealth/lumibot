@@ -9,7 +9,7 @@ import pandas as pd
 import yfinance as yf
 from fp.fp import FreeProxy
 
-from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
+from ..constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 
 from .helpers import get_lumibot_datetime
 

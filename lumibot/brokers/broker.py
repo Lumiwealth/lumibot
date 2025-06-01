@@ -1107,7 +1107,7 @@ class Broker(ABC):
         pos = self.get_tracked_position(strategy_name, asset)
         if pos and pos.quantity != 0:
             order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
-            if fraction is not 1.00:
+            if fraction != 1.00:
                 order.quantity = order.quantity * fraction
             return self.submit_order(order)
         return None

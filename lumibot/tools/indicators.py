@@ -12,7 +12,7 @@ import pytz
 import quantstats_lumi as qs
 from plotly.subplots import make_subplots
 
-from lumibot import LUMIBOT_DEFAULT_TIMEZONE
+from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
 from plotly.subplots import make_subplots
 

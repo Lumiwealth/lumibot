@@ -11,7 +11,7 @@ import pandas_market_calendars as mcal
 from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from ..constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 
 
 def get_chunks(l, chunk_size):

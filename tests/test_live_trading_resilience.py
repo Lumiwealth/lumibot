@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from threading import RLock
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import YahooDataBacktesting, BacktestingBroker
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSource
@@ -19,6 +20,8 @@ from lumibot.trading_builtins import SafeList
 class MockDataSource:
     def get_last_price(self, asset, quote=None, exchange=None): return 100.0
     def get_last_prices(self, assets, quote=None, exchange=None): return {}
+    def get_yesterday_dividends(self, assets, quote=None): return None
+    def get_datetime(self, adjust_for_delay=False): return datetime.datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
 
 
 class MockLiveBroker(Broker):

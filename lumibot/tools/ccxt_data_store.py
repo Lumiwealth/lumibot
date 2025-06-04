@@ -8,7 +8,7 @@ from datetime import datetime
 from tabulate import tabulate
 import pandas as pd
 from pandas import DataFrame
-from lumibot import LUMIBOT_CACHE_FOLDER
+from ..constants import LUMIBOT_CACHE_FOLDER
 import math
 import numpy as np
 from typing import Union

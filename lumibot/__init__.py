@@ -14,17 +14,17 @@ if (major, minor) < (3, 10):
     warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
 
 # SOURCE PATH
-LUMIBOT_SOURCE_PATH = os.path.abspath(os.path.dirname(__file__))
+# Import constants from constants module
+from .constants import (
+    LUMIBOT_SOURCE_PATH,
+    LUMIBOT_DEFAULT_TIMEZONE,
+    LUMIBOT_DEFAULT_PYTZ,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
+    LUMIBOT_CACHE_FOLDER
+)
 
-# GLOBAL PARAMETERS
-LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
-LUMIBOT_DEFAULT_PYTZ = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
-LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL = "USD"
-LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE = "forex"
-
-# CACHING CONFIGURATIONS
-LUMIBOT_CACHE_FOLDER = appdirs.user_cache_dir(appauthor="LumiWealth", appname="lumibot", version="1.0")
-
+# Ensure cache folder exists
 if not os.path.exists(LUMIBOT_CACHE_FOLDER):
     try:
         os.makedirs(LUMIBOT_CACHE_FOLDER)
@@ -65,8 +65,19 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
             # to avoid Sphinx confusion with a potentially broken module object.
             # However, if Sphinx/autodoc is running, it might be safer to leave mocks as they are.
             # For now, we'll log and continue, letting Sphinx handle missing modules.
+            # Reconsidering removal: could interfere with Sphinx's own mock handling.
             pass # Reconsidering removal: could interfere with Sphinx's own mock handling
     except ImportError as e: # Catch other import-related errors
         logging.warning(f"[lumibot/__init__.py] ImportError while creating alias '{_alias}' for '{_full}': {e}")
     except Exception as e: # Catch any other unexpected errors during aliasing
         logging.warning(f"[lumibot/__init__.py] Unexpected error creating alias '{_alias}' for '{_full}': {e}")
+
+# Export the default timezone constants so they can be imported by other modules
+__all__ = [
+    'LUMIBOT_DEFAULT_TIMEZONE',
+    'LUMIBOT_DEFAULT_PYTZ',
+    'LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL',
+    'LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE',
+    'LUMIBOT_SOURCE_PATH',
+    'LUMIBOT_CACHE_FOLDER'
+]

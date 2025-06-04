@@ -153,6 +153,8 @@ class BitunixData(DataSource):
                 # Expected format from documentation - adjust if needed
                 if "t" in df.columns:  # Timestamp
                     df["ts"] = df["t"]
+                elif "time" in df.columns:  # Also handle 'time' column
+                    df["ts"] = df["time"]
                 if "o" in df.columns:  # Open
                     df["open"] = df["o"]
                 if "h" in df.columns:  # High
@@ -171,7 +173,7 @@ class BitunixData(DataSource):
                 
                 # Set timestamp as index
                 if "ts" in df.columns:
-                    df.index = pd.to_datetime(df["ts"], unit="ms")
+                    df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms")
                     # Convert timezone
                     df.index = df.index.tz_localize(pytz.utc).tz_convert(self._tzinfo)
                 
@@ -209,3 +211,14 @@ class BitunixData(DataSource):
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """Option chains not supported by BitUnix."""
         return {"Multiplier": 1, "Exchange": exchange or "", "Chains": {}}
+
+    def get_timestep_from_string(self, timestep: str) -> str:
+        """
+        Maps a string representation of a timestep to the normalized timestep.
+        """
+        ts = timestep.lower().strip()
+        for mapping in self.TIMESTEP_MAPPING:
+            if ts in [r.lower() for r in mapping["representations"]]:
+                return mapping["timestep"]
+        # Default to "minute" if not found
+        return "minute"

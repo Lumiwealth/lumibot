@@ -275,8 +275,10 @@ class DriftCalculationLogic:
         A positive drift means we need to buy more of the asset,
         a negative drift means we need to sell some of the asset.
         """
-        # Don't let total_value be zero - to avoid division by zero
-        total_value = self.df["current_value"].sum()
+        # Use total portfolio value instead of just current asset values
+        # This fixes the issue where starting from all-cash positions would result in zero target values
+        total_value = Decimal(str(self.strategy.get_portfolio_value()))
+        
         self.df["current_weight"] = self.df["current_value"] / total_value if total_value > 0 else Decimal(0)
         self.df["target_value"] = self.df["target_weight"] * total_value
         self.df["drift"] = self.df.apply(self._calculate_drift_row, axis=1)
@@ -412,7 +414,11 @@ class DriftOrderLogic:
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell", asset=base_asset)
                 quantity = (row["current_value"] - row["target_value"]) / limit_price
-                if self.fractional_shares:
+                
+                # Apply quantity rounding - options must be whole contracts
+                if base_asset.asset_type == Asset.AssetType.OPTION:
+                    quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
+                elif self.fractional_shares:
                     quantity = quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
                 else:
                     quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
@@ -470,7 +476,10 @@ class DriftOrderLogic:
                     cash_position
                 )
 
-                if self.fractional_shares:
+                # Apply quantity rounding - options must be whole contracts
+                if base_asset.asset_type == Asset.AssetType.OPTION:
+                    quantity = adjusted_quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
+                elif self.fractional_shares:
                     quantity = adjusted_quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
                 else:
                     quantity = adjusted_quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
@@ -498,12 +507,22 @@ class DriftOrderLogic:
         else:
             limit_price = last_price * (1 + self.acceptable_slippage)
 
-        if asset.asset_type != Asset.AssetType.CRYPTO:
-            # reduce to 2 decimals
+        if asset.asset_type == Asset.AssetType.CRYPTO:
+            # Keep full precision for crypto
+            pass
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            # Options typically trade in $0.05 or $0.01 increments
+            # Round to the nearest cent for options
             if side == "buy":
-                limit_price = limit_price.quantize(Decimal('1.00'), rounding=ROUND_DOWN)
+                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
             else:
-                limit_price = limit_price.quantize(Decimal('1.00'), rounding=ROUND_UP)
+                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
+        else:
+            # Stocks - reduce to 2 decimals (cents)
+            if side == "buy":
+                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
+            else:
+                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
 
         return limit_price
 

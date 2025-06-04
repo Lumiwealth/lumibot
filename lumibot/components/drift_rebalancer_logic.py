@@ -317,10 +317,12 @@ class DriftCalculationLogic:
             if self.drift_type == DriftType.ABSOLUTE:
                 return row["target_weight"] - row["current_weight"]
             elif self.drift_type == DriftType.RELATIVE:
-                # Relative drift is calculated by: difference / target_weight.
+                # Relative drift is calculated by: difference / abs(target_weight).
                 # Example: target_weight=0.20 and current_weight=0.23
                 # The drift is (0.20 - 0.23) / 0.20 = -0.15
-                return (row["target_weight"] - row["current_weight"]) / row["target_weight"]
+                # For negative target weights (short positions), we use the absolute value
+                # to ensure the sign of the drift is correct
+                return (row["target_weight"] - row["current_weight"]) / abs(row["target_weight"])
             else:
                 raise ValueError(f"Invalid drift_type: {self.drift_type}")
 

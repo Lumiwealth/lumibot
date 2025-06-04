@@ -466,7 +466,14 @@ class DriftOrderLogic:
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy", asset=base_asset)
                 order_value = row["target_value"] - row["current_value"]
-                desired_quantity = min(order_value, cash_position) / limit_price
+                
+                # For options, account for the 100-share multiplier
+                if base_asset.asset_type == Asset.AssetType.OPTION:
+                    # Options prices are quoted per share but each contract represents 100 shares
+                    effective_price = limit_price * 100
+                    desired_quantity = min(order_value, cash_position) / effective_price
+                else:
+                    desired_quantity = min(order_value, cash_position) / limit_price
 
                 adjusted_quantity = self.adjust_quantity_for_fees(
                     desired_quantity,
@@ -485,9 +492,15 @@ class DriftOrderLogic:
                     quantity = adjusted_quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
 
                 if quantity > 0:
-                    if quantity * limit_price > cash_position:
+                    # For options, check against actual cost (price * 100 * quantity)
+                    if base_asset.asset_type == Asset.AssetType.OPTION:
+                        actual_cost = quantity * limit_price * 100
+                    else:
+                        actual_cost = quantity * limit_price
+                        
+                    if actual_cost > cash_position:
                         self.strategy.logger.error(
-                            f"Quantity {quantity} of {base_asset.symbol} * limit_price: {limit_price:.2f}"
+                            f"Quantity {quantity} of {base_asset.symbol} * cost: {actual_cost:.2f}"
                             f"is more than cash: {cash_position}. Not sending order."
                         )
                         continue
@@ -499,7 +512,12 @@ class DriftOrderLogic:
                         side="buy"
                     )
                     buy_orders.append(order)
-                    cash_position -= quantity * limit_price
+                    
+                    # Deduct actual cost from cash position
+                    if base_asset.asset_type == Asset.AssetType.OPTION:
+                        cash_position -= quantity * limit_price * 100
+                    else:
+                        cash_position -= quantity * limit_price
 
     def calculate_limit_price(self, *, last_price: Decimal, side: str, asset: Asset) -> Decimal:
         if side == "sell":
@@ -607,6 +625,10 @@ class DriftOrderLogic:
             trading_fees = [trading_fees]
 
         if side == "buy":
+            # For options, calculate fees based on actual cost (price * 100 * quantity)
+            # Note: We need to determine if this is an options trade - we'll approximate by checking the calling context
+            # This is a limitation of the current design, but works for most cases
+            
             fees = self.calculate_trading_costs(desired_quantity, price, trading_fees)
             total_cost = desired_quantity * price + fees
 

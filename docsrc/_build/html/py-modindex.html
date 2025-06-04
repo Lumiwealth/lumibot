@@ -287,6 +287,7 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -306,6 +307,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -328,7 +330,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab API Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
 </ul>
 </li>
@@ -368,58 +370,9 @@
           
 <section class="domainindex-section">
   <h1>Python Module Index</h1>
-  <div class="domainindex-jumpbox"><a href="#cap-e"><strong>e</strong></a> | <a href="#cap-l"><strong>l</strong></a></div>
+  <div class="domainindex-jumpbox"><a href="#cap-l"><strong>l</strong></a></div>
 </section>
 <table class="domainindex-table">
-  <tr class="pcap">
-    <td></td><td>&#160;</td><td></td>
-  </tr>
-  <tr class="cap" id="cap-e">
-    <td></td><td><strong>e</strong></td><td></td>
-  </tr>
-  <tr>
-    <td><img src="_static/minus.png" class="toggler"
-              id="toggle-1" style="display: none" alt="-" /></td>
-    <td>
-        <code class="xref">entities</code></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.asset.html#module-entities.asset"><code class="xref">entities.asset</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.bars.html#module-entities.bars"><code class="xref">entities.bars</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.data.html#module-entities.data"><code class="xref">entities.data</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.order.html#module-entities.order"><code class="xref">entities.order</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.position.html#module-entities.position"><code class="xref">entities.position</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-1">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="entities.trading_fee.html#module-entities.trading_fee"><code class="xref">entities.trading_fee</code></a></td><td>
-    <em></em></td>
-  </tr>
   <tr class="pcap">
     <td></td><td>&#160;</td><td></td>
   </tr>
@@ -428,66 +381,60 @@
   </tr>
   <tr>
     <td><img src="_static/minus.png" class="toggler"
-              id="toggle-2" style="display: none" alt="-" /></td>
+              id="toggle-1" style="display: none" alt="-" /></td>
     <td>
         <code class="xref">lumibot</code></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.backtesting.html#module-lumibot.backtesting.backtesting_broker"><code class="xref">lumibot.backtesting.backtesting_broker</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="brokers.alpaca.html#module-lumibot.brokers.alpaca"><code class="xref">lumibot.brokers.alpaca</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
-    <td></td>
-    <td>&#160;&#160;&#160;
-        <a href="brokers.bitunix.html#module-lumibot.brokers.bitunix"><code class="xref">lumibot.brokers.bitunix</code></a></td><td>
-    <em></em></td>
-  </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources"><code class="xref">lumibot.data_sources</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources.data_source"><code class="xref">lumibot.data_sources.data_source</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.backtesting.html#module-lumibot.data_sources.data_source_backtesting"><code class="xref">lumibot.data_sources.data_source_backtesting</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources.pandas_data"><code class="xref">lumibot.data_sources.pandas_data</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.data_sources.html#module-lumibot.data_sources.yahoo_data"><code class="xref">lumibot.data_sources.yahoo_data</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.strategies.html#module-lumibot.strategies.strategy.Strategy"><code class="xref">lumibot.strategies.strategy.Strategy</code></a></td><td>
     <em></em></td>
   </tr>
-  <tr class="cg-2">
+  <tr class="cg-1">
     <td></td>
     <td>&#160;&#160;&#160;
         <a href="lumibot.traders.html#module-lumibot.traders.trader"><code class="xref">lumibot.traders.trader</code></a></td><td>

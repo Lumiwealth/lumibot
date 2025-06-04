@@ -24,6 +24,14 @@ from .constants import (
     LUMIBOT_CACHE_FOLDER
 )
 
+# Import main submodules
+from . import strategies
+from . import brokers
+from . import backtesting
+from . import entities
+from . import data_sources
+from . import traders
+
 # Ensure cache folder exists
 if not os.path.exists(LUMIBOT_CACHE_FOLDER):
     try:
@@ -79,5 +87,11 @@ __all__ = [
     'LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL',
     'LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE',
     'LUMIBOT_SOURCE_PATH',
-    'LUMIBOT_CACHE_FOLDER'
+    'LUMIBOT_CACHE_FOLDER',
+    'strategies',
+    'brokers',
+    'backtesting',
+    'entities',
+    'data_sources',
+    'traders'
 ]

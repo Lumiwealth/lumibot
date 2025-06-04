@@ -289,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -308,6 +309,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -330,7 +332,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab API Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
 </ul>
 </li>
@@ -890,6 +892,10 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html#lumibot.strategies.strategy.Strategy.first_iteration"><code class="docutils literal notranslate"><span class="pre">Strategy.first_iteration</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html#lumibot.strategies.strategy.Strategy.is_backtesting"><code class="docutils literal notranslate"><span class="pre">Strategy.is_backtesting</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html#lumibot.strategies.strategy.Strategy.quote_asset"><code class="docutils literal notranslate"><span class="pre">Strategy.quote_asset</span></code></a></li>
 </ul>
@@ -934,22 +940,28 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="entities.html">Entities</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="entities.asset.html#module-entities.asset">Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="entities.asset.html#documentation">Documentation</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="entities.bars.html#module-entities.bars">Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="entities.bars.html#documentation">Documentation</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="entities.order.html#advanced-order-types">Advanced Order Types</a></li>
 <li class="toctree-l3"><a class="reference internal" href="entities.order.html#order-with-legs">Order With Legs</a></li>
-<li class="toctree-l3"><a class="reference internal" href="entities.order.html#module-entities.order">Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="entities.order.html#documentation">Documentation</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="entities.chains.html#at-a-glance">At a glance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="entities.chains.html#design-notes">Design notes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="entities.chains.html#api-reference">API reference</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="backtesting.html">Backtesting</a><ul>
@@ -997,18 +1009,33 @@
 <li class="toctree-l3"><a class="reference internal" href="brokers.tradier.html#full-example-strategy">Full Example Strategy</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab API Setup</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#developer-account-and-application-setup">Developer Account and Application Setup</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#environment-variables-setup">Environment Variables Setup</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#oauth-process-and-token-creation">OAuth Process and Token Creation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#summary">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#environment-variables">Environment variables</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#first-time-login">First-time login</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#token-life-cycle">Token life-cycle</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#supported-functionality">Supported functionality</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#example-env">Example <code class="docutils literal notranslate"><span class="pre">.env</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#example-strategy-snippet">Example strategy snippet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#api-credentials">API Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#token-life-cycle-auto-refresh">Token Life-cycle &amp; Auto-refresh</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#creating-an-app-getting-keys">Creating an App &amp; Getting Keys</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#oauth2-authentication-flow">OAuth2 Authentication Flow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#sandbox-vs-production">Sandbox vs Production</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#supported-assets-order-types">Supported Assets &amp; Order Types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#market-data">Market Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#rate-limits-token-expiry">Rate Limits &amp; Token Expiry</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#known-issues-best-practices">Known Issues &amp; Best Practices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#example-strategy">Example Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.schwab.html#support-contact">Support &amp; Contact</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="brokers.bitunix.html#how-to-use-bitunix">How to Use Bitunix</a></li>
 <li class="toctree-l3"><a class="reference internal" href="brokers.bitunix.html#setting-leverage-for-bitunix-orders">Setting Leverage for Bitunix Orders</a></li>
 <li class="toctree-l3"><a class="reference internal" href="brokers.bitunix.html#example-usage">Example Usage</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.bitunix.html#module-lumibot.brokers.bitunix">Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.bitunix.html#documentation">Documentation</a></li>
 </ul>
 </li>
 </ul>

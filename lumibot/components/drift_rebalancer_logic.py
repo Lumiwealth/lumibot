@@ -541,15 +541,15 @@ class DriftOrderLogic:
             # Options typically trade in $0.05 or $0.01 increments
             # Round to the nearest cent for options
             if side == "buy":
-                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
+                limit_price = limit_price.quantize(Decimal('1.01'), rounding=ROUND_DOWN)
             else:
-                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
+                limit_price = limit_price.quantize(Decimal('1.01'), rounding=ROUND_UP)
         else:
             # Stocks - reduce to 2 decimals (cents)
             if side == "buy":
-                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
+                limit_price = limit_price.quantize(Decimal('1.01'), rounding=ROUND_DOWN)
             else:
-                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
+                limit_price = limit_price.quantize(Decimal('1.01'), rounding=ROUND_UP)
 
         return limit_price
 

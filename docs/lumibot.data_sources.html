@@ -289,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -308,6 +309,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -330,7 +332,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab API Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
 </ul>
 </li>
@@ -374,7 +376,7 @@
 <span id="data-source"></span><h2>Data Source<a class="headerlink" href="#module-lumibot.data_sources.data_source" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.data_sources.data_source.</span></span><span class="sig-name descname"><span class="pre">DataSource</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delay</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tzinfo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.data_sources.data_source.</span></span><span class="sig-name descname"><span class="pre">DataSource</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_key</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.DEFAULT_PYTZ">
@@ -433,39 +435,8 @@ timedelta of 1 minute.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.get_bars">
-<span class="sig-name descname"><span class="pre">get_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_after_hours</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_bars" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_bars</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'minute'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_after_hours</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_bars" title="Link to this definition">#</a></dt>
 <dd><p>Get bars for the list of assets</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.get_chain_full_info">
-<span class="sig-name descname"><span class="pre">get_chain_full_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset:</span> <span class="pre">~lumibot.entities.asset.Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expiry:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">underlying_price=&lt;class</span> <span class="pre">'float'&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">risk_free_rate=&lt;class</span> <span class="pre">'float'&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike_min=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strike_max=None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_chain_full_info" title="Link to this definition">#</a></dt>
-<dd><p>Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
-brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
-is much faster as only a single API call can be done to return the data for all options simultaneously.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>Asset</em>) – The option asset to get the chain information for.</p></li>
-<li><p><strong>expiry</strong> (<em>str</em><em> | </em><em>datetime.datetime</em><em> | </em><em>datetime.date</em>) – The expiry date of the option chain.</p></li>
-<li><p><strong>chains</strong> (<em>dict</em>) – The chains dictionary created by <cite>get_chains</cite> method. This is used
-to get the list of strikes needed to calculate the greeks.</p></li>
-<li><p><strong>underlying_price</strong> (<em>float</em>) – Price of the underlying asset.</p></li>
-<li><p><strong>risk_free_rate</strong> (<em>float</em>) – The risk-free rate used in interest calculations.</p></li>
-<li><p><strong>strike_min</strong> (<em>float</em>) – The minimum strike price to return in the chain. If None, will return all strikes.
-Providing this will speed up execution by limiting the number of strikes queried.</p></li>
-<li><p><strong>strike_max</strong> (<em>float</em>) – The maximum strike price to return in the chain. If None, will return all strikes.
-Providing this will speed up execution by limiting the number of strikes queried.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A DataFrame containing the full chain information for the option asset. Greeks columns will be named as
-‘greeks.delta’, ‘greeks.theta’, etc.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>pd.DataFrame</p>
-</dd>
-</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -523,35 +494,20 @@ provide delayed data.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.get_historical_prices">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_historical_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_after_hours</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Bars</span></span></span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_historical_prices" title="Link to this definition">#</a></dt>
-<dd><p>Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
-For example, with a length of 10 and a timestep of “day”, and no timeshift, this
-would return the last 10 daily bars.</p>
-<ul class="simple">
-<li><p>Higher-level method that returns a <cite>Bars</cite> object</p></li>
-<li><p>Handles timezone conversions automatically</p></li>
-<li><p>Includes additional metadata and processing</p></li>
-<li><p>Preferred for strategy development and backtesting</p></li>
-<li><p>Returns normalized data with consistent format across data sources</p></li>
-</ul>
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_historical_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_after_hours</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_historical_prices" title="Link to this definition">#</a></dt>
+<dd><p>Get bars for a given asset</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>asset</strong> (<em>Asset</em>) – The asset to get the bars for.</p></li>
 <li><p><strong>length</strong> (<em>int</em>) – The number of bars to get.</p></li>
-<li><p><strong>timestep</strong> (<em>str</em>) – The timestep to get the bars at. Accepts “day” “hour” or “minute”.</p></li>
+<li><p><strong>timestep</strong> (<em>str</em>) – The timestep to get the bars at. For example, “1minute” or “1hour” or “1day”.</p></li>
 <li><p><strong>timeshift</strong> (<em>datetime.timedelta</em>) – The amount of time to shift the bars by. For example, if you want the bars from 1 hour ago to now,
 you would set timeshift to 1 hour.</p></li>
 <li><p><strong>quote</strong> (<em>Asset</em>) – The quote asset to get the bars for.</p></li>
 <li><p><strong>exchange</strong> (<em>str</em>) – The exchange to get the bars for.</p></li>
 <li><p><strong>include_after_hours</strong> (<em>bool</em>) – Whether to include after hours data.</p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The bars for the asset.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Bars</p>
 </dd>
 </dl>
 </dd></dl>
@@ -568,7 +524,7 @@ you would set timeshift to 1 hour.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.get_last_price">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Decimal</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_last_price" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.get_last_price" title="Link to this definition">#</a></dt>
 <dd><p>Takes an asset and returns the last known price</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -582,7 +538,7 @@ you would set timeshift to 1 hour.</p></li>
 <dd class="field-even"><p>The last known price of the asset.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>float or Decimal or None</p>
+<dd class="field-odd"><p>float</p>
 </dd>
 </dl>
 </dd></dl>
@@ -659,7 +615,7 @@ assets for the day before</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.localize_datetime">
-<span class="sig-name descname"><span class="pre">localize_datetime</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.localize_datetime" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">localize_datetime</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.localize_datetime" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -670,7 +626,7 @@ assets for the day before</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.data_source.DataSource.to_default_timezone">
-<span class="sig-name descname"><span class="pre">to_default_timezone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.to_default_timezone" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">to_default_timezone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.data_source.DataSource.to_default_timezone" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -697,16 +653,7 @@ data for a backtest run. It is not possible to use this class to run a live trad
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas_data.PandasData.clean_trading_times">
 <span class="sig-name descname"><span class="pre">clean_trading_times</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pcal</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.clean_trading_times" title="Link to this definition">#</a></dt>
-<dd><p>Fill in blanks in the data on trading days within market trading hours.</p>
-<p>Parameters:
-dt_index (DatetimeIndex): The original datetime index.
-pcal (DataFrame): A calendar DataFrame containing “market_open” and “market_close” columns,</p>
-<blockquote>
-<div><p>indexed by dates.</p>
-</div></blockquote>
-<p>Returns:
-DatetimeIndex: The cleaned index with one-minute frequency within the market hours.</p>
-</dd></dl>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas_data.PandasData.find_asset_in_data_store">
@@ -783,13 +730,13 @@ Format:</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas_data.PandasData.get_historical_prices">
-<span class="sig-name descname"><span class="pre">get_historical_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_after_hours</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.get_historical_prices" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_historical_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeshift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_after_hours</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.get_historical_prices" title="Link to this definition">#</a></dt>
 <dd><p>Get bars for a given asset</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas_data.PandasData.get_last_price">
-<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Decimal</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.get_last_price" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.get_last_price" title="Link to this definition">#</a></dt>
 <dd><p>Takes an asset and returns the last known price</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -803,7 +750,7 @@ Format:</p>
 <dd class="field-even"><p>The last known price of the asset.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>float or Decimal or None</p>
+<dd class="field-odd"><p>float</p>
 </dd>
 </dl>
 </dd></dl>
@@ -813,11 +760,6 @@ Format:</p>
 <span class="sig-name descname"><span class="pre">get_last_prices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">assets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.get_last_prices" title="Link to this definition">#</a></dt>
 <dd><p>Takes a list of assets and returns the last known prices</p>
 </dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.data_sources.pandas_data.PandasData.get_quote">
-<span class="sig-name descname"><span class="pre">get_quote</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.pandas_data.PandasData.get_quote" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.pandas_data.PandasData.get_start_datetime_and_ts_unit">
@@ -876,7 +818,7 @@ assets for the day before</p>
 <span id="yahoo"></span><h2>Yahoo<a class="headerlink" href="#module-lumibot.data_sources.yahoo_data" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.data_sources.yahoo_data.YahooData">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.data_sources.yahoo_data.</span></span><span class="sig-name descname"><span class="pre">YahooData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_adjust</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datetime_end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.yahoo_data.YahooData" title="Link to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.data_sources.yahoo_data.</span></span><span class="sig-name descname"><span class="pre">YahooData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">auto_adjust</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.yahoo_data.YahooData" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="lumibot.backtesting.html#lumibot.data_sources.data_source_backtesting.DataSourceBacktesting" title="lumibot.data_sources.data_source_backtesting.DataSourceBacktesting"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataSourceBacktesting</span></code></a></p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="lumibot.data_sources.yahoo_data.YahooData.MIN_TIMESTEP">
@@ -914,7 +856,7 @@ See yf methods:
 
 <dl class="py method">
 <dt class="sig sig-object py" id="lumibot.data_sources.yahoo_data.YahooData.get_last_price">
-<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Decimal</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="headerlink" href="#lumibot.data_sources.yahoo_data.YahooData.get_last_price" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">get_last_price</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestep</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.data_sources.yahoo_data.YahooData.get_last_price" title="Link to this definition">#</a></dt>
 <dd><p>Takes an asset and returns the last known price</p>
 </dd></dl>
 
@@ -981,7 +923,6 @@ See yf methods:
 <li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.calculate_greeks"><code class="docutils literal notranslate"><span class="pre">DataSource.calculate_greeks()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.convert_timestep_str_to_timedelta"><code class="docutils literal notranslate"><span class="pre">DataSource.convert_timestep_str_to_timedelta()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.get_bars"><code class="docutils literal notranslate"><span class="pre">DataSource.get_bars()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.get_chain_full_info"><code class="docutils literal notranslate"><span class="pre">DataSource.get_chain_full_info()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.get_chains"><code class="docutils literal notranslate"><span class="pre">DataSource.get_chains()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.get_datetime"><code class="docutils literal notranslate"><span class="pre">DataSource.get_datetime()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.data_source.DataSource.get_datetime_range"><code class="docutils literal notranslate"><span class="pre">DataSource.get_datetime_range()</span></code></a></li>
@@ -1017,7 +958,6 @@ See yf methods:
 <li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_historical_prices"><code class="docutils literal notranslate"><span class="pre">PandasData.get_historical_prices()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_last_price"><code class="docutils literal notranslate"><span class="pre">PandasData.get_last_price()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_last_prices"><code class="docutils literal notranslate"><span class="pre">PandasData.get_last_prices()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_quote"><code class="docutils literal notranslate"><span class="pre">PandasData.get_quote()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_start_datetime_and_ts_unit"><code class="docutils literal notranslate"><span class="pre">PandasData.get_start_datetime_and_ts_unit()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_trading_days_pandas"><code class="docutils literal notranslate"><span class="pre">PandasData.get_trading_days_pandas()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.data_sources.pandas_data.PandasData.get_yesterday_dividend"><code class="docutils literal notranslate"><span class="pre">PandasData.get_yesterday_dividend()</span></code></a></li>

@@ -145,7 +145,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -289,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -308,6 +309,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -330,7 +332,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.tradier.html">Tradier</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../brokers.schwab.html">Schwab API Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../brokers.bitunix.html">Bitunix</a></li>
 </ul>
 </li>
@@ -362,7 +364,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -370,6 +372,26 @@
         <article role="main">
           <section id="self-is-backtesting">
 <h1>self.is_backtesting<a class="headerlink" href="#self-is-backtesting" title="Link to this heading">#</a></h1>
+<dl class="py property">
+<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.is_backtesting">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">Strategy.</span></span><span class="sig-name descname"><span class="pre">is_backtesting</span></span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.is_backtesting" title="Link to this definition">#</a></dt>
+<dd><p>Returns True if the strategy is running in backtesting mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>is_backtesting</strong> – True if the strategy is running in backtesting mode.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Check if the strategy is running in backtesting mode</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_backtesting</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">&quot;Running in backtesting mode&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
 </section>
 
         </article>
@@ -397,8 +419,27 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">self.is_backtesting</a><ul>
+<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.is_backtesting"><code class="docutils literal notranslate"><span class="pre">Strategy.is_backtesting</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

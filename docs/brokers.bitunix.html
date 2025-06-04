@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Schwab API Setup" href="brokers.schwab.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Schwab" href="brokers.schwab.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Bitunix - Lumibot Documentation</title>
@@ -289,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -308,6 +309,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
 <li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -330,7 +332,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab API Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Bitunix</a></li>
 </ul>
 </li>
@@ -452,225 +454,8 @@
 <p>For best results, ensure all funds in your Bitunix Futures account are in USDT. Crypto balances may not be counted as available cash for order sizing.</p>
 </div>
 </section>
-<section id="module-lumibot.brokers.bitunix">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.brokers.bitunix" title="Link to this heading">#</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.bitunix.</span></span><span class="sig-name descname"><span class="pre">Bitunix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poll_interval</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Broker</span></code></p>
-<p>A broker class that connects to the Bitunix exchange for crypto futures trading.</p>
-<p>This broker is designed specifically for Bitunix’s perpetual futures API. It supports submitting, tracking, and closing positions for crypto futures contracts (e.g., BTCUSDT perpetual). The broker uses Bitunix’s REST API for all trading operations.</p>
-<p>Key Features:
-- Only supports crypto futures (TRADING_MODE must be “FUTURES”).
-- Uses Bitunix’s “flash close” endpoint to close open futures positions instantly at market price.
-- All positions and orders are managed using Bitunix’s API conventions.
-- Not suitable for spot trading or non-futures assets.</p>
-<p>Notes:
-- The <cite>close_position</cite> method will use Bitunix’s flash close endpoint, which is faster and more reliable for closing futures positions than submitting a regular market order.
-- All asset symbols should be the full Bitunix symbol (e.g., “BTCUSDT”).
-- Leverage and margin settings are managed per-symbol as needed.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.ASSET_TYPE_MAP">
-<span class="sig-name descname"><span class="pre">ASSET_TYPE_MAP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'crypto':</span> <span class="pre">['crypto'],</span> <span class="pre">'crypto_future':</span> <span class="pre">['future'],</span> <span class="pre">'forex':</span> <span class="pre">[],</span> <span class="pre">'future':</span> <span class="pre">['future'],</span> <span class="pre">'option':</span> <span class="pre">[],</span> <span class="pre">'stock':</span> <span class="pre">[]}</span></em><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.ASSET_TYPE_MAP" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.DEFAULT_POLL_INTERVAL">
-<span class="sig-name descname"><span class="pre">DEFAULT_POLL_INTERVAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></em><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.DEFAULT_POLL_INTERVAL" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET">
-<span class="sig-name descname"><span class="pre">LUMIBOT_DEFAULT_QUOTE_ASSET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">USDT</span></em><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.cancel_order">
-<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.cancel_order" title="Link to this definition">#</a></dt>
-<dd><p>Cancels a FUTURES order.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.close_position">
-<span class="sig-name descname"><span class="pre">close_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.close_position" title="Link to this definition">#</a></dt>
-<dd><p>Close all or part of an existing position using a reduce‑only
-market order (tradeSide=”CLOSE”).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>strategy_name</strong> (<em>str</em>) – Name of the strategy that owns the position.</p></li>
-<li><p><strong>asset</strong> (<em>Asset</em>) – The asset whose position should be closed.</p></li>
-<li><p><strong>fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the position to close (0 &lt; fraction ≤ 1). Defaults to 1 (full close).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The submitted order, or <code class="docutils literal notranslate"><span class="pre">None</span></code> if no position exists.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Optional[Order]</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.do_polling">
-<span class="sig-name descname"><span class="pre">do_polling</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.do_polling" title="Link to this definition">#</a></dt>
-<dd><p>Polls Bitunix for order status updates and dispatches events.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_historical_account_value">
-<span class="sig-name descname"><span class="pre">get_historical_account_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_historical_account_value" title="Link to this definition">#</a></dt>
-<dd><p>Not implemented: Bitunix does not support historical account value retrieval.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_quote_asset">
-<span class="sig-name descname"><span class="pre">get_quote_asset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_quote_asset" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_time_to_close">
-<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_close" title="Link to this definition">#</a></dt>
-<dd><p>Return the remaining time for the market to close in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_time_to_open">
-<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_open" title="Link to this definition">#</a></dt>
-<dd><p>Return the remaining time for the market to open in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_timestamp">
-<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_timestamp" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.is_market_open">
-<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.is_market_open" title="Link to this definition">#</a></dt>
-<dd><p>Determines if the market is open.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None</strong> – </p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>True if market is open, false if the market is closed.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>boolean</p>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">is_market_open</span><span class="p">()</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.sell_all">
-<span class="sig-name descname"><span class="pre">sell_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cancel_open_orders</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_multileg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.sell_all" title="Link to this definition">#</a></dt>
-<dd><p>Override sell_all to use flash_close_position for futures.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.ws_url">
-<span class="sig-name descname"><span class="pre">ws_url</span></span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.ws_url" title="Link to this definition">#</a></dt>
-<dd><p># Set default futures position mode to hedge
-try:</p>
-<blockquote>
-<div><p>response = self.api.change_position_mode(“HEDGE”)
-# Check response code for success
-if response and response.get(“code”) == 0:</p>
-<blockquote>
-<div><dl class="simple">
-<dt>logger.info(</dt><dd><p>f”Default position mode set to {response.get(‘data’, [{}])[0].get(‘positionMode’)}”</p>
-</dd>
-</dl>
-<p>)</p>
-</div></blockquote>
-<dl>
-<dt>else:</dt><dd><p># Log specific error if code is not 0
-logger.warning(</p>
-<blockquote>
-<div><p>f”Failed to set default position mode to HEDGE. API Response: {response}”</p>
-</div></blockquote>
-<p>)</p>
-</dd>
-</dl>
-</div></blockquote>
-<dl class="simple">
-<dt>except Exception as e:</dt><dd><p># Log exception details
-logger.warning(f”Failed to set default position mode to HEDGE due to an exception: {e}”)
-logger.debug(traceback.format_exc()) # Add debug level traceback for more detail if needed</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd><p>Return the remaining time for the market to close in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd><p>Return the remaining time for the market to open in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd><p>Determines if the market is open.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None</strong> – </p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>True if market is open, false if the market is closed.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>boolean</p>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">is_market_open</span><span class="p">()</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">close_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span></dt>
-<dd><p>Close all or part of an existing position using a reduce‑only
-market order (tradeSide=”CLOSE”).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>strategy_name</strong> (<em>str</em>) – Name of the strategy that owns the position.</p></li>
-<li><p><strong>asset</strong> (<em>Asset</em>) – The asset whose position should be closed.</p></li>
-<li><p><strong>fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the position to close (0 &lt; fraction ≤ 1). Defaults to 1 (full close).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The submitted order, or <code class="docutils literal notranslate"><span class="pre">None</span></code> if no position exists.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Optional[Order]</p>
-</dd>
-</dl>
-</dd></dl>
-
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading">#</a></h2>
 </section>
 </section>
 
@@ -687,7 +472,7 @@ market order (tradeSide=”CLOSE”).</p>
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Schwab API Setup</div>
+                <div class="title">Schwab</div>
                 
               </div>
             </a>
@@ -725,26 +510,7 @@ market order (tradeSide=”CLOSE”).</p>
 <li><a class="reference internal" href="#how-to-use-bitunix">How to Use Bitunix</a></li>
 <li><a class="reference internal" href="#setting-leverage-for-bitunix-orders">Setting Leverage for Bitunix Orders</a></li>
 <li><a class="reference internal" href="#example-usage">Example Usage</a></li>
-<li><a class="reference internal" href="#module-lumibot.brokers.bitunix">Documentation</a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix"><code class="docutils literal notranslate"><span class="pre">Bitunix</span></code></a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.ASSET_TYPE_MAP"><code class="docutils literal notranslate"><span class="pre">Bitunix.ASSET_TYPE_MAP</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.DEFAULT_POLL_INTERVAL"><code class="docutils literal notranslate"><span class="pre">Bitunix.DEFAULT_POLL_INTERVAL</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET"><code class="docutils literal notranslate"><span class="pre">Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.cancel_order"><code class="docutils literal notranslate"><span class="pre">Bitunix.cancel_order()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.close_position"><code class="docutils literal notranslate"><span class="pre">Bitunix.close_position()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.do_polling"><code class="docutils literal notranslate"><span class="pre">Bitunix.do_polling()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_historical_account_value"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_historical_account_value()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_quote_asset"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_quote_asset()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_close"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_time_to_close()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_open"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_time_to_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_timestamp"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_timestamp()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.is_market_open"><code class="docutils literal notranslate"><span class="pre">Bitunix.is_market_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.sell_all"><code class="docutils literal notranslate"><span class="pre">Bitunix.sell_all()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.ws_url"><code class="docutils literal notranslate"><span class="pre">Bitunix.ws_url</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li><a class="reference internal" href="#documentation">Documentation</a></li>
 </ul>
 </li>
 </ul>

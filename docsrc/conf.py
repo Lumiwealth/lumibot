@@ -12,10 +12,10 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.insert(0, os.path.abspath("../lumibot/"))
-# sys.path.insert(0, os.path.abspath("../"))
 
+# Since lumibot is installed with pip install -e ., we don't need complex path setups
+# Just ensure the current directory is in the path
+sys.path.insert(0, os.path.abspath('.'))
 
 # -- Project information -----------------------------------------------------
 
@@ -102,7 +102,7 @@ autodoc_mock_imports = [
     "alpaca", "polygon", "ibapi", "yfinance", "quandl", "sqlalchemy",
     "bcrypt", "scipy", "quantstats", "python_dotenv", "ccxt", "pyarrow", "tqdm",
     "lumiwealth_tradier", "psycopg2_binary", "exchange_calendars", "duckdb", "tabulate",
-    "thetadata", "holidays", "psutil", "openai", "schwab_py", "free_proxy",
+    "thetadata", "holidays", "psutil", "openai", "schwab_py", "free_proxy", "fp",
 ]
 
 # Provide light-weight stubs for symbols/modules that moved/changed names

@@ -415,7 +415,14 @@ class DriftOrderLogic:
                 base_asset = row["base_asset"]
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell", asset=base_asset)
-                quantity = (row["current_value"] - row["target_value"]) / limit_price
+                
+                # For options, account for the 100-share multiplier in selling too
+                if base_asset.asset_type == Asset.AssetType.OPTION:
+                    # Options prices are quoted per share but each contract represents 100 shares
+                    effective_price = limit_price * 100
+                    quantity = (row["current_value"] - row["target_value"]) / effective_price
+                else:
+                    quantity = (row["current_value"] - row["target_value"]) / limit_price
                 
                 # Apply quantity rounding - options must be whole contracts
                 if base_asset.asset_type == Asset.AssetType.OPTION:
@@ -534,15 +541,15 @@ class DriftOrderLogic:
             # Options typically trade in $0.05 or $0.01 increments
             # Round to the nearest cent for options
             if side == "buy":
-                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
-            else:
                 limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
+            else:
+                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
         else:
             # Stocks - reduce to 2 decimals (cents)
             if side == "buy":
-                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
-            else:
                 limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
+            else:
+                limit_price = limit_price.quantize(Decimal('0.01'), rounding=ROUND_UP)
 
         return limit_price
 

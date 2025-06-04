@@ -12,6 +12,7 @@ import pytz
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
 from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
+from decimal import Decimal
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting, \
     AlpacaBacktesting
 from lumibot.strategies.strategy import Strategy
@@ -22,6 +23,52 @@ from lumibot.entities import Order, Asset, TradingFee
 from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
 from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
 from lumibot.tools.helpers import quantize_to_num_decimals
+
+
+class EvenOddDriftRebalancer(DriftRebalancer):
+    """
+    A strategy that is 100% long TLT on even days and 100% short TLT on odd days.
+    """
+
+    def on_trading_iteration(self) -> None:
+        dt = self.get_datetime()
+        self.logger.info(f"{dt} on_trading_iteration called")
+        self.cancel_open_orders()
+
+        if self.cash < 0:
+            self.logger.error(
+                f"Negative cash: {self.cash} "
+                f"but DriftRebalancer does not support margin yet."
+            )
+
+        # Determine if it's an even or odd day
+        day_of_month = dt.day
+        is_even_day = day_of_month % 2 == 0
+
+        # Set portfolio weights based on even/odd day
+        tlt_asset = Asset(symbol='TLT', asset_type='stock')
+        if is_even_day:
+            # On even days: 100% long TLT
+            self.portfolio_weights = [
+                {
+                    "base_asset": tlt_asset,
+                    "weight": Decimal("1.0")
+                }
+            ]
+            self.logger.info(f"Even day {day_of_month}: 100% long TLT")
+        else:
+            # On odd days: 100% short TLT
+            self.portfolio_weights = [
+                {
+                    "base_asset": tlt_asset,
+                    "weight": Decimal("-1.0")
+                }
+            ]
+            self.logger.info(f"Odd day {day_of_month}: 100% short TLT")
+
+        # Calculate drift and rebalance
+        self.drift_df = self.drift_rebalancer_logic.calculate(portfolio_weights=self.portfolio_weights)
+        self.drift_rebalancer_logic.rebalance(drift_df=self.drift_df)
 
 print_full_pandas_dataframes()
 set_pandas_float_display_precision(precision=5)
@@ -1557,6 +1604,98 @@ class TestDriftRebalancer:
     backtesting_start = datetime(2019, 1, 2)
     backtesting_end = datetime(2019, 2, 28)
 
+    def test_even_odd_drift_rebalancer_absolute(self, pandas_data_fixture):
+        """
+        Test the EvenOddDriftRebalancer strategy which is 100% long TLT on even days
+        and 100% short TLT on odd days using ABSOLUTE drift type.
+        """
+        parameters = {
+            "market": "NYSE",
+            "sleeptime": "1D",
+            "drift_type": DriftType.ABSOLUTE,
+            "drift_threshold": "0.1",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "shorting": True  # Enable shorting for odd days
+        }
+
+        strat_obj: Strategy
+        results, strat_obj = EvenOddDriftRebalancer.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            pandas_data=pandas_data_fixture,
+            parameters=parameters,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            show_progress_bar=False,
+        )
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        # Check that we have trades
+        assert len(filled_orders) > 0
+
+        # Verify that the strategy traded TLT
+        tlt_trades = filled_orders[filled_orders["symbol"] == "TLT"]
+        assert len(tlt_trades) > 0
+
+        # Check that we have both buy and sell orders for TLT
+        buy_orders = tlt_trades[tlt_trades["side"] == "buy"]
+        sell_orders = tlt_trades[tlt_trades["side"] == "sell"]
+        assert len(buy_orders) > 0
+        assert len(sell_orders) > 0
+
+    def test_even_odd_drift_rebalancer_relative(self, pandas_data_fixture):
+        """
+        Test the EvenOddDriftRebalancer strategy which is 100% long TLT on even days
+        and 100% short TLT on odd days using RELATIVE drift type.
+        """
+        parameters = {
+            "market": "NYSE",
+            "sleeptime": "1D",
+            "drift_type": DriftType.RELATIVE,
+            "drift_threshold": "0.1",
+            "order_type": Order.OrderType.LIMIT,
+            "acceptable_slippage": "0.005",
+            "fill_sleeptime": 15,
+            "shorting": True  # Enable shorting for odd days
+        }
+
+        strat_obj: Strategy
+        results, strat_obj = EvenOddDriftRebalancer.run_backtest(
+            datasource_class=PandasDataBacktesting,
+            backtesting_start=self.backtesting_start,
+            backtesting_end=self.backtesting_end,
+            pandas_data=pandas_data_fixture,
+            parameters=parameters,
+            benchmark_asset=None,
+            analyze_backtest=False,
+            show_progress_bar=False,
+        )
+
+        trades_df = strat_obj.broker._trade_event_log_df
+
+        # Get all the filled limit orders
+        filled_orders = trades_df[(trades_df["status"] == "fill")]
+
+        # Check that we have trades
+        assert len(filled_orders) > 0
+
+        # Verify that the strategy traded TLT
+        tlt_trades = filled_orders[filled_orders["symbol"] == "TLT"]
+        assert len(tlt_trades) > 0
+
+        # Check that we have both buy and sell orders for TLT
+        buy_orders = tlt_trades[tlt_trades["side"] == "buy"]
+        sell_orders = tlt_trades[tlt_trades["side"] == "sell"]
+        assert len(buy_orders) > 0
+        assert len(sell_orders) > 0
+
     # @pytest.mark.skip()
     def test_classic_60_40(self, pandas_data_fixture):
         parameters = {
@@ -2019,4 +2158,3 @@ class TestDriftRebalancer:
 
         with pytest.raises(ValueError, match="DriftRebalancer could not get_last_price for AAPL-USD."):
             get_last_price_or_raise(mock_strategy, asset, quote)
-

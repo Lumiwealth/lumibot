@@ -699,6 +699,16 @@ class Broker(ABC):
 
     def _process_crypto_quote(self, order, quantity, price):
         """Used to process the quote side of a crypto trade."""
+        # Handle cases where price might be None (can happen with some filled orders)
+        if price is None:
+            # Try to use the limit price if available, otherwise skip processing
+            if hasattr(order, 'limit_price') and order.limit_price is not None:
+                price = order.limit_price
+                logging.debug(f"Using limit_price {price} for crypto quote processing since avg_fill_price was None for order {order.identifier}")
+            else:
+                logging.debug(f"Skipping crypto quote processing for order {order.identifier} - both avg_fill_price and limit_price are None")
+                return
+        
         quote_quantity = Decimal(quantity) * Decimal(price)
         if order.side == "buy":
             quote_quantity = -quote_quantity

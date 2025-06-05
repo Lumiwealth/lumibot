@@ -1612,7 +1612,7 @@ class _Strategy:
 
         if self.db_connection_str is None or self.db_connection_str == "":
             # Log that we are not sending the account summary to Discord
-            self.logger.info("Not sending account summary to Discord because db_connection_str is not set")
+            self.logger.debug("Not sending account summary to Discord because db_connection_str is not set")
             return False
 
         # Check if discord_webhook_url has been set, if not, return False

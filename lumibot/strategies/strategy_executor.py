@@ -515,7 +515,7 @@ class StrategyExecutor(Thread):
 
         self._strategy_context = None
         start_dt_tz = LUMIBOT_DEFAULT_PYTZ.localize(start_dt.replace(tzinfo=None))
-        start_str = start_dt_tz.strftime("%Y-%m-%d %H:%M:%S %Z")
+        start_str = start_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
         self.strategy.log_message(f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}", color="green")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
@@ -533,7 +533,7 @@ class StrategyExecutor(Thread):
 
             end_dt = datetime.now()
             end_dt_tz = LUMIBOT_DEFAULT_PYTZ.localize(end_dt.replace(tzinfo=None))
-            end_str = end_dt_tz.strftime("%Y-%m-%d %H:%M:%S %Z")
+            end_str = end_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
             runtime = (end_dt - start_dt).total_seconds()
 
             # Variable Backup
@@ -546,7 +546,7 @@ class StrategyExecutor(Thread):
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None:
                 # Format the date to be used in the log message.
-                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+                dt_str = next_run_time.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 self.strategy.log_message(
                     f"Trading iteration ended at {end_str}, next check in time is {dt_str}. Took {runtime:.2f}s", color="blue"
                 )
@@ -1037,7 +1037,7 @@ class StrategyExecutor(Thread):
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None:
                 # Format the date to be used in the log message.
-                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+                dt_str = next_run_time.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 self.strategy.log_message(f"Strategy will check in again at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.

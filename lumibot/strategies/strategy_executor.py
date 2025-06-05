@@ -16,6 +16,7 @@ from termcolor import colored
 
 from lumibot.entities import Asset, Order
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
 
 class StrategyExecutor(Thread):
@@ -327,7 +328,7 @@ class StrategyExecutor(Thread):
 
         elif event == self.FILLED_ORDER:
             # Log that we are processing a filled order.
-            self.strategy.logger.info(f"Processing a filled order, payload: {payload}")
+            self.strategy.logger.debug(f"Processing a filled order, payload: {payload}")
 
             order = payload["order"]
             price = payload["price"]
@@ -343,7 +344,7 @@ class StrategyExecutor(Thread):
 
         elif event == self.PARTIALLY_FILLED_ORDER:
             # Log that we are processing a partially filled order.
-            self.strategy.logger.info(f"Processing a partially filled order, payload: {payload}")
+            self.strategy.logger.debug(f"Processing a partially filled order, payload: {payload}")
 
             order = payload["order"]
             price = payload["price"]
@@ -513,7 +514,8 @@ class StrategyExecutor(Thread):
         self.strategy.send_account_summary_to_discord()
 
         self._strategy_context = None
-        start_str = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+        start_dt_tz = LUMIBOT_DEFAULT_PYTZ.localize(start_dt.replace(tzinfo=None))
+        start_str = start_dt_tz.strftime("%Y-%m-%d %H:%M:%S %Z")
         self.strategy.log_message(f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}", color="green")
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
@@ -530,7 +532,8 @@ class StrategyExecutor(Thread):
             self.process_queue()
 
             end_dt = datetime.now()
-            end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+            end_dt_tz = LUMIBOT_DEFAULT_PYTZ.localize(end_dt.replace(tzinfo=None))
+            end_str = end_dt_tz.strftime("%Y-%m-%d %H:%M:%S %Z")
             runtime = (end_dt - start_dt).total_seconds()
 
             # Variable Backup
@@ -543,7 +546,7 @@ class StrategyExecutor(Thread):
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None:
                 # Format the date to be used in the log message.
-                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+                dt_str = next_run_time.strftime("%Y-%m-%d %H:%M:%S %Z")
                 self.strategy.log_message(
                     f"Trading iteration ended at {end_str}, next check in time is {dt_str}. Took {runtime:.2f}s", color="blue"
                 )

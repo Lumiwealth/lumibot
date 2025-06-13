@@ -385,19 +385,18 @@ class DriftOrderLogic:
         buy_orders = []
         for index, row in df.iterrows():
             if row["drift"] == -1:
-                # Sell everything (or create 100% short position)
+                # Sell everything (or create a short position)
                 base_asset = row["base_asset"]
                 quantity = row["current_quantity"]
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell", asset=base_asset)
                 if quantity == 0 and self.shorting:
-                    # Create a 100% short position.
-                    total_value = df["current_value"].sum()
+                    # Create a new short position.
                     if self.fractional_shares:
-                        quantity = total_value / limit_price
+                        quantity = abs(row["target_value"]) / limit_price
                         quantity = quantity.quantize(Decimal('1.000000000'), rounding=ROUND_DOWN)
                     else:
-                        quantity = total_value // limit_price
+                        quantity = abs(row["target_value"]) // limit_price
                 if quantity > 0:
                     order = self.place_order(
                         base_asset=base_asset,

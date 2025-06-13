@@ -1132,7 +1132,7 @@ class TestDriftOrderLogic:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "current_weight": [Decimal("0.0")],
-            "target_weight": Decimal("-1"),
+            "target_weight": Decimal("-0.25"),
             "target_value": Decimal("-1000"),
             "drift": Decimal("-1")
         })
@@ -1152,9 +1152,9 @@ class TestDriftOrderLogic:
             "current_quantity": [Decimal("0")],
             "current_value": [Decimal("0")],
             "current_weight": [Decimal("0.0")],
-            "target_weight": Decimal("-1"),
-            "target_value": Decimal("-1000"),
-            "drift": Decimal("-0.25")
+            "target_weight": Decimal("-0.25"),
+            "target_value": Decimal("-250"),
+            "drift": Decimal("-1")
         })
         strategy.order_logic.rebalance(drift_df=df)
         assert len(strategy.orders) == 1

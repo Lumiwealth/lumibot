@@ -224,7 +224,11 @@ class PandasData(DataSourceBacktesting):
 
                 # Check if price is NaN
                 if pd.isna(price):
-                    logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
+                    # Provide more specific error message for index assets
+                    if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                        logging.warning(f"Index asset `{asset.symbol}` returned NaN price. Index data may not be available from this data source. Consider using Yahoo Finance for index data.")
+                    else:
+                        logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
                     return None
 
                 return price
@@ -232,6 +236,9 @@ class PandasData(DataSourceBacktesting):
                 logging.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None
         else:
+            # Provide more specific error message when asset not found in data store
+            if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. Consider using Yahoo Finance for index data.")
             return None
 
     def get_quote(self, asset, quote=None, exchange=None):
@@ -295,7 +302,10 @@ class PandasData(DataSourceBacktesting):
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]
         else:
-            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. Consider using Yahoo Finance for index data.")
+            else:
+                logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return
 
         now = self.get_datetime()
@@ -325,7 +335,10 @@ class PandasData(DataSourceBacktesting):
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]
         else:
-            logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+            if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. Consider using Yahoo Finance for index data.")
+            else:
+                logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return
 
         try:

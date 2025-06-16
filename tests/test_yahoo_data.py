@@ -79,3 +79,47 @@ class TestYahooData(BaseDataSourceTester):
         #     time_check=time(0, 0),
         # )
 
+    def test_format_index_symbol(self):
+        """Test that index symbols are properly formatted for Yahoo Finance"""
+        data_source = YahooData()
+
+        # Test SPX -> ^SPX
+        symbols = data_source._format_index_symbol("SPX")
+        assert "^SPX" in symbols
+        assert "SPX" in symbols
+
+        # Test ^SPX -> ^SPX (already formatted)
+        symbols = data_source._format_index_symbol("^SPX")
+        assert "^SPX" in symbols
+        assert "SPX" in symbols
+
+        # Test other common indexes
+        symbols = data_source._format_index_symbol("DJI")
+        assert "^DJI" in symbols
+        assert "DJI" in symbols
+
+    @pytest.mark.xfail(reason="Depends on external Yahoo Finance API")
+    def test_get_historical_prices_index_asset(self):
+        """Test getting historical prices for index assets"""
+        tzinfo = pytz.timezone('America/New_York')
+        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+
+        # Test with SPX index
+        asset = Asset("SPX", asset_type="index")
+        timestep = "day"
+        length = 10
+
+        data_source = YahooData(datetime_start, datetime_end)
+
+        # Set the datetime to a valid trading day
+        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
+        data_source._datetime = now
+
+        bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
+
+        # Basic validation
+        self.check_length(bars=bars, length=length)
+        self.check_columns(bars=bars)
+        self.check_index(bars=bars)
+

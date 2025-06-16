@@ -226,7 +226,7 @@ class PandasData(DataSourceBacktesting):
                 if pd.isna(price):
                     # Provide more specific error message for index assets
                     if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                        logging.warning(f"Index asset `{asset.symbol}` returned NaN price. Index data may not be available from this data source. Consider using Yahoo Finance for index data.")
+                        logging.warning(f"Index asset `{asset.symbol}` returned NaN price. This could be due to missing data for the index or a subscription issue if using Polygon.io. Consider using Yahoo Finance for broader index data coverage.")
                     else:
                         logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
                     return None

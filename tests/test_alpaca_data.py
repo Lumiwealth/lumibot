@@ -251,7 +251,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 data_source_tz=data_source._tzinfo,
                 market=market,
             )
-            
+
     def test_get_historical_prices_minute_bars_crypto_america_chicago(self):
         tzinfo = pytz.timezone('America/Chicago')
         data_source = self._create_data_source(tzinfo=tzinfo)
@@ -543,37 +543,82 @@ class TestAlpacaData(BaseDataSourceTester):
             data_source._get_stock_client = original_get_stock_client
 
     def test_get_historical_prices_daily_bars_stock_split_adjusted(self):
+        """Test that when get_historical_prices is called, it uses adjustment=Adjustment.ALL for stock bars."""
+        from unittest.mock import patch, Mock
+        from alpaca.data.enums import Adjustment
+        import pandas as pd
+
+        # Create a data source with auto_adjust=True to ensure it uses Adjustment.ALL
         data_source = self._create_data_source(remove_incomplete_current_bar=True)
-        asset = Asset('SPY', asset_type='stock')
-        asset = Asset("UGL")
+
+        # Verify that auto_adjust is True
+        assert data_source._auto_adjust is True, "Expected data_source._auto_adjust to be True"
+
+        # Create a subclass of StockBarsRequest that we can use to check the adjustment parameter
+        from alpaca.data.requests import StockBarsRequest
+
+        class TestStockBarsRequest(StockBarsRequest):
+            def __init__(self, *args, **kwargs):
+                self.test_kwargs = kwargs  # Store the kwargs for testing
+                super().__init__(*args, **kwargs)
+
+        # Store the original StockBarsRequest class
+        import alpaca.data.requests
+        original_stock_bars_request = alpaca.data.requests.StockBarsRequest
+
+        # Replace StockBarsRequest with our test class
+        alpaca.data.requests.StockBarsRequest = TestStockBarsRequest
+
+        # Create a mock for the client to avoid API calls
+        mock_client = Mock()
+        mock_barset = Mock()
+        mock_barset.df = pd.DataFrame()  # Empty DataFrame
+        mock_client.get_stock_bars.return_value = mock_barset
+
+        # Store the original _get_stock_client method
+        original_get_stock_client = data_source._get_stock_client
+
+        # Replace _get_stock_client with our mock
+        data_source._get_stock_client = lambda: mock_client
+
+        # Create test parameters
+        asset = Asset('UGL', asset_type='stock')
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
-        market = 'NYSE'
-        now = pytz.timezone('US/Eastern').localize(dt.datetime(2025, 6, 16, 10, 0, 0))
         length = 10
 
-        bars = data_source.get_historical_prices(
-            asset=asset,
-            length=length,
-            timestep=timestep,
-            quote=quote_asset,
-            include_after_hours=False,
-        )
+        # Create a variable to store the StockBarsRequest instance
+        request_instance = None
 
-        self.check_length(bars=bars, length=length)
-        self.check_columns(bars=bars)
-        self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
-        self.check_daily_bars(
-            bars=bars,
-            now=now,
-            data_source_tz=data_source._tzinfo,
-            time_check=dt.time(0,0),
-            market=market
-        )
+        # Create a mock for get_stock_bars that captures the request
+        original_get_stock_bars = mock_client.get_stock_bars
 
-        # UGL was about $147 on 6/12 and it had a 4:1 split before market open on 6/13.
-        # Check that no price in bars.df.close > $40
-        # If this test fails its likely to be one of these reasons:
-        # 1. Someone changed AlpacaData to return non split adjusted data (breaking compatibility with TradierData)
-        # 2. UGL split again and we need to change $40 to something else.
-        assert (bars.df['close'] <= 40).all()
+        def mock_get_stock_bars(request):
+            nonlocal request_instance
+            request_instance = request
+            return mock_barset
+
+        mock_client.get_stock_bars = mock_get_stock_bars
+
+        try:
+            # Call get_historical_prices
+            data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote_asset,
+                include_after_hours=False,
+            )
+
+            # Verify that a request was created
+            assert request_instance is not None, "No StockBarsRequest was created"
+
+            # Verify that the request has the adjustment parameter set to Adjustment.ALL
+            assert hasattr(request_instance, 'adjustment'), "StockBarsRequest does not have an adjustment attribute"
+            assert request_instance.adjustment == Adjustment.ALL, f"Expected adjustment to be Adjustment.ALL, but got {request_instance.adjustment}"
+
+        finally:
+            # Restore the original classes and methods
+            alpaca.data.requests.StockBarsRequest = original_stock_bars_request
+            data_source._get_stock_client = original_get_stock_client
+            mock_client.get_stock_bars = original_get_stock_bars

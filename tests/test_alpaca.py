@@ -106,3 +106,95 @@ class TestAlpacaBroker:
         print(asset)
         bars = broker.data_source.get_historical_prices(asset, 10, "day")
         assert len(bars.df) > 0
+
+    # ============= OAuth Tests =============
+    
+    def test_oauth_broker_initialization(self):
+        """Test that Alpaca broker can be initialized with OAuth token only."""
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token",
+            "PAPER": True
+        }
+        
+        broker = Alpaca(oauth_config, connect_stream=False)
+        assert broker.oauth_token == "test_oauth_token"
+        assert broker.api_key == ""
+        assert broker.api_secret == ""
+        assert broker.is_paper == True
+        assert broker.is_oauth_only == True
+        
+    def test_oauth_mixed_credentials(self):
+        """Test that mixed OAuth + API credentials work correctly."""
+        mixed_config = {
+            "OAUTH_TOKEN": "test_oauth_token",
+            "API_KEY": "test_api_key", 
+            "API_SECRET": "test_api_secret",
+            "PAPER": True
+        }
+        
+        broker = Alpaca(mixed_config, connect_stream=False)
+        assert broker.oauth_token == "test_oauth_token"
+        assert broker.api_key == "test_api_key"
+        assert broker.api_secret == "test_api_secret"
+        assert broker.is_oauth_only == False  # Has both OAuth and API credentials
+        
+    def test_oauth_fallback_to_api_keys(self):
+        """Test that broker falls back to API keys when OAuth token is empty."""
+        fallback_config = {
+            "OAUTH_TOKEN": "",  # Empty OAuth token
+            "API_KEY": "test_api_key",
+            "API_SECRET": "test_api_secret", 
+            "PAPER": True
+        }
+        
+        broker = Alpaca(fallback_config, connect_stream=False)
+        assert broker.oauth_token == ""
+        assert broker.api_key == "test_api_key"
+        assert broker.api_secret == "test_api_secret"
+        assert broker.is_oauth_only == False
+        
+    def test_oauth_error_on_missing_credentials(self):
+        """Test that proper error is raised when no credentials are provided."""
+        empty_config = {"PAPER": True}
+        
+        with pytest.raises(ValueError, match="Either OAuth token or API key/secret must be provided"):
+            Alpaca(empty_config, connect_stream=False)
+            
+    def test_oauth_stream_object_creation(self):
+        """Test that correct stream object is created for OAuth vs API key configurations."""
+        from lumibot.trading_builtins import PollingStream
+        from alpaca.trading.stream import TradingStream
+        
+        # OAuth-only should use PollingStream
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token",
+            "PAPER": True
+        }
+        broker_oauth = Alpaca(oauth_config, connect_stream=False)
+        stream_oauth = broker_oauth._get_stream_object()
+        assert isinstance(stream_oauth, PollingStream)
+        
+        # API key/secret should use TradingStream  
+        api_config = {
+            "API_KEY": "test_api_key",
+            "API_SECRET": "test_api_secret",
+            "PAPER": True
+        }
+        broker_api = Alpaca(api_config, connect_stream=False)
+        stream_api = broker_api._get_stream_object()
+        assert isinstance(stream_api, TradingStream)
+        
+    def test_oauth_polling_interval(self):
+        """Test that polling interval is properly set."""
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token", 
+            "PAPER": True
+        }
+        
+        # Test default polling interval
+        broker = Alpaca(oauth_config, connect_stream=False)
+        assert broker.polling_interval == 5.0
+        
+        # Test custom polling interval
+        broker_custom = Alpaca(oauth_config, connect_stream=False, polling_interval=10.0)
+        assert broker_custom.polling_interval == 10.0

@@ -354,7 +354,17 @@ class Bitunix(Broker):
         if not position or position.quantity == 0:
             return None
         
-        order = Order(strategy_name, asset, position.quantity * fraction)
+        # Ensure fraction is between 0 and 1
+        quantity = abs(position.quantity)
+        
+        # Create the order object
+        order = Order(strategy_name, asset, quantity * fraction)
+
+        # Reverse the side for closing
+        if position.quantity > 0:
+            order.side = Order.OrderSide.SELL
+        elif position.quantity < 0:
+            order.side = Order.OrderSide.BUY
 
         # Mark as reduce‑only so `_submit_order` will send tradeSide="CLOSE"
         setattr(order, "reduce_only", True)

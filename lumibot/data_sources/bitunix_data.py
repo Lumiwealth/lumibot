@@ -163,8 +163,8 @@ class BitunixData(DataSource):
                     df["low"] = df["l"]
                 if "c" in df.columns:  # Close
                     df["close"] = df["c"]
-                if "v" in df.columns:  # Volume
-                    df["volume"] = df["v"]
+                if "baseVol" in df.columns:  # Volume
+                    df["volume"] = df["baseVol"]
                 
                 # Ensure numeric columns
                 for col in ("open", "high", "low", "close", "volume"):

@@ -23,8 +23,10 @@ from alpaca.data.requests import (
     OptionBarsRequest,
     OptionLatestTradeRequest,
     OptionChainRequest,
+    OptionSnapshotRequest,
 )
 from alpaca.data.timeframe import TimeFrame
+from alpaca.data.enums import Adjustment
 
 from lumibot.entities import Asset, Bars
 from lumibot import (
@@ -137,7 +139,8 @@ class AlpacaData(DataSource):
             chunk_size: int = 100,
             delay: Optional[int] = 16,
             tzinfo: Optional[pytz.timezone] = None,
-            remove_incomplete_current_bar: bool = False
+            remove_incomplete_current_bar: bool = False,
+            **kwargs
     ) -> None:
         """
         Initializes the Alpaca Data Source.
@@ -155,6 +158,9 @@ class AlpacaData(DataSource):
           Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current day even if
           the day isn't over yet). Some Lumibot users night not expect that, so this option will remove the incomplete
           bar from the data.
+        **kwargs: Additional keyword arguments, such as:
+                - auto_adjust (bool): if false, data is raw. If true, data is split and dividend automatically adjusted.
+                Default is True.
 
         Returns:
         - None
@@ -164,6 +170,7 @@ class AlpacaData(DataSource):
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)
         self._remove_incomplete_current_bar = remove_incomplete_current_bar
+        self._auto_adjust: bool = kwargs.get('auto_adjust', True)
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -411,6 +418,7 @@ class AlpacaData(DataSource):
                     timeframe=timeframe,
                     start=start_dt,
                     end=end_dt,
+                    adjustment=Adjustment.ALL if self._auto_adjust else Adjustment.RAW
                 )
                 barset = client.get_stock_bars(params)
 

@@ -541,3 +541,39 @@ class TestAlpacaData(BaseDataSourceTester):
         finally:
             # Restore the original method
             data_source._get_stock_client = original_get_stock_client
+
+    def test_get_historical_prices_daily_bars_stock_split_adjusted(self):
+        data_source = self._create_data_source(remove_incomplete_current_bar=True)
+        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("UGL")
+        quote_asset = Asset('USD', asset_type='forex')
+        timestep = "day"
+        market = 'NYSE'
+        now = pytz.timezone('US/Eastern').localize(dt.datetime(2025, 6, 16, 10, 0, 0))
+        length = 10
+
+        bars = data_source.get_historical_prices(
+            asset=asset,
+            length=length,
+            timestep=timestep,
+            quote=quote_asset,
+            include_after_hours=False,
+        )
+
+        self.check_length(bars=bars, length=length)
+        self.check_columns(bars=bars)
+        self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+        self.check_daily_bars(
+            bars=bars,
+            now=now,
+            data_source_tz=data_source._tzinfo,
+            time_check=dt.time(0,0),
+            market=market
+        )
+
+        # UGL was about $147 on 6/12 and it had a 4:1 split before market open on 6/13.
+        # Check that no price in bars.df.close > $40
+        # If this test fails its likely to be one of these reasons:
+        # 1. Someone changed AlpacaData to return non split adjusted data (breaking compatibility with TradierData)
+        # 2. UGL split again and we need to change $40 to something else.
+        assert (bars.df['close'] <= 40).all()

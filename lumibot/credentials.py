@@ -188,17 +188,26 @@ THETADATA_CONFIG = {
 
 # Alpaca Configuration
 ALPACA_CONFIG = {
-    # Add ALPACA_API_KEY, ALPACA_API_SECRET, and ALPACA_IS_PAPER to your .env file or set them as secrets
+    # Add ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_OAUTH_TOKEN, and ALPACA_IS_PAPER to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_API_KEY"),
     "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
+    "OAUTH_TOKEN": os.environ.get("ALPACA_OAUTH_TOKEN"),
     "PAPER": os.environ.get("ALPACA_IS_PAPER").lower() == "true" if os.environ.get("ALPACA_IS_PAPER") else True,
+}
+
+# Alpaca OAuth Configuration Constants
+ALPACA_OAUTH_CONFIG = {
+    "CALLBACK_URL": "https://api.botspot.trade/broker_oauth/alpaca",
+    "CLIENT_ID": "6625abd29ce3f95285dfa4405934de83",
+    "REDIRECT_URL": "https://botspot.trade/oauth/alpaca/success",
 }
 
 # Alpaca test configuration for unit tests
 ALPACA_TEST_CONFIG = {  # Paper trading!
-    # Add ALPACA_TEST_API_KEY, and ALPACA_TEST_API_SECRET to your .env file or set them as secrets
+    # Add ALPACA_TEST_API_KEY, ALPACA_TEST_API_SECRET, ALPACA_TEST_OAUTH_TOKEN to your .env file or set them as secrets
     "API_KEY": os.environ.get("ALPACA_TEST_API_KEY"),
     "API_SECRET": os.environ.get("ALPACA_TEST_API_SECRET"),
+    "OAUTH_TOKEN": os.environ.get("ALPACA_TEST_OAUTH_TOKEN"),
     "PAPER": True
 }
 
@@ -329,8 +338,15 @@ if not is_backtesting or is_backtesting.lower() == "false":
             logger.error(colored_message)
     else:
         # Auto-detect broker based on available credentials if not explicitly specified
-        if ALPACA_CONFIG["API_KEY"]:
-            broker = Alpaca(ALPACA_CONFIG)
+        if ALPACA_CONFIG["API_KEY"] or ALPACA_CONFIG["OAUTH_TOKEN"]:
+            try:
+                broker = Alpaca(ALPACA_CONFIG)
+            except ValueError as e:
+                # If Alpaca initialization fails due to missing credentials, skip it
+                if "Either OAuth token or API key/secret must be provided" in str(e):
+                    pass
+                else:
+                    raise e
         elif TRADIER_CONFIG["ACCESS_TOKEN"]:
             broker = Tradier(TRADIER_CONFIG)
         elif INTERACTIVE_BROKERS_CONFIG["CLIENT_ID"]:

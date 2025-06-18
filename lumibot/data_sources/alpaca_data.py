@@ -114,22 +114,83 @@ class AlpacaData(DataSource):
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
 
+    def _handle_auth_error(self, e, operation="data request"):
+        """
+        Handle authentication errors with helpful error messages.
+        This will mark the strategy as failed to stop execution.
+        """
+        error_message = str(e).lower()
+        if "unauthorized" in error_message or "401" in error_message:
+            auth_method = "OAuth token" if self.oauth_token else "API key/secret"
+            error_msg = (
+                f"❌ ALPACA AUTHENTICATION ERROR: Your {auth_method} appears to be invalid or expired during {operation}.\n\n"
+                f"🔧 To fix this:\n"
+            )
+            if self.oauth_token:
+                error_msg += (
+                    f"1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
+                    f"2. Verify your OAuth token is valid and not expired\n"
+                    f"3. **MOST LIKELY**: Your OAuth token lacks MARKET DATA permissions\n"
+                    f"   - OAuth tokens need separate scopes for trading vs market data\n"
+                    f"   - Visit botspot.trade to re-authenticate with market data permissions\n"
+                    f"4. Alternative: Use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n"
+                    f"5. For paper trading, ensure your OAuth token has paper trading permissions\n\n"
+                    f"🔑 Current OAuth token: {self.oauth_token[:10]}... (first 10 chars)\n"
+                    f"📋 Paper trading: {getattr(self, 'is_paper', 'Unknown')}\n"
+                    f"💡 Note: Trading operations may work while market data fails due to different OAuth scopes\n\n"
+                )
+            else:
+                error_msg += (
+                    f"1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
+                    f"2. Verify your API credentials are valid\n"
+                    f"3. Check that your account has proper data permissions\n\n"
+                )
+            error_msg += f"💀 STOPPING STRATEGY EXECUTION\n\nOriginal error: {e}"
+            logging.error(error_msg)
+            
+            # Mark the data source as failed to stop further requests
+            self._auth_failed = True
+            
+            # Raise a regular exception that will be caught by the strategy
+            raise ValueError(f"Authentication failed: {auth_method} is invalid or expired. {error_msg}")
+        else:
+            # Re-raise the original exception for other errors
+            raise e
+
     def _get_stock_client(self):
         """Lazily initialize and return the stock client."""
         if self._stock_client is None:
-            self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
+            try:
+                if self.oauth_token:
+                    self._stock_client = StockHistoricalDataClient(oauth_token=self.oauth_token)
+                else:
+                    self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
+            except Exception as e:
+                self._handle_auth_error(e, "stock client initialization")
         return self._stock_client
 
     def _get_crypto_client(self):
         """Lazily initialize and return the crypto client."""
         if self._crypto_client is None:
-            self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
+            try:
+                if self.oauth_token:
+                    self._crypto_client = CryptoHistoricalDataClient(oauth_token=self.oauth_token)
+                else:
+                    self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
+            except Exception as e:
+                self._handle_auth_error(e, "crypto client initialization")
         return self._crypto_client
 
     def _get_option_client(self):
         """Lazily initialize and return the option client."""
         if self._option_client is None:
-            self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+            try:
+                if self.oauth_token:
+                    self._option_client = OptionHistoricalDataClient(oauth_token=self.oauth_token)
+                else:
+                    self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+            except Exception as e:
+                self._handle_auth_error(e, "option client initialization")
         return self._option_client
 
     def __init__(
@@ -184,19 +245,32 @@ class AlpacaData(DataSource):
         # for better performance.
         self._stock_client = self._crypto_client = self._option_client = None
 
-        if isinstance(config, dict) and "API_KEY" in config:
-            self.api_key = config["API_KEY"]
-        elif hasattr(config, "API_KEY"):
-            self.api_key = config.API_KEY
-        else:
-            raise ValueError("API_KEY not found in config")
+        # Initialize authentication credentials
+        self.api_key = None
+        self.api_secret = None
+        self.oauth_token = None
+        self._auth_failed = False  # Flag to track authentication failures
 
-        if isinstance(config, dict) and "API_SECRET" in config:
-            self.api_secret = config["API_SECRET"]
-        elif hasattr(config, "API_SECRET"):
-            self.api_secret = config.API_SECRET
+        # Check for OAuth token first
+        if isinstance(config, dict) and "OAUTH_TOKEN" in config and config["OAUTH_TOKEN"]:
+            self.oauth_token = config["OAUTH_TOKEN"]
+        elif hasattr(config, "OAUTH_TOKEN") and config.OAUTH_TOKEN:
+            self.oauth_token = config.OAUTH_TOKEN
+        # If no OAuth token, check for API key/secret
+        elif isinstance(config, dict) and "API_KEY" in config and config["API_KEY"]:
+            self.api_key = config["API_KEY"]
+            if "API_SECRET" in config and config["API_SECRET"]:
+                self.api_secret = config["API_SECRET"]
+            else:
+                raise ValueError("API_SECRET not found in config when API_KEY is provided")
+        elif hasattr(config, "API_KEY") and config.API_KEY:
+            self.api_key = config.API_KEY
+            if hasattr(config, "API_SECRET") and config.API_SECRET:
+                self.api_secret = config.API_SECRET
+            else:
+                raise ValueError("API_SECRET not found in config when API_KEY is provided")
         else:
-            raise ValueError("API_SECRET not found in config")
+            raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
         # If an ENDPOINT is provided, warn the user that it is not used anymore
         # Instead they should use the "PAPER" parameter, which is boolean
@@ -226,63 +300,143 @@ class AlpacaData(DataSource):
         asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
         return asset, quote
 
-    def get_chains(self, asset: Asset, quote=None, exchange: str = None):
+    def get_chains(self, asset: Asset) -> dict:
         """
-        Retrieves the option chain for the given underlying symbol using Alpaca's Python SDK.
-        Returns a dict with:
-          - "Multiplier": contract multiplier (usually 100)
-          - "Exchange": exchange identifier (set to "unknown")
-          - "Chains": dict with keys "CALL" and "PUT", each mapping expiration dates to sorted strike lists
+        Get the options chain for the given asset.
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to get the chain data for.
+
+        Returns
+        -------
+        chains : dict
+            A dictionary containing the chain data in lumibot format:
+            {
+                "Chains": {
+                    "PUT": {
+                        "2025-01-17": [560, 565, 570, ...],
+                        "2025-01-24": [560, 565, 570, ...],
+                    },
+                    "CALL": {
+                        "2025-01-17": [560, 565, 570, ...],
+                        "2025-01-24": [560, 565, 570, ...],
+                    }
+                }
+            }
         """
-        symbol = asset.symbol
-        client = self._get_option_client()
-        # Build and send the chain request
-        req = OptionChainRequest(underlying_symbol=symbol)
-        chain_data: dict = client.get_option_chain(req)
-        # Prepare the output structure
-        chains = {"Multiplier": 100, "Exchange": "unknown", "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
-        # Iterate through snapshots by contract symbol
-        for contract_symbol, snap in chain_data.items():
-            # Parse the contract symbol (e.g., SPY271217P00830000)
-            # Format: UnderlyingYYMMDDTypeStrike(8 digits, 3 decimals)
-            try:
-                # Extract components using regex or string slicing
-                match = re.match(r"([A-Z]+)(\d{6})([CP])(\d{8})", contract_symbol)
-                if not match:
-                    logging.warning(f"Could not parse contract symbol: {contract_symbol}")
+        # Check if authentication has previously failed
+        if getattr(self, '_auth_failed', False):
+            raise ValueError("Authentication previously failed - cannot make further API requests")
+            
+        try:
+            # Use the existing option client getter which has proper error handling
+            client = self._get_option_client()
+
+            # Use OptionChainRequest with underlying_symbol for stock assets
+            req = OptionChainRequest(
+                underlying_symbol=asset.symbol,
+            )
+
+            # Get the option chain data from Alpaca
+            raw_chain_data: dict = client.get_option_chain(req)
+            
+            # Transform the raw Alpaca data into lumibot format
+            chains_data = {
+                "Chains": {
+                    "PUT": {},
+                    "CALL": {}
+                }
+            }
+            
+            # The Alpaca API may return option symbols in different structures
+            # Let's check what we actually got and parse accordingly
+            option_symbols = []
+            
+            if isinstance(raw_chain_data, dict):
+                # Check for different possible structures
+                if "next_page_token" in raw_chain_data and "option_chains" in raw_chain_data:
+                    # New structure: {"option_chains": {"SPY250731C00501000": {...}, ...}, "next_page_token": ...}
+                    option_symbols = list(raw_chain_data["option_chains"].keys())
+                elif "snapshots" in raw_chain_data:
+                    # Old structure: {"snapshots": {"SPY250731C00501000": {...}, ...}}
+                    option_symbols = list(raw_chain_data["snapshots"].keys())
+                else:
+                    # Direct structure: {"SPY250731C00501000": {...}, ...}
+                    # Filter to only option symbols (they should start with the underlying symbol)
+                    option_symbols = [key for key in raw_chain_data.keys() if key.startswith(asset.symbol) and len(key) > len(asset.symbol)]
+            
+            if not option_symbols:
+                logging.warning(f"No option symbols found for {asset.symbol}")
+                return chains_data
+            
+            # Parse each option symbol
+            parsed_count = 0
+            for symbol in option_symbols:
+                # Parse option symbol to extract details
+                # Alpaca option symbols format: SPYYYMMDDCPPPPPPPPP
+                # Where: SPY = underlying, YY = year, MM = month, DD = day, 
+                #        C/P = call/put, PPPPPPPPP = strike price (padded)
+                
+                if len(symbol) < 15:  # Skip invalid symbols
                     continue
-
-                underlying, date_str, type_char, strike_str = match.groups()
-
-                # Check if the parsed underlying matches the requested symbol
-                if underlying != symbol:
+                    
+                # Extract the underlying symbol (everything before the date)
+                underlying_len = len(asset.symbol)
+                if not symbol.startswith(asset.symbol):
                     continue
-
-                # Parse expiration date
-                yy = int(date_str[:2]) + 2000
-                mm = int(date_str[2:4])
-                dd = int(date_str[4:6])
-                exp_date = f"{yy:04d}-{mm:02d}-{dd:02d}"
-
-                # Option type
-                ctype = "CALL" if type_char == "C" else "PUT"
-
-                # Strike price (price * 1000)
-                strike = float(strike_str) / 1000.0
-
-                if ctype in chains["Chains"]:
-                    chains["Chains"][ctype][exp_date].append(strike)
-
-            except Exception as e:
-                logging.warning(f"Error parsing contract symbol {contract_symbol}: {e}")
-                continue
-
-        # Deduplicate and sort
-        for ctype in ("CALL", "PUT"):
-            for exp_date, strikes in chains["Chains"][ctype].items():
-                chains["Chains"][ctype][exp_date] = sorted(list(set(strikes)))
-
-        return chains
+                    
+                # Extract date and option type
+                date_and_type = symbol[underlying_len:underlying_len+8]  # YYMMDDCP
+                if len(date_and_type) < 7:
+                    continue
+                    
+                try:
+                    year = int("20" + date_and_type[:2])
+                    month = int(date_and_type[2:4])
+                    day = int(date_and_type[4:6])
+                    option_type = date_and_type[6]  # C or P
+                    
+                    # Extract strike price (remaining digits after C/P)
+                    strike_str = symbol[underlying_len+7:]
+                    # Strike is usually in format like 00595000 = $595.00
+                    strike = float(strike_str) / 1000.0
+                    
+                    # Format expiration date
+                    expiration_date = f"{year}-{month:02d}-{day:02d}"
+                    
+                    # Determine option type
+                    if option_type == "C":
+                        option_type_key = "CALL"
+                    elif option_type == "P":
+                        option_type_key = "PUT"
+                    else:
+                        continue
+                    
+                    # Add to chains data
+                    if expiration_date not in chains_data["Chains"][option_type_key]:
+                        chains_data["Chains"][option_type_key][expiration_date] = []
+                    
+                    if strike not in chains_data["Chains"][option_type_key][expiration_date]:
+                        chains_data["Chains"][option_type_key][expiration_date].append(strike)
+                        parsed_count += 1
+                        
+                except (ValueError, IndexError):
+                    continue
+            
+            # Sort strikes for each expiration date
+            for option_type in ["PUT", "CALL"]:
+                for expiration_date in chains_data["Chains"][option_type]:
+                    chains_data["Chains"][option_type][expiration_date].sort()
+            
+            logging.debug(f"Successfully retrieved option chains for {asset.symbol}: {len(chains_data['Chains']['PUT'])} PUT expirations, {len(chains_data['Chains']['CALL'])} CALL expirations")
+            
+            return chains_data
+            
+        except Exception as e:
+            # Handle any additional errors not caught by client initialization
+            self._handle_auth_error(e, "option chain retrieval")
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         """
@@ -479,6 +633,10 @@ class AlpacaData(DataSource):
         Returns a dictionary with bid, ask, last, and other fields if available.
         Always includes 'bid' and 'ask' keys (with 0.0 if not available for options).
         """
+        # Check if authentication has previously failed
+        if getattr(self, '_auth_failed', False):
+            raise ValueError("Authentication previously failed - cannot make further API requests")
+            
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if asset.asset_type == Asset.AssetType.CRYPTO:
             symbol = f"{asset.symbol}/{quote.symbol if quote else 'USD'}"
@@ -550,7 +708,10 @@ class AlpacaData(DataSource):
         option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
 
         # Initialize the historical data client
-        client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+        if self.oauth_token:
+            client = OptionHistoricalDataClient(oauth_token=self.oauth_token)
+        else:
+            client = OptionHistoricalDataClient(self.api_key, self.api_secret)
         request = OptionSnapshotRequest(symbol_or_symbols=option_symbol)
         try:
             snapshots = client.get_option_snapshot(request)

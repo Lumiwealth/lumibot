@@ -542,6 +542,103 @@ class TestAlpacaData(BaseDataSourceTester):
             # Restore the original method
             data_source._get_stock_client = original_get_stock_client
 
+    # ============= OAuth Tests for AlpacaData =============
+
+    def test_oauth_data_source_initialization(self):
+        """Test that AlpacaData can be initialized with OAuth token only."""
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token_alpaca_data",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(oauth_config)
+        assert data_source.oauth_token == "test_oauth_token_alpaca_data"
+        assert data_source.api_key is None
+        assert data_source.api_secret is None
+        assert data_source.is_paper == True
+
+    def test_oauth_client_initialization(self):
+        """Test that OAuth clients are properly initialized."""
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token_clients",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(oauth_config)
+
+        # Test stock client
+        stock_client = data_source._get_stock_client()
+        assert stock_client is not None
+
+        # Test crypto client
+        crypto_client = data_source._get_crypto_client()
+        assert crypto_client is not None
+
+        # Test option client
+        option_client = data_source._get_option_client()
+        assert option_client is not None
+
+    def test_oauth_priority_over_api_key(self):
+        """Test that OAuth token takes priority over API key/secret."""
+        mixed_config = {
+            "OAUTH_TOKEN": "priority_oauth_token",
+            "API_KEY": "should_not_be_used",
+            "API_SECRET": "should_not_be_used_either",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(mixed_config)
+        assert data_source.oauth_token == "priority_oauth_token"
+        assert data_source.api_key is None
+        assert data_source.api_secret is None
+
+    def test_oauth_empty_fallback_to_api_key(self):
+        """Test fallback to API key when OAuth token is empty."""
+        fallback_config = {
+            "OAUTH_TOKEN": "",  # Empty OAuth token
+            "API_KEY": "fallback_key",
+            "API_SECRET": "fallback_secret",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(fallback_config)
+        assert data_source.oauth_token is None
+        assert data_source.api_key == "fallback_key"
+        assert data_source.api_secret == "fallback_secret"
+
+    def test_oauth_none_fallback_to_api_key(self):
+        """Test fallback to API key when OAuth token is None."""
+        fallback_config = {
+            "OAUTH_TOKEN": None,  # None OAuth token
+            "API_KEY": "fallback_key_none",
+            "API_SECRET": "fallback_secret_none",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(fallback_config)
+        assert data_source.oauth_token is None
+        assert data_source.api_key == "fallback_key_none"
+        assert data_source.api_secret == "fallback_secret_none"
+
+    def test_oauth_no_credentials_error(self):
+        """Test error when no authentication credentials provided."""
+        empty_config = {
+            "PAPER": True
+        }
+
+        with pytest.raises(ValueError, match="Either OAuth token or API key/secret must be provided"):
+            AlpacaData(empty_config)
+
+    def test_oauth_missing_api_secret_error(self):
+        """Test error when API key provided but secret is missing."""
+        incomplete_config = {
+            "API_KEY": "key_without_secret",
+            "PAPER": True
+        }
+
+        with pytest.raises(ValueError, match="API_SECRET not found in config when API_KEY is provided"):
+            AlpacaData(incomplete_config)
+
     def test_get_historical_prices_daily_bars_stock_split_adjusted(self):
         """Test that when get_historical_prices is called, it uses adjustment=Adjustment.ALL for stock bars."""
         from unittest.mock import patch, Mock

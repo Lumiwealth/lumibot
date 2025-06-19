@@ -258,6 +258,44 @@ def date_n_trading_days_from_date(
     return trading_days.index[start_index - n_days].date()
 
 
+def is_market_open(
+        dtm: dt.datetime,
+        market: str = "NYSE"
+) -> bool:
+    """
+    Checks if the market is open at a given timezone-aware datetime.
+
+    Args:
+        dtm: A timezone-aware datetime object.
+        market: A string representing the market (e.g., "NYSE").
+
+    Returns:
+        True if the market is open, False otherwise.
+    """
+    try:
+        cal = mcal.get_calendar(market)
+    except RuntimeError:
+        print(f"Market calendar '{market}' not found.")
+        return False
+
+    try:
+        schedule = cal.schedule(
+            start_date=dtm - dt.timedelta(days=1),
+            end_date=dtm,
+            tz=dtm.tzinfo
+        )
+    except Exception as e:
+        print(e)
+        return False
+
+    try:
+        return cal.open_at_time(schedule, dtm)
+    except ValueError:
+        return False
+    except Exception as e:
+        print(e)
+
+
 class ComparaisonMixin:
     COMPARAISON_PROP = "timestamp"
 

@@ -552,7 +552,6 @@ class DriftOrderLogic:
 
         return limit_price
 
-
     def get_current_cash_position(self) -> Decimal:
         self.strategy.update_broker_balances(force_update=True)
         cash_position = Decimal(str(self.strategy.cash))
@@ -567,20 +566,26 @@ class DriftOrderLogic:
             side: str
     ) -> Order:
         quote_asset = self.strategy.quote_asset or Asset(symbol="USD", asset_type="forex")
+        # If orders don't fill at the end of the day, and there is a split the next day,
+        # unexpected things can happen. Use the 'day' time in force to address this.
+        time_in_force = 'day'
+
         if self.order_type == Order.OrderType.LIMIT:
             order = self.strategy.create_order(
                 asset=base_asset,
                 quantity=quantity,
                 side=side,
                 limit_price=float(limit_price),
-                quote=quote_asset
+                quote=quote_asset,
+                time_in_force=time_in_force
             )
         else:
             order = self.strategy.create_order(
                 asset=base_asset,
                 quantity=quantity,
                 side=side,
-                quote=quote_asset
+                quote=quote_asset,
+                time_in_force=time_in_force
             )
 
         self.strategy.logger.info(f"Submitting order: {order}")

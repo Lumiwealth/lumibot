@@ -146,6 +146,44 @@ class YahooData(DataSourceBacktesting):
         
         return formatted_symbols
 
+    def _format_index_symbol(self, symbol):
+        """
+        Format the index symbol for Yahoo Finance.
+        
+        Yahoo Finance index symbols typically use the "^" prefix:
+        - SPX -> ^SPX (S&P 500 Index)
+        - DJI -> ^DJI (Dow Jones Industrial Average)
+        - IXIC -> ^IXIC (NASDAQ Composite)
+        - RUT -> ^RUT (Russell 2000)
+        
+        Parameters
+        ----------
+        symbol : str
+            The index symbol
+            
+        Returns
+        -------
+        list
+            A list of properly formatted index symbols to try in order of preference
+        """
+        formatted_symbols = []
+        
+        # If already has ^ prefix, keep as is
+        if symbol.startswith('^'):
+            formatted_symbols.append(symbol)
+            # Also try without prefix as fallback
+            formatted_symbols.append(symbol[1:])
+        else:
+            # Try with ^ prefix first
+            formatted_symbols.append(f"^{symbol}")
+            # Also try original symbol as fallback
+            formatted_symbols.append(symbol)
+        
+        # Log the potential symbols we'll try
+        logger.info(f"Trying index symbols for Yahoo Finance: {formatted_symbols}")
+        
+        return formatted_symbols
+
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
@@ -162,12 +200,16 @@ class YahooData(DataSourceBacktesting):
 
         interval = self._parse_source_timestep(timestep, reverse=True)
         
-        # Check if the asset is a futures contract and format the symbol accordingly
+        # Check if the asset is a futures contract or index and format the symbol accordingly
         symbol = asset.symbol
         symbols_to_try = [symbol]  # Default to just trying the original symbol
         
         if asset.asset_type == 'futures' or getattr(asset, 'asset_type', None) == Asset.AssetType.FUTURE:
             symbols_to_try = self._format_futures_symbol(symbol)
+            if not isinstance(symbols_to_try, list):
+                symbols_to_try = [symbols_to_try]
+        elif asset.asset_type == 'index' or getattr(asset, 'asset_type', None) == Asset.AssetType.INDEX:
+            symbols_to_try = self._format_index_symbol(symbol)
             if not isinstance(symbols_to_try, list):
                 symbols_to_try = [symbols_to_try]
         
@@ -179,7 +221,7 @@ class YahooData(DataSourceBacktesting):
             successful_symbol = None
             
             for sym in symbols_to_try:
-                logger.info(f"Attempting to fetch futures data for symbol: {sym}")
+                logger.info(f"Attempting to fetch data for symbol: {sym}")
                 try:
                     # Fetch data using the helper without restricting dates here
                     data = YahooHelper.get_symbol_data(
@@ -189,7 +231,7 @@ class YahooData(DataSourceBacktesting):
                         last_needed_datetime=self.datetime_end, # Keep this if needed for caching logic
                     )
                     if data is not None and data.shape[0] > 0:
-                        logger.info(f"Successfully fetched data for futures symbol: {sym}")
+                        logger.info(f"Successfully fetched data for symbol: {sym}")
                         successful_symbol = sym
                         break
                 except Exception as e:
@@ -257,11 +299,14 @@ class YahooData(DataSourceBacktesting):
         interval = self._parse_source_timestep(timestep, reverse=True)
         missing_assets = []
         
-        # Check for futures symbols and properly format them
+        # Check for futures and index symbols and properly format them
         for asset in assets:
             if asset not in self._data_store:
                 if asset.asset_type == Asset.AssetType.FUTURE:
                     symbol = self._format_futures_symbol(asset.symbol)
+                    missing_assets.append(symbol)
+                elif asset.asset_type == Asset.AssetType.INDEX:
+                    symbol = self._format_index_symbol(asset.symbol)
                     missing_assets.append(symbol)
                 else:
                     missing_assets.append(asset.symbol)
@@ -279,6 +324,8 @@ class YahooData(DataSourceBacktesting):
                     asset_symbol = asset.symbol
                     if asset.asset_type == Asset.AssetType.FUTURE:
                         asset_symbol = self._format_futures_symbol(asset_symbol)
+                    elif asset.asset_type == Asset.AssetType.INDEX:
+                        asset_symbol = self._format_index_symbol(asset_symbol)
                     
                     if asset_symbol == symbol:
                         self._append_data(asset, df)

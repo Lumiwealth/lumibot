@@ -359,9 +359,6 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         # Example: O:SPY230802C00457000
         symbol = contracts[0].ticker
 
-    elif asset.asset_type == Asset.AssetType.INDEX:
-        symbol = f"I:{asset.symbol}"
-
     else:
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
 

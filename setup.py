@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.15.1",
+    version="3.16.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -23,15 +23,16 @@ setuptools.setup(
         "yfinance>=0.2.61",
         "matplotlib>=3.3.3",
         "quandl",
-        # Numpy greater than 1.20.0 and less than 2 because v2 has compatibility issues with a few libraries
-        "numpy>=1.20.0, <2",
+        # NumPy 1.20.0+ supports modern features, 2.0+ adds compatibility for latest ecosystem
+        "numpy>=1.20.0",
         "pandas>=2.2.0",
         "pandas_market_calendars>=5.1.0",
         "plotly>=5.18.0",
         "sqlalchemy",
         "bcrypt",
         "pytest",
-        "scipy>=1.13.0",
+        # SciPy 1.14.0+ supports NumPy 2.x
+        "scipy>=1.14.0",
         "quantstats-lumi>=1.0.1",
         "python-dotenv",  # Secret Storage
         "ccxt>=4.4.80",
@@ -39,12 +40,14 @@ setuptools.setup(
         "jsonpickle",
         "apscheduler>=3.10.4",
         "appdirs",
-        "pyarrow",
+        # PyArrow 15.0.0+ supports NumPy 2.x
+        "pyarrow>=15.0.0",
         "tqdm",
-        "lumiwealth-tradier>=0.1.16",
+        "lumiwealth-tradier>=0.1.17",
         "pytz",
         "psycopg2-binary",
-        "exchange_calendars>=4.5.2",
+        # Exchange calendars 4.6.0+ supports NumPy 2.x
+        "exchange_calendars>=4.6.0",
         "duckdb",
         "tabulate",
         "thetadata==0.9.11",

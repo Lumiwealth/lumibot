@@ -1,32 +1,8 @@
 from collections import UserDict
 from datetime import date, datetime
-from enum import Enum
 
 from lumibot.tools import parse_symbol
-
-
-# Custom string enum implementation for Python 3.9 compatibility
-class StrEnum(str, Enum):
-    """
-    A string enum implementation that works with Python 3.9+
-    
-    This class extends str and Enum to create string enums that:
-    1. Can be used like strings (string methods, comparison)
-    2. Are hashable (for use in dictionaries, sets, etc.)
-    3. Can be used in string comparisons without explicit conversion
-    """
-    def __str__(self):
-        return self.value
-        
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.value == other
-        return super().__eq__(other)
-    
-    def __hash__(self):
-        # Use the hash of the enum member, not the string value
-        # This ensures proper hashability while maintaining enum identity
-        return super().__hash__()
+from lumibot.tools.types import StrEnum
 
 
 class Asset:

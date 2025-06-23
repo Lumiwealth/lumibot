@@ -28,6 +28,7 @@ class PolygonDataBacktesting(PandasData):
         pandas_data=None,
         api_key=None,
         max_memory=None,
+        errors_csv_path=None,
         **kwargs,
     ):
         super().__init__(
@@ -36,9 +37,12 @@ class PolygonDataBacktesting(PandasData):
 
         # Memory limit, off by default
         self.MAX_STORAGE_BYTES = max_memory
+        
+        # Store errors CSV path for use in data retrieval
+        self.errors_csv_path = errors_csv_path
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = PolygonClient.create(api_key=api_key)
+        self.polygon_client = PolygonClient.create(api_key=api_key, errors_csv_path=errors_csv_path)
 
     def _enforce_storage_limit(pandas_data: OrderedDict):
         storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
@@ -132,6 +136,7 @@ class PolygonDataBacktesting(PandasData):
                 self.datetime_end,
                 timespan=ts_unit,
                 quote_asset=quote_asset,
+                errors_csv_path=self.errors_csv_path,
             )
         except BadResponse as e:
             # Assuming e.message or similar attribute contains the error message
@@ -289,6 +294,7 @@ class PolygonDataBacktesting(PandasData):
             exchange=exchange,
             current_date=self.get_datetime().date(),
             polygon_client=self.polygon_client,
+            errors_csv_path=self.errors_csv_path,
         )
 
         return option_contracts

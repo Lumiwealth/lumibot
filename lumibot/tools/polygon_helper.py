@@ -17,6 +17,7 @@ from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
 from polygon import RESTClient
+from polygon.exceptions import BadResponse
 from typing import Iterator
 from termcolor import colored
 from tqdm import tqdm
@@ -25,6 +26,8 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import POLYGON_API_KEY
+from lumibot.credentials import LOG_ERRORS_TO_CSV
+from lumibot.tools.error_logger import ErrorLogger
 
 # Adjust as desired, in days. We'll reuse any existing chain file
 # that is not older than RECENT_FILE_TOLERANCE_DAYS.
@@ -88,6 +91,7 @@ def get_price_data_from_polygon(
     quote_asset: Optional[Asset] = None,
     force_cache_update: bool = False,
     max_workers: int = 10,
+    errors_csv_path: Optional[str] = None,
 ) -> Optional[pd.DataFrame]:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
@@ -114,6 +118,8 @@ def get_price_data_from_polygon(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
+    errors_csv_path : Optional[str], optional
+        Path to the CSV file for logging errors. Defaults to None.
         
     Returns
     -------
@@ -133,7 +139,7 @@ def get_price_data_from_polygon(
     # Build the cache file path based on the asset, timespan, and quote asset.
     cache_file = build_cache_filename(asset, timespan, quote_asset)
     # Validate cache (e.g., check if splits have changed) and possibly force a cache update.
-    force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
+    force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key, errors_csv_path)
     df_all: Optional[pd.DataFrame] = None
     # Load cached data if available.
     if cache_file.exists() and not force_cache_update:
@@ -147,7 +153,7 @@ def get_price_data_from_polygon(
         return df_all
 
     # Create a PolygonClient and get the symbol for the asset.
-    polygon_client = PolygonClient.create(api_key=api_key)
+    polygon_client = PolygonClient.create(api_key=api_key, errors_csv_path=errors_csv_path)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)
     if symbol is None:
         # If no valid symbol is found, mark all trading dates as checked.
@@ -214,7 +220,7 @@ def get_price_data_from_polygon(
     return df_all_output
 
 
-def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
+def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str, errors_csv_path: Optional[str] = None):
     """
     If the list of splits for a stock have changed then we need to invalidate its cache
     because all of the prices will have changed (because we're using split adjusted prices).
@@ -232,7 +238,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
         if splits_file_stale:
             cached_splits = pd.read_feather(splits_file_path)
     if splits_file_stale or force_cache_update:
-        polygon_client = PolygonClient.create(api_key=api_key)
+        polygon_client = PolygonClient.create(api_key=api_key, errors_csv_path=errors_csv_path)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
         if isinstance(splits, Iterator):
@@ -609,6 +615,7 @@ def get_chains_cached(
     exchange: str = None,
     current_date: date = None,
     polygon_client: Optional["PolygonClient"] = None,
+    errors_csv_path: Optional[str] = None,
 ) -> dict:
     """
     Retrieve an option chain for a given asset and historical date using Polygon, 
@@ -672,7 +679,7 @@ def get_chains_cached(
     # 2) Ensure we have a PolygonClient
     if polygon_client is None:
         logging.debug("No polygon_client provided; creating a new one.")
-        polygon_client = PolygonClient.create(api_key=api_key)
+        polygon_client = PolygonClient.create(api_key=api_key, errors_csv_path=errors_csv_path)
 
     # 3) Build the chain folder path and create if not present
     chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "polygon" / "option_chains"
@@ -771,13 +778,15 @@ class PolygonClient(RESTClient):
 
     WAIT_SECONDS_RETRY = 60
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, errors_csv_path = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Time of last "rate limit reached" log (epoch time).
         self._last_rate_limit_log_time = 0.0
         # Only log once every 300s (5 minutes); tweak as you see fit.
         self._rate_limit_log_cooldown = 300.0
+        # Initialize error logger
+        self.error_logger = ErrorLogger(errors_csv_path, "POLYGON", LOG_ERRORS_TO_CSV)
 
     @classmethod
     def create(cls, *args, **kwargs) -> RESTClient:
@@ -793,6 +802,8 @@ class PolygonClient(RESTClient):
         api_key : str, optional
             The API key to authenticate with the service. Defaults to the value of the 
             `POLYGON_API_KEY` environment variable if not provided.
+        errors_csv_path : str, optional
+            Path to the CSV file for logging errors. Defaults to None.
 
         Returns:
         RESTClient
@@ -847,6 +858,13 @@ class PolygonClient(RESTClient):
                     logging.error(colored_message)
                     logging.debug(f"Error: {e}")
 
+                    # Log to CSV using the ErrorLogger
+                    self.error_logger.log_rate_limit(
+                        wait_time=PolygonClient.WAIT_SECONDS_RETRY,
+                        url=str(url),
+                        error_details=str(e)
+                    )
+
                     # Update our last log time
                     self._last_rate_limit_log_time = now
                 else:
@@ -855,3 +873,56 @@ class PolygonClient(RESTClient):
 
                 # Sleep for WAIT_SECONDS_RETRY, then try again
                 time.sleep(PolygonClient.WAIT_SECONDS_RETRY)
+            
+            except BadResponse as e:
+                # Handle Polygon BadResponse errors specifically
+                url = str(urlunparse(urlparse(kwargs.get('path', 'unknown'))._replace(query=""))) if 'path' in kwargs else 'unknown'
+                
+                # Check if this is an authorization/entitlement error
+                error_str = str(e)
+                if "NOT_AUTHORIZED" in error_str or "not entitled to this data" in error_str.lower():
+                    self.error_logger.log_authorization_error(
+                        url=url,
+                        operation="HTTP GET request",
+                        error_details=error_str
+                    )
+                else:
+                    # Other BadResponse errors (e.g., invalid parameters, server errors)
+                    self.error_logger.log_error(
+                        severity="ERROR",
+                        error_code="BAD_REQUEST",
+                        message=f"{self.error_logger.data_source_name} bad request error",
+                        details=f"URL: {url}, Operation: HTTP GET request, Error: {error_str}"
+                    )
+                
+                # Log to console as well
+                message = f"Polygon BadResponse error: {type(e).__name__}"
+                colored_message = colored(message, "red")
+                logging.error(colored_message)
+                logging.debug(f"Full error details: {e}")
+                
+                # Re-raise the exception since this is not a rate limit we can handle
+                raise e
+            
+            except Exception as e:
+                # Check if we've logged an exception message recently
+                now = time.time()
+
+                message = (
+                    f"Polygon API error encountered: {type(e).__name__}\n"
+                    "This may be due to insufficient subscriptions or temporary server issues. "
+                )
+                colored_message = colored(message, "yellow")
+                logging.warning(colored_message)
+                logging.debug(f"Full error details: {e}")
+
+                # Log to CSV using the ErrorLogger
+                url = str(urlunparse(urlparse(kwargs.get('path', 'unknown'))._replace(query=""))) if 'path' in kwargs else 'unknown'
+                self.error_logger.log_api_error(
+                    exception=e,
+                    url=url,
+                    operation="HTTP GET request"
+                )
+
+                # Re-raise the exception since this is not a rate limit we can handle
+                raise e                

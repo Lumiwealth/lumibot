@@ -137,6 +137,17 @@ STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 # Flag to determine if backtest progress should be logged to a file (True/False)
 LOG_BACKTEST_PROGRESS_TO_FILE = os.environ.get("LOG_BACKTEST_PROGRESS_TO_FILE")
 
+# Flag to determine if error logs should be logged to a CSV file (True/False)
+_log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
+if _log_errors_to_csv is None:
+    LOG_ERRORS_TO_CSV = False
+elif _log_errors_to_csv.lower() in ("true", "1", "yes", "on"):
+    LOG_ERRORS_TO_CSV = True
+elif _log_errors_to_csv.lower() in ("false", "0", "no", "off"):
+    LOG_ERRORS_TO_CSV = False
+else:
+    LOG_ERRORS_TO_CSV = False
+
 # Determine if backtesting logs should be quiet via env variable (default True)
 _btl = os.environ.get("BACKTESTING_QUIET_LOGS", None)
 if _btl is not None:

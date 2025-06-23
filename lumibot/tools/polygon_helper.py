@@ -16,7 +16,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 
 # noinspection PyPackageRequirements
-from polygon import StocksClient, OptionsClient, ReferenceClient, BaseClient
+from polygon.rest import RESTClient
 from polygon.exceptions import BadResponse
 from typing import Iterator
 from termcolor import colored
@@ -309,8 +309,8 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     ----------
     asset : Asset
         Asset we are getting data for
-    polygon_client : PolygonClient
-        The PolygonClient connection for Polygon API
+    polygon_client : RESTClient
+        The RESTClient connection for Polygon Stock-Equity API
     quote_asset : Asset
         The quote asset for the asset we are getting data for
 
@@ -773,19 +773,13 @@ def get_chains_cached(
     return option_contracts
 
 
-class PolygonClient:
-    ''' Rate Limited client wrapper with factory method '''
+class PolygonClient(RESTClient):
+    ''' Rate Limited RESTClient with factory method '''
 
     WAIT_SECONDS_RETRY = 60
 
-    def __init__(self, api_key, errors_csv_path=None, **kwargs):
-        # Create specialized clients
-        self.stocks_client = StocksClient(api_key, **kwargs)
-        self.options_client = OptionsClient(api_key, **kwargs)
-        self.reference_client = ReferenceClient(api_key, **kwargs)
-        
-        # Store API key for potential future use
-        self.api_key = api_key
+    def __init__(self, errors_csv_path = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         # Time of last "rate limit reached" log (epoch time).
         self._last_rate_limit_log_time = 0.0
@@ -795,9 +789,9 @@ class PolygonClient:
         self.error_logger = ErrorLogger(errors_csv_path, "POLYGON", LOG_ERRORS_TO_CSV)
 
     @classmethod
-    def create(cls, *args, **kwargs) -> "PolygonClient":
+    def create(cls, *args, **kwargs) -> RESTClient:
         """
-        Factory method to create a PolygonClient instance.
+        Factory method to create a RESTClient or PolygonClient instance.
 
         The method uses environment variables to determine default values for the API key 
         and subscription type. If the `api_key` is not provided in `kwargs`, it defaults 
@@ -812,8 +806,8 @@ class PolygonClient:
             Path to the CSV file for logging errors. Defaults to None.
 
         Returns:
-        PolygonClient
-            An instance of PolygonClient.
+        RESTClient
+            An instance of RESTClient or PolygonClient.
 
         Examples:
         ---------
@@ -831,48 +825,19 @@ class PolygonClient:
 
         return cls(*args, **kwargs)
 
-    # Compatibility methods for the old RESTClient interface
-    def get_aggs(self, ticker, multiplier, timespan, from_, to, **kwargs):
-        """Get aggregate bars for a ticker - compatibility method."""
-        return self._execute_with_error_handling(
-            self.stocks_client.get_aggregate_bars,
-            ticker=ticker,
-            multiplier=multiplier,
-            timespan=timespan,
-            from_=from_,
-            to=to,
-            **kwargs
-        )
-    
-    def list_splits(self, ticker, **kwargs):
-        """List stock splits for a ticker - compatibility method."""
-        return self._execute_with_error_handling(
-            self.reference_client.get_stock_splits,
-            ticker=ticker,
-            **kwargs
-        )
-        
-    def list_options_contracts(self, **kwargs):
-        """List options contracts - compatibility method."""
-        return self._execute_with_error_handling(
-            self.reference_client.get_option_contracts,
-            **kwargs
-        )
-
-    def _execute_with_error_handling(self, client_method, **kwargs):
+    def _get(self, *args, **kwargs):
         """
-        Execute a client method with rate limiting and error handling.
+        Override to handle rate-limits by sleeping 60s, but *throttle*
+        the log message so it isn't repeated too frequently.
         """
         while True:
             try:
-                # Execute the client method
-                return client_method(**kwargs)
+                # Normal get from polygon-api-client
+                return super()._get(*args, **kwargs)
 
             except MaxRetryError as e:
                 # We interpret MaxRetryError as a rate-limit or server rejection
-                # Since we don't have direct access to the path anymore, we'll use the method name
-                method_name = getattr(client_method, '__name__', 'unknown_method')
-                url = f"polygon_api/{method_name}"
+                url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
 
                 # Check if we've logged a rate-limit message recently
                 now = time.time()
@@ -911,15 +876,14 @@ class PolygonClient:
             
             except BadResponse as e:
                 # Handle Polygon BadResponse errors specifically
-                method_name = getattr(client_method, '__name__', 'unknown_method')
-                url = f"polygon_api/{method_name}"
+                url = str(urlunparse(urlparse(kwargs.get('path', 'unknown'))._replace(query=""))) if 'path' in kwargs else 'unknown'
                 
                 # Check if this is an authorization/entitlement error
                 error_str = str(e)
                 if "NOT_AUTHORIZED" in error_str or "not entitled to this data" in error_str.lower():
                     self.error_logger.log_authorization_error(
                         url=url,
-                        operation="HTTP API request",
+                        operation="HTTP GET request",
                         error_details=error_str
                     )
                 else:
@@ -928,7 +892,7 @@ class PolygonClient:
                         severity="ERROR",
                         error_code="BAD_REQUEST",
                         message=f"{self.error_logger.data_source_name} bad request error",
-                        details=f"URL: {url}, Operation: HTTP API request, Error: {error_str}"
+                        details=f"URL: {url}, Operation: HTTP GET request, Error: {error_str}"
                     )
                 
                 # Log to console as well
@@ -953,13 +917,12 @@ class PolygonClient:
                 logging.debug(f"Full error details: {e}")
 
                 # Log to CSV using the ErrorLogger
-                method_name = getattr(client_method, '__name__', 'unknown_method')
-                url = f"polygon_api/{method_name}"
+                url = str(urlunparse(urlparse(kwargs.get('path', 'unknown'))._replace(query=""))) if 'path' in kwargs else 'unknown'
                 self.error_logger.log_api_error(
                     exception=e,
                     url=url,
-                    operation="HTTP API request"
+                    operation="HTTP GET request"
                 )
 
                 # Re-raise the exception since this is not a rate limit we can handle
-                raise e
+                raise e                

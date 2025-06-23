@@ -55,13 +55,14 @@ class TestErrorLogger:
                 assert len(rows) == 2
                 
                 # Check header
-                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details']
+                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details', 'count']
                 
                 # Check data row
                 assert rows[1][0] == 'ERROR'  # severity
                 assert rows[1][1] == 'TEST_TEST_ERROR'  # error_code with data source prefix
                 assert rows[1][3] == 'Test message'  # message
                 assert rows[1][4] == 'Test details'  # details
+                assert rows[1][5] == '1'  # count
 
     def test_error_logger_appends_multiple_errors(self):
         """Test that multiple errors are correctly appended to the CSV file."""
@@ -88,13 +89,19 @@ class TestErrorLogger:
                 # Should have header + 3 data rows
                 assert len(rows) == 4
                 
+                # Check header includes count column
+                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details', 'count']
+                
                 # Check that all errors are logged
                 assert rows[1][0] == 'ERROR'
                 assert rows[1][1] == 'TEST_ERROR_1'
+                assert rows[1][5] == '1'  # count
                 assert rows[2][0] == 'WARNING'
                 assert rows[2][1] == 'TEST_WARNING_1'
+                assert rows[2][5] == '1'  # count
                 assert rows[3][0] == 'ERROR'
                 assert rows[3][1] == 'TEST_ERROR_2'
+                assert rows[3][5] == '1'  # count
 
     def test_error_logger_disabled_csv_logging(self):
         """Test that no CSV file is created when log_errors_to_csv=False."""
@@ -154,25 +161,33 @@ class TestErrorLogger:
                 # Should have header + 5 data rows
                 assert len(rows) == 6
                 
+                # Check header includes count column
+                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details', 'count']
+                
                 # Check rate limit error
                 assert rows[1][0] == 'WARNING'
                 assert rows[1][1] == 'POLYGON_RATE_LIMIT_EXCEEDED'
+                assert rows[1][5] == '1'  # count
                 
                 # Check API error
                 assert rows[2][0] == 'ERROR'
                 assert rows[2][1] == 'POLYGON_API_VALUEERROR'
+                assert rows[2][5] == '1'  # count
                 
                 # Check data error
                 assert rows[3][0] == 'ERROR'
                 assert rows[3][1] == 'POLYGON_DATA_RETRIEVAL_FAILED'
+                assert rows[3][5] == '1'  # count
                 
                 # Check validation error
                 assert rows[4][0] == 'ERROR'
                 assert rows[4][1] == 'POLYGON_VALIDATION_SYMBOL_FAILED'
+                assert rows[4][5] == '1'  # count
                 
                 # Check cache error
                 assert rows[5][0] == 'WARNING'
                 assert rows[5][1] == 'POLYGON_CACHE_READ_FAILED'
+                assert rows[5][5] == '1'  # count
 
     def test_error_logger_authorization_error(self):
         """Test that authorization errors are logged with the correct error code."""
@@ -202,12 +217,16 @@ class TestErrorLogger:
                 # Should have header + 1 data row
                 assert len(rows) == 2
                 
+                # Check header includes count column
+                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details', 'count']
+                
                 # Check authorization error
                 assert rows[1][0] == 'ERROR'
                 assert rows[1][1] == 'POLYGON_NOT_AUTHORIZED'
                 assert "authorization error - insufficient permissions" in rows[1][3]
                 assert "/v2/aggs/ticker/I:SPX/range/1/minute/2024-12-02/2024-12-31" in rows[1][4]
                 assert "NOT_AUTHORIZED" in rows[1][4]
+                assert rows[1][5] == '1'  # count
 
     def test_error_logger_creates_directory(self):
         """Test that the ErrorLogger creates the directory if it doesn't exist."""
@@ -268,3 +287,199 @@ class TestErrorLogger:
             # Should have logged the fallback error
             mock_error.assert_called_once()
             assert "Failed to write to errors CSV" in str(mock_error.call_args)
+
+    def test_error_logger_count_column_in_header(self):
+        """Test that the CSV file includes a count column in the header."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "test_errors.csv"
+            
+            # Create ErrorLogger with CSV logging enabled
+            logger = ErrorLogger(
+                errors_csv=str(csv_path),
+                data_source_name="TEST",
+                log_errors_to_csv=True
+            )
+            
+            # Log first error
+            logger.log_error("ERROR", "TEST_ERROR", "Test message", "Test details")
+            
+            # Check file contents
+            with open(csv_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.reader(csvfile)
+                rows = list(reader)
+                
+                # Should have header + 1 data row
+                assert len(rows) == 2
+                
+                # Check header includes count column
+                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details', 'count']
+                
+                # Check data row includes count
+                assert len(rows[1]) == 6
+                assert rows[1][5] == '1'  # First occurrence should have count of 1
+
+    def test_error_logger_deduplication(self):
+        """Test that duplicate errors increment count instead of adding new rows."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "test_errors.csv"
+            
+            # Create ErrorLogger with CSV logging enabled
+            logger = ErrorLogger(
+                errors_csv=str(csv_path),
+                data_source_name="TEST",
+                log_errors_to_csv=True
+            )
+            
+            # Log the same error multiple times
+            logger.log_error("ERROR", "DUPLICATE_ERROR", "Same message", "Same details")
+            logger.log_error("ERROR", "DUPLICATE_ERROR", "Same message", "Same details")
+            logger.log_error("ERROR", "DUPLICATE_ERROR", "Same message", "Same details")
+            
+            # Log a different error for comparison
+            logger.log_error("WARNING", "DIFFERENT_ERROR", "Different message", "Different details")
+            
+            # Check file contents
+            with open(csv_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.reader(csvfile)
+                rows = list(reader)
+                
+                # Should have header + 2 unique error rows (not 4)
+                assert len(rows) == 3
+                
+                # Check header
+                assert rows[0] == ['severity', 'error_code', 'timestamp', 'message', 'details', 'count']
+                
+                # Check first error has count of 3
+                assert rows[1][0] == 'ERROR'
+                assert rows[1][1] == 'TEST_DUPLICATE_ERROR'
+                assert rows[1][3] == 'Same message'
+                assert rows[1][4] == 'Same details'
+                assert rows[1][5] == '3'
+                
+                # Check second error has count of 1
+                assert rows[2][0] == 'WARNING'
+                assert rows[2][1] == 'TEST_DIFFERENT_ERROR'
+                assert rows[2][3] == 'Different message'
+                assert rows[2][4] == 'Different details'
+                assert rows[2][5] == '1'
+
+    def test_error_logger_deduplication_different_severity(self):
+        """Test that errors with different severity are treated as different."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "test_errors.csv"
+            
+            # Create ErrorLogger with CSV logging enabled
+            logger = ErrorLogger(
+                errors_csv=str(csv_path),
+                data_source_name="TEST",
+                log_errors_to_csv=True
+            )
+            
+            # Log same message/details but different severity
+            logger.log_error("ERROR", "SAME_CODE", "Same message", "Same details")
+            logger.log_error("WARNING", "SAME_CODE", "Same message", "Same details")
+            logger.log_error("ERROR", "SAME_CODE", "Same message", "Same details")
+            
+            # Check file contents
+            with open(csv_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.reader(csvfile)
+                rows = list(reader)
+                
+                # Should have header + 2 unique error rows (different severity = different error)
+                assert len(rows) == 3
+                
+                # Check that we have both ERROR and WARNING entries
+                severities = [row[0] for row in rows[1:]]
+                assert 'ERROR' in severities
+                assert 'WARNING' in severities
+                
+                # Check ERROR has count of 2
+                error_row = next(row for row in rows[1:] if row[0] == 'ERROR')
+                assert error_row[5] == '2'
+                
+                # Check WARNING has count of 1
+                warning_row = next(row for row in rows[1:] if row[0] == 'WARNING')
+                assert warning_row[5] == '1'
+
+    def test_error_logger_load_existing_counts(self):
+        """Test that ErrorLogger loads existing error counts from CSV file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "test_errors.csv"
+            
+            # First, create a CSV file with some errors
+            logger1 = ErrorLogger(
+                errors_csv=str(csv_path),
+                data_source_name="TEST",
+                log_errors_to_csv=True
+            )
+            
+            # Log some errors
+            logger1.log_error("ERROR", "EXISTING_ERROR", "Existing message", "Existing details")
+            logger1.log_error("ERROR", "EXISTING_ERROR", "Existing message", "Existing details")
+            
+            # Create a new logger instance (simulating restart)
+            logger2 = ErrorLogger(
+                errors_csv=str(csv_path),
+                data_source_name="TEST",
+                log_errors_to_csv=True
+            )
+            
+            # Log the same error again
+            logger2.log_error("ERROR", "EXISTING_ERROR", "Existing message", "Existing details")
+            
+            # Check file contents
+            with open(csv_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.reader(csvfile)
+                rows = list(reader)
+                
+                # Should have header + 1 unique error row
+                assert len(rows) == 2
+                
+                # Check that count is 3 (2 from first logger + 1 from second logger)
+                assert rows[1][5] == '3'
+
+    def test_error_logger_convenience_methods_deduplication(self):
+        """Test that convenience methods also support deduplication."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "test_errors.csv"
+            
+            # Create ErrorLogger with CSV logging enabled
+            logger = ErrorLogger(
+                errors_csv=str(csv_path),
+                data_source_name="POLYGON",
+                log_errors_to_csv=True
+            )
+            
+            # Log same rate limit error multiple times
+            logger.log_rate_limit(60, "https://api.polygon.io", "Rate limit exceeded")
+            logger.log_rate_limit(60, "https://api.polygon.io", "Rate limit exceeded")
+            logger.log_rate_limit(60, "https://api.polygon.io", "Rate limit exceeded")
+            
+            # Log same authorization error multiple times
+            error_msg = '{"status":"NOT_AUTHORIZED","message":"You are not entitled to this data"}'
+            logger.log_authorization_error(
+                url="/v2/aggs/ticker/SPY/range/1/minute/2024-12-02/2024-12-31",
+                operation="HTTP GET request",
+                error_details=error_msg
+            )
+            logger.log_authorization_error(
+                url="/v2/aggs/ticker/SPY/range/1/minute/2024-12-02/2024-12-31",
+                operation="HTTP GET request",
+                error_details=error_msg
+            )
+            
+            # Check file contents
+            with open(csv_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.reader(csvfile)
+                rows = list(reader)
+                
+                # Should have header + 2 unique error rows
+                assert len(rows) == 3
+                
+                # Check rate limit error has count of 3
+                rate_limit_row = next(row for row in rows[1:] if 'RATE_LIMIT_EXCEEDED' in row[1])
+                assert rate_limit_row[5] == '3'
+                
+                # Check authorization error has count of 2
+                auth_row = next(row for row in rows[1:] if 'NOT_AUTHORIZED' in row[1])
+                assert auth_row[5] == '2'

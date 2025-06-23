@@ -5,7 +5,7 @@ import os
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Tuple, Dict, Tuple
 
 
 class ErrorLogger:
@@ -35,6 +35,7 @@ class ErrorLogger:
         self.log_errors_to_csv = log_errors_to_csv
         self._csv_lock = threading.Lock()  # Thread safety for CSV writes
         self._csv_initialized = False  # Track if CSV has been initialized
+        self._error_counts: Dict[Tuple[str, str, str, str], int] = {}  # Track error counts for deduplication
     
     def _ensure_csv_initialized(self):
         """Initialize the errors CSV file with headers if it doesn't exist and hasn't been initialized."""
@@ -45,13 +46,100 @@ class ErrorLogger:
             if not os.path.exists(self.errors_csv):
                 with open(self.errors_csv, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
-                    writer.writerow(['severity', 'error_code', 'timestamp', 'message', 'details'])
+                    writer.writerow(['severity', 'error_code', 'timestamp', 'message', 'details', 'count'])
+            else:
+                # Load existing error counts from CSV
+                self._load_existing_error_counts()
             
             self._csv_initialized = True
+    
+    def _load_existing_error_counts(self):
+        """Load existing error counts from the CSV file for deduplication."""
+        try:
+            with open(self.errors_csv, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    # Create key for deduplication using normalized details
+                    normalized_details = self._normalize_error_details(row['details'], row['error_code'])
+                    key = (row['severity'], row['error_code'], row['message'], normalized_details)
+                    count = int(row.get('count', 1))  # Default to 1 for backwards compatibility
+                    self._error_counts[key] = count
+        except (FileNotFoundError, KeyError, ValueError):
+            # If file doesn't exist or has format issues, start fresh
+            self._error_counts = {}
+    
+    def _rewrite_csv_with_updated_counts(self):
+        """Rewrite the entire CSV file with updated counts."""
+        # Create a temporary file first to ensure atomicity
+        temp_file = self.errors_csv + '.tmp'
+        try:
+            with open(temp_file, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['severity', 'error_code', 'timestamp', 'message', 'details', 'count'])
+                
+                # Write all known errors with their counts
+                for (severity, error_code, message, details), count in self._error_counts.items():
+                    timestamp = datetime.now().isoformat()  # Use current timestamp for updates
+                    writer.writerow([severity, error_code, timestamp, message, details, count])
+            
+            # Atomically replace the original file
+            os.replace(temp_file, self.errors_csv)
+        except Exception as e:
+            # Clean up temp file if something went wrong
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            raise e
         
+    def _normalize_error_details(self, details: str, error_code: str) -> str:
+        """
+        Normalize error details for deduplication purposes.
+        
+        This removes unique identifiers like request_ids and normalizes date ranges
+        to allow proper grouping of similar errors.
+        
+        Parameters
+        ----------
+        details : str
+            The original error details.
+        error_code : str
+            The error code (with data source prefix).
+            
+        Returns
+        -------
+        str
+            Normalized error details for deduplication.
+        """
+        import re
+        
+        normalized = details
+        
+        # For authorization errors, remove request_id and normalize date ranges
+        if "NOT_AUTHORIZED" in error_code:
+            # Remove request_id patterns like "request_id":"6ae96aa7620285a5404c5f7fd8832456"
+            normalized = re.sub(r'"request_id":"[^"]*"', '"request_id":"<REDACTED>"', normalized)
+            normalized = re.sub(r'request_id=[^,\s]*', 'request_id=<REDACTED>', normalized)
+            
+            # Normalize date ranges in URLs to group similar authorization errors
+            # Pattern: /YYYY-MM-DD/YYYY-MM-DD -> /<DATE_RANGE>
+            normalized = re.sub(r'/\d{4}-\d{2}-\d{2}/\d{4}-\d{2}-\d{2}', '/<DATE_RANGE>', normalized)
+            
+            # Also normalize other date patterns that might appear
+            normalized = re.sub(r'\d{4}-\d{2}-\d{2}', '<DATE>', normalized)
+        
+        # For rate limit errors, normalize URLs and wait times for better grouping
+        elif "RATE_LIMIT" in error_code:
+            # Normalize date ranges in URLs
+            normalized = re.sub(r'/\d{4}-\d{2}-\d{2}/\d{4}-\d{2}-\d{2}', '/<DATE_RANGE>', normalized)
+            normalized = re.sub(r'\d{4}-\d{2}-\d{2}', '<DATE>', normalized)
+        
+        return normalized
+
     def log_error(self, severity: str, error_code: str, message: str, details: str = ""):
         """
-        Log an error to the CSV file.
+        Log an error to the CSV file with deduplication.
+        
+        If the same error (based on severity, error_code, message, normalized details) has been 
+        logged before, increment its count instead of adding a new row.
         
         Parameters
         ----------
@@ -73,9 +161,24 @@ class ErrorLogger:
             try:
                 with self._csv_lock:  # Thread-safe CSV writing
                     self._ensure_csv_initialized()  # Only create CSV when needed
-                    with open(self.errors_csv, 'a', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([severity, full_error_code, timestamp, message, details])
+                    
+                    # Normalize details for deduplication
+                    normalized_details = self._normalize_error_details(details, full_error_code)
+                    
+                    # Create key for deduplication using normalized details
+                    error_key = (severity, full_error_code, message, normalized_details)
+                    
+                    if error_key in self._error_counts:
+                        # Increment count for existing error
+                        self._error_counts[error_key] += 1
+                    else:
+                        # New error, initialize count to 1
+                        self._error_counts[error_key] = 1
+                    
+                    # Rewrite the entire CSV with updated counts
+                    # This ensures consistency and handles the deduplication properly
+                    self._rewrite_csv_with_updated_counts()
+                    
             except Exception as e:
                 # Fallback logging if CSV writing fails
                 logging.error(f"Failed to write to errors CSV: {e}")

@@ -18,6 +18,33 @@ from ..data_sources import DataSource
 from ..entities import Asset, Order, Position
 from ..trading_builtins import SafeList
 
+DEFAULT_CLEANUP_CONFIG = {
+    "enabled": True,
+    "cleanup_interval_iterations": 100,  # Clean up every 100 trading iterations
+    "retention_policies": {
+        "filled_orders": {
+            "max_age_days": 30,      # Keep orders for 30 days
+            "max_count": 10000,      # Keep max 10,000 orders
+            "min_keep": 100          # Always keep at least 100 recent orders
+        },
+        "canceled_orders": {
+            "max_age_days": 7,       # Keep canceled orders for 7 days
+            "max_count": 1000,       # Keep max 1,000 canceled orders  
+            "min_keep": 50           # Always keep at least 50 recent orders
+        },
+        "error_orders": {
+            "max_age_days": 30,      # Keep error orders for 30 days
+            "max_count": 1000,       # Keep max 1,000 error orders
+            "min_keep": 50           # Always keep at least 50 recent orders
+        },
+        "filled_positions": {
+            "max_age_days": 30,      # Keep positions for 30 days
+            "max_count": 5000,       # Keep max 5,000 positions
+            "min_keep": 100          # Always keep at least 100 recent positions
+        }
+    }
+}
+
 # Consolidate errors from different brokers into a single class that can be easily caught even
 # if the user decides to switch brokers.
 class LumibotBrokerAPIError(Exception):
@@ -54,7 +81,7 @@ class Broker(ABC):
     PLACEHOLDER_ORDER = "placeholder"
 
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None,
-                 config=None, max_workers=20, extended_trading_minutes=0):
+                 config=None, max_workers=20, extended_trading_minutes=0, cleanup_config=None):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -86,6 +113,11 @@ class Broker(ABC):
         # Set the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
 
+        # Initialize cleanup configuration and tracking
+        self._cleanup_config = self._initialize_cleanup_config(cleanup_config)
+        self._iteration_counter = 0
+        self._last_cleanup_time = None
+
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': "unknown"})
 
@@ -113,6 +145,145 @@ class Broker(ABC):
             attr = "is_paper" if "paper" in key.lower() else key.lower()
             if hasattr(self, attr):
                 setattr(self, attr, config[key])
+
+    # =================================================================================
+    # ================================ Cleanup Methods ===============================
+
+    def _initialize_cleanup_config(self, cleanup_config):
+        """Initialize cleanup configuration with defaults."""
+        if cleanup_config is None:
+            return DEFAULT_CLEANUP_CONFIG.copy()
+        
+        # Start with defaults and merge user config
+        import copy
+        config = copy.deepcopy(DEFAULT_CLEANUP_CONFIG)
+        
+        if cleanup_config:
+            # Update top-level settings
+            for key in ["enabled", "cleanup_interval_iterations"]:
+                if key in cleanup_config:
+                    config[key] = cleanup_config[key]
+            
+            # Merge retention policies
+            if "retention_policies" in cleanup_config:
+                for policy_name, policy_config in cleanup_config["retention_policies"].items():
+                    if policy_name in config["retention_policies"]:
+                        # Merge individual policy settings, preserving defaults
+                        config["retention_policies"][policy_name].update(policy_config)
+                    else:
+                        config["retention_policies"][policy_name] = policy_config
+        
+        return config
+
+    def _cleanup_old_tracking_data(self):
+        """Perform cleanup of old orders and positions based on configured policies."""
+        if not self._cleanup_config.get("enabled", True):
+            return
+            
+        current_time = self.data_source.get_datetime()
+        cleanup_stats = {}
+        
+        # Clean up each type of tracking data
+        for list_name, policy in self._cleanup_config["retention_policies"].items():
+            list_obj = getattr(self, f"_{list_name}", None)
+            if list_obj is None:
+                continue
+                
+            initial_count = len(list_obj)
+            removed_count = self._cleanup_tracking_list(list_obj, policy, current_time)
+            cleanup_stats[list_name] = {
+                "initial_count": initial_count,
+                "removed_count": removed_count, 
+                "final_count": len(list_obj)
+            }
+        
+        # Log cleanup results if any items were removed
+        if any(stats["removed_count"] > 0 for stats in cleanup_stats.values()):
+            self.logger.info(f"Memory cleanup completed: {cleanup_stats}")
+        
+        self._last_cleanup_time = current_time
+
+    def _cleanup_tracking_list(self, safe_list, policy, current_time):
+        """Clean up a specific SafeList based on retention policy."""
+        items = safe_list.get_list()
+        if len(items) <= policy.get("min_keep", 0):
+            return 0  # Don't clean up if below minimum threshold
+        
+        items_to_remove = []
+        max_age_days = policy.get("max_age_days")
+        max_count = policy.get("max_count")
+        min_keep = policy.get("min_keep", 0)
+        
+        # Sort items by age (newest first) to preserve recent items
+        sorted_items = sorted(items, key=self._get_item_timestamp, reverse=True)
+        
+        for i, item in enumerate(sorted_items):
+            should_remove = False
+            
+            # Always keep minimum number of recent items
+            if i < min_keep:
+                continue
+                
+            # Remove by age
+            if max_age_days and self._is_item_too_old(item, current_time, max_age_days):
+                should_remove = True
+                
+            # Remove by count (keep most recent)
+            if max_count and i >= max_count:
+                should_remove = True
+                
+            if should_remove:
+                items_to_remove.append(item)
+        
+        # Remove items (thread-safe)
+        for item in items_to_remove:
+            try:
+                safe_list.remove(item)
+            except ValueError:
+                # Item might have been removed by another thread
+                pass
+        
+        return len(items_to_remove)
+
+    def _get_item_timestamp(self, item):
+        """Get the timestamp to use for age-based cleanup."""
+        if hasattr(item, 'broker_update_date') and item.broker_update_date:
+            return item.broker_update_date
+        elif hasattr(item, 'broker_create_date') and item.broker_create_date:
+            return item.broker_create_date
+        elif hasattr(item, '_date_created') and item._date_created:
+            return item._date_created
+        else:
+            # Fallback to current time (won't be cleaned up)
+            return self.data_source.get_datetime()
+
+    def _is_item_too_old(self, item, current_time, max_age_days):
+        """Check if an item is too old based on retention policy."""
+        item_time = self._get_item_timestamp(item)
+        if item_time is None:
+            return False
+        
+        age_delta = current_time - item_time
+        return age_delta.days >= max_age_days
+
+    def _trigger_periodic_cleanup(self):
+        """Trigger cleanup based on iteration counter."""
+        self._iteration_counter += 1
+        cleanup_interval = self._cleanup_config.get("cleanup_interval_iterations", 100)
+        
+        if self._iteration_counter % cleanup_interval == 0:
+            try:
+                self._cleanup_old_tracking_data()
+            except Exception as e:
+                self.logger.warning(f"Memory cleanup failed: {e}")
+
+    def force_cleanup(self):
+        """Force immediate cleanup of old tracking data (for testing or manual cleanup)."""
+        try:
+            self._cleanup_old_tracking_data()
+            self.logger.info("Manual cleanup completed successfully")
+        except Exception as e:
+            self.logger.error(f"Manual cleanup failed: {e}")
 
     # =================================================================================
     # ================================ Required Implementations========================
@@ -583,6 +754,9 @@ class Broker(ABC):
                             )
                         )
                         self._unprocessed_orders.append(flat_order)
+
+            # Trigger periodic cleanup after processing orders
+            self._trigger_periodic_cleanup()
 
             self._orders_queue.task_done()
 
@@ -1389,3 +1563,11 @@ class Broker(ABC):
 
         # Update the strategy name in the logger
         self.logger.update_strategy_name(strategy_name)
+
+    def _perform_cleanup(self):
+        """Perform cleanup actions based on the configured strategy."""
+        # Call our new comprehensive cleanup method
+        try:
+            self._cleanup_old_tracking_data()
+        except Exception as e:
+            self.logger.warning(f"Memory cleanup failed: {e}")

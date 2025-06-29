@@ -24,7 +24,6 @@ class BacktestingBroker(Broker):
                          option_source=option_source, connect_stream=connect_stream, **kwargs)
         # Calling init methods
         self.max_workers = max_workers
-        self.market = "NASDAQ"
         self.option_source = option_source
 
         # Legacy strategy.backtest code will always pass in a config even for Brokers that don't need it, so

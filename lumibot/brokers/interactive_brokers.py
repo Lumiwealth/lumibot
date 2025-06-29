@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import random
 import time
 from collections import deque
@@ -68,7 +69,8 @@ class InteractiveBrokers(Broker):
 
         # For checking duplicate order status events from IB.
         self.order_status_duplicates = []
-        self.market = "NYSE"  # The default market is NYSE.
+        # The default market is NYSE.
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NYSE"
 
         # Connection to interactive brokers
         self.ib = None

@@ -120,7 +120,6 @@ class Alpaca(Broker):
 
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None, polling_interval=5.0):
         # Calling init methods
-        self.market = "NASDAQ"
         self.api_key = ""
         self.api_secret = ""
         self.oauth_token = ""
@@ -132,14 +131,14 @@ class Alpaca(Broker):
 
         # Check if we have OAuth-only (no API key/secret)
         self.is_oauth_only = bool(self.oauth_token and not (self.api_key and self.api_secret))
-        
+
         # Debug logging for OAuth detection
         logging.debug(f"Alpaca Broker Init: oauth_token={'present' if self.oauth_token else 'missing'}, api_key={'present' if self.api_key else 'missing'}, api_secret={'present' if self.api_secret else 'missing'}")
         logging.debug(f"Alpaca Broker Init: is_oauth_only={self.is_oauth_only}")
 
         if not data_source:
             data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
-        
+
         super().__init__(
             name="alpaca",
             connect_stream=connect_stream,
@@ -254,8 +253,8 @@ class Alpaca(Broker):
             current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
 
             # Check if it is a holiday or weekend using pandas_market_calendars
-            nyse = mcal.get_calendar("NYSE")
-            schedule = nyse.schedule(start_date=open_time, end_date=close_time)
+            market_cal = mcal.get_calendar(self.market)
+            schedule = market_cal.schedule(start_date=open_time, end_date=close_time)
             if schedule.empty:
                 return False
 
@@ -358,7 +357,7 @@ class Alpaca(Broker):
         tuple of float
             (cash, positions_value, total_liquidation_value)
         """
-        
+
         response = self.api.get_account()
         total_cash_value = float(response.cash)
         gross_positions_value = float(response.long_market_value) - float(response.short_market_value)
@@ -1040,7 +1039,7 @@ class Alpaca(Broker):
             # For OAuth-only, use polling events
             logging.debug("Alpaca Stream: Registering OAuth polling events")
             broker = self
-            
+
             @broker.stream.add_action(PollingStream.POLL_EVENT)
             def on_trade_event_poll():
                 logging.debug("Alpaca Stream: Polling event triggered, calling do_polling()")
@@ -1114,35 +1113,35 @@ class Alpaca(Broker):
             strategy = None
             if hasattr(self, '_strategies') and self._strategies:
                 strategy = list(self._strategies.values())[0] if self._strategies else None
-            
+
             # Pull the current Alpaca positions and sync them with Lumibot's positions
             self.sync_positions(strategy)
 
             # Get current orders from Alpaca and dispatch them to the stream for processing
             raw_orders = self._pull_broker_all_orders()
             stored_orders = {x.identifier: x for x in self.get_all_orders()}
-            
+
             # Only log summary, not detailed per-order processing
             logging.debug(f"OAuth Polling: Found {len(raw_orders)} raw orders from Alpaca, {len(stored_orders)} stored orders in Lumibot")
-            
+
             for alpaca_order in raw_orders:
                 # Use strategy name if available, otherwise use a default
                 strategy_name = strategy.name if strategy else "default"
                 order = self._parse_broker_order(alpaca_order, strategy_name=strategy_name)
-                
+
                 logging.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
-                
+
                 # Check if this order exists in our stored orders
                 if order.identifier in stored_orders:
                     stored_order = stored_orders[order.identifier]
-                    
+
                     # Check if the status has changed
                     if stored_order.status != order.status:
                         logging.debug(f"OAuth Polling: Order status changed - {order.identifier}: {stored_order.status} -> {order.status}")
-                        
+
                         # Update the stored order with new data and dispatch the event
                         stored_order.update_raw(alpaca_order)
-                        
+
                         # Dispatch the appropriate event based on the new status
                         if order.status == "filled" or order.status == "fill":
                             # Get price and quantity with proper fallbacks for Alpaca API
@@ -1173,9 +1172,9 @@ class Alpaca(Broker):
             # Check for orders that are no longer in the broker's list
             tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
             broker_ids = [getattr(o, 'id', None) for o in raw_orders if hasattr(o, 'id')]
-            
+
             logging.debug(f"OAuth Polling: Checking {len(tracked_orders)} tracked orders against {len(broker_ids)} broker order IDs")
-            
+
             for order_id, order in tracked_orders.items():
                 if order_id not in broker_ids and order.is_active():
                     # Instead of assuming cancellation, verify the order individually
@@ -1184,12 +1183,12 @@ class Alpaca(Broker):
                         # Try to fetch this specific order from Alpaca
                         individual_order = self.api.get_order_by_id(order_id)
                         logging.debug(f"OAuth Polling: Individual lookup found order {order_id} with status {individual_order.status}")
-                        
+
                         # Update status based on individual lookup
                         if individual_order.status != order.status:
                             logging.debug(f"OAuth Polling: Individual order status changed - {order_id}: {order.status} -> {individual_order.status}")
                             order.update_raw(individual_order)
-                            
+
                             # Dispatch appropriate event based on new status
                             if individual_order.status in ["filled", "fill"]:
                                 # Get price and quantity with proper fallbacks for Alpaca API
@@ -1202,7 +1201,7 @@ class Alpaca(Broker):
                                 self.stream.dispatch(self.FILLED_ORDER, order=order, price=price, filled_quantity=filled_qty)
                             elif individual_order.status == "canceled":
                                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
-                                
+
                     except Exception as e:
                         if "404" in str(e) or "not found" in str(e).lower():
                             # Order truly doesn't exist - it was cancelled/rejected
@@ -1211,7 +1210,7 @@ class Alpaca(Broker):
                         else:
                             # Network/API error - don't assume anything, just log and continue
                             logging.debug(f"OAuth Polling: Could not verify order {order_id}: {e}")
-                            
+
         except Exception as e:
             # Handle authentication errors by stopping execution
             error_message = str(e).lower()
@@ -1243,7 +1242,7 @@ class Alpaca(Broker):
 
     def _run_stream(self):
         """Run the broker stream - either polling or WebSocket streaming depending on authentication method"""
-        
+
         if self.is_oauth_only:
             # For OAuth-only, use polling approach like Tradier
             self._stream_established()

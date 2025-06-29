@@ -1,7 +1,9 @@
 import logging
+import os
 import pytest
 import math
 import datetime as dt
+from datetime import timedelta
 import pytz
 from unittest.mock import MagicMock
 
@@ -720,3 +722,50 @@ class TestAlpacaData(BaseDataSourceTester):
 
         with pytest.raises(ValueError, match="API_SECRET not found in config when API_KEY is provided"):
             AlpacaData(incomplete_config)
+
+    def test_default_delay_value(self):
+        """Test that the default delay value is 16 minutes when not specified."""
+        # Save the original environment variable value
+        original_env_value = os.environ.get("DATA_SOURCE_DELAY")
+
+        try:
+            # Ensure the environment variable is not set
+            if "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]
+
+            # Create a data source without specifying delay
+            data_source = self._create_data_source()
+
+            # Check that the delay is 16 minutes
+            assert data_source._delay == timedelta(minutes=16), f"Expected delay to be 16 minutes, but got {data_source._delay}"
+
+        finally:
+            # Restore the original environment variable value
+            if original_env_value is not None:
+                os.environ["DATA_SOURCE_DELAY"] = original_env_value
+            elif "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]
+
+    def test_data_source_delay_env_var(self):
+        """Test that AlpacaData uses the DATA_SOURCE_DELAY environment variable when set."""
+        # Save the original environment variable value
+        original_env_value = os.environ.get("DATA_SOURCE_DELAY")
+
+        try:
+            # Set the environment variable to a test value
+            test_delay = "25"
+            os.environ["DATA_SOURCE_DELAY"] = test_delay
+
+            # Create a data source without specifying delay
+            data_source = self._create_data_source()
+
+            # Check that the delay matches the environment variable value
+            assert data_source._delay == timedelta(minutes=int(test_delay)), \
+                f"Expected delay to be {test_delay} minutes, but got {data_source._delay}"
+
+        finally:
+            # Restore the original environment variable value
+            if original_env_value is not None:
+                os.environ["DATA_SOURCE_DELAY"] = original_env_value
+            elif "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]

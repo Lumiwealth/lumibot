@@ -67,7 +67,7 @@ class TradierData(DataSource):
             access_token: str,
             paper: bool = True,
             max_workers: int = 20,
-            delay: int = 0,
+            delay: int = None,
             tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
             remove_incomplete_current_bar: bool = False,
             **kwargs
@@ -83,7 +83,7 @@ class TradierData(DataSource):
         - max_workers (int, optional): The maximum number of workers for parallel processing.
           Defaults to 20.
         - delay (int, optional): A delay parameter to control how many minutes to delay non-crypto data for.
-          Set to 0 for no delay. Defaults to 0.
+          If not specified, uses DATA_SOURCE_DELAY environment variable or defaults to 0.
         - tzinfo (pytz.timezone, optional): Timezone for data adjustments. Determines how datetime objects
           are adjusted when retrieving historical data. Defaults to the `LUMIBOT_DEFAULT_TIMEZONE`.
         - remove_incomplete_current_bar (bool, optional): Default False.
@@ -402,7 +402,7 @@ class TradierData(DataSource):
         # If the dataframe is empty, return an empty dictionary
         if quotes_df is None or quotes_df.empty:
             return {}
-        
+
         # Get the quote from the dataframe and convert it to a dictionary
         quote = quotes_df.iloc[0].to_dict()
 

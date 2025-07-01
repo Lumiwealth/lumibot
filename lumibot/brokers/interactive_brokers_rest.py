@@ -1,4 +1,6 @@
 import logging
+import os
+
 from termcolor import colored
 from ..brokers import Broker
 from ..entities import Order, Asset, Position
@@ -68,7 +70,6 @@ class InteractiveBrokersREST(Broker):
     def __init__(self, config, data_source=None, poll_interval=5.0):
         # Set polling_interval before super().__init__() since it's needed in _get_stream_object
         self.polling_interval = poll_interval
-        self.market = "NYSE"  # The default market is NYSE.
 
         if data_source is None:
             data_source = InteractiveBrokersRESTData(config)
@@ -78,6 +79,9 @@ class InteractiveBrokersREST(Broker):
             data_source=data_source, 
             config=config
         )
+
+        # The default market is NYSE.
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NYSE"
 
     # --------------------------------------------------------------
     # Broker methods

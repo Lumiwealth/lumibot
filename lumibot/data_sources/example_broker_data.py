@@ -31,7 +31,7 @@ class ExampleBrokerData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         logging.error(colored("Method 'get_last_price' is not yet implemented.", "red"))
         return 0.0  # Return 0.0 as a placeholder
-    
-    def get_quote(self, asset: Asset, quote: Asset = None) -> Quote:
+
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         logging.error(colored("Method 'get_quote' is not yet implemented.", "red"))
         return {}

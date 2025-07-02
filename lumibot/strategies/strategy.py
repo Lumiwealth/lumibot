@@ -1883,15 +1883,17 @@ class Strategy(_Strategy):
             self.log_message(f"{e}")
             return None
 
-    def get_quote(self, asset: Asset):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """Get a quote for the asset.
-
-        NOTE: This currently only works with Tradier and IB REST. It does not work with backtetsing or other brokers.
 
         Parameters
         ----------
         asset : Asset object
             The asset for which the quote is needed.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
 
         Returns
         -------
@@ -1901,15 +1903,15 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
 
-        # Check if the broker has the get_quote method (not all brokers do)
-        if not hasattr(self.broker.data_source, "get_quote"):
+        # Check if the broker has the get_quote method
+        if not hasattr(self.broker, "get_quote"):
             self.log_message("Broker does not have a get_quote method.")
             return None
 
         if self.broker.option_source and asset.asset_type == "option":
-            return self.broker.option_source.get_quote(asset)
+            return self.broker.option_source.get_quote(asset, quote, exchange)
         else:
-            return self.broker.data_source.get_quote(asset)
+            return self.broker.get_quote(asset, quote, exchange)
 
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""

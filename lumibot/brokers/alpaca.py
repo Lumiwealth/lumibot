@@ -1298,9 +1298,23 @@ class Alpaca(Broker):
                     if loop.is_running():
                         loop.close()
 
-    def get_quote(self, asset: Asset, quote: Asset = None):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Get the latest quote for an asset (stock, option, or crypto).
         Returns a dictionary with bid, ask, last, and other fields if available.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the quote is needed.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
+
+        Returns
+        -------
+        dict
+            A dictionary with the quote information.
         """
-        return self.data_source.get_quote(asset, quote)
+        return self.data_source.get_quote(asset, quote, exchange)

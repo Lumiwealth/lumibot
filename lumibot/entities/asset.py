@@ -95,9 +95,21 @@ class Asset:
     >>> from lumibot.entities import Asset
     >>> asset = Asset(symbol="AAPL")
 
-    >>> # Create an Asset object for a futures contract.
+    >>> # Create an Asset object for a futures contract with specific expiration.
     >>> from lumibot.entities import Asset
     >>> asset = Asset(symbol="ES", asset_type='future', expiration=datetime.date(2021, 12, 17))
+
+    >>> # Create an Asset object for a futures contract with auto-expiry (front month).
+    >>> from lumibot.entities import Asset
+    >>> asset = Asset(symbol="MES", asset_type=Asset.AssetType.FUTURE, auto_expiry=Asset.AutoExpiry.FRONT_MONTH)
+
+    >>> # Create an Asset object for a futures contract with auto-expiry (next quarter).
+    >>> from lumibot.entities import Asset
+    >>> asset = Asset(symbol="ES", asset_type=Asset.AssetType.FUTURE, auto_expiry=Asset.AutoExpiry.NEXT_QUARTER)
+
+    >>> # Create an Asset object for a continuous futures contract (recommended for backtesting).
+    >>> from lumibot.entities import Asset
+    >>> asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     >>> # Create an Asset object for an options contract.
     >>> from lumibot.entities import Asset
@@ -138,6 +150,11 @@ class Asset:
         CRYPTO = "crypto" # Crypto
         INDEX = "index" # Index
         MULTILEG = "multileg" # Multileg option
+    
+    class AutoExpiry(StrEnum):
+        FRONT_MONTH = "front_month" # Front month (nearest quarterly expiry)
+        NEXT_QUARTER = "next_quarter" # Next quarterly expiry (same as front month for quarterly contracts)
+        AUTO = "auto" # Auto (default to front month behavior)
 
     # Pull the rights from the OptionRight class
     _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
@@ -153,6 +170,7 @@ class Asset:
         leverage: int = 1,
         precision: str = None,
         underlying_asset: "Asset" = None,
+        auto_expiry: str = None,
     ):
         """
         Parameters
@@ -176,6 +194,12 @@ class Asset:
             default : 1
         underlying_asset : Asset
             Underlying asset for options.
+        auto_expiry : str or Asset.AutoExpiry, optional
+            Automatic expiry resolution for futures. Options:
+            - Asset.AutoExpiry.FRONT_MONTH: Always use the front month (nearest quarterly expiry)
+            - Asset.AutoExpiry.NEXT_QUARTER: Use the next quarterly expiry (same as front month for quarterly contracts)
+            - Asset.AutoExpiry.AUTO: Use front_month behavior
+            If specified, this overrides the expiration parameter for futures.
 
         Raises
         ------
@@ -208,6 +232,12 @@ class Asset:
             self.expiration = expiration.date()
         else:
             self.expiration = expiration
+
+        # Handle auto expiry for futures
+        self.auto_expiry = auto_expiry
+        if auto_expiry and asset_type == self.AssetType.FUTURE and self.expiration is None:
+            # Only use auto_expiry if no manual expiration was provided
+            self.expiration = self._calculate_auto_expiry(auto_expiry)
 
         # Multiplier for options must always be 100
         if asset_type == self.AssetType.OPTION:
@@ -368,6 +398,93 @@ class Asset:
             precision=data["precision"],
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data["underlying_asset"] else None,
         )
+
+    def _calculate_auto_expiry(self, auto_expiry):
+        """
+        Calculate automatic expiry date for futures contracts
+        
+        Parameters
+        ----------
+        auto_expiry : str
+            Type of auto expiry: 'front_month', 'next_quarter', 'auto', or True
+            
+        Returns
+        -------
+        datetime.date
+            The calculated expiry date
+        """
+        from datetime import date, datetime, timedelta
+        
+        current_date = date.today()
+        
+        # Handle different auto_expiry options
+        if auto_expiry in [True, Asset.AutoExpiry.AUTO, Asset.AutoExpiry.FRONT_MONTH]:
+            return self._get_front_month_expiry(current_date)
+        elif auto_expiry == Asset.AutoExpiry.NEXT_QUARTER:
+            return self._get_next_quarterly_expiry(current_date)
+        else:
+            # Default to front month if unrecognized option
+            return self._get_front_month_expiry(current_date)
+    
+    def _get_front_month_expiry(self, current_date):
+        """Get the front month (nearest) futures expiry"""
+        # Standard futures expiry: 3rd Friday of the month
+        # For active months, use quarterly cycle: Mar, Jun, Sep, Dec
+        quarterly_months = [3, 6, 9, 12]
+        
+        current_year = current_date.year
+        current_month = current_date.month
+        
+        # Find the next quarterly month
+        target_month = None
+        target_year = current_year
+        
+        for month in quarterly_months:
+            if month >= current_month:
+                target_month = month
+                break
+        
+        # If no month found in current year, use March of next year
+        if target_month is None:
+            target_month = 3
+            target_year += 1
+        
+        # Calculate 3rd Friday of the target month
+        third_friday = self._get_third_friday(target_year, target_month)
+        
+        # If we're in the expiry month and past the 3rd Friday, move to next quarter
+        if target_year == current_year and target_month == current_month and current_date >= third_friday:
+            next_quarter_idx = (quarterly_months.index(target_month) + 1) % len(quarterly_months)
+            if next_quarter_idx == 0:  # Wrapped around to March of next year
+                target_year += 1
+                target_month = 3
+            else:
+                target_month = quarterly_months[next_quarter_idx]
+            third_friday = self._get_third_friday(target_year, target_month)
+        
+        return third_friday
+    
+    def _get_next_quarterly_expiry(self, current_date):
+        """Get the next quarterly expiry (Mar, Jun, Sep, Dec)"""
+        # This is the same as front month for most futures since they follow quarterly cycles
+        return self._get_front_month_expiry(current_date)
+    
+    def _get_third_friday(self, year, month):
+        """Calculate the 3rd Friday of a given month/year"""
+        from datetime import date, timedelta
+        
+        # Start with the first day of the month
+        first_day = date(year, month, 1)
+        
+        # Find the first Friday
+        days_until_friday = (4 - first_day.weekday()) % 7  # Friday is day 4
+        first_friday = first_day + timedelta(days=days_until_friday)
+        
+        # Add 14 days to get the third Friday
+        third_friday = first_friday + timedelta(days=14)
+        
+        return third_friday
+
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

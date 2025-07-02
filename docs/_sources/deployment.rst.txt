@@ -468,10 +468,13 @@ In addition to broker-specific secrets, the following environment variables are 
      - My Strategy
    * - MARKET
      - **(Optional)** The market you want the bot to think it is. Eg. "24/7" will make the bot think it is trading in a 24/7 market.
-     - 24/7
+     - NYSE
    * - POLYGON_MAX_MEMORY_BYTES
      - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
      - 512000000
+   * - DATA_SOURCE_DELAY
+     - **(Optional)** Sets a delay parameter to control how many minutes to delay non-crypto data for. For example, the AlpacaData source uses a 16 minute delay by default. Override this to 0 if you have the paid SIP plan with not delayed data.
+     - 0
 
 .. tip::
 

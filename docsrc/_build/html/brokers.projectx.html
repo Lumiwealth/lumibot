@@ -1,0 +1,807 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Schwab" href="brokers.schwab.html" /><link rel="prev" title="Interactive Brokers Legacy" href="brokers.interactive_brokers_legacy.html" />
+
+    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+        <title>ProjectX - Lumibot Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
+    <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<div class="announcement">
+  <aside class="announcement-content">
+     
+    <div class="footer-banner bg-warning text-dark p-3">
+        <h5>Need Extra Help?</h5>
+        <p>Visit <a href="https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Lumiwealth</strong></a> for courses, community, and profitable pre-made trading bots.</p>
+    </div>
+     
+  </aside>
+</div>
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot Documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?utm_source=lumibot+docs&amp;utm_medium=documentation&amp;utm_campaign=Menu+Build+Bots+with+AI">Build Bots with AI</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#id1">Lumiwealth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#getting-started-with-lumibot">Getting Started With Lumibot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#adding-trading-fees">Adding Trading Fees</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html#profiling-to-improve-performance">Profiling to Improve Performance</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Lifecycle Methods</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Strategy Methods</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Order Management</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of Account Management</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Data</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Chart Functions</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Parameters</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Options</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of DateTime</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Miscellaneous</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Strategy Properties</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Entities</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Entities</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="futures.html">Futures Trading</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">DataBento Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="brokers.html">Brokers</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">ProjectX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="projectx">
+<h1>ProjectX<a class="headerlink" href="#projectx" title="Link to this heading">#</a></h1>
+<p>ProjectX is a <strong>futures-only broker</strong> integration that provides access to multiple underlying futures brokers through a unified gateway. This broker is designed specifically for <strong>prop trading firms</strong> and retail futures trading with practice/demo accounts.</p>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Futures Trading Only</strong>: Continuous futures contracts with sophisticated contract resolution</p></li>
+<li><p><strong>Multi-Firm Gateway</strong>: Single interface supporting multiple underlying futures brokers</p></li>
+<li><p><strong>Prop Trading Firms</strong>: Works with major proprietary trading firms and retail brokers</p></li>
+<li><p><strong>Practice Accounts</strong>: Demo/practice account trading only</p></li>
+<li><p><strong>Real-time Streaming</strong>: SignalR-based live order and position updates</p></li>
+<li><p><strong>Order Types</strong>: Market, limit, stop, trailing stop, join bid, join ask orders</p></li>
+<li><p><strong>Rate Limiting</strong>: Built-in API rate limiting and caching for optimal performance</p></li>
+<li><p><strong>Auto-Detection</strong>: Automatically detects and connects when environment variables are configured</p></li>
+</ul>
+</section>
+<section id="supported-prop-trading-firms">
+<h2>Supported Prop Trading Firms<a class="headerlink" href="#supported-prop-trading-firms" title="Link to this heading">#</a></h2>
+<p>ProjectX works with a wide range of proprietary trading firms and retail futures brokers, including:</p>
+<p><strong>Major Prop Trading Firms:</strong></p>
+<ul class="simple">
+<li><p><strong>Topstep</strong> - Leading futures prop trading firm</p></li>
+<li><p><strong>Alpha Futures</strong> - Proprietary trading evaluations</p></li>
+<li><p><strong>Nexgen Futures</strong> - Futures trading firm</p></li>
+<li><p><strong>TickTickTrader</strong> - Prop trading platform</p></li>
+<li><p><strong>TradeDay</strong> - Day trading prop firm</p></li>
+<li><p><strong>Bulenox</strong> - Trading evaluation platform</p></li>
+<li><p><strong>Blusky</strong> - Futures prop trading</p></li>
+<li><p><strong>Goat Futures</strong> - Proprietary trading firm</p></li>
+<li><p><strong>The Futures Desk</strong> - Professional trading firm</p></li>
+<li><p><strong>DayTraders</strong> - Day trading platform</p></li>
+<li><p><strong>E8 Futures</strong> - Futures prop trading</p></li>
+<li><p><strong>Blue Guardian Futures</strong> - Trading firm</p></li>
+<li><p><strong>FuturesElite</strong> - Elite futures trading</p></li>
+<li><p><strong>FXIFY</strong> - Forex and futures prop trading</p></li>
+<li><p><strong>Top One Futures</strong> - Proprietary trading platform</p></li>
+<li><p><strong>Aqua Futures</strong> - Futures trading firm</p></li>
+<li><p><strong>Funding Futures</strong> - Prop trading evaluations</p></li>
+<li><p><strong>TX3 Funding</strong> - Trading capital provider</p></li>
+</ul>
+<p><strong>And many other retail and institutional futures brokers that support the ProjectX gateway.</strong></p>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Practice Account</strong>: ProjectX integration requires a demo/practice futures trading account</p></li>
+<li><p><strong>API Credentials</strong>: Username and API key from your futures broker</p></li>
+<li><p><strong>Base URL</strong>: API endpoint URL for your specific broker firm</p></li>
+<li><p><strong>Firm Configuration</strong>: Environment variables configured for your specific firm</p></li>
+</ol>
+</section>
+<section id="environment-variables">
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading">#</a></h2>
+<p>ProjectX supports multiple firms through a standardized environment variable pattern. Replace <cite>{FIRM}</cite> with your broker name (e.g., TOPONE, TSX):</p>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 35.0%" />
+<col style="width: 50.0%" />
+<col style="width: 15.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Variable</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Required</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><cite>PROJECTX_{FIRM}_API_KEY</cite></p></td>
+<td><p>Your API key from the broker</p></td>
+<td><p>✅ Yes</p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>PROJECTX_{FIRM}_USERNAME</cite></p></td>
+<td><p>Your username for the broker</p></td>
+<td><p>✅ Yes</p></td>
+</tr>
+<tr class="row-even"><td><p><cite>PROJECTX_{FIRM}_BASE_URL</cite></p></td>
+<td><p>Base API URL for the broker</p></td>
+<td><p>✅ Yes</p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME</cite></p></td>
+<td><p>Specific account name to use (optional)</p></td>
+<td><p>❌ No</p></td>
+</tr>
+<tr class="row-even"><td><p><cite>PROJECTX_{FIRM}_STREAMING_BASE_URL</cite></p></td>
+<td><p>Streaming endpoint URL (optional)</p></td>
+<td><p>❌ No</p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>PROJECTX_FIRM</cite></p></td>
+<td><p>Specify which firm to use (optional)</p></td>
+<td><p>❌ No</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Auto-Detection</strong></p>
+<p>ProjectX will <strong>automatically detect</strong> and connect when you have the required environment variables configured. You do <strong>not</strong> need to set <cite>TRADING_BROKER=projectx</cite> - it will auto-detect based on the presence of ProjectX environment variables.</p>
+</section>
+<section id="multi-firm-support">
+<h2>Multi-Firm Support<a class="headerlink" href="#multi-firm-support" title="Link to this heading">#</a></h2>
+<p>ProjectX can automatically detect and use any configured firm. If multiple firms are configured, it will use the first available one, or you can specify which firm to use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example for TOPONE firm</span>
+<span class="nv">PROJECTX_TOPONE_API_KEY</span><span class="o">=</span>your_api_key_here
+<span class="nv">PROJECTX_TOPONE_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TOPONE_BASE_URL</span><span class="o">=</span>https://api.yourbroker.com/
+
+<span class="c1"># Example for TSX firm</span>
+<span class="nv">PROJECTX_TSX_API_KEY</span><span class="o">=</span>your_api_key_here
+<span class="nv">PROJECTX_TSX_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TSX_BASE_URL</span><span class="o">=</span>https://api.tsx.com/
+
+<span class="c1"># Optional: Specify which firm to use</span>
+<span class="nv">PROJECTX_FIRM</span><span class="o">=</span>TOPONE
+</pre></div>
+</div>
+</section>
+<section id="supported-functionality">
+<h2>Supported Functionality<a class="headerlink" href="#supported-functionality" title="Link to this heading">#</a></h2>
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">ProjectX Capabilities</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 15.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Feature</strong></p></th>
+<th class="head"><p><strong>Supported</strong></p></th>
+<th class="head"><p><strong>Notes</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Futures Trading</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Continuous futures with automatic contract resolution</p></td>
+</tr>
+<tr class="row-odd"><td><p>Market Orders</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Immediate execution at market price</p></td>
+</tr>
+<tr class="row-even"><td><p>Limit Orders</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Execute at specified price or better</p></td>
+</tr>
+<tr class="row-odd"><td><p>Stop Orders</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Stop-loss and stop-limit functionality</p></td>
+</tr>
+<tr class="row-even"><td><p>Trailing Stop Orders</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Dynamic stop orders that follow price</p></td>
+</tr>
+<tr class="row-odd"><td><p>Join Bid/Ask Orders</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Advanced order types for liquidity provision</p></td>
+</tr>
+<tr class="row-even"><td><p>Order Modification</p></td>
+<td><p>❌ No</p></td>
+<td><p>Must cancel and re-place orders</p></td>
+</tr>
+<tr class="row-odd"><td><p>Real-time Streaming</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>SignalR-based live updates (optional)</p></td>
+</tr>
+<tr class="row-even"><td><p>Historical Data</p></td>
+<td><p>✅ Yes</p></td>
+<td><p>Minute, hour, day, week, month timeframes</p></td>
+</tr>
+<tr class="row-odd"><td><p>Stock Trading</p></td>
+<td><p>❌ No</p></td>
+<td><p>Futures only</p></td>
+</tr>
+<tr class="row-even"><td><p>Options Trading</p></td>
+<td><p>❌ No</p></td>
+<td><p>Futures only</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cryptocurrency</p></td>
+<td><p>❌ No</p></td>
+<td><p>Futures only</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="example-env-configuration">
+<h2>Example <cite>.env</cite> Configuration<a class="headerlink" href="#example-env-configuration" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Required: Your firm&#39;s API credentials</span>
+<span class="nv">PROJECTX_TOPONE_API_KEY</span><span class="o">=</span>your_actual_api_key
+<span class="nv">PROJECTX_TOPONE_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TOPONE_BASE_URL</span><span class="o">=</span>https://api.yourbroker.com/
+
+<span class="c1"># Optional: Specify preferred account and firm</span>
+<span class="nv">PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>Practice<span class="w"> </span>Account<span class="w"> </span><span class="m">1</span>
+<span class="nv">PROJECTX_FIRM</span><span class="o">=</span>TOPONE
+</pre></div>
+</div>
+<p><strong>That’s it!</strong> ProjectX will automatically detect these environment variables and initialize. No need to set <cite>TRADING_BROKER=projectx</cite>.</p>
+</section>
+<section id="example-strategy">
+<h2>Example Strategy<a class="headerlink" href="#example-strategy" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+
+<span class="k">class</span> <span class="nc">FuturesStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
+
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Trade Micro E-mini S&amp;P 500 futures</span>
+        <span class="n">mes</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;MES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>
+
+        <span class="c1"># Get current price</span>
+        <span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">mes</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MES price: </span><span class="si">{</span><span class="n">last_price</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Place a limit order</span>
+        <span class="k">if</span> <span class="n">last_price</span><span class="p">:</span>
+            <span class="n">limit_price</span> <span class="o">=</span> <span class="n">last_price</span> <span class="o">*</span> <span class="mf">0.999</span>  <span class="c1"># 0.1% below market</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+                <span class="n">asset</span><span class="o">=</span><span class="n">mes</span><span class="p">,</span>
+                <span class="n">quantity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+                <span class="n">order_type</span><span class="o">=</span><span class="s2">&quot;limit&quot;</span><span class="p">,</span>
+                <span class="n">limit_price</span><span class="o">=</span><span class="n">limit_price</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="c1"># The broker will automatically initialize from environment variables</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">FuturesStrategy</span><span class="p">()</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
+    <span class="n">backtesting_start</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="n">backtesting_end</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="continuous-futures-support">
+<h2>Continuous Futures Support<a class="headerlink" href="#continuous-futures-support" title="Link to this heading">#</a></h2>
+<p>ProjectX handles continuous futures automatically using sophisticated contract resolution:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># These symbols are automatically resolved to active contracts</span>
+<span class="n">mes</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;MES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>  <span class="c1"># Micro E-mini S&amp;P 500</span>
+<span class="n">es</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>    <span class="c1"># E-mini S&amp;P 500</span>
+<span class="n">nq</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;NQ&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>    <span class="c1"># E-mini NASDAQ</span>
+<span class="n">ym</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;YM&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>    <span class="c1"># E-mini Dow Jones</span>
+<span class="n">rty</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;RTY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>  <span class="c1"># E-mini Russell 2000</span>
+</pre></div>
+</div>
+<p>The system automatically:</p>
+<ul class="simple">
+<li><p>Resolves symbols to current active contracts</p></li>
+<li><p>Handles contract rollovers</p></li>
+<li><p>Maps to broker-specific contract identifiers</p></li>
+<li><p>Manages expiration dates</p></li>
+</ul>
+</section>
+<section id="account-requirements">
+<h2>Account Requirements<a class="headerlink" href="#account-requirements" title="Link to this heading">#</a></h2>
+<p><strong>Practice/Demo Accounts Only</strong></p>
+<p>ProjectX integration is designed for practice trading and will only connect to demo accounts. The system automatically:</p>
+<ul class="simple">
+<li><p>Filters for accounts with names starting with “prac” or “tof-px”</p></li>
+<li><p>Selects the account with the highest balance if multiple practice accounts exist</p></li>
+<li><p>Uses the preferred account name if specified in configuration</p></li>
+</ul>
+</section>
+<section id="important-notes">
+<h2>Important Notes<a class="headerlink" href="#important-notes" title="Link to this heading">#</a></h2>
+<dl class="simple">
+<dt><strong>Order Management</strong></dt><dd><ul class="simple">
+<li><p><strong>No Order Modification</strong>: ProjectX does not support order modification. To change an order, you must cancel the existing order and place a new one.</p></li>
+<li><p><strong>Rate Limiting</strong>: Built-in rate limiting prevents API overuse with 50ms delays between requests.</p></li>
+</ul>
+</dd>
+<dt><strong>Streaming Connection</strong></dt><dd><ul class="simple">
+<li><p>Real-time streaming is <strong>optional</strong> and will fail gracefully if unavailable</p></li>
+<li><p>Requires <cite>signalrcore</cite> library for streaming functionality: <cite>pip install signalrcore&gt;=0.9.2</cite></p></li>
+<li><p><strong>Note</strong>: Due to dependency conflicts, <cite>signalrcore</cite> must be installed separately if you want streaming</p></li>
+<li><p>Provides live updates for orders, positions, trades, and account information</p></li>
+</ul>
+</dd>
+<dt><strong>Performance</strong></dt><dd><ul class="simple">
+<li><p><strong>Caching</strong>: 30-second cache for account, position, and order data</p></li>
+<li><p><strong>Auto-reconnection</strong>: Automatic connection management and retry logic</p></li>
+<li><p><strong>Efficient Resolution</strong>: Smart contract resolution reduces API calls</p></li>
+</ul>
+</dd>
+<dt><strong>Asset Types</strong></dt><dd><ul class="simple">
+<li><p><strong>Futures Only</strong>: ProjectX exclusively supports futures trading</p></li>
+<li><p><strong>Continuous Contracts</strong>: All futures are handled as continuous contracts</p></li>
+<li><p><strong>No Options/Stocks</strong>: Options chains and stock trading are not available</p></li>
+</ul>
+</dd>
+<dt><strong>Auto-Detection</strong></dt><dd><ul class="simple">
+<li><p>ProjectX automatically detects when environment variables are configured</p></li>
+<li><p>No need to explicitly set <cite>TRADING_BROKER=projectx</cite></p></li>
+<li><p>Will be selected automatically if ProjectX credentials are available</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<dl class="simple">
+<dt><strong>Authentication Issues</strong></dt><dd><ul class="simple">
+<li><p>Verify your API key and username are correct</p></li>
+<li><p>Check that the base URL is properly formatted</p></li>
+<li><p>Ensure your account has API access enabled</p></li>
+</ul>
+</dd>
+<dt><strong>No Practice Accounts Found</strong></dt><dd><ul class="simple">
+<li><p>Confirm you have demo/practice accounts available</p></li>
+<li><p>Check account naming (should start with “prac” or “tof-px”)</p></li>
+<li><p>Contact your broker if no practice accounts are available</p></li>
+</ul>
+</dd>
+<dt><strong>Rate Limiting</strong></dt><dd><ul class="simple">
+<li><p>Built-in rate limiting should prevent most issues</p></li>
+<li><p>If you encounter rate limits, the system will automatically retry</p></li>
+<li><p>Consider reducing trading frequency if persistent</p></li>
+</ul>
+</dd>
+<dt><strong>Streaming Connection Issues</strong></dt><dd><ul class="simple">
+<li><p>Streaming failures are non-critical and won’t stop trading</p></li>
+<li><p>Install <cite>signalrcore</cite> library if streaming is required: <cite>pip install signalrcore&gt;=0.9.2</cite></p></li>
+<li><p><strong>Note</strong>: Due to dependency conflicts, <cite>signalrcore</cite> must be installed separately if you want streaming</p></li>
+<li><p>Check network connectivity and firewall settings</p></li>
+</ul>
+</dd>
+<dt><strong>Auto-Detection Not Working</strong></dt><dd><ul class="simple">
+<li><p>Ensure you have the required environment variables: <cite>PROJECTX_{FIRM}_API_KEY</cite>, <cite>PROJECTX_{FIRM}_USERNAME</cite>, <cite>PROJECTX_{FIRM}_BASE_URL</cite></p></li>
+<li><p>Check that your firm name is uppercase in environment variables</p></li>
+<li><p>Verify no typos in environment variable names</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>ProjectX is specifically designed for futures trading with practice accounts. Production trading capabilities depend on your broker’s API policies and account permissions.</p>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Always test thoroughly with practice accounts before considering any live trading implementation.</p>
+</div>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="brokers.schwab.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Schwab</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="brokers.interactive_brokers_legacy.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Interactive Brokers Legacy</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">ProjectX</a><ul>
+<li><a class="reference internal" href="#features">Features</a></li>
+<li><a class="reference internal" href="#supported-prop-trading-firms">Supported Prop Trading Firms</a></li>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li><a class="reference internal" href="#environment-variables">Environment Variables</a></li>
+<li><a class="reference internal" href="#multi-firm-support">Multi-Firm Support</a></li>
+<li><a class="reference internal" href="#supported-functionality">Supported Functionality</a></li>
+<li><a class="reference internal" href="#example-env-configuration">Example <cite>.env</cite> Configuration</a></li>
+<li><a class="reference internal" href="#example-strategy">Example Strategy</a></li>
+<li><a class="reference internal" href="#continuous-futures-support">Continuous Futures Support</a></li>
+<li><a class="reference internal" href="#account-requirements">Account Requirements</a></li>
+<li><a class="reference internal" href="#important-notes">Important Notes</a></li>
+<li><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    </body>
+</html>

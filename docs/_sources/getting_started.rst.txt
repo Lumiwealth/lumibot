@@ -21,6 +21,10 @@ Welcome to Lumibot! This guide will help you get started with Lumibot. We hope y
 
 Here are the steps to get started using the Alpaca broker. If you want to use a different broker, you can see the list of supported brokers under the brokers section.
 
+.. note::
+
+   **Advanced Configuration:** For live trading, you can optionally configure separate brokers for trading and data by setting the ``TRADING_BROKER`` and ``DATA_SOURCE`` environment variables. See the :doc:`deployment` section for details.
+
 Step 1: Install the Package
 ---------------------------
 

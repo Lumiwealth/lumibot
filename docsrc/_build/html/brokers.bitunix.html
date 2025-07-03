@@ -3,13 +3,13 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Schwab" href="brokers.schwab.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Crypto Brokers (Using CCXT)" href="brokers.ccxt.html" /><link rel="prev" title="Alpaca" href="brokers.alpaca.html" />
 
-    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Bitunix - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
@@ -70,7 +70,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -85,63 +85,22 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
-    <title>Auto light/dark, in light mode</title>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
-      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
-      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
-      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
-      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
-      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
-      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
-      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
-      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
-      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
-      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
-      <circle cx="14.5" cy="9.55" r="3.6"/>
-    </svg>
-  </symbol>
-  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
-    <title>Auto light/dark, in dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
-      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
-      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
-      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
-      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
-      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
-      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
-      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
-      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
-      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
-      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
-      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
-    </svg>
-  </symbol>
-  <symbol id="svg-pencil" viewBox="0 0 24 24">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
-      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
-      <path d="M13.5 6.5l4 4" />
-      <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" />
-    </svg>
-  </symbol>
-  <symbol id="svg-eye" viewBox="0 0 24 24">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
-      <path
-        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
-      <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" />
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
     </svg>
   </symbol>
 </svg>
@@ -154,8 +113,6 @@
 <label class="overlay toc-overlay" for="__toc">
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
-
-<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
 
 <div class="announcement">
   <aside class="announcement-content">
@@ -183,8 +140,7 @@
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
-          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -333,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -355,6 +312,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="futures.html">Futures Trading</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
@@ -362,6 +320,7 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">DataBento Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
@@ -371,12 +330,13 @@
 </li>
 <li class="toctree-l1 current has-children"><a class="reference internal" href="brokers.html">Brokers</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
-<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 </ul>
@@ -398,17 +358,11 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          <div class="view-this-page">
-  <a class="muted-link" href="_sources/brokers.bitunix.rst.txt" title="View this page">
-    <svg><use href="#svg-eye"></use></svg>
-    <span class="visually-hidden">View this page</span>
-  </a>
-</div>
+          
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
-              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -418,11 +372,11 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main" id="furo-main-content">
+        <article role="main">
           <section id="bitunix">
-<h1>Bitunix<a class="headerlink" href="#bitunix" title="Link to this heading">¶</a></h1>
+<h1>Bitunix<a class="headerlink" href="#bitunix" title="Link to this heading">#</a></h1>
 <section id="how-to-use-bitunix">
-<h2>How to Use Bitunix<a class="headerlink" href="#how-to-use-bitunix" title="Link to this heading">¶</a></h2>
+<h2>How to Use Bitunix<a class="headerlink" href="#how-to-use-bitunix" title="Link to this heading">#</a></h2>
 <p>Bitunix integration in Lumibot supports <strong>only perpetual futures trading</strong>. Spot trading is not supported.</p>
 <p><strong>Account Funding and Cash Calculation:</strong></p>
 <ul class="simple">
@@ -437,10 +391,10 @@
 </div>
 </section>
 <section id="setting-leverage-for-bitunix-orders">
-<h2>Setting Leverage for Bitunix Orders<a class="headerlink" href="#setting-leverage-for-bitunix-orders" title="Link to this heading">¶</a></h2>
+<h2>Setting Leverage for Bitunix Orders<a class="headerlink" href="#setting-leverage-for-bitunix-orders" title="Link to this heading">#</a></h2>
 <p>You can specify the leverage for a Bitunix futures order by setting the <cite>leverage</cite> attribute on the <cite>Asset</cite> object before creating the order. If not set, the default leverage configured at the broker will be used.</p>
 <p><strong>Example: Setting Leverage on a Bitunix Futures Order</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Order</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Order</span>
 
 <span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;HBARUSDT&quot;</span><span class="p">,</span> <span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO_FUTURE</span><span class="p">,</span> <span class="n">leverage</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
@@ -457,10 +411,10 @@
 </div>
 </section>
 <section id="example-usage">
-<h2>Example Usage<a class="headerlink" href="#example-usage" title="Link to this heading">¶</a></h2>
+<h2>Example Usage<a class="headerlink" href="#example-usage" title="Link to this heading">#</a></h2>
 <p>Below are practical examples using the Bitunix broker in Lumibot, based on the <cite>bitunix_futures_example.py</cite> strategy.</p>
 <p><strong>Placing a Limit Order for a Futures Contract</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Order</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Order</span>
 
 <span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;HBARUSDT&quot;</span><span class="p">,</span> <span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO_FUTURE</span><span class="p">)</span>
 <span class="n">asset</span><span class="o">.</span><span class="n">leverage</span> <span class="o">=</span> <span class="mi">5</span>  <span class="c1"># Example: set leverage to 5x</span>
@@ -478,7 +432,7 @@
 </div>
 <p><strong>Closing a Position</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Wait for a few seconds if needed</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">time</span>
 <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
 <span class="bp">self</span><span class="o">.</span><span class="n">close_position</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
 </pre></div>
@@ -503,225 +457,8 @@
 <p>For best results, ensure all funds in your Bitunix Futures account are in USDT. Crypto balances may not be counted as available cash for order sizing.</p>
 </div>
 </section>
-<section id="module-lumibot.brokers.bitunix">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.brokers.bitunix" title="Link to this heading">¶</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.bitunix.</span></span><span class="sig-name descname"><span class="pre">Bitunix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poll_interval</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix" title="Link to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Broker</span></code></p>
-<p>A broker class that connects to the Bitunix exchange for crypto futures trading.</p>
-<p>This broker is designed specifically for Bitunix’s perpetual futures API. It supports submitting, tracking, and closing positions for crypto futures contracts (e.g., BTCUSDT perpetual). The broker uses Bitunix’s REST API for all trading operations.</p>
-<p>Key Features:
-- Only supports crypto futures (TRADING_MODE must be “FUTURES”).
-- Uses Bitunix’s “flash close” endpoint to close open futures positions instantly at market price.
-- All positions and orders are managed using Bitunix’s API conventions.
-- Not suitable for spot trading or non-futures assets.</p>
-<p>Notes:
-- The <cite>close_position</cite> method will use Bitunix’s flash close endpoint, which is faster and more reliable for closing futures positions than submitting a regular market order.
-- All asset symbols should be the full Bitunix symbol (e.g., “BTCUSDT”).
-- Leverage and margin settings are managed per-symbol as needed.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.ASSET_TYPE_MAP">
-<span class="sig-name descname"><span class="pre">ASSET_TYPE_MAP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'crypto':</span> <span class="pre">['crypto'],</span> <span class="pre">'crypto_future':</span> <span class="pre">['future'],</span> <span class="pre">'forex':</span> <span class="pre">[],</span> <span class="pre">'future':</span> <span class="pre">['future'],</span> <span class="pre">'option':</span> <span class="pre">[],</span> <span class="pre">'stock':</span> <span class="pre">[]}</span></em><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.ASSET_TYPE_MAP" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.DEFAULT_POLL_INTERVAL">
-<span class="sig-name descname"><span class="pre">DEFAULT_POLL_INTERVAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></em><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.DEFAULT_POLL_INTERVAL" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET">
-<span class="sig-name descname"><span class="pre">LUMIBOT_DEFAULT_QUOTE_ASSET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">USDT</span></em><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.cancel_order">
-<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.cancel_order" title="Link to this definition">¶</a></dt>
-<dd><p>Cancels a FUTURES order.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.close_position">
-<span class="sig-name descname"><span class="pre">close_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.close_position" title="Link to this definition">¶</a></dt>
-<dd><p>Close all or part of an existing position using a reduce‑only
-market order (tradeSide=”CLOSE”).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>strategy_name</strong> (<em>str</em>) – Name of the strategy that owns the position.</p></li>
-<li><p><strong>asset</strong> (<em>Asset</em>) – The asset whose position should be closed.</p></li>
-<li><p><strong>fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the position to close (0 &lt; fraction ≤ 1). Defaults to 1 (full close).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The submitted order, or <code class="docutils literal notranslate"><span class="pre">None</span></code> if no position exists.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Optional[Order]</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.do_polling">
-<span class="sig-name descname"><span class="pre">do_polling</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.do_polling" title="Link to this definition">¶</a></dt>
-<dd><p>Polls Bitunix for order status updates and dispatches events.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_historical_account_value">
-<span class="sig-name descname"><span class="pre">get_historical_account_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_historical_account_value" title="Link to this definition">¶</a></dt>
-<dd><p>Not implemented: Bitunix does not support historical account value retrieval.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_quote_asset">
-<span class="sig-name descname"><span class="pre">get_quote_asset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_quote_asset" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_time_to_close">
-<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_close" title="Link to this definition">¶</a></dt>
-<dd><p>Return the remaining time for the market to close in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_time_to_open">
-<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_open" title="Link to this definition">¶</a></dt>
-<dd><p>Return the remaining time for the market to open in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.get_timestamp">
-<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.get_timestamp" title="Link to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.is_market_open">
-<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.is_market_open" title="Link to this definition">¶</a></dt>
-<dd><p>Determines if the market is open.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None</strong></p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>True if market is open, false if the market is closed.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>boolean</p>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">is_market_open</span><span class="p">()</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.sell_all">
-<span class="sig-name descname"><span class="pre">sell_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cancel_open_orders</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_multileg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.sell_all" title="Link to this definition">¶</a></dt>
-<dd><p>Override sell_all to use flash_close_position for futures.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.bitunix.Bitunix.ws_url">
-<span class="sig-name descname"><span class="pre">ws_url</span></span><a class="headerlink" href="#lumibot.brokers.bitunix.Bitunix.ws_url" title="Link to this definition">¶</a></dt>
-<dd><p># Set default futures position mode to hedge
-try:</p>
-<blockquote>
-<div><p>response = self.api.change_position_mode(“HEDGE”)
-# Check response code for success
-if response and response.get(“code”) == 0:</p>
-<blockquote>
-<div><dl class="simple">
-<dt>logger.info(</dt><dd><p>f”Default position mode set to {response.get(‘data’, [{}])[0].get(‘positionMode’)}”</p>
-</dd>
-</dl>
-<p>)</p>
-</div></blockquote>
-<dl>
-<dt>else:</dt><dd><p># Log specific error if code is not 0
-logger.warning(</p>
-<blockquote>
-<div><p>f”Failed to set default position mode to HEDGE. API Response: {response}”</p>
-</div></blockquote>
-<p>)</p>
-</dd>
-</dl>
-</div></blockquote>
-<dl class="simple">
-<dt>except Exception as e:</dt><dd><p># Log exception details
-logger.warning(f”Failed to set default position mode to HEDGE due to an exception: {e}”)
-logger.debug(traceback.format_exc()) # Add debug level traceback for more detail if needed</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd><p>Return the remaining time for the market to close in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd><p>Return the remaining time for the market to open in seconds</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
-<dd><p>Determines if the market is open.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>None</strong></p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>True if market is open, false if the market is closed.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>boolean</p>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">is_market_open</span><span class="p">()</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-prename descclassname"><span class="pre">Bitunix.</span></span><span class="sig-name descname"><span class="pre">close_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span></dt>
-<dd><p>Close all or part of an existing position using a reduce‑only
-market order (tradeSide=”CLOSE”).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>strategy_name</strong> (<em>str</em>) – Name of the strategy that owns the position.</p></li>
-<li><p><strong>asset</strong> (<em>Asset</em>) – The asset whose position should be closed.</p></li>
-<li><p><strong>fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the position to close (0 &lt; fraction ≤ 1). Defaults to 1 (full close).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The submitted order, or <code class="docutils literal notranslate"><span class="pre">None</span></code> if no position exists.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Optional[Order]</p>
-</dd>
-</dl>
-</dd></dl>
-
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading">#</a></h2>
 </section>
 </section>
 
@@ -730,15 +467,23 @@ market order (tradeSide=”CLOSE”).</p>
       <footer>
         
         <div class="related-pages">
-          
-          <a class="prev-page" href="brokers.schwab.html">
+          <a class="next-page" href="brokers.ccxt.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Crypto Brokers (Using CCXT)</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="brokers.alpaca.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Schwab</div>
+                <div class="title">Alpaca</div>
                 
               </div>
             </a>
@@ -776,26 +521,7 @@ market order (tradeSide=”CLOSE”).</p>
 <li><a class="reference internal" href="#how-to-use-bitunix">How to Use Bitunix</a></li>
 <li><a class="reference internal" href="#setting-leverage-for-bitunix-orders">Setting Leverage for Bitunix Orders</a></li>
 <li><a class="reference internal" href="#example-usage">Example Usage</a></li>
-<li><a class="reference internal" href="#module-lumibot.brokers.bitunix">Documentation</a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix"><code class="docutils literal notranslate"><span class="pre">Bitunix</span></code></a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.ASSET_TYPE_MAP"><code class="docutils literal notranslate"><span class="pre">Bitunix.ASSET_TYPE_MAP</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.DEFAULT_POLL_INTERVAL"><code class="docutils literal notranslate"><span class="pre">Bitunix.DEFAULT_POLL_INTERVAL</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET"><code class="docutils literal notranslate"><span class="pre">Bitunix.LUMIBOT_DEFAULT_QUOTE_ASSET</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.cancel_order"><code class="docutils literal notranslate"><span class="pre">Bitunix.cancel_order()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.close_position"><code class="docutils literal notranslate"><span class="pre">Bitunix.close_position()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.do_polling"><code class="docutils literal notranslate"><span class="pre">Bitunix.do_polling()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_historical_account_value"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_historical_account_value()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_quote_asset"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_quote_asset()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_close"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_time_to_close()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_time_to_open"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_time_to_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.get_timestamp"><code class="docutils literal notranslate"><span class="pre">Bitunix.get_timestamp()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.is_market_open"><code class="docutils literal notranslate"><span class="pre">Bitunix.is_market_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.sell_all"><code class="docutils literal notranslate"><span class="pre">Bitunix.sell_all()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.bitunix.Bitunix.ws_url"><code class="docutils literal notranslate"><span class="pre">Bitunix.ws_url</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li><a class="reference internal" href="#documentation">Documentation</a></li>
 </ul>
 </li>
 </ul>
@@ -808,8 +534,8 @@ market order (tradeSide=”CLOSE”).</p>
     </aside>
   </div>
 </div><script src="_static/documentation_options.js?v=5929fcd5"></script>
-    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
     </body>
 </html>

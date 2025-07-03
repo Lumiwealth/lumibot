@@ -427,6 +427,22 @@ Charles Schwab provides API access for automated trading and market data through
      - Your Schwab account number used for trading.
      - 123456789
 
+DataBento Configuration
+-----------------------
+
+DataBento provides high-quality market data for stocks, futures, and options. This is primarily used as a data source for backtesting and live trading with futures. To create an account, visit the `DataBento <https://databento.com/>`_ website.
+
+.. list-table:: DataBento Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - DATABENTO_API_KEY
+     - Your API key from DataBento. **Required** if you are using DataBento as your data source.
+     - db-xxxxxxxxxxxxxxxxxxxxxxxx
+
 General Environment Variables
 =============================
 
@@ -472,6 +488,12 @@ In addition to broker-specific secrets, the following environment variables are 
    * - POLYGON_MAX_MEMORY_BYTES
      - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
      - 512000000
+   * - TRADING_BROKER
+     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "tradeovate", "schwab", "bitunix", "projectx"
+     - tradier
+   * - DATA_SOURCE
+     - **(Optional)** For live trading, specify a separate data source for market data. If not set, the same broker as trading will be used for data. This allows you to use one broker for trading and a different data provider for market data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "yahoo", "schwab", "databento", "bitunix", "projectx"
+     - databento
    * - DATA_SOURCE_DELAY
      - **(Optional)** Sets a delay parameter to control how many minutes to delay non-crypto data for. For example, the AlpacaData source uses a 16 minute delay by default. Override this to 0 if you have the paid SIP plan with not delayed data.
      - 0

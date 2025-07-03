@@ -1240,4 +1240,14 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             result["ask"] = None
 
-        return result
+        # Create and return a Quote object instead of a dictionary
+        from lumibot.entities import Quote
+        return Quote(
+            asset=asset,
+            price=result.get("price"),
+            bid=result.get("bid"),
+            ask=result.get("ask"),
+            bid_size=result.get("bid_size"),
+            ask_size=result.get("ask_size"),
+            raw_data=result
+        )

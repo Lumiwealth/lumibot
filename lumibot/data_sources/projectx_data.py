@@ -410,7 +410,7 @@ class ProjectXData(DataSource):
             self.logger.error(f"Error searching contracts for '{search_text}': {e}")
             return []
 
-    def get_quote(self, asset: Asset) -> Quote:
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         """
         Get current quote (bid/ask) for an asset.
 
@@ -419,6 +419,8 @@ class ProjectXData(DataSource):
 
         Args:
             asset: Asset to get quote for
+            quote: Quote asset (for cryptocurrency pairs, not used in ProjectX)
+            exchange: Exchange to get quote from (not used in ProjectX)
 
         Returns:
             Quote object with quote information

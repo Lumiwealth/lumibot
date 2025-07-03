@@ -28,7 +28,7 @@ from alpaca.data.requests import (
 from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import Adjustment
 
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 from lumibot import (
     LUMIBOT_DEFAULT_TIMEZONE,
     LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
@@ -449,12 +449,12 @@ class AlpacaData(DataSource):
         Get the last price for an asset by calling get_quote and returning the last price.
         """
         quote_data = self.get_quote(asset, quote, exchange)
-        if quote_data and 'last' in quote_data and quote_data['last'] is not None:
-            return quote_data['last']
-        elif quote_data and 'bid' in quote_data and quote_data['bid']:
-            return quote_data['bid']
-        elif quote_data and 'ask' in quote_data and quote_data['ask']:
-            return quote_data['ask']
+        if quote_data and hasattr(quote_data, 'price') and quote_data.price is not None:
+            return quote_data.price
+        elif quote_data and hasattr(quote_data, 'bid') and quote_data.bid:
+            return quote_data.bid
+        elif quote_data and hasattr(quote_data, 'ask') and quote_data.ask:
+            return quote_data.ask
         return None
 
     def get_historical_prices(
@@ -633,12 +633,12 @@ class AlpacaData(DataSource):
         bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange=None):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange=None) -> Quote:
         """
         Get the latest quote for an asset (stock, option, or crypto).
-        Returns a dictionary with bid, ask, last, and other fields if available.
-        Always includes 'bid' and 'ask' keys (with 0.0 if not available for options).
+        Returns a Quote object with bid, ask, last, and other fields if available.
         """
+
         # Check if authentication has previously failed
         if getattr(self, '_auth_failed', False):
             raise ValueError("Authentication previously failed - cannot make further API requests")
@@ -651,14 +651,24 @@ class AlpacaData(DataSource):
             req = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
             result = client.get_crypto_latest_quote(req)
             q = result[list(result.keys())[0]]
-            return {
-                "bid": getattr(q, "bid_price", None),
-                "ask": getattr(q, "ask_price", None),
-                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price and q.ask_price else None,
-                "exchange": getattr(q, "exchange", None),
-                "timestamp": getattr(q, "timestamp", None),
-                "symbol": symbol,
-            }
+
+            # Calculate mid price if both bid and ask are available
+            last_price = None
+            if hasattr(q, "bid_price") and hasattr(q, "ask_price") and q.bid_price and q.ask_price:
+                last_price = (q.bid_price + q.ask_price) / 2
+
+            return Quote(
+                asset=asset,
+                price=last_price,
+                bid=getattr(q, "bid_price", None),
+                ask=getattr(q, "ask_price", None),
+                timestamp=getattr(q, "timestamp", None),
+                raw_data={
+                    "exchange": getattr(q, "exchange", None),
+                    "symbol": symbol,
+                    "original_response": q
+                }
+            )
         elif asset.asset_type == Asset.AssetType.OPTION:
             # Note: Alpaca only supports "market" and "limit" as valid order types for multi-leg orders.
             # If you pass "credit" or "debit" as the type, Alpaca will return an "invalid order type" error.
@@ -670,19 +680,23 @@ class AlpacaData(DataSource):
             req = OptionLatestTradeRequest(symbol_or_symbols=symbol)
             trade = client.get_option_latest_trade(req)
             t = trade[symbol]
-            # Option trades may not have bid/ask, so set to 0.0 for compatibility with downstream code
+            # Option trades may not have bid/ask, so use price for both
             price = t.price if hasattr(t, "price") and t.price is not None else 0.0
-            return {
-                "bid": price,
-                "ask": price,
-                "last": price,
-                "price": price,
-                "size": getattr(t, "size", None),
-                "exchange": getattr(t, "exchange", None),
-                "conditions": getattr(t, "conditions", None),
-                "timestamp": getattr(t, "timestamp", None),
-                "symbol": symbol,
-            }
+
+            return Quote(
+                asset=asset,
+                price=price,
+                bid=price,
+                ask=price,
+                volume=getattr(t, "size", None),
+                timestamp=getattr(t, "timestamp", None),
+                raw_data={
+                    "exchange": getattr(t, "exchange", None),
+                    "conditions": getattr(t, "conditions", None),
+                    "symbol": symbol,
+                    "original_response": t
+                }
+            )
         else:
             # Stocks
             symbol = asset.symbol
@@ -690,14 +704,24 @@ class AlpacaData(DataSource):
             from alpaca.data.requests import StockLatestQuoteRequest
             req = StockLatestQuoteRequest(symbol_or_symbols=symbol)
             q = client.get_stock_latest_quote(req)[symbol]
-            return {
-                "bid": getattr(q, "bid_price", None),
-                "ask": getattr(q, "ask_price", None),
-                "last": (q.bid_price + q.ask_price) / 2 if q.bid_price and q.ask_price else None,
-                "exchange": getattr(q, "exchange", None),
-                "timestamp": getattr(q, "timestamp", None),
-                "symbol": symbol,
-            }
+
+            # Calculate mid price if both bid and ask are available
+            last_price = None
+            if hasattr(q, "bid_price") and hasattr(q, "ask_price") and q.bid_price and q.ask_price:
+                last_price = (q.bid_price + q.ask_price) / 2
+
+            return Quote(
+                asset=asset,
+                price=last_price,
+                bid=getattr(q, "bid_price", None),
+                ask=getattr(q, "ask_price", None),
+                timestamp=getattr(q, "timestamp", None),
+                raw_data={
+                    "exchange": getattr(q, "exchange", None),
+                    "symbol": symbol,
+                    "original_response": q
+                }
+            )
 
     def query_greeks(self, asset: Asset):
         """

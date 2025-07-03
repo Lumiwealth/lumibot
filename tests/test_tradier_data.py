@@ -100,18 +100,26 @@ class TestTradierData(BaseDataSourceTester):
         assert greeks['delta'] > 0
 
     def test_get_quote(self):
+        from lumibot.entities import Quote
+
         data_source = self._create_data_source()
         asset = Asset("AAPL")
         quote = data_source.get_quote(asset)
-        assert isinstance(quote, dict)
-        assert 'last' in quote
-        assert 'bid' in quote
-        assert 'ask' in quote
-        assert 'volume' in quote
-        assert 'open' in quote
-        assert 'high' in quote
-        assert 'low' in quote
-        assert 'close' in quote
+
+        assert isinstance(quote, Quote)
+        assert quote.asset == asset
+        assert quote.price is not None
+        assert quote.bid is not None
+        assert quote.ask is not None
+        assert quote.volume is not None
+        assert quote.timestamp is not None
+
+        # Check that raw_data contains the original quote dictionary
+        assert quote.raw_data is not None
+        assert 'open' in quote.raw_data
+        assert 'high' in quote.raw_data
+        assert 'low' in quote.raw_data
+        assert 'close' in quote.raw_data
 
     def test_get_chain_full_info(self):
         data_source = self._create_data_source()

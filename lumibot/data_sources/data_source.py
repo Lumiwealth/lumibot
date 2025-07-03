@@ -593,7 +593,7 @@ class DataSource(ABC):
     def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Get the latest quote for an asset (stock, option, or crypto).
-        Returns a dictionary with bid, ask, last, and other fields if available.
+        Returns a Quote object with bid, ask, last, and other fields if available.
 
         Parameters
         ----------
@@ -606,7 +606,7 @@ class DataSource(ABC):
 
         Returns
         -------
-        dict
-            A dictionary with the quote information, eg. bid, ask, etc.
+        Quote
+            A Quote object with the quote information, eg. bid, ask, etc.
         """
         raise NotImplementedError("get_quote method not implemented")

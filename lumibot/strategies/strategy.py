@@ -12,7 +12,7 @@ import pandas as pd
 import pandas_market_calendars as mcal
 from termcolor import colored
 
-from ..entities import Asset, Order, Position, Data, TradingFee
+from ..entities import Asset, Order, Position, Data, TradingFee, Quote
 from ..tools import get_risk_free_rate
 from ..traders import Trader
 from ..data_sources import DataSource
@@ -1897,7 +1897,7 @@ class Strategy(_Strategy):
             self.log_message(f"{e}")
             return None
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         """Get a quote for the asset.
 
         Parameters
@@ -1911,8 +1911,8 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        dict
-            A dictionary with the quote information, eg. bid, ask, etc.
+        Quote
+            A Quote object with the quote information, eg. bid, ask, etc.
         """
 
         asset = self._sanitize_user_asset(asset)
@@ -1920,7 +1920,7 @@ class Strategy(_Strategy):
         # Check if the broker has the get_quote method
         if not hasattr(self.broker, "get_quote"):
             self.log_message("Broker does not have a get_quote method.")
-            return None
+            return Quote(asset=asset)
 
         if self.broker.option_source and asset.asset_type == "option":
             return self.broker.option_source.get_quote(asset, quote, exchange)

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 from lumibot.data_sources import AlpacaData, DataSource
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Quote
 from lumibot.tools import get_trading_days, is_market_open
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from tests.fixtures import BaseDataSourceTester
@@ -386,12 +386,13 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def check_quote_data(self, quote_data):
         """Helper method to check quote data structure"""
+        from lumibot.entities import Quote
         assert quote_data is not None
-        assert isinstance(quote_data, dict)
-        assert 'bid' in quote_data and quote_data['bid'] is not None
-        assert 'ask' in quote_data and quote_data['ask'] is not None
-        assert 'last' in quote_data and quote_data['last'] is not None
-        assert 'symbol' in quote_data
+        assert isinstance(quote_data, Quote)
+        assert hasattr(quote_data, 'bid') and quote_data.bid is not None
+        assert hasattr(quote_data, 'ask') and quote_data.ask is not None
+        assert hasattr(quote_data, 'price') and quote_data.price is not None
+        assert hasattr(quote_data, 'asset')
 
     def test_get_quote_stock(self):
         """Test get_quote for stock assets"""
@@ -414,6 +415,8 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_quote_when_stock_bid_is_zero(self):
         """Test get_quote when stock bid is 0.0"""
+        from lumibot.entities import Quote
+
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
 
@@ -438,16 +441,12 @@ class TestAlpacaData(BaseDataSourceTester):
 
             # Verify the results
             assert quote_data is not None
-            assert isinstance(quote_data, dict)
-            assert 'bid' in quote_data
-            assert quote_data['bid'] == 0.0
-            assert 'ask' in quote_data
-            assert quote_data['ask'] == 100.0
-            assert 'last' in quote_data
-            # last should be None if bid or ask is zero
-            assert quote_data['last'] == None
-            assert 'symbol' in quote_data
-            assert quote_data['symbol'] == asset.symbol
+            assert isinstance(quote_data, Quote)
+            assert quote_data.bid == 0.0
+            assert quote_data.ask == 100.0
+            # price should be None if bid or ask is zero
+            assert quote_data.price is None
+            assert quote_data.asset == asset
 
         finally:
             # Restore the original method
@@ -455,6 +454,8 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_quote_when_stock_ask_is_zero(self):
         """Test get_quote when stock ask is 0.0"""
+        from lumibot.entities import Quote
+
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
 
@@ -479,16 +480,12 @@ class TestAlpacaData(BaseDataSourceTester):
 
             # Verify the results
             assert quote_data is not None
-            assert isinstance(quote_data, dict)
-            assert 'bid' in quote_data
-            assert quote_data['bid'] == 100.0
-            assert 'ask' in quote_data
-            assert quote_data['ask'] == 0.0
-            assert 'last' in quote_data
-            # last should be None if bid or ask is zero
-            assert quote_data['last'] == None
-            assert 'symbol' in quote_data
-            assert quote_data['symbol'] == asset.symbol
+            assert isinstance(quote_data, Quote)
+            assert quote_data.bid == 100.0
+            assert quote_data.ask == 0.0
+            # price should be None if bid or ask is zero
+            assert quote_data.price is None
+            assert quote_data.asset == asset
 
         finally:
             # Restore the original method
@@ -496,29 +493,31 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_last_price_stock_when_bid_is_zero(self):
         """Test get_last_price when stock bid is 0.0"""
+        from lumibot.entities import Quote
+
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
 
         # Store the original method
         original_get_quote = data_source.get_quote
 
-        # Create a mock for the get_quote method
-        mock_quote_data = {
-            'bid': 0.0,
-            'ask': 100.0,
-            'last': None,
-            'symbol': asset.symbol
-        }
+        # Create a mock Quote object
+        mock_quote = Quote(
+            asset=asset,
+            price=None,
+            bid=0.0,
+            ask=100.0
+        )
 
         # Replace the get_quote method temporarily
-        data_source.get_quote = lambda a, q=None, e=None: mock_quote_data if a.symbol == asset.symbol else None
+        data_source.get_quote = lambda a, q=None, e=None: mock_quote if a.symbol == asset.symbol else None
 
         try:
             # Call get_last_price
             price = data_source.get_last_price(asset)
 
             # Verify the results
-            # Since 'last' is None and bid is 0.0, it should return the ask value
+            # Since price is None and bid is 0.0, it should return the ask value
             assert price == 100.0
 
         finally:
@@ -527,29 +526,31 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_last_price_stock_when_ask_is_zero(self):
         """Test get_last_price when stock ask is 0.0"""
+        from lumibot.entities import Quote
+
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
 
         # Store the original method
         original_get_quote = data_source.get_quote
 
-        # Create a mock for the get_quote method
-        mock_quote_data = {
-            'bid': 100.0,  # Some non-zero value for bid
-            'ask': 0.0,
-            'last': None,
-            'symbol': asset.symbol
-        }
+        # Create a mock Quote object
+        mock_quote = Quote(
+            asset=asset,
+            price=None,
+            bid=100.0,  # Some non-zero value for bid
+            ask=0.0
+        )
 
         # Replace the get_quote method temporarily
-        data_source.get_quote = lambda a, q=None, e=None: mock_quote_data if a.symbol == asset.symbol else None
+        data_source.get_quote = lambda a, q=None, e=None: mock_quote if a.symbol == asset.symbol else None
 
         try:
             # Call get_last_price
             price = data_source.get_last_price(asset)
 
             # Verify the results
-            # Since 'last' is None and ask is 0.0 it should return the bid value (100.0)
+            # Since price is None and ask is 0.0 it should return the bid value (100.0)
             assert price == 100.0
 
         finally:
@@ -557,29 +558,31 @@ class TestAlpacaData(BaseDataSourceTester):
             data_source.get_quote = original_get_quote
 
     def test_get_last_price_stock_when_last(self):
-        """Test get_last_price when stock ask is 0.0"""
+        """Test get_last_price when price is available"""
+        from lumibot.entities import Quote
+
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
 
         # Store the original method
         original_get_quote = data_source.get_quote
 
-        # Create a mock for the get_quote method
-        mock_quote_data = {
-            'bid': 100.0,  # Some non-zero value for bid
-            'ask': 101.0,
-            'last': 100.5,
-            'symbol': asset.symbol
-        }
+        # Create a mock Quote object
+        mock_quote = Quote(
+            asset=asset,
+            price=100.5,
+            bid=100.0,
+            ask=101.0
+        )
 
         # Replace the get_quote method temporarily
-        data_source.get_quote = lambda a, q=None, e=None: mock_quote_data if a.symbol == asset.symbol else None
+        data_source.get_quote = lambda a, q=None, e=None: mock_quote if a.symbol == asset.symbol else None
 
         try:
             # Call get_last_price
             price = data_source.get_last_price(asset)
 
-            # Verify the results
+            # Verify the results - should return the price value
             assert price == 100.5
 
         finally:
@@ -608,19 +611,15 @@ class TestAlpacaData(BaseDataSourceTester):
 
         try:
             # Call get_quote
-            quote_data = data_source.get_quote(asset)
+            quote_data: Quote = data_source.get_quote(asset)
 
             # Verify the results
             assert quote_data is not None
-            assert isinstance(quote_data, dict)
-            assert 'bid' in quote_data
-            assert quote_data['bid'] == 100.0
-            assert 'ask' in quote_data
-            assert quote_data['ask'] == 101.0
-            assert 'last' in quote_data
-            assert quote_data['last'] == 100.5
-            assert 'symbol' in quote_data
-            assert quote_data['symbol'] == asset.symbol
+            assert isinstance(quote_data, Quote)
+            assert quote_data.bid == 100.0
+            assert quote_data.ask == 101.0
+            assert quote_data.price == 100.5
+            assert quote_data.asset.symbol == asset.symbol
 
         finally:
             # Restore the original method

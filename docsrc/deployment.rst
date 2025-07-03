@@ -441,7 +441,7 @@ DataBento provides high-quality market data for stocks, futures, and options. Th
      - **Example**
    * - DATABENTO_API_KEY
      - Your API key from DataBento. **Required** if you are using DataBento as your data source.
-     - db-B5bvkH6BLmDUGWpCnyTfnAyxEW8nw
+     - db-xxxxxxxxxxxxxxxxxxxxxxxx
 
 General Environment Variables
 =============================

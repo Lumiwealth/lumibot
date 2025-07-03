@@ -249,7 +249,8 @@ Important Notes
 
 **Streaming Connection**
    - Real-time streaming is **optional** and will fail gracefully if unavailable
-   - Requires `signalrcore` library for streaming functionality
+   - Requires `signalrcore` library for streaming functionality: `pip install signalrcore>=0.9.2`
+   - **Note**: Due to dependency conflicts, `signalrcore` must be installed separately if you want streaming
    - Provides live updates for orders, positions, trades, and account information
 
 **Performance**
@@ -287,7 +288,8 @@ Troubleshooting
 
 **Streaming Connection Issues**
    - Streaming failures are non-critical and won't stop trading
-   - Install `signalrcore` library if streaming is required: `pip install signalrcore`
+   - Install `signalrcore` library if streaming is required: `pip install signalrcore>=0.9.2`
+   - **Note**: Due to dependency conflicts, `signalrcore` must be installed separately if you want streaming
    - Check network connectivity and firewall settings
 
 **Auto-Detection Not Working**

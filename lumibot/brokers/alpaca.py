@@ -528,6 +528,11 @@ class Alpaca(Broker):
         # Identifier
         identifier_value = getattr(response, 'id', None) or resp_raw.get('id')
 
+        # Handle None quantity - skip invalid orders
+        if qty_value is None:
+            logger.warning(f"Skipping order {identifier_value} - quantity is None (invalid order data from Alpaca)")
+            return None
+
         # Construct Order object
         order = Order(
             strategy_name,

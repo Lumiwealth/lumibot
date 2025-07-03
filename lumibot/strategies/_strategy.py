@@ -534,6 +534,13 @@ class _Strategy:
             )
             return False
 
+        # Check if the order quantity is None
+        if order.quantity is None:
+            self.logger.error(
+                f"Order quantity cannot be None. Please provide a valid quantity value."
+            )
+            return False
+
         # Check if the order does not have a quantity of zero
         if order.quantity == 0:
             self.logger.error(

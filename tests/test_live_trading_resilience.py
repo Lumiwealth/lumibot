@@ -124,7 +124,7 @@ class FailingTradingIterationStrategy(Strategy):
         raise RuntimeError("Intentional error in on_trading_iteration() for testing")
 
 
-class TestStrategy(Strategy):
+class LiveResilienceTestStrategy(Strategy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iteration_count = 0
@@ -172,7 +172,7 @@ class TestLiveTradingResilience(unittest.TestCase):
         print('🔍 Testing live trading resilience...')
         
         broker = MockLiveBroker()
-        strategy = TestStrategy(broker=broker)
+        strategy = LiveResilienceTestStrategy(broker=broker)
         trader = Trader(logfile='', backtest=False)
         trader.add_strategy(strategy)
 

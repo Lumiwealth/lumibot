@@ -286,6 +286,9 @@ class _Strategy:
         # Set the log level to INFO so that all logs INFO and above are displayed
         self.logger.setLevel(logging.INFO)
         
+        # Track which assets we've logged "Getting historical prices" for to reduce noise
+        self._logged_get_historical_prices_assets = set()
+        
         if self.broker == None:
             self.broker = BROKER
 

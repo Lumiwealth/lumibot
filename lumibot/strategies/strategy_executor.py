@@ -161,6 +161,8 @@ class StrategyExecutor(Thread):
 
         # ORDERS
         orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
+        # Filter out None orders to prevent crashes
+        orders_broker = [order for order in orders_broker if order is not None]
         if len(orders_broker) > 0:
             orders_lumi = self.broker.get_all_orders()
 
@@ -263,6 +265,15 @@ class StrategyExecutor(Thread):
                     # Filled or canceled orders can be dropped by the broker as they no longer have any effect.
                     # However, active orders should not be dropped as they are still in effect and if they can't
                     # be found in the broker, they should be canceled because something went wrong.
+                    
+                    # Skip auto-cancellation for orders that were synced from broker to prevent false cancellations
+                    if hasattr(order_lumi, '_synced_from_broker') and order_lumi._synced_from_broker:
+                        self.strategy.logger.debug(
+                            f"Skipping auto-cancellation for synced order {order_lumi} (id={order_lumi.identifier}) - "
+                            f"was synced from broker and may have been filled/canceled between sync and validation"
+                        )
+                        continue
+                    
                     if order_lumi.is_active():
                         self.strategy.logger.info(
                             f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
@@ -294,9 +305,10 @@ class StrategyExecutor(Thread):
         """
         broker_identifiers = set()
         for order in orders_broker:
-            broker_identifiers.add(order.identifier)
-            for child_order in order.child_orders:
-                broker_identifiers.add(child_order.identifier)
+            if order is not None:  # Defensive check for None orders
+                broker_identifiers.add(order.identifier)
+                for child_order in order.child_orders:
+                    broker_identifiers.add(child_order.identifier)
         return broker_identifiers
 
     def add_event(self, event_name, payload):

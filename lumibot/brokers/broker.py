@@ -948,16 +948,17 @@ class Broker(ABC):
             for broker_order in broker_orders:
                 order = self._parse_broker_order(broker_order, strategy_name, strategy_object=strategy_object)
                 # skip if parsing returned None
-                #if order is None:
-                #    continue
+                if order is None:
+                    continue
 
                 # Check if it is a multileg order and Parse the legs
                 if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
                     parsed_legs = []
                     for leg in broker_order["leg"]:
                         order_leg = self._parse_broker_order(leg, strategy_name, strategy_object=strategy_object)
-                        order_leg.parent_identifier = order.identifier
-                        parsed_legs.append(order_leg)
+                        if order_leg is not None:  # Additional None check for legs
+                            order_leg.parent_identifier = order.identifier
+                            parsed_legs.append(order_leg)
 
                     # Add the legs to the parent order
                     order.child_orders = parsed_legs

@@ -253,16 +253,53 @@ class ProjectXData(DataSource):
     def _get_contract_id_from_asset(self, asset: Asset) -> str:
         """Get ProjectX contract ID from Lumibot asset."""
         # Check cache first
-        if asset.symbol in self._contract_cache:
-            return self._contract_cache[asset.symbol]
+        cache_key = f"{asset.symbol}_{asset.asset_type}"
+        if cache_key in self._contract_cache:
+            return self._contract_cache[cache_key]
         
         try:
-            # Use the find_contract_by_symbol method which handles all the logic
-            contract_id = self.client.find_contract_by_symbol(asset.symbol)
+            contract_id = None
+            
+            # Handle continuous futures using Asset class logic
+            if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+                self.logger.debug(f"🔄 Resolving continuous future {asset.symbol} using Asset class")
+                
+                try:
+                    # Use Asset class method to get potential contracts
+                    potential_contracts = asset.get_potential_futures_contracts()
+                    
+                    for contract_symbol in potential_contracts:
+                        # Convert to ProjectX format if needed
+                        if not contract_symbol.startswith("CON.F.US."):
+                            # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
+                            if len(contract_symbol) >= 4:
+                                base_symbol = contract_symbol[:-3]  # Remove last 3 chars
+                                month_year = contract_symbol[-3:]   # Get month + year code
+                                if len(month_year) == 3:
+                                    month_code = month_year[0]
+                                    year_code = month_year[1:]
+                                    contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
+                                else:
+                                    contract_id = f"CON.F.US.{asset.symbol}.{month_year}"
+                            else:
+                                contract_id = f"CON.F.US.{asset.symbol}.U25"  # Fallback
+                        else:
+                            contract_id = contract_symbol
+                        
+                        # Use the first potential contract
+                        self.logger.debug(f"✅ Using Asset class contract: {contract_id}")
+                        break
+                        
+                except Exception as asset_error:
+                    self.logger.warning(f"⚠️ Asset class resolution failed: {asset_error}")
+            
+            # Fallback to client method if Asset class didn't work or for other asset types
+            if not contract_id:
+                contract_id = self.client.find_contract_by_symbol(asset.symbol)
             
             if contract_id:
-                # Cache the result
-                self._contract_cache[asset.symbol] = contract_id
+                # Cache the result with asset type for better cache key
+                self._contract_cache[cache_key] = contract_id
                 return contract_id
             
             self.logger.warning(f"Contract not found for symbol: {asset.symbol}")

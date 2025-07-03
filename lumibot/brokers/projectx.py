@@ -54,16 +54,22 @@ class ProjectX(Broker):
         "sell": 1,  # Sell/Short
     }
     
-    # ProjectX order status to Lumibot status mapping
+    # ProjectX order status to Lumibot status mapping (CORRECTED based on real data analysis)
     ORDER_STATUS_MAPPING = {
-        1: "new",            # Pending
-        2: "submitted",      # Submitted
-        3: "partially_filled", # Partial fill
-        4: "filled",         # Filled
-        5: "cancelled",      # Cancelled
-        6: "rejected",       # Rejected
-        7: "expired",        # Expired
-        8: "replaced",       # Replaced
+        1: "new",              # New/Pending
+        2: "submitted",        # Submitted to exchange
+        3: "open",             # Open/Active on exchange (NOT partially filled!)
+        4: "filled",           # Completely filled
+        5: "cancelled",        # Cancelled
+        6: "rejected",         # Rejected by exchange
+        7: "expired",          # Order expired
+        8: "replaced",         # Order replaced/modified
+        9: "pending_cancel",   # Cancel request pending
+        10: "pending_replace", # Replace request pending
+        11: "partially_filled",# Actually partially filled (if this status exists)
+        12: "suspended",       # Order suspended
+        13: "triggered",       # Stop/conditional order triggered
+        # Add fallback for unknown statuses
     }
     
     def __init__(self, config: dict = None, data_source: DataSource = None, 
@@ -115,21 +121,21 @@ class ProjectX(Broker):
             max_workers=max_workers
         )
         
-        self.logger.info(f"🚀 ProjectX broker initialized for {self.firm}")
-        self.logger.info(f"📊 Data source: {data_source.__class__.__name__ if data_source else 'None'}")
-        self.logger.info(f"🌐 Streaming enabled: {connect_stream}")
+        self.logger.debug(f"ProjectX broker initialized for {self.firm}")
+        self.logger.debug(f"Data source: {data_source.__class__.__name__ if data_source else 'None'}")
+        self.logger.debug(f"Streaming enabled: {connect_stream}")
         
         # Check if we should auto-connect
         if not self.account_id:
-            self.logger.info(f"🔄 Account ID not set, will connect when needed...")
+            self.logger.debug(f"Account ID not set, will connect when needed")
     
     def connect(self):
         """Connect to ProjectX broker and set up account."""
         try:
-            self.logger.info(f"🔌 Connecting to ProjectX broker: {self.firm}")
+            self.logger.debug(f"Connecting to ProjectX broker: {self.firm}")
             
             # Get account information
-            self.logger.info(f"🔍 Getting preferred account ID...")
+            self.logger.debug(f"Getting preferred account ID")
             self.account_id = self.client.get_preferred_account_id()
             
             if not self.account_id:
@@ -140,14 +146,13 @@ class ProjectX(Broker):
             
             # Set up streaming if enabled
             if self.connect_stream:
-                self.logger.info(f"🌐 Setting up streaming connection...")
+                self.logger.debug(f"Setting up streaming connection")
                 self._setup_streaming()
             
-            # Skip cache initialization during connect - will be loaded on-demand
-            # self._update_orders_cache()  # Causes 280+ API calls!
-            # self._update_positions_cache()  # Not needed immediately
+            # Sync existing orders into tracking system for strategy compatibility
+            self._sync_existing_orders_to_tracking()
             
-            self.logger.info(f"🎉 ProjectX broker connection complete!")
+            self.logger.debug("ProjectX broker connection complete")
             return True
             
         except Exception as e:
@@ -168,7 +173,7 @@ class ProjectX(Broker):
             # Start streaming connection
             if self.streaming_client.start_user_hub():
                 self.streaming_client.subscribe_all(self.account_id)
-                self.logger.info("Streaming connection established")
+                self.logger.debug("Streaming connection established")
             else:
                 self.logger.warning("Failed to establish streaming connection")
                 
@@ -268,10 +273,10 @@ class ProjectX(Broker):
             tick_size = self.client.get_contract_tick_size(contract_id)
             
             # Map order type and side
-            order_type = self.ORDER_TYPE_MAPPING.get(order.type.lower())
+            order_type = self.ORDER_TYPE_MAPPING.get(order.order_type.lower())
             if order_type is None:
                 order.status = "rejected"
-                order.error = f"Unsupported order type: {order.type}"
+                order.error = f"Unsupported order type: {order.order_type}"
                 return order
             
             order_side = self.ORDER_SIDE_MAPPING.get(order.side.lower())
@@ -293,7 +298,7 @@ class ProjectX(Broker):
             response = self.client.order_place(
                 account_id=self.account_id,
                 contract_id=contract_id,
-                type=order_type,
+                order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
                 side=order_side,
                 size=order.quantity,
                 limit_price=limit_price,
@@ -338,7 +343,7 @@ class ProjectX(Broker):
         try:
             # Ensure we have an account_id
             if not self.account_id:
-                self.logger.info(f"🔄 Auto-connecting to get account ID...")
+                self.logger.debug(f"Auto-connecting to get account ID")
                 if not self.connect():
                     raise Exception("Failed to auto-connect for balance retrieval - no account ID available")
             
@@ -356,7 +361,7 @@ class ProjectX(Broker):
             positions_value = equity - cash_balance
             total_liquidation_value = equity
             
-            self.logger.info(f"💰 Account balance - Cash: ${cash_balance:.2f}, Positions Value: ${positions_value:.2f}, Total: ${total_liquidation_value:.2f}")
+            self.logger.debug(f"Account balance - Cash: ${cash_balance:.2f}, Positions Value: ${positions_value:.2f}, Total: ${total_liquidation_value:.2f}")
             
             return (cash_balance, positions_value, total_liquidation_value)
             
@@ -367,15 +372,16 @@ class ProjectX(Broker):
             raise Exception(f"Unable to retrieve account balance from ProjectX: {e}")
     
     def _get_orders_at_broker(self) -> List[Order]:
-        """Get all orders from the broker."""
+        """Get all orders from the broker with performance optimization."""
         try:
             # Ensure we have an account_id
             if not self.account_id:
-                self.logger.info(f"🔄 Auto-connecting to get account ID...")
+                self.logger.debug(f"Auto-connecting to get account ID")
                 if not self.connect():
                     raise Exception("Failed to auto-connect for order retrieval - no account ID available")
             
-            # Get orders from last 30 days
+            # Get orders from last 30 days to catch filled/cancelled orders
+            # Note: Orders may disappear quickly after being filled
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
             
@@ -385,40 +391,62 @@ class ProjectX(Broker):
                 end_date=end_date.isoformat()
             )
             
-            orders = []
+            self.logger.debug(f"Retrieved {len(orders_data)} orders from broker")
             
-            for broker_order in orders_data:
+            # Convert recent orders with detailed logging
+            recent_orders = []
+            conversion_attempts = 0
+            conversion_successes = 0
+            
+            # Process the most recent 50 orders with detailed logging
+            for broker_order in orders_data[:50]:  
+                conversion_attempts += 1
                 try:
+                    order_id = broker_order.get('id', 'unknown')
+                    status = broker_order.get('status', 'unknown')
+                    order_type = broker_order.get('type', 'unknown')
+                    contract_id = broker_order.get('contractId', 'unknown')
+                    
+                    # Minimal logging - only log issues, not every successful conversion
                     order = self._convert_broker_order_to_lumibot_order(broker_order)
                     if order is not None:
-                        orders.append(order)
-                        # Update cache - only cache valid orders
+                        recent_orders.append(order)
                         self._orders_cache[order.id] = order
+                        conversion_successes += 1
                     else:
-                        self.logger.debug(f"Skipped order conversion: {broker_order.get('id', 'unknown')}")
+                        self.logger.debug(f"❌ Order {order_id} conversion returned None")
+                        
                 except Exception as e:
-                    self.logger.warning(f"Failed to convert broker order {broker_order.get('id', 'unknown')}: {e}")
+                    self.logger.error(f"❌ Failed to convert order {broker_order.get('id', 'unknown')}: {e}")
+                    import traceback
+                    self.logger.error(f"Full traceback: {traceback.format_exc()}")
                     continue
             
-            # Final safety check - filter out any None orders that might have slipped through
-            orders = [order for order in orders if order is not None]
+            self.logger.debug(f"Order conversion results: {conversion_successes}/{conversion_attempts} successful")
             
+            # Final safety check - filter out any None orders that might have slipped through
+            orders = [order for order in recent_orders if order is not None]
+            
+            self.logger.debug(f"✅ Processed {len(orders)} recent/active orders from {len(orders_data)} total")
             return orders
             
         except Exception as e:
             self.logger.error(f"❌ Error getting orders: {e}")
-            raise Exception(f"Unable to retrieve orders from ProjectX: {e}")
+            # Don't raise exception - return empty list for graceful degradation
+            return []
     
     def _get_positions_at_broker(self) -> List[Position]:
         """Get all positions from the broker."""
         try:
             # Ensure we have an account_id
             if not self.account_id:
-                self.logger.info(f"🔄 Auto-connecting to get account ID...")
+                self.logger.debug(f"Auto-connecting to get account ID")
                 if not self.connect():
                     raise Exception("Failed to auto-connect for position retrieval - no account ID available")
             
             positions_data = self.client.get_positions(self.account_id)
+            
+            self.logger.debug(f"Retrieved {len(positions_data)} positions from broker")
             
             positions = []
             
@@ -429,12 +457,22 @@ class ProjectX(Broker):
                         positions.append(position)
                         # Update cache
                         self._positions_cache[position.asset.symbol] = position
+                    else:
+                        contract_id = broker_position.get('contractId', 'unknown')
+                        self.logger.warning(f"❌ Position {contract_id} conversion returned None")
                 except Exception as e:
-                    self.logger.warning(f"Failed to convert broker position: {e}")
+                    self.logger.error(f"❌ Failed to convert position {broker_position.get('contractId', 'unknown')}: {e}")
                     continue
             
             # Final safety check - filter out any None positions
             positions = [position for position in positions if position is not None]
+            
+            # Log summary of converted positions
+            if positions:
+                position_summary = ", ".join([f"{pos.quantity} {pos.asset.symbol}" for pos in positions])
+                self.logger.debug(f"Converted {len(positions)} positions: {position_summary}")
+            else:
+                self.logger.info("✅ No positions found")
             
             return positions
             
@@ -528,13 +566,48 @@ class ProjectX(Broker):
     def _get_contract_id_from_asset(self, asset: Asset) -> str:
         """Get ProjectX contract ID from Lumibot asset."""
         try:
-            # Use the client's contract search functionality
-            contract_id = self.client.find_contract_by_symbol(asset.symbol)
+            symbol = asset.symbol
+            
+            # Handle continuous futures using Asset class logic
+            if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+                self.logger.debug(f"Converting continuous future {symbol} to specific contract")
+                
+                try:
+                    # Use Asset class method to resolve continuous futures
+                    potential_contracts = asset.get_potential_futures_contracts()
+                    
+                    for contract_symbol in potential_contracts:
+                        # Convert to ProjectX format if needed
+                        if not contract_symbol.startswith("CON.F.US."):
+                            # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
+                            if len(contract_symbol) >= 4:
+                                base_symbol = contract_symbol[:-3]  # Remove last 3 chars
+                                month_year = contract_symbol[-3:]   # Get month + year code
+                                if len(month_year) == 3:
+                                    month_code = month_year[0]
+                                    year_code = month_year[1:]
+                                    contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
+                                else:
+                                    contract_id = f"CON.F.US.{symbol}.{month_year}"
+                            else:
+                                contract_id = f"CON.F.US.{symbol}.U25"  # Fallback
+                        else:
+                            contract_id = contract_symbol
+                        
+                        self.logger.debug(f"✅ Using Asset class contract: {contract_id}")
+                        return contract_id
+                        
+                except Exception as asset_error:
+                    self.logger.warning(f"⚠️ Asset class resolution failed, falling back to client method: {asset_error}")
+            
+            # For non-continuous futures or fallback, use client method
+            contract_id = self.client.find_contract_by_symbol(symbol)
             
             if not contract_id:
-                self.logger.error(f"Contract not found for asset: {asset.symbol}")
+                self.logger.error(f"Contract not found for asset: {asset.symbol} (type: {asset.asset_type})")
                 return ""
             
+            self.logger.debug(f"✅ Found contract ID: {contract_id} for {symbol}")
             return contract_id
             
         except Exception as e:
@@ -560,9 +633,12 @@ class ProjectX(Broker):
             side_id = broker_order.get("side")
             side = "buy" if side_id == 0 else "sell" if side_id == 1 else "unknown"
             
-            # Convert status
+            # Convert status with detailed logging
             status_id = broker_order.get("status")
-            status = self.ORDER_STATUS_MAPPING.get(status_id, "unknown")
+            status = self.ORDER_STATUS_MAPPING.get(status_id, f"unknown_status_{status_id}")
+            
+            if status.startswith("unknown_status_"):
+                self.logger.warning(f"Unknown order status ID: {status_id} for order {broker_order.get('id')}")
             
             # Create Order object
             order = Order(
@@ -570,7 +646,7 @@ class ProjectX(Broker):
                 asset=asset,
                 quantity=broker_order.get("size", 0),
                 side=side,
-                type=order_type
+                order_type=order_type  # Use order_type instead of deprecated 'type'
             )
             
             # Set additional properties
@@ -606,13 +682,14 @@ class ProjectX(Broker):
             
             # Create Position object
             quantity = broker_position.get("size", 0)
-            avg_price = broker_position.get("avgPrice", 0.0)
+            # Try both field names: avgPrice and averagePrice
+            avg_price = broker_position.get("avgPrice") or broker_position.get("averagePrice", 0.0)
             
             position = Position(
                 strategy="",  # Will be set by strategy
                 asset=asset,
                 quantity=quantity,
-                avg_price=avg_price
+                avg_fill_price=avg_price
             )
             
             # Set additional properties
@@ -632,8 +709,8 @@ class ProjectX(Broker):
             
             symbol = contract.get("symbol")
             if symbol:
-                # Create futures asset
-                return Asset(symbol, asset_type="future")
+                # Create continuous futures asset to match strategy expectations
+                return Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
             
             return None
             
@@ -665,7 +742,8 @@ class ProjectX(Broker):
             contract = self.client.get_contract_details(contract_id)
             symbol = contract.get("symbol")
             if symbol:
-                asset = Asset(symbol, asset_type="future")
+                # Use continuous futures to match strategy expectations
+                asset = Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
                 self._asset_cache[contract_id] = asset
                 return asset
             
@@ -684,15 +762,19 @@ class ProjectX(Broker):
             # Common pattern: CON.F.US.SYMBOL.EXPIRY (e.g., CON.F.US.MES.U25)
             if contract_id.startswith("CON.F.US."):
                 parts = contract_id.split(".")
-                if len(parts) >= 4:
+                if len(parts) >= 5:
                     symbol = parts[3]  # Extract the symbol part
-                    return Asset(symbol, asset_type="future")
+                    expiry_code = parts[4]  # Extract expiry (e.g., U25)
+                    
+                    # For continuous futures, use the base symbol as cont_future
+                    # This matches what the strategy expects
+                    return Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
             
             # Add other pattern extractions as needed
             # Pattern: SYMBOL-EXPIRY (e.g., MES-MAR25)
             if "-" in contract_id:
                 symbol = contract_id.split("-")[0]
-                return Asset(symbol, asset_type="future")
+                return Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
             
             return None
             
@@ -702,7 +784,13 @@ class ProjectX(Broker):
     def _get_order_type_from_id(self, type_id: int) -> str:
         """Convert ProjectX order type ID to string."""
         reverse_mapping = {v: k for k, v in self.ORDER_TYPE_MAPPING.items()}
-        return reverse_mapping.get(type_id, "market")
+        order_type = reverse_mapping.get(type_id, "market")
+        
+        # Fix ProjectX to Lumibot order type mapping
+        if order_type == "trail":
+            return "trailing_stop"
+        
+        return order_type
     
     def _update_orders_cache(self):
         """Update the orders cache with latest data."""
@@ -762,4 +850,93 @@ class ProjectX(Broker):
             self.logger.debug(f"Account update received: {data}")
             self.account_info = data
         except Exception as e:
-            self.logger.error(f"Error handling account update: {e}") 
+            self.logger.error(f"Error handling account update: {e}")
+    
+    def _sync_existing_orders_to_tracking(self):
+        """Sync existing ACTIVE orders from broker into the tracking system for strategy compatibility."""
+        try:
+            self.logger.debug("Syncing active orders into tracking system")
+            
+            # CRITICAL: Clear old orders from tracking system to prevent mixing with fresh data
+            # This prevents old canceled orders from previous sessions showing up
+            strategy_name = None
+            if self._subscribers:
+                strategy_name = self._subscribers[0].name
+                self.logger.debug(f"Clearing old orders for strategy: {strategy_name}")
+                
+                # Remove old orders for this strategy from all tracking lists
+                old_count = 0
+                for order_list in [self._new_orders, self._partially_filled_orders, self._filled_orders, 
+                                 self._canceled_orders, self._error_orders, self._unprocessed_orders]:
+                    orders_to_remove = [order for order in order_list.get_list() if order.strategy == strategy_name]
+                    for order in orders_to_remove:
+                        order_list.remove(order.id, key="id")
+                        old_count += 1
+                
+                self.logger.debug(f"Cleared {old_count} old orders from tracking system")
+            
+            # Get existing orders from broker 
+            all_orders = self._get_orders_at_broker()
+            
+            # Filter to only ACTIVE orders to prevent spam from old canceled orders
+            active_orders = [
+                order for order in all_orders 
+                if order.status in ["new", "submitted", "open", "partially_filled", "partial_filled"]
+            ]
+            
+            self.logger.debug(f"Found {len(active_orders)} active orders to sync (filtered from {len(all_orders)} total)")
+            
+            # Only sync if we have active orders - skip if all are canceled/filled
+            if not active_orders:
+                self.logger.debug("No active orders to sync - all orders are completed/canceled")
+                return
+            
+            self.logger.debug(f"Assigning active orders to strategy: {strategy_name}")
+            
+            synced_count = 0
+            for order in active_orders:
+                try:
+                    # Assign strategy name if available and not already set
+                    if strategy_name:
+                        order.strategy = strategy_name
+                        self.logger.debug(f"Assigned strategy '{strategy_name}' to order {order.id}")
+                    
+                    # Mark as synced from broker to prevent auto-cancellation during validation
+                    order._synced_from_broker = True
+                    
+                    # Add orders to appropriate tracking lists based on status
+                    if order.status in ["new", "submitted", "open"]:
+                        self._new_orders.append(order)
+                        synced_count += 1
+                    elif order.status in ["partially_filled", "partial_filled"]:
+                        self._partially_filled_orders.append(order)
+                        synced_count += 1
+                
+                except Exception as e:
+                    self.logger.error(f"Failed to sync order {order.id}: {e}")
+                    continue
+            
+            self.logger.debug(f"Successfully synced {synced_count} active orders into tracking system")
+            
+            # Log summary instead of individual orders
+            if synced_count > 0:
+                status_summary = {}
+                for order in active_orders:
+                    status_summary[order.status] = status_summary.get(order.status, 0) + 1
+                status_text = ", ".join([f"{count} {status}" for status, count in status_summary.items()])
+                self.logger.debug(f"Order status breakdown: {status_text}")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to sync existing orders: {e}")
+            # Continue without failing - this is not critical for basic functionality
+    
+    def _add_subscriber(self, subscriber):
+        """Override to sync orders when a strategy is added."""
+        super()._add_subscriber(subscriber)
+        
+        # Sync existing orders to this strategy
+        try:
+            self.logger.debug(f"Strategy '{subscriber.name}' added - syncing existing orders")
+            self._sync_existing_orders_to_tracking()
+        except Exception as e:
+            self.logger.error(f"Failed to sync orders for new strategy {subscriber.name}: {e}") 

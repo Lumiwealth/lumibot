@@ -485,6 +485,181 @@ class Asset:
         
         return third_friday
 
+    # ========== Continuous Futures Resolution Methods ==========
+    
+    def resolve_continuous_futures_contract(self) -> str:
+        """
+        Resolve a continuous futures asset to a specific contract symbol.
+        
+        This method is used to convert continuous futures (CONT_FUTURE) to the appropriate
+        active contract based on standard market conventions.
+        
+        Returns
+        -------
+        str
+            Specific futures contract symbol (e.g., 'MESU25' for MES September 2025)
+            
+        Raises
+        ------
+        ValueError
+            If called on a non-continuous futures asset
+        """
+        if self.asset_type != self.AssetType.CONT_FUTURE:
+            raise ValueError(f"resolve_continuous_futures_contract() can only be called on CONT_FUTURE assets, got {self.asset_type}")
+        
+        return self._generate_current_futures_contract()
+    
+    def get_potential_futures_contracts(self) -> list:
+        """
+        Get a list of potential futures contracts in order of preference.
+        
+        This is useful for data sources or brokers that need to try multiple
+        contract symbols to find available data.
+        
+        Returns
+        -------
+        list
+            List of potential contract symbols in order of preference
+            
+        Raises
+        ------
+        ValueError
+            If called on a non-continuous futures asset
+        """
+        if self.asset_type != self.AssetType.CONT_FUTURE:
+            raise ValueError(f"get_potential_futures_contracts() can only be called on CONT_FUTURE assets, got {self.asset_type}")
+        
+        return self._generate_potential_contracts()
+    
+    def _generate_current_futures_contract(self) -> str:
+        """
+        Generate the most appropriate futures contract for the current date.
+        
+        Returns
+        -------
+        str
+            Contract symbol (e.g., 'MESU25')
+        """
+        from datetime import datetime
+        
+        month_codes = {
+            1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+            7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
+        }
+        
+        now = datetime.now()
+        current_month = now.month
+        current_year = now.year
+        
+        # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
+        if current_month >= 10:  # October onwards, use December
+            target_month = 12  # December
+            target_year = current_year
+        elif current_month >= 7:  # July-September, use September
+            target_month = 9  # September
+            target_year = current_year
+        elif current_month >= 4:  # April-June, use September
+            target_month = 9  # September
+            target_year = current_year
+        elif current_month >= 1:  # Jan-March, use June
+            target_month = 6  # June
+            target_year = current_year
+        else:  # December (fallback), use March next year
+            target_month = 3  # March
+            target_year = current_year + 1
+        
+        month_code = month_codes.get(target_month, 'U')  # Default to September
+        year_code = target_year % 100
+        
+        contract = f"{self.symbol}{month_code}{year_code:02d}"
+        return contract
+    
+    def _generate_potential_contracts(self) -> list:
+        """
+        Generate potential contract symbols in order of preference.
+        
+        Returns
+        -------
+        list
+            List of contract symbols
+        """
+        from datetime import datetime
+        
+        month_codes = {
+            1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+            7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
+        }
+        
+        now = datetime.now()
+        current_year = now.year
+        current_month = now.month
+        
+        potential_contracts = []
+        
+        # Generate quarterly contracts based on current month
+        if current_month >= 7 and current_month <= 8:  # July-August, use Sep first, then Dec
+            target_quarters = [
+                (9, current_year),      # September this year
+                (12, current_year),     # December this year
+                (3, current_year + 1),  # March next year
+            ]
+        elif current_month >= 4:  # April-June - use Sep, then Dec
+            target_quarters = [
+                (9, current_year),      # September this year
+                (12, current_year),     # December this year
+                (3, current_year + 1),  # March next year
+            ]
+        else:  # Jan-March - use Jun, then Sep
+            target_quarters = [
+                (6, current_year),      # June this year
+                (9, current_year),      # September this year
+                (12, current_year),     # December this year
+            ]
+        
+        # Generate quarterly contract symbols in multiple formats
+        for month, year in target_quarters:
+            month_code = month_codes.get(month, 'Z')
+            year_code = year % 100
+            
+            # Format 1: Standard futures format (MESZ25)
+            contract1 = f"{self.symbol}{month_code}{year_code:02d}"
+            potential_contracts.append(contract1)
+            
+            # Format 2: With dot separator (MES.Z25) - some platforms use this
+            contract2 = f"{self.symbol}.{month_code}{year_code:02d}"
+            potential_contracts.append(contract2)
+            
+            # Format 3: Full year format (MESZ2025) - some platforms use this
+            contract3 = f"{self.symbol}{month_code}{year}"
+            potential_contracts.append(contract3)
+        
+        # Also add some monthly contracts as backup
+        for month_offset in range(1, 4):  # Next 3 months
+            target_month = current_month + month_offset
+            target_year = current_year
+            
+            # Handle year rollover
+            while target_month > 12:
+                target_month -= 12
+                target_year += 1
+            
+            month_code = month_codes.get(target_month, 'H')
+            year_code = target_year % 100
+            
+            contract = f"{self.symbol}{month_code}{year_code:02d}"
+            if contract not in potential_contracts:  # Avoid duplicates
+                potential_contracts.append(contract)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_contracts = []
+        for contract in potential_contracts:
+            if contract not in seen:
+                seen.add(contract)
+                unique_contracts.append(contract)
+        
+        return unique_contracts
+
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

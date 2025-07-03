@@ -472,6 +472,12 @@ In addition to broker-specific secrets, the following environment variables are 
    * - POLYGON_MAX_MEMORY_BYTES
      - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
      - 512000000
+   * - TRADING_BROKER
+     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data.
+     - tradier
+   * - DATA_SOURCE
+     - **(Optional)** For live trading, specify the data source for market data. If not set, the same broker as trading will be used for data.
+     - polygon
 
 .. tip::
 

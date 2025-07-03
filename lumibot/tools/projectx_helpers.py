@@ -8,12 +8,20 @@ integrated into Lumibot's architecture based on the actual working Project X lib
 import logging
 import time
 import os
+import warnings
 from datetime import datetime
 from typing import Callable, Optional, Dict, Any, List
 
 import pandas as pd
 import pytz
 import requests
+
+# Suppress SSL deprecation warnings from third-party websocket library
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="websocket")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="ssl.PROTOCOL_TLS is deprecated")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.legacy is deprecated")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.client.connect is deprecated")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.client.WebSocketClientProtocol is deprecated")
 
 # SignalR imports - will be imported when needed
 try:
@@ -280,24 +288,24 @@ class ProjectX:
         }
         
         try:
-            self.logger.info(f"🔵 API Request: POST {url}")
-            self.logger.info(f"📤 Request Data: {payload}")
+            self.logger.debug(f"API Request: POST {url}")
+            self.logger.debug(f"Request Data: {payload}")
             
             response = requests.post(url, headers=self.headers, json=payload)
             
-            self.logger.info(f"📥 Response Status: {response.status_code}")
+            self.logger.debug(f"Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
-                self.logger.info(f"📋 Response Body: {result}")
+                self.logger.debug(f"Response Body: {result}")
                 return result
             else:
-                self.logger.error(f"❌ API request failed: {response.status_code} {response.reason}")
-                self.logger.error(f"🚨 Error Response Text: {response.text}")
+                self.logger.error(f"API request failed: {response.status_code} {response.reason}")
+                self.logger.debug(f"Error Response Text: {response.text}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
                 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"❌ Request error: {e}")
+            self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
     
     def position_search_open(self, account_id: int) -> dict:
@@ -313,28 +321,28 @@ class ProjectX:
             import time
             time.sleep(0.05)  # 50ms delay between requests
             
-            self.logger.info(f"🔵 API Request: POST {url}")
-            self.logger.info(f"📤 Request Data: {payload}")
+            self.logger.debug(f"API Request: POST {url}")
+            self.logger.debug(f"Request Data: {payload}")
             
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
             
-            self.logger.info(f"📥 Response Status: {response.status_code}")
+            self.logger.debug(f"Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
                 position_count = len(result.get("positions", [])) if result.get("success") else 0
-                self.logger.info(f"📋 Retrieved {position_count} positions")
+                self.logger.debug(f"Retrieved {position_count} positions")
                 return result
             elif response.status_code == 429:
-                self.logger.warning(f"⚠️ Rate limited, retrying in 1 second...")
+                self.logger.warning(f"Rate limited, retrying in 1 second...")
                 time.sleep(1)  # Wait 1 second for rate limit
                 return {"success": False, "error": "Rate limited"}
             else:
-                self.logger.error(f"❌ API request failed: {response.status_code} {response.reason}")
+                self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
                 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"❌ Request error: {e}")
+            self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
     
     def order_search(self, account_id: int, start_datetime: str, end_datetime: str = None) -> dict:
@@ -353,29 +361,29 @@ class ProjectX:
             import time
             time.sleep(0.05)  # 50ms delay between requests
             
-            self.logger.info(f"🔵 API Request: POST {url}")
-            self.logger.info(f"📤 Request Data: {payload}")
+            self.logger.debug(f"API Request: POST {url}")
+            self.logger.debug(f"Request Data: {payload}")
             
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
             
-            self.logger.info(f"📥 Response Status: {response.status_code}")
+            self.logger.debug(f"Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
                 # Don't log huge order lists in detail 
                 order_count = len(result.get("orders", [])) if result.get("success") else 0
-                self.logger.info(f"📋 Retrieved {order_count} orders")
+                self.logger.debug(f"Retrieved {order_count} orders")
                 return result
             elif response.status_code == 429:
-                self.logger.warning(f"⚠️ Rate limited, retrying in 1 second...")
+                self.logger.warning(f"Rate limited, retrying in 1 second...")
                 time.sleep(1)  # Wait 1 second for rate limit
                 return {"success": False, "error": "Rate limited"}
             else:
-                self.logger.error(f"❌ API request failed: {response.status_code} {response.reason}")
+                self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
                 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"❌ Request error: {e}")
+            self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
     
     def order_place(self, account_id: int, contract_id: str, type: int, side: int, size: int,
@@ -530,11 +538,23 @@ class ProjectX:
             df["date"] = df["t"].dt.date
             df["time"] = df["t"].dt.time
             
-            # Reorder columns
-            df = df[
-                ["date", "time"]
-                + [col for col in df.columns if col not in ["date", "time"]]
-            ]
+            # Map ProjectX column names to standard OHLCV format
+            column_mapping = {
+                'o': 'open',
+                'h': 'high', 
+                'l': 'low',
+                'c': 'close',
+                'v': 'volume'
+            }
+            
+            # Rename columns to standard format
+            df.rename(columns=column_mapping, inplace=True)
+            
+            # Reorder columns to standard format
+            standard_columns = ["date", "time", "open", "high", "low", "close", "volume"]
+            available_columns = [col for col in standard_columns if col in df.columns]
+            extra_columns = [col for col in df.columns if col not in standard_columns]
+            df = df[available_columns + extra_columns]
             
             # Drop timestamp column
             df.drop(columns=["t"], inplace=True)
@@ -702,7 +722,7 @@ class ProjectXClient:
         response = self.api.order_place(
             account_id=account_id,
             contract_id=contract_id,
-            type=order_type,
+            order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
             side=side_int,
             size=quantity,
             limit_price=price if order_type == 1 else None  # Only set price for limit orders
@@ -786,6 +806,36 @@ class ProjectXClient:
         end = end_datetime or end_date
         return self.get_orders(account_id, start, end)
     
+    def order_place(self, account_id: int, contract_id: str, type: int, side: int, size: int,
+                   limit_price: float = None, stop_price: float = None, trail_price: float = None,
+                   custom_tag: str = None, linked_order_id: int = None) -> dict:
+        """Place an order for a contract - matches original ProjectX API"""
+        response = self.api.order_place(
+            account_id=account_id,
+            contract_id=contract_id,
+            type=type,
+            side=side,
+            size=size,
+            limit_price=limit_price,
+            stop_price=stop_price,
+            trail_price=trail_price,
+            custom_tag=custom_tag,
+            linked_order_id=linked_order_id
+        )
+        
+        if response and response.get("success"):
+            return response
+        else:
+            raise Exception(f"Failed to place order: {response}")
+    
+    def contract_search(self, search_text: str) -> dict:
+        """Search for contracts - direct API wrapper"""
+        return self.api.contract_search(search_text, live=False)
+    
+    def contract_search_id(self, contract_id: str) -> dict:
+        """Get contract by ID - direct API wrapper"""
+        return self.api.contract_search_id(contract_id)
+    
     def get_contract_details(self, contract_id: str) -> Dict:
         """Get contract details by contract ID"""
         # Check cache first
@@ -811,29 +861,63 @@ class ProjectXClient:
             return {}
     
     def find_contract_by_symbol(self, symbol: str) -> str:
-        """Find contract ID by searching for symbol (e.g., 'MES' -> 'CON.F.US.MES.U25')"""
+        """Find contract ID by searching for symbol using Asset class continuous futures logic"""
         try:
-            # Check cache for common futures mappings
-            common_futures = {
-                'MES': 'CON.F.US.MES.U25',  # Micro E-mini S&P 500 September 2025
-                'ES': 'CON.F.US.ES.U25',    # E-mini S&P 500 September 2025
-                'NQ': 'CON.F.US.NQ.U25',    # E-mini NASDAQ September 2025
-                'YM': 'CON.F.US.YM.U25',    # E-mini Dow September 2025
-                'RTY': 'CON.F.US.RTY.U25',  # E-mini Russell 2000 September 2025
-            }
+            from lumibot.entities import Asset
             
             symbol_upper = symbol.upper()
             self.logger.info(f"🔍 Searching for contract: {symbol} -> {symbol_upper}")
             
-            # Try the common mapping first
-            if symbol_upper in common_futures:
-                contract_id = common_futures[symbol_upper]
-                self.logger.debug(f"📋 Found in hardcoded mapping: {contract_id}")
+            # Use Asset class logic for continuous futures resolution
+            try:
+                # Create continuous futures asset
+                asset = Asset(symbol_upper, asset_type=Asset.AssetType.CONT_FUTURE)
                 
-                # For common futures, trust the hardcoded mapping to avoid API calls
-                # Cache it and return immediately
+                # Get potential contracts using Asset class logic
+                potential_contracts = asset.get_potential_futures_contracts()
+                
+                self.logger.debug(f"📋 Asset class generated {len(potential_contracts)} potential contracts")
+                
+                # Try each potential contract to find one that works
+                for contract_symbol in potential_contracts:
+                    # Convert to ProjectX format: CON.F.US.SYMBOL.EXPIRY
+                    if not contract_symbol.startswith("CON.F.US."):
+                        # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
+                        if len(contract_symbol) >= 4:
+                            base_symbol = contract_symbol[:-3]  # Remove last 3 chars (month + year)
+                            month_year = contract_symbol[-3:]   # Get month + year code
+                            if len(month_year) == 3:
+                                month_code = month_year[0]
+                                year_code = month_year[1:]
+                                contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
+                            else:
+                                contract_id = f"CON.F.US.{symbol_upper}.{month_year}"
+                        else:
+                            contract_id = f"CON.F.US.{symbol_upper}.U25"  # Fallback
+                    else:
+                        contract_id = contract_symbol
+                    
+                    # Cache and return the first valid contract
+                    self._contract_cache[contract_id] = {"id": contract_id, "symbol": symbol_upper}
+                    self.logger.info(f"✅ Using Asset class contract: {contract_id}")
+                    return contract_id
+                
+            except Exception as asset_error:
+                self.logger.warning(f"⚠️ Asset class method failed: {asset_error}, falling back to API search")
+            
+            # Fallback: Use hardcoded mapping for immediate compatibility
+            common_futures_fallback = {
+                'MES': 'CON.F.US.MES.U25',
+                'ES': 'CON.F.US.ES.U25',    
+                'NQ': 'CON.F.US.NQ.U25',    
+                'YM': 'CON.F.US.YM.U25',    
+                'RTY': 'CON.F.US.RTY.U25',  
+            }
+            
+            if symbol_upper in common_futures_fallback:
+                contract_id = common_futures_fallback[symbol_upper]
+                self.logger.debug(f"📋 Using fallback mapping: {contract_id}")
                 self._contract_cache[contract_id] = {"id": contract_id, "symbol": symbol_upper}
-                self.logger.debug(f"✅ Using hardcoded contract: {contract_id}")
                 return contract_id
             
             # Search using the contract search API
@@ -901,4 +985,15 @@ class ProjectXClient:
         """Get streaming client for real-time data"""
         if not self.streaming:
             self.streaming = ProjectXStreaming(self.config, self.token, account_id)
-        return self.streaming 
+        return self.streaming
+    
+    def round_to_tick_size(self, price: float, tick_size: float) -> float:
+        """Round price to the nearest tick size increment"""
+        if price is None or tick_size is None:
+            return None
+        return round(price / tick_size) * tick_size
+    
+    def order_cancel(self, account_id: int, order_id: int) -> dict:
+        """Cancel an order"""
+        response = self.api.order_cancel(account_id, order_id)
+        return response and response.get("success", False) 

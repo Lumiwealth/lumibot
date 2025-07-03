@@ -504,10 +504,17 @@ class TestProjectXApiClient:
     def test_get_streaming_client(self, mock_api_client):
         """Test streaming client creation"""
         
-        streaming_client = mock_api_client.get_streaming_client(12345)
+        # Import the SIGNALR_AVAILABLE flag to check if signalrcore is available
+        from lumibot.tools.projectx_helpers import SIGNALR_AVAILABLE
         
-        # Should return streaming client instance
-        assert streaming_client is not None
+        if SIGNALR_AVAILABLE:
+            # When signalrcore is available, should return streaming client
+            streaming_client = mock_api_client.get_streaming_client(12345)
+            assert streaming_client is not None
+        else:
+            # When signalrcore is not available, should raise ImportError
+            with pytest.raises(ImportError, match="signalrcore library is required"):
+                mock_api_client.get_streaming_client(12345)
 
 
 class TestProjectXErrorHandling:

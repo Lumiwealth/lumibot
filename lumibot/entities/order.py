@@ -5,10 +5,17 @@ from decimal import Decimal
 from enum import Enum
 from threading import Event
 import datetime
-from typing import Union
+from typing import Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lumibot.entities.asset import Asset
 
 import lumibot.entities as entities
 from lumibot.tools.types import check_positive, check_price
+
+
+# Set up module-specific logger
+logger = logging.getLogger(__name__)
 
 
 # Custom string enum implementation for Python 3.9 compatibility
@@ -329,7 +336,7 @@ class Order:
         self.child_orders = child_orders if isinstance(child_orders, list) else []
 
         if asset == quote and asset is not None:
-            logging.error(
+            logger.error(
                 f"When creating an Order, asset and quote must be different. Got asset = {asset} and quote = {quote}"
             )
             return
@@ -343,7 +350,7 @@ class Order:
         # If quantity is negative, then make sure it is positive
         if quantity is not None and quantity < 0:
             # Warn the user that the quantity is negative
-            logging.warning(
+            logger.warning(
                 f"Quantity for order {identifier} is negative ({quantity}). Changing to positive because quantity must always be positive for orders."
             )
             quantity = abs(quantity)
@@ -435,10 +442,19 @@ class Order:
         }
         for param, new_param in deprecated_params.items():
             if locals()[param] is not None:
-                logging.warning(f"Order: {param} is deprecated. Use {new_param} instead.")
+                # Get caller information for better debugging
+                import inspect
+                frame = inspect.currentframe().f_back
+                filename = frame.f_code.co_filename.split('/')[-1]  # Just the filename
+                lineno = frame.f_lineno
+                function_name = frame.f_code.co_name
+                
+                logger.warning(f"DEPRECATED in {filename}:{function_name}:{lineno} - "
+                             f"Order parameter '{param}' is deprecated. Use '{new_param}' instead.")
+                
                 if locals()[new_param]:
                     raise ValueError(f"You cannot set both {param} and {new_param}. "
-                                     f"This may cause unexpected behavior.")
+                                   f"This may cause unexpected behavior.")
                 locals()[new_param] = locals()[param]
 
         # TODO: Remove when type//take_profit_price/stop_loss_price/stop_loss_limit_price are finally
@@ -468,7 +484,7 @@ class Order:
         valid_order_classes = [order_class for order_class in Order.OrderClass]
         valid_order_types = [order_type for order_type in Order.OrderType]
         if order_type in valid_order_classes:
-            logging.warning(f"Order: Passing Advanced order class ({self.order_type}) in 'order_type' field is "
+            logger.warning(f"Order: Passing Advanced order class ({self.order_type}) in 'order_type' field is "
                             f"deprecated. Please use 'order_class' instead. "
                             f"Valid Classes: {', '.join(valid_order_classes)} | "
                             f"Valid Types: {', '.join(valid_order_types)}")
@@ -869,7 +885,7 @@ class Order:
             else:
                 self._status = value.lower()
                 # Log an error
-                logging.error(f"Invalid order status: {value}")
+                logger.error(f"Invalid order status: {value}")
 
     @property
     def quantity(self):

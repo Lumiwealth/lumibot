@@ -10,8 +10,12 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from .asset import Asset
 from .dataline import Dataline
 
-# Set the option to raise an error if downcasting is not possible
-pd.set_option('future.no_silent_downcasting', True)
+# Set the option to raise an error if downcasting is not possible (if available in this pandas version)
+try:
+    pd.set_option('future.no_silent_downcasting', True)
+except (pd._config.config.OptionError, AttributeError):
+    # Option not available in this pandas version, skip it
+    pass
 
 
 class Data:

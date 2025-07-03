@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab, Bitunix
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab, Bitunix, ProjectX
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -197,6 +197,14 @@ THETADATA_CONFIG = {
     "THETADATA_PASSWORD": os.environ.get("THETADATA_PASSWORD")
 }
 
+# DataBento Configuration
+DATABENTO_CONFIG = {
+    # Add DATABENTO_API_KEY to your .env file or set them as secrets
+    "API_KEY": os.environ.get("DATABENTO_API_KEY"),
+    "TIMEOUT": int(os.environ.get("DATABENTO_TIMEOUT", "30")),
+    "MAX_RETRIES": int(os.environ.get("DATABENTO_MAX_RETRIES", "3")),
+}
+
 # Alpaca Configuration
 ALPACA_CONFIG = {
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_OAUTH_TOKEN, and ALPACA_IS_PAPER to your .env file or set them as secrets
@@ -307,6 +315,46 @@ BITUNIX_CONFIG = {
     "TRADING_MODE": os.environ.get("BITUNIX_TRADING_MODE", "FUTURES"), # Add TRADING_MODE, default to FUTURES
 }
 
+# ProjectX Configuration - Multi-firm support
+def get_projectx_config(firm: str = None) -> dict:
+    """Get ProjectX configuration for a specific firm"""
+    # If no firm specified, try to get from environment
+    if firm is None:
+        firm = os.environ.get("PROJECTX_FIRM")
+    
+    if not firm:
+        # Try to auto-detect available firm
+        available_firms = get_available_projectx_firms()
+        if available_firms:
+            firm = available_firms[0]  # Use first available
+    
+    if not firm:
+        return {}
+    
+    firm_upper = firm.upper()
+    return {
+        "firm": firm_upper,
+        "api_key": os.environ.get(f"PROJECTX_{firm_upper}_API_KEY"),
+        "username": os.environ.get(f"PROJECTX_{firm_upper}_USERNAME"),
+        "base_url": os.environ.get(f"PROJECTX_{firm_upper}_BASE_URL"),
+        "preferred_account_name": os.environ.get(f"PROJECTX_{firm_upper}_PREFERRED_ACCOUNT_NAME"),
+        "streaming_base_url": os.environ.get(f"PROJECTX_{firm_upper}_STREAMING_BASE_URL"),
+    }
+
+def get_available_projectx_firms() -> list:
+    """Get list of firms that have ProjectX configuration available"""
+    firms = []
+    for key in os.environ.keys():
+        if key.startswith("PROJECTX_") and key.endswith("_API_KEY"):
+            # Extract firm name from PROJECTX_FIRMNAME_API_KEY
+            firm_name = key[9:-8]  # Remove "PROJECTX_" and "_API_KEY"
+            if firm_name:
+                firms.append(firm_name)
+    return firms
+
+# Default ProjectX config (for backwards compatibility and auto-detection)
+PROJECTX_CONFIG = get_projectx_config()
+
 LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
 
 # Get TRADING_BROKER and DATA_SOURCE from environment variables
@@ -344,6 +392,21 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = Schwab(SCHWAB_CONFIG)
         elif trading_broker_name.lower() == "bitunix":
             broker = Bitunix(BITUNIX_CONFIG)
+        elif trading_broker_name.lower() == "projectx":
+            try:
+                # Get specified firm or use auto-detection
+                firm = os.environ.get("PROJECTX_FIRM")
+                config = get_projectx_config(firm)
+                
+                if not config or not config.get("api_key"):
+                    raise ValueError("No valid ProjectX configuration found. Please set environment variables for at least one firm.")
+                
+                from .data_sources import ProjectXData
+                data_source = ProjectXData(config)
+                broker = ProjectX(config, data_source=data_source)
+            except Exception as e:
+                colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                logger.error(colored_message)
         else:
             colored_message = termcolor.colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
             logger.error(colored_message)
@@ -375,6 +438,19 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = Ccxt(KRAKEN_CONFIG)
         elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
             broker = Bitunix(BITUNIX_CONFIG)
+        elif get_available_projectx_firms():
+            try:
+                # Use first available ProjectX firm
+                available_firms = get_available_projectx_firms()
+                config = get_projectx_config(available_firms[0])
+                
+                if config.get("api_key") and config.get("username"):
+                    from .data_sources import ProjectXData
+                    data_source = ProjectXData(config)
+                    broker = ProjectX(config, data_source=data_source)
+            except Exception as e:
+                colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                logger.error(colored_message)
     
     # Determine if we should use a custom data source based on DATA_SOURCE environment variable
     if data_source_name:
@@ -434,12 +510,38 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 else:
                     colored_message = termcolor.colored("Missing ThetaData credentials. Please set THETADATA_USERNAME and THETADATA_PASSWORD environment variables.", "red")
                     logger.error(colored_message)
+            elif data_source_name.lower() == "databento":
+                # Check if we have DataBento configuration
+                if DATABENTO_CONFIG["API_KEY"]:
+                    from .data_sources import DataBentoData
+                    data_source = DataBentoData(
+                        api_key=DATABENTO_CONFIG["API_KEY"],
+                        timeout=DATABENTO_CONFIG["TIMEOUT"],
+                        max_retries=DATABENTO_CONFIG["MAX_RETRIES"]
+                    )
+                else:
+                    colored_message = termcolor.colored("Missing DataBento credentials. Please set DATABENTO_API_KEY environment variable.", "red")
+                    logger.error(colored_message)
             elif data_source_name.lower() == "bitunix":
                 from .data_sources import BitunixData
                 data_source = BitunixData(BITUNIX_CONFIG)
                 # If broker is also Bitunix, share the same client instance
                 if broker and broker.name.lower() == "bitunix" and hasattr(broker, "api"):
                     data_source.client = broker.api
+            elif data_source_name.lower() == "projectx":
+                from .data_sources import ProjectXData
+                # Get specified firm or use auto-detection
+                firm = os.environ.get("PROJECTX_FIRM")
+                config = get_projectx_config(firm)
+                
+                if not config or not config.get("api_key"):
+                    colored_message = termcolor.colored("No valid ProjectX configuration found for data source. Please set environment variables for at least one firm.", "red")
+                    logger.error(colored_message)
+                else:
+                    data_source = ProjectXData(config)
+                    # If broker is also ProjectX, share the same client instance
+                    if broker and broker.name.lower().startswith("projectx") and hasattr(broker, "client"):
+                        data_source.client = broker.client
             else:
                 colored_message = termcolor.colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
                 logger.error(colored_message)

@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Interactive Brokers" href="brokers.interactive_brokers.html" /><link rel="prev" title="Brokers" href="brokers.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Bitunix" href="brokers.bitunix.html" /><link rel="prev" title="Brokers" href="brokers.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Alpaca - Lumibot Documentation</title>
@@ -312,6 +312,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="futures.html">Futures Trading</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
@@ -319,6 +320,7 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">DataBento Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
@@ -328,12 +330,13 @@
 </li>
 <li class="toctree-l1 current has-children"><a class="reference internal" href="brokers.html">Brokers</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 </ul>
@@ -372,8 +375,287 @@
         <article role="main">
           <section id="alpaca">
 <h1>Alpaca<a class="headerlink" href="#alpaca" title="Link to this heading">#</a></h1>
+<p>The Alpaca broker integration allows you to trade stocks, options, and cryptocurrencies through Alpaca Markets. This is one of the most popular brokers for algorithmic trading.</p>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Multiple Asset Types</strong>: Stocks, ETFs, options, and cryptocurrencies</p></li>
+<li><p><strong>Paper Trading</strong>: Full paper trading support for testing strategies</p></li>
+<li><p><strong>Real-time Data</strong>: Live market data and order execution</p></li>
+<li><p><strong>Order Types</strong>: Market, limit, stop, stop-limit, trailing stop orders</p></li>
+<li><p><strong>Advanced Orders</strong>: Bracket orders, one-cancels-other (OCO), one-triggers-other (OTO)</p></li>
+<li><p><strong>Multi-leg Options</strong>: Support for complex options strategies</p></li>
+<li><p><strong>Live Streaming</strong>: Real-time trade updates and market data</p></li>
+</ul>
+</section>
+<section id="getting-started">
+<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading">#</a></h2>
+<ol class="arabic">
+<li><p><strong>Create Alpaca Account</strong></p>
+<p>Sign up for a free account at <a class="reference external" href="https://app.alpaca.markets/signup">Alpaca Markets</a></p>
+</li>
+<li><p><strong>Get Your API Keys</strong></p>
+<p>After creating your account:</p>
+<ul class="simple">
+<li><p>Log into your <a class="reference external" href="https://app.alpaca.markets/paper/dashboard/overview">Alpaca Dashboard</a></p></li>
+<li><p>Go to “API Keys” in the left sidebar (or visit <a class="reference external" href="https://app.alpaca.markets/paper/dashboard/api-keys">API Keys page</a>)</p></li>
+<li><p>Click “Create New Key”</p></li>
+<li><p>Give it a name (e.g., “Lumibot Trading”)</p></li>
+<li><p>Copy your <strong>API Key</strong> and <strong>Secret Key</strong> - you’ll need both</p></li>
+<li><p><strong>Important</strong>: Save these keys securely - you won’t be able to see the secret again</p></li>
+</ul>
+</li>
+<li><p><strong>Set Environment Variables</strong></p>
+<p>Create a <cite>.env</cite> file in your project root and add your keys:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Alpaca API Keys (RECOMMENDED)</span>
+<span class="nv">ALPACA_API_KEY</span><span class="o">=</span>your_api_key_here
+<span class="nv">ALPACA_API_SECRET</span><span class="o">=</span>your_secret_key_here
+<span class="nv">ALPACA_IS_PAPER</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Start Trading</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">Alpaca</span>
+<span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
+<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="c1"># Buy 100 shares of SPY</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+                <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;stock&quot;</span><span class="p">),</span>
+                <span class="n">quantity</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+                <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="c1"># The broker will automatically use your environment variables</span>
+<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">()</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">)</span>
+<span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="authentication-methods">
+<h2>Authentication Methods<a class="headerlink" href="#authentication-methods" title="Link to this heading">#</a></h2>
+<section id="api-keys-recommended">
+<h3>API Keys (Recommended)<a class="headerlink" href="#api-keys-recommended" title="Link to this heading">#</a></h3>
+<p><strong>This is the recommended method.</strong> Set up your API keys in environment variables:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># In your .env file</span>
+<span class="nv">ALPACA_API_KEY</span><span class="o">=</span>your_api_key_here
+<span class="nv">ALPACA_API_SECRET</span><span class="o">=</span>your_secret_key_here
+<span class="nv">ALPACA_IS_PAPER</span><span class="o">=</span><span class="nb">true</span><span class="w">  </span><span class="c1"># Set to false for live trading</span>
+</pre></div>
+</div>
+<p>Then simply create your broker without any configuration:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">Alpaca</span>
+
+<span class="c1"># Automatically uses environment variables</span>
+<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="oauth-token-advanced">
+<h3>OAuth Token (Advanced)<a class="headerlink" href="#oauth-token-advanced" title="Link to this heading">#</a></h3>
+<p>For OAuth authentication, visit <a class="reference external" href="https://botspot.trade">botspot.trade</a> to set up OAuth integration. Then set your OAuth token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># In your .env file</span>
+<span class="nv">ALPACA_OAUTH_TOKEN</span><span class="o">=</span>your_oauth_token_here
+<span class="nv">ALPACA_IS_PAPER</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuration-options">
+<h2>Configuration Options<a class="headerlink" href="#configuration-options" title="Link to this heading">#</a></h2>
+<p>All configuration should be done via environment variables in your <cite>.env</cite> file:</p>
+</section>
+<section id="usage-examples">
+<h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Link to this heading">#</a></h2>
+<section id="basic-stock-trading">
+<h3>Basic Stock Trading<a class="headerlink" href="#basic-stock-trading" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.brokers</span> <span class="kn">import</span> <span class="n">Alpaca</span>
+<span class="kn">from</span> <span class="nn">lumibot.traders</span> <span class="kn">import</span> <span class="n">Trader</span>
+<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+
+<span class="k">class</span> <span class="nc">StockStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="c1"># Buy 100 shares of Apple</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+                <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;stock&quot;</span><span class="p">),</span>
+                <span class="n">quantity</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+                <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="c1"># No configuration needed - uses environment variables</span>
+<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">()</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">StockStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">)</span>
+<span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="cryptocurrency-trading">
+<h3>Cryptocurrency Trading<a class="headerlink" href="#cryptocurrency-trading" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+
+<span class="k">class</span> <span class="nc">CryptoStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Buy Bitcoin</span>
+        <span class="n">btc</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;crypto&quot;</span><span class="p">)</span>
+        <span class="n">usd</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;USD&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;forex&quot;</span><span class="p">)</span>
+
+        <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+            <span class="n">asset</span><span class="o">=</span><span class="n">btc</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+            <span class="n">quote</span><span class="o">=</span><span class="n">usd</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="options-trading">
+<h3>Options Trading<a class="headerlink" href="#options-trading" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="k">class</span> <span class="nc">OptionsStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Buy a call option</span>
+        <span class="n">expiration</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2024</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+        <span class="n">spy_call</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+            <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
+            <span class="n">asset_type</span><span class="o">=</span><span class="s2">&quot;option&quot;</span><span class="p">,</span>
+            <span class="n">expiration</span><span class="o">=</span><span class="n">expiration</span><span class="p">,</span>
+            <span class="n">strike</span><span class="o">=</span><span class="mi">450</span><span class="p">,</span>
+            <span class="n">right</span><span class="o">=</span><span class="s2">&quot;CALL&quot;</span>
+        <span class="p">)</span>
+
+        <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+            <span class="n">asset</span><span class="o">=</span><span class="n">spy_call</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="advanced-order-types">
+<h3>Advanced Order Types<a class="headerlink" href="#advanced-order-types" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Bracket order (market order with profit target and stop loss)</span>
+<span class="n">bracket_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">),</span>
+    <span class="n">quantity</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">order_type</span><span class="o">=</span><span class="s2">&quot;market&quot;</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="s2">&quot;bracket&quot;</span><span class="p">,</span>
+    <span class="n">take_profit_price</span><span class="o">=</span><span class="mf">155.0</span><span class="p">,</span>
+    <span class="n">stop_loss_price</span><span class="o">=</span><span class="mf">145.0</span>
+<span class="p">)</span>
+
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">bracket_order</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="important-notes">
+<h2>Important Notes<a class="headerlink" href="#important-notes" title="Link to this heading">#</a></h2>
+<dl class="simple">
+<dt><strong>Paper vs Live Trading</strong></dt><dd><ul class="simple">
+<li><p>Paper trading is enabled by default (safe for testing)</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">ALPACA_IS_PAPER=false</span></code> in your <cite>.env</cite> file to enable live trading</p></li>
+<li><p>Always test strategies thoroughly in paper trading first</p></li>
+</ul>
+</dd>
+<dt><strong>API Keys Security</strong></dt><dd><ul class="simple">
+<li><p>Never put API keys directly in your code</p></li>
+<li><p>Always use environment variables (<cite>.env</cite> file)</p></li>
+<li><p>Add <cite>.env</cite> to your <cite>.gitignore</cite> file</p></li>
+<li><p>Keep your secret key private - treat it like a password</p></li>
+</ul>
+</dd>
+<dt><strong>OAuth Integration</strong></dt><dd><ul class="simple">
+<li><p>For OAuth setup, visit <a class="reference external" href="https://botspot.trade">botspot.trade</a></p></li>
+<li><p>OAuth tokens are managed through botspot.trade platform</p></li>
+<li><p>OAuth provides enhanced security for third-party integrations</p></li>
+</ul>
+</dd>
+<dt><strong>Data &amp; Pricing</strong></dt><dd><ul class="simple">
+<li><p>Stock and options data has a 15-minute delay unless you have a paid data subscription</p></li>
+<li><p>Cryptocurrency data is real-time</p></li>
+<li><p>Price precision varies by asset type</p></li>
+</ul>
+</dd>
+<dt><strong>Order Limitations</strong></dt><dd><ul class="simple">
+<li><p>Crypto orders support “gtc” and “ioc” time-in-force</p></li>
+<li><p>Options orders default to “day” time-in-force</p></li>
+<li><p>Some advanced features require both OAuth token and API credentials</p></li>
+</ul>
+</dd>
+</dl>
+<p><strong>Important Notes:</strong></p>
+<ul class="simple">
+<li><p><strong>Paper Trading</strong>: All examples default to paper trading (<code class="docutils literal notranslate"><span class="pre">ALPACA_IS_PAPER=true</span></code>)</p></li>
+<li><p><strong>Rate Limits</strong>: Alpaca has rate limits on API calls - the library handles basic rate limiting</p></li>
+<li><p><strong>Market Hours</strong>: Stock trading is limited to market hours; crypto trading is 24/7</p></li>
+<li><p><strong>Minimum Quantities</strong>: Some assets have minimum quantity requirements</p></li>
+<li><p><strong>Authentication Issues</strong>: If you encounter “Unauthorized” errors:</p>
+<ul>
+<li><p><strong>For OAuth users</strong>: Check your <code class="docutils literal notranslate"><span class="pre">ALPACA_OAUTH_TOKEN</span></code> is valid and not expired</p></li>
+<li><p><strong>For API key users</strong>: Verify <code class="docutils literal notranslate"><span class="pre">ALPACA_API_KEY</span></code> and <code class="docutils literal notranslate"><span class="pre">ALPACA_API_SECRET</span></code> are correct</p></li>
+<li><p><strong>Account permissions</strong>: Ensure your account has access to the data/trading features you’re using</p></li>
+<li><p><strong>Re-authentication</strong>: OAuth tokens may need periodic renewal via the OAuth flow</p></li>
+</ul>
+</li>
+</ul>
+<p><strong>Error Handling:</strong></p>
+<p>The broker provides clear error messages for common authentication issues:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>❌ ALPACA AUTHENTICATION ERROR: Your OAuth token appears to be invalid or expired.
+
+🔧 To fix this:
+1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly
+2. Verify your OAuth token is valid and not expired
+3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success
+4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET
+</pre></div>
+</div>
+<p><strong>Polling vs Streaming:</strong></p>
+<ul class="simple">
+<li><p><strong>OAuth-only configurations</strong> use polling (default: 5-second intervals) since TradingStream doesn’t support OAuth</p></li>
+<li><p><strong>API key/secret configurations</strong> use real-time WebSocket streaming</p></li>
+<li><p><strong>Mixed configurations</strong> (OAuth + API credentials) can use either method</p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<dl>
+<dt><strong>“No API credentials found” Error</strong></dt><dd><p>Make sure your <cite>.env</cite> file is in the correct location and contains:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ALPACA_API_KEY</span><span class="o">=</span>your_actual_key_here
+<span class="nv">ALPACA_API_SECRET</span><span class="o">=</span>your_actual_secret_here
+</pre></div>
+</div>
+</dd>
+<dt><strong>Paper Trading Not Working</strong></dt><dd><p>Verify <code class="docutils literal notranslate"><span class="pre">ALPACA_IS_PAPER=true</span></code> is set in your <cite>.env</cite> file</p>
+</dd>
+<dt><strong>Live Trading Issues</strong></dt><dd><ul class="simple">
+<li><p>Ensure you have sufficient buying power</p></li>
+<li><p>Check if your account is approved for the asset type you’re trading</p></li>
+<li><p>Verify <code class="docutils literal notranslate"><span class="pre">ALPACA_IS_PAPER=false</span></code> for live trading</p></li>
+</ul>
+</dd>
+</dl>
+</section>
 <section id="module-lumibot.brokers.alpaca">
-<span id="documentation"></span><h2>Documentation<a class="headerlink" href="#module-lumibot.brokers.alpaca" title="Link to this heading">#</a></h2>
+<span id="api-reference"></span><h2>API Reference<a class="headerlink" href="#module-lumibot.brokers.alpaca" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.alpaca.</span></span><span class="sig-name descname"><span class="pre">Alpaca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca" title="Link to this definition">#</a></dt>
@@ -512,8 +794,8 @@ seconds until the market closes.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id1">
-<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
 <dd><p>How much time in seconds remains until the market next opens?</p>
 <p>Return the remaining time for the market to open in seconds</p>
 <dl class="field-list simple">
@@ -536,8 +818,8 @@ seconds until the next market open.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id2">
-<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
 <dd><p>Returns the current UNIX timestamp representation from Alpaca</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -553,8 +835,8 @@ seconds until the next market open.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id3">
-<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
 <dd><p>Determines if the market is open.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -592,6 +874,8 @@ seconds until the next market open.</p>
 
 </dd></dl>
 
+<section id="market-hours-methods">
+<h3>Market Hours Methods<a class="headerlink" href="#market-hours-methods" title="Link to this heading">#</a></h3>
 <dl class="py method">
 <dt class="sig sig-object py">
 <span class="sig-prename descclassname"><span class="pre">Alpaca.</span></span><span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
@@ -678,18 +962,29 @@ seconds until the next market open.</p>
 
 </section>
 </section>
+<section id="additional-resources">
+<h2>Additional Resources<a class="headerlink" href="#additional-resources" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://alpaca.markets">Alpaca Markets</a> - Main website</p></li>
+<li><p><a class="reference external" href="https://app.alpaca.markets">Alpaca Dashboard</a> - Account management</p></li>
+<li><p><a class="reference external" href="https://alpaca.markets/docs/api-documentation/">Alpaca API Documentation</a> - Technical details</p></li>
+<li><p><a class="reference external" href="https://botspot.trade">botspot.trade</a> - OAuth integration platform</p></li>
+<li><p><a class="reference external" href="https://github.com/Lumiwealth/lumibot/tree/master/lumibot/example_strategies">Lumibot Examples</a> - More strategy examples</p></li>
+</ul>
+</section>
+</section>
 
         </article>
       </div>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="brokers.interactive_brokers.html">
+          <a class="next-page" href="brokers.bitunix.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Interactive Brokers</div>
+                <div class="title">Bitunix</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -735,7 +1030,24 @@ seconds until the next market open.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Alpaca</a><ul>
-<li><a class="reference internal" href="#module-lumibot.brokers.alpaca">Documentation</a><ul>
+<li><a class="reference internal" href="#features">Features</a></li>
+<li><a class="reference internal" href="#getting-started">Getting Started</a></li>
+<li><a class="reference internal" href="#authentication-methods">Authentication Methods</a><ul>
+<li><a class="reference internal" href="#api-keys-recommended">API Keys (Recommended)</a></li>
+<li><a class="reference internal" href="#oauth-token-advanced">OAuth Token (Advanced)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuration-options">Configuration Options</a></li>
+<li><a class="reference internal" href="#usage-examples">Usage Examples</a><ul>
+<li><a class="reference internal" href="#basic-stock-trading">Basic Stock Trading</a></li>
+<li><a class="reference internal" href="#cryptocurrency-trading">Cryptocurrency Trading</a></li>
+<li><a class="reference internal" href="#options-trading">Options Trading</a></li>
+<li><a class="reference internal" href="#advanced-order-types">Advanced Order Types</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#important-notes">Important Notes</a></li>
+<li><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+<li><a class="reference internal" href="#module-lumibot.brokers.alpaca">API Reference</a><ul>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca"><code class="docutils literal notranslate"><span class="pre">Alpaca</span></code></a><ul>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.api"><code class="docutils literal notranslate"><span class="pre">Alpaca.api</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.get_timestamp"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_timestamp()</span></code></a></li>
@@ -746,9 +1058,9 @@ seconds until the next market open.</p>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.cancel_order"><code class="docutils literal notranslate"><span class="pre">Alpaca.cancel_order()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.get_historical_account_value"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_historical_account_value()</span></code></a></li>
 <li><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_close()</span></code></a></li>
-<li><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_open()</span></code></a></li>
-<li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_timestamp()</span></code></a></li>
-<li><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">Alpaca.is_market_open()</span></code></a></li>
+<li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_open()</span></code></a></li>
+<li><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_timestamp()</span></code></a></li>
+<li><a class="reference internal" href="#id4"><code class="docutils literal notranslate"><span class="pre">Alpaca.is_market_open()</span></code></a></li>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.map_asset_type"><code class="docutils literal notranslate"><span class="pre">Alpaca.map_asset_type()</span></code></a></li>
 </ul>
 </li>
@@ -756,8 +1068,10 @@ seconds until the next market open.</p>
 <li><a class="reference internal" href="#lumibot.brokers.alpaca.OrderData.to_request_fields"><code class="docutils literal notranslate"><span class="pre">OrderData.to_request_fields()</span></code></a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#market-hours-methods">Market Hours Methods</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#additional-resources">Additional Resources</a></li>
 </ul>
 </li>
 </ul>

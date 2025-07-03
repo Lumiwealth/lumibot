@@ -310,6 +310,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="futures.html">Futures Trading</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
@@ -317,6 +318,7 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">DataBento Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
@@ -326,12 +328,13 @@
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 </ul>
@@ -649,13 +652,13 @@
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.get_time_to_open">get_time_to_open() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
         <ul>
-          <li><a href="brokers.alpaca.html#id1">(lumibot.brokers.alpaca.Alpaca method)</a>, <a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca.get_time_to_open">[1]</a>
+          <li><a href="brokers.alpaca.html#id2">(lumibot.brokers.alpaca.Alpaca method)</a>, <a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca.get_time_to_open">[1]</a>
 </li>
         </ul></li>
         <li><a href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html#lumibot.strategies.strategy.Strategy.get_timestamp">get_timestamp() (in module lumibot.strategies.strategy.Strategy)</a>, <a href="strategy_methods.datetime/strategies.strategy.Strategy.get_timestamp.html#lumibot.strategies.strategy.Strategy.get_timestamp">[1]</a>
 
         <ul>
-          <li><a href="brokers.alpaca.html#id2">(lumibot.brokers.alpaca.Alpaca method)</a>, <a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca.get_timestamp">[1]</a>
+          <li><a href="brokers.alpaca.html#id3">(lumibot.brokers.alpaca.Alpaca method)</a>, <a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca.get_timestamp">[1]</a>
 </li>
           <li><a href="lumibot.data_sources.html#lumibot.data_sources.data_source.DataSource.get_timestamp">(lumibot.data_sources.data_source.DataSource method)</a>
 </li>
@@ -709,7 +712,7 @@
         <li><a href="lumibot.backtesting.html#lumibot.backtesting.backtesting_broker.BacktestingBroker.is_market_open">is_market_open() (lumibot.backtesting.backtesting_broker.BacktestingBroker method)</a>
 
         <ul>
-          <li><a href="brokers.alpaca.html#id3">(lumibot.brokers.alpaca.Alpaca method)</a>, <a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca.is_market_open">[1]</a>
+          <li><a href="brokers.alpaca.html#id4">(lumibot.brokers.alpaca.Alpaca method)</a>, <a href="brokers.alpaca.html#lumibot.brokers.alpaca.Alpaca.is_market_open">[1]</a>
 </li>
         </ul></li>
     </ul></td>

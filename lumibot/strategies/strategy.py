@@ -969,6 +969,20 @@ class Strategy(_Strategy):
         if market not in markets:
             raise ValueError(f"Valid market entries are: {markets}. You entered {market}. Please adjust.")
 
+        # Check if broker is None before setting market
+        if self.broker is None:
+            from termcolor import colored
+            error_msg = colored(
+                "No broker is set. Cannot set market. Please set a broker using environment variables, "
+                "secrets or by passing it as an argument to the strategy constructor.", 
+                "red"
+            )
+            self.logger.error(error_msg)
+            raise ValueError(
+                "No broker is set. Cannot set market. Please ensure your broker credentials are properly "
+                "configured in environment variables or passed to the strategy constructor."
+            )
+
         self.broker.market = market
 
     def await_market_to_open(self, timedelta: int = None):
@@ -3097,7 +3111,11 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
-        self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+        # Only log once per asset to reduce noise
+        asset_key = f"{asset}_{length}_{timestep}"
+        if asset_key not in self._logged_get_historical_prices_assets:
+            self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+            self._logged_get_historical_prices_assets.add(asset_key)
 
         asset = self._sanitize_user_asset(asset)
 
@@ -3221,7 +3239,11 @@ class Strategy(_Strategy):
         >>> df = bars.df
         """
 
-        self.logger.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
+        # Only log once per asset list to reduce noise
+        assets_key = f"{assets}_{length}_{timestep}"
+        if assets_key not in self._logged_get_historical_prices_assets:
+            self.logger.info(f"Getting historical prices for {assets}, {length} bars, {timestep}")
+            self._logged_get_historical_prices_assets.add(assets_key)
 
         assets = [self._sanitize_user_asset(asset) for asset in assets]
         return self.broker.data_source.get_bars(

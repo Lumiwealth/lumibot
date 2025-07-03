@@ -1382,7 +1382,7 @@ class Broker(ABC):
     def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """
         Get the latest quote for an asset.
-        Returns a dictionary with bid, ask, last, and other fields if available.
+        Returns a Quote object with bid, ask, last, and other fields if available.
 
         Parameters
         ----------
@@ -1395,8 +1395,8 @@ class Broker(ABC):
 
         Returns
         -------
-        dict
-            A dictionary with the quote information.
+        Quote
+            A Quote object with the quote information.
         """
         return self.data_source.get_quote(asset, quote, exchange)
 

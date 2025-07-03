@@ -613,7 +613,7 @@ class TestAlpacaData(BaseDataSourceTester):
             # Call get_quote
             quote_data: Quote = data_source.get_quote(asset)
 
-            # Verify the results
+            # Verify the resultss
             assert quote_data is not None
             assert isinstance(quote_data, Quote)
             assert quote_data.bid == 100.0

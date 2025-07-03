@@ -1917,15 +1917,24 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
 
-        # Check if the broker has the get_quote method
-        if not hasattr(self.broker, "get_quote"):
-            self.log_message("Broker does not have a get_quote method.")
+        # Check if the broker's data_source has the get_quote method
+        if not hasattr(self.broker.data_source, "get_quote"):
+            self.log_message("Broker's data_source does not have a get_quote method.")
             return Quote(asset=asset)
 
         if self.broker.option_source and asset.asset_type == "option":
-            return self.broker.option_source.get_quote(asset, quote, exchange)
+            # Check if option_source has get_quote method before calling it
+            if hasattr(self.broker.option_source, "get_quote"):
+                return self.broker.option_source.get_quote(asset, quote, exchange)
+            else:
+                self.log_message("Broker's option_source does not have a get_quote method.")
+                return Quote(asset=asset)
         else:
-            return self.broker.get_quote(asset, quote, exchange)
+            try:
+                return self.broker.get_quote(asset, quote, exchange)
+            except NotImplementedError:
+                self.log_message("get_quote method not implemented in data_source.")
+                return Quote(asset=asset)
 
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""

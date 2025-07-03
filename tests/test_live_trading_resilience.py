@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from threading import RLock
 
+from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.backtesting import YahooDataBacktesting, BacktestingBroker
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSource
@@ -19,6 +20,8 @@ from lumibot.trading_builtins import SafeList
 class MockDataSource:
     def get_last_price(self, asset, quote=None, exchange=None): return 100.0
     def get_last_prices(self, assets, quote=None, exchange=None): return {}
+    def get_yesterday_dividends(self, assets, quote=None): return None
+    def get_datetime(self, adjust_for_delay=False): return datetime.datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
 
 
 class MockLiveBroker(Broker):
@@ -121,7 +124,7 @@ class FailingTradingIterationStrategy(Strategy):
         raise RuntimeError("Intentional error in on_trading_iteration() for testing")
 
 
-class TestStrategy(Strategy):
+class LiveResilienceTestStrategy(Strategy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iteration_count = 0
@@ -169,7 +172,7 @@ class TestLiveTradingResilience(unittest.TestCase):
         print('🔍 Testing live trading resilience...')
         
         broker = MockLiveBroker()
-        strategy = TestStrategy(broker=broker)
+        strategy = LiveResilienceTestStrategy(broker=broker)
         trader = Trader(logfile='', backtest=False)
         trader.add_strategy(strategy)
 

@@ -1,4 +1,5 @@
 import logging
+import os
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -45,7 +46,21 @@ class DataSource(ABC):
         self.name = "data_source"
         self._timestep = None
         self._api_key = api_key
-        self._delay = timedelta(minutes=delay) if delay else None
+
+        # Use DATA_SOURCE_DELAY environment variable if it exists and delay is not explicitly provided
+        if delay is None:
+            env_delay = os.environ.get("DATA_SOURCE_DELAY")
+            if env_delay is not None:
+                try:
+                    delay = int(env_delay)
+                except ValueError:
+                    # If the environment variable is not a valid integer, ignore it
+                    pass
+            else:
+                # Default to 0 if no environment variable is set
+                delay = 0
+
+        self._delay = timedelta(minutes=delay) if delay is not None else None
 
         if tzinfo is None:
             tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)

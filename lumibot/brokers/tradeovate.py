@@ -9,6 +9,9 @@ from lumibot.brokers import Broker
 from lumibot.entities import Asset, Order, Position
 from lumibot.data_sources import TradeovateData
 
+# Set up module-specific logger for enhanced logging
+logger = logging.getLogger(__name__)
+
 class TradeovateAPIError(Exception):
     """Exception raised for errors in the Tradeovate API."""
     def __init__(self, message, status_code=None, response_text=None, original_exception=None):
@@ -67,7 +70,7 @@ class Tradeovate(Broker):
             logging.info(colored(f"User ID: {self.user_id}", "green"))
             
         except TradeovateAPIError as e:
-            logging.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
+            logger.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
             raise e
 
     def _get_headers(self, with_auth=True, with_content_type=False):
@@ -284,14 +287,14 @@ class Tradeovate(Broker):
                 asset=asset,
                 quantity=quantity,
                 side=action,
-                type=order_type,
+                order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
                 identifier=order_id,
                 quote=Asset("USD", asset_type=Asset.AssetType.FOREX)
             )
             order_obj.status = status
             return order_obj
         except Exception as e:
-            logging.error(colored(f"Error parsing order: {e}", "red"))
+            logger.error(colored(f"Error parsing order: {e}", "red"))
             return None
 
     def _pull_broker_all_orders(self) -> list:

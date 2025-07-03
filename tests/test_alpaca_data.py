@@ -1,14 +1,16 @@
 import logging
+import os
 import pytest
 import math
-from datetime import datetime, timedelta, time
+import datetime as dt
+from datetime import timedelta
 import pytz
 from unittest.mock import MagicMock
 
 from lumibot.data_sources import AlpacaData, DataSource
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Asset
-from lumibot.tools import get_trading_days
+from lumibot.tools import get_trading_days, is_market_open
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from tests.fixtures import BaseDataSourceTester
 
@@ -54,7 +56,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -72,7 +74,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                time_check=time(0,0),
+                time_check=dt.time(0,0),
                 market=market
             )
 
@@ -82,7 +84,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -100,7 +102,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                time_check=time(0,0),
+                time_check=dt.time(0,0),
                 market=market,
                 remove_incomplete_current_bar=True
             )
@@ -111,7 +113,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         asset_tuple = (asset, quote_asset)
 
@@ -130,9 +132,91 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                time_check=time(0,0),
+                time_check=dt.time(0,0),
                 market=market
             )
+
+
+    def test_get_historical_prices_daily_bars_stock_split_adjusted(self):
+        """Test that when get_historical_prices is called, it uses adjustment=Adjustment.ALL for stock bars."""
+        from unittest.mock import patch, Mock
+        from alpaca.data.enums import Adjustment
+        import pandas as pd
+
+        # Create a data source with auto_adjust=True to ensure it uses Adjustment.ALL
+        data_source = self._create_data_source(remove_incomplete_current_bar=True)
+
+        # Verify that auto_adjust is True
+        assert data_source._auto_adjust is True, "Expected data_source._auto_adjust to be True"
+
+        # Create a subclass of StockBarsRequest that we can use to check the adjustment parameter
+        from alpaca.data.requests import StockBarsRequest
+
+        class TestStockBarsRequest(StockBarsRequest):
+            def __init__(self, *args, **kwargs):
+                self.test_kwargs = kwargs  # Store the kwargs for testing
+                super().__init__(*args, **kwargs)
+
+        # Store the original StockBarsRequest class
+        import alpaca.data.requests
+        original_stock_bars_request = alpaca.data.requests.StockBarsRequest
+
+        # Replace StockBarsRequest with our test class
+        alpaca.data.requests.StockBarsRequest = TestStockBarsRequest
+
+        # Create a mock for the client to avoid API calls
+        mock_client = Mock()
+        mock_barset = Mock()
+        mock_barset.df = pd.DataFrame()  # Empty DataFrame
+        mock_client.get_stock_bars.return_value = mock_barset
+
+        # Store the original _get_stock_client method
+        original_get_stock_client = data_source._get_stock_client
+
+        # Replace _get_stock_client with our mock
+        data_source._get_stock_client = lambda: mock_client
+
+        # Create test parameters
+        asset = Asset('UGL', asset_type='stock')
+        quote_asset = Asset('USD', asset_type='forex')
+        timestep = "day"
+        length = 10
+
+        # Create a variable to store the StockBarsRequest instance
+        request_instance = None
+
+        # Create a mock for get_stock_bars that captures the request
+        original_get_stock_bars = mock_client.get_stock_bars
+
+        def mock_get_stock_bars(request):
+            nonlocal request_instance
+            request_instance = request
+            return mock_barset
+
+        mock_client.get_stock_bars = mock_get_stock_bars
+
+        try:
+            # Call get_historical_prices
+            data_source.get_historical_prices(
+                asset=asset,
+                length=length,
+                timestep=timestep,
+                quote=quote_asset,
+                include_after_hours=False,
+            )
+
+            # Verify that a request was created
+            assert request_instance is not None, "No StockBarsRequest was created"
+
+            # Verify that the request has the adjustment parameter set to Adjustment.ALL
+            assert hasattr(request_instance, 'adjustment'), "StockBarsRequest does not have an adjustment attribute"
+            assert request_instance.adjustment == Adjustment.ALL, f"Expected adjustment to be Adjustment.ALL, but got {request_instance.adjustment}"
+
+        finally:
+            # Restore the original classes and methods
+            alpaca.data.requests.StockBarsRequest = original_stock_bars_request
+            data_source._get_stock_client = original_get_stock_client
+            mock_client.get_stock_bars = original_get_stock_bars
 
     @pytest.mark.xfail(reason="need to handle github timezone")
     def test_get_historical_prices_daily_bars_crypto(self):
@@ -141,7 +225,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = '24/7'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -161,7 +245,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 data_source_tz=data_source._tzinfo,
 
                 # default crypto timezone is America/Chicago
-                time_check=time(1,0),
+                time_check=dt.time(1,0),
                 market=market
             )
 
@@ -172,7 +256,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = '24/7'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         asset_tuple = (asset, quote_asset)
 
@@ -193,7 +277,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 data_source_tz=data_source._tzinfo,
 
                 # default crypto timezone is America/Chicago
-                time_check=time(1 ,0),
+                time_check=dt.time(1 ,0),
                 market=market
             )
 
@@ -204,7 +288,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = '24/7'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -222,7 +306,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source._tzinfo,
-                time_check=time(0 ,0),
+                time_check=dt.time(0 ,0),
                 market=market
             )
 
@@ -232,7 +316,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "minute"
         market = 'NYSE'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -251,7 +335,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 data_source_tz=data_source._tzinfo,
                 market=market,
             )
-            
+
     def test_get_historical_prices_minute_bars_crypto_america_chicago(self):
         tzinfo = pytz.timezone('America/Chicago')
         data_source = self._create_data_source(tzinfo=tzinfo)
@@ -259,7 +343,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "minute"
         market = '24/7'
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -284,13 +368,13 @@ class TestAlpacaData(BaseDataSourceTester):
         asset = Asset("SPY")
         timestep = "day"
         data_source = self._create_data_source()
-        now = datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source._tzinfo)
 
         # Get a 0dte option
         # calculate the last calendar day before today
         trading_days = get_trading_days(
-            start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'),
-            end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            start_date=(dt.datetime.now() - dt.timedelta(days=5)).strftime('%Y-%m-%d'),
+            end_date=(dt.datetime.now() - dt.timedelta(days=1)).strftime('%Y-%m-%d')
         )
         dte = trading_days.index[-1]
 
@@ -311,6 +395,7 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_quote_stock(self):
         """Test get_quote for stock assets"""
+        if not is_market_open(dt.datetime.now()): return
         data_source = self._create_data_source()
         asset = Asset('SPY', asset_type='stock')
         quote_asset = Asset('USD', asset_type='forex')
@@ -540,3 +625,147 @@ class TestAlpacaData(BaseDataSourceTester):
         finally:
             # Restore the original method
             data_source._get_stock_client = original_get_stock_client
+
+    # ============= OAuth Tests for AlpacaData =============
+
+    def test_oauth_data_source_initialization(self):
+        """Test that AlpacaData can be initialized with OAuth token only."""
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token_alpaca_data",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(oauth_config)
+        assert data_source.oauth_token == "test_oauth_token_alpaca_data"
+        assert data_source.api_key is None
+        assert data_source.api_secret is None
+        assert data_source.is_paper == True
+
+    def test_oauth_client_initialization(self):
+        """Test that OAuth clients are properly initialized."""
+        oauth_config = {
+            "OAUTH_TOKEN": "test_oauth_token_clients",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(oauth_config)
+
+        # Test stock client
+        stock_client = data_source._get_stock_client()
+        assert stock_client is not None
+
+        # Test crypto client
+        crypto_client = data_source._get_crypto_client()
+        assert crypto_client is not None
+
+        # Test option client
+        option_client = data_source._get_option_client()
+        assert option_client is not None
+
+    def test_oauth_priority_over_api_key(self):
+        """Test that OAuth token takes priority over API key/secret."""
+        mixed_config = {
+            "OAUTH_TOKEN": "priority_oauth_token",
+            "API_KEY": "should_not_be_used",
+            "API_SECRET": "should_not_be_used_either",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(mixed_config)
+        assert data_source.oauth_token == "priority_oauth_token"
+        assert data_source.api_key is None
+        assert data_source.api_secret is None
+
+    def test_oauth_empty_fallback_to_api_key(self):
+        """Test fallback to API key when OAuth token is empty."""
+        fallback_config = {
+            "OAUTH_TOKEN": "",  # Empty OAuth token
+            "API_KEY": "fallback_key",
+            "API_SECRET": "fallback_secret",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(fallback_config)
+        assert data_source.oauth_token is None
+        assert data_source.api_key == "fallback_key"
+        assert data_source.api_secret == "fallback_secret"
+
+    def test_oauth_none_fallback_to_api_key(self):
+        """Test fallback to API key when OAuth token is None."""
+        fallback_config = {
+            "OAUTH_TOKEN": None,  # None OAuth token
+            "API_KEY": "fallback_key_none",
+            "API_SECRET": "fallback_secret_none",
+            "PAPER": True
+        }
+
+        data_source = AlpacaData(fallback_config)
+        assert data_source.oauth_token is None
+        assert data_source.api_key == "fallback_key_none"
+        assert data_source.api_secret == "fallback_secret_none"
+
+    def test_oauth_no_credentials_error(self):
+        """Test error when no authentication credentials provided."""
+        empty_config = {
+            "PAPER": True
+        }
+
+        with pytest.raises(ValueError, match="Either OAuth token or API key/secret must be provided"):
+            AlpacaData(empty_config)
+
+    def test_oauth_missing_api_secret_error(self):
+        """Test error when API key provided but secret is missing."""
+        incomplete_config = {
+            "API_KEY": "key_without_secret",
+            "PAPER": True
+        }
+
+        with pytest.raises(ValueError, match="API_SECRET not found in config when API_KEY is provided"):
+            AlpacaData(incomplete_config)
+
+    def test_default_delay_value(self):
+        """Test that the default delay value is 16 minutes when not specified."""
+        # Save the original environment variable value
+        original_env_value = os.environ.get("DATA_SOURCE_DELAY")
+
+        try:
+            # Ensure the environment variable is not set
+            if "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]
+
+            # Create a data source without specifying delay
+            data_source = self._create_data_source()
+
+            # Check that the delay is 16 minutes
+            assert data_source._delay == timedelta(minutes=16), f"Expected delay to be 16 minutes, but got {data_source._delay}"
+
+        finally:
+            # Restore the original environment variable value
+            if original_env_value is not None:
+                os.environ["DATA_SOURCE_DELAY"] = original_env_value
+            elif "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]
+
+    def test_data_source_delay_env_var(self):
+        """Test that AlpacaData uses the DATA_SOURCE_DELAY environment variable when set."""
+        # Save the original environment variable value
+        original_env_value = os.environ.get("DATA_SOURCE_DELAY")
+
+        try:
+            # Set the environment variable to a test value
+            test_delay = "25"
+            os.environ["DATA_SOURCE_DELAY"] = test_delay
+
+            # Create a data source without specifying delay
+            data_source = self._create_data_source()
+
+            # Check that the delay matches the environment variable value
+            assert data_source._delay == timedelta(minutes=int(test_delay)), \
+                f"Expected delay to be {test_delay} minutes, but got {data_source._delay}"
+
+        finally:
+            # Restore the original environment variable value
+            if original_env_value is not None:
+                os.environ["DATA_SOURCE_DELAY"] = original_env_value
+            elif "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]

@@ -1,5 +1,6 @@
 import logging
 import math
+import os
 import re
 import traceback
 from typing import Union
@@ -81,8 +82,6 @@ class Tradier(Broker):
         self._tradier_paper = paper
         self.polling_interval = polling_interval
 
-        self.market = "NYSE"  # The default market is NYSE.
-
         # Create the Tradier object
         self.tradier = _Tradier(account_number, access_token, paper)
 
@@ -104,6 +103,9 @@ class Tradier(Broker):
             connect_stream=connect_stream,
             extended_trading_minutes=extended_trading_minutes,
         )
+
+        # Override default market setting for Tradier to be NYSE, but still respect config/env if set
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NYSE"
 
     def cancel_order(self, order: Order):
         """Cancels an order at the broker. Nothing will be done for orders that are already cancelled or filled."""
@@ -483,7 +485,7 @@ class Tradier(Broker):
                 if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
                     colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
                     raise ValueError(colored_message) from e
-                
+
                 # Conceal the end of the access token
                 access_token = self._tradier_access_token[:7] + "*" * 7
                 colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
@@ -492,7 +494,7 @@ class Tradier(Broker):
         except Exception as e:
             logging.error(f"Error pulling positions from Tradier: {e}")
             return []
-            
+
         positions_ret = []
 
         # Loop through each row in the dataframe

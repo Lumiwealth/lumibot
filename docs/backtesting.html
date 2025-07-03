@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="How To Backtest" href="backtesting.how_to_backtest.html" /><link rel="prev" title="Chains Entity" href="entities.chains.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="How To Backtest" href="backtesting.how_to_backtest.html" /><link rel="prev" title="Futures Trading" href="futures.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Backtesting - Lumibot Documentation</title>
@@ -312,6 +312,7 @@
 <li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="futures.html">Futures Trading</a></li>
 <li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Backtesting</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Backtesting</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How To Backtest</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
@@ -319,6 +320,7 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Yahoo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">DataBento Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">Tearsheet HTML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
@@ -328,12 +330,13 @@
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Brokers</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.ccxt.html">Crypto Brokers (Using CCXT)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
-<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
 </ul>
 </li>
 </ul>
@@ -372,13 +375,14 @@
         <article role="main">
           <section id="backtesting">
 <h1>Backtesting<a class="headerlink" href="#backtesting" title="Link to this heading">#</a></h1>
-<p>Lumibot has three modes for backtesting:</p>
+<p>Lumibot has four modes for backtesting:</p>
 <ol class="arabic simple">
 <li><p><strong>Yahoo Backtesting:</strong> Daily stock backtesting with data from Yahoo.</p></li>
 <li><p><strong>Pandas Backtesting:</strong> Intra-day and inter-day testing of stocks and futures using CSV data supplied by you.</p></li>
 <li><p><strong>Polygon Backtesting:</strong> Intra-day and inter-day testing of stocks and futures using Polygon data from polygon.io.</p></li>
+<li><p><strong>DataBento Backtesting:</strong> Backtesting with high-quality data from DataBento for stocks, futures, and options.</p></li>
 </ol>
-<p>It is recommended to use Yahoo Backtesting for daily stock backtesting, or Polygon Backtesting for intra-day and inter-day testing of stocks, options, crypto, and FOREX. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.</p>
+<p>It is recommended to use Yahoo Backtesting for daily stock backtesting, DataBento Backtesting for futures backtesting (currently the only data source supporting futures), or Polygon Backtesting for intra-day and inter-day testing of stocks, options, crypto, and FOREX. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.</p>
 <section id="files-generated-from-backtesting">
 <h2>Files Generated from Backtesting<a class="headerlink" href="#files-generated-from-backtesting" title="Link to this heading">#</a></h2>
 <p>When you run a backtest, several important files are generated, each prefixed by the strategy name and the date. These files provide detailed insights into the performance and behavior of the strategy.</p>
@@ -418,6 +422,23 @@
 <li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html#here-s-the-full-code-with-explicit-dates">Here’s the full code (with explicit dates):</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.databento.html">DataBento Backtesting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#setting-up-databento">Setting Up DataBento</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#basic-usage">Basic Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#supported-assets">Supported Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#time-frames">Time Frames</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#advanced-configuration">Advanced Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#data-quality-features">Data Quality Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#caching">Caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#example-multi-asset-strategy">Example: Multi-Asset Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#error-handling">Error Handling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#performance-optimization">Performance Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html#cost-considerations">Cost Considerations</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Backtesting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html#here-s-the-full-code-with-explicit-dates">Here’s the full code (with explicit dates):</a></li>
 </ul>
@@ -445,14 +466,14 @@
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="entities.chains.html">
+          <a class="prev-page" href="futures.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Chains Entity</div>
+                <div class="title">Futures Trading</div>
                 
               </div>
             </a>

@@ -64,7 +64,7 @@ class SchwabHelper:
             # Use 'w' mode to overwrite the file completely
             with token_path.open("w", encoding="utf-8") as fp:
                 json.dump(wrapped, fp)
-            logging.warning(f"[DEBUG] token.json written (wrapped by _ensure_token_metadata): {wrapped}")
+            logging.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
 
         except Exception as e:
             logging.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")

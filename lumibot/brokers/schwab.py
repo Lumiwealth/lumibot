@@ -350,6 +350,11 @@ class Schwab(Broker):
             else:
                 code = getattr(resp_accounts, 'status_code', 'n/a')
                 logging.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
+                if code == 401:
+                    # Token is invalid, delete it so user will be prompted to re-authenticate
+                    if token_path.exists(): token_path.unlink(missing_ok=True)
+                    logging.warning(f"[Schwab] Deleted invalid token file {token_path} due to 401 error.")
+                    raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
                 self.schwab_authorization_error = True
         except Exception as e_acc:
             logging.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))

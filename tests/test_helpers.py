@@ -11,7 +11,7 @@ from lumibot.tools.helpers import (
     get_trading_days,
     get_trading_times,
     get_timezone_from_datetime,
-    quantize_to_num_decimals
+    quantize_to_num_decimals, is_market_open
 )
 
 
@@ -113,7 +113,7 @@ def test_get_trading_days():
     start = dt.datetime(2025, 1, 1)
     end = dt.datetime(2025, 2, 1)
     trading_days = get_trading_days('NYSE', start_date=start, end_date=end, tzinfo=ny_tz)
-    assert len(trading_days) == 20  # Changed from 21 to 20 - Jan 1st 2025 is New Year's Day holiday
+    assert len(trading_days) == 20  # https://www.nyse.com/publicdocs/ICE_NYSE_2025_Yearly_Trading_Calendar.pdf
 
     # Check all market opens and closes
     for open_time, close_time in zip(trading_days.market_open, trading_days.market_close):
@@ -292,3 +292,34 @@ def test_quantize_to_num_decimals():
     assert quantize_to_num_decimals(123.4567, 3) == 123.457
     assert quantize_to_num_decimals(Decimal('123.4567'), 1) == 123.5
     assert quantize_to_num_decimals(123.4567000001, 2) == 123.46
+
+
+# Pytest functions
+def test_is_market_open_during_trading_hours():
+    tz = pytz.timezone("US/Eastern")
+    dtm = tz.localize(dt.datetime.combine(dt.date(2024, 1, 5), dt.time(10, 30)))
+    assert is_market_open(dtm, "NYSE") is True
+
+
+def test_is_market_open_before_trading_hours():
+    tz = pytz.timezone("US/Eastern")
+    dtm = tz.localize(dt.datetime.combine(dt.date(2024, 1, 5), dt.time(4, 0)))
+    assert is_market_open(dtm, "NYSE") is False
+
+
+def test_is_market_open_after_trading_hours():
+    tz = pytz.timezone("US/Eastern")
+    dtm = tz.localize(dt.datetime.combine(dt.date(2024, 1, 5), dt.time(17, 0)))
+    assert is_market_open(dtm, "NYSE") is False
+
+
+def test_is_market_open_weekend():
+    tz = pytz.timezone("US/Eastern")
+    dtm = tz.localize(dt.datetime.combine(dt.date(2024, 1, 6), dt.time(12, 0)))  # Saturday
+    assert is_market_open(dtm, "NYSE") is False
+
+
+def test_is_market_open_invalid_market():
+    tz = pytz.timezone("US/Eastern")
+    dtm = tz.localize(dt.datetime.combine(dt.date(2024, 1, 5), dt.time(10, 30)))
+    assert is_market_open(dtm, "INVALID") is False

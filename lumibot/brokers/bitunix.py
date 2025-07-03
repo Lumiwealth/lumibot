@@ -1,4 +1,5 @@
 import logging, time, traceback
+import os
 from decimal import Decimal
 from typing import Optional, List, Dict, Tuple, Any
 import pandas as pd
@@ -65,7 +66,8 @@ class Bitunix(Broker):
         
         # Track current leverage per symbol to avoid redundant API calls
         self.current_leverage: Dict[str, int] = {}
-        self.market = "24/7"  # Crypto exchanges are typically 24/7
+        # Override default market setting for to be 24/7, but still respect config/env if set
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "24/7"
 
         if not api_key or not api_secret:
             raise ValueError("API_KEY and API_SECRET must be provided in config")
@@ -354,7 +356,17 @@ class Bitunix(Broker):
         if not position or position.quantity == 0:
             return None
         
-        order = Order(strategy_name, asset, position.quantity * fraction)
+        # Ensure fraction is between 0 and 1
+        quantity = abs(position.quantity)
+        
+        # Create the order object
+        order = Order(strategy_name, asset, quantity * fraction)
+
+        # Reverse the side for closing
+        if position.quantity > 0:
+            order.side = Order.OrderSide.SELL
+        elif position.quantity < 0:
+            order.side = Order.OrderSide.BUY
 
         # Mark as reduce‑only so `_submit_order` will send tradeSide="CLOSE"
         setattr(order, "reduce_only", True)

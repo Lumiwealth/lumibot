@@ -180,6 +180,7 @@ Table of Contents
    strategy_methods
    strategy_properties
    entities
+   futures
    backtesting
    brokers
 

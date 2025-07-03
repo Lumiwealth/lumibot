@@ -98,9 +98,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
             pandas_data=None,
         )
 
+        self.market = (
+                kwargs.get("market", None)
+                or (config.get("MARKET") if config else None)
+                or os.environ.get("MARKET")
+                or "NASDAQ"
+        )
+
         self._timestep: str = kwargs.get('timestep', 'day')
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
-        self._market: str = kwargs.get('market', "NYSE")
+
         self._auto_adjust: bool = kwargs.get('auto_adjust', True)
         self.CACHE_SUBFOLDER = 'alpaca'
         self._data_store: dict[str, pd.DataFrame] = {}
@@ -113,15 +120,28 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if not config.get("PAPER", True):
             raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
 
-        self._crypto_client = CryptoHistoricalDataClient(
-            api_key=config["API_KEY"],
-            secret_key=config["API_SECRET"]
-        )
+        # Initialize clients based on available authentication method
+        oauth_token = config.get("OAUTH_TOKEN")
+        api_key = config.get("API_KEY")
+        api_secret = config.get("API_SECRET")
+        
+        if oauth_token:
+            self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
+            self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
+        elif api_key and api_secret:
+            self._crypto_client = CryptoHistoricalDataClient(
+                api_key=api_key,
+                secret_key=api_secret
+            )
+            self._stock_client = StockHistoricalDataClient(
+                api_key=api_key,
+                secret_key=api_secret
+            )
+        else:
+            raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
-        self._stock_client = StockHistoricalDataClient(
-            api_key=config["API_KEY"],
-            secret_key=config["API_SECRET"]
-        )
+        # Create an AlpacaData instance for internal use
+        self._alpaca_data = AlpacaData(config)
 
         # Ensure datetime_start and datetime_end have the same tzinfo
         if str(datetime_start.tzinfo) != str(datetime_end.tzinfo):
@@ -156,7 +176,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             warm_up_start_dt = date_n_trading_days_from_date(
                 n_days=warm_up_trading_days,
                 start_datetime=start_dt,
-                market=self._market,
+                market=self.market,
             )
             # Combine with a default time (midnight)
             warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())
@@ -172,7 +192,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError("Invalid timestep passed. Must be 'day' or 'minute'.")
 
         self._trading_days = get_trading_days(
-            self._market,
+            self.market,
             self._data_datetime_start,
             self._data_datetime_end + timedelta(days=1),  # end_date is exclusive in this function
             tzinfo=self._tzinfo
@@ -391,7 +411,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote_asset = self.LUMIBOT_DEFAULT_QUOTE_ASSET
 
         if market is None:
-            market = self._market
+            market = self.market
 
         if data_datetime_start is None:
             data_datetime_start = self._data_datetime_start
@@ -612,7 +632,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             timestep = self._timestep
 
         if market is None:
-            market = self._market
+            market = self.market
 
         if tzinfo is None:
             tzinfo = self._tzinfo

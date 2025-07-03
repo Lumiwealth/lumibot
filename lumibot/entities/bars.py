@@ -128,6 +128,10 @@ class Bars:
 
     def _repr_html_(self):
         return self.df._repr_html_()
+    
+    def __len__(self):
+        """Return the number of bars (rows) in the DataFrame"""
+        return len(self.df)
 
     @classmethod
     def parse_bar_list(cls, bar_list, source, asset):

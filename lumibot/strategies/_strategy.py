@@ -57,6 +57,7 @@ from ..credentials import (
     BACKTESTING_START,
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
+    LOG_ERRORS_TO_CSV,
     INTERACTIVE_BROKERS_REST_CONFIG,
     BACKTESTING_QUIET_LOGS,
     BACKTESTING_SHOW_PROGRESS_BAR
@@ -284,6 +285,9 @@ class _Strategy:
 
         # Set the log level to INFO so that all logs INFO and above are displayed
         self.logger.setLevel(logging.INFO)
+        
+        # Track which assets we've logged "Getting historical prices" for to reduce noise
+        self._logged_get_historical_prices_assets = set()
         
         if self.broker == None:
             self.broker = BROKER
@@ -1298,7 +1302,9 @@ class _Strategy:
                 show_progress_bar=show_progress_bar,
                 max_memory=POLYGON_MAX_MEMORY_BYTES,
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
@@ -1313,7 +1319,9 @@ class _Strategy:
                 use_quote_data=use_quote_data,
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
         elif datasource_class == InteractiveBrokersRESTBacktesting:
@@ -1325,7 +1333,9 @@ class _Strategy:
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
         else:
@@ -1337,7 +1347,9 @@ class _Strategy:
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
+                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
 
@@ -1612,7 +1624,7 @@ class _Strategy:
 
         if self.db_connection_str is None or self.db_connection_str == "":
             # Log that we are not sending the account summary to Discord
-            self.logger.info("Not sending account summary to Discord because db_connection_str is not set")
+            self.logger.debug("Not sending account summary to Discord because db_connection_str is not set")
             return False
 
         # Check if discord_webhook_url has been set, if not, return False

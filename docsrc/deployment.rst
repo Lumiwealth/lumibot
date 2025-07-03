@@ -427,6 +427,22 @@ Charles Schwab provides API access for automated trading and market data through
      - Your Schwab account number used for trading.
      - 123456789
 
+DataBento Configuration
+-----------------------
+
+DataBento provides high-quality market data for stocks, futures, and options. This is primarily used as a data source for backtesting and live trading with futures. To create an account, visit the `DataBento <https://databento.com/>`_ website.
+
+.. list-table:: DataBento Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - DATABENTO_API_KEY
+     - Your API key from DataBento. **Required** if you are using DataBento as your data source.
+     - db-B5bvkH6BLmDUGWpCnyTfnAyxEW8nw
+
 General Environment Variables
 =============================
 

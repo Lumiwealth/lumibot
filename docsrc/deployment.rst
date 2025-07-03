@@ -473,11 +473,11 @@ In addition to broker-specific secrets, the following environment variables are 
      - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
      - 512000000
    * - TRADING_BROKER
-     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data.
+     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "tradeovate", "schwab", "bitunix", "projectx"
      - tradier
    * - DATA_SOURCE
-     - **(Optional)** For live trading, specify the data source for market data. If not set, the same broker as trading will be used for data.
-     - polygon
+     - **(Optional)** For live trading, specify a separate data source for market data. If not set, the same broker as trading will be used for data. This allows you to use one broker for trading and a different data provider for market data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "yahoo", "schwab", "databento", "bitunix", "projectx"
+     - databento
 
 .. tip::
 

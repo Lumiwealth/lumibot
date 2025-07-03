@@ -5,7 +5,7 @@ from typing import Union
 
 import pandas as pd
 
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 
 from .data_source import DataSource
 
@@ -382,8 +382,8 @@ class InteractiveBrokersData(DataSource):
     def get_yesterday_dividends(self, asset, quote=None):
         """Unavailable"""
         return None
-    
-    def get_quote(self, asset, quote=None, exchange=None):
+
+    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
         """
         This function returns the quote of an asset. The quote includes the bid and ask price.
 
@@ -392,16 +392,17 @@ class InteractiveBrokersData(DataSource):
         asset: Asset
             The asset to get the quote for
         quote: Asset
-            The quote asset to get the quote for (currently not used for Tradier)
+            The quote asset to get the quote for (currently not used for Interactive Brokers)
         exchange: str
-            The exchange to get the quote for (currently not used for Tradier)
+            The exchange to get the quote from
 
         Returns
         -------
-        dict
-           Quote of the asset, including the bid, and ask price.
+        Quote
+           Quote object containing bid, ask, price and other information
         """
-        
+        from lumibot.entities import Quote
+
         if exchange is None:
             exchange = "SMART"
 
@@ -412,16 +413,22 @@ class InteractiveBrokersData(DataSource):
                 result = self.ib.get_tick(asset, exchange=exchange, only_price=False)
                 if result:
                     # If bid or ask are -1 then they are not available.
-                    if result["bid"] == -1:
-                        result["bid"] = None
-                    if result["ask"] == -1:
-                        result["ask"] = None
+                    bid = None if result["bid"] == -1 else result["bid"]
+                    ask = None if result["ask"] == -1 else result["ask"]
 
-                    return result
+                    # Create and return Quote object
+                    return Quote(
+                        asset=asset,
+                        price=result.get("price"),
+                        bid=bid,
+                        ask=ask,
+                        volume=result.get("volume"),
+                        timestamp=datetime.datetime.now(datetime.timezone.utc),
+                        raw_data=result
+                    )
                 get_data_attempt += 1
             except:
                 get_data_attempt += 1
 
-        return None
-    
-    
+        # Return empty Quote if we couldn't get data
+        return Quote(asset=asset)

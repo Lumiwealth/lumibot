@@ -8,7 +8,7 @@ import pytz
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools.helpers import (
     create_options_symbol,
     parse_timestep_qty_and_unit,
@@ -368,7 +368,7 @@ class TradierData(DataSource):
             logging.error(f"Error getting last price for {symbol or asset.symbol}: {e}")
             return None
 
-    def get_quote(self, asset, quote=None, exchange=None):
+    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
         """
         This function returns the quote of an asset.
         Parameters
@@ -382,9 +382,10 @@ class TradierData(DataSource):
 
         Returns
         -------
-        dict
-           Quote of the asset in the format of a dictionary, eg. {"bid": 100.0, "ask": 101.0, "last": 100.5}
+        Quote
+           Quote object containing bid, ask, last price and other information
         """
+
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if asset.asset_type == "option":
@@ -399,15 +400,27 @@ class TradierData(DataSource):
 
         quotes_df = self.tradier.market.get_quotes([symbol])
 
-        # If the dataframe is empty, return an empty dictionary
+        # If the dataframe is empty, return an empty Quote
         if quotes_df is None or quotes_df.empty:
-            return {}
+            return Quote(asset=asset)
 
-        # Get the quote from the dataframe and convert it to a dictionary
-        quote = quotes_df.iloc[0].to_dict()
+        # Get the quote from the dataframe
+        quote_dict = quotes_df.iloc[0].to_dict()
 
-        # Return the quote
-        return quote
+        # Extract relevant fields for the Quote object
+        return Quote(
+            asset=asset,
+            price=quote_dict.get('last'),
+            bid=quote_dict.get('bid'),
+            ask=quote_dict.get('ask'),
+            volume=quote_dict.get('volume'),
+            timestamp=dt.datetime.now(pytz.UTC),
+            bid_size=quote_dict.get('bidsize'),
+            ask_size=quote_dict.get('asksize'),
+            change=quote_dict.get('change'),
+            percent_change=quote_dict.get('change_percentage'),
+            raw_data=quote_dict
+        )
 
     def query_greeks(self, asset: Asset):
         """

@@ -1379,6 +1379,27 @@ class Broker(ABC):
                     break
         return
 
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        """
+        Get the latest quote for an asset.
+        Returns a Quote object with bid, ask, last, and other fields if available.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the quote is needed.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
+
+        Returns
+        -------
+        Quote
+            A Quote object with the quote information.
+        """
+        return self.data_source.get_quote(asset, quote, exchange)
+
     def export_trade_events_to_csv(self, filename):
         if len(self._trade_event_log_df) > 0:
             output_df = self._trade_event_log_df.set_index("time")

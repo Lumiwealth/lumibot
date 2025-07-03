@@ -1,3 +1,4 @@
+import os
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -88,6 +89,12 @@ class Broker(ABC):
 
         # Create an adapter with 'strategy_name' set to the instance's name
         self.logger = CustomLoggerAdapter(logger, {'strategy_name': "unknown"})
+
+        # --- Market calendar setting ---
+        # StrategyExecutor relies on broker.market to decide whether trading is
+        # 24/7 or should follow an exchange calendar.  Derive it from config or
+        # env, else default to "NASDAQ" which is compatible with pandas-market-calendars.
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NASDAQ"
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")
@@ -665,7 +672,7 @@ class Broker(ABC):
             self._process_crypto_quote(order, quantity, price)
 
         return position
-    
+
     def _process_error_order(self, order, error):
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
@@ -708,7 +715,7 @@ class Broker(ABC):
             else:
                 logging.debug(f"Skipping crypto quote processing for order {order.identifier} - both avg_fill_price and limit_price are None")
                 return
-        
+
         quote_quantity = Decimal(quantity) * Decimal(price)
         if order.side == "buy":
             quote_quantity = -quote_quantity

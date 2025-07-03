@@ -1,4 +1,5 @@
 import logging
+import os
 import pytest
 import math
 from datetime import datetime, timedelta, time
@@ -314,3 +315,26 @@ class TestTradierData(BaseDataSourceTester):
 
         bars = data_source.get_historical_prices(asset=o_asset, length=length, timestep=timestep)
         assert len(bars.df) > 0
+
+    def test_default_delay_value(self):
+        """Test that the default delay value is 0 minutes when not specified."""
+        # Save the original environment variable value
+        original_env_value = os.environ.get("DATA_SOURCE_DELAY")
+
+        try:
+            # Ensure the environment variable is not set
+            if "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]
+
+            # Create a data source without specifying delay
+            data_source = self._create_data_source()
+
+            # Check that the delay is 16 minutes
+            assert data_source._delay == timedelta(minutes=0), f"Expected delay to be 0 minutes, but got {data_source._delay}"
+
+        finally:
+            # Restore the original environment variable value
+            if original_env_value is not None:
+                os.environ["DATA_SOURCE_DELAY"] = original_env_value
+            elif "DATA_SOURCE_DELAY" in os.environ:
+                del os.environ["DATA_SOURCE_DELAY"]

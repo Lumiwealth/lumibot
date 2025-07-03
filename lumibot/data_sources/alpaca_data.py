@@ -1,5 +1,5 @@
 import logging
-import math
+import os
 import datetime as dt
 from decimal import Decimal
 from typing import Union, Tuple, Optional
@@ -147,10 +147,10 @@ class AlpacaData(DataSource):
                 )
             error_msg += f"💀 STOPPING STRATEGY EXECUTION\n\nOriginal error: {e}"
             logging.error(error_msg)
-            
+
             # Mark the data source as failed to stop further requests
             self._auth_failed = True
-            
+
             # Raise a regular exception that will be caught by the strategy
             raise ValueError(f"Authentication failed: {auth_method} is invalid or expired. {error_msg}")
         else:
@@ -198,7 +198,7 @@ class AlpacaData(DataSource):
             config: dict,
             max_workers: int = 20,
             chunk_size: int = 100,
-            delay: Optional[int] = 16,
+            delay: Optional[int] = None,
             tzinfo: Optional[pytz.timezone] = None,
             remove_incomplete_current_bar: bool = False,
             **kwargs
@@ -211,7 +211,8 @@ class AlpacaData(DataSource):
         - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
         - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
         - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
-          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. Set to 0 if on a paid plan. Default is 16.
+          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. 
+          If not specified, uses DATA_SOURCE_DELAY environment variable or defaults to 16.
         - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in 
           dataframes are adjusted to this timezone. Useful for setting UTC for crypto. Default is None.
         - remove_incomplete_current_bar (bool, optional): Default False.
@@ -226,6 +227,11 @@ class AlpacaData(DataSource):
         Returns:
         - None
         """
+        # If delay is None, the parent class will use the environment variable or default to 0
+        # For Alpaca, we want to default to 16 if neither delay nor environment variable is specified
+        if delay is None and os.environ.get("DATA_SOURCE_DELAY") is None:
+            delay = 16
+
         super().__init__(delay=delay, tzinfo=tzinfo)
 
         self.name = "alpaca"
@@ -329,7 +335,7 @@ class AlpacaData(DataSource):
         # Check if authentication has previously failed
         if getattr(self, '_auth_failed', False):
             raise ValueError("Authentication previously failed - cannot make further API requests")
-            
+
         try:
             # Use the existing option client getter which has proper error handling
             client = self._get_option_client()
@@ -341,7 +347,7 @@ class AlpacaData(DataSource):
 
             # Get the option chain data from Alpaca
             raw_chain_data: dict = client.get_option_chain(req)
-            
+
             # Transform the raw Alpaca data into lumibot format
             chains_data = {
                 "Chains": {
@@ -349,11 +355,11 @@ class AlpacaData(DataSource):
                     "CALL": {}
                 }
             }
-            
+
             # The Alpaca API may return option symbols in different structures
             # Let's check what we actually got and parse accordingly
             option_symbols = []
-            
+
             if isinstance(raw_chain_data, dict):
                 # Check for different possible structures
                 if "next_page_token" in raw_chain_data and "option_chains" in raw_chain_data:
@@ -366,11 +372,11 @@ class AlpacaData(DataSource):
                     # Direct structure: {"SPY250731C00501000": {...}, ...}
                     # Filter to only option symbols (they should start with the underlying symbol)
                     option_symbols = [key for key in raw_chain_data.keys() if key.startswith(asset.symbol) and len(key) > len(asset.symbol)]
-            
+
             if not option_symbols:
                 logging.warning(f"No option symbols found for {asset.symbol}")
                 return chains_data
-            
+
             # Parse each option symbol
             parsed_count = 0
             for symbol in option_symbols:
@@ -378,34 +384,34 @@ class AlpacaData(DataSource):
                 # Alpaca option symbols format: SPYYYMMDDCPPPPPPPPP
                 # Where: SPY = underlying, YY = year, MM = month, DD = day, 
                 #        C/P = call/put, PPPPPPPPP = strike price (padded)
-                
+
                 if len(symbol) < 15:  # Skip invalid symbols
                     continue
-                    
+
                 # Extract the underlying symbol (everything before the date)
                 underlying_len = len(asset.symbol)
                 if not symbol.startswith(asset.symbol):
                     continue
-                    
+
                 # Extract date and option type
                 date_and_type = symbol[underlying_len:underlying_len+8]  # YYMMDDCP
                 if len(date_and_type) < 7:
                     continue
-                    
+
                 try:
                     year = int("20" + date_and_type[:2])
                     month = int(date_and_type[2:4])
                     day = int(date_and_type[4:6])
                     option_type = date_and_type[6]  # C or P
-                    
+
                     # Extract strike price (remaining digits after C/P)
                     strike_str = symbol[underlying_len+7:]
                     # Strike is usually in format like 00595000 = $595.00
                     strike = float(strike_str) / 1000.0
-                    
+
                     # Format expiration date
                     expiration_date = f"{year}-{month:02d}-{day:02d}"
-                    
+
                     # Determine option type
                     if option_type == "C":
                         option_type_key = "CALL"
@@ -413,27 +419,27 @@ class AlpacaData(DataSource):
                         option_type_key = "PUT"
                     else:
                         continue
-                    
+
                     # Add to chains data
                     if expiration_date not in chains_data["Chains"][option_type_key]:
                         chains_data["Chains"][option_type_key][expiration_date] = []
-                    
+
                     if strike not in chains_data["Chains"][option_type_key][expiration_date]:
                         chains_data["Chains"][option_type_key][expiration_date].append(strike)
                         parsed_count += 1
-                        
+
                 except (ValueError, IndexError):
                     continue
-            
+
             # Sort strikes for each expiration date
             for option_type in ["PUT", "CALL"]:
                 for expiration_date in chains_data["Chains"][option_type]:
                     chains_data["Chains"][option_type][expiration_date].sort()
-            
+
             logging.debug(f"Successfully retrieved option chains for {asset.symbol}: {len(chains_data['Chains']['PUT'])} PUT expirations, {len(chains_data['Chains']['CALL'])} CALL expirations")
-            
+
             return chains_data
-            
+
         except Exception as e:
             # Handle any additional errors not caught by client initialization
             self._handle_auth_error(e, "option chain retrieval")
@@ -636,7 +642,7 @@ class AlpacaData(DataSource):
         # Check if authentication has previously failed
         if getattr(self, '_auth_failed', False):
             raise ValueError("Authentication previously failed - cannot make further API requests")
-            
+
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if asset.asset_type == Asset.AssetType.CRYPTO:
             symbol = f"{asset.symbol}/{quote.symbol if quote else 'USD'}"

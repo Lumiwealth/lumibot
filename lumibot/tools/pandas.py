@@ -63,7 +63,7 @@ def set_pandas_float_display_precision(precision: int = 5):
 
 def prettify_dataframe_with_decimals(df: pd.DataFrame, decimal_places: int = 5) -> str:
     def decimal_formatter(x):
-        if isinstance(x, (Decimal, float, int, np.float64)):
+        if isinstance(x, (Decimal, float, int, np.float64, np.int64)):
             return f"{x:.{decimal_places}f}"
         return x
 

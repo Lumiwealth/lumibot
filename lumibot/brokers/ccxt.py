@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 from decimal import ROUND_DOWN, Decimal, getcontext
 from typing import Union
 
@@ -20,7 +21,8 @@ class Ccxt(Broker):
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
-        self.market = "24/7"
+        # Override default market setting for crypto to be 24/7, but still respect config/env if set
+        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "24/7"
         self.fetch_open_orders_last_request_time = None
         self.binance_all_orders_rate_limit = 5
         if not isinstance(self.data_source, CcxtData):

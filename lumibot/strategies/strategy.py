@@ -743,11 +743,11 @@ class Strategy(_Strategy):
             order_class=order_class,
             custom_params=custom_params,
         )
-        
+
         # Add debug logging for custom_params
         if custom_params:
             self.log_message(f"🔧 ORDER CREATED with custom_params: {custom_params} for {asset} {side} {quantity}")
-        
+
         return order
 
     # ======= Broker Methods ============
@@ -1922,24 +1922,14 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
 
-        # Check if the broker's data_source has the get_quote method
-        if not hasattr(self.broker.data_source, "get_quote"):
-            self.log_message("Broker's data_source does not have a get_quote method.")
-            return Quote(asset=asset)
-
-        if self.broker.option_source and asset.asset_type == "option":
-            # Check if option_source has get_quote method before calling it
-            if hasattr(self.broker.option_source, "get_quote"):
-                return self.broker.option_source.get_quote(asset, quote, exchange)
+        try:
+            if self.broker.option_source and asset.asset_type == "option":
+                return self.broker.option_source.get_quote(asset, quote=quote, exchange=exchange)
             else:
-                self.log_message("Broker's option_source does not have a get_quote method.")
-                return Quote(asset=asset)
-        else:
-            try:
-                return self.broker.get_quote(asset, quote, exchange)
-            except NotImplementedError:
-                self.log_message("get_quote method not implemented in data_source.")
-                return Quote(asset=asset)
+                return self.broker.data_source.get_quote(asset, quote=quote, exchange=exchange)
+        except Exception as e:
+            self.log_message(f"Error getting quote from data source: {e}", color="red")
+            return Quote(asset=asset)
 
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""

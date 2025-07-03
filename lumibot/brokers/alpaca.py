@@ -20,7 +20,7 @@ from dateutil import tz
 from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
-from lumibot.entities import Asset, Order, Position
+from lumibot.entities import Asset, Order, Position, Quote
 from lumibot.tools.helpers import has_more_than_n_decimal_places
 from lumibot.trading_builtins import PollingStream
 
@@ -1296,7 +1296,7 @@ class Alpaca(Broker):
                     if loop.is_running():
                         loop.close()
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         """
         Get the latest quote for an asset (stock, option, or crypto).
         Returns a Quote object with bid, ask, last, and other fields if available.

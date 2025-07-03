@@ -16,7 +16,7 @@ from dateutil import tz
 from termcolor import colored
 
 from ..data_sources import DataSource
-from ..entities import Asset, Order, Position
+from ..entities import Asset, Order, Position, Quote
 from ..trading_builtins import SafeList
 
 # Consolidate errors from different brokers into a single class that can be easily caught even
@@ -1379,7 +1379,7 @@ class Broker(ABC):
                     break
         return
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         """
         Get the latest quote for an asset.
         Returns a Quote object with bid, ask, last, and other fields if available.

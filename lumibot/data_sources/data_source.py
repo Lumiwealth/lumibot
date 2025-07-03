@@ -12,7 +12,7 @@ import pytz
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, AssetsMapping, Bars
+from lumibot.entities import Asset, AssetsMapping, Bars, Quote
 from lumibot.tools import black_scholes, create_options_symbol
 
 from .exceptions import UnavailabeTimestep
@@ -590,7 +590,7 @@ class DataSource(ABC):
                      f"data source {self.__class__}.")
         return {}
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         """
         Get the latest quote for an asset (stock, option, or crypto).
         Returns a Quote object with bid, ask, last, and other fields if available.

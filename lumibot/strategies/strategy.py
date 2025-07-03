@@ -743,6 +743,11 @@ class Strategy(_Strategy):
             order_class=order_class,
             custom_params=custom_params,
         )
+        
+        # Add debug logging for custom_params
+        if custom_params:
+            self.log_message(f"🔧 ORDER CREATED with custom_params: {custom_params} for {asset} {side} {quantity}")
+        
         return order
 
     # ======= Broker Methods ============

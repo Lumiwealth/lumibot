@@ -481,6 +481,9 @@ class Alpaca(Broker):
         # Parse crypto symbol format
         if "/" in resp_symbol:
             symbol = resp_symbol.split("/")[0]
+            quote = resp_symbol.split("/")[1]
+            if quote != 'USD':
+                raise ValueError(f"Order has non-USD quote for symbol {symbol}/{quote} in response for order id {getattr(response, 'id', None)}")
         else:
             symbol = resp_symbol
 
@@ -540,8 +543,9 @@ class Alpaca(Broker):
                 symbol=symbol,
                 asset_type=self.map_asset_type(asset_class_value),
             ),
-            Decimal(qty_value),
-            side_value,
+            quantity=float(Decimal(qty_value)),
+            side=side_value,
+            avg_fill_price=getattr(response, 'filled_avg_price', None),
             limit_price=limit_price_value if order_type_value != Order.OrderType.STOP_LIMIT else None,
             stop_price=stop_price_value,
             stop_limit_price=stop_limit_price,
@@ -550,10 +554,13 @@ class Alpaca(Broker):
             time_in_force=time_in_force_value,
             order_class=order_class_value,
             order_type=order_type_value if order_type_value != "trailing_stop" else Order.OrderType.TRAIL,
+            date_created=getattr(response, 'created_at', None),
             # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
             quote=Asset(symbol="USD", asset_type="forex"),
         )
         order.set_identifier(identifier_value)
+        order.broker_create_date = getattr(response, 'created_at', None)
+        order.broker_update_date = getattr(response, 'updated_at', None)
         order.status = status_value
         order.update_raw(response)
         return order

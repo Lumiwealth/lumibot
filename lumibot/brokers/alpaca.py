@@ -515,7 +515,11 @@ class Alpaca(Broker):
         # Determine order and class types
         order_type_value = getattr(response, 'order_type', None) or resp_raw.get('type')
         order_class_raw = getattr(response, 'order_class', None) or resp_raw.get('order_class')
-        order_class_value = order_class_raw if order_class_raw != "mleg" else Order.OrderClass.MULTILEG
+        # Default to simple order class if none was found
+        if order_class_raw is None:
+            order_class_value = Order.OrderClass.SIMPLE
+        else:
+            order_class_value = order_class_raw if order_class_raw != "mleg" else Order.OrderClass.MULTILEG
 
         # Prices and limits
         limit_price_value = getattr(response, 'limit_price', None) or resp_raw.get('limit_price')

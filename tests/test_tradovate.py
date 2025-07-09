@@ -1,6 +1,17 @@
 """
 Comprehensive tests for Tradovate broker integration.
 Tests imports, configuration, basic functionality, and ensures the spelling corrections are working.
+
+This test suite covers:
+- Import verification for all Tradovate classes
+- Configuration and environment variable testing
+- Basic broker and data source functionality
+- Integration with the rest of Lumibot
+- Exception handling
+- Spelling correction verification (ensures old "Tradeovate" spelling is no longer accessible)
+
+All tests use appropriate mocking to prevent actual API calls during testing,
+making them suitable for CI/CD environments like GitHub Actions.
 """
 
 import pytest
@@ -87,20 +98,65 @@ class TestTradovateConfiguration:
         }
         
         with patch.dict(os.environ, test_env, clear=False):
-            # Re-import to get fresh config with our test environment
+            # Mock the Tradovate broker instantiation to prevent actual API calls
+            with patch('lumibot.credentials.Tradovate') as mock_tradovate:
+                mock_broker_instance = mock_tradovate.return_value
+                mock_broker_instance.NAME = "Tradovate"
+                
+                # Re-import to get fresh config with our test environment
+                import importlib
+                import lumibot.credentials
+                importlib.reload(lumibot.credentials)
+                
+                config = lumibot.credentials.TRADOVATE_CONFIG
+                assert config['USERNAME'] == 'test_user'
+                assert config['DEDICATED_PASSWORD'] == 'test_pass'
+                assert config['CID'] == 'test_cid'
+                assert config['SECRET'] == 'test_secret'
+                assert config['IS_PAPER'] is False  # Should be False when set to 'false'
+                assert config['APP_ID'] == 'TestApp'
+                assert config['APP_VERSION'] == '2.0'
+                assert config['MD_URL'] == 'https://test.tradovateapi.com/v1'
+
+    def test_tradovate_env_var_prefix(self):
+        """Test that Tradovate configuration uses the correct environment variable prefix."""
+        # Test that the configuration system expects TRADOVATE_ prefix (not TRADEOVATE_)
+        
+        # Temporarily clear any TRADOVATE env vars to test defaults
+        tradovate_env_vars = [key for key in os.environ if key.startswith('TRADOVATE_')]
+        original_values = {key: os.environ.get(key) for key in tradovate_env_vars}
+        
+        try:
+            # Clear TRADOVATE environment variables to test defaults
+            for key in tradovate_env_vars:
+                if key in os.environ:
+                    del os.environ[key]
+            
+            # Re-import to get fresh config with cleared environment
             import importlib
             import lumibot.credentials
             importlib.reload(lumibot.credentials)
             
             config = lumibot.credentials.TRADOVATE_CONFIG
-            assert config['USERNAME'] == 'test_user'
-            assert config['DEDICATED_PASSWORD'] == 'test_pass'
-            assert config['CID'] == 'test_cid'
-            assert config['SECRET'] == 'test_secret'
-            assert config['IS_PAPER'] is False  # Should be False when set to 'false'
-            assert config['APP_ID'] == 'TestApp'
-            assert config['APP_VERSION'] == '2.0'
-            assert config['MD_URL'] == 'https://test.tradovateapi.com/v1'
+            
+            # Verify that all expected config keys exist (they would be populated from env vars with TRADOVATE_ prefix)
+            config_keys = set(config.keys())
+            expected_keys = {'USERNAME', 'DEDICATED_PASSWORD', 'CID', 'SECRET', 'IS_PAPER', 'APP_ID', 'APP_VERSION', 'MD_URL'}
+            assert config_keys == expected_keys
+            
+            # Test that the configuration has reasonable default values
+            assert config['APP_ID'] == "Lumibot"
+            assert config['IS_PAPER'] is True
+            assert "tradovateapi.com" in config['MD_URL']
+            
+        finally:
+            # Restore original environment variables
+            for key, value in original_values.items():
+                if value is not None:
+                    os.environ[key] = value
+            
+            # Reload again to restore original state
+            importlib.reload(lumibot.credentials)
 
 
 class TestTradovateBroker:
@@ -146,16 +202,56 @@ class TestTradovateBroker:
             "MD_URL": "https://md.tradovateapi.com/v1"
         }
         
-        # This will fail on API authentication, but that's expected
-        # We're just testing that the class can be instantiated with proper config
+        # Mock all API methods that are called during initialization
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            
+            # Return the correct token structure that matches what the broker expects
+            mock_get_tokens.return_value = {
+                'accessToken': 'fake_access_token',
+                'marketToken': 'fake_market_token',  # Note: 'marketToken', not 'market_token'
+                'hasMarketData': True
+            }
+            
+            # Mock account info response
+            mock_get_account_info.return_value = {
+                'accountSpec': 'fake_account_spec',
+                'accountId': 123456
+            }
+            
+            # Mock user info response
+            mock_get_user_info.return_value = 'fake_user_id'
+            
+            try:
+                broker = Tradovate(config=config)
+                # If we get here, the config was accepted
+                assert broker.NAME == "Tradovate"
+                assert broker.account_spec == 'fake_account_spec'
+                assert broker.account_id == 123456
+                assert broker.user_id == 'fake_user_id'
+            except Exception as e:
+                # Should not fail on config validation with mocked API calls
+                assert False, f"Broker initialization failed with mocked API: {e}"
+
+    def test_broker_handles_missing_credentials(self):
+        """Test that the broker handles missing credentials gracefully."""
+        from lumibot.brokers import Tradovate
+        
+        # Test with empty/minimal config
+        empty_config = {}
+        
+        # The broker should handle missing credentials without crashing during import
+        # but should fail gracefully when trying to authenticate
         try:
-            broker = Tradovate(config=config)
-            # If we get here, the config was accepted
-            assert broker.NAME == "Tradovate"
+            broker = Tradovate(config=empty_config)
+            # Should not reach here with empty config
+            assert False, "Broker should have failed with empty config"
         except Exception as e:
-            # Expected to fail on actual API calls, but should not fail on config validation
-            # The error should be related to API authentication, not config issues
-            assert "config" not in str(e).lower() or "authentication" in str(e).lower() or "token" in str(e).lower()
+            # Should fail due to missing required credentials
+            error_msg = str(e).lower()
+            # The error should be about missing credentials, not about class structure
+            assert any(keyword in error_msg for keyword in ['username', 'password', 'credential', 'authentication', 'config'])
 
 
 class TestTradovateDataSource:

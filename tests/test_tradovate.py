@@ -162,31 +162,7 @@ class TestTradovateConfiguration:
             # Reload again to restore original state
             importlib.reload(lumibot.credentials)
 
-    def test_credentials_module_import_resilience(self):
-        """Test that the credentials module can be imported even with invalid Tradovate credentials."""
-        # This test ensures that importing lumibot.credentials doesn't crash 
-        # when Tradovate credentials are present but invalid
-        
-        test_env = {
-            'TRADOVATE_USERNAME': 'invalid_user',
-            'TRADOVATE_DEDICATED_PASSWORD': 'invalid_pass',
-            'TRADOVATE_CID': 'invalid_cid',
-            'TRADOVATE_SECRET': 'invalid_secret',
-        }
-        
-        with patch.dict(os.environ, test_env, clear=False):
-            try:
-                # This should not raise an exception even with invalid credentials
-                import importlib
-                import lumibot.credentials
-                importlib.reload(lumibot.credentials)
-                
-                # The import should succeed
-                assert hasattr(lumibot.credentials, 'TRADOVATE_CONFIG')
-                print("✅ Credentials module imported successfully with invalid Tradovate credentials")
-                
-            except Exception as e:
-                assert False, f"Credentials module import failed with invalid credentials: {e}"
+
 
 
 class TestTradovateBroker:

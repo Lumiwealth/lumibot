@@ -381,6 +381,19 @@
 <h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading">#</a></h2>
 <p>To get started, you will need to create a Tradier account and get your Account Number and API Secret. You can do this by visiting the [Tradier website](<a class="reference external" href="https://www.tradier.com/">https://www.tradier.com/</a>).</p>
 <p>Once you have an account and you’ve logged in you can find your Account Number and API Secret by visiting the [API Access page](<a class="reference external" href="https://dash.tradier.com/settings/api">https://dash.tradier.com/settings/api</a>).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Easy Setup with .env File</strong></p>
+<p>LumiBot automatically loads your API credentials from a <cite>.env</cite> file! Simply create a <cite>.env</cite> file in the same folder as your trading strategy and add your Tradier credentials. LumiBot will automatically detect and use these credentials - no additional configuration required.</p>
+<p><strong>Example .env file:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Tradier Configuration</span>
+<span class="nv">TRADIER_ACCESS_TOKEN</span><span class="o">=</span>your_access_token_here
+<span class="nv">TRADIER_ACCOUNT_NUMBER</span><span class="o">=</span>your_account_number_here
+<span class="nv">TRADIER_IS_PAPER</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>That’s it! LumiBot handles the rest automatically.</p>
+</div>
 </section>
 <section id="configuration">
 <h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>

@@ -14,6 +14,22 @@ Prerequisites
 Environment variables
 ---------------------
 
+.. note::
+   **Easy Setup with .env File**
+   
+   LumiBot automatically loads your API credentials from a `.env` file! Simply create a `.env` file in the same folder as your trading strategy and add your Schwab credentials. LumiBot will automatically detect and use these credentials - no additional configuration required.
+   
+   **Example .env file:**
+   
+   .. code-block:: bash
+   
+      # Schwab Configuration
+      SCHWAB_ACCOUNT_NUMBER=your_account_number
+      SCHWAB_TOKEN=your_token_if_needed
+      TRADING_BROKER=schwab
+   
+   That's it! LumiBot handles the rest automatically.
+
 Set the following before running your strategy (``.env`` file, Render secret, Replit secret, Docker env, etc.):
 
 .. list-table::

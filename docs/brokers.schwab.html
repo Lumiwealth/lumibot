@@ -388,6 +388,19 @@
 </section>
 <section id="environment-variables">
 <h2>Environment variables<a class="headerlink" href="#environment-variables" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Easy Setup with .env File</strong></p>
+<p>LumiBot automatically loads your API credentials from a <cite>.env</cite> file! Simply create a <cite>.env</cite> file in the same folder as your trading strategy and add your Schwab credentials. LumiBot will automatically detect and use these credentials - no additional configuration required.</p>
+<p><strong>Example .env file:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Schwab Configuration</span>
+<span class="nv">SCHWAB_ACCOUNT_NUMBER</span><span class="o">=</span>your_account_number
+<span class="nv">SCHWAB_TOKEN</span><span class="o">=</span>your_token_if_needed
+<span class="nv">TRADING_BROKER</span><span class="o">=</span>schwab
+</pre></div>
+</div>
+<p>That’s it! LumiBot handles the rest automatically.</p>
+</div>
 <p>Set the following before running your strategy (<code class="docutils literal notranslate"><span class="pre">.env</span></code> file, Render secret, Replit secret, Docker env, etc.):</p>
 <div class="table-wrapper colwidths-given docutils container">
 <table class="docutils align-default">

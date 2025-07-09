@@ -5,6 +5,22 @@ Interactive Brokers is a brokerage firm that operates in most countries around t
 
 **Note:** If you have access to other supported brokers, compare their fee structures to see which one offers the best deal for you.
 
+.. note::
+   **Easy Setup with .env File**
+   
+   LumiBot automatically loads your API credentials from a `.env` file! Simply create a `.env` file in the same folder as your trading strategy and add your Interactive Brokers credentials. LumiBot will automatically detect and use these credentials - no additional configuration required.
+   
+   **Example .env file:**
+   
+   .. code-block:: bash
+   
+      # Interactive Brokers Configuration  
+      IB_USERNAME=your_ib_username
+      IB_PASSWORD=your_ib_password
+      IB_ACCOUNT_ID=your_account_id
+   
+   That's it! LumiBot handles the rest automatically.
+
 Market Data Subscriptions
 -------------------------
 

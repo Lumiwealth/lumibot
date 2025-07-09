@@ -376,74 +376,155 @@
         <article role="main">
           <section id="crypto-brokers-using-ccxt">
 <h1>Crypto Brokers (Using CCXT)<a class="headerlink" href="#crypto-brokers-using-ccxt" title="Link to this heading">#</a></h1>
-<p>This is the guide for connecting to any cryoptocurrency broker through Lumibot. For this, we use the CCXT library, which is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: <a class="reference external" href="https://ccxt.readthedocs.io/en/latest/">https://ccxt.readthedocs.io/en/latest/</a></p>
-<p>CCXT is a versatile library for cryptocurrency trading, which enables Lumibot to interact with a wide range of cryptocurrency brokers including Coinbase Pro, Binance, Kraken, Kucoin, and many more. We are constantly adding support for more brokers, so if you don’t see your broker listed here, please let us know and we’ll add it!</p>
+<p>This is the guide for connecting to any cryptocurrency broker through Lumibot. For this, we use the CCXT library, which is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: <a class="reference external" href="https://ccxt.readthedocs.io/en/latest/">https://ccxt.readthedocs.io/en/latest/</a></p>
+<p>CCXT is a versatile library for cryptocurrency trading, which enables Lumibot to interact with a wide range of cryptocurrency brokers including Coinbase, Binance, Kraken, Kucoin, and many more. We are constantly adding support for more brokers, so if you don’t see your broker listed here, please let us know and we’ll add it!</p>
+<p>LumiBot supports trading cryptocurrencies through CCXT, which provides access to many popular cryptocurrency exchanges. Each broker requires its own specific environment variables.</p>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Cryptocurrency Trading</strong>: Spot and margin trading</p></li>
+<li><p><strong>Multiple Exchanges</strong>: Supports 7+ different cryptocurrency exchanges</p></li>
+<li><p><strong>Real-time Data</strong>: Live order and position updates</p></li>
+<li><p><strong>Order Types</strong>: Market, limit, stop orders</p></li>
+<li><p><strong>Auto-Detection</strong>: Automatically connects when environment variables are set</p></li>
+</ul>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Account</strong>: Create an account with a supported cryptocurrency exchange</p></li>
+<li><p><strong>API Credentials</strong>: Generate API credentials from your exchange’s website</p></li>
+<li><p><strong>Environment Variables</strong>: Set your broker’s API credentials</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Easy Setup with .env File</strong></p>
+<p>LumiBot automatically loads your API credentials from a <cite>.env</cite> file! Simply create a <cite>.env</cite> file in the same folder as your trading strategy and add your broker’s environment variables. LumiBot will automatically detect and use these credentials - no additional configuration required.</p>
+<p><strong>Example .env file:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For Kraken</span>
+<span class="nv">KRAKEN_API_KEY</span><span class="o">=</span>your_kraken_api_key_here
+<span class="nv">KRAKEN_API_SECRET</span><span class="o">=</span>your_kraken_secret_here
+
+<span class="c1"># For Binance</span>
+<span class="nv">BINANCE_API_KEY</span><span class="o">=</span>your_binance_api_key_here
+<span class="nv">BINANCE_SECRET</span><span class="o">=</span>your_binance_secret_here
+</pre></div>
+</div>
+<p>That’s it! LumiBot handles the rest automatically.</p>
+</div>
+<p>Important note: If you want to use CCXT for backtesting, you should use <cite>CcxtBacktesting</cite> as shown here instead: <span class="xref std std-ref">CCXT Backtesting</span>.</p>
 <p>Before running any strategy, you first need to create an account on your desired broker and then obtain API credentials from the broker’s website. Remember, each broker’s website may be different, but you can generally find the API settings under account settings or something similar. Please see the documentation for your broker for more information on getting API credentials.</p>
 <p>For trading with cryptocurrencies, always remember to set your market to 24/7 in the <code class="docutils literal notranslate"><span class="pre">initialize</span></code> function:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">set_market</span><span class="p">(</span><span class="s2">&quot;24/7&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<section id="configuration-settings">
-<h2>Configuration Settings<a class="headerlink" href="#configuration-settings" title="Link to this heading">#</a></h2>
-<p>Here are the configuration settings for a few common brokers:</p>
-<p>Coinbase:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">COINBASE_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;coinbase&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;apiKey&quot;</span><span class="p">:</span> <span class="s2">&quot;COINBASE_API_KEY_NAME&quot;</span><span class="p">,</span>   <span class="c1"># API key name/identifier</span>
-    <span class="s2">&quot;secret&quot;</span><span class="p">:</span> <span class="s2">&quot;COINBASE_PRIVATE_KEY&quot;</span><span class="p">,</span>      <span class="c1"># Your private key goes here</span>
-    <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;COINBASE_API_PASSPHRASE&quot;</span><span class="p">,</span>   <span class="c1"># Passphrase if required</span>
-    <span class="s2">&quot;margin&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="s2">&quot;sandbox&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>Kraken:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">KRAKEN_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;kraken&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;apiKey&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;secret&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_SECRET_KEY&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;margin&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="s2">&quot;sandbox&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>Kucoin:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">KUCOIN_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;kucoin&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_PASSPHRASE&quot;</span><span class="p">,</span> <span class="c1"># Note: this is NOT your account password!</span>
-    <span class="s2">&quot;apiKey&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;secret&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_SECRET&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;margin&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="c1"># Set this to True if you want to use your margin account</span>
-    <span class="s2">&quot;sandbox&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>Coinbase Pro:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">COINBASEPRO_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;coinbasepro&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;apiKey&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;secret&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_SECRET&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_PASSPHRASE&quot;</span><span class="p">,</span> <span class="c1"># Note: This is NOT your account password!</span>
-    <span class="s2">&quot;sandbox&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>Replace “YOUR_API_KEY”, “YOUR_SECRET_KEY” and “YOUR_PASSPHRASE” with your actual API credentials.</p>
 </section>
-<section id="running-your-strategy">
-<h2>Running Your Strategy<a class="headerlink" href="#running-your-strategy" title="Link to this heading">#</a></h2>
-<p>To run your strategy, you’ll first need to instantiate your chosen broker with the correct configuration:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">broker</span> <span class="o">=</span> <span class="n">Ccxt</span><span class="p">(</span><span class="n">KRAKEN_CONFIG</span><span class="p">)</span>  <span class="c1"># replace KRAKEN_CONFIG with your broker&#39;s config</span>
+<section id="supported-brokers">
+<h2>Supported Brokers<a class="headerlink" href="#supported-brokers" title="Link to this heading">#</a></h2>
+<section id="kraken">
+<h3>Kraken<a class="headerlink" href="#kraken" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">KRAKEN_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">KRAKEN_API_SECRET</span><span class="o">=</span>your_api_secret
 </pre></div>
 </div>
-<p>Then create an instance of your strategy and add it to a trader:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">)</span>
-<span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
-<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
-<span class="n">strategy_executors</span> <span class="o">=</span> <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</section>
+<section id="coinbase">
+<h3>Coinbase<a class="headerlink" href="#coinbase" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">COINBASE_API_KEY_NAME</span><span class="o">=</span>your_api_key_name
+<span class="nv">COINBASE_PRIVATE_KEY</span><span class="o">=</span>your_private_key
+<span class="nv">COINBASE_API_PASSPHRASE</span><span class="o">=</span>your_passphrase
 </pre></div>
 </div>
-<p>This will start running your strategy.</p>
+</section>
+<section id="kucoin">
+<h3>Kucoin<a class="headerlink" href="#kucoin" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">KUCOIN_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">KUCOIN_SECRET</span><span class="o">=</span>your_secret
+<span class="nv">KUCOIN_PASSPHRASE</span><span class="o">=</span>your_passphrase
+</pre></div>
+</div>
+</section>
+<section id="binance">
+<h3>Binance<a class="headerlink" href="#binance" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">BINANCE_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">BINANCE_SECRET</span><span class="o">=</span>your_secret
+</pre></div>
+</div>
+</section>
+<section id="bitmex">
+<h3>Bitmex<a class="headerlink" href="#bitmex" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">BITMEX_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">BITMEX_SECRET</span><span class="o">=</span>your_secret
+</pre></div>
+</div>
+</section>
+<section id="bybit">
+<h3>Bybit<a class="headerlink" href="#bybit" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">BYBIT_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">BYBIT_SECRET</span><span class="o">=</span>your_secret
+</pre></div>
+</div>
+</section>
+<section id="okx">
+<h3>OKX<a class="headerlink" href="#okx" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">OKX_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">OKX_SECRET</span><span class="o">=</span>your_secret
+<span class="nv">OKX_PASSPHRASE</span><span class="o">=</span>your_passphrase
+</pre></div>
+</div>
+</section>
+</section>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Set Environment Variables</strong>: Configure your broker’s API credentials</p></li>
+<li><p><strong>Create Strategy</strong>: Import Lumibot and create your trading strategy</p></li>
+<li><p><strong>Run</strong>: CCXT will auto-detect and connect</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
+        <span class="c1"># Set the market to 24/7 since crypto markets are always open</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_market</span><span class="p">(</span><span class="s2">&quot;24/7&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Trade Bitcoin</span>
+        <span class="n">btc</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
+
+        <span class="c1"># Get current price</span>
+        <span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">btc</span><span class="p">)</span>
+
+        <span class="c1"># Place a limit order</span>
+        <span class="k">if</span> <span class="n">last_price</span><span class="p">:</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+                <span class="n">asset</span><span class="o">=</span><span class="n">btc</span><span class="p">,</span>
+                <span class="n">quantity</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+                <span class="n">order_type</span><span class="o">=</span><span class="s2">&quot;limit&quot;</span><span class="p">,</span>
+                <span class="n">limit_price</span><span class="o">=</span><span class="n">last_price</span> <span class="o">*</span> <span class="mf">0.999</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="c1"># Run the strategy (CCXT auto-detects from environment variables)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">()</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">run_live</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="supported-features">
+<h2>Supported Features<a class="headerlink" href="#supported-features" title="Link to this heading">#</a></h2>
+<p>✅ <strong>Spot Trading</strong>: Buy and sell cryptocurrencies
+✅ <strong>Margin Trading</strong>: Trade with leverage (exchange dependent)
+✅ <strong>Market Orders</strong>: Immediate execution
+✅ <strong>Limit Orders</strong>: Execute at specified price
+✅ <strong>Stop Orders</strong>: Stop-loss functionality
+✅ <strong>Real-time Data</strong>: Live market data
+✅ <strong>Historical Data</strong>: Minute, hour, day timeframes</p>
+<p>❌ <strong>Stock Trading</strong>: Crypto only
+❌ <strong>Options Trading</strong>: Crypto only</p>
 </section>
 <section id="full-example-strategy">
 <h2>Full Example Strategy<a class="headerlink" href="#full-example-strategy" title="Link to this heading">#</a></h2>
@@ -573,24 +654,10 @@
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
-
-    <span class="n">KRAKEN_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;exchange_id&quot;</span><span class="p">:</span> <span class="s2">&quot;kraken&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;apiKey&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;secret&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_SECRET_KEY&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;margin&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="s2">&quot;sandbox&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="p">}</span>
-
-    <span class="n">broker</span> <span class="o">=</span> <span class="n">Ccxt</span><span class="p">(</span><span class="n">KRAKEN_CONFIG</span><span class="p">)</span>
-
-    <span class="n">strategy</span> <span class="o">=</span> <span class="n">ImportantFunctions</span><span class="p">(</span>
-        <span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">,</span>
-    <span class="p">)</span>
-
-    <span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
-    <span class="n">strategy_executors</span> <span class="o">=</span> <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+    <span class="c1"># LumiBot automatically detects your broker from environment variables</span>
+    <span class="c1"># Just make sure you have a .env file with your broker&#39;s credentials</span>
+    <span class="n">strategy</span> <span class="o">=</span> <span class="n">ImportantFunctions</span><span class="p">()</span>
+    <span class="n">strategy</span><span class="o">.</span><span class="n">run_live</span><span class="p">()</span>
 </pre></div>
 </div>
 <p>In this example, we’ve demonstrated the following:</p>
@@ -666,8 +733,20 @@
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Crypto Brokers (Using CCXT)</a><ul>
-<li><a class="reference internal" href="#configuration-settings">Configuration Settings</a></li>
-<li><a class="reference internal" href="#running-your-strategy">Running Your Strategy</a></li>
+<li><a class="reference internal" href="#features">Features</a></li>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li><a class="reference internal" href="#supported-brokers">Supported Brokers</a><ul>
+<li><a class="reference internal" href="#kraken">Kraken</a></li>
+<li><a class="reference internal" href="#coinbase">Coinbase</a></li>
+<li><a class="reference internal" href="#kucoin">Kucoin</a></li>
+<li><a class="reference internal" href="#binance">Binance</a></li>
+<li><a class="reference internal" href="#bitmex">Bitmex</a></li>
+<li><a class="reference internal" href="#bybit">Bybit</a></li>
+<li><a class="reference internal" href="#okx">OKX</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage">Usage</a></li>
+<li><a class="reference internal" href="#supported-features">Supported Features</a></li>
 <li><a class="reference internal" href="#full-example-strategy">Full Example Strategy</a></li>
 </ul>
 </li>

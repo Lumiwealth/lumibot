@@ -158,6 +158,32 @@ class TestTradovateConfiguration:
             # Reload again to restore original state
             importlib.reload(lumibot.credentials)
 
+    def test_credentials_module_import_resilience(self):
+        """Test that the credentials module can be imported even with invalid Tradovate credentials."""
+        # This test ensures that importing lumibot.credentials doesn't crash 
+        # when Tradovate credentials are present but invalid
+        
+        test_env = {
+            'TRADOVATE_USERNAME': 'invalid_user',
+            'TRADOVATE_DEDICATED_PASSWORD': 'invalid_pass',
+            'TRADOVATE_CID': 'invalid_cid',
+            'TRADOVATE_SECRET': 'invalid_secret',
+        }
+        
+        with patch.dict(os.environ, test_env, clear=False):
+            try:
+                # This should not raise an exception even with invalid credentials
+                import importlib
+                import lumibot.credentials
+                importlib.reload(lumibot.credentials)
+                
+                # The import should succeed
+                assert hasattr(lumibot.credentials, 'TRADOVATE_CONFIG')
+                print("✅ Credentials module imported successfully with invalid Tradovate credentials")
+                
+            except Exception as e:
+                assert False, f"Credentials module import failed with invalid credentials: {e}"
+
 
 class TestTradovateBroker:
     """Test the Tradovate broker class functionality."""
@@ -337,6 +363,89 @@ class TestTradovateException:
         assert error.status_code == 400
         assert error.response_text == "Bad Request"
         assert error.original_exception is original_error
+
+    def test_rate_limit_error_message_urls(self):
+        """Test that rate limit error messages contain correct web URLs for demo and live accounts."""
+        import lumibot.brokers.tradovate as tradovate_module
+        from unittest.mock import Mock, patch
+        import requests
+        
+        TradovateAPIError = getattr(tradovate_module, 'TradovateAPIError')
+        Tradovate = getattr(tradovate_module, 'Tradovate')
+        
+        # Test demo account URL
+        demo_config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "IS_PAPER": True  # Demo account
+        }
+        
+        # Mock the response for rate limiting - successful HTTP response with rate limit content
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "p-captcha": True,
+            "p-time": 900,  # 15 minutes in seconds
+            "p-ticket": "some-ticket"
+        }
+        mock_response.raise_for_status.return_value = None
+        
+        # Test demo account rate limit error
+        with patch('requests.post', return_value=mock_response):
+            try:
+                tradovate_broker = Tradovate(demo_config)
+                assert False, "Should have raised TradovateAPIError"
+            except TradovateAPIError as e:
+                error_message = str(e)
+                assert "https://demo.tradovate.com/trader/" in error_message
+                assert "15 minutes" in error_message
+        
+        # Test live account URL
+        live_config = {
+            "USERNAME": "test_user", 
+            "DEDICATED_PASSWORD": "test_pass",
+            "IS_PAPER": False  # Live account
+        }
+        
+        # Test live account rate limit error
+        with patch('requests.post', return_value=mock_response):
+            try:
+                tradovate_broker = Tradovate(live_config)
+                assert False, "Should have raised TradovateAPIError"
+            except TradovateAPIError as e:
+                error_message = str(e)
+                assert "https://tradovate.com/trader/" in error_message
+                assert "15 minutes" in error_message
+
+    def test_incorrect_credentials_error_message(self):
+        """Test that incorrect credentials error message is user-friendly."""
+        import lumibot.brokers.tradovate as tradovate_module
+        from unittest.mock import Mock, patch
+        
+        TradovateAPIError = getattr(tradovate_module, 'TradovateAPIError')
+        Tradovate = getattr(tradovate_module, 'Tradovate')
+        
+        config = {
+            "USERNAME": "wrong_user",
+            "DEDICATED_PASSWORD": "wrong_pass",
+            "IS_PAPER": True
+        }
+        
+        # Mock the response for incorrect credentials - successful HTTP response with error text
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "errorText": "Authorization Failed"
+        }
+        mock_response.raise_for_status.return_value = None
+        
+        with patch('requests.post', return_value=mock_response):
+            try:
+                tradovate_broker = Tradovate(config)
+                assert False, "Should have raised TradovateAPIError"
+            except TradovateAPIError as e:
+                error_message = str(e)
+                assert "authorization failed" in error_message.lower() or "authentication failed" in error_message.lower()
 
 
 if __name__ == "__main__":

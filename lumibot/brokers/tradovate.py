@@ -101,22 +101,54 @@ class Tradovate(Broker):
         Authenticate with Tradovate and obtain the access tokens.
         """
         url = f"{self.trading_api_url}/auth/accesstokenrequest"
+        
         payload = {
             "name": self.username,
             "password": self.password,
             "appId": self.app_id,
-            "appVersion": self.app_version,
+            "appVersion": "1.0.0",
             "cid": self.cid,
-            "sec": self.sec
+            "sec": self.sec,
         }
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         try:
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
+            
+            # Check for authentication errors first
+            if "errorText" in data:
+                error_text = data["errorText"]
+                raise TradovateAPIError(f"Tradovate authentication failed: {error_text}")
+            
+            # Check if CAPTCHA is required
+            if data.get("p-captcha"):
+                p_time = data.get("p-time", 0)
+                p_ticket = data.get("p-ticket", "")
+                
+                # Convert time from seconds to appropriate unit and create user-friendly message
+                if p_time >= 60:
+                    time_value = p_time // 60  # Convert to minutes
+                    time_unit = "minutes" if time_value != 1 else "minute"
+                else:
+                    time_value = p_time
+                    time_unit = "seconds" if p_time != 1 else "second"
+                
+                # Determine correct web login URL based on whether we're using demo or live
+                is_demo = "demo.tradovateapi.com" in self.trading_api_url
+                web_url = "https://demo.tradovate.com/trader/" if is_demo else "https://tradovate.com/trader/"
+                
+                raise TradovateAPIError(
+                    f"Tradovate API is rate limiting login attempts. "
+                    f"Please wait {time_value} {time_unit} before trying again, "
+                    f"or log into your Tradovate account through the web interface "
+                    f"({web_url}) to clear the restriction immediately."
+                )
+            
             access_token = data.get("accessToken")
             market_token = data.get("mdAccessToken")
             has_market_data = data.get("hasMarketData", False)
+            
             if not access_token or not market_token:
                 raise TradovateAPIError("Authentication succeeded but tokens are missing.")
             return {"accessToken": access_token, "marketToken": market_token, "hasMarketData": has_market_data}

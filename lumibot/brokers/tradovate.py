@@ -195,6 +195,57 @@ class Tradovate(Broker):
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
 
+    def _resolve_tradovate_futures_symbol(self, asset) -> str:
+        """
+        Resolve continuous futures to Tradovate-specific contract format.
+        Tradovate uses 1-digit years (e.g., MNQU5 not MNQU25).
+        
+        Parameters
+        ----------
+        asset : Asset
+            The continuous futures asset to resolve
+            
+        Returns
+        -------
+        str
+            Tradovate-specific futures contract symbol
+        """
+        from datetime import datetime
+        
+        month_codes = {
+            1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+            7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
+        }
+        
+        now = datetime.now()
+        current_month = now.month
+        current_year = now.year
+        
+        # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
+        if current_month >= 10:  # October onwards, use December
+            target_month = 12  # December
+            target_year = current_year
+        elif current_month >= 7:  # July-September, use September
+            target_month = 9  # September
+            target_year = current_year
+        elif current_month >= 4:  # April-June, use September
+            target_month = 9  # September
+            target_year = current_year
+        elif current_month >= 1:  # Jan-March, use June
+            target_month = 6  # June
+            target_year = current_year
+        else:  # December (fallback), use March next year
+            target_month = 3  # March
+            target_year = current_year + 1
+        
+        month_code = month_codes.get(target_month, 'U')  # Default to September
+        
+        # Tradovate uses 1-digit year format (e.g., 5 for 2025)
+        year_code = target_year % 10
+        
+        contract = f"{asset.symbol}{month_code}{year_code}"
+        return contract
+
     def _get_contract_details(self, contract_id: int) -> dict:
         """
         Retrieve contract details for a given contract id from Tradeovate using the /contract/item endpoint.
@@ -435,11 +486,30 @@ class Tradovate(Broker):
         is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
         the order is marked with an error.
         """
+        # Pre-submission validation
+        if not self.account_spec or not self.account_id:
+            error_msg = "Account information not properly initialized"
+            logging.error(error_msg)
+            order.set_error(error_msg)
+            return order
+        
+        # Check if we have valid tokens
+        if not hasattr(self, 'trading_token') or not self.trading_token:
+            error_msg = "Trading token not available - authentication may have failed"
+            logging.error(error_msg)
+            order.set_error(error_msg)
+            return order
+        
         # Determine the action based on the order side
         action = "Buy" if order.is_buy_order() else "Sell"
 
-        # Extract symbol from the order's asset
-        symbol = order.asset.symbol
+        # Extract symbol from the order's asset and handle continuous futures conversion
+        if order.asset.asset_type == order.asset.AssetType.CONT_FUTURE:
+            # For continuous futures, resolve to the specific contract symbol using Tradovate format
+            symbol = self._resolve_tradovate_futures_symbol(order.asset)
+            logging.info(f"Resolved continuous future {order.asset.symbol} -> {symbol}")
+        else:
+            symbol = order.asset.symbol
 
         # Determine the order type string based on the order type.
         if order.order_type == Order.OrderType.MARKET:
@@ -469,7 +539,7 @@ class Tradovate(Broker):
         }
         # If a limit price is specified for limit orders, include it.
         if order.limit_price is not None:
-            payload["limitPrice"] = float(order.limit_price)
+            payload["price"] = float(order.limit_price)
         # Similarly, include stop price if specified.
         if order.stop_price is not None:
             payload["stopPrice"] = float(order.stop_price)
@@ -477,14 +547,44 @@ class Tradovate(Broker):
         url = f"{self.trading_api_url}/order/placeorder"
         headers = self._get_headers(with_content_type=True)
 
+        # Log the request details for debugging (mask sensitive auth data)
+        logging.info(f"Submitting order to Tradovate:")
+        logging.info(f"  URL: {url}")
+        logging.info(f"  Payload: {payload}")
+        
+        # Log headers but mask the authorization token for security
+        safe_headers = headers.copy()
+        if 'Authorization' in safe_headers:
+            safe_headers['Authorization'] = 'Bearer ***MASKED***'
+        logging.info(f"  Headers: {safe_headers}")
+
         try:
             response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-            logging.info(f"Order successfully submitted: {data}")
-            order.status = Order.OrderStatus.SUBMITTED
-            order.update_raw(data)
-            return order
+            
+            # Check if the response indicates a failure
+            if data.get('failureReason') or data.get('failureText'):
+                failure_reason = data.get('failureReason', 'Unknown')
+                failure_text = data.get('failureText', 'No details provided')
+                error_message = f"Order rejected by Tradovate: {failure_reason} - {failure_text}"
+                logging.error(error_message)
+                
+                # Add additional context for common errors
+                if 'Access is denied' in failure_text:
+                    logging.error("Possible causes: Account not authorized for trading, market closed, or insufficient permissions")
+                elif 'UnknownReason' in failure_reason:
+                    logging.error("Possible causes: Invalid symbol, market hours, account restrictions, or order parameters")
+                
+                order.set_error(error_message)
+                return order
+            else:
+                # Order was successful
+                logging.info(f"Order successfully submitted: {data}")
+                order.status = Order.OrderStatus.SUBMITTED
+                order.update_raw(data)
+                return order
+                
         except requests.exceptions.RequestException as e:
             error_message = f"Failed to submit order: {getattr(e.response, 'status_code', None)}, {getattr(e.response, 'text', None)}"
             logging.error(error_message)

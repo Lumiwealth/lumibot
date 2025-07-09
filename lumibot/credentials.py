@@ -315,9 +315,55 @@ BITUNIX_CONFIG = {
     "TRADING_MODE": os.environ.get("BITUNIX_TRADING_MODE", "FUTURES"), # Add TRADING_MODE, default to FUTURES
 }
 
+# ProjectX URL mappings - REST API base URLs (v2 gateway URLs preferred)
+PROJECTX_BASE_URLS = {
+    "topstepx": "https://api.topstepx.com/",
+    "topone": "https://gateway-api-toponefutures.s2f.projectx.com/",  # Top One Futures
+    "tickticktrader": "https://gateway-api-tickticktrader.s2f.projectx.com/",
+    "alphaticks": "https://gateway-api-alphaticks.s2f.projectx.com/",
+    "aquafutures": "https://gateway-api-aquafutures.s2f.projectx.com/",
+    "blueguardianfutures": "https://gateway-api-blueguardianfutures.s2f.projectx.com/",
+    "blusky": "https://gateway-api-blusky.s2f.projectx.com/",
+    "bulenox": "https://gateway-api-bulenox.s2f.projectx.com/",
+    "e8x": "https://gateway-api-e8x.s2f.projectx.com/",
+    "fundingfutures": "https://gateway-api-fundingfutures.s2f.projectx.com/",
+    "thefuturesdesk": "https://gateway-api-thefuturesdesk.s2f.projectx.com/",
+    "futureselite": "https://gateway-api-futureselite.s2f.projectx.com/",
+    "fxifyfutures": "https://gateway-api-fxifyfutures.s2f.projectx.com/",
+    "goatfundedfutures": "https://gateway-api-goatfundedfutures.s2f.projectx.com/",
+    "holaprime": "https://gateway-api-holaprime.s2f.projectx.com/",
+    "nexgen": "https://gateway-api-nexgen.s2f.projectx.com/",
+    "tx3funding": "https://gateway-api-tx3funding.s2f.projectx.com/",
+    "demo": "https://gateway-api-demo.s2f.projectx.com/",
+    "daytraders": "https://gateway-api-daytraders.s2f.projectx.com/",
+}
+
+# ProjectX SignalR streaming URL mappings
+PROJECTX_STREAMING_URLS = {
+    "topstepx": "https://gateway-rtc-topstepx.s2f.projectx.com/",
+    "topone": "https://gateway-rtc-demo.s2f.projectx.com/",  # Top One Futures
+    "tickticktrader": "https://gateway-rtc-tickticktrader.s2f.projectx.com/",
+    "alphaticks": "https://gateway-rtc-alphaticks.s2f.projectx.com/",
+    "aquafutures": "https://gateway-rtc-aquafutures.s2f.projectx.com/",
+    "blueguardianfutures": "https://gateway-rtc-blueguardianfutures.s2f.projectx.com/",
+    "blusky": "https://gateway-rtc-blusky.s2f.projectx.com/",
+    "bulenox": "https://gateway-rtc-bulenox.s2f.projectx.com/",
+    "e8x": "https://gateway-rtc-e8x.s2f.projectx.com/",
+    "fundingfutures": "https://gateway-rtc-fundingfutures.s2f.projectx.com/",
+    "thefuturesdesk": "https://gateway-rtc-thefuturesdesk.s2f.projectx.com/",
+    "futureselite": "https://gateway-rtc-futureselite.s2f.projectx.com/",
+    "fxifyfutures": "https://gateway-rtc-fxifyfutures.s2f.projectx.com/",
+    "goatfundedfutures": "https://gateway-rtc-goatfundedfutures.s2f.projectx.com/",
+    "holaprime": "https://gateway-rtc-holaprime.s2f.projectx.com/",
+    "nexgen": "https://gateway-rtc-nexgen.s2f.projectx.com/",
+    "tx3funding": "https://gateway-rtc-tx3funding.s2f.projectx.com/",
+    "demo": "https://gateway-rtc-demo.s2f.projectx.com/",
+    "daytraders": "https://gateway-rtc-daytraders.s2f.projectx.com/",
+}
+
 # ProjectX Configuration - Multi-firm support
 def get_projectx_config(firm: str = None) -> dict:
-    """Get ProjectX configuration for a specific firm"""
+    """Get ProjectX configuration for a specific firm with automatic URL resolution"""
     # If no firm specified, try to get from environment
     if firm is None:
         firm = os.environ.get("PROJECTX_FIRM")
@@ -331,14 +377,23 @@ def get_projectx_config(firm: str = None) -> dict:
     if not firm:
         return {}
     
+    firm_lower = firm.lower()
     firm_upper = firm.upper()
+    
+    # Get URLs: Environment override OR built-in mapping
+    base_url = (os.environ.get(f"PROJECTX_{firm_upper}_BASE_URL") or 
+                PROJECTX_BASE_URLS.get(firm_lower))
+    
+    streaming_url = (os.environ.get(f"PROJECTX_{firm_upper}_STREAMING_BASE_URL") or 
+                     PROJECTX_STREAMING_URLS.get(firm_lower))
+    
     return {
         "firm": firm_upper,
         "api_key": os.environ.get(f"PROJECTX_{firm_upper}_API_KEY"),
         "username": os.environ.get(f"PROJECTX_{firm_upper}_USERNAME"),
-        "base_url": os.environ.get(f"PROJECTX_{firm_upper}_BASE_URL"),
+        "base_url": base_url,
         "preferred_account_name": os.environ.get(f"PROJECTX_{firm_upper}_PREFERRED_ACCOUNT_NAME"),
-        "streaming_base_url": os.environ.get(f"PROJECTX_{firm_upper}_STREAMING_BASE_URL"),
+        "streaming_base_url": streaming_url,
     }
 
 def get_available_projectx_firms() -> list:

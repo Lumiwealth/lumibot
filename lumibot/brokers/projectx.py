@@ -25,17 +25,23 @@ class ProjectX(Broker):
     """
     ProjectX broker implementation for futures trading.
     
-    Supports multiple underlying brokers through ProjectX gateway:
-    - TSX
-    - TOPONE
-    - And other supported futures brokers
+    Supports multiple underlying brokers through ProjectX gateway.
+    Base URLs are provided automatically for all supported firms.
     
-    Configuration is managed through environment variables:
-    - PROJECTX_FIRM: Broker name (TSX, TOPONE, etc.)
-    - PROJECTX_API_KEY: API key for the broker
-    - PROJECTX_USERNAME: Username for the broker
-    - PROJECTX_BASE_URL: Base URL for the broker API
-    - PROJECTX_PREFERRED_ACCOUNT_NAME: Optional preferred account name
+    Required Configuration:
+    - PROJECTX_{FIRM}_API_KEY: API key for the broker
+    - PROJECTX_{FIRM}_USERNAME: Username for the broker  
+    - PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME: Account name for trading
+    
+    Optional Configuration:
+    - PROJECTX_FIRM: Explicitly specify firm (auto-detected if not set)
+    - PROJECTX_{FIRM}_BASE_URL: Override default API URL
+    - PROJECTX_{FIRM}_STREAMING_BASE_URL: Override default streaming URL
+    
+    Supported firms: topstepx, topone, tickticktrader, alphaticks,
+    aquafutures, blueguardianfutures, blusky, bulenox, e8x, fundingfutures,
+    thefuturesdesk, futureselite, fxifyfutures, goatfundedfutures, holaprime,
+    nexgen, tx3funding, demo, daytraders
     """
     
     # Order type mappings (ProjectX values - CORRECTED from real Project X library)
@@ -78,16 +84,37 @@ class ProjectX(Broker):
         Initialize ProjectX broker.
         
         Args:
-            config: Configuration dictionary (optional, defaults to environment variables)
+            config: Configuration dictionary (optional, auto-detected from environment)
             data_source: Data source for market data
             connect_stream: Whether to connect to streaming data
             max_workers: Maximum worker threads for async operations
-            firm: Specific firm to use (e.g., "TOPONE", "TSX"). If not provided, will auto-detect from environment.
+            firm: Specific firm to use (auto-detected if not provided)
         """
         # Use environment config if not provided
         if config is None:
             from lumibot.credentials import get_projectx_config
             config = get_projectx_config(firm)
+        
+        # Validate required configuration
+        required_fields = ["api_key", "username", "base_url"]
+        missing_fields = [field for field in required_fields if not config.get(field)]
+        
+        if missing_fields:
+            firm_name = config.get("firm", "unknown")
+            raise ValueError(
+                f"Missing required ProjectX configuration for {firm_name}: {', '.join(missing_fields)}. "
+                f"Please set: PROJECTX_{firm_name}_API_KEY, PROJECTX_{firm_name}_USERNAME. "
+                f"Base URL should be provided automatically for supported firms."
+            )
+        
+        # Warning if no preferred account name is set
+        if not config.get("preferred_account_name"):
+            firm_name = config.get("firm", "unknown")
+            self.logger = logging.getLogger(f"ProjectXBroker_{firm_name}")
+            self.logger.warning(
+                f"No preferred account name set for {firm_name}. "
+                f"Consider setting PROJECTX_{firm_name}_PREFERRED_ACCOUNT_NAME for better account selection."
+            )
         
         self.config = config
         self.firm = config.get("firm")

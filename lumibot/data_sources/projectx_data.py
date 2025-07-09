@@ -25,11 +25,15 @@ class ProjectXData(DataSource):
     Provides historical data for futures contracts through ProjectX API.
     Supports multiple underlying brokers through ProjectX gateway.
 
-    Configuration is managed through environment variables:
-    - PROJECTX_FIRM: Broker name (TSX, TOPONE, etc.)
-    - PROJECTX_API_KEY: API key for the broker
-    - PROJECTX_USERNAME: Username for the broker
-    - PROJECTX_BASE_URL: Base URL for the broker API
+    Required Configuration:
+    - PROJECTX_{FIRM}_API_KEY: API key for the broker
+    - PROJECTX_{FIRM}_USERNAME: Username for the broker
+    - PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME: Account name (recommended)
+
+    Optional Configuration:
+    - PROJECTX_FIRM: Explicitly specify firm (auto-detected if not set)
+    - PROJECTX_{FIRM}_BASE_URL: Override default API URL
+    - PROJECTX_{FIRM}_STREAMING_BASE_URL: Override default streaming URL
     """
 
     # ProjectX time unit mappings
@@ -46,16 +50,27 @@ class ProjectXData(DataSource):
         Initialize ProjectX data source.
 
         Args:
-            config: Configuration dictionary (optional, defaults to environment variables)
+            config: Configuration dictionary (optional, auto-detected from environment)
             **kwargs: Additional arguments for parent class
         """
         # Use environment config if not provided
         if config is None:
-            from lumibot.credentials import PROJECTX_CONFIG
-            config = PROJECTX_CONFIG
+            from lumibot.credentials import get_projectx_config
+            config = get_projectx_config()
 
         self.config = config
         self.firm = config.get("firm")
+
+        # Validate required configuration
+        required_fields = ["api_key", "username", "base_url"]
+        missing_fields = [field for field in required_fields if not config.get(field)]
+        
+        if missing_fields:
+            firm_name = config.get("firm", "unknown")
+            raise ValueError(
+                f"Missing required ProjectX configuration for {firm_name}: {', '.join(missing_fields)}. "
+                f"Please set: PROJECTX_{firm_name}_API_KEY, PROJECTX_{firm_name}_USERNAME"
+            )
 
         # Initialize ProjectX client
         self.client = ProjectXClient(config)

@@ -480,6 +480,391 @@ DataBento provides high-quality market data for stocks, futures, and options. Th
      - Your API key from DataBento. **Required** if you are using DataBento as your data source.
      - db-xxxxxxxxxxxxxxxxxxxxxxxx
 
+ProjectX Configuration
+----------------------
+
+ProjectX is a futures-only broker that connects to multiple prop trading firms and futures brokers. Each broker requires its own specific environment variables. Choose the section below that matches your broker.
+
+TopstepX
+^^^^^^^^
+
+.. list-table:: TopstepX Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_TOPSTEPX_API_KEY
+     - Your API key from TopstepX
+     - your_api_key
+   * - PROJECTX_TOPSTEPX_USERNAME
+     - Your TopstepX username
+     - your_username
+   * - PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Top One Futures
+^^^^^^^^^^^^^^^
+
+.. list-table:: Top One Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_TOPONE_API_KEY
+     - Your API key from Top One Futures
+     - your_api_key
+   * - PROJECTX_TOPONE_USERNAME
+     - Your Top One Futures username
+     - your_username
+   * - PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+TickTickTrader
+^^^^^^^^^^^^^^
+
+.. list-table:: TickTickTrader Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_TICKTICKTRADER_API_KEY
+     - Your API key from TickTickTrader
+     - your_api_key
+   * - PROJECTX_TICKTICKTRADER_USERNAME
+     - Your TickTickTrader username
+     - your_username
+   * - PROJECTX_TICKTICKTRADER_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+AlphaTicks
+^^^^^^^^^^
+
+.. list-table:: AlphaTicks Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_ALPHATICKS_API_KEY
+     - Your API key from AlphaTicks
+     - your_api_key
+   * - PROJECTX_ALPHATICKS_USERNAME
+     - Your AlphaTicks username
+     - your_username
+   * - PROJECTX_ALPHATICKS_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Aqua Futures
+^^^^^^^^^^^^
+
+.. list-table:: Aqua Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_AQUAFUTURES_API_KEY
+     - Your API key from Aqua Futures
+     - your_api_key
+   * - PROJECTX_AQUAFUTURES_USERNAME
+     - Your Aqua Futures username
+     - your_username
+   * - PROJECTX_AQUAFUTURES_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Blue Guardian Futures
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Blue Guardian Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_BLUEGUARDIANFUTURES_API_KEY
+     - Your API key from Blue Guardian Futures
+     - your_api_key
+   * - PROJECTX_BLUEGUARDIANFUTURES_USERNAME
+     - Your Blue Guardian Futures username
+     - your_username
+   * - PROJECTX_BLUEGUARDIANFUTURES_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Blusky
+^^^^^^
+
+.. list-table:: Blusky Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_BLUSKY_API_KEY
+     - Your API key from Blusky
+     - your_api_key
+   * - PROJECTX_BLUSKY_USERNAME
+     - Your Blusky username
+     - your_username
+   * - PROJECTX_BLUSKY_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Bulenox
+^^^^^^^
+
+.. list-table:: Bulenox Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_BULENOX_API_KEY
+     - Your API key from Bulenox
+     - your_api_key
+   * - PROJECTX_BULENOX_USERNAME
+     - Your Bulenox username
+     - your_username
+   * - PROJECTX_BULENOX_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+E8 Futures
+^^^^^^^^^^
+
+.. list-table:: E8 Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_E8X_API_KEY
+     - Your API key from E8 Futures
+     - your_api_key
+   * - PROJECTX_E8X_USERNAME
+     - Your E8 Futures username
+     - your_username
+   * - PROJECTX_E8X_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Funding Futures
+^^^^^^^^^^^^^^^
+
+.. list-table:: Funding Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_FUNDINGFUTURES_API_KEY
+     - Your API key from Funding Futures
+     - your_api_key
+   * - PROJECTX_FUNDINGFUTURES_USERNAME
+     - Your Funding Futures username
+     - your_username
+   * - PROJECTX_FUNDINGFUTURES_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+The Futures Desk
+^^^^^^^^^^^^^^^^
+
+.. list-table:: The Futures Desk Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_THEFUTURESDESK_API_KEY
+     - Your API key from The Futures Desk
+     - your_api_key
+   * - PROJECTX_THEFUTURESDESK_USERNAME
+     - Your Futures Desk username
+     - your_username
+   * - PROJECTX_THEFUTURESDESK_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Futures Elite
+^^^^^^^^^^^^^
+
+.. list-table:: Futures Elite Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_FUTURESELITE_API_KEY
+     - Your API key from Futures Elite
+     - your_api_key
+   * - PROJECTX_FUTURESELITE_USERNAME
+     - Your Futures Elite username
+     - your_username
+   * - PROJECTX_FUTURESELITE_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+FXIFY Futures
+^^^^^^^^^^^^^
+
+.. list-table:: FXIFY Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_FXIFYFUTURES_API_KEY
+     - Your API key from FXIFY Futures
+     - your_api_key
+   * - PROJECTX_FXIFYFUTURES_USERNAME
+     - Your FXIFY Futures username
+     - your_username
+   * - PROJECTX_FXIFYFUTURES_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Goat Funded Futures
+^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Goat Funded Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_GOATFUNDEDFUTURES_API_KEY
+     - Your API key from Goat Funded Futures
+     - your_api_key
+   * - PROJECTX_GOATFUNDEDFUTURES_USERNAME
+     - Your Goat Funded Futures username
+     - your_username
+   * - PROJECTX_GOATFUNDEDFUTURES_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Hola Prime
+^^^^^^^^^^
+
+.. list-table:: Hola Prime Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_HOLAPRIME_API_KEY
+     - Your API key from Hola Prime
+     - your_api_key
+   * - PROJECTX_HOLAPRIME_USERNAME
+     - Your Hola Prime username
+     - your_username
+   * - PROJECTX_HOLAPRIME_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Nexgen Futures
+^^^^^^^^^^^^^^
+
+.. list-table:: Nexgen Futures Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_NEXGEN_API_KEY
+     - Your API key from Nexgen Futures
+     - your_api_key
+   * - PROJECTX_NEXGEN_USERNAME
+     - Your Nexgen Futures username
+     - your_username
+   * - PROJECTX_NEXGEN_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+TX3 Funding
+^^^^^^^^^^^
+
+.. list-table:: TX3 Funding Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_TX3FUNDING_API_KEY
+     - Your API key from TX3 Funding
+     - your_api_key
+   * - PROJECTX_TX3FUNDING_USERNAME
+     - Your TX3 Funding username
+     - your_username
+   * - PROJECTX_TX3FUNDING_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+DayTraders
+^^^^^^^^^^
+
+.. list-table:: DayTraders Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_DAYTRADERS_API_KEY
+     - Your API key from DayTraders
+     - your_api_key
+   * - PROJECTX_DAYTRADERS_USERNAME
+     - Your DayTraders username
+     - your_username
+   * - PROJECTX_DAYTRADERS_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
+Demo/Testing
+^^^^^^^^^^^^
+
+.. list-table:: Demo Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - PROJECTX_DEMO_API_KEY
+     - Your API key for demo/testing
+     - your_api_key
+   * - PROJECTX_DEMO_USERNAME
+     - Your demo username
+     - your_username
+   * - PROJECTX_DEMO_PREFERRED_ACCOUNT_NAME
+     - (Optional) Preferred account name
+     - Practice Account 1
+
 General Environment Variables
 =============================
 

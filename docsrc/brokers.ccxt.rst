@@ -1,9 +1,48 @@
 Crypto Brokers (Using CCXT)
 ===========================
 
-This is the guide for connecting to any cryoptocurrency broker through Lumibot. For this, we use the CCXT library, which is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: https://ccxt.readthedocs.io/en/latest/
+This is the guide for connecting to any cryptocurrency broker through Lumibot. For this, we use the CCXT library, which is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: https://ccxt.readthedocs.io/en/latest/
 
-CCXT is a versatile library for cryptocurrency trading, which enables Lumibot to interact with a wide range of cryptocurrency brokers including Coinbase Pro, Binance, Kraken, Kucoin, and many more. We are constantly adding support for more brokers, so if you don't see your broker listed here, please let us know and we'll add it!
+CCXT is a versatile library for cryptocurrency trading, which enables Lumibot to interact with a wide range of cryptocurrency brokers including Coinbase, Binance, Kraken, Kucoin, and many more. We are constantly adding support for more brokers, so if you don't see your broker listed here, please let us know and we'll add it!
+
+LumiBot supports trading cryptocurrencies through CCXT, which provides access to many popular cryptocurrency exchanges. Each broker requires its own specific environment variables.
+
+Features
+--------
+
+* **Cryptocurrency Trading**: Spot and margin trading
+* **Multiple Exchanges**: Supports 7+ different cryptocurrency exchanges
+* **Real-time Data**: Live order and position updates
+* **Order Types**: Market, limit, stop orders
+* **Auto-Detection**: Automatically connects when environment variables are set
+
+Prerequisites
+-------------
+
+1. **Account**: Create an account with a supported cryptocurrency exchange
+2. **API Credentials**: Generate API credentials from your exchange's website
+3. **Environment Variables**: Set your broker's API credentials
+
+.. note::
+   **Easy Setup with .env File**
+   
+   LumiBot automatically loads your API credentials from a `.env` file! Simply create a `.env` file in the same folder as your trading strategy and add your broker's environment variables. LumiBot will automatically detect and use these credentials - no additional configuration required.
+   
+   **Example .env file:**
+   
+   .. code-block:: bash
+   
+      # For Kraken
+      KRAKEN_API_KEY=your_kraken_api_key_here
+      KRAKEN_API_SECRET=your_kraken_secret_here
+      
+      # For Binance  
+      BINANCE_API_KEY=your_binance_api_key_here
+      BINANCE_SECRET=your_binance_secret_here
+   
+   That's it! LumiBot handles the rest automatically.
+
+Important note: If you want to use CCXT for backtesting, you should use `CcxtBacktesting` as shown here instead: :ref:`CCXT Backtesting<CCXT Backtesting>`.
 
 Before running any strategy, you first need to create an account on your desired broker and then obtain API credentials from the broker's website. Remember, each broker's website may be different, but you can generally find the API settings under account settings or something similar. Please see the documentation for your broker for more information on getting API credentials.
 
@@ -13,82 +52,121 @@ For trading with cryptocurrencies, always remember to set your market to 24/7 in
 
     self.set_market("24/7")
 
-Configuration Settings
-----------------------
+Supported Brokers
+-----------------
 
-Here are the configuration settings for a few common brokers:
+Kraken
+^^^^^^
 
-Coinbase:
+.. code-block:: bash
+
+   KRAKEN_API_KEY=your_api_key
+   KRAKEN_API_SECRET=your_api_secret
+
+Coinbase
+^^^^^^^^
+
+.. code-block:: bash
+
+   COINBASE_API_KEY_NAME=your_api_key_name
+   COINBASE_PRIVATE_KEY=your_private_key
+   COINBASE_API_PASSPHRASE=your_passphrase
+
+Kucoin
+^^^^^^
+
+.. code-block:: bash
+
+   KUCOIN_API_KEY=your_api_key
+   KUCOIN_SECRET=your_secret
+   KUCOIN_PASSPHRASE=your_passphrase
+
+Binance
+^^^^^^^
+
+.. code-block:: bash
+
+   BINANCE_API_KEY=your_api_key
+   BINANCE_SECRET=your_secret
+
+Bitmex
+^^^^^^
+
+.. code-block:: bash
+
+   BITMEX_API_KEY=your_api_key
+   BITMEX_SECRET=your_secret
+
+Bybit
+^^^^^
+
+.. code-block:: bash
+
+   BYBIT_API_KEY=your_api_key
+   BYBIT_SECRET=your_secret
+
+OKX
+^^^
+
+.. code-block:: bash
+
+   OKX_API_KEY=your_api_key
+   OKX_SECRET=your_secret
+   OKX_PASSPHRASE=your_passphrase
+
+Usage
+-----
+
+1. **Set Environment Variables**: Configure your broker's API credentials
+2. **Create Strategy**: Import Lumibot and create your trading strategy  
+3. **Run**: CCXT will auto-detect and connect
 
 .. code-block:: python
 
-    COINBASE_CONFIG = {
-        "exchange_id": "coinbase",
-        "apiKey": "COINBASE_API_KEY_NAME",   # API key name/identifier
-        "secret": "COINBASE_PRIVATE_KEY",      # Your private key goes here
-        "password": "COINBASE_API_PASSPHRASE",   # Passphrase if required
-        "margin": False,
-        "sandbox": False,
-    }
+   from lumibot.strategies import Strategy
+   from lumibot.entities import Asset
 
-Kraken:
+   class MyStrategy(Strategy):
+       def initialize(self):
+           self.sleeptime = "1D"
+           # Set the market to 24/7 since crypto markets are always open
+           self.set_market("24/7")
 
-.. code-block:: python
+       def on_trading_iteration(self):
+           # Trade Bitcoin
+           btc = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+           
+           # Get current price
+           last_price = self.get_last_price(btc)
+           
+           # Place a limit order
+           if last_price:
+               order = self.create_order(
+                   asset=btc,
+                   quantity=0.1,
+                   side="buy",
+                   order_type="limit", 
+                   limit_price=last_price * 0.999
+               )
+               self.submit_order(order)
 
-    KRAKEN_CONFIG = {
-        "exchange_id": "kraken",
-        "apiKey": "YOUR_API_KEY",
-        "secret": "YOUR_SECRET_KEY",
-        "margin": True,
-        "sandbox": False,
-    }
+   # Run the strategy (CCXT auto-detects from environment variables)
+   strategy = MyStrategy()
+   strategy.run_live()
 
-Kucoin:
+Supported Features
+------------------
 
-.. code-block:: python
+✅ **Spot Trading**: Buy and sell cryptocurrencies
+✅ **Margin Trading**: Trade with leverage (exchange dependent)  
+✅ **Market Orders**: Immediate execution
+✅ **Limit Orders**: Execute at specified price
+✅ **Stop Orders**: Stop-loss functionality  
+✅ **Real-time Data**: Live market data
+✅ **Historical Data**: Minute, hour, day timeframes
 
-    KUCOIN_CONFIG = {
-        "exchange_id": "kucoin",
-        "password": "YOUR_PASSPHRASE", # Note: this is NOT your account password!
-        "apiKey": "YOUR_API_KEY",
-        "secret": "YOUR_SECRET",
-        "margin": False, # Set this to True if you want to use your margin account
-        "sandbox": False,
-    }
-
-Coinbase Pro:
-
-.. code-block:: python
-
-    COINBASEPRO_CONFIG = {
-        "exchange_id": "coinbasepro",
-        "apiKey": "YOUR_API_KEY",
-        "secret": "YOUR_SECRET",
-        "password": "YOUR_PASSPHRASE", # Note: This is NOT your account password!
-        "sandbox": False,
-    }
-
-Replace "YOUR_API_KEY", "YOUR_SECRET_KEY" and "YOUR_PASSPHRASE" with your actual API credentials.
-
-Running Your Strategy
----------------------
-
-To run your strategy, you'll first need to instantiate your chosen broker with the correct configuration:
-
-.. code-block:: python
-
-    broker = Ccxt(KRAKEN_CONFIG)  # replace KRAKEN_CONFIG with your broker's config
-
-Then create an instance of your strategy and add it to a trader:
-
-.. code-block:: python
-
-    strategy = MyStrategy(broker=broker)
-    trader = Trader()
-    trader.add_strategy(strategy)
-    strategy_executors = trader.run_all()
-
-This will start running your strategy.
+❌ **Stock Trading**: Crypto only
+❌ **Options Trading**: Crypto only
 
 Full Example Strategy
 ---------------------
@@ -222,24 +300,10 @@ Here's a complete example of a strategy that demonstrates the use of important f
 
 
     if __name__ == "__main__":
-        trader = Trader()
-        
-        KRAKEN_CONFIG = {
-            "exchange_id": "kraken",
-            "apiKey": "YOUR_API_KEY",
-            "secret": "YOUR_SECRET_KEY",
-            "margin": True,
-            "sandbox": False,
-        }
-        
-        broker = Ccxt(KRAKEN_CONFIG)
-
-        strategy = ImportantFunctions(
-            broker=broker,
-        )
-
-        trader.add_strategy(strategy)
-        strategy_executors = trader.run_all()
+        # LumiBot automatically detects your broker from environment variables
+        # Just make sure you have a .env file with your broker's credentials
+        strategy = ImportantFunctions()
+        strategy.run_live()
 
 
 In this example, we've demonstrated the following:

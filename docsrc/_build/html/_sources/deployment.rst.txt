@@ -392,6 +392,107 @@ Kraken is an excellent cryptocurrency broker offering very low fees and a wide r
      - Your API secret for Kraken. **Required** if you are using Kraken as your broker.
      - abcdef1234567890abcdef1234567890abcdef1234
 
+Kucoin Configuration
+--------------------
+
+Kucoin is a popular global cryptocurrency exchange offering a wide variety of cryptocurrencies and trading pairs. To create an account, visit the `Kucoin <https://www.kucoin.com/>`_ website.
+
+.. list-table:: Kucoin Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - KUCOIN_API_KEY
+     - Your Kucoin API key. **Required** if you are using Kucoin as your broker.
+     - 5f6a7b8c9d0e1f2a3b4c
+   * - KUCOIN_SECRET
+     - Your Kucoin secret. **Required** if you are using Kucoin as your broker.
+     - abcdef1234567890abcdef1234567890abcdef12
+   * - KUCOIN_PASSPHRASE
+     - Your Kucoin passphrase. **Required** if you are using Kucoin as your broker.
+     - mypassphrase456
+
+Binance Configuration
+---------------------
+
+Binance is the world's largest cryptocurrency exchange by trading volume, offering extensive cryptocurrency trading options. To create an account, visit the `Binance <https://www.binance.com/>`_ website.
+
+.. list-table:: Binance Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - BINANCE_API_KEY
+     - Your Binance API key. **Required** if you are using Binance as your broker.
+     - 9a8b7c6d5e4f3g2h1i0j
+   * - BINANCE_SECRET
+     - Your Binance secret key. **Required** if you are using Binance as your broker.
+     - abcdef1234567890abcdef1234567890abcdef12
+
+Bitmex Configuration
+--------------------
+
+Bitmex is a cryptocurrency derivatives exchange specializing in futures and perpetual contracts. To create an account, visit the `Bitmex <https://www.bitmex.com/>`_ website.
+
+.. list-table:: Bitmex Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - BITMEX_API_KEY
+     - Your Bitmex API key. **Required** if you are using Bitmex as your broker.
+     - 1a2b3c4d5e6f7g8h9i0j
+   * - BITMEX_SECRET
+     - Your Bitmex secret. **Required** if you are using Bitmex as your broker.
+     - abcdef1234567890abcdef1234567890abcdef12
+
+Bybit Configuration
+-------------------
+
+Bybit is a popular derivatives exchange offering futures and perpetual contracts for cryptocurrency trading. To create an account, visit the `Bybit <https://www.bybit.com/>`_ website.
+
+.. list-table:: Bybit Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - BYBIT_API_KEY
+     - Your Bybit API key. **Required** if you are using Bybit as your broker.
+     - 2b3c4d5e6f7g8h9i0j1k
+   * - BYBIT_SECRET
+     - Your Bybit secret. **Required** if you are using Bybit as your broker.
+     - abcdef1234567890abcdef1234567890abcdef12
+
+OKX Configuration
+-----------------
+
+OKX is a major global cryptocurrency exchange offering spot, futures, and options trading. To create an account, visit the `OKX <https://www.okx.com/>`_ website.
+
+.. list-table:: OKX Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - OKX_API_KEY
+     - Your OKX API key. **Required** if you are using OKX as your broker.
+     - 3c4d5e6f7g8h9i0j1k2l
+   * - OKX_SECRET
+     - Your OKX secret key. **Required** if you are using OKX as your broker.
+     - abcdef1234567890abcdef1234567890abcdef12
+   * - OKX_PASSPHRASE
+     - Your OKX passphrase. **Required** if you are using OKX as your broker.
+     - mypassphrase789
+
 Interactive Brokers Configuration
 ---------------------------------
 
@@ -463,6 +564,25 @@ Charles Schwab provides API access for automated trading and market data through
    * - SCHWAB_ACCOUNT_NUMBER
      - Your Schwab account number used for trading.
      - 123456789
+
+Bitunix Configuration
+---------------------
+
+Bitunix is a cryptocurrency derivatives exchange that supports perpetual futures trading. To create an account, visit the `Bitunix <https://www.bitunix.com/>`_ website.
+
+.. list-table:: Bitunix Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - BITUNIX_API_KEY
+     - Your Bitunix API key. **Required** if you are using Bitunix as your broker.
+     - your_api_key_here
+   * - BITUNIX_API_SECRET
+     - Your Bitunix API secret. **Required** if you are using Bitunix as your broker.
+     - your_api_secret_here
 
 DataBento Configuration
 -----------------------

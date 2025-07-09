@@ -10,6 +10,22 @@ To get started, you will need to create a Tradier account and get your Account N
 
 Once you have an account and you've logged in you can find your Account Number and API Secret by visiting the [API Access page](https://dash.tradier.com/settings/api).
 
+.. note::
+   **Easy Setup with .env File**
+   
+   LumiBot automatically loads your API credentials from a `.env` file! Simply create a `.env` file in the same folder as your trading strategy and add your Tradier credentials. LumiBot will automatically detect and use these credentials - no additional configuration required.
+   
+   **Example .env file:**
+   
+   .. code-block:: bash
+   
+      # Tradier Configuration
+      TRADIER_ACCESS_TOKEN=your_access_token_here
+      TRADIER_ACCOUNT_NUMBER=your_account_number_here
+      TRADIER_IS_PAPER=true
+   
+   That's it! LumiBot handles the rest automatically.
+
 Configuration
 -------------
 

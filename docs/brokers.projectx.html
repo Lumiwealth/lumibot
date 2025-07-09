@@ -337,6 +337,7 @@
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
 </ul>
 </li>
 </ul>
@@ -375,209 +376,192 @@
         <article role="main">
           <section id="projectx">
 <h1>ProjectX<a class="headerlink" href="#projectx" title="Link to this heading">#</a></h1>
-<p>ProjectX is a <strong>futures-only broker</strong> integration that provides access to multiple underlying futures brokers through a unified gateway. This broker is designed specifically for <strong>prop trading firms</strong> and retail futures trading with practice/demo accounts.</p>
+<p>ProjectX is a <strong>futures-only broker</strong> that connects to multiple prop trading firms and futures brokers through a unified gateway. Each broker requires its own specific environment variables.</p>
 <section id="features">
 <h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>Futures Trading Only</strong>: Continuous futures contracts with sophisticated contract resolution</p></li>
-<li><p><strong>Multi-Firm Gateway</strong>: Single interface supporting multiple underlying futures brokers</p></li>
-<li><p><strong>Prop Trading Firms</strong>: Works with major proprietary trading firms and retail brokers</p></li>
-<li><p><strong>Practice Accounts</strong>: Demo/practice account trading only</p></li>
-<li><p><strong>Real-time Streaming</strong>: SignalR-based live order and position updates</p></li>
-<li><p><strong>Order Types</strong>: Market, limit, stop, trailing stop, join bid, join ask orders</p></li>
-<li><p><strong>Rate Limiting</strong>: Built-in API rate limiting and caching for optimal performance</p></li>
-<li><p><strong>Auto-Detection</strong>: Automatically detects and connects when environment variables are configured</p></li>
+<li><p><strong>Futures Trading Only</strong>: Continuous futures contracts</p></li>
+<li><p><strong>Multiple Brokers</strong>: Supports 19+ different prop trading firms and futures brokers</p></li>
+<li><p><strong>Real-time Data</strong>: Live order and position updates</p></li>
+<li><p><strong>Order Types</strong>: Market, limit, stop orders</p></li>
+<li><p><strong>Auto-Detection</strong>: Automatically connects when environment variables are set</p></li>
 </ul>
-</section>
-<section id="supported-prop-trading-firms">
-<h2>Supported Prop Trading Firms<a class="headerlink" href="#supported-prop-trading-firms" title="Link to this heading">#</a></h2>
-<p>ProjectX works with a wide range of proprietary trading firms and retail futures brokers, including:</p>
-<p><strong>Major Prop Trading Firms:</strong></p>
-<ul class="simple">
-<li><p><strong>Topstep</strong> - Leading futures prop trading firm</p></li>
-<li><p><strong>Alpha Futures</strong> - Proprietary trading evaluations</p></li>
-<li><p><strong>Nexgen Futures</strong> - Futures trading firm</p></li>
-<li><p><strong>TickTickTrader</strong> - Prop trading platform</p></li>
-<li><p><strong>TradeDay</strong> - Day trading prop firm</p></li>
-<li><p><strong>Bulenox</strong> - Trading evaluation platform</p></li>
-<li><p><strong>Blusky</strong> - Futures prop trading</p></li>
-<li><p><strong>Goat Futures</strong> - Proprietary trading firm</p></li>
-<li><p><strong>The Futures Desk</strong> - Professional trading firm</p></li>
-<li><p><strong>DayTraders</strong> - Day trading platform</p></li>
-<li><p><strong>E8 Futures</strong> - Futures prop trading</p></li>
-<li><p><strong>Blue Guardian Futures</strong> - Trading firm</p></li>
-<li><p><strong>FuturesElite</strong> - Elite futures trading</p></li>
-<li><p><strong>FXIFY</strong> - Forex and futures prop trading</p></li>
-<li><p><strong>Top One Futures</strong> - Proprietary trading platform</p></li>
-<li><p><strong>Aqua Futures</strong> - Futures trading firm</p></li>
-<li><p><strong>Funding Futures</strong> - Prop trading evaluations</p></li>
-<li><p><strong>TX3 Funding</strong> - Trading capital provider</p></li>
-</ul>
-<p><strong>And many other retail and institutional futures brokers that support the ProjectX gateway.</strong></p>
 </section>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
-<li><p><strong>Practice Account</strong>: ProjectX integration requires a demo/practice futures trading account</p></li>
-<li><p><strong>API Credentials</strong>: Username and API key from your futures broker</p></li>
-<li><p><strong>Base URL</strong>: API endpoint URL for your specific broker firm</p></li>
-<li><p><strong>Firm Configuration</strong>: Environment variables configured for your specific firm</p></li>
+<li><p><strong>Account</strong>: Demo or live futures trading account with a supported broker</p></li>
 </ol>
-</section>
-<section id="environment-variables">
-<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading">#</a></h2>
-<p>ProjectX supports multiple firms through a standardized environment variable pattern. Replace <cite>{FIRM}</cite> with your broker name (e.g., TOPONE, TSX):</p>
-<div class="table-wrapper colwidths-given docutils container">
-<table class="docutils align-default">
-<colgroup>
-<col style="width: 35.0%" />
-<col style="width: 50.0%" />
-<col style="width: 15.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p><strong>Variable</strong></p></th>
-<th class="head"><p><strong>Description</strong></p></th>
-<th class="head"><p><strong>Required</strong></p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><cite>PROJECTX_{FIRM}_API_KEY</cite></p></td>
-<td><p>Your API key from the broker</p></td>
-<td><p>✅ Yes</p></td>
-</tr>
-<tr class="row-odd"><td><p><cite>PROJECTX_{FIRM}_USERNAME</cite></p></td>
-<td><p>Your username for the broker</p></td>
-<td><p>✅ Yes</p></td>
-</tr>
-<tr class="row-even"><td><p><cite>PROJECTX_{FIRM}_BASE_URL</cite></p></td>
-<td><p>Base API URL for the broker</p></td>
-<td><p>✅ Yes</p></td>
-</tr>
-<tr class="row-odd"><td><p><cite>PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME</cite></p></td>
-<td><p>Specific account name to use (optional)</p></td>
-<td><p>❌ No</p></td>
-</tr>
-<tr class="row-even"><td><p><cite>PROJECTX_{FIRM}_STREAMING_BASE_URL</cite></p></td>
-<td><p>Streaming endpoint URL (optional)</p></td>
-<td><p>❌ No</p></td>
-</tr>
-<tr class="row-odd"><td><p><cite>PROJECTX_FIRM</cite></p></td>
-<td><p>Specify which firm to use (optional)</p></td>
-<td><p>❌ No</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Auto-Detection</strong></p>
-<p>ProjectX will <strong>automatically detect</strong> and connect when you have the required environment variables configured. You do <strong>not</strong> need to set <cite>TRADING_BROKER=projectx</cite> - it will auto-detect based on the presence of ProjectX environment variables.</p>
-</section>
-<section id="multi-firm-support">
-<h2>Multi-Firm Support<a class="headerlink" href="#multi-firm-support" title="Link to this heading">#</a></h2>
-<p>ProjectX can automatically detect and use any configured firm. If multiple firms are configured, it will use the first available one, or you can specify which firm to use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example for TOPONE firm</span>
-<span class="nv">PROJECTX_TOPONE_API_KEY</span><span class="o">=</span>your_api_key_here
-<span class="nv">PROJECTX_TOPONE_USERNAME</span><span class="o">=</span>your_username
-<span class="nv">PROJECTX_TOPONE_BASE_URL</span><span class="o">=</span>https://api.yourbroker.com/
-
-<span class="c1"># Example for TSX firm</span>
-<span class="nv">PROJECTX_TSX_API_KEY</span><span class="o">=</span>your_api_key_here
-<span class="nv">PROJECTX_TSX_USERNAME</span><span class="o">=</span>your_username
-<span class="nv">PROJECTX_TSX_BASE_URL</span><span class="o">=</span>https://api.tsx.com/
-
-<span class="c1"># Optional: Specify which firm to use</span>
-<span class="nv">PROJECTX_FIRM</span><span class="o">=</span>TOPONE
+<p>2. <strong>API Credentials</strong>: Username and API key from your broker
+Supported Brokers
+—————–</p>
+<section id="topstepx">
+<h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TOPSTEPX_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_TOPSTEPX_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
 </pre></div>
 </div>
+</section>
+<section id="top-one-futures">
+<h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TOPONE_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_TOPONE_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="tickticktrader">
+<h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TICKTICKTRADER_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_TICKTICKTRADER_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TICKTICKTRADER_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="alphaticks">
+<h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_ALPHATICKS_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_ALPHATICKS_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_ALPHATICKS_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="aqua-futures">
+<h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_AQUAFUTURES_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_AQUAFUTURES_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_AQUAFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="blue-guardian-futures">
+<h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_BLUEGUARDIANFUTURES_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_BLUEGUARDIANFUTURES_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_BLUEGUARDIANFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="blusky">
+<h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_BLUSKY_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_BLUSKY_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_BLUSKY_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="bulenox">
+<h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_BULENOX_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_BULENOX_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_BULENOX_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="e8-futures">
+<h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_E8X_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_E8X_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_E8X_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="funding-futures">
+<h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_FUNDINGFUTURES_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_FUNDINGFUTURES_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_FUNDINGFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="the-futures-desk">
+<h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_THEFUTURESDESK_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_THEFUTURESDESK_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_THEFUTURESDESK_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="futures-elite">
+<h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_FUTURESELITE_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_FUTURESELITE_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_FUTURESELITE_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="fxify-futures">
+<h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_FXIFYFUTURES_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_FXIFYFUTURES_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_FXIFYFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="goat-funded-futures">
+<h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_GOATFUNDEDFUTURES_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_GOATFUNDEDFUTURES_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_GOATFUNDEDFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="hola-prime">
+<h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_HOLAPRIME_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_HOLAPRIME_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_HOLAPRIME_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="nexgen-futures">
+<h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_NEXGEN_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_NEXGEN_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_NEXGEN_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="tx3-funding">
+<h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TX3FUNDING_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_TX3FUNDING_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_TX3FUNDING_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="daytraders">
+<h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_DAYTRADERS_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_DAYTRADERS_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_DAYTRADERS_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
+<section id="demo-testing">
+<h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_DEMO_API_KEY</span><span class="o">=</span>your_api_key
+<span class="nv">PROJECTX_DEMO_USERNAME</span><span class="o">=</span>your_username
+<span class="nv">PROJECTX_DEMO_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
+</pre></div>
+</div>
+</section>
 </section>
 <section id="supported-functionality">
 <h2>Supported Functionality<a class="headerlink" href="#supported-functionality" title="Link to this heading">#</a></h2>
-<div class="table-wrapper colwidths-given docutils container" id="id1">
-<table class="docutils align-default" id="id1">
-<caption><span class="caption-text">ProjectX Capabilities</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
-<colgroup>
-<col style="width: 25.0%" />
-<col style="width: 15.0%" />
-<col style="width: 60.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p><strong>Feature</strong></p></th>
-<th class="head"><p><strong>Supported</strong></p></th>
-<th class="head"><p><strong>Notes</strong></p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Futures Trading</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Continuous futures with automatic contract resolution</p></td>
-</tr>
-<tr class="row-odd"><td><p>Market Orders</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Immediate execution at market price</p></td>
-</tr>
-<tr class="row-even"><td><p>Limit Orders</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Execute at specified price or better</p></td>
-</tr>
-<tr class="row-odd"><td><p>Stop Orders</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Stop-loss and stop-limit functionality</p></td>
-</tr>
-<tr class="row-even"><td><p>Trailing Stop Orders</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Dynamic stop orders that follow price</p></td>
-</tr>
-<tr class="row-odd"><td><p>Join Bid/Ask Orders</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Advanced order types for liquidity provision</p></td>
-</tr>
-<tr class="row-even"><td><p>Order Modification</p></td>
-<td><p>❌ No</p></td>
-<td><p>Must cancel and re-place orders</p></td>
-</tr>
-<tr class="row-odd"><td><p>Real-time Streaming</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>SignalR-based live updates (optional)</p></td>
-</tr>
-<tr class="row-even"><td><p>Historical Data</p></td>
-<td><p>✅ Yes</p></td>
-<td><p>Minute, hour, day, week, month timeframes</p></td>
-</tr>
-<tr class="row-odd"><td><p>Stock Trading</p></td>
-<td><p>❌ No</p></td>
-<td><p>Futures only</p></td>
-</tr>
-<tr class="row-even"><td><p>Options Trading</p></td>
-<td><p>❌ No</p></td>
-<td><p>Futures only</p></td>
-</tr>
-<tr class="row-odd"><td><p>Cryptocurrency</p></td>
-<td><p>❌ No</p></td>
-<td><p>Futures only</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 </section>
-<section id="example-env-configuration">
-<h2>Example <cite>.env</cite> Configuration<a class="headerlink" href="#example-env-configuration" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Required: Your firm&#39;s API credentials</span>
-<span class="nv">PROJECTX_TOPONE_API_KEY</span><span class="o">=</span>your_actual_api_key
-<span class="nv">PROJECTX_TOPONE_USERNAME</span><span class="o">=</span>your_username
-<span class="nv">PROJECTX_TOPONE_BASE_URL</span><span class="o">=</span>https://api.yourbroker.com/
-
-<span class="c1"># Optional: Specify preferred account and firm</span>
-<span class="nv">PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>Practice<span class="w"> </span>Account<span class="w"> </span><span class="m">1</span>
-<span class="nv">PROJECTX_FIRM</span><span class="o">=</span>TOPONE
-</pre></div>
-</div>
-<p><strong>That’s it!</strong> ProjectX will automatically detect these environment variables and initialize. No need to set <cite>TRADING_BROKER=projectx</cite>.</p>
-</section>
-<section id="example-strategy">
-<h2>Example Strategy<a class="headerlink" href="#example-strategy" title="Link to this heading">#</a></h2>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Set Environment Variables</strong>: Configure your broker’s API credentials</p></li>
+<li><p><strong>Create Strategy</strong>: Import Lumibot and create your trading strategy</p></li>
+<li><p><strong>Run</strong>: ProjectX will auto-detect and connect</p></li>
+</ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
 <span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
 
-<span class="k">class</span> <span class="nc">FuturesStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
     <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
 
@@ -587,136 +571,35 @@
 
         <span class="c1"># Get current price</span>
         <span class="n">last_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">mes</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MES price: </span><span class="si">{</span><span class="n">last_price</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># Place a limit order</span>
         <span class="k">if</span> <span class="n">last_price</span><span class="p">:</span>
-            <span class="n">limit_price</span> <span class="o">=</span> <span class="n">last_price</span> <span class="o">*</span> <span class="mf">0.999</span>  <span class="c1"># 0.1% below market</span>
             <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
                 <span class="n">asset</span><span class="o">=</span><span class="n">mes</span><span class="p">,</span>
                 <span class="n">quantity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
                 <span class="n">side</span><span class="o">=</span><span class="s2">&quot;buy&quot;</span><span class="p">,</span>
                 <span class="n">order_type</span><span class="o">=</span><span class="s2">&quot;limit&quot;</span><span class="p">,</span>
-                <span class="n">limit_price</span><span class="o">=</span><span class="n">limit_price</span>
+                <span class="n">limit_price</span><span class="o">=</span><span class="n">last_price</span> <span class="o">*</span> <span class="mf">0.999</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 
-<span class="c1"># The broker will automatically initialize from environment variables</span>
-<span class="n">strategy</span> <span class="o">=</span> <span class="n">FuturesStrategy</span><span class="p">()</span>
-<span class="n">strategy</span><span class="o">.</span><span class="n">run_backtest</span><span class="p">(</span>
-    <span class="n">backtesting_start</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-    <span class="n">backtesting_end</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
-<span class="p">)</span>
+<span class="c1"># Run the strategy (ProjectX auto-detects from environment variables)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">()</span>
+<span class="n">strategy</span><span class="o">.</span><span class="n">run_live</span><span class="p">()</span>
 </pre></div>
 </div>
 </section>
-<section id="continuous-futures-support">
-<h2>Continuous Futures Support<a class="headerlink" href="#continuous-futures-support" title="Link to this heading">#</a></h2>
-<p>ProjectX handles continuous futures automatically using sophisticated contract resolution:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># These symbols are automatically resolved to active contracts</span>
-<span class="n">mes</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;MES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>  <span class="c1"># Micro E-mini S&amp;P 500</span>
-<span class="n">es</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>    <span class="c1"># E-mini S&amp;P 500</span>
-<span class="n">nq</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;NQ&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>    <span class="c1"># E-mini NASDAQ</span>
-<span class="n">ym</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;YM&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>    <span class="c1"># E-mini Dow Jones</span>
-<span class="n">rty</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;RTY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>  <span class="c1"># E-mini Russell 2000</span>
-</pre></div>
-</div>
-<p>The system automatically:</p>
-<ul class="simple">
-<li><p>Resolves symbols to current active contracts</p></li>
-<li><p>Handles contract rollovers</p></li>
-<li><p>Maps to broker-specific contract identifiers</p></li>
-<li><p>Manages expiration dates</p></li>
-</ul>
-</section>
-<section id="account-requirements">
-<h2>Account Requirements<a class="headerlink" href="#account-requirements" title="Link to this heading">#</a></h2>
-<p><strong>Practice/Demo Accounts Only</strong></p>
-<p>ProjectX integration is designed for practice trading and will only connect to demo accounts. The system automatically:</p>
-<ul class="simple">
-<li><p>Filters for accounts with names starting with “prac” or “tof-px”</p></li>
-<li><p>Selects the account with the highest balance if multiple practice accounts exist</p></li>
-<li><p>Uses the preferred account name if specified in configuration</p></li>
-</ul>
-</section>
-<section id="important-notes">
-<h2>Important Notes<a class="headerlink" href="#important-notes" title="Link to this heading">#</a></h2>
-<dl class="simple">
-<dt><strong>Order Management</strong></dt><dd><ul class="simple">
-<li><p><strong>No Order Modification</strong>: ProjectX does not support order modification. To change an order, you must cancel the existing order and place a new one.</p></li>
-<li><p><strong>Rate Limiting</strong>: Built-in rate limiting prevents API overuse with 50ms delays between requests.</p></li>
-</ul>
-</dd>
-<dt><strong>Streaming Connection</strong></dt><dd><ul class="simple">
-<li><p>Real-time streaming is <strong>optional</strong> and will fail gracefully if unavailable</p></li>
-<li><p>Requires <cite>signalrcore</cite> library for streaming functionality: <cite>pip install signalrcore&gt;=0.9.2</cite></p></li>
-<li><p><strong>Note</strong>: Due to dependency conflicts, <cite>signalrcore</cite> must be installed separately if you want streaming</p></li>
-<li><p>Provides live updates for orders, positions, trades, and account information</p></li>
-</ul>
-</dd>
-<dt><strong>Performance</strong></dt><dd><ul class="simple">
-<li><p><strong>Caching</strong>: 30-second cache for account, position, and order data</p></li>
-<li><p><strong>Auto-reconnection</strong>: Automatic connection management and retry logic</p></li>
-<li><p><strong>Efficient Resolution</strong>: Smart contract resolution reduces API calls</p></li>
-</ul>
-</dd>
-<dt><strong>Asset Types</strong></dt><dd><ul class="simple">
-<li><p><strong>Futures Only</strong>: ProjectX exclusively supports futures trading</p></li>
-<li><p><strong>Continuous Contracts</strong>: All futures are handled as continuous contracts</p></li>
-<li><p><strong>No Options/Stocks</strong>: Options chains and stock trading are not available</p></li>
-</ul>
-</dd>
-<dt><strong>Auto-Detection</strong></dt><dd><ul class="simple">
-<li><p>ProjectX automatically detects when environment variables are configured</p></li>
-<li><p>No need to explicitly set <cite>TRADING_BROKER=projectx</cite></p></li>
-<li><p>Will be selected automatically if ProjectX credentials are available</p></li>
-</ul>
-</dd>
-</dl>
-</section>
-<section id="troubleshooting">
-<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
-<dl class="simple">
-<dt><strong>Authentication Issues</strong></dt><dd><ul class="simple">
-<li><p>Verify your API key and username are correct</p></li>
-<li><p>Check that the base URL is properly formatted</p></li>
-<li><p>Ensure your account has API access enabled</p></li>
-</ul>
-</dd>
-<dt><strong>No Practice Accounts Found</strong></dt><dd><ul class="simple">
-<li><p>Confirm you have demo/practice accounts available</p></li>
-<li><p>Check account naming (should start with “prac” or “tof-px”)</p></li>
-<li><p>Contact your broker if no practice accounts are available</p></li>
-</ul>
-</dd>
-<dt><strong>Rate Limiting</strong></dt><dd><ul class="simple">
-<li><p>Built-in rate limiting should prevent most issues</p></li>
-<li><p>If you encounter rate limits, the system will automatically retry</p></li>
-<li><p>Consider reducing trading frequency if persistent</p></li>
-</ul>
-</dd>
-<dt><strong>Streaming Connection Issues</strong></dt><dd><ul class="simple">
-<li><p>Streaming failures are non-critical and won’t stop trading</p></li>
-<li><p>Install <cite>signalrcore</cite> library if streaming is required: <cite>pip install signalrcore&gt;=0.9.2</cite></p></li>
-<li><p><strong>Note</strong>: Due to dependency conflicts, <cite>signalrcore</cite> must be installed separately if you want streaming</p></li>
-<li><p>Check network connectivity and firewall settings</p></li>
-</ul>
-</dd>
-<dt><strong>Auto-Detection Not Working</strong></dt><dd><ul class="simple">
-<li><p>Ensure you have the required environment variables: <cite>PROJECTX_{FIRM}_API_KEY</cite>, <cite>PROJECTX_{FIRM}_USERNAME</cite>, <cite>PROJECTX_{FIRM}_BASE_URL</cite></p></li>
-<li><p>Check that your firm name is uppercase in environment variables</p></li>
-<li><p>Verify no typos in environment variable names</p></li>
-</ul>
-</dd>
-</dl>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>ProjectX is specifically designed for futures trading with practice accounts. Production trading capabilities depend on your broker’s API policies and account permissions.</p>
-</div>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>Always test thoroughly with practice accounts before considering any live trading implementation.</p>
-</div>
+<section id="supported-features">
+<h2>Supported Features<a class="headerlink" href="#supported-features" title="Link to this heading">#</a></h2>
+<p>✅ <strong>Futures Trading</strong>: Continuous futures contracts
+✅ <strong>Market Orders</strong>: Immediate execution
+✅ <strong>Limit Orders</strong>: Execute at specified price
+✅ <strong>Stop Orders</strong>: Stop-loss functionality
+✅ <strong>Real-time Data</strong>: Live market data
+✅ <strong>Historical Data</strong>: Minute, hour, day timeframes</p>
+<p>❌ <strong>Stock Trading</strong>: Futures only
+❌ <strong>Options Trading</strong>: Futures only
+❌ <strong>Order Modification</strong>: Must cancel and re-place</p>
 </section>
 </section>
 
@@ -777,17 +660,31 @@
             <ul>
 <li><a class="reference internal" href="#">ProjectX</a><ul>
 <li><a class="reference internal" href="#features">Features</a></li>
-<li><a class="reference internal" href="#supported-prop-trading-firms">Supported Prop Trading Firms</a></li>
-<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
-<li><a class="reference internal" href="#environment-variables">Environment Variables</a></li>
-<li><a class="reference internal" href="#multi-firm-support">Multi-Firm Support</a></li>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a><ul>
+<li><a class="reference internal" href="#topstepx">TopstepX</a></li>
+<li><a class="reference internal" href="#top-one-futures">Top One Futures</a></li>
+<li><a class="reference internal" href="#tickticktrader">TickTickTrader</a></li>
+<li><a class="reference internal" href="#alphaticks">AlphaTicks</a></li>
+<li><a class="reference internal" href="#aqua-futures">Aqua Futures</a></li>
+<li><a class="reference internal" href="#blue-guardian-futures">Blue Guardian Futures</a></li>
+<li><a class="reference internal" href="#blusky">Blusky</a></li>
+<li><a class="reference internal" href="#bulenox">Bulenox</a></li>
+<li><a class="reference internal" href="#e8-futures">E8 Futures</a></li>
+<li><a class="reference internal" href="#funding-futures">Funding Futures</a></li>
+<li><a class="reference internal" href="#the-futures-desk">The Futures Desk</a></li>
+<li><a class="reference internal" href="#futures-elite">Futures Elite</a></li>
+<li><a class="reference internal" href="#fxify-futures">FXIFY Futures</a></li>
+<li><a class="reference internal" href="#goat-funded-futures">Goat Funded Futures</a></li>
+<li><a class="reference internal" href="#hola-prime">Hola Prime</a></li>
+<li><a class="reference internal" href="#nexgen-futures">Nexgen Futures</a></li>
+<li><a class="reference internal" href="#tx3-funding">TX3 Funding</a></li>
+<li><a class="reference internal" href="#daytraders">DayTraders</a></li>
+<li><a class="reference internal" href="#demo-testing">Demo/Testing</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#supported-functionality">Supported Functionality</a></li>
-<li><a class="reference internal" href="#example-env-configuration">Example <cite>.env</cite> Configuration</a></li>
-<li><a class="reference internal" href="#example-strategy">Example Strategy</a></li>
-<li><a class="reference internal" href="#continuous-futures-support">Continuous Futures Support</a></li>
-<li><a class="reference internal" href="#account-requirements">Account Requirements</a></li>
-<li><a class="reference internal" href="#important-notes">Important Notes</a></li>
-<li><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+<li><a class="reference internal" href="#usage">Usage</a></li>
+<li><a class="reference internal" href="#supported-features">Supported Features</a></li>
 </ul>
 </li>
 </ul>

@@ -337,6 +337,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
 </ul>
 </li>
 </ul>
@@ -703,6 +704,7 @@
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#tradier-configuration">Tradier Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#tradovate-configuration">Tradovate Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#alpaca-configuration">Alpaca Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#coinbase-configuration">Coinbase Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#kraken-configuration">Kraken Configuration</a></li>
@@ -710,6 +712,28 @@
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#interactive-brokers-legacy-configuration">Interactive Brokers-Legacy Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#schwab-configuration">Schwab Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="deployment.html#databento-configuration">DataBento Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#projectx-configuration">ProjectX Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#topstepx">TopstepX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#top-one-futures">Top One Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#tickticktrader">TickTickTrader</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#alphaticks">AlphaTicks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#aqua-futures">Aqua Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#blue-guardian-futures">Blue Guardian Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#blusky">Blusky</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#bulenox">Bulenox</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#e8-futures">E8 Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#funding-futures">Funding Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#the-futures-desk">The Futures Desk</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#futures-elite">Futures Elite</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#fxify-futures">FXIFY Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#goat-funded-futures">Goat Funded Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#hola-prime">Hola Prime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#nexgen-futures">Nexgen Futures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#tx3-funding">TX3 Funding</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#daytraders">DayTraders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="deployment.html#demo-testing">Demo/Testing</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a><ul>
@@ -1037,17 +1061,10 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#features">Features</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#supported-prop-trading-firms">Supported Prop Trading Firms</a></li>
 <li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#prerequisites">Prerequisites</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#environment-variables">Environment Variables</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#multi-firm-support">Multi-Firm Support</a></li>
 <li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#supported-functionality">Supported Functionality</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#example-env-configuration">Example <cite>.env</cite> Configuration</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#example-strategy">Example Strategy</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#continuous-futures-support">Continuous Futures Support</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#account-requirements">Account Requirements</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#important-notes">Important Notes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#usage">Usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.projectx.html#supported-features">Supported Features</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a><ul>
@@ -1077,6 +1094,19 @@
 <li class="toctree-l3"><a class="reference internal" href="brokers.tradier.html#configuration">Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="brokers.tradier.html#running-your-strategy">Running Your Strategy</a></li>
 <li class="toctree-l3"><a class="reference internal" href="brokers.tradier.html#full-example-strategy">Full Example Strategy</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#getting-started">Getting Started</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#obtaining-api-credentials">Obtaining API Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#required-environment-variables">Required Environment Variables</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#optional-environment-variables">Optional Environment Variables</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#configuration-examples">Configuration Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#broker-data-source-combinations">Broker + Data Source Combinations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#running-your-strategy">Running Your Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#futures-symbol-format">Futures Symbol Format</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#important-notes">Important Notes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.tradovate.html#troubleshooting">Troubleshooting</a></li>
 </ul>
 </li>
 </ul>

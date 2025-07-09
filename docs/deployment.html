@@ -337,6 +337,7 @@
 <li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Schwab</a></li>
 <li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
 </ul>
 </li>
 </ul>
@@ -669,12 +670,66 @@
 </table>
 </div>
 </section>
+<section id="tradovate-configuration">
+<h2>Tradovate Configuration<a class="headerlink" href="#tradovate-configuration" title="Link to this heading">#</a></h2>
+<p>Tradovate is a futures broker that provides access to CME Group markets. <strong>Important: Tradovate does not provide market data, so you must configure a separate data source</strong> (such as DataBento or ProjectX). To create an account, visit the <a class="reference external" href="https://www.tradovate.com/">Tradovate</a> website.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id22">
+<table class="docutils align-default" id="id22">
+<caption><span class="caption-text">Tradovate Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>TRADOVATE_USERNAME</p></td>
+<td><p>Your Tradovate username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-odd"><td><p>TRADOVATE_DEDICATED_PASSWORD</p></td>
+<td><p>Your dedicated API password (not your login password)</p></td>
+<td><p>your_api_password</p></td>
+</tr>
+<tr class="row-even"><td><p>TRADOVATE_CID</p></td>
+<td><p>Your Client ID from Tradovate API dashboard</p></td>
+<td><p>6889</p></td>
+</tr>
+<tr class="row-odd"><td><p>TRADOVATE_SECRET</p></td>
+<td><p>Your Secret from Tradovate API dashboard</p></td>
+<td><p>x4078409-db42-4d6a-8469-a468a8b94ok8</p></td>
+</tr>
+<tr class="row-even"><td><p>TRADOVATE_IS_PAPER</p></td>
+<td><p><strong>Set to “True”</strong> for demo trading, <strong>set to “False”</strong> for live trading. Defaults to True.</p></td>
+<td><p>True</p></td>
+</tr>
+<tr class="row-odd"><td><p>TRADOVATE_APP_ID</p></td>
+<td><p>Application identifier (optional, defaults to “Lumibot”)</p></td>
+<td><p>Lumibot</p></td>
+</tr>
+<tr class="row-even"><td><p>TRADOVATE_APP_VERSION</p></td>
+<td><p>Application version (optional, defaults to “1.0”)</p></td>
+<td><p>1.0</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Since Tradovate doesn’t provide market data, you must also configure a separate data source. Set <code class="docutils literal notranslate"><span class="pre">TRADING_BROKER=tradovate</span></code> and <code class="docutils literal notranslate"><span class="pre">DATA_SOURCE</span></code> to one of: <code class="docutils literal notranslate"><span class="pre">databento</span></code>, <code class="docutils literal notranslate"><span class="pre">projectx</span></code>, <code class="docutils literal notranslate"><span class="pre">ibrest</span></code> (Interactive Brokers REST), or <code class="docutils literal notranslate"><span class="pre">ib</span></code> (Interactive Brokers Legacy).</p>
+</div>
+</section>
 <section id="alpaca-configuration">
 <h2>Alpaca Configuration<a class="headerlink" href="#alpaca-configuration" title="Link to this heading">#</a></h2>
 <p>Alpaca is great because they’re a commission-free broker specifically designed for API trading, which aligns perfectly with our platform. Alpaca supports trading stocks, crypto, and soon options, with their APIs working seamlessly for automated trading strategies. To create an account, visit the <a class="reference external" href="https://alpaca.markets/">Alpaca</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id22">
-<table class="docutils align-default" id="id22">
-<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id23">
+<table class="docutils align-default" id="id23">
+<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -706,9 +761,9 @@
 <section id="coinbase-configuration">
 <h2>Coinbase Configuration<a class="headerlink" href="#coinbase-configuration" title="Link to this heading">#</a></h2>
 <p>Coinbase is a cryptocurrency broker that is easy to set up and operates across all United States, including New York, which is typically challenging to find for crypto brokers. It offers a wide range of cryptocurrencies with user-friendly APIs. To create an account, visit the <a class="reference external" href="https://www.coinbase.com/">Coinbase</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id23">
-<table class="docutils align-default" id="id23">
-<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id24">
+<table class="docutils align-default" id="id24">
+<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id24" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -744,9 +799,9 @@
 <section id="kraken-configuration">
 <h2>Kraken Configuration<a class="headerlink" href="#kraken-configuration" title="Link to this heading">#</a></h2>
 <p>Kraken is an excellent cryptocurrency broker offering very low fees and a wide range of cryptocurrencies, likely more than Coinbase. It is ideal for users focused on crypto trading with competitive pricing. To create an account, visit the <a class="reference external" href="https://www.kraken.com/">Kraken</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id24">
-<table class="docutils align-default" id="id24">
-<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id24" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id25">
+<table class="docutils align-default" id="id25">
+<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id25" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -774,9 +829,9 @@
 <section id="interactive-brokers-configuration">
 <h2>Interactive Brokers Configuration<a class="headerlink" href="#interactive-brokers-configuration" title="Link to this heading">#</a></h2>
 <p>Interactive Brokers is ideal for international users as they offer a wide array of asset classes, including stocks, options, futures, forex, CFDs, and more. Their global presence makes them suitable for users around the world. To create an account, visit the <a class="reference external" href="https://www.interactivebrokers.com/">Interactive Brokers</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id25">
-<table class="docutils align-default" id="id25">
-<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id25" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id26">
+<table class="docutils align-default" id="id26">
+<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id26" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -812,9 +867,9 @@
 <section id="interactive-brokers-legacy-configuration">
 <h2>Interactive Brokers-Legacy Configuration<a class="headerlink" href="#interactive-brokers-legacy-configuration" title="Link to this heading">#</a></h2>
 <p>This is the legacy version of our Interactive Brokers implementation, which uses their TWS API. It is maintained for compatibility purposes, but we recommend using the newer implementation.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id26">
-<table class="docutils align-default" id="id26">
-<caption><span class="caption-text">Interactive Brokers-Legacy Configuration</span><a class="headerlink" href="#id26" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id27">
+<table class="docutils align-default" id="id27">
+<caption><span class="caption-text">Interactive Brokers-Legacy Configuration</span><a class="headerlink" href="#id27" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -850,9 +905,9 @@
 <section id="schwab-configuration">
 <h2>Schwab Configuration<a class="headerlink" href="#schwab-configuration" title="Link to this heading">#</a></h2>
 <p>Charles Schwab provides API access for automated trading and market data through its developer platform. To create an account, visit the <a class="reference external" href="https://www.schwab.com/">Charles Schwab</a> website and follow the instructions to register for a developer account at <a class="reference external" href="https://developer.schwab.com">developer.schwab.com</a>.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id27">
-<table class="docutils align-default" id="id27">
-<caption><span class="caption-text">Schwab Configuration</span><a class="headerlink" href="#id27" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id28">
+<table class="docutils align-default" id="id28">
+<caption><span class="caption-text">Schwab Configuration</span><a class="headerlink" href="#id28" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -884,9 +939,9 @@
 <section id="databento-configuration">
 <h2>DataBento Configuration<a class="headerlink" href="#databento-configuration" title="Link to this heading">#</a></h2>
 <p>DataBento provides high-quality market data for stocks, futures, and options. This is primarily used as a data source for backtesting and live trading with futures. To create an account, visit the <a class="reference external" href="https://databento.com/">DataBento</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id28">
-<table class="docutils align-default" id="id28">
-<caption><span class="caption-text">DataBento Configuration</span><a class="headerlink" href="#id28" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id29">
+<table class="docutils align-default" id="id29">
+<caption><span class="caption-text">DataBento Configuration</span><a class="headerlink" href="#id29" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -907,13 +962,644 @@
 </table>
 </div>
 </section>
+<section id="projectx-configuration">
+<h2>ProjectX Configuration<a class="headerlink" href="#projectx-configuration" title="Link to this heading">#</a></h2>
+<p>ProjectX is a futures-only broker that connects to multiple prop trading firms and futures brokers. Each broker requires its own specific environment variables. Choose the section below that matches your broker.</p>
+<section id="topstepx">
+<h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id30">
+<table class="docutils align-default" id="id30">
+<caption><span class="caption-text">TopstepX Configuration</span><a class="headerlink" href="#id30" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_TOPSTEPX_API_KEY</p></td>
+<td><p>Your API key from TopstepX</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_TOPSTEPX_USERNAME</p></td>
+<td><p>Your TopstepX username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="top-one-futures">
+<h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id31">
+<table class="docutils align-default" id="id31">
+<caption><span class="caption-text">Top One Futures Configuration</span><a class="headerlink" href="#id31" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_TOPONE_API_KEY</p></td>
+<td><p>Your API key from Top One Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_TOPONE_USERNAME</p></td>
+<td><p>Your Top One Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="tickticktrader">
+<h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id32">
+<table class="docutils align-default" id="id32">
+<caption><span class="caption-text">TickTickTrader Configuration</span><a class="headerlink" href="#id32" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_TICKTICKTRADER_API_KEY</p></td>
+<td><p>Your API key from TickTickTrader</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_TICKTICKTRADER_USERNAME</p></td>
+<td><p>Your TickTickTrader username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_TICKTICKTRADER_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="alphaticks">
+<h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id33">
+<table class="docutils align-default" id="id33">
+<caption><span class="caption-text">AlphaTicks Configuration</span><a class="headerlink" href="#id33" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_ALPHATICKS_API_KEY</p></td>
+<td><p>Your API key from AlphaTicks</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_ALPHATICKS_USERNAME</p></td>
+<td><p>Your AlphaTicks username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_ALPHATICKS_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="aqua-futures">
+<h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id34">
+<table class="docutils align-default" id="id34">
+<caption><span class="caption-text">Aqua Futures Configuration</span><a class="headerlink" href="#id34" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_AQUAFUTURES_API_KEY</p></td>
+<td><p>Your API key from Aqua Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_AQUAFUTURES_USERNAME</p></td>
+<td><p>Your Aqua Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_AQUAFUTURES_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="blue-guardian-futures">
+<h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id35">
+<table class="docutils align-default" id="id35">
+<caption><span class="caption-text">Blue Guardian Futures Configuration</span><a class="headerlink" href="#id35" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_BLUEGUARDIANFUTURES_API_KEY</p></td>
+<td><p>Your API key from Blue Guardian Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_BLUEGUARDIANFUTURES_USERNAME</p></td>
+<td><p>Your Blue Guardian Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_BLUEGUARDIANFUTURES_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="blusky">
+<h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id36">
+<table class="docutils align-default" id="id36">
+<caption><span class="caption-text">Blusky Configuration</span><a class="headerlink" href="#id36" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_BLUSKY_API_KEY</p></td>
+<td><p>Your API key from Blusky</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_BLUSKY_USERNAME</p></td>
+<td><p>Your Blusky username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_BLUSKY_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="bulenox">
+<h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id37">
+<table class="docutils align-default" id="id37">
+<caption><span class="caption-text">Bulenox Configuration</span><a class="headerlink" href="#id37" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_BULENOX_API_KEY</p></td>
+<td><p>Your API key from Bulenox</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_BULENOX_USERNAME</p></td>
+<td><p>Your Bulenox username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_BULENOX_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="e8-futures">
+<h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id38">
+<table class="docutils align-default" id="id38">
+<caption><span class="caption-text">E8 Futures Configuration</span><a class="headerlink" href="#id38" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_E8X_API_KEY</p></td>
+<td><p>Your API key from E8 Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_E8X_USERNAME</p></td>
+<td><p>Your E8 Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_E8X_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="funding-futures">
+<h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id39">
+<table class="docutils align-default" id="id39">
+<caption><span class="caption-text">Funding Futures Configuration</span><a class="headerlink" href="#id39" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_FUNDINGFUTURES_API_KEY</p></td>
+<td><p>Your API key from Funding Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_FUNDINGFUTURES_USERNAME</p></td>
+<td><p>Your Funding Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_FUNDINGFUTURES_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="the-futures-desk">
+<h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id40">
+<table class="docutils align-default" id="id40">
+<caption><span class="caption-text">The Futures Desk Configuration</span><a class="headerlink" href="#id40" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_THEFUTURESDESK_API_KEY</p></td>
+<td><p>Your API key from The Futures Desk</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_THEFUTURESDESK_USERNAME</p></td>
+<td><p>Your Futures Desk username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_THEFUTURESDESK_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="futures-elite">
+<h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id41">
+<table class="docutils align-default" id="id41">
+<caption><span class="caption-text">Futures Elite Configuration</span><a class="headerlink" href="#id41" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_FUTURESELITE_API_KEY</p></td>
+<td><p>Your API key from Futures Elite</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_FUTURESELITE_USERNAME</p></td>
+<td><p>Your Futures Elite username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_FUTURESELITE_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="fxify-futures">
+<h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id42">
+<table class="docutils align-default" id="id42">
+<caption><span class="caption-text">FXIFY Futures Configuration</span><a class="headerlink" href="#id42" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_FXIFYFUTURES_API_KEY</p></td>
+<td><p>Your API key from FXIFY Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_FXIFYFUTURES_USERNAME</p></td>
+<td><p>Your FXIFY Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_FXIFYFUTURES_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="goat-funded-futures">
+<h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id43">
+<table class="docutils align-default" id="id43">
+<caption><span class="caption-text">Goat Funded Futures Configuration</span><a class="headerlink" href="#id43" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_GOATFUNDEDFUTURES_API_KEY</p></td>
+<td><p>Your API key from Goat Funded Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_GOATFUNDEDFUTURES_USERNAME</p></td>
+<td><p>Your Goat Funded Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_GOATFUNDEDFUTURES_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="hola-prime">
+<h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id44">
+<table class="docutils align-default" id="id44">
+<caption><span class="caption-text">Hola Prime Configuration</span><a class="headerlink" href="#id44" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_HOLAPRIME_API_KEY</p></td>
+<td><p>Your API key from Hola Prime</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_HOLAPRIME_USERNAME</p></td>
+<td><p>Your Hola Prime username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_HOLAPRIME_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="nexgen-futures">
+<h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id45">
+<table class="docutils align-default" id="id45">
+<caption><span class="caption-text">Nexgen Futures Configuration</span><a class="headerlink" href="#id45" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_NEXGEN_API_KEY</p></td>
+<td><p>Your API key from Nexgen Futures</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_NEXGEN_USERNAME</p></td>
+<td><p>Your Nexgen Futures username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_NEXGEN_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="tx3-funding">
+<h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id46">
+<table class="docutils align-default" id="id46">
+<caption><span class="caption-text">TX3 Funding Configuration</span><a class="headerlink" href="#id46" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_TX3FUNDING_API_KEY</p></td>
+<td><p>Your API key from TX3 Funding</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_TX3FUNDING_USERNAME</p></td>
+<td><p>Your TX3 Funding username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_TX3FUNDING_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="daytraders">
+<h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id47">
+<table class="docutils align-default" id="id47">
+<caption><span class="caption-text">DayTraders Configuration</span><a class="headerlink" href="#id47" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_DAYTRADERS_API_KEY</p></td>
+<td><p>Your API key from DayTraders</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_DAYTRADERS_USERNAME</p></td>
+<td><p>Your DayTraders username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_DAYTRADERS_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="demo-testing">
+<h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container" id="id48">
+<table class="docutils align-default" id="id48">
+<caption><span class="caption-text">Demo Configuration</span><a class="headerlink" href="#id48" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 50.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Secret</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PROJECTX_DEMO_API_KEY</p></td>
+<td><p>Your API key for demo/testing</p></td>
+<td><p>your_api_key</p></td>
+</tr>
+<tr class="row-odd"><td><p>PROJECTX_DEMO_USERNAME</p></td>
+<td><p>Your demo username</p></td>
+<td><p>your_username</p></td>
+</tr>
+<tr class="row-even"><td><p>PROJECTX_DEMO_PREFERRED_ACCOUNT_NAME</p></td>
+<td><p>(Optional) Preferred account name</p></td>
+<td><p>Practice Account 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
 </section>
 <section id="general-environment-variables">
 <h1>General Environment Variables<a class="headerlink" href="#general-environment-variables" title="Link to this heading">#</a></h1>
 <p>In addition to broker-specific secrets, the following environment variables are required for the strategy to function correctly:</p>
-<div class="table-wrapper colwidths-given docutils container" id="id29">
-<table class="docutils align-default" id="id29">
-<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id29" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id49">
+<table class="docutils align-default" id="id49">
+<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id49" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -971,7 +1657,7 @@
 <td><p>512000000</p></td>
 </tr>
 <tr class="row-odd"><td><p>TRADING_BROKER</p></td>
-<td><p><strong>(Optional)</strong> For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): “alpaca”, “tradier”, “ccxt”, “coinbase”, “kraken”, “ib” (or “interactivebrokers”), “ibrest” (or “interactivebrokersrest”), “tradeovate”, “schwab”, “bitunix”, “projectx”</p></td>
+<td><p><strong>(Optional)</strong> For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): “alpaca”, “tradier”, “ccxt”, “coinbase”, “kraken”, “ib” (or “interactivebrokers”), “ibrest” (or “interactivebrokersrest”), “tradovate”, “schwab”, “bitunix”, “projectx”</p></td>
 <td><p>tradier</p></td>
 </tr>
 <tr class="row-even"><td><p>DATA_SOURCE</p></td>
@@ -1070,6 +1756,7 @@
 <li><a class="reference internal" href="#secrets-configuration">Secrets Configuration</a></li>
 <li><a class="reference internal" href="#broker-configuration">Broker Configuration</a><ul>
 <li><a class="reference internal" href="#tradier-configuration">Tradier Configuration</a></li>
+<li><a class="reference internal" href="#tradovate-configuration">Tradovate Configuration</a></li>
 <li><a class="reference internal" href="#alpaca-configuration">Alpaca Configuration</a></li>
 <li><a class="reference internal" href="#coinbase-configuration">Coinbase Configuration</a></li>
 <li><a class="reference internal" href="#kraken-configuration">Kraken Configuration</a></li>
@@ -1077,6 +1764,28 @@
 <li><a class="reference internal" href="#interactive-brokers-legacy-configuration">Interactive Brokers-Legacy Configuration</a></li>
 <li><a class="reference internal" href="#schwab-configuration">Schwab Configuration</a></li>
 <li><a class="reference internal" href="#databento-configuration">DataBento Configuration</a></li>
+<li><a class="reference internal" href="#projectx-configuration">ProjectX Configuration</a><ul>
+<li><a class="reference internal" href="#topstepx">TopstepX</a></li>
+<li><a class="reference internal" href="#top-one-futures">Top One Futures</a></li>
+<li><a class="reference internal" href="#tickticktrader">TickTickTrader</a></li>
+<li><a class="reference internal" href="#alphaticks">AlphaTicks</a></li>
+<li><a class="reference internal" href="#aqua-futures">Aqua Futures</a></li>
+<li><a class="reference internal" href="#blue-guardian-futures">Blue Guardian Futures</a></li>
+<li><a class="reference internal" href="#blusky">Blusky</a></li>
+<li><a class="reference internal" href="#bulenox">Bulenox</a></li>
+<li><a class="reference internal" href="#e8-futures">E8 Futures</a></li>
+<li><a class="reference internal" href="#funding-futures">Funding Futures</a></li>
+<li><a class="reference internal" href="#the-futures-desk">The Futures Desk</a></li>
+<li><a class="reference internal" href="#futures-elite">Futures Elite</a></li>
+<li><a class="reference internal" href="#fxify-futures">FXIFY Futures</a></li>
+<li><a class="reference internal" href="#goat-funded-futures">Goat Funded Futures</a></li>
+<li><a class="reference internal" href="#hola-prime">Hola Prime</a></li>
+<li><a class="reference internal" href="#nexgen-futures">Nexgen Futures</a></li>
+<li><a class="reference internal" href="#tx3-funding">TX3 Funding</a></li>
+<li><a class="reference internal" href="#daytraders">DayTraders</a></li>
+<li><a class="reference internal" href="#demo-testing">Demo/Testing</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li><a class="reference internal" href="#general-environment-variables">General Environment Variables</a><ul>

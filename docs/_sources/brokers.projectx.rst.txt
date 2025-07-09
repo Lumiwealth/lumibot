@@ -1,110 +1,195 @@
 ProjectX
 ========
 
-ProjectX is a **futures-only broker** integration that provides access to multiple underlying futures brokers through a unified gateway. This broker is designed specifically for **prop trading firms** and retail futures trading with practice/demo accounts.
+ProjectX is a **futures-only broker** that connects to multiple prop trading firms and futures brokers through a unified gateway. Each broker requires its own specific environment variables.
 
 Features
 --------
 
-* **Futures Trading Only**: Continuous futures contracts with sophisticated contract resolution
-* **Multi-Firm Gateway**: Single interface supporting multiple underlying futures brokers
-* **Prop Trading Firms**: Works with major proprietary trading firms and retail brokers
-* **Practice Accounts**: Demo/practice account trading only
-* **Real-time Streaming**: SignalR-based live order and position updates
-* **Order Types**: Market, limit, stop, trailing stop, join bid, join ask orders
-* **Rate Limiting**: Built-in API rate limiting and caching for optimal performance
-* **Auto-Detection**: Automatically detects and connects when environment variables are configured
-
-Supported Prop Trading Firms
-----------------------------
-
-ProjectX works with a wide range of proprietary trading firms and retail futures brokers, including:
-
-**Major Prop Trading Firms:**
-
-* **Topstep** - Leading futures prop trading firm
-* **Alpha Futures** - Proprietary trading evaluations
-* **Nexgen Futures** - Futures trading firm
-* **TickTickTrader** - Prop trading platform
-* **TradeDay** - Day trading prop firm
-* **Bulenox** - Trading evaluation platform
-* **Blusky** - Futures prop trading
-* **Goat Futures** - Proprietary trading firm
-* **The Futures Desk** - Professional trading firm
-* **DayTraders** - Day trading platform
-* **E8 Futures** - Futures prop trading
-* **Blue Guardian Futures** - Trading firm
-* **FuturesElite** - Elite futures trading
-* **FXIFY** - Forex and futures prop trading
-* **Top One Futures** - Proprietary trading platform
-* **Aqua Futures** - Futures trading firm
-* **Funding Futures** - Prop trading evaluations
-* **TX3 Funding** - Trading capital provider
-
-**And many other retail and institutional futures brokers that support the ProjectX gateway.**
+* **Futures Trading Only**: Continuous futures contracts
+* **Multiple Brokers**: Supports 19+ different prop trading firms and futures brokers
+* **Real-time Data**: Live order and position updates
+* **Order Types**: Market, limit, stop orders
+* **Auto-Detection**: Automatically connects when environment variables are set
 
 Prerequisites
 -------------
 
-1. **Practice Account**: ProjectX integration requires a demo/practice futures trading account
-2. **API Credentials**: Username and API key from your futures broker
-3. **Base URL**: API endpoint URL for your specific broker firm
-4. **Firm Configuration**: Environment variables configured for your specific firm
+1. **Account**: Demo or live futures trading account with a supported broker
+2. **API Credentials**: Username and API key from your broker
+Supported Brokers
+-----------------
 
-Environment Variables
----------------------
-
-ProjectX supports multiple firms through a standardized environment variable pattern. Replace `{FIRM}` with your broker name (e.g., TOPONE, TSX):
-
-.. list-table::
-   :widths: 35 50 15
-   :header-rows: 1
-
-   * - **Variable**
-     - **Description**
-     - **Required**
-   * - `PROJECTX_{FIRM}_API_KEY`
-     - Your API key from the broker
-     - ✅ Yes
-   * - `PROJECTX_{FIRM}_USERNAME`
-     - Your username for the broker
-     - ✅ Yes
-   * - `PROJECTX_{FIRM}_BASE_URL`
-     - Base API URL for the broker
-     - ✅ Yes
-   * - `PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME`
-     - Specific account name to use (optional)
-     - ❌ No
-   * - `PROJECTX_{FIRM}_STREAMING_BASE_URL`
-     - Streaming endpoint URL (optional)
-     - ❌ No
-   * - `PROJECTX_FIRM`
-     - Specify which firm to use (optional)
-     - ❌ No
-
-**Auto-Detection**
-
-ProjectX will **automatically detect** and connect when you have the required environment variables configured. You do **not** need to set `TRADING_BROKER=projectx` - it will auto-detect based on the presence of ProjectX environment variables.
-
-Multi-Firm Support
-------------------
-
-ProjectX can automatically detect and use any configured firm. If multiple firms are configured, it will use the first available one, or you can specify which firm to use:
+TopstepX
+^^^^^^^^
 
 .. code-block:: bash
 
-   # Example for TOPONE firm
-   PROJECTX_TOPONE_API_KEY=your_api_key_here
+   PROJECTX_TOPSTEPX_API_KEY=your_api_key
+   PROJECTX_TOPSTEPX_USERNAME=your_username
+   PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Top One Futures
+^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_TOPONE_API_KEY=your_api_key
    PROJECTX_TOPONE_USERNAME=your_username
-   PROJECTX_TOPONE_BASE_URL=https://api.yourbroker.com/
-   
-   # Example for TSX firm  
-   PROJECTX_TSX_API_KEY=your_api_key_here
-   PROJECTX_TSX_USERNAME=your_username
-   PROJECTX_TSX_BASE_URL=https://api.tsx.com/
-   
-   # Optional: Specify which firm to use
-   PROJECTX_FIRM=TOPONE
+   PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME=your_account_name
+
+TickTickTrader
+^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_TICKTICKTRADER_API_KEY=your_api_key
+   PROJECTX_TICKTICKTRADER_USERNAME=your_username
+   PROJECTX_TICKTICKTRADER_PREFERRED_ACCOUNT_NAME=your_account_name
+
+AlphaTicks
+^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_ALPHATICKS_API_KEY=your_api_key
+   PROJECTX_ALPHATICKS_USERNAME=your_username
+   PROJECTX_ALPHATICKS_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Aqua Futures
+^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_AQUAFUTURES_API_KEY=your_api_key
+   PROJECTX_AQUAFUTURES_USERNAME=your_username
+   PROJECTX_AQUAFUTURES_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Blue Guardian Futures
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_BLUEGUARDIANFUTURES_API_KEY=your_api_key
+   PROJECTX_BLUEGUARDIANFUTURES_USERNAME=your_username
+   PROJECTX_BLUEGUARDIANFUTURES_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Blusky
+^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_BLUSKY_API_KEY=your_api_key
+   PROJECTX_BLUSKY_USERNAME=your_username
+   PROJECTX_BLUSKY_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Bulenox
+^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_BULENOX_API_KEY=your_api_key
+   PROJECTX_BULENOX_USERNAME=your_username
+   PROJECTX_BULENOX_PREFERRED_ACCOUNT_NAME=your_account_name
+
+E8 Futures
+^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_E8X_API_KEY=your_api_key
+   PROJECTX_E8X_USERNAME=your_username
+   PROJECTX_E8X_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Funding Futures
+^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_FUNDINGFUTURES_API_KEY=your_api_key
+   PROJECTX_FUNDINGFUTURES_USERNAME=your_username
+   PROJECTX_FUNDINGFUTURES_PREFERRED_ACCOUNT_NAME=your_account_name
+
+The Futures Desk
+^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_THEFUTURESDESK_API_KEY=your_api_key
+   PROJECTX_THEFUTURESDESK_USERNAME=your_username
+   PROJECTX_THEFUTURESDESK_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Futures Elite
+^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_FUTURESELITE_API_KEY=your_api_key
+   PROJECTX_FUTURESELITE_USERNAME=your_username
+   PROJECTX_FUTURESELITE_PREFERRED_ACCOUNT_NAME=your_account_name
+
+FXIFY Futures
+^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_FXIFYFUTURES_API_KEY=your_api_key
+   PROJECTX_FXIFYFUTURES_USERNAME=your_username
+   PROJECTX_FXIFYFUTURES_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Goat Funded Futures
+^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_GOATFUNDEDFUTURES_API_KEY=your_api_key
+   PROJECTX_GOATFUNDEDFUTURES_USERNAME=your_username
+   PROJECTX_GOATFUNDEDFUTURES_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Hola Prime
+^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_HOLAPRIME_API_KEY=your_api_key
+   PROJECTX_HOLAPRIME_USERNAME=your_username
+   PROJECTX_HOLAPRIME_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Nexgen Futures
+^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_NEXGEN_API_KEY=your_api_key
+   PROJECTX_NEXGEN_USERNAME=your_username
+   PROJECTX_NEXGEN_PREFERRED_ACCOUNT_NAME=your_account_name
+
+TX3 Funding
+^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_TX3FUNDING_API_KEY=your_api_key
+   PROJECTX_TX3FUNDING_USERNAME=your_username
+   PROJECTX_TX3FUNDING_PREFERRED_ACCOUNT_NAME=your_account_name
+
+DayTraders
+^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_DAYTRADERS_API_KEY=your_api_key
+   PROJECTX_DAYTRADERS_USERNAME=your_username
+   PROJECTX_DAYTRADERS_PREFERRED_ACCOUNT_NAME=your_account_name
+
+Demo/Testing
+^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   PROJECTX_DEMO_API_KEY=your_api_key
+   PROJECTX_DEMO_USERNAME=your_username
+   PROJECTX_DEMO_PREFERRED_ACCOUNT_NAME=your_account_name
 
 Supported Functionality
 -----------------------
@@ -112,72 +197,19 @@ Supported Functionality
 .. list-table:: ProjectX Capabilities
   :widths: 25 15 60
   :header-rows: 1
+Usage
+-----
 
-  * - **Feature**
-    - **Supported**
-    - **Notes**
-  * - Futures Trading
-    - ✅ Yes
-    - Continuous futures with automatic contract resolution
-  * - Market Orders
-    - ✅ Yes
-    - Immediate execution at market price
-  * - Limit Orders
-    - ✅ Yes
-    - Execute at specified price or better
-  * - Stop Orders
-    - ✅ Yes
-    - Stop-loss and stop-limit functionality
-  * - Trailing Stop Orders
-    - ✅ Yes
-    - Dynamic stop orders that follow price
-  * - Join Bid/Ask Orders
-    - ✅ Yes
-    - Advanced order types for liquidity provision
-  * - Order Modification
-    - ❌ No
-    - Must cancel and re-place orders
-  * - Real-time Streaming
-    - ✅ Yes
-    - SignalR-based live updates (optional)
-  * - Historical Data
-    - ✅ Yes
-    - Minute, hour, day, week, month timeframes
-  * - Stock Trading
-    - ❌ No
-    - Futures only
-  * - Options Trading
-    - ❌ No
-    - Futures only
-  * - Cryptocurrency
-    - ❌ No
-    - Futures only
-
-Example `.env` Configuration
----------------------------
-
-.. code-block:: bash
-
-   # Required: Your firm's API credentials
-   PROJECTX_TOPONE_API_KEY=your_actual_api_key
-   PROJECTX_TOPONE_USERNAME=your_username
-   PROJECTX_TOPONE_BASE_URL=https://api.yourbroker.com/
-   
-   # Optional: Specify preferred account and firm
-   PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME=Practice Account 1
-   PROJECTX_FIRM=TOPONE
-
-**That's it!** ProjectX will automatically detect these environment variables and initialize. No need to set `TRADING_BROKER=projectx`.
-
-Example Strategy
-----------------
+1. **Set Environment Variables**: Configure your broker's API credentials
+2. **Create Strategy**: Import Lumibot and create your trading strategy  
+3. **Run**: ProjectX will auto-detect and connect
 
 .. code-block:: python
 
    from lumibot.strategies import Strategy
    from lumibot.entities import Asset
 
-   class FuturesStrategy(Strategy):
+   class MyStrategy(Strategy):
        def initialize(self):
            self.sleeptime = "1D"
 
@@ -187,118 +219,32 @@ Example Strategy
            
            # Get current price
            last_price = self.get_last_price(mes)
-           self.log_message(f"MES price: {last_price}")
            
            # Place a limit order
            if last_price:
-               limit_price = last_price * 0.999  # 0.1% below market
                order = self.create_order(
                    asset=mes,
                    quantity=1,
                    side="buy",
-                   order_type="limit",
-                   limit_price=limit_price
+                   order_type="limit", 
+                   limit_price=last_price * 0.999
                )
                self.submit_order(order)
 
-   # The broker will automatically initialize from environment variables
-   strategy = FuturesStrategy()
-   strategy.run_backtest(
-       backtesting_start=datetime(2023, 1, 1),
-       backtesting_end=datetime(2023, 12, 31)
-   )
+   # Run the strategy (ProjectX auto-detects from environment variables)
+   strategy = MyStrategy()
+   strategy.run_live()
 
-Continuous Futures Support
---------------------------
+Supported Features
+------------------
 
-ProjectX handles continuous futures automatically using sophisticated contract resolution:
+✅ **Futures Trading**: Continuous futures contracts
+✅ **Market Orders**: Immediate execution
+✅ **Limit Orders**: Execute at specified price
+✅ **Stop Orders**: Stop-loss functionality  
+✅ **Real-time Data**: Live market data
+✅ **Historical Data**: Minute, hour, day timeframes
 
-.. code-block:: python
-
-   # These symbols are automatically resolved to active contracts
-   mes = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)  # Micro E-mini S&P 500
-   es = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)    # E-mini S&P 500
-   nq = Asset("NQ", asset_type=Asset.AssetType.CONT_FUTURE)    # E-mini NASDAQ
-   ym = Asset("YM", asset_type=Asset.AssetType.CONT_FUTURE)    # E-mini Dow Jones
-   rty = Asset("RTY", asset_type=Asset.AssetType.CONT_FUTURE)  # E-mini Russell 2000
-
-The system automatically:
-
-- Resolves symbols to current active contracts
-- Handles contract rollovers
-- Maps to broker-specific contract identifiers
-- Manages expiration dates
-
-Account Requirements
--------------------
-
-**Practice/Demo Accounts Only**
-
-ProjectX integration is designed for practice trading and will only connect to demo accounts. The system automatically:
-
-- Filters for accounts with names starting with "prac" or "tof-px"
-- Selects the account with the highest balance if multiple practice accounts exist
-- Uses the preferred account name if specified in configuration
-
-Important Notes
----------------
-
-**Order Management**
-   - **No Order Modification**: ProjectX does not support order modification. To change an order, you must cancel the existing order and place a new one.
-   - **Rate Limiting**: Built-in rate limiting prevents API overuse with 50ms delays between requests.
-
-**Streaming Connection**
-   - Real-time streaming is **optional** and will fail gracefully if unavailable
-   - Requires `signalrcore` library for streaming functionality: `pip install signalrcore>=0.9.2`
-   - **Note**: Due to dependency conflicts, `signalrcore` must be installed separately if you want streaming
-   - Provides live updates for orders, positions, trades, and account information
-
-**Performance**
-   - **Caching**: 30-second cache for account, position, and order data
-   - **Auto-reconnection**: Automatic connection management and retry logic
-   - **Efficient Resolution**: Smart contract resolution reduces API calls
-
-**Asset Types**
-   - **Futures Only**: ProjectX exclusively supports futures trading
-   - **Continuous Contracts**: All futures are handled as continuous contracts
-   - **No Options/Stocks**: Options chains and stock trading are not available
-
-**Auto-Detection**
-   - ProjectX automatically detects when environment variables are configured
-   - No need to explicitly set `TRADING_BROKER=projectx`
-   - Will be selected automatically if ProjectX credentials are available
-
-Troubleshooting
----------------
-
-**Authentication Issues**
-   - Verify your API key and username are correct
-   - Check that the base URL is properly formatted
-   - Ensure your account has API access enabled
-
-**No Practice Accounts Found**
-   - Confirm you have demo/practice accounts available
-   - Check account naming (should start with "prac" or "tof-px")
-   - Contact your broker if no practice accounts are available
-
-**Rate Limiting**
-   - Built-in rate limiting should prevent most issues
-   - If you encounter rate limits, the system will automatically retry
-   - Consider reducing trading frequency if persistent
-
-**Streaming Connection Issues**
-   - Streaming failures are non-critical and won't stop trading
-   - Install `signalrcore` library if streaming is required: `pip install signalrcore>=0.9.2`
-   - **Note**: Due to dependency conflicts, `signalrcore` must be installed separately if you want streaming
-   - Check network connectivity and firewall settings
-
-**Auto-Detection Not Working**
-   - Ensure you have the required environment variables: `PROJECTX_{FIRM}_API_KEY`, `PROJECTX_{FIRM}_USERNAME`, `PROJECTX_{FIRM}_BASE_URL`
-   - Check that your firm name is uppercase in environment variables
-   - Verify no typos in environment variable names
-
-.. note::
-   ProjectX is specifically designed for futures trading with practice accounts. Production trading capabilities depend on your broker's API policies and account permissions.
-
-.. important::
-   Always test thoroughly with practice accounts before considering any live trading implementation. 
+❌ **Stock Trading**: Futures only
+❌ **Options Trading**: Futures only
+❌ **Order Modification**: Must cancel and re-place 

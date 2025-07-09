@@ -7,24 +7,24 @@ from datetime import datetime
 from termcolor import colored
 from lumibot.brokers import Broker
 from lumibot.entities import Asset, Order, Position
-from lumibot.data_sources import TradeovateData
+from lumibot.data_sources import TradovateData
 
 # Set up module-specific logger for enhanced logging
 logger = logging.getLogger(__name__)
 
-class TradeovateAPIError(Exception):
-    """Exception raised for errors in the Tradeovate API."""
+class TradovateAPIError(Exception):
+    """Exception raised for errors in the Tradovate API."""
     def __init__(self, message, status_code=None, response_text=None, original_exception=None):
         self.status_code = status_code
         self.response_text = response_text
         self.original_exception = original_exception
         super().__init__(message)
 
-class Tradeovate(Broker):
+class Tradovate(Broker):
     """
-    Tradeovate broker that implements connection to the Tradeovate API.
+    Tradovate broker that implements connection to the Tradovate API.
     """
-    NAME = "Tradeovate"
+    NAME = "Tradovate"
 
     def __init__(self, config=None, data_source=None):
         if config is None:
@@ -46,14 +46,14 @@ class Tradeovate(Broker):
             self.trading_token = tokens["accessToken"]
             self.market_token = tokens["marketToken"]
             self.has_market_data = tokens["hasMarketData"]
-            logging.info(colored("Successfully acquired tokens from Tradeovate.", "green"))
+            logging.info(colored("Successfully acquired tokens from Tradovate.", "green"))
             
             # Now create the data source with the tokens if it wasn't provided
             if data_source is None:
                 # Update config with API URLs for consistency
                 config["TRADING_API_URL"] = self.trading_api_url
                 config["MD_URL"] = self.market_data_url
-                data_source = TradeovateData(
+                data_source = TradovateData(
                     config=config,
                     trading_token=self.trading_token,
                     market_token=self.market_token
@@ -69,8 +69,8 @@ class Tradeovate(Broker):
             self.user_id = self._get_user_info(self.trading_token)
             logging.info(colored(f"User ID: {self.user_id}", "green"))
             
-        except TradeovateAPIError as e:
-            logger.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
+        except TradovateAPIError as e:
+            logger.error(colored(f"Failed to connect to Tradovate: {e}", "red"))
             raise e
 
     def _get_headers(self, with_auth=True, with_content_type=False):
@@ -98,37 +98,64 @@ class Tradeovate(Broker):
 
     def _get_tokens(self):
         """
-        Authenticate with Tradeovate and obtain the access tokens.
+        Authenticate with Tradovate and obtain the access tokens.
         """
         url = f"{self.trading_api_url}/auth/accesstokenrequest"
+        
         payload = {
             "name": self.username,
             "password": self.password,
             "appId": self.app_id,
-            "appVersion": self.app_version,
+            "appVersion": "1.0.0",
             "cid": self.cid,
-            "sec": self.sec
+            "sec": self.sec,
         }
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         try:
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
+            
+            # Check for authentication errors first
+            if "errorText" in data:
+                error_text = data["errorText"]
+                raise TradovateAPIError(f"Tradovate authentication failed: {error_text}")
+            
+            # Check if CAPTCHA is required
+            if data.get("p-captcha"):
+                p_time = data.get("p-time", 0)
+                p_ticket = data.get("p-ticket", "")
+                
+                # p-time is in minutes from Tradovate API
+                time_unit = "minutes" if p_time != 1 else "minute"
+                
+                # Determine correct web login URL based on whether we're using demo or live
+                is_demo = "demo.tradovateapi.com" in self.trading_api_url
+                web_url = "https://demo.tradovate.com/trader/" if is_demo else "https://tradovate.com/trader/"
+                
+                raise TradovateAPIError(
+                    f"Tradovate API is rate limiting login attempts. "
+                    f"Please wait {p_time} {time_unit} before trying again, "
+                    f"or log into your Tradovate account through the web interface "
+                    f"({web_url}) to clear the restriction immediately."
+                )
+            
             access_token = data.get("accessToken")
             market_token = data.get("mdAccessToken")
             has_market_data = data.get("hasMarketData", False)
+            
             if not access_token or not market_token:
-                raise TradeovateAPIError("Authentication succeeded but tokens are missing.")
+                raise TradovateAPIError("Authentication succeeded but tokens are missing.")
             return {"accessToken": access_token, "marketToken": market_token, "hasMarketData": has_market_data}
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Authentication failed", 
+            raise TradovateAPIError(f"Authentication failed", 
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
 
     def _get_account_info(self, trading_token):
         """
-        Retrieve account information from Tradeovate.
+        Retrieve account information from Tradovate.
         """
         url = f"{self.trading_api_url}/account/list"
         headers = self._get_headers()
@@ -140,16 +167,16 @@ class Tradeovate(Broker):
                 account = accounts[0]
                 return {"accountSpec": account.get("name"), "accountId": account.get("id")}
             else:
-                raise TradeovateAPIError("No accounts found in the account list response.")
+                raise TradovateAPIError("No accounts found in the account list response.")
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve account list", 
+            raise TradovateAPIError(f"Failed to retrieve account list", 
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
 
     def _get_user_info(self, trading_token):
         """
-        Retrieve user information from Tradeovate.
+        Retrieve user information from Tradovate.
         """
         url = f"{self.trading_api_url}/user/list"
         headers = self._get_headers()
@@ -161,12 +188,63 @@ class Tradeovate(Broker):
                 user = users[0]
                 return user.get("id")
             else:
-                raise TradeovateAPIError("No users found in the user list response.")
+                raise TradovateAPIError("No users found in the user list response.")
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve user list", 
+            raise TradovateAPIError(f"Failed to retrieve user list", 
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
+
+    def _resolve_tradovate_futures_symbol(self, asset) -> str:
+        """
+        Resolve continuous futures to Tradovate-specific contract format.
+        Tradovate uses 1-digit years (e.g., MNQU5 not MNQU25).
+        
+        Parameters
+        ----------
+        asset : Asset
+            The continuous futures asset to resolve
+            
+        Returns
+        -------
+        str
+            Tradovate-specific futures contract symbol
+        """
+        from datetime import datetime
+        
+        month_codes = {
+            1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
+            7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
+        }
+        
+        now = datetime.now()
+        current_month = now.month
+        current_year = now.year
+        
+        # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
+        if current_month >= 10:  # October onwards, use December
+            target_month = 12  # December
+            target_year = current_year
+        elif current_month >= 7:  # July-September, use September
+            target_month = 9  # September
+            target_year = current_year
+        elif current_month >= 4:  # April-June, use September
+            target_month = 9  # September
+            target_year = current_year
+        elif current_month >= 1:  # Jan-March, use June
+            target_month = 6  # June
+            target_year = current_year
+        else:  # December (fallback), use March next year
+            target_month = 3  # March
+            target_year = current_year + 1
+        
+        month_code = month_codes.get(target_month, 'U')  # Default to September
+        
+        # Tradovate uses 1-digit year format (e.g., 5 for 2025)
+        year_code = target_year % 10
+        
+        contract = f"{asset.symbol}{month_code}{year_code}"
+        return contract
 
     def _get_contract_details(self, contract_id: int) -> dict:
         """
@@ -183,7 +261,7 @@ class Tradeovate(Broker):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
+            raise TradovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -205,12 +283,12 @@ class Tradeovate(Broker):
             cash_balance = data.get("totalCashValue")
             net_liq = data.get("netLiq")
             if cash_balance is None or net_liq is None:
-                raise TradeovateAPIError("Missing totalCashValue or netLiq in account financials response.")
+                raise TradovateAPIError("Missing totalCashValue or netLiq in account financials response.")
             positions_value = net_liq - cash_balance
             portfolio_value = net_liq
             return cash_balance, positions_value, portfolio_value
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve account financials", 
+            raise TradovateAPIError(f"Failed to retrieve account financials", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -247,7 +325,7 @@ class Tradeovate(Broker):
                     # For Tradeovate futures, assume asset_type is "future" and use the contract's name as the symbol.
                     symbol = contract_details.get("name", "")
                     asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE)
-                except TradeovateAPIError as e:
+                except TradovateAPIError as e:
                     logging.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
             
             quantity = response.get("orderQty", 0)
@@ -309,7 +387,7 @@ class Tradeovate(Broker):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve orders", 
+            raise TradovateAPIError(f"Failed to retrieve orders", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -328,7 +406,7 @@ class Tradeovate(Broker):
             order_obj = self._parse_broker_order(order_data, strategy_name="")  # set strategy as needed
             return order_obj
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve order {identifier}", 
+            raise TradovateAPIError(f"Failed to retrieve order {identifier}", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -361,7 +439,7 @@ class Tradeovate(Broker):
                     continue
                 try:
                     contract_details = self._get_contract_details(contract_id)
-                except TradeovateAPIError as e:
+                except TradovateAPIError as e:
                     logging.error(colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red"))
                     continue
                 # Extract asset details from the contract details.
@@ -386,7 +464,7 @@ class Tradeovate(Broker):
                 positions.append(position_obj)
             return positions
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve positions", 
+            raise TradovateAPIError(f"Failed to retrieve positions", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -408,11 +486,30 @@ class Tradeovate(Broker):
         is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
         the order is marked with an error.
         """
+        # Pre-submission validation
+        if not self.account_spec or not self.account_id:
+            error_msg = "Account information not properly initialized"
+            logging.error(error_msg)
+            order.set_error(error_msg)
+            return order
+        
+        # Check if we have valid tokens
+        if not hasattr(self, 'trading_token') or not self.trading_token:
+            error_msg = "Trading token not available - authentication may have failed"
+            logging.error(error_msg)
+            order.set_error(error_msg)
+            return order
+        
         # Determine the action based on the order side
         action = "Buy" if order.is_buy_order() else "Sell"
 
-        # Extract symbol from the order's asset
-        symbol = order.asset.symbol
+        # Extract symbol from the order's asset and handle continuous futures conversion
+        if order.asset.asset_type == order.asset.AssetType.CONT_FUTURE:
+            # For continuous futures, resolve to the specific contract symbol using Tradovate format
+            symbol = self._resolve_tradovate_futures_symbol(order.asset)
+            logging.info(f"Resolved continuous future {order.asset.symbol} -> {symbol}")
+        else:
+            symbol = order.asset.symbol
 
         # Determine the order type string based on the order type.
         if order.order_type == Order.OrderType.MARKET:
@@ -442,7 +539,7 @@ class Tradeovate(Broker):
         }
         # If a limit price is specified for limit orders, include it.
         if order.limit_price is not None:
-            payload["limitPrice"] = float(order.limit_price)
+            payload["price"] = float(order.limit_price)
         # Similarly, include stop price if specified.
         if order.stop_price is not None:
             payload["stopPrice"] = float(order.stop_price)
@@ -450,14 +547,44 @@ class Tradeovate(Broker):
         url = f"{self.trading_api_url}/order/placeorder"
         headers = self._get_headers(with_content_type=True)
 
+        # Log the request details for debugging (mask sensitive auth data)
+        logging.info(f"Submitting order to Tradovate:")
+        logging.info(f"  URL: {url}")
+        logging.info(f"  Payload: {payload}")
+        
+        # Log headers but mask the authorization token for security
+        safe_headers = headers.copy()
+        if 'Authorization' in safe_headers:
+            safe_headers['Authorization'] = 'Bearer ***MASKED***'
+        logging.info(f"  Headers: {safe_headers}")
+
         try:
             response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-            logging.info(f"Order successfully submitted: {data}")
-            order.status = Order.OrderStatus.SUBMITTED
-            order.update_raw(data)
-            return order
+            
+            # Check if the response indicates a failure
+            if data.get('failureReason') or data.get('failureText'):
+                failure_reason = data.get('failureReason', 'Unknown')
+                failure_text = data.get('failureText', 'No details provided')
+                error_message = f"Order rejected by Tradovate: {failure_reason} - {failure_text}"
+                logging.error(error_message)
+                
+                # Add additional context for common errors
+                if 'Access is denied' in failure_text:
+                    logging.error("Possible causes: Account not authorized for trading, market closed, or insufficient permissions")
+                elif 'UnknownReason' in failure_reason:
+                    logging.error("Possible causes: Invalid symbol, market hours, account restrictions, or order parameters")
+                
+                order.set_error(error_message)
+                return order
+            else:
+                # Order was successful
+                logging.info(f"Order successfully submitted: {data}")
+                order.status = Order.OrderStatus.SUBMITTED
+                order.update_raw(data)
+                return order
+                
         except requests.exceptions.RequestException as e:
             error_message = f"Failed to submit order: {getattr(e.response, 'status_code', None)}, {getattr(e.response, 'text', None)}"
             logging.error(error_message)

@@ -9,7 +9,7 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradeovate, Schwab, Bitunix, ProjectX
+from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradovate, Schwab, Bitunix, ProjectX
 import logging
 from dotenv import load_dotenv
 import termcolor
@@ -286,16 +286,16 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
 }
 
-# Tradeovate Configuration
-TRADEOVATE_CONFIG = {
-    "USERNAME": os.environ.get("TRADEOVATE_USERNAME"),
-    "DEDICATED_PASSWORD": os.environ.get("TRADEOVATE_DEDICATED_PASSWORD"),
-    "APP_ID": os.environ.get("TRADEOVATE_APP_ID", "Lumibot"),
-    "APP_VERSION": os.environ.get("TRADEOVATE_APP_VERSION", "1.0"),
-    "CID": os.environ.get("TRADEOVATE_CID"),
-    "SECRET": os.environ.get("TRADEOVATE_SECRET"),
-    "IS_PAPER": os.environ.get("TRADEOVATE_IS_PAPER", "true").lower() == "true",
-    "MD_URL": os.environ.get("TRADEOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
+# Tradovate Configuration
+TRADOVATE_CONFIG = {
+    "USERNAME": os.environ.get("TRADOVATE_USERNAME"),
+    "DEDICATED_PASSWORD": os.environ.get("TRADOVATE_DEDICATED_PASSWORD"),
+    "APP_ID": os.environ.get("TRADOVATE_APP_ID", "Lumibot"),
+    "APP_VERSION": os.environ.get("TRADOVATE_APP_VERSION", "1.0"),
+    "CID": os.environ.get("TRADOVATE_CID"),
+    "SECRET": os.environ.get("TRADOVATE_SECRET"),
+    "IS_PAPER": os.environ.get("TRADOVATE_IS_PAPER", "true").lower() == "true",
+    "MD_URL": os.environ.get("TRADOVATE_MD_URL", "https://md.tradovateapi.com/v1"),
 }
 
 # Schwab Configuration
@@ -386,8 +386,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
         elif trading_broker_name.lower() == "ibrest" or trading_broker_name.lower() == "interactivebrokersrest":
             broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
-        elif trading_broker_name.lower() == "tradeovate":
-            broker = Tradeovate(TRADEOVATE_CONFIG)
+        elif trading_broker_name.lower() == "tradovate":
+            broker = Tradovate(TRADOVATE_CONFIG)
         elif trading_broker_name.lower() == "schwab":
             broker = Schwab(SCHWAB_CONFIG)
         elif trading_broker_name.lower() == "bitunix":
@@ -427,8 +427,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
         elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
             broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
-        elif TRADEOVATE_CONFIG["USERNAME"]:
-            broker = Tradeovate(TRADEOVATE_CONFIG)
+        elif TRADOVATE_CONFIG["USERNAME"]:
+            broker = Tradovate(TRADOVATE_CONFIG)
         # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
         elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
             broker = Schwab(SCHWAB_CONFIG)

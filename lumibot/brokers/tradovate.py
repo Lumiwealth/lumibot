@@ -7,24 +7,24 @@ from datetime import datetime
 from termcolor import colored
 from lumibot.brokers import Broker
 from lumibot.entities import Asset, Order, Position
-from lumibot.data_sources import TradeovateData
+from lumibot.data_sources import TradovateData
 
 # Set up module-specific logger for enhanced logging
 logger = logging.getLogger(__name__)
 
-class TradeovateAPIError(Exception):
-    """Exception raised for errors in the Tradeovate API."""
+class TradovateAPIError(Exception):
+    """Exception raised for errors in the Tradovate API."""
     def __init__(self, message, status_code=None, response_text=None, original_exception=None):
         self.status_code = status_code
         self.response_text = response_text
         self.original_exception = original_exception
         super().__init__(message)
 
-class Tradeovate(Broker):
+class Tradovate(Broker):
     """
-    Tradeovate broker that implements connection to the Tradeovate API.
+    Tradovate broker that implements connection to the Tradovate API.
     """
-    NAME = "Tradeovate"
+    NAME = "Tradovate"
 
     def __init__(self, config=None, data_source=None):
         if config is None:
@@ -46,14 +46,14 @@ class Tradeovate(Broker):
             self.trading_token = tokens["accessToken"]
             self.market_token = tokens["marketToken"]
             self.has_market_data = tokens["hasMarketData"]
-            logging.info(colored("Successfully acquired tokens from Tradeovate.", "green"))
+            logging.info(colored("Successfully acquired tokens from Tradovate.", "green"))
             
             # Now create the data source with the tokens if it wasn't provided
             if data_source is None:
                 # Update config with API URLs for consistency
                 config["TRADING_API_URL"] = self.trading_api_url
                 config["MD_URL"] = self.market_data_url
-                data_source = TradeovateData(
+                data_source = TradovateData(
                     config=config,
                     trading_token=self.trading_token,
                     market_token=self.market_token
@@ -69,8 +69,8 @@ class Tradeovate(Broker):
             self.user_id = self._get_user_info(self.trading_token)
             logging.info(colored(f"User ID: {self.user_id}", "green"))
             
-        except TradeovateAPIError as e:
-            logger.error(colored(f"Failed to connect to Tradeovate: {e}", "red"))
+        except TradovateAPIError as e:
+            logger.error(colored(f"Failed to connect to Tradovate: {e}", "red"))
             raise e
 
     def _get_headers(self, with_auth=True, with_content_type=False):
@@ -98,7 +98,7 @@ class Tradeovate(Broker):
 
     def _get_tokens(self):
         """
-        Authenticate with Tradeovate and obtain the access tokens.
+        Authenticate with Tradovate and obtain the access tokens.
         """
         url = f"{self.trading_api_url}/auth/accesstokenrequest"
         payload = {
@@ -118,17 +118,17 @@ class Tradeovate(Broker):
             market_token = data.get("mdAccessToken")
             has_market_data = data.get("hasMarketData", False)
             if not access_token or not market_token:
-                raise TradeovateAPIError("Authentication succeeded but tokens are missing.")
+                raise TradovateAPIError("Authentication succeeded but tokens are missing.")
             return {"accessToken": access_token, "marketToken": market_token, "hasMarketData": has_market_data}
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Authentication failed", 
+            raise TradovateAPIError(f"Authentication failed", 
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
 
     def _get_account_info(self, trading_token):
         """
-        Retrieve account information from Tradeovate.
+        Retrieve account information from Tradovate.
         """
         url = f"{self.trading_api_url}/account/list"
         headers = self._get_headers()
@@ -140,16 +140,16 @@ class Tradeovate(Broker):
                 account = accounts[0]
                 return {"accountSpec": account.get("name"), "accountId": account.get("id")}
             else:
-                raise TradeovateAPIError("No accounts found in the account list response.")
+                raise TradovateAPIError("No accounts found in the account list response.")
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve account list", 
+            raise TradovateAPIError(f"Failed to retrieve account list", 
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
 
     def _get_user_info(self, trading_token):
         """
-        Retrieve user information from Tradeovate.
+        Retrieve user information from Tradovate.
         """
         url = f"{self.trading_api_url}/user/list"
         headers = self._get_headers()
@@ -161,9 +161,9 @@ class Tradeovate(Broker):
                 user = users[0]
                 return user.get("id")
             else:
-                raise TradeovateAPIError("No users found in the user list response.")
+                raise TradovateAPIError("No users found in the user list response.")
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve user list", 
+            raise TradovateAPIError(f"Failed to retrieve user list", 
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
@@ -183,7 +183,7 @@ class Tradeovate(Broker):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
+            raise TradovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -205,12 +205,12 @@ class Tradeovate(Broker):
             cash_balance = data.get("totalCashValue")
             net_liq = data.get("netLiq")
             if cash_balance is None or net_liq is None:
-                raise TradeovateAPIError("Missing totalCashValue or netLiq in account financials response.")
+                raise TradovateAPIError("Missing totalCashValue or netLiq in account financials response.")
             positions_value = net_liq - cash_balance
             portfolio_value = net_liq
             return cash_balance, positions_value, portfolio_value
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve account financials", 
+            raise TradovateAPIError(f"Failed to retrieve account financials", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -247,7 +247,7 @@ class Tradeovate(Broker):
                     # For Tradeovate futures, assume asset_type is "future" and use the contract's name as the symbol.
                     symbol = contract_details.get("name", "")
                     asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE)
-                except TradeovateAPIError as e:
+                except TradovateAPIError as e:
                     logging.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
             
             quantity = response.get("orderQty", 0)
@@ -309,7 +309,7 @@ class Tradeovate(Broker):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve orders", 
+            raise TradovateAPIError(f"Failed to retrieve orders", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -328,7 +328,7 @@ class Tradeovate(Broker):
             order_obj = self._parse_broker_order(order_data, strategy_name="")  # set strategy as needed
             return order_obj
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve order {identifier}", 
+            raise TradovateAPIError(f"Failed to retrieve order {identifier}", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
@@ -361,7 +361,7 @@ class Tradeovate(Broker):
                     continue
                 try:
                     contract_details = self._get_contract_details(contract_id)
-                except TradeovateAPIError as e:
+                except TradovateAPIError as e:
                     logging.error(colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red"))
                     continue
                 # Extract asset details from the contract details.
@@ -386,7 +386,7 @@ class Tradeovate(Broker):
                 positions.append(position_obj)
             return positions
         except requests.exceptions.RequestException as e:
-            raise TradeovateAPIError(f"Failed to retrieve positions", 
+            raise TradovateAPIError(f"Failed to retrieve positions", 
                                      status_code=getattr(e.response, 'status_code', None),
                                      response_text=getattr(e.response, 'text', None),
                                      original_exception=e)

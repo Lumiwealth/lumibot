@@ -289,6 +289,43 @@ Tradier is great because they can trade stocks, options, and soon futures. Tradi
      - **Set to "True"** to use the paper trading API, **set to "False"** to use the real money trading API. Defaults to True.
      - True
 
+Tradovate Configuration
+------------------------
+
+Tradovate is a futures broker that provides access to CME Group markets. **Important: Tradovate does not provide market data, so you must configure a separate data source** (such as DataBento or ProjectX). To create an account, visit the `Tradovate <https://www.tradovate.com/>`_ website.
+
+.. list-table:: Tradovate Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - TRADOVATE_USERNAME
+     - Your Tradovate username
+     - your_username
+   * - TRADOVATE_DEDICATED_PASSWORD
+     - Your dedicated API password (not your login password)
+     - your_api_password
+   * - TRADOVATE_CID
+     - Your Client ID from Tradovate API dashboard
+     - 6889
+   * - TRADOVATE_SECRET
+     - Your Secret from Tradovate API dashboard
+     - x4078409-db42-4d6a-8469-a468a8b94ok8
+   * - TRADOVATE_IS_PAPER
+     - **Set to "True"** for demo trading, **set to "False"** for live trading. Defaults to True.
+     - True
+   * - TRADOVATE_APP_ID
+     - Application identifier (optional, defaults to "Lumibot")
+     - Lumibot
+   * - TRADOVATE_APP_VERSION
+     - Application version (optional, defaults to "1.0")
+     - 1.0
+
+.. note::
+   
+   Since Tradovate doesn't provide market data, you must also configure a separate data source. Set ``TRADING_BROKER=tradovate`` and ``DATA_SOURCE`` to one of: ``databento``, ``projectx``, ``ibrest`` (Interactive Brokers REST), or ``ib`` (Interactive Brokers Legacy).
 Alpaca Configuration
 --------------------
 
@@ -489,7 +526,7 @@ In addition to broker-specific secrets, the following environment variables are 
      - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
      - 512000000
    * - TRADING_BROKER
-     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "tradeovate", "schwab", "bitunix", "projectx"
+     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "tradovate", "schwab", "bitunix", "projectx"
      - tradier
    * - DATA_SOURCE
      - **(Optional)** For live trading, specify a separate data source for market data. If not set, the same broker as trading will be used for data. This allows you to use one broker for trading and a different data provider for market data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "yahoo", "schwab", "databento", "bitunix", "projectx"

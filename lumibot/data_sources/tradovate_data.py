@@ -6,13 +6,13 @@ from termcolor import colored
 from lumibot.entities import Asset, Bars
 from lumibot.data_sources import DataSource
 
-class TradeovateData(DataSource):
+class TradovateData(DataSource):
     """
     Data source that connects to the Tradovate Market Data API.
     Note: Tradovate market data is delivered via WebSocket.
     """
     MIN_TIMESTEP = "minute"
-    SOURCE = "Tradeovate"
+    SOURCE = "Tradovate"
 
     def __init__(self, config, trading_token=None, market_token=None):
         super().__init__()

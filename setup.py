@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.17.4",
+    version="3.17.5",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -51,6 +51,7 @@ setuptools.setup(
         "duckdb",
         "tabulate",
         "thetadata==0.9.11",
+        "databento>=0.42.0",
         "holidays",
         "psutil",
         "openai",

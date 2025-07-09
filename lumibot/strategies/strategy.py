@@ -12,7 +12,7 @@ import pandas as pd
 import pandas_market_calendars as mcal
 from termcolor import colored
 
-from ..entities import Asset, Order, Position, Data, TradingFee
+from ..entities import Asset, Order, Position, Data, TradingFee, Quote
 from ..tools import get_risk_free_rate
 from ..traders import Trader
 from ..data_sources import DataSource
@@ -743,6 +743,11 @@ class Strategy(_Strategy):
             order_class=order_class,
             custom_params=custom_params,
         )
+
+        # Add debug logging for custom_params
+        if custom_params:
+            self.log_message(f"🔧 ORDER CREATED with custom_params: {custom_params} for {asset} {side} {quantity}")
+
         return order
 
     # ======= Broker Methods ============
@@ -1897,33 +1902,34 @@ class Strategy(_Strategy):
             self.log_message(f"{e}")
             return None
 
-    def get_quote(self, asset: Asset):
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
         """Get a quote for the asset.
-
-        NOTE: This currently only works with Tradier and IB REST. It does not work with backtetsing or other brokers.
 
         Parameters
         ----------
         asset : Asset object
             The asset for which the quote is needed.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
 
         Returns
         -------
-        dict
-            A dictionary with the quote information, eg. bid, ask, etc.
+        Quote
+            A Quote object with the quote information, eg. bid, ask, etc.
         """
 
         asset = self._sanitize_user_asset(asset)
 
-        # Check if the broker has the get_quote method (not all brokers do)
-        if not hasattr(self.broker.data_source, "get_quote"):
-            self.log_message("Broker does not have a get_quote method.")
-            return None
-
-        if self.broker.option_source and asset.asset_type == "option":
-            return self.broker.option_source.get_quote(asset)
-        else:
-            return self.broker.data_source.get_quote(asset)
+        try:
+            if self.broker.option_source and asset.asset_type == "option":
+                return self.broker.option_source.get_quote(asset, quote=quote, exchange=exchange)
+            else:
+                return self.broker.data_source.get_quote(asset, quote=quote, exchange=exchange)
+        except Exception as e:
+            self.log_message(f"Error getting quote from data source: {e}", color="red")
+            return Quote(asset=asset)
 
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""

@@ -6,7 +6,7 @@ from typing import Union
 
 import pandas as pd
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 
 
 class PandasData(DataSourceBacktesting):
@@ -241,7 +241,27 @@ class PandasData(DataSourceBacktesting):
                 logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
             return None
 
-    def get_quote(self, asset, quote=None, exchange=None):
+    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
+        """
+        Get the latest quote for an asset.
+        Returns a Quote object with bid, ask, last, and other fields if available.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the quote is needed.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
+
+        Returns
+        -------
+        Quote
+            A Quote object with the quote information.
+        """
+        from lumibot.entities import Quote
+
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
@@ -253,11 +273,20 @@ class PandasData(DataSourceBacktesting):
             # Check if ohlcv_bid_ask_dict is NaN
             if pd.isna(ohlcv_bid_ask_dict):
                 logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
-                return None
+                return Quote(asset=asset)
 
-            return ohlcv_bid_ask_dict
+            # Convert dictionary to Quote object
+            return Quote(
+                asset=asset,
+                price=ohlcv_bid_ask_dict.get('close'),
+                bid=ohlcv_bid_ask_dict.get('bid'),
+                ask=ohlcv_bid_ask_dict.get('ask'),
+                volume=ohlcv_bid_ask_dict.get('volume'),
+                timestamp=dt,
+                raw_data=ohlcv_bid_ask_dict
+            )
         else:
-            return None
+            return Quote(asset=asset)
 
     def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
         result = {}

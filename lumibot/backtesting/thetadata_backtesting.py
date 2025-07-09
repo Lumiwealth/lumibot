@@ -205,7 +205,7 @@ class ThetaDataBacktesting(PandasData):
             # Add the keys to the self.pandas_data dictionary
             self.pandas_data.update(pandas_data_update)
             self._data_store.update(pandas_data_update)
-        
+
 
     def _pull_source_symbol_bars(
         self,
@@ -258,14 +258,35 @@ class ThetaDataBacktesting(PandasData):
             logging.error(f"\nERROR: get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
-    
+
     def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        """
+        Get quote data for an asset during backtesting.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the quote is needed.
+        timestep : str, optional
+            The timestep to use for the data.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        -------
+        Quote
+            A Quote object with the quote information.
+        """
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
             logging.error(f"\nnERROR: get_quote from ThetaData: {e}, {dt}, asset:{asset}")
-            
+
         return super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):

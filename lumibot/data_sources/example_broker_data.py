@@ -31,7 +31,25 @@ class ExampleBrokerData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         logging.error(colored("Method 'get_last_price' is not yet implemented.", "red"))
         return 0.0  # Return 0.0 as a placeholder
-    
-    def get_quote(self, asset: Asset, quote: Asset = None) -> Quote:
+
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
+        """
+        Get the latest quote for an asset.
+        This is a placeholder implementation that returns an empty Quote object.
+
+        Parameters
+        ----------
+        asset : Asset object
+            The asset for which the quote is needed.
+        quote : Asset object, optional
+            The quote asset for cryptocurrency pairs.
+        exchange : str, optional
+            The exchange to get the quote from.
+
+        Returns
+        -------
+        Quote
+            A Quote object with the quote information.
+        """
         logging.error(colored("Method 'get_quote' is not yet implemented.", "red"))
-        return {}
+        return Quote(asset=asset)

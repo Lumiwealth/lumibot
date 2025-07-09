@@ -148,7 +148,7 @@ class Order:
         order_type: Union[OrderType, None] = None,
         order_class: Union[OrderClass, None] = OrderClass.SIMPLE,
         trade_cost: float = None,
-        custom_params: dict = {},
+        custom_params: dict = None,
         identifier: str = None,
         avg_fill_price: float = None,
         error_message: str = None,

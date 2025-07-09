@@ -15,3 +15,4 @@ There are several different brokers that you can use to trade with Lumibot, and 
    brokers.projectx
    brokers.schwab
    brokers.tradier
+   brokers.tradovate

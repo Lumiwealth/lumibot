@@ -198,3 +198,177 @@ class TestAlpacaBroker:
         # Test custom polling interval
         broker_custom = Alpaca(oauth_config, connect_stream=False, polling_interval=10.0)
         assert broker_custom.polling_interval == 10.0
+
+    # ============= Custom Params Tests =============
+    
+    def test_custom_params_extended_hours(self):
+        """Test that custom_params with extended_hours works correctly."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        
+        # Create an order with custom_params
+        order = Order(
+            asset=Asset("SPY"), 
+            quantity=10, 
+            side=Order.OrderSide.BUY,
+            strategy='test_strategy',
+            custom_params={"extended_hours": True}
+        )
+        
+        # Test that custom_params is stored on the order
+        assert order.custom_params == {"extended_hours": True}
+        
+        # Mock the submit_order method to test that custom_params are passed through
+        broker.submit_order = MagicMock()
+        broker.submit_order(order)
+        broker.submit_order.assert_called_once_with(order)
+
+    def test_custom_params_multiple_params(self):
+        """Test that custom_params works with multiple parameters."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        
+        # Create an order with multiple custom_params
+        order = Order(
+            asset=Asset("SPY"), 
+            quantity=10, 
+            side=Order.OrderSide.BUY,
+            strategy='test_strategy',
+            custom_params={"extended_hours": True, "some_other_param": "test_value"}
+        )
+        
+        # Test that all custom_params are stored
+        assert order.custom_params == {"extended_hours": True, "some_other_param": "test_value"}
+
+    def test_custom_params_none(self):
+        """Test that orders work normally without custom_params."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        
+        # Create an order without custom_params
+        order = Order(
+            asset=Asset("SPY"), 
+            quantity=10, 
+            side=Order.OrderSide.BUY,
+            strategy='test_strategy'
+        )
+        
+        # Test that custom_params is None
+        assert order.custom_params is None
+
+    # ============= Order Parsing Tests =============
+    
+    def test_parse_broker_order_with_none_quantity(self):
+        """Test that _parse_broker_order handles None quantity gracefully."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        
+        # Mock response with None quantity
+        mock_response = MagicMock()
+        mock_response.id = "test_order_id"
+        mock_response.symbol = "SPY"
+        mock_response.qty = None  # This is what causes the crash
+        mock_response.side = "buy"
+        mock_response.asset_class = "us_equity"
+        mock_response.order_type = "market"
+        mock_response.time_in_force = "day"
+        mock_response.status = "filled"
+        
+        # Create raw response dict
+        resp_raw = {
+            'id': 'test_order_id',
+            'symbol': 'SPY',
+            'qty': None,
+            'side': 'buy',
+            'asset_class': 'us_equity',
+            'order_type': 'market',
+            'time_in_force': 'day',
+            'status': 'filled'
+        }
+        
+        # Test that _parse_broker_order returns None for invalid quantity
+        result = broker._parse_broker_order(mock_response, resp_raw, "test_strategy")
+        assert result is None
+
+    def test_parse_broker_order_with_valid_quantity(self):
+        """Test that _parse_broker_order works correctly with valid quantity."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        
+        # Mock response with valid quantity
+        mock_response = MagicMock()
+        mock_response.id = "test_order_id"
+        mock_response.symbol = "SPY"
+        mock_response.qty = "10"
+        mock_response.side = "buy"
+        mock_response.asset_class = "us_equity"
+        mock_response.order_type = "market"
+        mock_response.time_in_force = "day"
+        mock_response.status = "filled"
+        mock_response.limit_price = None
+        mock_response.stop_price = None
+        mock_response.trail_price = None
+        mock_response.trail_percent = None
+        mock_response.order_class = "simple"
+        
+        # Create raw response dict
+        resp_raw = {
+            'id': 'test_order_id',
+            'symbol': 'SPY',
+            'qty': '10',
+            'side': 'buy',
+            'asset_class': 'us_equity',
+            'order_type': 'market',
+            'time_in_force': 'day',
+            'status': 'filled',
+            'limit_price': None,
+            'stop_price': None,
+            'trail_price': None,
+            'trail_percent': None,
+            'order_class': 'simple'
+        }
+        
+        # Test that _parse_broker_order returns valid Order object
+        result = broker._parse_broker_order(mock_response, resp_raw, "test_strategy")
+        assert result is not None
+        assert result.quantity == 10
+        assert result.asset.symbol == "SPY"
+        assert result.side == "buy"
+
+    def test_parse_broker_order_with_zero_quantity(self):
+        """Test that _parse_broker_order handles zero quantity correctly."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        
+        # Mock response with zero quantity
+        mock_response = MagicMock()
+        mock_response.id = "test_order_id"
+        mock_response.symbol = "SPY"
+        mock_response.qty = "0"
+        mock_response.side = "buy"
+        mock_response.asset_class = "us_equity"
+        mock_response.order_type = "market"
+        mock_response.time_in_force = "day"
+        mock_response.status = "filled"
+        mock_response.limit_price = None
+        mock_response.stop_price = None
+        mock_response.trail_price = None
+        mock_response.trail_percent = None
+        mock_response.order_class = "simple"
+        
+        # Create raw response dict
+        resp_raw = {
+            'id': 'test_order_id',
+            'symbol': 'SPY',
+            'qty': '0',
+            'side': 'buy',
+            'asset_class': 'us_equity',
+            'order_type': 'market',
+            'time_in_force': 'day',
+            'status': 'filled',
+            'limit_price': None,
+            'stop_price': None,
+            'trail_price': None,
+            'trail_percent': None,
+            'order_class': 'simple'
+        }
+        
+        # Test that _parse_broker_order returns valid Order object even with zero quantity
+        result = broker._parse_broker_order(mock_response, resp_raw, "test_strategy")
+        assert result is not None
+        assert result.quantity == 0
+        assert result.asset.symbol == "SPY"

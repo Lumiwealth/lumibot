@@ -6,6 +6,22 @@ import appdirs
 import pytz
 import importlib
 
+# Get and display the version
+try:
+    from importlib.metadata import version
+    __version__ = version("lumibot")
+except ImportError:
+    # Fallback for Python < 3.8
+    try:
+        import pkg_resources
+        __version__ = pkg_resources.get_distribution("lumibot").version
+    except:
+        __version__ = "unknown"
+except:
+    __version__ = "unknown"
+
+print(f"Lumibot version {__version__}")
+
 # Get the major and minor Python version
 major, minor = sys.version_info[:2]
 
@@ -82,6 +98,7 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
 
 # Export the default timezone constants so they can be imported by other modules
 __all__ = [
+    '__version__',
     'LUMIBOT_DEFAULT_TIMEZONE',
     'LUMIBOT_DEFAULT_PYTZ',
     'LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL',

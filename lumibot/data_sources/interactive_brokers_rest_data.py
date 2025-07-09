@@ -124,7 +124,7 @@ class InteractiveBrokersRESTData(DataSource):
             }
 
             env_args = [f"--env={key}={value}" for key, value in env_variables.items()]
-            
+
             # Prepare conf.yaml for Docker mount
             try:
                 # Create a temporary file to hold the conf.yaml content
@@ -135,7 +135,7 @@ class InteractiveBrokersRESTData(DataSource):
                     # Use importlib.resources to access package data reliably
                     conf_content = importlib.resources.files('lumibot.resources').joinpath('conf.yaml').read_text(encoding='utf-8')
                     tmp_conf_file.write(conf_content)
-                
+
                 volume_mount = f"{self.temp_conf_path}:{inputs_dir}"
                 logging.info(f"Using temporary conf.yaml for Docker mount: {self.temp_conf_path} -> {inputs_dir}")
 
@@ -206,7 +206,7 @@ class InteractiveBrokersRESTData(DataSource):
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
         self.post_to_endpoint(url, json=json, description="Suppressing server warnings", allow_fail=False)
-    
+
     def fetch_account_id(self):
         if self.account_id is not None:
             return  # Account ID already set
@@ -318,7 +318,7 @@ class InteractiveBrokersRESTData(DataSource):
                     return True
             else:
                 return True
-            
+
             return False
 
         to_return = None
@@ -342,7 +342,7 @@ class InteractiveBrokersRESTData(DataSource):
             error_message = response_json.get("error", "") or response_json.get("message", "")
         else:
             error_message = ""
-        
+
         # Check if this is an order confirmation request
         if "Are you sure you want to submit this order?" in response.text:
             response_json = response.json()
@@ -361,7 +361,7 @@ class InteractiveBrokersRESTData(DataSource):
                         orders.extend(confirm_response)
                         status_code = 200
             response_json = orders
-        
+
         if 'xcredserv comm failed during getEvents due to Connection refused' in error_message:
             retrying = True
             re_msg = "The server is undergoing maintenance. Should fix itself soon"
@@ -370,7 +370,7 @@ class InteractiveBrokersRESTData(DataSource):
             self.ping_iserver()
             retrying = True
             re_msg = "Lumibot got Deauthenticated"
-        
+
         elif 'There was an error processing the request. Please try again.' in error_message:
             retrying = True
             re_msg = "Something went wrong."
@@ -404,28 +404,28 @@ class InteractiveBrokersRESTData(DataSource):
             to_return = response_json
             is_error = True
             retrying = False
-        
+
         else: 
             retrying = False
-        
+
         if re_msg is not None:
             if not silent and retries%60 == 0:
                 logging.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
             else:
                 logging.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
-            
+
         elif is_error:
             if not silent and show_error(retries, allow_fail):
                 logging.error(colored(f"Task {description} failed: {to_return}", "red"))
             else:
                 logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
-        
+
         if re_msg is not None:
             time.sleep(1)
 
 
         return (retrying, re_msg, is_error, to_return)
-        
+
     def get_from_endpoint(self, url, description="", silent=False, allow_fail=True):
         to_return = None
         retries = 0
@@ -443,12 +443,12 @@ class InteractiveBrokersRESTData(DataSource):
             if response.status_code == 401:
                 logging.error(colored("401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).", "red"))
                 return None
-            
+
             retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
-            
+
             if re_msg is None and not is_error:
                 break
-                
+
             retries+=1
 
         return to_return
@@ -467,10 +467,10 @@ class InteractiveBrokersRESTData(DataSource):
                 response._content = str.encode(f'{{"error": "{e}"}}')
 
             retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
-            
+
             if re_msg is None and not is_error:
                 break
-                
+
             retries+=1
 
         return to_return
@@ -489,10 +489,10 @@ class InteractiveBrokersRESTData(DataSource):
                 response._content = str.encode(f'{{"error": "{e}"}}')
 
             retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
-            
+
             if re_msg is None and not is_error:
                 break
-                
+
             retries+=1
 
         return to_return
@@ -503,7 +503,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Clear cache with force=true
         url = f"{self.base_url}/iserver/account/orders?force=true"
         response = self.get_from_endpoint(url, "Getting open orders", allow_fail=False)
-        
+
         # Fetch
         url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
         response = self.get_from_endpoint(
@@ -541,7 +541,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         if 'orders' in response and isinstance(response['orders'], list):
             return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
-        
+
         return []
 
     def get_order_info(self, orderid):
@@ -560,7 +560,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
         response = self.post_to_endpoint(url, order_data, description="Executing order")
-                
+
         if isinstance(response, list) and "order_id" in response[0]:
             # success
             return response
@@ -1202,15 +1202,14 @@ class InteractiveBrokersRESTData(DataSource):
         asset : Asset
             The asset to get the quote for.
         quote : Asset, optional
-            The quote asset to get the quote for (currently not used for Tradier).
+            The quote asset to get the quote for (currently not used for Interactive Brokers).
         exchange : str, optional
-            The exchange to get the quote for (currently not used for Tradier).
-            Quote of the asset, including the bid and ask price.
+            The exchange to get the quote for (currently not used for Interactive Brokers).
 
         Returns
         -------
-        dict
-           Quote of the asset, including the bid, and ask price.
+        Quote
+           Quote object containing bid, ask, price and other information.
         """
         result = self.get_market_snapshot(
             asset, ["last_price", "bid", "ask", "bid_size", "ask_size"]
@@ -1240,5 +1239,15 @@ class InteractiveBrokersRESTData(DataSource):
                 result["ask"] = None
         else:
             result["ask"] = None
-        
-        return result
+
+        # Create and return a Quote object instead of a dictionary
+        from lumibot.entities import Quote
+        return Quote(
+            asset=asset,
+            price=result.get("price"),
+            bid=result.get("bid"),
+            ask=result.get("ask"),
+            bid_size=result.get("bid_size"),
+            ask_size=result.get("ask_size"),
+            raw_data=result
+        )

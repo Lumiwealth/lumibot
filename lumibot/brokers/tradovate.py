@@ -126,13 +126,8 @@ class Tradovate(Broker):
                 p_time = data.get("p-time", 0)
                 p_ticket = data.get("p-ticket", "")
                 
-                # Convert time from seconds to appropriate unit and create user-friendly message
-                if p_time >= 60:
-                    time_value = p_time // 60  # Convert to minutes
-                    time_unit = "minutes" if time_value != 1 else "minute"
-                else:
-                    time_value = p_time
-                    time_unit = "seconds" if p_time != 1 else "second"
+                # p-time is in minutes from Tradovate API
+                time_unit = "minutes" if p_time != 1 else "minute"
                 
                 # Determine correct web login URL based on whether we're using demo or live
                 is_demo = "demo.tradovateapi.com" in self.trading_api_url
@@ -140,7 +135,7 @@ class Tradovate(Broker):
                 
                 raise TradovateAPIError(
                     f"Tradovate API is rate limiting login attempts. "
-                    f"Please wait {time_value} {time_unit} before trying again, "
+                    f"Please wait {p_time} {time_unit} before trying again, "
                     f"or log into your Tradovate account through the web interface "
                     f"({web_url}) to clear the restriction immediately."
                 )

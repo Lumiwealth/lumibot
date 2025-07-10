@@ -26,8 +26,8 @@ class BitunixData(DataSource):
     def __init__(self, config: dict, max_workers: int = 1, chunk_size: int = 100, tzinfo: Optional[pytz.timezone] = None):
         super().__init__(delay=0, tzinfo=tzinfo)
         # Ensure we have a timezone
-        if self._tzinfo is None:
-            self._tzinfo = pytz.utc
+        if self.tzinfo is None:
+            self.tzinfo = pytz.utc
         self.name = "bitunix"
         self.chunk_size = chunk_size
         # Parse API keys
@@ -175,7 +175,7 @@ class BitunixData(DataSource):
                 if "ts" in df.columns:
                     df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms")
                     # Convert timezone
-                    df.index = df.index.tz_localize(pytz.utc).tz_convert(self._tzinfo)
+                    df.index = df.index.tz_localize(pytz.utc).tz_convert(self.tzinfo)
                 
                 # Select only required columns
                 required_cols = ["open", "high", "low", "close", "volume"]

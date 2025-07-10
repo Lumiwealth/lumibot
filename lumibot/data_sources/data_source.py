@@ -64,7 +64,7 @@ class DataSource(ABC):
 
         if tzinfo is None:
             tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
-        self._tzinfo = tzinfo
+        self.tzinfo = tzinfo
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -241,10 +241,10 @@ class DataSource(ABC):
         if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
             return self.to_default_timezone(dt)
         else:
-            return self._tzinfo.localize(dt, is_dst=None)
+            return self.tzinfo.localize(dt, is_dst=None)
 
     def to_default_timezone(self, dt):
-        return dt.astimezone(self._tzinfo)
+        return dt.astimezone(self.tzinfo)
 
     def get_timestep(self):
         return self._timestep if self._timestep else self.MIN_TIMESTEP
@@ -544,8 +544,8 @@ class DataSource(ABC):
 
         # Convert the expiration to be a datetime with 4pm New York time
         expiration = datetime.combine(expiration, datetime.min.time())
-        expiration = self._tzinfo.localize(expiration)
-        expiration = expiration.astimezone(self._tzinfo)
+        expiration = self.tzinfo.localize(expiration)
+        expiration = expiration.astimezone(self.tzinfo)
         expiration = expiration.replace(hour=16, minute=0, second=0, microsecond=0)
 
         # Calculate the days to expiration, but allow for fractional days

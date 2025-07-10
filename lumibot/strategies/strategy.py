@@ -1,9 +1,10 @@
 import datetime
 import os
 import time
+import uuid
 from asyncio.log import logger
 from decimal import Decimal
-from typing import Union, List, Type
+from typing import Union, List, Type, Callable
 
 import jsonpickle
 import matplotlib
@@ -11,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
 from termcolor import colored
+from apscheduler.triggers.cron import CronTrigger
 
 from ..entities import Asset, Order, Position, Data, TradingFee, Quote
 from ..tools import get_risk_free_rate
@@ -2515,6 +2517,52 @@ class Strategy(_Strategy):
         >>> self.log_message(f"The current timestamp is {timestamp}")
         """
         return self.broker.data_source.get_timestamp()
+
+    def register_cron_callback(self, cron_schedule: str, callback_function: Callable) -> str:
+        """Register a callback function to be executed according to a cron schedule.
+
+        Parameters
+        ----------
+        cron_schedule : str
+            A cron schedule string (e.g., "0 9 * * 1-5" for 9:00 AM Monday through Friday)
+        callback_function : callable
+            The function to call on the schedule
+
+        Returns
+        -------
+        str
+            The job ID that can be used to remove the job later
+
+        Example
+        -------
+        >>> self.register_cron_callback("0 9 * * 1-5", self.morning_update)
+
+        Notes
+        -----
+        This method does nothing in backtesting mode.
+        """
+        # Generate a unique job ID
+        job_id = f"cron_callback_{uuid.uuid4().hex}"
+
+        # Do nothing in backtesting mode
+        if self.is_backtesting:
+            self.log_message(f"Skipping registration of cron callback {callback_function.__name__} in backtesting mode")
+            return job_id
+
+        # Create a CronTrigger from the schedule string using the broker's timezone
+        trigger = CronTrigger.from_crontab(cron_schedule, timezone=self.pytz)
+
+        # Add the job to the scheduler
+        self._executor.scheduler.add_job(
+            callback_function,
+            trigger,
+            id=job_id,
+            name=f"Cron Callback: {callback_function.__name__}",
+            jobstore="default"
+        )
+
+        self.log_message(f"Registered cron callback {callback_function.__name__} with schedule: {cron_schedule} in {self.timezone} timezone")
+        return job_id
 
     def get_round_minute(self, timeshift: int = 0):
         """Returns the current minute rounded to the nearest minute. In a backtest this will be the current bar's timestamp. In live trading this will be the current timestamp on the exchange.

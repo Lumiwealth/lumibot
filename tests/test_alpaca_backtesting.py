@@ -1841,11 +1841,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market
             )
 
@@ -1862,11 +1862,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -1887,11 +1887,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -1924,11 +1924,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
                 remove_incomplete_current_bar=True
             )
@@ -1946,11 +1946,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
                 remove_incomplete_current_bar=True
             )
@@ -1972,11 +1972,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
                 remove_incomplete_current_bar=True
             )
@@ -2007,11 +2007,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market
             )
 
@@ -2026,11 +2026,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -2051,11 +2051,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -2086,11 +2086,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0 ,0),
                 market=market
             )
@@ -2108,11 +2108,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0 ,0),
                 market=market,
             )
@@ -2123,8 +2123,8 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
     def test_get_historical_prices_daily_bars_crypto_chicago(self):
         tzinfo = pytz.timezone("America/Chicago")
-        datetime_start = tzinfo.localize(datetime(2025, 1, 1))
-        datetime_end = tzinfo.localize(datetime(2025, 3, 1))
+        datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/Chicago"))
+        datetime_end = datetime(2025, 3, 1, tzinfo=pytz.timezone("America/Chicago"))
         market = "24/7"
         timestep = "day"
         asset = Asset("BTC", 'crypto')
@@ -2148,11 +2148,11 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0 ,0),
                 market=market
             )

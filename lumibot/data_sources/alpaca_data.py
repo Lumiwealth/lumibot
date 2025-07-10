@@ -507,7 +507,7 @@ class AlpacaData(DataSource):
 
         timeframe = self._parse_source_timestep(timestep, reverse=True)
 
-        now = dt.datetime.now(self._tzinfo)
+        now = dt.datetime.now(self.tzinfo)
 
         # Create end time
         if asset.asset_type != Asset.AssetType.CRYPTO and isinstance(self._delay, dt.timedelta):
@@ -536,7 +536,7 @@ class AlpacaData(DataSource):
             # This works for now. Crypto gets more bars but throws them out.
             market='NYSE'
         )
-        start_dt = self._tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
+        start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
         # Make API request based on asset type
         try:
@@ -599,16 +599,16 @@ class AlpacaData(DataSource):
         # Timezone conversion
         if hasattr(df.index, 'tz'):
             if df.index.tz is not None:
-                df.index = df.index.tz_convert(self._tzinfo)
+                df.index = df.index.tz_convert(self.tzinfo)
             else:
-                df.index = self._tzinfo.localize(df.index)
+                df.index = self.tzinfo.localize(df.index)
 
         # Clean up the dataframe
         df = df[~df.index.duplicated(keep="first")]
         df = df.sort_index()
         df = df[df.close > 0]
 
-        if not include_after_hours and timestep == 'minute' and self._tzinfo == pytz.timezone("America/New_York"):
+        if not include_after_hours and timestep == 'minute' and self.tzinfo == pytz.timezone("America/New_York"):
             # Filter data to include only regular market hours
             df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
 

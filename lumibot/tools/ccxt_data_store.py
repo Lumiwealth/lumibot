@@ -1,4 +1,3 @@
-import logging
 import time
 import duckdb
 import os
@@ -9,14 +8,12 @@ from tabulate import tabulate
 import pandas as pd
 from pandas import DataFrame
 from ..constants import LUMIBOT_CACHE_FOLDER
+from lumibot.tools.lumibot_logger import get_logger
 import math
 import numpy as np
 from typing import Union
 
-
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-                    datefmt="%Y-%m-%d %H:%M:%S")
+logger = get_logger(__name__)
 
 class CcxtCacheDB:
     """A ccxt data cache class using duckdb.
@@ -48,7 +45,7 @@ class CcxtCacheDB:
             max_download_limit (int, optional): Maximum number of data to be downloaded at once using CCXT. Defaults to None.
 
         """
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
         try:
             exchange_class = getattr(ccxt, exchange_id)
         except:
@@ -358,11 +355,11 @@ class CcxtCacheDB:
         """
 
         if not self.api.has["fetchOHLCV"]:
-            logging.error("Exchange does not support fetching OHLCV data")
+            logger.error("Exchange does not support fetching OHLCV data")
 
         market = self.api.markets.get(symbol, None)
         if market is None:
-            logging.error(
+            logger.error(
                 f"A request for market data for {symbol} was submitted. " f"The market for that pair does not exist"
             )
             return None

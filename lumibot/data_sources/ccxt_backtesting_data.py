@@ -1,4 +1,3 @@
-import logging
 from decimal import Decimal
 
 import numpy as np
@@ -91,7 +90,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
             DataFrame: candle data
         """
         if exchange is not None:
-            logging.warning(
+            logger.warning(
                 f"the exchange parameter is not implemented for CcxtData, but {exchange} was passed as the exchange"
             )
 
@@ -110,7 +109,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
             data = self._pull_source_bars([asset],length,timestep,timeshift,quote,include_after_hours)
             if data is None or data[symbol] is None or data[symbol].empty:
                 message = f"{self.SOURCE} did not return data for asset {symbol}. Make sure this symbol is valid."
-                logging.error(message)
+                logger.error(message)
                 return None
             data = self._append_data(symbol_timestep, data[symbol])
 

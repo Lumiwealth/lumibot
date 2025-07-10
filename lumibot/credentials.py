@@ -10,13 +10,13 @@ import os
 import sys
 
 from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradovate, Schwab, Bitunix, ProjectX
-import logging
 from dotenv import load_dotenv
 import termcolor
 from dateutil import parser
 
 # Configure logging
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 
 def find_and_load_dotenv(base_dir) -> bool:

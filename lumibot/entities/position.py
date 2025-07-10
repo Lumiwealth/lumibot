@@ -157,8 +157,8 @@ class Position:
         """
         # Prevent use for crypto futures
         if getattr(self.asset, "asset_type", None) == "crypto_future":
-            import logging
-            logger = logging.getLogger(__name__)
+            from lumibot.tools.lumibot_logger import get_logger
+            logger = get_logger(__name__)
             logger.warning("get_selling_order is not supported for crypto futures. Use the broker's close_position method instead.")
             return None
         order = None

@@ -1,15 +1,10 @@
-import logging
 import os
 import datetime as dt
 from decimal import Decimal
-from typing import Union, Tuple, Optional
+from typing import Union, Optional
 import pytz
-import time
 
 import pandas as pd
-import re
-import requests
-from collections import defaultdict
 from alpaca.data.historical import (
     CryptoHistoricalDataClient,
     StockHistoricalDataClient,
@@ -17,32 +12,28 @@ from alpaca.data.historical import (
 )
 from alpaca.data.requests import (
     CryptoBarsRequest,
-    CryptoLatestQuoteRequest,
     StockBarsRequest,
-    StockLatestQuoteRequest,
     OptionBarsRequest,
-    OptionLatestTradeRequest,
     OptionChainRequest,
     OptionSnapshotRequest,
 )
 from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import Adjustment
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset, Bars, Quote
 from lumibot import (
-    LUMIBOT_DEFAULT_TIMEZONE,
     LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
     LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
 )
 from lumibot.tools.helpers import (
-    get_decimals,
-    quantize_to_num_decimals,
-    get_trading_days,
     date_n_trading_days_from_date
 )
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 from .data_source import DataSource
+
+logger = get_logger(__name__)
 
 
 class AlpacaData(DataSource):
@@ -146,7 +137,7 @@ class AlpacaData(DataSource):
                     f"3. Check that your account has proper data permissions\n\n"
                 )
             error_msg += f"💀 STOPPING STRATEGY EXECUTION\n\nOriginal error: {e}"
-            logging.error(error_msg)
+            logger.error(error_msg)
 
             # Mark the data source as failed to stop further requests
             self._auth_failed = True
@@ -281,7 +272,7 @@ class AlpacaData(DataSource):
         # If an ENDPOINT is provided, warn the user that it is not used anymore
         # Instead they should use the "PAPER" parameter, which is boolean
         if isinstance(config, dict) and "ENDPOINT" in config:
-            logging.warning(
+            logger.warning(
                 """The ENDPOINT parameter is not used anymore for AlpacaData, please use the PAPER parameter instead.
                 The 'PAPER' parameter is boolean, and defaults to True.
                 The ENDPOINT parameter will be removed in a future version of lumibot."""
@@ -374,7 +365,7 @@ class AlpacaData(DataSource):
                     option_symbols = [key for key in raw_chain_data.keys() if key.startswith(asset.symbol) and len(key) > len(asset.symbol)]
 
             if not option_symbols:
-                logging.warning(f"No option symbols found for {asset.symbol}")
+                logger.warning(f"No option symbols found for {asset.symbol}")
                 return chains_data
 
             # Parse each option symbol
@@ -436,7 +427,7 @@ class AlpacaData(DataSource):
                 for expiration_date in chains_data["Chains"][option_type]:
                     chains_data["Chains"][option_type][expiration_date].sort()
 
-            logging.debug(f"Successfully retrieved option chains for {asset.symbol}: {len(chains_data['Chains']['PUT'])} PUT expirations, {len(chains_data['Chains']['CALL'])} CALL expirations")
+            logger.debug(f"Successfully retrieved option chains for {asset.symbol}: {len(chains_data['Chains']['PUT'])} PUT expirations, {len(chains_data['Chains']['CALL'])} CALL expirations")
 
             return chains_data
 
@@ -471,7 +462,7 @@ class AlpacaData(DataSource):
         """Get bars for a given asset"""
 
         if exchange is not None:
-            logging.warning(
+            logger.warning(
                 f"the exchange parameter is not implemented for AlpacaData, but {exchange} was passed as the exchange"
             )
 
@@ -585,12 +576,12 @@ class AlpacaData(DataSource):
             df = barset.df
 
         except Exception as e:
-            logging.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
+            logger.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
             return None
 
         # Handle case where no data was received
         if df.empty:
-            logging.warning(f"No pricing data available from Alpaca for {symbol}")
+            logger.warning(f"No pricing data available from Alpaca for {symbol}")
             return None
 
         # Remove MultiIndex
@@ -757,5 +748,5 @@ class AlpacaData(DataSource):
                 'rho': greeks_obj.rho,
             }
         except Exception as e:
-            logging.error(f"Error fetching greeks from Alpaca Data API: {e}")
+            logger.error(f"Error fetching greeks from Alpaca Data API: {e}")
             return {}

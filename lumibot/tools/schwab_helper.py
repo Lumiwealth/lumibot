@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import json
-import logging
 import time
 import traceback
 import urllib.parse
@@ -11,6 +10,10 @@ from pathlib import Path
 from termcolor import colored
 import re
 from datetime import datetime
+
+from .lumibot_logger import get_logger
+
+logger = get_logger(__name__)
 
 class SchwabHelper:
     @staticmethod
@@ -64,17 +67,17 @@ class SchwabHelper:
             # Use 'w' mode to overwrite the file completely
             with token_path.open("w", encoding="utf-8") as fp:
                 json.dump(wrapped, fp)
-            logging.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
+            logger.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
 
         except Exception as e:
-            logging.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
-            logging.error(traceback.format_exc())
+            logger.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
+            logger.error(traceback.format_exc())
             # If error occurs, try to delete the potentially corrupted file
             try:
                 token_path.unlink(missing_ok=True)
-                logging.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
+                logger.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
             except Exception as unlink_e:
-                logging.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
+                logger.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
 
     @staticmethod
     def _initiate_schwab_auth_and_get_token_payload(api_key: str, backend_callback_url: str, token_path: Path) -> bool:
@@ -99,13 +102,13 @@ class SchwabHelper:
         print(colored("by setting the SCHWAB_TOKEN environment variable before running this script.", "cyan"))
         print(colored("Otherwise, please follow the steps below:", "cyan"))
 
-        logging.info(f"Opening Schwab authorization URL in your browser: {auth_url}")
-        logging.info(f"Using redirect_uri for Schwab: {backend_callback_url}")
+        logger.info(f"Opening Schwab authorization URL in your browser: {auth_url}")
+        logger.info(f"Using redirect_uri for Schwab: {backend_callback_url}")
         
         try:
             webbrowser.open(auth_url)
         except Exception as e:
-            logging.error(f"Could not open browser: {e}. Please manually open the URL above.")
+            logger.error(f"Could not open browser: {e}. Please manually open the URL above.")
         
         print(colored("1. Your browser should have opened to the Schwab authorization page.", "yellow"))
         print(colored(f"   If not, please manually navigate to: {auth_url}", "yellow"))
@@ -118,22 +121,22 @@ class SchwabHelper:
         try:
             payload_str = input(colored("5. Paste the copied payload string here and press Enter: ", "green")).strip()
         except EOFError:
-            logging.error("EOFError: Cannot read input for Schwab token payload. Running in a non-interactive environment?")
+            logger.error("EOFError: Cannot read input for Schwab token payload. Running in a non-interactive environment?")
             print(colored("Cannot read input for Schwab token payload. If running non-interactively, ensure the SCHWAB_TOKEN environment variable is set with the token payload.", "red"))
             return False
         except KeyboardInterrupt:
             print(colored("\nSchwab authorization cancelled by user.", "yellow"))
             return False
         if not payload_str:
-            logging.error("No payload pasted. Token acquisition failed.")
+            logger.error("No payload pasted. Token acquisition failed.")
             return False
         try:
             SchwabHelper._save_payload_str_to_token_file(payload_str, token_path)
-            logging.info(f"Schwab token payload processed and saved to {token_path}")
+            logger.info(f"Schwab token payload processed and saved to {token_path}")
             return True
         except Exception as e:
-            logging.error(f"Error processing pasted payload or saving token: {e}")
-            logging.error(traceback.format_exc())
+            logger.error(f"Error processing pasted payload or saving token: {e}")
+            logger.error(traceback.format_exc())
             if token_path.exists():
                 try:
                     token_path.unlink(missing_ok=True)
@@ -161,7 +164,7 @@ class SchwabHelper:
                 return bool(t.get("access_token") and t.get("refresh_token"))
             return False
         except Exception as e:
-            logging.error(f"[DEBUG] Exception in _is_token_valid_for_schwab_py: {e}")
+            logger.error(f"[DEBUG] Exception in _is_token_valid_for_schwab_py: {e}")
             return False
 
     @staticmethod
@@ -193,7 +196,7 @@ class SchwabHelper:
             # Match the pattern with the option symbol
             match = re.match(pattern, option_symbol)
             if not match:
-                logging.error(colored(f"Invalid option symbol format: {option_symbol}", "red"))
+                logger.error(colored(f"Invalid option symbol format: {option_symbol}", "red"))
                 return None
 
             # Extract the parts from the regex match groups
@@ -220,7 +223,7 @@ class SchwabHelper:
             }
 
         except Exception as e:
-            logging.error(colored(f"Error parsing option symbol {option_symbol}: {str(e)}", "red"))
+            logger.error(colored(f"Error parsing option symbol {option_symbol}: {str(e)}", "red"))
             return None
 
     @staticmethod
@@ -258,7 +261,7 @@ class SchwabHelper:
         }
         with token_path.open("w", encoding="utf-8") as fp:
             json.dump(wrapped_token, fp)
-        logging.info(f"Token payload processed and saved to {token_path}")
+        logger.info(f"Token payload processed and saved to {token_path}")
 
 __all__ = [
     "SchwabHelper",

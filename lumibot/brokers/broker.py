@@ -1,8 +1,6 @@
 import os
-import logging
 import time
 from abc import ABC, abstractmethod
-from asyncio.log import logger
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -15,6 +13,11 @@ import pandas_market_calendars as mcal
 from dateutil import tz
 from termcolor import colored
 
+from lumibot.tools.lumibot_logger import get_logger
+
+logger = get_logger(__name__)
+
+from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 from ..data_sources import DataSource
 from ..entities import Asset, Order, Position, Quote
 from ..trading_builtins import SafeList
@@ -50,21 +53,6 @@ DEFAULT_CLEANUP_CONFIG = {
 # if the user decides to switch brokers.
 class LumibotBrokerAPIError(Exception):
     pass
-
-
-class CustomLoggerAdapter(logging.LoggerAdapter):
-    def process(self, msg, kwargs):
-        # Check if the level is enabled to avoid formatting costs if not necessary
-        if self.logger.isEnabledFor(kwargs.get('level', logging.INFO)):
-            # Lazy formatting of the message
-            return f'[{self.extra["strategy_name"]}] {msg}', kwargs
-        else:
-            return msg, kwargs
-
-    def update_strategy_name(self, new_strategy_name):
-        self.extra['strategy_name'] = new_strategy_name
-        # Pre-format part of the log message that's static or changes infrequently
-        self.formatted_prefix = f'[{new_strategy_name}]'
 
 
 class Broker(ABC):
@@ -120,7 +108,7 @@ class Broker(ABC):
         self._last_cleanup_time = None
 
         # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = CustomLoggerAdapter(logger, {'strategy_name': "unknown"})
+        self.logger = get_strategy_logger(__name__, "unknown")
 
         # --- Market calendar setting ---
         # StrategyExecutor relies on broker.market to decide whether trading is
@@ -885,9 +873,9 @@ class Broker(ABC):
             # Try to use the limit price if available, otherwise skip processing
             if hasattr(order, 'limit_price') and order.limit_price is not None:
                 price = order.limit_price
-                logging.debug(f"Using limit_price {price} for crypto quote processing since avg_fill_price was None for order {order.identifier}")
+                logger.debug(f"Using limit_price {price} for crypto quote processing since avg_fill_price was None for order {order.identifier}")
             else:
-                logging.debug(f"Skipping crypto quote processing for order {order.identifier} - both avg_fill_price and limit_price are None")
+                logger.debug(f"Skipping crypto quote processing for order {order.identifier} - both avg_fill_price and limit_price are None")
                 return
 
         quote_quantity = Decimal(quantity) * Decimal(price)

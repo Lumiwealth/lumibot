@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 import random
 import time
@@ -18,7 +17,10 @@ from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import InteractiveBrokersData
+
+logger = get_logger(__name__)
 
 # Naming conflict on Order between IB and Lumibot.
 from lumibot.entities import Asset, Position
@@ -100,9 +102,9 @@ class InteractiveBrokers(Broker):
                 self.client_id = random.randint(1, 9999)
 
                 # Log that a random client_id was generated.
-                logging.info(f"No client_id was set. A random client_id of {client_id} was generated.")
+                logger.info(f"No client_id was set. A random client_id of {client_id} was generated.")
             else:
-                logging.error("No client_id was set. A unique and non-changing client_id is necessary when a subaccount is used. Consider setting one as an environment variable.")
+                logger.error("No client_id was set. A unique and non-changing client_id is necessary when a subaccount is used. Consider setting one as an environment variable.")
                 exit()
 
         self.start_ib()
@@ -180,7 +182,7 @@ class InteractiveBrokers(Broker):
                 if position["position"] != 0:
                     positions.append(position)
         else:
-            logging.debug("No positions found at interactive brokers.")
+            logger.debug("No positions found at interactive brokers.")
 
         return positions
 
@@ -426,7 +428,7 @@ class InteractiveBrokers(Broker):
             if needed_reconnect:
                 # Log that we needed to reconnect to the broker and sleep to make sure the connection is established.
                 sleeplen = 5
-                logging.warning(
+                logger.warning(
                     f"Had to reconnect to the broker. Sleeping for {sleeplen} seconds to make sure the connection is established."
                 )
                 # Sleep to make sure the connection is established.
@@ -548,14 +550,14 @@ class InteractiveBrokers(Broker):
             mktCapPrice,
         ]
         if order_status in self.order_status_duplicates:
-            logging.debug(f"Duplicate order status event ignored. Order id {orderId} " f"and status {status} ")
+            logger.debug(f"Duplicate order status event ignored. Order id {orderId} " f"and status {status} ")
             return
         else:
             self.order_status_duplicates.append(order_status)
 
         stored_order = self.get_tracked_order(orderId)
         if stored_order is None:
-            logging.info(f"Untracked order {orderId} was logged by broker {self.name}")
+            logger.info(f"Untracked order {orderId} was logged by broker {self.name}")
             return
 
         # Check the order status submit changes.
@@ -564,7 +566,7 @@ class InteractiveBrokers(Broker):
         elif status in ["ApiCancelled", "Cancelled", "Inactive"]:
             type_event = self.CANCELED_ORDER
         else:
-            logging.error(
+            logger.error(
                 f"A status event with an order of unknown order type of {status}. Should only be: "
                 "`Submitted`, `ApiCancelled`, `Cancelled`, `Inactive`"
             )
@@ -582,7 +584,7 @@ class InteractiveBrokers(Broker):
         stored_order = self.get_tracked_order(orderId)
 
         if stored_order is None:
-            logging.info("Untracked order %s was logged by broker %s" % (orderId, self.name))
+            logger.info("Untracked order %s was logged by broker %s" % (orderId, self.name))
             return False
             # Check the order status submit changes.
         if execution.cumQty < stored_order.quantity:
@@ -655,7 +657,7 @@ class IBWrapper(EWrapper):
         colored_error_message = colored(error_message, "red")
 
         # Make sure we don't lose the error, but we only print it if asked for
-        logging.debug(colored_error_message)
+        logger.debug(colored_error_message)
 
         self.my_errors_queue.put(error_message)
 
@@ -726,7 +728,7 @@ class IBWrapper(EWrapper):
                 "ask_size": self.ask_size,
             })
             if self.tick_type_used == 9:
-                logging.warning(
+                logger.warning(
                     f"Last price for {self.tick_asset} not found. Using yesterday's closing price of {self.price} instead. reqId = {reqId}"
                 )
         if hasattr(self, "my_greek_queue"):
@@ -867,7 +869,7 @@ class IBWrapper(EWrapper):
 
         positionstxt = ", ".join(f"{k}: {v}" for k, v in positionsdict.items())
 
-        logging.debug(positionstxt)
+        logger.debug(positionstxt)
 
     def positionEnd(self):
         self.my_positions_queue.put(self.positions)
@@ -896,7 +898,7 @@ class IBWrapper(EWrapper):
         accountSummarytxt = ", ".join([f"{k}: {v}" for k, v in accountSummarydict.items()])
 
         # Keep the logs, but only show if asked for
-        logging.debug(accountSummarytxt)
+        logger.debug(accountSummarytxt)
 
     def accountSummaryEnd(self, reqId):
         super().accountSummaryEnd(reqId)
@@ -906,7 +908,7 @@ class IBWrapper(EWrapper):
     def nextValidId(self, orderId: int):
         super().nextValidId(orderId)
 
-        logging.debug("setting nextValidOrderId: %d", orderId)
+        logger.debug("setting nextValidOrderId: %d", orderId)
         self.nextValidOrderId = orderId
 
     def nextOrderId(self):
@@ -949,7 +951,7 @@ class IBWrapper(EWrapper):
             f"Status: {orderState.status}) "
         )
 
-        logging.debug(openOrdertxt)
+        logger.debug(openOrdertxt)
 
         order.contract = contract
         order.orderState = orderState
@@ -987,7 +989,7 @@ class IBWrapper(EWrapper):
             f"remaining: {remaining}, "
             f"lastFillPrice: {lastFillPrice}, "
         )
-        logging.debug(orderStatustxt)
+        logger.debug(orderStatustxt)
         self.ib_broker.on_status_event(
             orderId,
             status,
@@ -1014,7 +1016,7 @@ class IBWrapper(EWrapper):
             f"{execution.shares}, "
             f"{execution.lastLiquidity} "
         )
-        logging.debug(execDetailstxt)
+        logger.debug(execDetailstxt)
 
         return self.ib_broker.on_trade_event(reqId, contract, execution)
 
@@ -1098,11 +1100,11 @@ class IBClient(EClient):
         try:
             requested_time = time_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.info("The Interactive Brokers queue was empty or max time reached for timestamp.")
+            logger.info("The Interactive Brokers queue was empty or max time reached for timestamp.")
             requested_time = None
 
         while self.wrapper.is_error():
-            logging.error("Interactive Brokers Error:", self.get_error(timeout=5))
+            logger.error("Interactive Brokers Error:", self.get_error(timeout=5))
 
         return requested_time
 
@@ -1156,7 +1158,7 @@ class IBClient(EClient):
                 requested_greek = greek_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
             data_type = f"{'tick' if not greek else 'greek'}"
-            logging.error(
+            logger.error(
                 f"Unable to get data for {self.tick_asset}. The Interactive Brokers queue was empty or max time "
                 f"reached for {data_type} data. reqId: {reqId}"
             )
@@ -1164,7 +1166,7 @@ class IBClient(EClient):
             requested_greek = None
 
         while self.wrapper.is_error():
-            logging.error(f"Error: {self.get_error(timeout=5)}")
+            logger.error(f"Error: {self.get_error(timeout=5)}")
 
         if greek:
             keys = [
@@ -1253,7 +1255,7 @@ class IBClient(EClient):
         self.realtime_bars.pop(asset, None)
         reqid = [rid for rid, ast in self.map_reqid_asset.items() if ast == asset][0]
         self.cancelRealTimeBars(reqid)
-        logging.info(f"No longer streaming data for {asset.symbol}.")
+        logger.info(f"No longer streaming data for {asset.symbol}.")
 
     def get_positions(self):
         positions_storage = self.wrapper.init_positions()
@@ -1269,11 +1271,11 @@ class IBClient(EClient):
         try:
             requested_positions = positions_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.error("The queue was empty or max time reached for positions")
+            logger.error("The queue was empty or max time reached for positions")
             requested_positions = None
 
         while self.wrapper.is_error():
-            logging.error(f"Error: {self.get_error(timeout=5)}")
+            logger.error(f"Error: {self.get_error(timeout=5)}")
 
         if requested_positions is not None and self.subaccount is not None:
             requested_positions = [pos for pos in requested_positions if pos.get('account') == self.subaccount]
@@ -1281,7 +1283,7 @@ class IBClient(EClient):
         return requested_positions
 
     def get_historical_account_value(self):
-        logging.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
+        logger.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
         return {"hourly": None, "daily": None}
 
     def get_account_summary(self):
@@ -1293,13 +1295,13 @@ class IBClient(EClient):
         try:
             requested_accounts = accounts_storage.get(timeout=self.max_wait_time)
         except queue.Empty:
-            logging.info("The Interactive Brokers queue was empty or max time reached for account summary")
+            logger.info("The Interactive Brokers queue was empty or max time reached for account summary")
             requested_accounts = None
 
         self.cancelAccountSummary(as_reqid)
 
         while self.wrapper.is_error():
-            logging.debug(f"Error: {self.get_error(timeout=5)}")
+            logger.debug(f"Error: {self.get_error(timeout=5)}")
 
         if requested_accounts is not None and self.subaccount is not None:
             requested_accounts = [pos for pos in requested_accounts if pos.get('Account') == self.subaccount]
@@ -1332,7 +1334,7 @@ class IBClient(EClient):
     def cancel_order(self, order):
         order_id = order.identifier
         if not order_id or not isinstance(order_id, int):
-            logging.info(
+            logger.info(
                 f"An attempt to cancel an order without supplying a proper "
                 f"`order_id` was made. This was your `order_id`: {order_id}. "
                 f"An integer is required. No action was taken."
@@ -1497,7 +1499,7 @@ class IBApp(IBWrapper, IBClient):
         ib_order = Order()
         if order.order_class == "bracket":
             if not order.limit_price:
-                logging.info(
+                logger.info(
                     f"All bracket orders must have limit price for the originating "
                     f"order. The bracket order for {order.symbol} is cancelled."
                 )
@@ -1534,7 +1536,7 @@ class IBApp(IBWrapper, IBClient):
 
         elif order.order_class == "oto":
             if not order.limit_price:
-                logging.info(
+                logger.info(
                     f"All OTO orders must have limit price for the originating order. "
                     f"The one triggers other order for {order.symbol} is cancelled."
                 )

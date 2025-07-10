@@ -1,5 +1,4 @@
 import contextlib
-import logging
 import math
 import os
 import webbrowser
@@ -18,7 +17,8 @@ from plotly.subplots import make_subplots
 
 from .yahoo_helper import YahooHelper as yh
 
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 
 def total_return(_df):
@@ -466,10 +466,10 @@ def plot_returns(
 ):
     # If show plot is False, then we don't want to open the plot in the browser
     if not show_plot:
-        logging.info("show_plot is False, not creating the plot file or CSV.")
+        logger.info("show_plot is False, not creating the plot file or CSV.")
         return
 
-    logging.info("\nCreating trades plot and CSV...")
+    logger.info("\nCreating trades plot and CSV...")
 
     # --- Start: CSV Generation for trades_df ---
     trades_csv_file = plot_file_html.replace(".html", ".csv")
@@ -481,7 +481,7 @@ def plot_returns(
     ]
 
     if trades_df is None or trades_df.empty:
-        logging.info(f"No trades provided. Empty trades CSV file will be created: {trades_csv_file}")
+        logger.info(f"No trades provided. Empty trades CSV file will be created: {trades_csv_file}")
         # Create an empty DataFrame with standard headers for the CSV
         empty_trades_for_csv = pd.DataFrame(columns=standard_trade_columns)
         empty_trades_for_csv.to_csv(trades_csv_file, index=False)
@@ -495,7 +495,7 @@ def plot_returns(
         # Select and reorder to standard columns, dropping any non-standard ones
         trades_df_for_csv = trades_df_for_csv[standard_trade_columns]
         trades_df_for_csv.to_csv(trades_csv_file, index=False)
-        logging.info(f"Trades data saved to CSV: {trades_csv_file}")
+        logger.info(f"Trades data saved to CSV: {trades_csv_file}")
     # --- End: CSV Generation for trades_df ---
 
     dfs_concat = []
@@ -536,7 +536,7 @@ def plot_returns(
     # Prepare trades data for merging into df_final for the plot
     # `processed_trades_for_merge` will be indexed by 'time' and contain standard trade columns (excluding 'time')
     if trades_df is None or trades_df.empty:
-        logging.info("There were no trades in this backtest. Plot will not show trade markers.")
+        logger.info("There were no trades in this backtest. Plot will not show trade markers.")
         # Create a DataFrame with standard trade columns (all NaN) and df_final's index (if any)
         # This ensures df_final gets all standard trade columns for consistent plotting.
         _columns_for_merge = [col for col in standard_trade_columns if col != "time"]
@@ -561,7 +561,7 @@ def plot_returns(
             # Select only the standard columns for merging
             processed_trades_for_merge = processed_trades_for_merge[[col for col in _columns_to_ensure_in_merge if col in processed_trades_for_merge.columns]]
         else:
-            logging.warning("Trades data provided but 'time' column is missing. Cannot merge trades for plotting. Plot will not show trade markers.")
+            logger.warning("Trades data provided but 'time' column is missing. Cannot merge trades for plotting. Plot will not show trade markers.")
             # Fallback to empty trades for merge to avoid errors and ensure consistent columns in df_final
             _columns_for_merge = [col for col in standard_trade_columns if col != "time"]
             if not df_final.index.empty:
@@ -843,14 +843,14 @@ def create_tearsheet(
     # If show tearsheet is False, then we don't want to open the tearsheet in the browser
     # IMS create the tearsheet even if we are not showinbg it
     if not save_tearsheet:
-        logging.info("save_tearsheet is False, not creating the tearsheet file.")
+        logger.info("save_tearsheet is False, not creating the tearsheet file.")
         return
 
-    logging.info("\nCreating tearsheet...")
+    logger.info("\nCreating tearsheet...")
 
     # Check if df1 or df2 are empty and return if they are
     if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:
-        logging.error("No data to create tearsheet, skipping")
+        logger.error("No data to create tearsheet, skipping")
         return
 
     _strategy_df = strategy_df.copy()
@@ -884,7 +884,7 @@ def create_tearsheet(
 
     # Check if df_final is empty and return if it is
     if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
-        logging.warning("No data to create tearsheet, skipping")
+        logger.warning("No data to create tearsheet, skipping")
         return
 
     # Uncomment for debugging
@@ -899,12 +899,12 @@ def create_tearsheet(
     '''
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
+        logger.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
 
     # Check if all the values are equal to 0
     if df_final["strategy"].sum() == 0:
-        logging.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
+        logger.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
     '''
     # Set the name of the benchmark column so that quantstats can use it in the report
@@ -933,7 +933,7 @@ def get_risk_free_rate(dt: datetime = None):
     try:
         result = yh.get_risk_free_rate(dt=dt)
     except Exception as e:
-        logging.error(f"Error getting the risk free rate: {e}")
+        logger.error(f"Error getting the risk free rate: {e}")
         result = 0
 
     return result

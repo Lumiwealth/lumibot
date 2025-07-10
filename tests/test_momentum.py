@@ -171,7 +171,6 @@ class TestMomentum:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=True  # Explicitly set quiet_logs
         )
         comparison_df = self.build_comparison_df(strat_obj)
 
@@ -208,7 +207,6 @@ class TestMomentum:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=True  # Explicitly set quiet_logs
         )
         comparison_df = self.build_comparison_df(strat_obj)
 

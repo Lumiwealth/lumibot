@@ -1,14 +1,16 @@
 import datetime
-import logging
 from decimal import Decimal
 from typing import Union
 
 import pandas as pd
 from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
+from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
+
+logger = get_logger(__name__)
 
 # Set the option to raise an error if downcasting is not possible (if available in this pandas version)
 try:
@@ -312,7 +314,7 @@ class Data:
             try:
                 df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
             except Exception as e:
-                logging.error(f"Error filling {col} column: {e}")
+                logger.error(f"Error filling {col} column: {e}")
 
         self.df = df
 
@@ -402,7 +404,7 @@ class Data:
             is_data = data_index >= 0
             if not is_data:
                 # Log a warning
-                logging.warning(
+                logger.warning(
                     f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
                 )
 

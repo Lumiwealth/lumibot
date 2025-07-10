@@ -1,9 +1,11 @@
 import json
-import datetime
 import time
-import logging
 import re
 from openai import OpenAI
+
+from lumibot.tools.lumibot_logger import get_logger
+
+logger = get_logger(__name__)
 
 # --- constants ---------------------------------------------------------------
 _MODEL_LIMITS = {
@@ -402,9 +404,9 @@ Return only valid JSON following the schema.
                     response_text = _strip_think_block(response_text)
                 return response_text
             except Exception as e:
-                logging.error(f"Attempt {attempt} failed: {e}")
+                logger.error(f"Attempt {attempt} failed: {e}")
                 if attempt == retries:
-                    logging.error(f"Final attempt failed. System prompt was: {system_msg}")
+                    logger.error(f"Final attempt failed. System prompt was: {system_msg}")
                     raise e
                 time.sleep(1)
         raise RuntimeError("Failed to get a valid response after retries.")
@@ -454,7 +456,7 @@ Return only valid JSON following the schema.
         try:
             data = json.loads(cleaned_text)
         except json.JSONDecodeError as e:
-            logging.error(f"JSON decoding failed. Raw response: {cleaned_text}")
+            logger.error(f"JSON decoding failed. Raw response: {cleaned_text}")
             return {
                 "query": user_query,
                 "analysis_summary": f"Error: LLM output was not valid JSON. {str(e)}",
@@ -624,7 +626,7 @@ Return only valid JSON following the schema.
         try:
             data = json.loads(cleaned_text)
         except json.JSONDecodeError as e:
-            logging.error(f"JSON decoding failed. Raw response: {cleaned_text}")
+            logger.error(f"JSON decoding failed. Raw response: {cleaned_text}")
             return {
                 "query": user_query,
                 "response_summary": f"Error: LLM output was not valid JSON. {str(e)}",

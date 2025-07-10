@@ -1,4 +1,4 @@
-import logging, time, traceback
+import time, traceback
 import os
 from decimal import Decimal
 from typing import Optional, List, Dict, Tuple, Any
@@ -11,7 +11,8 @@ from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
 
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 class Bitunix(Broker):
     """

@@ -5,20 +5,19 @@ Provides futures trading functionality through ProjectX broker integration.
 Supports multiple underlying brokers (TSX, TOPONE, etc.) via ProjectX gateway.
 """
 
-import asyncio
-import logging
-import math
-import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Dict, List
 
 import pandas as pd
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.brokers.broker import Broker
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.projectx_helpers import ProjectXClient
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
+
+logger = get_logger(__name__)
 
 
 class ProjectX(Broker):
@@ -110,7 +109,7 @@ class ProjectX(Broker):
         # Warning if no preferred account name is set
         if not config.get("preferred_account_name"):
             firm_name = config.get("firm", "unknown")
-            self.logger = logging.getLogger(f"ProjectXBroker_{firm_name}")
+            self.logger = get_logger(f"ProjectXBroker_{firm_name}")
             self.logger.warning(
                 f"No preferred account name set for {firm_name}. "
                 f"Consider setting PROJECTX_{firm_name}_PREFERRED_ACCOUNT_NAME for better account selection."
@@ -138,7 +137,7 @@ class ProjectX(Broker):
         self.max_workers = max_workers
         
         # Setup logging
-        self.logger = logging.getLogger(f"ProjectXBroker_{self.firm}")
+        self.logger = get_logger(f"ProjectXBroker_{self.firm}")
         
         # Initialize parent class
         super().__init__(

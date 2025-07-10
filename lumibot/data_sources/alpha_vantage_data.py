@@ -1,4 +1,3 @@
-import logging
 import os.path
 import time
 from datetime import datetime, timedelta
@@ -6,10 +5,12 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.data_sources.exceptions import NoDataFound
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset, Bars
 
 from .data_source import DataSource
+
+logger = get_logger(__name__)
 
 
 class AlphaVantageData(DataSource):
@@ -54,7 +55,7 @@ class AlphaVantageData(DataSource):
         include_after_hours=True
     ):
         if exchange is not None:
-            logging.warning(
+            logger.warning(
                 f"the exchange parameter is not implemented for AlphaVantageData, but {exchange} was passed as the exchange"
             )
 
@@ -87,7 +88,7 @@ class AlphaVantageData(DataSource):
                     years = 2
                     months = 12
                     dfs = []
-                    logging.info(
+                    logger.info(
                         f"Downloading minute data for {symbol}, this can 6 minutes or more per symbol"
                     )
                     for y in range(years):

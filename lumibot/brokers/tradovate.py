@@ -1,6 +1,4 @@
-import logging
 import requests
-import json
 from typing import Union
 from datetime import datetime
 
@@ -10,7 +8,8 @@ from lumibot.entities import Asset, Order, Position
 from lumibot.data_sources import TradovateData
 
 # Set up module-specific logger for enhanced logging
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 class TradovateAPIError(Exception):
     """Exception raised for errors in the Tradovate API."""
@@ -46,7 +45,7 @@ class Tradovate(Broker):
             self.trading_token = tokens["accessToken"]
             self.market_token = tokens["marketToken"]
             self.has_market_data = tokens["hasMarketData"]
-            logging.info(colored("Successfully acquired tokens from Tradovate.", "green"))
+            logger.info(colored("Successfully acquired tokens from Tradovate.", "green"))
             
             # Now create the data source with the tokens if it wasn't provided
             if data_source is None:
@@ -64,10 +63,10 @@ class Tradovate(Broker):
             account_info = self._get_account_info(self.trading_token)
             self.account_spec = account_info["accountSpec"]
             self.account_id = account_info["accountId"]
-            logging.info(colored(f"Account Info: {account_info}", "green"))
+            logger.info(colored(f"Account Info: {account_info}", "green"))
 
             self.user_id = self._get_user_info(self.trading_token)
-            logging.info(colored(f"User ID: {self.user_id}", "green"))
+            logger.info(colored(f"User ID: {self.user_id}", "green"))
             
         except TradovateAPIError as e:
             logger.error(colored(f"Failed to connect to Tradovate: {e}", "red"))
@@ -294,7 +293,7 @@ class Tradovate(Broker):
                                      original_exception=e)
 
     def _get_stream_object(self):
-        logging.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
+        logger.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
         return None  # Return None as a placeholder
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order:
@@ -326,7 +325,7 @@ class Tradovate(Broker):
                     symbol = contract_details.get("name", "")
                     asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE)
                 except TradovateAPIError as e:
-                    logging.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
+                    logger.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
             
             quantity = response.get("orderQty", 0)
             action = response.get("action", "").lower()
@@ -412,7 +411,7 @@ class Tradovate(Broker):
                                      original_exception=e)
 
     def _pull_position(self, strategy, asset: Asset) -> Position:
-        logging.error(colored(f"Method '_pull_position' for asset {asset} is not yet implemented.", "red"))
+        logger.error(colored(f"Method '_pull_position' for asset {asset} is not yet implemented.", "red"))
         return None
 
     def _pull_positions(self, strategy) -> list[Position]:
@@ -435,12 +434,12 @@ class Tradovate(Broker):
             for pos in positions_data:
                 contract_id = pos.get("contractId")
                 if not contract_id:
-                    logging.error("No contractId found in position data.")
+                    logger.error("No contractId found in position data.")
                     continue
                 try:
                     contract_details = self._get_contract_details(contract_id)
                 except TradovateAPIError as e:
-                    logging.error(colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red"))
+                    logger.error(colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red"))
                     continue
                 # Extract asset details from the contract details.
                 # For Tradeovate futures, assume asset_type is "future" and use the contract name as the symbol.
@@ -470,11 +469,11 @@ class Tradovate(Broker):
                                      original_exception=e)
 
     def _register_stream_events(self):
-        logging.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))
+        logger.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))
         return None
 
     def _run_stream(self):
-        logging.error(colored("Method '_run_stream' is not yet implemented.", "red"))
+        logger.error(colored("Method '_run_stream' is not yet implemented.", "red"))
         return None
 
     def _submit_order(self, order: Order) -> Order:
@@ -489,14 +488,14 @@ class Tradovate(Broker):
         # Pre-submission validation
         if not self.account_spec or not self.account_id:
             error_msg = "Account information not properly initialized"
-            logging.error(error_msg)
+            logger.error(error_msg)
             order.set_error(error_msg)
             return order
         
         # Check if we have valid tokens
         if not hasattr(self, 'trading_token') or not self.trading_token:
             error_msg = "Trading token not available - authentication may have failed"
-            logging.error(error_msg)
+            logger.error(error_msg)
             order.set_error(error_msg)
             return order
         
@@ -507,7 +506,7 @@ class Tradovate(Broker):
         if order.asset.asset_type == order.asset.AssetType.CONT_FUTURE:
             # For continuous futures, resolve to the specific contract symbol using Tradovate format
             symbol = self._resolve_tradovate_futures_symbol(order.asset)
-            logging.info(f"Resolved continuous future {order.asset.symbol} -> {symbol}")
+            logger.info(f"Resolved continuous future {order.asset.symbol} -> {symbol}")
         else:
             symbol = order.asset.symbol
 
@@ -521,7 +520,7 @@ class Tradovate(Broker):
         elif order.order_type == Order.OrderType.STOP_LIMIT:
             order_type = "StopLimit"
         else:
-            logging.warning(
+            logger.warning(
                 f"Order type '{order.order_type}' is not fully supported. Defaulting to Market order."
             )
             order_type = "Market"
@@ -548,15 +547,15 @@ class Tradovate(Broker):
         headers = self._get_headers(with_content_type=True)
 
         # Log the request details for debugging (mask sensitive auth data)
-        logging.info(f"Submitting order to Tradovate:")
-        logging.info(f"  URL: {url}")
-        logging.info(f"  Payload: {payload}")
+        logger.info(f"Submitting order to Tradovate:")
+        logger.info(f"  URL: {url}")
+        logger.info(f"  Payload: {payload}")
         
         # Log headers but mask the authorization token for security
         safe_headers = headers.copy()
         if 'Authorization' in safe_headers:
             safe_headers['Authorization'] = 'Bearer ***MASKED***'
-        logging.info(f"  Headers: {safe_headers}")
+        logger.info(f"  Headers: {safe_headers}")
 
         try:
             response = requests.post(url, json=payload, headers=headers)
@@ -568,38 +567,38 @@ class Tradovate(Broker):
                 failure_reason = data.get('failureReason', 'Unknown')
                 failure_text = data.get('failureText', 'No details provided')
                 error_message = f"Order rejected by Tradovate: {failure_reason} - {failure_text}"
-                logging.error(error_message)
+                logger.error(error_message)
                 
                 # Add additional context for common errors
                 if 'Access is denied' in failure_text:
-                    logging.error("Possible causes: Account not authorized for trading, market closed, or insufficient permissions")
+                    logger.error("Possible causes: Account not authorized for trading, market closed, or insufficient permissions")
                 elif 'UnknownReason' in failure_reason:
-                    logging.error("Possible causes: Invalid symbol, market hours, account restrictions, or order parameters")
+                    logger.error("Possible causes: Invalid symbol, market hours, account restrictions, or order parameters")
                 
                 order.set_error(error_message)
                 return order
             else:
                 # Order was successful
-                logging.info(f"Order successfully submitted: {data}")
+                logger.info(f"Order successfully submitted: {data}")
                 order.status = Order.OrderStatus.SUBMITTED
                 order.update_raw(data)
                 return order
                 
         except requests.exceptions.RequestException as e:
             error_message = f"Failed to submit order: {getattr(e.response, 'status_code', None)}, {getattr(e.response, 'text', None)}"
-            logging.error(error_message)
+            logger.error(error_message)
             order.set_error(error_message)
             return order
         
     def cancel_order(self, order_id) -> None:
-        logging.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
+        logger.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
         return None
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
-        logging.error(colored(f"Method '_modify_order' for order {order} is not yet implemented.", "red"))
+        logger.error(colored(f"Method '_modify_order' for order {order} is not yet implemented.", "red"))
         return None
 
     def get_historical_account_value(self) -> dict:
-        logging.error(colored("Method 'get_historical_account_value' is not yet implemented.", "red"))
+        logger.error(colored("Method 'get_historical_account_value' is not yet implemented.", "red"))
         return {}

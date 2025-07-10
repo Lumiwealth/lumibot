@@ -1,14 +1,16 @@
 import datetime
-import logging
 import os
 from decimal import ROUND_DOWN, Decimal, getcontext
 from typing import Union
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
 from termcolor import colored
 
 from .broker import Broker
+
+logger = get_logger(__name__)
 
 
 class Ccxt(Broker):
@@ -33,7 +35,7 @@ class Ccxt(Broker):
 
     def get_timestamp(self):
         """Returns the current UNIX timestamp representation from CCXT"""
-        logging.warning("The method 'get_time_to_close' is not applicable with Crypto 24/7 markets.")
+        logger.warning("The method 'get_time_to_close' is not applicable with Crypto 24/7 markets.")
         return self.api.microseconds() / 1000000
 
     def is_market_open(self):
@@ -52,7 +54,7 @@ class Ccxt(Broker):
         -------
         None
         """
-        logging.warning("The method 'get_time_to_open' is not applicable with Crypto 24/7 markets.")
+        logger.warning("The method 'get_time_to_open' is not applicable with Crypto 24/7 markets.")
         return None
 
     def get_time_to_close(self):
@@ -62,7 +64,7 @@ class Ccxt(Broker):
         -------
         None
         """
-        logging.debug("The method 'get_time_to_close' is not applicable with Crypto 24/7 markets.")
+        logger.debug("The method 'get_time_to_close' is not applicable with Crypto 24/7 markets.")
         return None
 
     def is_margin_enabled(self):
@@ -157,7 +159,7 @@ class Ccxt(Broker):
             positions_value += value
 
         if len(no_valuation) > 0:
-            logging.info(
+            logger.info(
                 f"The coins {no_valuation} have no valuation in {quote_asset} "
                 f"and therefore could not be added to the portfolio when calculating "
                 f"the total value of the holdings."
@@ -180,7 +182,7 @@ class Ccxt(Broker):
 
         # Check if symbol is in the currencies list
         if symbol not in self.api.currencies:
-            logging.error(
+            logger.error(
                 f"The symbol {symbol} is not in the currencies list. "
                 f"Please check the symbol and the exchange currencies list."
             )
@@ -328,7 +330,7 @@ class Ccxt(Broker):
         params = {}
 
         if self.api.id == "kraken":  # Check if the exchange is Kraken
-            logging.info("Detected Kraken exchange. Not sending params for closed orders.")
+            logger.info("Detected Kraken exchange. Not sending params for closed orders.")
             params = None  # Ensure no parameters are sent
         elif self.is_margin_enabled():
             params["tradeType"] = "MARGIN_TRADE"
@@ -348,7 +350,7 @@ class Ccxt(Broker):
                     - (datetime.datetime.now() - self.fetch_open_orders_last_request_time).seconds
                 )
                 if net_rate_limit > 0:
-                    logging.info(
+                    logger.info(
                         f"Binance all order rate limit is being exceeded, bot sleeping for "
                         f"{net_rate_limit} seconds."
                     )
@@ -393,7 +395,7 @@ class Ccxt(Broker):
 
         # Check if order quantity is greater than 0.
         if order.quantity <= 0:
-            logging.warning(f"The order {order} was rejected as the order quantity is 0 or less.")
+            logger.warning(f"The order {order} was rejected as the order quantity is 0 or less.")
             return
 
         # Orders limited.
@@ -403,17 +405,17 @@ class Ccxt(Broker):
         markets_error_message = "Only `market`, `limit`, or `stop_limit` orders work with crypto currency markets."
 
         if order.order_class != order_class:
-            logging.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
+            logger.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
             return
 
         if order.order_type not in order_types:
-            logging.error(f"An order type of {order.order_type} was entered which is not " f"valid. {markets_error_message}")
+            logger.error(f"An order type of {order.order_type} was entered which is not " f"valid. {markets_error_message}")
             return
 
         # Check order within limits.
         market = self.api.markets.get(order.pair, None)
         if market is None:
-            logging.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")
+            logger.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")
             order.set_error("No market for pair.")
             return order
 
@@ -447,7 +449,7 @@ class Ccxt(Broker):
             new_qty = (qty * precision_factor).to_integral_value(rounding="ROUND_DOWN") / precision_factor
 
             if new_qty <= Decimal(0):
-                logging.warning(
+                logger.warning(
                     f"The order {order} was rejected as the order quantity is 0 or less after rounding down to the exchange minimum precision amount of {precision_amount}."
                 )
                 return
@@ -463,7 +465,7 @@ class Ccxt(Broker):
             #     if limits["amount"]["min"] is not None:
             #         assert Decimal(order.quantity) >= Decimal(limits["amount"]["min"])
             # except AssertionError:
-            #     logging.warning(
+            #     logger.warning(
             #         f"\nThe order {order} was rejected as the order quantity \n"
             #         f"was less then the minimum allowed for {order.pair}. The minimum order quantity is {limits['amount']['min']} \n"
             #         f"The quantity for this order was {order.quantity} \n"
@@ -474,7 +476,7 @@ class Ccxt(Broker):
             #     if limits["amount"]["max"] is not None:
             #         assert order.quantity <= limits["amount"]["max"]
             # except AssertionError:
-            #     logging.warning(
+            #     logger.warning(
             #         f"\nThe order {order} was rejected as the order quantity \n"
             #         f"was greater then the maximum allowed for {order.pair}. The maximum order "
             #         f"quantity is {limits['amount']['max']} \n"
@@ -502,7 +504,7 @@ class Ccxt(Broker):
                 if limits["price"]["min"] is not None:
                     assert getattr(order, price_type) >= limits["price"]["min"]
             except AssertionError:
-                logging.warning(
+                logger.warning(
                     f"\nThe order {order} was rejected as the order {price_type} \n"
                     f"was less then the minimum allowed for {order.pair}. The minimum price "
                     f"is {limits['price']['min']} \n"
@@ -514,7 +516,7 @@ class Ccxt(Broker):
                 if limits["price"]["max"] is not None:
                     assert getattr(order, price_type) <= limits["price"]["max"]
             except AssertionError:
-                logging.warning(
+                logger.warning(
                     f"\nThe order {order} was rejected as the order {price_type} \n"
                     f"was greater then the maximum allowed for {order.pair}. The maximum price "
                     f"is {limits['price']['max']} \n"
@@ -529,7 +531,7 @@ class Ccxt(Broker):
                     limit_min = Decimal(limits["cost"]["min"])
                     assert (price * qty) >= limit_min
             except AssertionError:
-                logging.warning(
+                logger.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
                     f"was less then the minimum allowed for {order.pair}. The minimum cost "
                     f"is {limits['cost']['min']} \n"
@@ -541,7 +543,7 @@ class Ccxt(Broker):
                 if limits["cost"]["max"] is not None:
                     assert getattr(order, price_type) * order.quantity <= Decimal(limits["cost"]["max"])
             except AssertionError:
-                logging.warning(
+                logger.warning(
                     f"\nThe order {order} was rejected as the order total cost \n"
                     f"was greater then the maximum allowed for {order.pair}. The maximum cost "
                     f"is {limits['cost']['max']} \n"
@@ -572,7 +574,7 @@ class Ccxt(Broker):
             order.set_error(e)
             message = str(e)
             full_message = f"{order} did not go through. The following error occurred: {message}"
-            logging.info(colored(full_message, "red"))
+            logger.info(colored(full_message, "red"))
 
         return order
 
@@ -781,7 +783,7 @@ class Ccxt(Broker):
         raise NotImplementedError("CCXTBroker modify order is not implemented.")
 
     def get_historical_account_value(self):
-        logging.error("The function get_historical_account_value is not " "implemented yet for CCXT.")
+        logger.error("The function get_historical_account_value is not " "implemented yet for CCXT.")
         return {"hourly": None, "daily": None}
 
     def wait_for_order_registration(self, order):

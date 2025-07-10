@@ -1,16 +1,18 @@
-import logging
+import logging  # Needed for logging infrastructure setup
 import os
 import signal
 import sys
 from pathlib import Path
 
+from lumibot.tools.lumibot_logger import get_logger
+
 # Overloading time.sleep to warn users against using it
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Trader:
-    def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=False):
+    def __init__(self, logfile="", backtest=False, debug=False, strategies=None):
         """
 
         Parameters
@@ -24,8 +26,6 @@ class Trader:
             Whether to run the strategies in debug mode or not. This will set the log level to DEBUG.
         strategies: list
             A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
-        quiet_logs: bool
-            Whether to quiet backtest logs by setting the log level to ERROR. Defaults to False.
         """
         # Check if the logfile is a valid path
         if logfile:
@@ -39,7 +39,6 @@ class Trader:
         debug_format = "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
         log_format = std_format if not self.debug else debug_format
         self.log_format = logging.Formatter(log_format)
-        self.quiet_logs = quiet_logs  # Turns off all logging execpt for error messages in backtesting
 
         if logfile:
             self.logfile = Path(logfile)
@@ -167,17 +166,17 @@ class Trader:
         return self._strategies
 
     def stop_all(self):
-        logging.info("Stopping all strategies for this trader")
+        logger.info("Stopping all strategies for this trader")
         self._stop_pool()
 
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
-        logging.getLogger("urllib3").setLevel(logging.ERROR)
-        logging.getLogger("requests").setLevel(logging.ERROR)
-        logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
-        logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
-        logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
-        logger = logging.getLogger()
+        get_logger("urllib3").setLevel(logging.ERROR)
+        get_logger("requests").setLevel(logging.ERROR)
+        get_logger("apscheduler.scheduler").setLevel(logging.ERROR)
+        get_logger("apscheduler.executors.default").setLevel(logging.ERROR)
+        get_logger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
+        logger = get_logger("root")
 
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":
@@ -191,13 +190,6 @@ class Trader:
             logger.setLevel(logging.DEBUG)
         elif self.is_backtest_broker:
             logger.setLevel(logging.INFO)
-
-            # Quiet logs turns off all backtesting logging except for error messages
-            if self.quiet_logs:
-                logger.setLevel(logging.ERROR)
-
-                # Ensure console has minimal logging to keep things clean during backtesting
-                stream_handler.setLevel(logging.ERROR)
 
         else:
             # Live trades should always have full logging.
@@ -247,12 +239,12 @@ class Trader:
         needs two positional arguments, the signal
         and the frame"""
 
-        logging.debug(f"Received signal number {sig}.")
-        logging.debug(f"Closing Trader in {frame} frame.")
+        logger.debug(f"Received signal number {sig}.")
+        logger.debug(f"Closing Trader in {frame} frame.")
         for strategy_thread in self._pool:
             if not strategy_thread.abrupt_closing:
                 strategy_thread.stop()
-                logging.info(f"Trading finished for {strategy_thread.strategy._name}")
+                logger.info(f"Trading finished for {strategy_thread.strategy._name}")
 
     def _collect_analysis(self):
         result = {}

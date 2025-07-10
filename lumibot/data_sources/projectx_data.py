@@ -5,17 +5,18 @@ Provides market data functionality through ProjectX data feed.
 Supports historical data retrieval for futures contracts.
 """
 
-import logging
-import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Dict, List
 
 import pandas as pd
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools.projectx_helpers import ProjectXClient
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
+
+logger = get_logger(__name__)
 
 
 class ProjectXData(DataSource):
@@ -76,7 +77,7 @@ class ProjectXData(DataSource):
         self.client = ProjectXClient(config)
 
         # Setup logging
-        self.logger = logging.getLogger(f"ProjectXData_{self.firm}")
+        self.logger = get_logger(f"ProjectXData_{self.firm}")
 
         # Contract cache for symbol-to-contract mapping
         self._contract_cache = {}

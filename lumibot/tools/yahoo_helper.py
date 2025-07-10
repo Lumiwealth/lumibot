@@ -1,4 +1,3 @@
-import logging
 import os
 import pickle
 import time
@@ -10,8 +9,10 @@ import yfinance as yf
 from fp.fp import FreeProxy
 
 from ..constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-
+from .lumibot_logger import get_logger
 from .helpers import get_lumibot_datetime
+
+logger = get_logger(__name__)
 
 INFO_DATA = "info"
 INVALID_SYMBOLS = set()
@@ -89,7 +90,7 @@ class YahooHelper:
                     with open(pickle_file_path, "rb") as f:
                         return pickle.load(f)
                 except Exception as e:
-                    logging.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
+                    logger.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
                     # Remove the file because it is corrupted.  This will enable re-download.
                     os.remove(pickle_file_path)
                     return None
@@ -164,8 +165,8 @@ class YahooHelper:
         try:
             info = ticker.info
         except Exception as e:
-            logging.debug(f"Error while downloading symbol info for {symbol}, setting info to None for now.")
-            logging.debug(e)
+            logger.debug(f"Error while downloading symbol info for {symbol}, setting info to None for now.")
+            logger.debug(e)
             return {
                 "ticker": symbol,
                 "last_update": get_lumibot_datetime(),
@@ -213,7 +214,7 @@ class YahooHelper:
 
         # If we've already marked this symbol invalid, skip further calls
         if symbol in INVALID_SYMBOLS:
-            logging.debug(f"{symbol} is already marked invalid. Skipping yfinance calls.")
+            logger.debug(f"{symbol} is already marked invalid. Skipping yfinance calls.")
             return None
 
         ticker = yf.Ticker(symbol)
@@ -247,25 +248,25 @@ class YahooHelper:
                         auto_adjust=False
                     )
             except Exception as e:
-                logging.debug(f"{symbol}: Exception from ticker.history(): {e}")
+                logger.debug(f"{symbol}: Exception from ticker.history(): {e}")
                 if attempt < max_retries:
-                    logging.debug(f"{symbol}: Attempt {attempt} failed. Sleeping {sleep_sec}s, then retry.")
+                    logger.debug(f"{symbol}: Attempt {attempt} failed. Sleeping {sleep_sec}s, then retry.")
                     time.sleep(sleep_sec)
                     sleep_sec *= 2
                     continue
                 else:
-                    logging.debug(f"{symbol}: All {max_retries} attempts failed. Marking invalid.")
+                    logger.debug(f"{symbol}: All {max_retries} attempts failed. Marking invalid.")
                     INVALID_SYMBOLS.add(symbol)
                     return None
 
             if df is None or df.empty:
-                logging.debug(f"{symbol}: Attempt {attempt} returned empty or None data.")
+                logger.debug(f"{symbol}: Attempt {attempt} returned empty or None data.")
                 if attempt < max_retries:
-                    logging.debug(f"{symbol}: Sleeping {sleep_sec}s, then retry.")
+                    logger.debug(f"{symbol}: Sleeping {sleep_sec}s, then retry.")
                     time.sleep(sleep_sec)
                     sleep_sec *= 2
                 else:
-                    logging.debug(f"{symbol}: Data still empty after {max_retries} attempts. Marking invalid.")
+                    logger.debug(f"{symbol}: Data still empty after {max_retries} attempts. Marking invalid.")
                     INVALID_SYMBOLS.add(symbol)
                     return None
             else:
@@ -277,7 +278,7 @@ class YahooHelper:
         try:
             info = YahooHelper.get_symbol_info(symbol)
         except Exception as e:
-            logging.debug(f"{symbol}: Exception from get_symbol_info(): {e}")
+            logger.debug(f"{symbol}: Exception from get_symbol_info(): {e}")
 
         # If we have valid info, handle timezone adjustments.
         # Using sub_info to avoid accessing .get() on None.
@@ -508,7 +509,7 @@ class YahooHelper:
 
         risk_free_rate = irx_price / 100
         if with_logging:
-            logging.info(f"Risk Free Rate {risk_free_rate * 100:0.2f}%")
+            logger.info(f"Risk Free Rate {risk_free_rate * 100:0.2f}%")
 
         return risk_free_rate
 

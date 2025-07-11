@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 from decimal import Decimal
-from typing import Union, List, Type
+from typing import Union, List, Type, Callable
 from lumibot.tools.lumibot_logger import get_logger
 import jsonpickle
 import matplotlib
@@ -11,7 +11,6 @@ import pandas as pd
 import pandas_market_calendars as mcal
 from termcolor import colored
 from apscheduler.triggers.cron import CronTrigger
-
 from ..entities import Asset, Order, Position, Data, TradingFee, Quote
 from ..tools import get_risk_free_rate
 from ..traders import Trader

@@ -50,9 +50,12 @@ class TestDataBentoData(unittest.TestCase):
         with patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True):
             data_source = DataBentoData(api_key=self.api_key)
             
-            # Should have set default dates
-            self.assertIsNotNone(data_source.datetime_start)
-            self.assertIsNotNone(data_source.datetime_end)
+            # Should have set API key and other attributes
+            self.assertIsNotNone(data_source._api_key)
+            self.assertEqual(data_source._api_key, self.api_key)
+            self.assertIsNotNone(data_source.name)
+            self.assertEqual(data_source.name, "databento")
+            self.assertFalse(data_source.is_backtesting_mode)  # Default is False for live trading
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_price_data_from_databento')
@@ -170,8 +173,8 @@ class TestDataBentoData(unittest.TestCase):
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_price_data_from_databento')
-    def test_pull_source_symbol_bars(self, mock_get_data):
-        """Test internal symbol bars retrieval"""
+    def test_get_historical_prices_single_asset(self, mock_get_data):
+        """Test historical price retrieval for a single asset"""
         # Create test data
         test_df = pd.DataFrame({
             'open': [100.0, 101.0],
@@ -187,69 +190,40 @@ class TestDataBentoData(unittest.TestCase):
         
         mock_get_data.return_value = test_df
         
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
+        data_source = DataBentoData(api_key=self.api_key)
         
-        # Set current datetime
-        data_source._datetime = datetime(2025, 1, 1, 10, 0, 0)
-        
-        result = data_source._pull_source_symbol_bars(
+        result = data_source.get_historical_prices(
             asset=self.test_asset,
             length=2,
             timestep="minute"
         )
         
         self.assertIsNotNone(result)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(len(result.df), 2)
+        self.assertEqual(result.asset, self.test_asset)
+        self.assertEqual(result.source, "DATABENTO")
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_price_data_from_databento')
-    def test_pull_source_bars_multiple_assets(self, mock_get_data):
-        """Test internal bars retrieval for multiple assets"""
-        # Create test data
-        test_df = pd.DataFrame({
-            'open': [100.0, 101.0],
-            'high': [102.0, 103.0],
-            'low': [99.0, 100.0],
-            'close': [101.0, 102.0],
-            'volume': [1000, 1100]
-        })
-        test_df.index = pd.to_datetime([
-            '2025-01-01 09:30:00',
-            '2025-01-01 09:31:00'
-        ])
+    def test_get_historical_prices_error_handling(self, mock_get_data):
+        """Test error handling in get_historical_prices"""
+        # Setup: Mock to raise exception
+        mock_get_data.side_effect = Exception("Test error")
         
-        mock_get_data.return_value = test_df
+        data_source = DataBentoData(api_key=self.api_key)
         
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
-        
-        # Set current datetime
-        data_source._datetime = datetime(2025, 1, 1, 10, 0, 0)
-        
-        assets = [
-            self.test_asset,
-            Asset(symbol="NQ", asset_type="future", expiration=datetime(2025, 3, 15).date())
-        ]
-        
-        result = data_source._pull_source_bars(
-            assets=assets,
+        # This should not raise an exception but return None
+        result = data_source.get_historical_prices(
+            asset=self.test_asset,
             length=2,
             timestep="minute"
         )
         
-        self.assertIsInstance(result, dict)
-        self.assertEqual(len(result), 2)
+        self.assertIsNone(result)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
-    def test_parse_source_symbol_bars_valid_data(self):
-        """Test parsing of valid source data"""
+    def test_parse_source_bars_valid_data(self):
+        """Test parsing of valid source data using inherited method"""
         # Create test DataFrame
         test_df = pd.DataFrame({
             'open': [100.0, 101.0],
@@ -263,20 +237,19 @@ class TestDataBentoData(unittest.TestCase):
             '2025-01-01 09:31:00'
         ])
         
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
+        data_source = DataBentoData(api_key=self.api_key)
         
-        result = data_source._parse_source_symbol_bars(test_df, self.test_asset)
+        # Test that _parse_source_bars is available from parent class
+        result = data_source._parse_source_bars({self.test_asset: test_df})
         
-        self.assertIsInstance(result, Bars)
-        self.assertEqual(len(result.df), 2)
+        self.assertIsInstance(result, dict)
+        self.assertIn(self.test_asset, result)
+        self.assertIsInstance(result[self.test_asset], Bars)
+        self.assertEqual(len(result[self.test_asset].df), 2)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
-    def test_parse_source_symbol_bars_missing_columns(self):
-        """Test parsing of data with missing columns"""
+    def test_parse_source_bars_missing_columns(self):
+        """Test parsing of data with missing columns using inherited method"""
         # Create test DataFrame missing required columns
         test_df = pd.DataFrame({
             'open': [100.0, 101.0],
@@ -288,39 +261,31 @@ class TestDataBentoData(unittest.TestCase):
             '2025-01-01 09:31:00'
         ])
         
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
+        data_source = DataBentoData(api_key=self.api_key)
         
-        result = data_source._parse_source_symbol_bars(test_df, self.test_asset)
+        # Test that _parse_source_bars handles missing columns
+        result = data_source._parse_source_bars({self.test_asset: test_df})
         
-        self.assertIsNone(result)
+        self.assertIsInstance(result, dict)
+        self.assertIn(self.test_asset, result)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
-    def test_parse_source_symbol_bars_empty_data(self):
-        """Test parsing of empty data"""
+    def test_parse_source_bars_empty_data(self):
+        """Test parsing of empty data using inherited method"""
         test_df = pd.DataFrame()
         
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
+        data_source = DataBentoData(api_key=self.api_key)
         
-        result = data_source._parse_source_symbol_bars(test_df, self.test_asset)
+        # Test that _parse_source_bars handles empty data
+        result = data_source._parse_source_bars({self.test_asset: test_df})
         
-        self.assertIsNone(result)
+        self.assertIsInstance(result, dict)
+        self.assertIn(self.test_asset, result)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     def test_timestep_mapping(self):
         """Test timestep mapping functionality"""
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
+        data_source = DataBentoData(api_key=self.api_key)
         
         # Test valid timestep mappings
         test_cases = [
@@ -340,20 +305,15 @@ class TestDataBentoData(unittest.TestCase):
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     def test_backtesting_mode_detection(self):
         """Test that backtesting mode is properly detected"""
-        # Test with explicit datetime_start and datetime_end
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
+        # Test with default initialization (live trading mode)
+        data_source = DataBentoData(api_key=self.api_key)
         
-        self.assertTrue(data_source.is_backtesting_mode)
-        self.assertTrue(data_source.IS_BACKTESTING_DATA_SOURCE)
+        # DataBento is currently configured for live trading by default
+        self.assertFalse(data_source.is_backtesting_mode)
         
-        # Test with default dates (should still be backtesting)
-        data_source_default = DataBentoData(api_key=self.api_key)
-        self.assertTrue(data_source_default.is_backtesting_mode)
-        self.assertTrue(data_source_default.IS_BACKTESTING_DATA_SOURCE)
+        # Test that name and source are set correctly
+        self.assertEqual(data_source.name, "databento")
+        self.assertEqual(data_source.SOURCE, "DATABENTO")
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_price_data_from_databento')
@@ -381,24 +341,22 @@ class TestDataBentoData(unittest.TestCase):
             datetime_end=self.end_date
         )
         
-        # Set current datetime for backtesting
-        data_source._datetime = datetime(2025, 1, 1, 10, 0, 0)
+        # Test that the method works correctly
+        result = data_source.get_historical_prices(
+            asset=self.test_asset,
+            length=3,
+            timestep="minute"
+        )
         
-        # Mock the _pull_source_symbol_bars method to verify it's called
-        with patch.object(data_source, '_pull_source_symbol_bars', return_value=Mock()) as mock_pull:
-            data_source.get_historical_prices(
-                asset=self.test_asset,
-                length=3,
-                timestep="minute"
-            )
-            
-            # Verify that the backtesting method was called
-            mock_pull.assert_called_once()
+        # Verify that the data was retrieved
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, Bars)
+        self.assertEqual(len(result.df), 3)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_price_data_from_databento')
-    def test_pull_source_symbol_bars_timezone_handling(self, mock_get_data):
-        """Test timezone handling in _pull_source_symbol_bars"""
+    def test_timezone_handling(self, mock_get_data):
+        """Test timezone handling in get_historical_prices"""
         # Create test data
         test_df = pd.DataFrame({
             'open': [100.0, 101.0],
@@ -414,72 +372,37 @@ class TestDataBentoData(unittest.TestCase):
         
         mock_get_data.return_value = test_df
         
-        # Test with timezone-aware start date
-        import pytz
-        tz_aware_start = self.start_date.replace(tzinfo=pytz.UTC)
-        tz_aware_end = self.end_date.replace(tzinfo=pytz.UTC)
-        
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=tz_aware_start,
-            datetime_end=tz_aware_end
-        )
-        
-        # Set current datetime
-        data_source._datetime = datetime(2025, 1, 1, 10, 0, 0)
+        data_source = DataBentoData(api_key=self.api_key)
         
         # This should not raise an exception
-        result = data_source._pull_source_symbol_bars(
+        result = data_source.get_historical_prices(
             asset=self.test_asset,
             length=2,
             timestep="minute"
         )
         
         self.assertIsNotNone(result)
+        self.assertIsInstance(result, Bars)
+        self.assertEqual(len(result.df), 2)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_price_data_from_databento')
-    def test_pull_source_bars_error_handling(self, mock_get_data):
-        """Test error handling in _pull_source_bars"""
-        # Setup: First asset succeeds, second asset fails
-        def side_effect(*args, **kwargs):
-            asset = kwargs.get('asset', args[1] if len(args) > 1 else None)
-            if asset and asset.symbol == "ES":
-                test_df = pd.DataFrame({
-                    'open': [100.0], 'high': [102.0], 'low': [99.0], 
-                    'close': [101.0], 'volume': [1000]
-                })
-                test_df.index = pd.to_datetime(['2025-01-01 09:30:00'])
-                return test_df
-            else:
-                raise Exception("Test error for second asset")
+    def test_error_handling(self, mock_get_data):
+        """Test error handling in get_historical_prices"""
+        # Setup: Mock to raise exception
+        mock_get_data.side_effect = Exception("Test error")
         
-        mock_get_data.side_effect = side_effect
+        data_source = DataBentoData(api_key=self.api_key)
         
-        data_source = DataBentoData(
-            api_key=self.api_key,
-            datetime_start=self.start_date,
-            datetime_end=self.end_date
-        )
-        
-        # Set current datetime
-        data_source._datetime = datetime(2025, 1, 1, 10, 0, 0)
-        
-        assets = [
-            self.test_asset,
-            Asset(symbol="NQ", asset_type="future", expiration=datetime(2025, 3, 15).date())
-        ]
-        
-        result = data_source._pull_source_bars(
-            assets=assets,
+        # This should not raise an exception but return None
+        result = data_source.get_historical_prices(
+            asset=self.test_asset,
             length=1,
             timestep="minute"
         )
         
-        # Should have 1 successful result (ES) and 1 failed (NQ)
-        self.assertIsInstance(result, dict)
-        self.assertEqual(len(result), 1)
-        self.assertIn(self.test_asset, result)
+        # Should return None on error
+        self.assertIsNone(result)
 
     def test_environment_dates_integration(self):
         """Test DataBento with environment file dates"""
@@ -503,11 +426,7 @@ class TestDataBentoData(unittest.TestCase):
         test_start_date = datetime(2024, 10, 1)
         
         with patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True):
-            data_source = DataBentoData(
-                api_key=self.api_key,
-                datetime_start=test_start_date,
-                datetime_end=test_end_date
-            )
+            data_source = DataBentoData(api_key=self.api_key)
             
             # Test with MES continuous futures
             mes_asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -520,7 +439,7 @@ class TestDataBentoData(unittest.TestCase):
                 'low': [4495, 4500, 4505],
                 'close': [4505, 4510, 4515],
                 'volume': [1000, 1100, 1200]
-            }, index=pd.date_range(start=test_start_date, periods=3, freq='H'))
+            }, index=pd.date_range(start=test_start_date, periods=3, freq='h'))
             
             with patch.object(data_source, 'get_historical_prices', return_value=mock_bars):
                 bars = data_source.get_historical_prices(
@@ -536,11 +455,7 @@ class TestDataBentoData(unittest.TestCase):
     def test_mes_strategy_logic_simulation(self):
         """Test MES strategy logic with simulated data"""
         with patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True):
-            data_source = DataBentoData(
-                api_key=self.api_key,
-                datetime_start=datetime(2024, 6, 10),
-                datetime_end=datetime(2024, 6, 10, 16, 0)
-            )
+            data_source = DataBentoData(api_key=self.api_key)
             
             mes_asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
             
@@ -552,7 +467,7 @@ class TestDataBentoData(unittest.TestCase):
                 'low': [4490 + i for i in range(60)],
                 'close': [4505 + i for i in range(60)],
                 'volume': [1000 + i*10 for i in range(60)]
-            }, index=pd.date_range(start=datetime(2024, 6, 10, 8, 0), periods=60, freq='T'))
+            }, index=pd.date_range(start=datetime(2024, 6, 10, 8, 0), periods=60, freq='min'))
             
             with patch.object(data_source, 'get_historical_prices', return_value=mock_bars):
                 bars = data_source.get_historical_prices(

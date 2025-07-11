@@ -171,14 +171,18 @@ class DataBentoData(DataSource):
         logging.info(f"Requesting DataBento data for asset: {asset} (type: {asset.asset_type})")
         logging.info(f"Date range: {start_dt} to {end_dt}")
         
-        df = databento_helper.get_price_data_from_databento(
-            api_key=self._api_key,
-            asset=asset,
-            start=start_dt,
-            end=end_dt,
-            timestep=timestep,
-            venue=exchange
-        )
+        try:
+            df = databento_helper.get_price_data_from_databento(
+                api_key=self._api_key,
+                asset=asset,
+                start=start_dt,
+                end=end_dt,
+                timestep=timestep,
+                venue=exchange
+            )
+        except Exception as e:
+            logger.error(f"Error getting data from DataBento for {asset.symbol}: {e}")
+            return None
         
         if df is None or df.empty:
             logging.error(f"No data returned from DataBento for {asset.symbol}. This could be due to:")
@@ -305,3 +309,45 @@ class DataBentoData(DataSource):
             Current quote/last price of the asset
         """
         return self.get_last_price(asset, quote=quote)
+
+    def _parse_source_symbol_bars(self, response, asset, quote=None):
+        """
+        Parse source data for a single asset into Bars format
+        
+        Parameters
+        ----------
+        response : pd.DataFrame
+            Raw data from DataBento API
+        asset : Asset
+            The asset the data is for
+        quote : Asset, optional
+            Quote asset (not used for DataBento)
+            
+        Returns
+        -------
+        Bars or None
+            Parsed bars data or None if parsing fails
+        """
+        try:
+            if response is None or response.empty:
+                return None
+                
+            # Check if required columns exist
+            required_columns = ['open', 'high', 'low', 'close', 'volume']
+            if not all(col in response.columns for col in required_columns):
+                logger.warning(f"Missing required columns in DataBento data for {asset.symbol}")
+                return None
+            
+            # Create Bars object
+            bars = Bars(
+                df=response,
+                source=self.SOURCE,
+                asset=asset,
+                quote=quote
+            )
+            
+            return bars
+            
+        except Exception as e:
+            logger.error(f"Error parsing DataBento data for {asset.symbol}: {e}")
+            return None

@@ -91,22 +91,44 @@ class BacktestingBroker(Broker):
         """Return True if market is open else false"""
         now = self.datetime
 
-        # As the index is sorted, use searchsorted to find the relevant day
-        idx = self._trading_days.index.searchsorted(now, side='right')
+        # Handle 24/7 markets immediately
+        if self.market == "24/7":
+            return True
 
-        # Check that the index is not out of bounds
-        if idx >= len(self._trading_days):
-            logging.info("Cannot predict future")
-            return False
-
-        # The index of the trading_day is used as the market close time
-        market_close = self._trading_days.index[idx]
-
-        # Retrieve market open time using .at since idx is a valid datetime index
-        market_open = self._trading_days.at[market_close, 'market_open']
-
-        # Check if 'now' is within the trading hours of the located day
-        return market_open <= now < market_close
+        # For ANY market, check both today's and tomorrow's sessions since trading sessions 
+        # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
+        # crypto sessions, international markets, etc.)
+        
+        # First try to find today's session
+        idx_today = self._trading_days.index.searchsorted(now, side='right')
+        
+        if idx_today < len(self._trading_days):
+            market_close_today = self._trading_days.index[idx_today]
+            market_open_today = self._trading_days.at[market_close_today, 'market_open']
+            
+            if market_open_today <= now < market_close_today:
+                return True
+        
+        # If not in today's session, check tomorrow's session (might have started today)
+        idx_tomorrow = idx_today + 1 if idx_today < len(self._trading_days) else len(self._trading_days)
+        
+        if idx_tomorrow < len(self._trading_days):
+            market_close_tomorrow = self._trading_days.index[idx_tomorrow]
+            market_open_tomorrow = self._trading_days.at[market_close_tomorrow, 'market_open']
+            
+            if market_open_tomorrow <= now < market_close_tomorrow:
+                return True
+        
+        # Also check if we should look at yesterday's session that might extend to today
+        if idx_today > 0:
+            idx_yesterday = idx_today - 1
+            market_close_yesterday = self._trading_days.index[idx_yesterday]
+            market_open_yesterday = self._trading_days.at[market_close_yesterday, 'market_open']
+            
+            if market_open_yesterday <= now < market_close_yesterday:
+                return True
+        
+        return False
 
     def _get_next_trading_day(self):
         now = self.datetime

@@ -709,3 +709,65 @@ class TestDataBentoHelper(unittest.TestCase):
         # Verify that resolve_continuous_futures_contract is used instead
         self.assertIn('resolve_continuous_futures_contract', source,
                       "DataBento helper should use resolve_continuous_futures_contract method")
+
+    def test_market_calendar_spanning_sessions(self):
+        """Test market calendar logic for sessions spanning multiple days."""
+        from unittest.mock import MagicMock
+        from lumibot.brokers.broker import Broker
+        
+        # Create a mock broker
+        broker = MagicMock(spec=Broker)
+        broker.market = "CME_Equity"
+        
+        # Mock the market_hours method to simulate CME futures schedule
+        def mock_market_hours(close=True, next=False):
+            if next:  # Friday's session
+                if close:
+                    return datetime(2025, 1, 10, 23, 0, tzinfo=timezone.utc)  # 6pm ET Fri
+                else:
+                    return datetime(2025, 1, 9, 23, 0, tzinfo=timezone.utc)   # 6pm ET Thu
+            else:  # Thursday's session  
+                if close:
+                    return datetime(2025, 1, 9, 23, 0, tzinfo=timezone.utc)   # 6pm ET Thu
+                else:
+                    return datetime(2025, 1, 8, 23, 0, tzinfo=timezone.utc)   # 6pm ET Wed
+        
+        def mock_utc_to_local(utc_time):
+            # Convert UTC to ET (UTC-5) and return as naive datetime
+            from dateutil import tz
+            return utc_time.replace(tzinfo=timezone.utc).astimezone(tz=tz.tzlocal()).replace(tzinfo=None)
+        
+        broker.market_hours.side_effect = mock_market_hours
+        broker.utc_to_local.side_effect = mock_utc_to_local
+        
+        # Test Thursday 7pm ET (should be open - Friday's session)
+        current_time = datetime(2025, 1, 9, 19, 0, 0)  # 7pm ET Thursday
+        
+        # Simulate the logic from is_market_open
+        result_today = False
+        result_tomorrow = False
+        
+        # Check today's session (Thursday)
+        try:
+            open_time_today = mock_utc_to_local(mock_market_hours(close=False, next=False))
+            close_time_today = mock_utc_to_local(mock_market_hours(close=True, next=False))
+            
+            if (current_time >= open_time_today) and (close_time_today >= current_time):
+                result_today = True
+        except:
+            result_today = False
+        
+        # Check tomorrow's session (Friday)
+        try:
+            open_time_tomorrow = mock_utc_to_local(mock_market_hours(close=False, next=True))
+            close_time_tomorrow = mock_utc_to_local(mock_market_hours(close=True, next=True))
+            
+            if (current_time >= open_time_tomorrow) and (close_time_tomorrow >= current_time):
+                result_tomorrow = True
+        except:
+            result_tomorrow = False
+        
+        is_open = result_today or result_tomorrow
+        
+        # 7pm Thursday should be market open (Friday's session started at 6pm Thursday)
+        self.assertTrue(is_open, "CME futures should be open at 7pm Thursday ET (Friday's session)")

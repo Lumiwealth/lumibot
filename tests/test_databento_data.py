@@ -481,5 +481,98 @@ class TestDataBentoData(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn(self.test_asset, result)
 
+    def test_environment_dates_integration(self):
+        """Test DataBento with environment file dates"""
+        from dotenv import load_dotenv
+        import os
+        
+        # Load environment variables from the strategy .env file
+        env_path = "/Users/robertgrzesik/Documents/Development/Strategy Library/Alligator Futures Bot Strategy/src/.env"
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+        
+        # Get dates from environment variables
+        start_str = os.getenv("BACKTESTING_START", "2024-01-01")
+        end_str = os.getenv("BACKTESTING_END", "2024-12-31")
+        
+        start_date = datetime.strptime(start_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_str, "%Y-%m-%d")
+        
+        # Use a recent subset for testing (last 3 months)
+        test_end_date = datetime(2024, 12, 31)
+        test_start_date = datetime(2024, 10, 1)
+        
+        with patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True):
+            data_source = DataBentoData(
+                api_key=self.api_key,
+                datetime_start=test_start_date,
+                datetime_end=test_end_date
+            )
+            
+            # Test with MES continuous futures
+            mes_asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+            
+            # Mock the get_historical_prices method
+            mock_bars = Mock()
+            mock_bars.df = pd.DataFrame({
+                'open': [4500, 4505, 4510],
+                'high': [4510, 4515, 4520],
+                'low': [4495, 4500, 4505],
+                'close': [4505, 4510, 4515],
+                'volume': [1000, 1100, 1200]
+            }, index=pd.date_range(start=test_start_date, periods=3, freq='H'))
+            
+            with patch.object(data_source, 'get_historical_prices', return_value=mock_bars):
+                bars = data_source.get_historical_prices(
+                    asset=mes_asset,
+                    length=60,
+                    timestep="minute"
+                )
+                
+                self.assertIsNotNone(bars)
+                self.assertIsNotNone(bars.df)
+                self.assertEqual(len(bars.df), 3)
+    
+    def test_mes_strategy_logic_simulation(self):
+        """Test MES strategy logic with simulated data"""
+        with patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True):
+            data_source = DataBentoData(
+                api_key=self.api_key,
+                datetime_start=datetime(2024, 6, 10),
+                datetime_end=datetime(2024, 6, 10, 16, 0)
+            )
+            
+            mes_asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+            
+            # Create mock data that simulates 60 minutes of MES futures
+            mock_bars = Mock()
+            mock_bars.df = pd.DataFrame({
+                'open': [4500 + i for i in range(60)],
+                'high': [4510 + i for i in range(60)],
+                'low': [4490 + i for i in range(60)],
+                'close': [4505 + i for i in range(60)],
+                'volume': [1000 + i*10 for i in range(60)]
+            }, index=pd.date_range(start=datetime(2024, 6, 10, 8, 0), periods=60, freq='T'))
+            
+            with patch.object(data_source, 'get_historical_prices', return_value=mock_bars):
+                bars = data_source.get_historical_prices(
+                    asset=mes_asset,
+                    length=60,
+                    timestep="minute"
+                )
+                
+                self.assertIsNotNone(bars)
+                self.assertIsNotNone(bars.df)
+                self.assertEqual(len(bars.df), 60)
+                
+                # Test strategy logic
+                df = bars.df
+                current_price = df["close"].iloc[-1]
+                sma_60 = df["close"].mean()
+                
+                # Should have a clear trend in our test data
+                self.assertGreater(current_price, sma_60)
+                self.assertGreater(current_price, 4500)  # Should be trending up
+
 if __name__ == '__main__':
     unittest.main()

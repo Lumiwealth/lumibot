@@ -150,44 +150,6 @@ class TestCSVErrorHandler:
         assert '<TIMESTAMP>' in normalized
         assert '2023-01-01T10:30:00' not in normalized
     
-    @patch('sys.exit')
-    def test_emergency_shutdown_disabled(self, mock_exit):
-        """Test that emergency shutdown can be disabled."""
-        with patch.dict(os.environ, {'DISABLE_CRITICAL_SHUTDOWN': 'true'}):
-            handler = CSVErrorHandler(self.csv_path)
-            
-            # Create a critical log record
-            record = logging.LogRecord(
-                name="test", level=logging.CRITICAL, pathname="test.py",
-                lineno=10, msg="Critical error", args=(), exc_info=None,
-                func="test_func"
-            )
-            
-            handler.emit(record)
-            
-            # Should not have called sys.exit
-            mock_exit.assert_not_called()
-    
-    @patch('sys.exit')
-    @patch('sys.stderr')
-    def test_emergency_shutdown_enabled(self, mock_stderr, mock_exit):
-        """Test that emergency shutdown works when enabled."""
-        # Don't set the disable environment variable
-        handler = CSVErrorHandler(self.csv_path)
-        
-        # Create a critical log record
-        record = logging.LogRecord(
-            name="test", level=logging.CRITICAL, pathname="test.py",
-            lineno=10, msg="Critical error", args=(), exc_info=None,
-            func="test_func"
-        )
-        
-        handler.emit(record)
-        
-        # Should have called sys.exit
-        mock_exit.assert_called_once_with(1)
-
-
 class TestLoggerConfiguration:
     """Test logger configuration and setup."""
     

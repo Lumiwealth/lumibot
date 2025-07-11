@@ -28,7 +28,6 @@ class DataSourceBacktesting(DataSource, ABC):
             config: dict | None = None,
             api_key: str | None = None,
             show_progress_bar: bool = True,
-            progress_csv_path = None,
             log_backtest_progress_to_file = False,
             delay: int | None = None,
             pandas_data: dict | list = None,
@@ -69,8 +68,7 @@ class DataSourceBacktesting(DataSource, ABC):
         # If false, we don't show the progress bar
         self._show_progress_bar = show_progress_bar
 
-        # New: use progress_csv_path if provided; otherwise default to "progress.csv"
-        self._progress_csv_path = progress_csv_path if progress_csv_path else "progress.csv"
+        self._progress_csv_path = "logs/progress.csv"
         # Add initialization for the logging timer attribute
         self._last_logging_time = None
         self._portfolio_value = None
@@ -127,7 +125,7 @@ class DataSourceBacktesting(DataSource, ABC):
                 self._portfolio_value = portfolio_value
             
             now_wall = dt.datetime.now()
-            if (self._last_logging_time is None) or ((now_wall - self._last_logging_time).total_seconds() >= 3):
+            if (self._last_logging_time is None) or ((now_wall - self._last_logging_time).total_seconds() >= 2):
                 self._last_logging_time = now_wall
                 total_seconds = (self.datetime_end - self.datetime_start).total_seconds()
                 current_seconds = (new_datetime - self.datetime_start).total_seconds()

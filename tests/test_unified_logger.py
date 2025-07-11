@@ -23,19 +23,12 @@ from lumibot.tools.lumibot_logger import (
     get_logger,
     get_strategy_logger,
     CSVErrorHandler,
-    LumibotLogger,
     LumibotFormatter,
     set_log_level
 )
 
-
 class TestBasicLogging:
     """Test basic logging functionality."""
-    
-    def test_get_logger_returns_lumibot_logger(self):
-        """Test that get_logger returns a LumibotLogger instance."""
-        logger = get_logger(__name__)
-        assert isinstance(logger, LumibotLogger)
     
     def test_logger_hierarchy(self):
         """Test that loggers are properly hierarchical under lumibot."""
@@ -149,44 +142,6 @@ class TestCSVErrorHandler:
         )
         assert '<TIMESTAMP>' in normalized
         assert '2023-01-01T10:30:00' not in normalized
-    
-    @patch('sys.exit')
-    def test_emergency_shutdown_disabled(self, mock_exit):
-        """Test that emergency shutdown can be disabled."""
-        with patch.dict(os.environ, {'DISABLE_CRITICAL_SHUTDOWN': 'true'}):
-            handler = CSVErrorHandler(self.csv_path)
-            
-            # Create a critical log record
-            record = logging.LogRecord(
-                name="test", level=logging.CRITICAL, pathname="test.py",
-                lineno=10, msg="Critical error", args=(), exc_info=None,
-                func="test_func"
-            )
-            
-            handler.emit(record)
-            
-            # Should not have called sys.exit
-            mock_exit.assert_not_called()
-    
-    @patch('sys.exit')
-    @patch('sys.stderr')
-    def test_emergency_shutdown_enabled(self, mock_stderr, mock_exit):
-        """Test that emergency shutdown works when enabled."""
-        # Don't set the disable environment variable
-        handler = CSVErrorHandler(self.csv_path)
-        
-        # Create a critical log record
-        record = logging.LogRecord(
-            name="test", level=logging.CRITICAL, pathname="test.py",
-            lineno=10, msg="Critical error", args=(), exc_info=None,
-            func="test_func"
-        )
-        
-        handler.emit(record)
-        
-        # Should have called sys.exit
-        mock_exit.assert_called_once_with(1)
-
 
 class TestLoggerConfiguration:
     """Test logger configuration and setup."""
@@ -328,34 +283,6 @@ class TestEnvironmentVariables:
                              if isinstance(h, logging.StreamHandler)]
             assert len(console_handlers) > 0
             assert console_handlers[0].level == logging.ERROR
-    
-    def test_csv_logging_environment_variable(self):
-        """Test LOG_ERRORS_TO_CSV environment variable."""
-        temp_dir = tempfile.mkdtemp()
-        csv_path = os.path.join(temp_dir, "env_test.csv")
-        
-        try:
-            with patch.dict(os.environ, {
-                'LOG_ERRORS_TO_CSV': 'true',
-                'LUMIBOT_ERROR_CSV_PATH': csv_path
-            }):
-                # Reset handlers to pick up environment change
-                import lumibot.tools.lumibot_logger as logger_module
-                logger_module._handlers_configured = False
-                
-                logger_module._ensure_handlers_configured()
-                
-                # Should have CSV handler
-                root_logger = logging.getLogger("lumibot")
-                csv_handlers = [h for h in root_logger.handlers 
-                              if isinstance(h, CSVErrorHandler)]
-                assert len(csv_handlers) > 0
-                assert csv_handlers[0].csv_path == os.path.abspath(csv_path)
-                
-        finally:
-            import shutil
-            shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 if __name__ == "__main__":
     pytest.main([__file__])

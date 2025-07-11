@@ -56,7 +56,6 @@ from ..credentials import (
     BACKTESTING_START,
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
-    LOG_ERRORS_TO_CSV,
     INTERACTIVE_BROKERS_REST_CONFIG,
     BACKTESTING_SHOW_PROGRESS_BAR
 )
@@ -1290,7 +1289,6 @@ class _Strategy:
                 show_progress_bar=show_progress_bar,
                 max_memory=POLYGON_MAX_MEMORY_BYTES,
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
                 **kwargs,
             )
@@ -1307,7 +1305,6 @@ class _Strategy:
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
         elif datasource_class == InteractiveBrokersRESTBacktesting:
@@ -1320,7 +1317,6 @@ class _Strategy:
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
         else:
@@ -1333,7 +1329,6 @@ class _Strategy:
                 show_progress_bar=show_progress_bar,
                 progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
 

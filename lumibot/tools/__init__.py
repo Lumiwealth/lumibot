@@ -36,6 +36,5 @@ from .lumibot_logger import (
     get_logger,
     get_strategy_logger, 
     set_log_level,
-    add_file_handler,
-    silence_external_loggers
+    add_file_handler
 )

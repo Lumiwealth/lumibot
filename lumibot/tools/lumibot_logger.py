@@ -6,17 +6,21 @@ ensuring consistent formatting, behavior, and ease of use across all modules.
 
 Features:
 - Standard console/file logging with enhanced formatting
-- Optional CSV error logging with deduplication
+- Optional CSV error logging with deduplication via CSVErrorHandler
 - Strategy-specific logging with context
 - Thread-safe operations
 - External library noise reduction
 - Backtesting quiet logs support
+- Centralized environment variable handling (avoids circular imports with credentials.py)
 
-Environment Variables:
+Environment Variables (all handled centrally in this module):
 - LUMIBOT_LOG_LEVEL: Set global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
+- LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
 - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false) - only shows ERROR+ messages
-- DISABLE_CRITICAL_SHUTDOWN: Disable emergency shutdown on CRITICAL errors (true/false)
+
+Note: Some logging-related environment variables are also available in credentials.py 
+for backwards compatibility, but this module is the authoritative source for configuration.
 
 Usage:
     from lumibot.tools.lumibot_logger import get_logger
@@ -41,89 +45,29 @@ import sys
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Dict, Tuple
 from functools import lru_cache
 
-class LumibotLogger(logging.Logger):
+class CSVErrorHandler(logging.Handler):
     """
-    Enhanced Logger class that integrates CSV error logging functionality directly.
-    
-    This logger automatically captures WARNING, ERROR and CRITICAL messages
-    and writes them to a CSV file with deduplication when enabled.
-    
-    Features:
-    - Custom formatting with source information for warnings/errors
-    - Optional CSV error logging with deduplication
-    - Emergency shutdown on CRITICAL messages
-    - Thread-safe operations
+    Handler that writes ERROR and WARNING messages to CSV with deduplication.
     """
     
-    def __init__(self, name: str, level=logging.NOTSET):
-        super().__init__(name, level)
-        
-        # CSV error logging attributes
-        self._csv_enabled = False
-        self._errors_csv = "logs/errors.csv"
-        self._auto_shutdown_on_critical = True
+    def __init__(self, csv_path: str):
+        super().__init__(level=logging.WARNING)
+        self.csv_path = os.path.abspath(csv_path)
+        self._error_counts: Dict[Tuple[str, str, str, str], int] = {}
         self._csv_lock = threading.Lock()
         self._csv_initialized = False
-        self._error_counts: Dict[Tuple[str, str, str, str], int] = {}
         self._auto_shutdown_on_critical = True
-
-        log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
-        if log_errors_to_csv and log_errors_to_csv.lower() in ("true", "1", "yes", "on"):
-            self._csv_enabled = True
-            self._errors_csv = os.path.join("logs", "errors.csv")
-        
-        # Custom formatter
-        self._setup_formatter()
-    
-    def _setup_formatter(self):
-        """Set up the custom formatter for this logger."""
-        # Define format strings for different log levels
-        self.info_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-        self.warning_format = "%(asctime)s | %(levelname)s | %(pathname)s:%(funcName)s:%(lineno)d | %(message)s"
-        self.error_format = "%(asctime)s | %(levelname)s | %(pathname)s:%(funcName)s:%(lineno)d | %(message)s"
-        
-        # Create formatters for each level
-        self.info_formatter = logging.Formatter(
-            self.info_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        self.warning_formatter = logging.Formatter(
-            self.warning_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        self.error_formatter = logging.Formatter(
-            self.error_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-    
-    def _format_record(self, record):
-        """Format a log record using the appropriate formatter."""
-        # Shorten the pathname to just the filename for cleaner output
-        if hasattr(record, 'pathname'):
-            record.pathname = os.path.basename(record.pathname)
-        
-        # Clean up the message by stripping leading/trailing whitespace and newlines
-        if hasattr(record, 'msg') and isinstance(record.msg, str):
-            record.msg = record.msg.strip()
-        
-        # Choose formatter based on log level
-        if record.levelno >= logging.ERROR:
-            return self.error_formatter.format(record)
-        elif record.levelno >= logging.WARNING:
-            return self.warning_formatter.format(record)
-        else:
-            return self.info_formatter.format(record)
     
     def _ensure_csv_initialized(self):
         """Initialize the errors CSV file with headers if needed."""
         if not self._csv_initialized:
-            Path(self._errors_csv).parent.mkdir(parents=True, exist_ok=True)
+            Path(self.csv_path).parent.mkdir(parents=True, exist_ok=True)
             
-            if not os.path.exists(self._errors_csv):
-                with open(self._errors_csv, 'w', newline='', encoding='utf-8') as csvfile:
+            if not os.path.exists(self.csv_path):
+                with open(self.csv_path, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow(['severity', 'error_code', 'timestamp', 'message', 'details', 'count'])
             else:
@@ -134,7 +78,7 @@ class LumibotLogger(logging.Logger):
     def _load_existing_error_counts(self):
         """Load existing error counts from CSV for deduplication."""
         try:
-            with open(self._errors_csv, 'r', newline='', encoding='utf-8') as csvfile:
+            with open(self.csv_path, 'r', newline='', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     normalized_details = self._normalize_error_details(row['details'], row.get('error_code', ''))
@@ -146,7 +90,7 @@ class LumibotLogger(logging.Logger):
     
     def _rewrite_csv_with_updated_counts(self):
         """Rewrite CSV file with updated error counts."""
-        temp_file = self._errors_csv + '.tmp'
+        temp_file = self.csv_path + '.tmp'
         try:
             with open(temp_file, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
@@ -156,16 +100,14 @@ class LumibotLogger(logging.Logger):
                     timestamp = datetime.now().isoformat()
                     writer.writerow([severity, error_code, timestamp, message, details, count])
             
-            os.replace(temp_file, self._errors_csv)
+            os.replace(temp_file, self.csv_path)
         except Exception as e:
             if os.path.exists(temp_file):
                 os.remove(temp_file)
             raise e
     
     def _normalize_error_details(self, details: str, error_code: str) -> str:
-        """
-        Normalize error details for deduplication by removing dynamic values.
-        """
+        """Normalize error details for deduplication by removing dynamic values."""
         normalized = details
         
         # Remove request IDs and session IDs
@@ -180,18 +122,38 @@ class LumibotLogger(logging.Logger):
         
         return normalized
     
-    def _trigger_emergency_shutdown(self, record: logging.LogRecord, error_code: str, message: str):
-        """
-        Trigger emergency shutdown when a CRITICAL error is logged.
+    def _extract_error_details(self, record: logging.LogRecord) -> Tuple[str, str, str]:
+        """Extract error code and details from log record."""
+        message = record.getMessage()
         
-        This method will:
-        1. Print an emergency message to stderr
-        2. Attempt to flush all handlers
-        3. Exit the application immediately
-        """
+        # Try to extract structured error code if message has format "ERROR_CODE: message | details"
+        error_code = ""
+        details = ""
+        
+        if ":" in message and "|" in message:
+            parts = message.split(":", 1)
+            if len(parts) == 2:
+                potential_error_code = parts[0].strip()
+                rest = parts[1].strip()
+                
+                if "|" in rest:
+                    msg_part, details_part = rest.split("|", 1)
+                    error_code = potential_error_code
+                    message = msg_part.strip()
+                    details = details_part.strip()
+        
+        # Fallback: create error code from logger name
+        if not error_code:
+            logger_name = record.name.split('.')[-1].upper()
+            error_code = f"{logger_name}_{record.levelname}"
+            details = f"File: {record.pathname}:{record.lineno}, Function: {record.funcName}"
+        
+        return error_code, message, details
+    
+    def _trigger_emergency_shutdown(self, record: logging.LogRecord, error_code: str, message: str):
+        """Trigger emergency shutdown when a CRITICAL error is logged."""
         import sys
         import time
-        import logging
         
         # Print emergency message to stderr
         emergency_msg = f"""
@@ -222,44 +184,9 @@ potential data corruption or unsafe trading operations.
         # Emergency exit
         sys.exit(1)
     
-    def _extract_error_details(self, record: logging.LogRecord) -> Tuple[str, str, str]:
-        """
-        Extract error code and details from log record.
-        
-        Returns:
-            Tuple of (error_code, message, details)
-        """
-        message = record.getMessage()
-        
-        # Try to extract structured error code if message has format "ERROR_CODE: message | details"
-        error_code = ""
-        details = ""
-        
-        if ":" in message and "|" in message:
-            parts = message.split(":", 1)
-            if len(parts) == 2:
-                potential_error_code = parts[0].strip()
-                rest = parts[1].strip()
-                
-                if "|" in rest:
-                    msg_part, details_part = rest.split("|", 1)
-                    error_code = potential_error_code
-                    message = msg_part.strip()
-                    details = details_part.strip()
-        
-        # Fallback: create error code from logger name
-        if not error_code:
-            logger_name = record.name.split('.')[-1].upper()
-            error_code = f"{logger_name}_{record.levelname}"
-            details = f"File: {record.pathname}:{record.lineno}, Function: {record.funcName}"
-        
-        return error_code, message, details
-    
-    def _log_to_csv(self, record: logging.LogRecord):
-        """
-        Log error/warning records to CSV file with deduplication.
-        """
-        if not self._csv_enabled or record.levelno < logging.WARNING:
+    def emit(self, record):
+        """Handle a log record by writing to CSV."""
+        if record.levelno < logging.WARNING:
             return
             
         try:
@@ -286,34 +213,15 @@ potential data corruption or unsafe trading operations.
         except Exception:
             # Don't let CSV logging errors break the main application
             pass
+
+
+class LumibotLogger(logging.Logger):
+    """
+    Enhanced Logger class for Lumibot with consistent formatting.
+    """
     
-    def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1):
-        """
-        Override the _log method to add CSV logging functionality.
-        """
-        # Call the parent _log method first
-        super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)
-        
-        # If CSV logging is enabled and this is a warning/error/critical message,
-        # we need to create a LogRecord to pass to CSV logging
-        if self._csv_enabled and level >= logging.WARNING:
-            # Create a LogRecord for CSV logging
-            if self.isEnabledFor(level):
-                fn, lno, func, sinfo = self.findCaller(stack_info, stacklevel)
-                
-                # Handle exc_info properly
-                csv_exc_info = None
-                if exc_info:
-                    if isinstance(exc_info, BaseException):
-                        csv_exc_info = (type(exc_info), exc_info, exc_info.__traceback__)
-                    elif exc_info is True:
-                        csv_exc_info = sys.exc_info()
-                    elif isinstance(exc_info, tuple):
-                        csv_exc_info = exc_info
-                
-                record = self.makeRecord(self.name, level, fn, lno, msg, args,
-                                         csv_exc_info, func, extra, sinfo)
-                self._log_to_csv(record)
+    def __init__(self, name: str, level=logging.NOTSET):
+        super().__init__(name, level)
 
 
 class LumibotFormatter(logging.Formatter):
@@ -416,7 +324,13 @@ def _ensure_handlers_configured():
     """
     Ensure that the root logger has the appropriate handlers configured.
     This is called once globally to set up consistent formatting.
-    Thread-safe implementation.
+    Thread-safe implementation using double-checked locking pattern.
+    
+    Environment Variables Used:
+    - LUMIBOT_LOG_LEVEL: Set global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
+    - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
+    - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false)
     """
     global _handlers_configured
     
@@ -455,43 +369,24 @@ def _ensure_handlers_configured():
             # When quiet logs are enabled, only show ERROR and CRITICAL messages
             log_level = logging.ERROR
             console_handler.setLevel(logging.ERROR)
+        else:
+            # Set console handler to same level as logger
+            console_handler.setLevel(log_level)
         
         root_logger.setLevel(log_level)
         root_logger.addHandler(console_handler)
         
-        # CSV error logging is now integrated into LumibotLogger itself
-        # No need for separate CSV handler
+        # Add CSV error handler if enabled
+        log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
+        if log_errors_to_csv and log_errors_to_csv.lower() in ("true", "1", "yes", "on"):
+            csv_path = os.environ.get("LUMIBOT_ERROR_CSV_PATH", "logs/errors.csv")
+            csv_handler = CSVErrorHandler(csv_path)
+            root_logger.addHandler(csv_handler)
         
         # Keep propagation enabled for proper logging behavior
         root_logger.propagate = True
         
-        # Silence commonly noisy external loggers by default
-        _silence_external_loggers()
-        
         _handlers_configured = True
-
-
-def _silence_external_loggers():
-    """Internal function to silence commonly noisy external loggers."""
-    # Common noisy loggers
-    noisy_loggers = [
-        'urllib3.connectionpool',
-        'urllib3',
-        'requests.packages.urllib3.connectionpool',
-        'requests',
-        'matplotlib',
-        'PIL',
-        'asyncio',
-        'websockets',
-        'ccxt',
-        'apscheduler.scheduler',
-        'apscheduler.executors.default',
-        'ibapi',  # Interactive Brokers API
-    ]
-    
-    for logger_name in noisy_loggers:
-        external_logger = logging.getLogger(logger_name)
-        external_logger.setLevel(logging.WARNING)
 
 
 @lru_cache(maxsize=128)
@@ -506,7 +401,7 @@ def get_logger(name: str) -> logging.Logger:
     calls will automatically be written to errors.csv with deduplication.
     
     CRITICAL messages will trigger an emergency shutdown of the application to prevent
-    unsafe trading operations. This can be disabled with DISABLE_CRITICAL_SHUTDOWN=true.
+    unsafe trading operations.
     
     Parameters
     ----------
@@ -521,7 +416,7 @@ def get_logger(name: str) -> logging.Logger:
     Examples
     --------
     >>> from lumibot.tools.lumibot_logger import get_logger
-    >>> logger = get_logger(__name__)
+    >>> logger = get_logger()
     >>> logger.info("Application started")
     >>> logger.warning("This is a warning with source info")
     >>> logger.error("This is an error with full source info")  # Auto-saved to CSV if enabled
@@ -653,52 +548,6 @@ def add_file_handler(file_path: str, level: str = 'INFO'):
     root_logger.addHandler(file_handler)
 
 
-def silence_external_loggers():
-    """
-    Silence verbose external loggers to reduce noise in Lumibot logs.
-    
-    This is useful when external libraries are generating too many log messages.
-    """
-    _silence_external_loggers()
-
-
-# Convenience functions for backward compatibility
-def debug(msg, *args, **kwargs):
-    """Convenience function for debug logging."""
-    get_logger('lumibot').debug(msg, *args, **kwargs)
-
-
-def info(msg, *args, **kwargs):
-    """Convenience function for info logging."""
-    get_logger('lumibot').info(msg, *args, **kwargs)
-
-
-def warning(msg, *args, **kwargs):
-    """Convenience function for warning logging."""
-    get_logger('lumibot').warning(msg, *args, **kwargs)
-
-
-def error(msg, *args, **kwargs):
-    """Convenience function for error logging."""
-    get_logger('lumibot').error(msg, *args, **kwargs)
-
-
-def critical(msg, *args, **kwargs):
-    """Convenience function for critical logging."""
-    get_logger('lumibot').critical(msg, *args, **kwargs)
-
-
-# Backward compatibility functions - these maintain the same interface as standard logging
-# but use our unified logger system internally
-def getLogger(name: Optional[str] = None) -> logging.Logger:
-    """
-    Backward compatibility function that mimics logging.getLogger but uses our unified system.
-    
-    This allows existing code to work without changes while benefiting from unified logging.
-    """
-    if name is None:
-        name = 'lumibot'
-    return get_logger(name)
 
 
 # Initialize the logging system when the module is imported

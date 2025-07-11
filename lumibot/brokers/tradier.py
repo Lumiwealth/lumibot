@@ -645,7 +645,7 @@ class Tradier(Broker):
             date_created=response["create_date"],
             avg_fill_price=avg_fill_price,
             error_message=reason_description,
-            order_class=self._tradier_class2lumi(response["class"] if "class" in response else None),
+            order_class=self._tradier_class2lumi(response["class"] if "class" in response else None) or Order.OrderClass.SIMPLE,
         )
         # Example Tradier Date Value: '2024-10-04T15:46:14.946Z'
         order.broker_create_date = response["create_date"] if "create_date" in response else None

@@ -56,7 +56,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -69,11 +69,11 @@ class TestAlpacaData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=dt.time(0,0),
                 market=market
             )
@@ -84,7 +84,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -97,11 +97,11 @@ class TestAlpacaData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=dt.time(0,0),
                 market=market,
                 remove_incomplete_current_bar=True
@@ -113,7 +113,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = 'NYSE'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         asset_tuple = (asset, quote_asset)
 
@@ -127,11 +127,11 @@ class TestAlpacaData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=dt.time(0,0),
                 market=market
             )
@@ -225,7 +225,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = '24/7'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -238,11 +238,11 @@ class TestAlpacaData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
 
                 # default crypto timezone is America/Chicago
                 time_check=dt.time(1,0),
@@ -256,7 +256,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = '24/7'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         asset_tuple = (asset, quote_asset)
 
@@ -270,11 +270,11 @@ class TestAlpacaData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
 
                 # default crypto timezone is America/Chicago
                 time_check=dt.time(1 ,0),
@@ -288,7 +288,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "day"
         market = '24/7'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -301,11 +301,11 @@ class TestAlpacaData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=dt.time(0 ,0),
                 market=market
             )
@@ -316,7 +316,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "minute"
         market = 'NYSE'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -328,11 +328,11 @@ class TestAlpacaData(BaseDataSourceTester):
             )
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now - data_source._delay,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -343,7 +343,7 @@ class TestAlpacaData(BaseDataSourceTester):
         quote_asset = Asset('USD', asset_type='forex')
         timestep = "minute"
         market = '24/7'
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
@@ -354,11 +354,11 @@ class TestAlpacaData(BaseDataSourceTester):
             )
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -368,7 +368,7 @@ class TestAlpacaData(BaseDataSourceTester):
         asset = Asset("SPY")
         timestep = "day"
         data_source = self._create_data_source()
-        now = dt.datetime.now(data_source._tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         # Get a 0dte option
         # calculate the last calendar day before today

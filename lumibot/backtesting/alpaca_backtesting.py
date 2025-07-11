@@ -151,7 +151,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError("datetime_start and datetime_end must have the same tzinfo.")
 
         # Get timezone from datetime_start if it has one, otherwise use Lumibot default
-        self._tzinfo = get_timezone_from_datetime(datetime_start)
+        self.tzinfo = get_timezone_from_datetime(datetime_start)
 
         # We want self._data_datetime_start and self._data_datetime_end to be the start and end dates
         # of the data for the entire backtest including the warmup dates.
@@ -162,7 +162,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             month=datetime_start.month,
             day=datetime_start.day,
         )
-        start_dt = self._tzinfo.localize(start_dt)  # Use localize instead of tzinfo in constructor
+        start_dt = self.tzinfo.localize(start_dt)  # Use localize instead of tzinfo in constructor
 
         # The end should be the last minute of the day.
         end_dt = datetime(
@@ -173,7 +173,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             minute=59,
             second=59,
         )
-        end_dt = self._tzinfo.localize(end_dt)  # Use localize instead of tzinfo in constructor
+        end_dt = self.tzinfo.localize(end_dt)  # Use localize instead of tzinfo in constructor
 
         if warm_up_trading_days > 0:
             warm_up_start_dt = date_n_trading_days_from_date(
@@ -184,7 +184,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Combine with a default time (midnight)
             warm_up_start_dt = datetime.combine(warm_up_start_dt, datetime.min.time())
             # Make it timezone-aware
-            warm_up_start_dt = self._tzinfo.localize(warm_up_start_dt)
+            warm_up_start_dt = self.tzinfo.localize(warm_up_start_dt)
         else:
             warm_up_start_dt = start_dt
 
@@ -198,7 +198,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             self.market,
             self._data_datetime_start,
             self._data_datetime_end + timedelta(days=1),  # end_date is exclusive in this function
-            tzinfo=self._tzinfo
+            tzinfo=self.tzinfo
         )
 
         # I think lumibot's got a bug in the strategy_executor when backtesting daily strategies.
@@ -423,7 +423,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             data_datetime_end = self._data_datetime_end
 
         if tzinfo is None:
-            tzinfo = self._tzinfo
+            tzinfo = self.tzinfo
 
         if auto_adjust is None:
             auto_adjust = self._auto_adjust
@@ -598,9 +598,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # utc=True ensures proper handling of timezone-aware data
             df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
 
-            # Convert timestamps from UTC to the timezone specified in self._tzinfo
-            # For example: if self._tzinfo is 'America/New_York', converts UTC times to NY time
-            df['timestamp'] = df['timestamp'].dt.tz_convert(self._tzinfo)
+            # Convert timestamps from UTC to the timezone specified in self.tzinfo
+            # For example: if self.tzinfo is 'America/New_York', converts UTC times to NY time
+            df['timestamp'] = df['timestamp'].dt.tz_convert(self.tzinfo)
 
             df.set_index('timestamp', inplace=True)
             self._data_store[key] = df
@@ -638,7 +638,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             market = self.market
 
         if tzinfo is None:
-            tzinfo = self._tzinfo
+            tzinfo = self.tzinfo
 
         if data_datetime_start is None:
             data_datetime_start = self._data_datetime_start

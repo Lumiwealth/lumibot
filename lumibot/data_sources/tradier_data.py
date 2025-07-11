@@ -244,7 +244,7 @@ class TradierData(DataSource):
             symbol = asset.symbol
 
         # Create end time
-        now = dt.datetime.now(self._tzinfo)
+        now = dt.datetime.now(self.tzinfo)
         if self._delay:
             end_dt = now - self._delay
         else:
@@ -269,7 +269,7 @@ class TradierData(DataSource):
             # This works for now. Crypto gets more bars but throws them out.
             market='NYSE'
         )
-        start_dt = self._tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
+        start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
         # Check what timestep we are using, different endpoints are required for different timesteps
         try:
@@ -305,9 +305,9 @@ class TradierData(DataSource):
 
             # Check if the index is timezone-naive or already timezone-aware
             if df.index.tz is None:  # Naive index, localize to data source timezone
-                df.index = df.index.tz_localize(self._tzinfo)
+                df.index = df.index.tz_localize(self.tzinfo)
             else:  # Already timezone-aware, convert to data source timezone
-                df.index = df.index.tz_convert(self._tzinfo)
+                df.index = df.index.tz_convert(self.tzinfo)
 
         # Check for incomplete bars
         if self._remove_incomplete_current_bar:

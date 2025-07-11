@@ -5,11 +5,11 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="What is Lumibot?" href="getting_started.html" /><link rel="prev" title="Lumibot: Backtesting and Algorithmic Trading Library" href="index.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
         <title>Deployment Guide - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
@@ -70,7 +70,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -85,22 +85,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -113,6 +154,8 @@
 <label class="overlay toc-overlay" for="__toc">
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
 
 <div class="announcement">
   <aside class="announcement-content">
@@ -140,7 +183,8 @@
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -281,6 +325,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -289,7 +334,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -359,11 +403,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/deployment.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -373,9 +423,9 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="deployment-guide">
-<h1>Deployment Guide<a class="headerlink" href="#deployment-guide" title="Link to this heading">#</a></h1>
+<h1>Deployment Guide<a class="headerlink" href="#deployment-guide" title="Link to this heading">¶</a></h1>
 <p>This guide will walk you through the deployment process for your trading strategy. We will cover the following topics:</p>
 <ul class="simple">
 <li><p><strong>Choosing Your Deployment Platform:</strong> Decide whether to deploy on <strong>Render</strong> or <strong>Replit</strong>.</p></li>
@@ -387,7 +437,7 @@
 </ul>
 <p>Before deploying your application, ensure that you have the necessary environment variables configured. The environment variables are crucial for the successful deployment of your application. We will cover the required environment variables for different brokers and general environment variables that are essential for the strategy to function correctly.</p>
 <section id="example-strategy-for-deployment">
-<h2>Example Strategy for Deployment<a class="headerlink" href="#example-strategy-for-deployment" title="Link to this heading">#</a></h2>
+<h2>Example Strategy for Deployment<a class="headerlink" href="#example-strategy-for-deployment" title="Link to this heading">¶</a></h2>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p><strong>Important:</strong> This example strategy is for those without a strategy ready to deploy. If you have your own strategy, skip to <a class="reference external" href="#id1">Choosing Your Deployment Platform</a>.</p>
@@ -408,7 +458,7 @@
 </div>
 </section>
 <section id="id1">
-<h2>Choosing Your Deployment Platform<a class="headerlink" href="#id1" title="Link to this heading">#</a></h2>
+<h2>Choosing Your Deployment Platform<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h2>
 <p>We recommend using <strong>Render</strong> for deployment because it is easier to use and more affordable compared to Replit. However, <strong>Replit</strong> is an excellent choice for developers who want to edit code directly in the browser.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -416,7 +466,7 @@
 </div>
 </section>
 <section id="id2">
-<h2>Deploying to Render<a class="headerlink" href="#id2" title="Link to this heading">#</a></h2>
+<h2>Deploying to Render<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h2>
 <p>Render offers powerful deployment options with easy scalability. Follow these steps to deploy your application on Render:</p>
 <ol class="arabic">
 <li><p><strong>Click the “Deploy to Render” Button</strong></p>
@@ -424,7 +474,7 @@
 <figure class="align-center" id="id4">
 <img alt="Deploy to Render Button" src="_static/images/render_deploy_button.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id4" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -436,7 +486,7 @@
 <figure class="align-center" id="id5">
 <img alt="Deploy Blueprint on Render" src="_static/images/render_deploy_blueprint.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id5" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -447,7 +497,7 @@
 <figure class="align-center" id="id6">
 <img alt="Worker on Render" src="_static/images/render_worker.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id6" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -460,7 +510,7 @@
 <figure class="align-center" id="id7">
 <img alt="Environment Settings on Render" src="_static/images/render_worker_environment.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 4:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 4:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id7" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -473,7 +523,7 @@
 <figure class="align-center" id="id8">
 <img alt="Restart Service on Render" src="_static/images/render_redeploy.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 5:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 5:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id8" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -484,7 +534,7 @@
 <figure class="align-center" id="id9">
 <img alt="Logs on Render" src="_static/images/render_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 6:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 6:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id9" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -495,7 +545,7 @@
 <figure class="align-center" id="id10">
 <img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 7:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 7:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id10" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -506,7 +556,7 @@
 </ol>
 </section>
 <section id="id3">
-<h2>Deploying to Replit<a class="headerlink" href="#id3" title="Link to this heading">#</a></h2>
+<h2>Deploying to Replit<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h2>
 <p>Replit is a versatile platform that allows you to deploy applications quickly. Follow these steps to deploy your application on Replit:</p>
 <ol class="arabic">
 <li><p><strong>Click the “Deploy on Replit” Button</strong></p>
@@ -514,7 +564,7 @@
 <figure class="align-center" id="id11">
 <img alt="Deploy on Replit Button" src="_static/images/deploy_replit_button.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 8:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 8:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id11" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -527,7 +577,7 @@
 <figure class="align-center" id="id12">
 <img alt="Replit Tools -&gt; Secrets" src="_static/images/replit_tools_secrets.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 9:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 9:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id12" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -536,7 +586,7 @@
 <figure class="align-center" id="id13">
 <img alt="Adding a new secret in Replit" src="_static/images/replit_add_secret.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 10:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id13" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 10:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id13" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -546,13 +596,13 @@
 <figure class="align-center" id="id14">
 <img alt="Running the application in Replit" src="_static/images/replit_run.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 11:</strong> Running the application in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 11:</strong> Running the application in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <figure class="align-center" id="id15">
 <img alt="Viewing logs in Replit" src="_static/images/replit_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 12:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 12:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -564,7 +614,7 @@
 <figure class="align-center" id="id16">
 <img alt="Select Reserved VM and Background Worker" src="_static/images/replit_reserved_vm.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 13:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 13:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id16" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -582,13 +632,13 @@
 <figure class="align-center" id="id17">
 <img alt="Deploying the application in Replit" src="_static/images/replit_deploy.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 14:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 14:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id17" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <figure class="align-center" id="id18">
 <img alt="Deployment process" src="_static/images/replit_deploy_process.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 15:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id18" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 15:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id18" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -599,7 +649,7 @@
 <figure class="align-center" id="id19">
 <img alt="Logs on Replit" src="_static/images/replit_deploy_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 16:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id19" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 16:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id19" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </li>
@@ -610,7 +660,7 @@
 <figure class="align-center" id="id20">
 <img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 17:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id20" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 17:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id20" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -622,7 +672,7 @@
 </section>
 </section>
 <section id="secrets-configuration">
-<h1>Secrets Configuration<a class="headerlink" href="#secrets-configuration" title="Link to this heading">#</a></h1>
+<h1>Secrets Configuration<a class="headerlink" href="#secrets-configuration" title="Link to this heading">¶</a></h1>
 <p>Proper configuration of environment variables is crucial for the successful deployment of your application. The most important secrets are those related to your chosen broker. First, set up the secrets for your broker, then add any additional general secrets if needed.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -634,14 +684,14 @@
 </div>
 </section>
 <section id="broker-configuration">
-<h1>Broker Configuration<a class="headerlink" href="#broker-configuration" title="Link to this heading">#</a></h1>
+<h1>Broker Configuration<a class="headerlink" href="#broker-configuration" title="Link to this heading">¶</a></h1>
 <p>To support different brokers, we have separate sections. Choose the one that corresponds to the broker you are using.</p>
 <section id="tradier-configuration">
-<h2>Tradier Configuration<a class="headerlink" href="#tradier-configuration" title="Link to this heading">#</a></h2>
+<h2>Tradier Configuration<a class="headerlink" href="#tradier-configuration" title="Link to this heading">¶</a></h2>
 <p>Tradier is great because they can trade stocks, options, and soon futures. Tradier also offers an incredible plan for $10/month, providing commission-free options trading. This can save a lot of money for those day trading options or engaging in similar activities. To create an account, visit the <a class="reference external" href="https://tradier.com/">Tradier</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id21">
 <table class="docutils align-default" id="id21">
-<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id21" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id21" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -671,11 +721,11 @@
 </div>
 </section>
 <section id="tradovate-configuration">
-<h2>Tradovate Configuration<a class="headerlink" href="#tradovate-configuration" title="Link to this heading">#</a></h2>
+<h2>Tradovate Configuration<a class="headerlink" href="#tradovate-configuration" title="Link to this heading">¶</a></h2>
 <p>Tradovate is a futures broker that provides access to CME Group markets. <strong>Important: Tradovate does not provide market data, so you must configure a separate data source</strong> (such as DataBento or ProjectX). To create an account, visit the <a class="reference external" href="https://www.tradovate.com/">Tradovate</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id22">
 <table class="docutils align-default" id="id22">
-<caption><span class="caption-text">Tradovate Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Tradovate Configuration</span><a class="headerlink" href="#id22" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -725,11 +775,11 @@
 </div>
 </section>
 <section id="alpaca-configuration">
-<h2>Alpaca Configuration<a class="headerlink" href="#alpaca-configuration" title="Link to this heading">#</a></h2>
+<h2>Alpaca Configuration<a class="headerlink" href="#alpaca-configuration" title="Link to this heading">¶</a></h2>
 <p>Alpaca is great because they’re a commission-free broker specifically designed for API trading, which aligns perfectly with our platform. Alpaca supports trading stocks, crypto, and soon options, with their APIs working seamlessly for automated trading strategies. To create an account, visit the <a class="reference external" href="https://alpaca.markets/">Alpaca</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id23">
 <table class="docutils align-default" id="id23">
-<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id23" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -759,11 +809,11 @@
 </div>
 </section>
 <section id="coinbase-configuration">
-<h2>Coinbase Configuration<a class="headerlink" href="#coinbase-configuration" title="Link to this heading">#</a></h2>
+<h2>Coinbase Configuration<a class="headerlink" href="#coinbase-configuration" title="Link to this heading">¶</a></h2>
 <p>Coinbase is a cryptocurrency broker that is easy to set up and operates across all United States, including New York, which is typically challenging to find for crypto brokers. It offers a wide range of cryptocurrencies with user-friendly APIs. To create an account, visit the <a class="reference external" href="https://www.coinbase.com/">Coinbase</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id24">
 <table class="docutils align-default" id="id24">
-<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id24" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id24" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -797,11 +847,11 @@
 </div>
 </section>
 <section id="kraken-configuration">
-<h2>Kraken Configuration<a class="headerlink" href="#kraken-configuration" title="Link to this heading">#</a></h2>
+<h2>Kraken Configuration<a class="headerlink" href="#kraken-configuration" title="Link to this heading">¶</a></h2>
 <p>Kraken is an excellent cryptocurrency broker offering very low fees and a wide range of cryptocurrencies, likely more than Coinbase. It is ideal for users focused on crypto trading with competitive pricing. To create an account, visit the <a class="reference external" href="https://www.kraken.com/">Kraken</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id25">
 <table class="docutils align-default" id="id25">
-<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id25" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id25" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -827,11 +877,11 @@
 </div>
 </section>
 <section id="kucoin-configuration">
-<h2>Kucoin Configuration<a class="headerlink" href="#kucoin-configuration" title="Link to this heading">#</a></h2>
+<h2>Kucoin Configuration<a class="headerlink" href="#kucoin-configuration" title="Link to this heading">¶</a></h2>
 <p>Kucoin is a popular global cryptocurrency exchange offering a wide variety of cryptocurrencies and trading pairs. To create an account, visit the <a class="reference external" href="https://www.kucoin.com/">Kucoin</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id26">
 <table class="docutils align-default" id="id26">
-<caption><span class="caption-text">Kucoin Configuration</span><a class="headerlink" href="#id26" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Kucoin Configuration</span><a class="headerlink" href="#id26" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -861,11 +911,11 @@
 </div>
 </section>
 <section id="binance-configuration">
-<h2>Binance Configuration<a class="headerlink" href="#binance-configuration" title="Link to this heading">#</a></h2>
+<h2>Binance Configuration<a class="headerlink" href="#binance-configuration" title="Link to this heading">¶</a></h2>
 <p>Binance is the world’s largest cryptocurrency exchange by trading volume, offering extensive cryptocurrency trading options. To create an account, visit the <a class="reference external" href="https://www.binance.com/">Binance</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id27">
 <table class="docutils align-default" id="id27">
-<caption><span class="caption-text">Binance Configuration</span><a class="headerlink" href="#id27" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Binance Configuration</span><a class="headerlink" href="#id27" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -891,11 +941,11 @@
 </div>
 </section>
 <section id="bitmex-configuration">
-<h2>Bitmex Configuration<a class="headerlink" href="#bitmex-configuration" title="Link to this heading">#</a></h2>
+<h2>Bitmex Configuration<a class="headerlink" href="#bitmex-configuration" title="Link to this heading">¶</a></h2>
 <p>Bitmex is a cryptocurrency derivatives exchange specializing in futures and perpetual contracts. To create an account, visit the <a class="reference external" href="https://www.bitmex.com/">Bitmex</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id28">
 <table class="docutils align-default" id="id28">
-<caption><span class="caption-text">Bitmex Configuration</span><a class="headerlink" href="#id28" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Bitmex Configuration</span><a class="headerlink" href="#id28" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -921,11 +971,11 @@
 </div>
 </section>
 <section id="bybit-configuration">
-<h2>Bybit Configuration<a class="headerlink" href="#bybit-configuration" title="Link to this heading">#</a></h2>
+<h2>Bybit Configuration<a class="headerlink" href="#bybit-configuration" title="Link to this heading">¶</a></h2>
 <p>Bybit is a popular derivatives exchange offering futures and perpetual contracts for cryptocurrency trading. To create an account, visit the <a class="reference external" href="https://www.bybit.com/">Bybit</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id29">
 <table class="docutils align-default" id="id29">
-<caption><span class="caption-text">Bybit Configuration</span><a class="headerlink" href="#id29" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Bybit Configuration</span><a class="headerlink" href="#id29" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -951,11 +1001,11 @@
 </div>
 </section>
 <section id="okx-configuration">
-<h2>OKX Configuration<a class="headerlink" href="#okx-configuration" title="Link to this heading">#</a></h2>
+<h2>OKX Configuration<a class="headerlink" href="#okx-configuration" title="Link to this heading">¶</a></h2>
 <p>OKX is a major global cryptocurrency exchange offering spot, futures, and options trading. To create an account, visit the <a class="reference external" href="https://www.okx.com/">OKX</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id30">
 <table class="docutils align-default" id="id30">
-<caption><span class="caption-text">OKX Configuration</span><a class="headerlink" href="#id30" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">OKX Configuration</span><a class="headerlink" href="#id30" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -985,11 +1035,11 @@
 </div>
 </section>
 <section id="interactive-brokers-configuration">
-<h2>Interactive Brokers Configuration<a class="headerlink" href="#interactive-brokers-configuration" title="Link to this heading">#</a></h2>
+<h2>Interactive Brokers Configuration<a class="headerlink" href="#interactive-brokers-configuration" title="Link to this heading">¶</a></h2>
 <p>Interactive Brokers is ideal for international users as they offer a wide array of asset classes, including stocks, options, futures, forex, CFDs, and more. Their global presence makes them suitable for users around the world. To create an account, visit the <a class="reference external" href="https://www.interactivebrokers.com/">Interactive Brokers</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id31">
 <table class="docutils align-default" id="id31">
-<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id31" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id31" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1023,11 +1073,11 @@
 </div>
 </section>
 <section id="interactive-brokers-legacy-configuration">
-<h2>Interactive Brokers-Legacy Configuration<a class="headerlink" href="#interactive-brokers-legacy-configuration" title="Link to this heading">#</a></h2>
+<h2>Interactive Brokers-Legacy Configuration<a class="headerlink" href="#interactive-brokers-legacy-configuration" title="Link to this heading">¶</a></h2>
 <p>This is the legacy version of our Interactive Brokers implementation, which uses their TWS API. It is maintained for compatibility purposes, but we recommend using the newer implementation.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id32">
 <table class="docutils align-default" id="id32">
-<caption><span class="caption-text">Interactive Brokers-Legacy Configuration</span><a class="headerlink" href="#id32" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Interactive Brokers-Legacy Configuration</span><a class="headerlink" href="#id32" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1061,11 +1111,11 @@
 </div>
 </section>
 <section id="schwab-configuration">
-<h2>Schwab Configuration<a class="headerlink" href="#schwab-configuration" title="Link to this heading">#</a></h2>
+<h2>Schwab Configuration<a class="headerlink" href="#schwab-configuration" title="Link to this heading">¶</a></h2>
 <p>Charles Schwab provides API access for automated trading and market data through its developer platform. To create an account, visit the <a class="reference external" href="https://www.schwab.com/">Charles Schwab</a> website and follow the instructions to register for a developer account at <a class="reference external" href="https://developer.schwab.com">developer.schwab.com</a>.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id33">
 <table class="docutils align-default" id="id33">
-<caption><span class="caption-text">Schwab Configuration</span><a class="headerlink" href="#id33" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Schwab Configuration</span><a class="headerlink" href="#id33" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1095,11 +1145,11 @@
 </div>
 </section>
 <section id="bitunix-configuration">
-<h2>Bitunix Configuration<a class="headerlink" href="#bitunix-configuration" title="Link to this heading">#</a></h2>
+<h2>Bitunix Configuration<a class="headerlink" href="#bitunix-configuration" title="Link to this heading">¶</a></h2>
 <p>Bitunix is a cryptocurrency derivatives exchange that supports perpetual futures trading. To create an account, visit the <a class="reference external" href="https://www.bitunix.com/">Bitunix</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id34">
 <table class="docutils align-default" id="id34">
-<caption><span class="caption-text">Bitunix Configuration</span><a class="headerlink" href="#id34" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Bitunix Configuration</span><a class="headerlink" href="#id34" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1125,11 +1175,11 @@
 </div>
 </section>
 <section id="databento-configuration">
-<h2>DataBento Configuration<a class="headerlink" href="#databento-configuration" title="Link to this heading">#</a></h2>
+<h2>DataBento Configuration<a class="headerlink" href="#databento-configuration" title="Link to this heading">¶</a></h2>
 <p>DataBento provides high-quality market data for stocks, futures, and options. This is primarily used as a data source for backtesting and live trading with futures. To create an account, visit the <a class="reference external" href="https://databento.com/">DataBento</a> website.</p>
 <div class="table-wrapper colwidths-given docutils container" id="id35">
 <table class="docutils align-default" id="id35">
-<caption><span class="caption-text">DataBento Configuration</span><a class="headerlink" href="#id35" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">DataBento Configuration</span><a class="headerlink" href="#id35" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1151,13 +1201,13 @@
 </div>
 </section>
 <section id="projectx-configuration">
-<h2>ProjectX Configuration<a class="headerlink" href="#projectx-configuration" title="Link to this heading">#</a></h2>
+<h2>ProjectX Configuration<a class="headerlink" href="#projectx-configuration" title="Link to this heading">¶</a></h2>
 <p>ProjectX is a futures-only broker that connects to multiple prop trading firms and futures brokers. Each broker requires its own specific environment variables. Choose the section below that matches your broker.</p>
 <section id="topstepx">
-<h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">#</a></h3>
+<h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id36">
 <table class="docutils align-default" id="id36">
-<caption><span class="caption-text">TopstepX Configuration</span><a class="headerlink" href="#id36" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">TopstepX Configuration</span><a class="headerlink" href="#id36" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1187,10 +1237,10 @@
 </div>
 </section>
 <section id="top-one-futures">
-<h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">#</a></h3>
+<h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id37">
 <table class="docutils align-default" id="id37">
-<caption><span class="caption-text">Top One Futures Configuration</span><a class="headerlink" href="#id37" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Top One Futures Configuration</span><a class="headerlink" href="#id37" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1220,10 +1270,10 @@
 </div>
 </section>
 <section id="tickticktrader">
-<h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">#</a></h3>
+<h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id38">
 <table class="docutils align-default" id="id38">
-<caption><span class="caption-text">TickTickTrader Configuration</span><a class="headerlink" href="#id38" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">TickTickTrader Configuration</span><a class="headerlink" href="#id38" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1253,10 +1303,10 @@
 </div>
 </section>
 <section id="alphaticks">
-<h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">#</a></h3>
+<h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id39">
 <table class="docutils align-default" id="id39">
-<caption><span class="caption-text">AlphaTicks Configuration</span><a class="headerlink" href="#id39" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">AlphaTicks Configuration</span><a class="headerlink" href="#id39" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1286,10 +1336,10 @@
 </div>
 </section>
 <section id="aqua-futures">
-<h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">#</a></h3>
+<h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id40">
 <table class="docutils align-default" id="id40">
-<caption><span class="caption-text">Aqua Futures Configuration</span><a class="headerlink" href="#id40" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Aqua Futures Configuration</span><a class="headerlink" href="#id40" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1319,10 +1369,10 @@
 </div>
 </section>
 <section id="blue-guardian-futures">
-<h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">#</a></h3>
+<h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id41">
 <table class="docutils align-default" id="id41">
-<caption><span class="caption-text">Blue Guardian Futures Configuration</span><a class="headerlink" href="#id41" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Blue Guardian Futures Configuration</span><a class="headerlink" href="#id41" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1352,10 +1402,10 @@
 </div>
 </section>
 <section id="blusky">
-<h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">#</a></h3>
+<h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id42">
 <table class="docutils align-default" id="id42">
-<caption><span class="caption-text">Blusky Configuration</span><a class="headerlink" href="#id42" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Blusky Configuration</span><a class="headerlink" href="#id42" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1385,10 +1435,10 @@
 </div>
 </section>
 <section id="bulenox">
-<h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">#</a></h3>
+<h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id43">
 <table class="docutils align-default" id="id43">
-<caption><span class="caption-text">Bulenox Configuration</span><a class="headerlink" href="#id43" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Bulenox Configuration</span><a class="headerlink" href="#id43" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1418,10 +1468,10 @@
 </div>
 </section>
 <section id="e8-futures">
-<h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">#</a></h3>
+<h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id44">
 <table class="docutils align-default" id="id44">
-<caption><span class="caption-text">E8 Futures Configuration</span><a class="headerlink" href="#id44" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">E8 Futures Configuration</span><a class="headerlink" href="#id44" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1451,10 +1501,10 @@
 </div>
 </section>
 <section id="funding-futures">
-<h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">#</a></h3>
+<h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id45">
 <table class="docutils align-default" id="id45">
-<caption><span class="caption-text">Funding Futures Configuration</span><a class="headerlink" href="#id45" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Funding Futures Configuration</span><a class="headerlink" href="#id45" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1484,10 +1534,10 @@
 </div>
 </section>
 <section id="the-futures-desk">
-<h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">#</a></h3>
+<h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id46">
 <table class="docutils align-default" id="id46">
-<caption><span class="caption-text">The Futures Desk Configuration</span><a class="headerlink" href="#id46" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">The Futures Desk Configuration</span><a class="headerlink" href="#id46" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1517,10 +1567,10 @@
 </div>
 </section>
 <section id="futures-elite">
-<h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">#</a></h3>
+<h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id47">
 <table class="docutils align-default" id="id47">
-<caption><span class="caption-text">Futures Elite Configuration</span><a class="headerlink" href="#id47" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Futures Elite Configuration</span><a class="headerlink" href="#id47" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1550,10 +1600,10 @@
 </div>
 </section>
 <section id="fxify-futures">
-<h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">#</a></h3>
+<h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id48">
 <table class="docutils align-default" id="id48">
-<caption><span class="caption-text">FXIFY Futures Configuration</span><a class="headerlink" href="#id48" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">FXIFY Futures Configuration</span><a class="headerlink" href="#id48" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1583,10 +1633,10 @@
 </div>
 </section>
 <section id="goat-funded-futures">
-<h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">#</a></h3>
+<h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id49">
 <table class="docutils align-default" id="id49">
-<caption><span class="caption-text">Goat Funded Futures Configuration</span><a class="headerlink" href="#id49" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Goat Funded Futures Configuration</span><a class="headerlink" href="#id49" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1616,10 +1666,10 @@
 </div>
 </section>
 <section id="hola-prime">
-<h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">#</a></h3>
+<h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id50">
 <table class="docutils align-default" id="id50">
-<caption><span class="caption-text">Hola Prime Configuration</span><a class="headerlink" href="#id50" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Hola Prime Configuration</span><a class="headerlink" href="#id50" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1649,10 +1699,10 @@
 </div>
 </section>
 <section id="nexgen-futures">
-<h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">#</a></h3>
+<h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id51">
 <table class="docutils align-default" id="id51">
-<caption><span class="caption-text">Nexgen Futures Configuration</span><a class="headerlink" href="#id51" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Nexgen Futures Configuration</span><a class="headerlink" href="#id51" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1682,10 +1732,10 @@
 </div>
 </section>
 <section id="tx3-funding">
-<h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">#</a></h3>
+<h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id52">
 <table class="docutils align-default" id="id52">
-<caption><span class="caption-text">TX3 Funding Configuration</span><a class="headerlink" href="#id52" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">TX3 Funding Configuration</span><a class="headerlink" href="#id52" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1715,10 +1765,10 @@
 </div>
 </section>
 <section id="daytraders">
-<h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">#</a></h3>
+<h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id53">
 <table class="docutils align-default" id="id53">
-<caption><span class="caption-text">DayTraders Configuration</span><a class="headerlink" href="#id53" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">DayTraders Configuration</span><a class="headerlink" href="#id53" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1748,10 +1798,10 @@
 </div>
 </section>
 <section id="demo-testing">
-<h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">#</a></h3>
+<h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">¶</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id54">
 <table class="docutils align-default" id="id54">
-<caption><span class="caption-text">Demo Configuration</span><a class="headerlink" href="#id54" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">Demo Configuration</span><a class="headerlink" href="#id54" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1783,11 +1833,11 @@
 </section>
 </section>
 <section id="general-environment-variables">
-<h1>General Environment Variables<a class="headerlink" href="#general-environment-variables" title="Link to this heading">#</a></h1>
+<h1>General Environment Variables<a class="headerlink" href="#general-environment-variables" title="Link to this heading">¶</a></h1>
 <p>In addition to broker-specific secrets, the following environment variables are required for the strategy to function correctly:</p>
 <div class="table-wrapper colwidths-given docutils container" id="id55">
 <table class="docutils align-default" id="id55">
-<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id55" title="Link to this table">#</a></caption>
+<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id55" title="Link to this table">¶</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1864,7 +1914,7 @@
 <p><strong>Tip:</strong> If you are running the strategy on your own computer, create a <cite>.env</cite> file in the same directory as <cite>main.py</cite> and add the environment variables there instead of using Replit or Render secrets.</p>
 </div>
 <section id="final-steps">
-<h2>Final Steps<a class="headerlink" href="#final-steps" title="Link to this heading">#</a></h2>
+<h2>Final Steps<a class="headerlink" href="#final-steps" title="Link to this heading">¶</a></h2>
 <p>After configuring all the necessary environment variables and deploying your application on your chosen platform, ensure that everything is running smoothly:</p>
 <ul class="simple">
 <li><p><strong>Verify Deployment:</strong> Check the deployment logs to ensure there are no errors.</p></li>
@@ -1873,7 +1923,7 @@
 </ul>
 </section>
 <section id="conclusion">
-<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading">#</a></h2>
+<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading">¶</a></h2>
 <p>Deploying your application is straightforward with our GitHub deployment buttons for <strong>Render</strong> and <strong>Replit</strong>. By following this guide, you can quickly set up your environment variables and get your application live. Happy deploying! 🎉</p>
 <p>For further assistance, refer to the <a class="reference external" href="https://render.com/docs">Render Documentation</a> or the <a class="reference external" href="https://docs.replit.com/">Replit Documentation</a>.</p>
 </section>
@@ -1997,8 +2047,8 @@
     </aside>
   </div>
 </div><script src="_static/documentation_options.js?v=5929fcd5"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

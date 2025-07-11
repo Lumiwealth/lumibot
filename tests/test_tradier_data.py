@@ -152,7 +152,7 @@ class TestTradierData(BaseDataSourceTester):
         market = 'NYSE'
 
         for length in [1, 30]:
-            now = datetime.now(data_source._tzinfo)
+            now = datetime.now(data_source.tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset,
                 length=length,
@@ -163,11 +163,11 @@ class TestTradierData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0,0),
                 market=market,
             )
@@ -176,7 +176,7 @@ class TestTradierData(BaseDataSourceTester):
         asset_tuple = (asset, quote_asset)
         self.check_get_last_price(data_source, asset_tuple)
         for length in [1, 30]:
-            now = datetime.now(data_source._tzinfo)
+            now = datetime.now(data_source.tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset_tuple,
                 length=length,
@@ -186,11 +186,11 @@ class TestTradierData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0,0),
                 market=market,
             )
@@ -203,7 +203,7 @@ class TestTradierData(BaseDataSourceTester):
         market = 'NYSE'
 
         for length in [1, 30]:
-            now = datetime.now(data_source._tzinfo)
+            now = datetime.now(data_source.tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset,
                 length=length,
@@ -214,11 +214,11 @@ class TestTradierData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0,0),
                 market=market,
                 remove_incomplete_current_bar=True
@@ -228,7 +228,7 @@ class TestTradierData(BaseDataSourceTester):
         asset_tuple = (asset, quote_asset)
         self.check_get_last_price(data_source, asset_tuple)
         for length in [1, 30]:
-            now = datetime.now(data_source._tzinfo)
+            now = datetime.now(data_source.tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset_tuple,
                 length=length,
@@ -238,11 +238,11 @@ class TestTradierData(BaseDataSourceTester):
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 time_check=time(0,0),
                 market=market,
                 remove_incomplete_current_bar=True
@@ -256,7 +256,7 @@ class TestTradierData(BaseDataSourceTester):
         asset = Asset('SPY', asset_type='stock')
 
         for length in [1, 30]:
-            now = datetime.now(data_source._tzinfo)
+            now = datetime.now(data_source.tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset,
                 length=length,
@@ -266,11 +266,11 @@ class TestTradierData(BaseDataSourceTester):
             )
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
             )
 
@@ -282,7 +282,7 @@ class TestTradierData(BaseDataSourceTester):
         asset = Asset('SPY', asset_type='stock')
 
         for length in [1, 30]:
-            now = datetime.now(data_source._tzinfo)
+            now = datetime.now(data_source.tzinfo)
             bars = data_source.get_historical_prices(
                 asset=asset,
                 length=length,
@@ -292,11 +292,11 @@ class TestTradierData(BaseDataSourceTester):
             )
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
-            self.check_index(bars=bars, data_source_tz=data_source._tzinfo)
+            self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_minute_bars(
                 bars=bars,
                 now=now,
-                data_source_tz=data_source._tzinfo,
+                data_source_tz=data_source.tzinfo,
                 market=market,
                 remove_incomplete_current_bar=True
             )
@@ -308,7 +308,7 @@ class TestTradierData(BaseDataSourceTester):
         ticker = 'SPY'
         asset = Asset("SPY")
         timestep = "day"
-        now = datetime.now(data_source._tzinfo)
+        now = datetime.now(data_source.tzinfo)
 
         # Get a 0dte option
         # calculate the last calendar day before today

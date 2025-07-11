@@ -20,3 +20,4 @@ Miscellaneous methods are the methods that do not fit into other categories. You
     wait_for_order_execution
     wait_for_orders_registration
     wait_for_orders_execution
+    register_cron_callback

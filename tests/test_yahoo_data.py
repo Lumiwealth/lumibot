@@ -45,7 +45,7 @@ class TestYahooData(BaseDataSourceTester):
         # self.check_daily_bars(
         #     bars=bars,
         #     now=now,
-        #     data_source_tz=data_source._tzinfo,
+        #     data_source_tz=data_source.tzinfo,
         #     time_check=time(0, 0),
         # )
 
@@ -75,7 +75,7 @@ class TestYahooData(BaseDataSourceTester):
         # self.check_daily_bars(
         #     bars=bars,
         #     now=now,
-        #     data_source_tz=data_source._tzinfo,
+        #     data_source_tz=data_source.tzinfo,
         #     time_check=time(0, 0),
         # )
 

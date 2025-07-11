@@ -5,11 +5,11 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Schwab" href="brokers.schwab.html" /><link rel="prev" title="Interactive Brokers Legacy" href="brokers.interactive_brokers_legacy.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
         <title>ProjectX - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
@@ -70,7 +70,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -85,22 +85,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -113,6 +154,8 @@
 <label class="overlay toc-overlay" for="__toc">
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
 
 <div class="announcement">
   <aside class="announcement-content">
@@ -140,7 +183,8 @@
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -281,6 +325,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -289,7 +334,6 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -359,11 +403,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/brokers.projectx.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -373,12 +423,12 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="projectx">
-<h1>ProjectX<a class="headerlink" href="#projectx" title="Link to this heading">#</a></h1>
+<h1>ProjectX<a class="headerlink" href="#projectx" title="Link to this heading">¶</a></h1>
 <p>ProjectX is a <strong>futures-only broker</strong> that connects to multiple prop trading firms and futures brokers through a unified gateway. Each broker requires its own specific environment variables.</p>
 <section id="features">
-<h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p><strong>Futures Trading Only</strong>: Continuous futures contracts</p></li>
 <li><p><strong>Multiple Brokers</strong>: Supports 19+ different prop trading firms and futures brokers</p></li>
@@ -388,7 +438,7 @@
 </ul>
 </section>
 <section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">¶</a></h2>
 <ol class="arabic simple">
 <li><p><strong>Account</strong>: Demo or live futures trading account with a supported broker</p></li>
 </ol>
@@ -396,7 +446,7 @@
 Supported Brokers
 —————–</p>
 <section id="topstepx">
-<h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">#</a></h3>
+<h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TOPSTEPX_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_TOPSTEPX_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -404,7 +454,7 @@ Supported Brokers
 </div>
 </section>
 <section id="top-one-futures">
-<h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">#</a></h3>
+<h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TOPONE_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_TOPONE_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -412,7 +462,7 @@ Supported Brokers
 </div>
 </section>
 <section id="tickticktrader">
-<h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">#</a></h3>
+<h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TICKTICKTRADER_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_TICKTICKTRADER_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_TICKTICKTRADER_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -420,7 +470,7 @@ Supported Brokers
 </div>
 </section>
 <section id="alphaticks">
-<h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">#</a></h3>
+<h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_ALPHATICKS_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_ALPHATICKS_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_ALPHATICKS_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -428,7 +478,7 @@ Supported Brokers
 </div>
 </section>
 <section id="aqua-futures">
-<h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">#</a></h3>
+<h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_AQUAFUTURES_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_AQUAFUTURES_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_AQUAFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -436,7 +486,7 @@ Supported Brokers
 </div>
 </section>
 <section id="blue-guardian-futures">
-<h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">#</a></h3>
+<h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_BLUEGUARDIANFUTURES_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_BLUEGUARDIANFUTURES_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_BLUEGUARDIANFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -444,7 +494,7 @@ Supported Brokers
 </div>
 </section>
 <section id="blusky">
-<h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">#</a></h3>
+<h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_BLUSKY_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_BLUSKY_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_BLUSKY_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -452,7 +502,7 @@ Supported Brokers
 </div>
 </section>
 <section id="bulenox">
-<h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">#</a></h3>
+<h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_BULENOX_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_BULENOX_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_BULENOX_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -460,7 +510,7 @@ Supported Brokers
 </div>
 </section>
 <section id="e8-futures">
-<h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">#</a></h3>
+<h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_E8X_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_E8X_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_E8X_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -468,7 +518,7 @@ Supported Brokers
 </div>
 </section>
 <section id="funding-futures">
-<h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">#</a></h3>
+<h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_FUNDINGFUTURES_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_FUNDINGFUTURES_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_FUNDINGFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -476,7 +526,7 @@ Supported Brokers
 </div>
 </section>
 <section id="the-futures-desk">
-<h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">#</a></h3>
+<h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_THEFUTURESDESK_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_THEFUTURESDESK_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_THEFUTURESDESK_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -484,7 +534,7 @@ Supported Brokers
 </div>
 </section>
 <section id="futures-elite">
-<h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">#</a></h3>
+<h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_FUTURESELITE_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_FUTURESELITE_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_FUTURESELITE_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -492,7 +542,7 @@ Supported Brokers
 </div>
 </section>
 <section id="fxify-futures">
-<h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">#</a></h3>
+<h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_FXIFYFUTURES_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_FXIFYFUTURES_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_FXIFYFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -500,7 +550,7 @@ Supported Brokers
 </div>
 </section>
 <section id="goat-funded-futures">
-<h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">#</a></h3>
+<h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_GOATFUNDEDFUTURES_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_GOATFUNDEDFUTURES_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_GOATFUNDEDFUTURES_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -508,7 +558,7 @@ Supported Brokers
 </div>
 </section>
 <section id="hola-prime">
-<h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">#</a></h3>
+<h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_HOLAPRIME_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_HOLAPRIME_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_HOLAPRIME_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -516,7 +566,7 @@ Supported Brokers
 </div>
 </section>
 <section id="nexgen-futures">
-<h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">#</a></h3>
+<h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_NEXGEN_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_NEXGEN_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_NEXGEN_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -524,7 +574,7 @@ Supported Brokers
 </div>
 </section>
 <section id="tx3-funding">
-<h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">#</a></h3>
+<h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TX3FUNDING_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_TX3FUNDING_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_TX3FUNDING_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -532,7 +582,7 @@ Supported Brokers
 </div>
 </section>
 <section id="daytraders">
-<h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">#</a></h3>
+<h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_DAYTRADERS_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_DAYTRADERS_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_DAYTRADERS_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -540,7 +590,7 @@ Supported Brokers
 </div>
 </section>
 <section id="demo-testing">
-<h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">#</a></h3>
+<h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">¶</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_DEMO_API_KEY</span><span class="o">=</span>your_api_key
 <span class="nv">PROJECTX_DEMO_USERNAME</span><span class="o">=</span>your_username
 <span class="nv">PROJECTX_DEMO_PREFERRED_ACCOUNT_NAME</span><span class="o">=</span>your_account_name
@@ -549,23 +599,23 @@ Supported Brokers
 </section>
 </section>
 <section id="supported-functionality">
-<h2>Supported Functionality<a class="headerlink" href="#supported-functionality" title="Link to this heading">#</a></h2>
+<h2>Supported Functionality<a class="headerlink" href="#supported-functionality" title="Link to this heading">¶</a></h2>
 </section>
 <section id="usage">
-<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
 <ol class="arabic simple">
 <li><p><strong>Set Environment Variables</strong>: Configure your broker’s API credentials</p></li>
 <li><p><strong>Create Strategy</strong>: Import Lumibot and create your trading strategy</p></li>
 <li><p><strong>Run</strong>: ProjectX will auto-detect and connect</p></li>
 </ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
-<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
 
-<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">&quot;1D&quot;</span>
 
-    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># Trade Micro E-mini S&amp;P 500 futures</span>
         <span class="n">mes</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;MES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CONT_FUTURE</span><span class="p">)</span>
 
@@ -590,7 +640,7 @@ Supported Brokers
 </div>
 </section>
 <section id="supported-features">
-<h2>Supported Features<a class="headerlink" href="#supported-features" title="Link to this heading">#</a></h2>
+<h2>Supported Features<a class="headerlink" href="#supported-features" title="Link to this heading">¶</a></h2>
 <p>✅ <strong>Futures Trading</strong>: Continuous futures contracts
 ✅ <strong>Market Orders</strong>: Immediate execution
 ✅ <strong>Limit Orders</strong>: Execute at specified price
@@ -697,8 +747,8 @@ Supported Brokers
     </aside>
   </div>
 </div><script src="_static/documentation_options.js?v=5929fcd5"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

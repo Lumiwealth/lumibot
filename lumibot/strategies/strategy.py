@@ -4,6 +4,7 @@ import time
 from decimal import Decimal
 from typing import Union, List, Type, Callable
 from lumibot.tools.lumibot_logger import get_logger
+import uuid
 import jsonpickle
 import matplotlib
 import numpy as np

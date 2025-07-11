@@ -164,8 +164,8 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         """Test that quarterly contract preference is consistent across components."""
         # Test different months throughout the year
         quarterly_test_cases = [
-            (datetime(2025, 1, 15), 'M', 'M'),   # Jan -> Jun
-            (datetime(2025, 4, 15), 'U', 'U'),   # Apr -> Sep
+            (datetime(2025, 1, 15), 'H', 'H'),   # Jan -> Mar
+            (datetime(2025, 4, 15), 'M', 'M'),   # Apr -> Jun
             (datetime(2025, 7, 15), 'U', 'U'),   # Jul -> Sep
             (datetime(2025, 10, 15), 'Z', 'Z'),  # Oct -> Dec
         ]

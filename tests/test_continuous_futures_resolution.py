@@ -96,8 +96,8 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         with patch('datetime.datetime') as mock_datetime:
             # Test different months
             test_cases = [
-                (datetime(2025, 1, 15), 'M'),  # Jan -> Jun (M)  
-                (datetime(2025, 4, 15), 'U'),  # Apr -> Sep (U)
+                (datetime(2025, 1, 15), 'H'),  # Jan -> Mar (H)  
+                (datetime(2025, 4, 15), 'M'),  # Apr -> Jun (M)
                 (datetime(2025, 7, 15), 'U'),  # Jul -> Sep (U)
                 (datetime(2025, 10, 15), 'Z'), # Oct -> Dec (Z)
             ]
@@ -139,7 +139,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         # Test January after rollover
         mock_datetime.now.return_value = datetime(2026, 1, 1)
         contract = asset.resolve_continuous_futures_contract()
-        self.assertEqual(contract, 'ESM26')  # June 2026
+        self.assertEqual(contract, 'ESH26')  # March 2026
 
     @patch('datetime.datetime')
     def test_different_symbol_formats(self, mock_datetime):
@@ -210,19 +210,19 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         
         # Test each month and verify the logic
         test_cases = [
-            # (month, expected_next_quarter_month_code)
-            (1, 'M'),   # Jan -> Jun (M)
-            (2, 'M'),   # Feb -> Jun (M) 
-            (3, 'M'),   # Mar -> Jun (M)
-            (4, 'U'),   # Apr -> Sep (U)
-            (5, 'U'),   # May -> Sep (U)
-            (6, 'U'),   # Jun -> Sep (U)
-            (7, 'U'),   # Jul -> Sep (U)
-            (8, 'U'),   # Aug -> Sep (U)
+            # (month, expected_front_month_quarter_code)
+            (1, 'H'),   # Jan -> Mar (H) - current quarter
+            (2, 'H'),   # Feb -> Mar (H) - current quarter
+            (3, 'H'),   # Mar -> Mar (H) - current quarter
+            (4, 'M'),   # Apr -> Jun (M) - current quarter
+            (5, 'M'),   # May -> Jun (M) - current quarter
+            (6, 'M'),   # Jun -> Jun (M) - current quarter
+            (7, 'U'),   # Jul -> Sep (U) - current quarter
+            (8, 'U'),   # Aug -> Sep (U) - current quarter
             (9, 'U'),   # Sep -> Sep (U) - current quarter
-            (10, 'Z'),  # Oct -> Dec (Z)
-            (11, 'Z'),  # Nov -> Dec (Z)
-            (12, 'Z'),  # Dec -> Dec (Z)
+            (10, 'Z'),  # Oct -> Dec (Z) - current quarter
+            (11, 'Z'),  # Nov -> Dec (Z) - current quarter
+            (12, 'Z'),  # Dec -> Dec (Z) - current quarter
         ]
         
         for month, expected_month_code in test_cases:

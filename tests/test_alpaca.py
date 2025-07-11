@@ -100,7 +100,7 @@ class TestAlpacaBroker:
             end_date=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         )
         dte = trading_days.index[-1]
-        
+
         spy_price = broker.get_last_price(asset=Asset('SPY'))
         asset = Asset('SPY', Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
         print(asset)
@@ -108,21 +108,21 @@ class TestAlpacaBroker:
         assert len(bars.df) > 0
 
     # ============= OAuth Tests =============
-    
+
     def test_oauth_broker_initialization(self):
         """Test that Alpaca broker can be initialized with OAuth token only."""
         oauth_config = {
             "OAUTH_TOKEN": "test_oauth_token",
             "PAPER": True
         }
-        
+
         broker = Alpaca(oauth_config, connect_stream=False)
         assert broker.oauth_token == "test_oauth_token"
         assert broker.api_key == ""
         assert broker.api_secret == ""
         assert broker.is_paper == True
         assert broker.is_oauth_only == True
-        
+
     def test_oauth_mixed_credentials(self):
         """Test that mixed OAuth + API credentials work correctly."""
         mixed_config = {
@@ -131,13 +131,13 @@ class TestAlpacaBroker:
             "API_SECRET": "test_api_secret",
             "PAPER": True
         }
-        
+
         broker = Alpaca(mixed_config, connect_stream=False)
         assert broker.oauth_token == "test_oauth_token"
         assert broker.api_key == "test_api_key"
         assert broker.api_secret == "test_api_secret"
         assert broker.is_oauth_only == False  # Has both OAuth and API credentials
-        
+
     def test_oauth_fallback_to_api_keys(self):
         """Test that broker falls back to API keys when OAuth token is empty."""
         fallback_config = {
@@ -146,25 +146,25 @@ class TestAlpacaBroker:
             "API_SECRET": "test_api_secret", 
             "PAPER": True
         }
-        
+
         broker = Alpaca(fallback_config, connect_stream=False)
         assert broker.oauth_token == ""
         assert broker.api_key == "test_api_key"
         assert broker.api_secret == "test_api_secret"
         assert broker.is_oauth_only == False
-        
+
     def test_oauth_error_on_missing_credentials(self):
         """Test that proper error is raised when no credentials are provided."""
         empty_config = {"PAPER": True}
-        
+
         with pytest.raises(ValueError, match="Either OAuth token or API key/secret must be provided"):
             Alpaca(empty_config, connect_stream=False)
-            
+
     def test_oauth_stream_object_creation(self):
         """Test that correct stream object is created for OAuth vs API key configurations."""
         from lumibot.trading_builtins import PollingStream
         from alpaca.trading.stream import TradingStream
-        
+
         # OAuth-only should use PollingStream
         oauth_config = {
             "OAUTH_TOKEN": "test_oauth_token",
@@ -173,7 +173,7 @@ class TestAlpacaBroker:
         broker_oauth = Alpaca(oauth_config, connect_stream=False)
         stream_oauth = broker_oauth._get_stream_object()
         assert isinstance(stream_oauth, PollingStream)
-        
+
         # API key/secret should use TradingStream  
         api_config = {
             "API_KEY": "test_api_key",
@@ -183,28 +183,28 @@ class TestAlpacaBroker:
         broker_api = Alpaca(api_config, connect_stream=False)
         stream_api = broker_api._get_stream_object()
         assert isinstance(stream_api, TradingStream)
-        
+
     def test_oauth_polling_interval(self):
         """Test that polling interval is properly set."""
         oauth_config = {
             "OAUTH_TOKEN": "test_oauth_token", 
             "PAPER": True
         }
-        
+
         # Test default polling interval
         broker = Alpaca(oauth_config, connect_stream=False)
         assert broker.polling_interval == 5.0
-        
+
         # Test custom polling interval
         broker_custom = Alpaca(oauth_config, connect_stream=False, polling_interval=10.0)
         assert broker_custom.polling_interval == 10.0
 
     # ============= Custom Params Tests =============
-    
+
     def test_custom_params_extended_hours(self):
         """Test that custom_params with extended_hours works correctly."""
         broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
-        
+
         # Create an order with custom_params
         order = Order(
             asset=Asset("SPY"), 
@@ -213,10 +213,10 @@ class TestAlpacaBroker:
             strategy='test_strategy',
             custom_params={"extended_hours": True}
         )
-        
+
         # Test that custom_params is stored on the order
         assert order.custom_params == {"extended_hours": True}
-        
+
         # Mock the submit_order method to test that custom_params are passed through
         broker.submit_order = MagicMock()
         broker.submit_order(order)
@@ -225,7 +225,7 @@ class TestAlpacaBroker:
     def test_custom_params_multiple_params(self):
         """Test that custom_params works with multiple parameters."""
         broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
-        
+
         # Create an order with multiple custom_params
         order = Order(
             asset=Asset("SPY"), 
@@ -234,14 +234,14 @@ class TestAlpacaBroker:
             strategy='test_strategy',
             custom_params={"extended_hours": True, "some_other_param": "test_value"}
         )
-        
+
         # Test that all custom_params are stored
         assert order.custom_params == {"extended_hours": True, "some_other_param": "test_value"}
 
     def test_custom_params_none(self):
         """Test that orders work normally without custom_params."""
         broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
-        
+
         # Create an order without custom_params
         order = Order(
             asset=Asset("SPY"), 
@@ -249,16 +249,16 @@ class TestAlpacaBroker:
             side=Order.OrderSide.BUY,
             strategy='test_strategy'
         )
-        
+
         # Test that custom_params is None
         assert order.custom_params is None
 
     # ============= Order Parsing Tests =============
-    
+
     def test_parse_broker_order_with_none_quantity(self):
         """Test that _parse_broker_order handles None quantity gracefully."""
         broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
-        
+
         # Mock response with None quantity
         mock_response = MagicMock()
         mock_response.id = "test_order_id"
@@ -269,7 +269,7 @@ class TestAlpacaBroker:
         mock_response.order_type = "market"
         mock_response.time_in_force = "day"
         mock_response.status = "filled"
-        
+
         # Create raw response dict
         resp_raw = {
             'id': 'test_order_id',
@@ -281,15 +281,17 @@ class TestAlpacaBroker:
             'time_in_force': 'day',
             'status': 'filled'
         }
-        
+
         # Test that _parse_broker_order returns None for invalid quantity
-        result = broker._parse_broker_order(mock_response, resp_raw, "test_strategy")
+        # Set _raw attribute on mock_response to simulate the actual response object
+        mock_response._raw = resp_raw
+        result = broker._parse_broker_order(mock_response, "test_strategy")
         assert result is None
 
     def test_parse_broker_order_with_valid_quantity(self):
         """Test that _parse_broker_order works correctly with valid quantity."""
         broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
-        
+
         # Mock response with valid quantity
         mock_response = MagicMock()
         mock_response.id = "test_order_id"
@@ -305,7 +307,7 @@ class TestAlpacaBroker:
         mock_response.trail_price = None
         mock_response.trail_percent = None
         mock_response.order_class = "simple"
-        
+
         # Create raw response dict
         resp_raw = {
             'id': 'test_order_id',
@@ -322,9 +324,11 @@ class TestAlpacaBroker:
             'trail_percent': None,
             'order_class': 'simple'
         }
-        
+
         # Test that _parse_broker_order returns valid Order object
-        result = broker._parse_broker_order(mock_response, resp_raw, "test_strategy")
+        # Set _raw attribute on mock_response to simulate the actual response object
+        mock_response._raw = resp_raw
+        result = broker._parse_broker_order(mock_response, "test_strategy")
         assert result is not None
         assert result.quantity == 10
         assert result.asset.symbol == "SPY"
@@ -333,7 +337,7 @@ class TestAlpacaBroker:
     def test_parse_broker_order_with_zero_quantity(self):
         """Test that _parse_broker_order handles zero quantity correctly."""
         broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
-        
+
         # Mock response with zero quantity
         mock_response = MagicMock()
         mock_response.id = "test_order_id"
@@ -349,7 +353,7 @@ class TestAlpacaBroker:
         mock_response.trail_price = None
         mock_response.trail_percent = None
         mock_response.order_class = "simple"
-        
+
         # Create raw response dict
         resp_raw = {
             'id': 'test_order_id',
@@ -366,9 +370,99 @@ class TestAlpacaBroker:
             'trail_percent': None,
             'order_class': 'simple'
         }
-        
+
         # Test that _parse_broker_order returns valid Order object even with zero quantity
-        result = broker._parse_broker_order(mock_response, resp_raw, "test_strategy")
+        # Set _raw attribute on mock_response to simulate the actual response object
+        mock_response._raw = resp_raw
+        result = broker._parse_broker_order(mock_response, "test_strategy")
         assert result is not None
         assert result.quantity == 0
         assert result.asset.symbol == "SPY"
+
+    def test_parse_broker_order_with_avg_fill_price_and_date_created(self):
+        """Test that _parse_broker_order correctly sets avg_fill_price and date_created when present in response."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+
+        # Mock response with filled_avg_price and created_at
+        mock_response = MagicMock()
+        mock_response.id = "test_order_id"
+        mock_response.symbol = "SPY"
+        mock_response.qty = "10"
+        mock_response.side = "buy"
+        mock_response.asset_class = "us_equity"
+        mock_response.order_type = "market"
+        mock_response.time_in_force = "day"
+        mock_response.status = "filled"
+        mock_response.filled_avg_price = "150.25"
+        mock_response.created_at = "2023-01-01T12:00:00Z"
+        mock_response.order_class = "simple"
+        mock_response.limit_price = None
+        mock_response.stop_price = None
+        mock_response.trail_price = None
+        mock_response.trail_percent = None
+
+        # Create raw response dict for _raw attribute
+        resp_raw = {
+            'id': 'test_order_id',
+            'symbol': 'SPY',
+            'qty': '10',
+            'side': 'buy',
+            'asset_class': 'us_equity',
+            'order_type': 'market',
+            'time_in_force': 'day',
+            'status': 'filled',
+            'filled_avg_price': '150.25',
+            'created_at': '2023-01-01T12:00:00Z',
+            'order_class': 'simple'
+        }
+        mock_response._raw = resp_raw
+
+        # Test that _parse_broker_order correctly sets avg_fill_price and broker_create_date
+        result = broker._parse_broker_order(mock_response, "test_strategy")
+        assert result is not None
+        assert result.avg_fill_price == "150.25"
+        assert result.broker_create_date == "2023-01-01T12:00:00Z"
+
+    def test_parse_broker_order_without_avg_fill_price_and_date_created(self):
+        """Test that _parse_broker_order sets avg_fill_price and broker_create_date to None when not present in response."""
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+
+        # Mock response without filled_avg_price and created_at
+        mock_response = MagicMock()
+        mock_response.id = "test_order_id"
+        mock_response.symbol = "SPY"
+        mock_response.qty = "10"
+        mock_response.side = "buy"
+        mock_response.asset_class = "us_equity"
+        mock_response.order_type = "market"
+        mock_response.time_in_force = "day"
+        mock_response.status = "filled"
+        mock_response.order_class = "simple"
+        mock_response.limit_price = None
+        mock_response.stop_price = None
+        mock_response.trail_price = None
+        mock_response.trail_percent = None
+        # Explicitly setting filled_avg_price and created_at to None
+        mock_response.filled_avg_price = None
+        mock_response.created_at = None
+
+        # Create raw response dict for _raw attribute
+        resp_raw = {
+            'id': 'test_order_id',
+            'symbol': 'SPY',
+            'qty': '10',
+            'side': 'buy',
+            'asset_class': 'us_equity',
+            'order_type': 'market',
+            'time_in_force': 'day',
+            'status': 'filled',
+            'order_class': 'simple'
+            # Explicitly not including filled_avg_price and created_at
+        }
+        mock_response._raw = resp_raw
+
+        # Test that _parse_broker_order sets avg_fill_price and broker_create_date to None
+        result = broker._parse_broker_order(mock_response, "test_strategy")
+        assert result is not None
+        assert result.avg_fill_price is None
+        assert result.broker_create_date is None

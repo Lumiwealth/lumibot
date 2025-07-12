@@ -5,7 +5,6 @@ import sys
 import logging
 
 # Test the unified logger and quiet logs functionality
-sys.path.insert(0, '/Users/martin/Documents/Work/lumibot')
 
 # Test 1: Normal logging
 print("=== Test 1: Normal logging ===")

@@ -487,12 +487,17 @@ class Asset:
 
     # ========== Continuous Futures Resolution Methods ==========
     
-    def resolve_continuous_futures_contract(self) -> str:
+    def resolve_continuous_futures_contract(self, reference_date: datetime = None) -> str:
         """
         Resolve a continuous futures asset to a specific contract symbol.
         
         This method is used to convert continuous futures (CONT_FUTURE) to the appropriate
         active contract based on standard market conventions.
+        
+        Parameters
+        ----------
+        reference_date : datetime, optional
+            Reference date for contract resolution. If None, uses current date.
         
         Returns
         -------
@@ -507,7 +512,7 @@ class Asset:
         if self.asset_type != self.AssetType.CONT_FUTURE:
             raise ValueError(f"resolve_continuous_futures_contract() can only be called on CONT_FUTURE assets, got {self.asset_type}")
         
-        return self._generate_current_futures_contract()
+        return self._generate_current_futures_contract(reference_date)
     
     def get_potential_futures_contracts(self) -> list:
         """
@@ -531,9 +536,14 @@ class Asset:
         
         return self._generate_potential_contracts()
     
-    def _generate_current_futures_contract(self) -> str:
+    def _generate_current_futures_contract(self, reference_date: datetime = None) -> str:
         """
-        Generate the most appropriate futures contract for the current date.
+        Generate the most appropriate futures contract for the given date.
+        
+        Parameters
+        ----------
+        reference_date : datetime, optional
+            Reference date for contract resolution. If None, uses current date.
         
         Returns
         -------
@@ -547,22 +557,26 @@ class Asset:
             7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
         }
         
-        now = datetime.now()
-        current_month = now.month
-        current_year = now.year
+        if reference_date is None:
+            reference_date = datetime.now()
+        
+        current_month = reference_date.month
+        current_year = reference_date.year
         
         # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
+        # Standard quarterly contract rollover logic based on market conventions
+        # We use the current quarter if it hasn't expired, otherwise the next quarter
         if current_month >= 10:  # October onwards, use December
             target_month = 12  # December
             target_year = current_year
         elif current_month >= 7:  # July-September, use September
             target_month = 9  # September
             target_year = current_year
-        elif current_month >= 4:  # April-June, use September
-            target_month = 9  # September
-            target_year = current_year
-        elif current_month >= 1:  # Jan-March, use June
+        elif current_month >= 4:  # April-June, use June
             target_month = 6  # June
+            target_year = current_year
+        elif current_month >= 1:  # Jan-March, use March
+            target_month = 3  # March
             target_year = current_year
         else:  # December (fallback), use March next year
             target_month = 3  # March
@@ -597,7 +611,13 @@ class Asset:
         potential_contracts = []
         
         # Generate quarterly contracts based on current month
-        if current_month >= 7 and current_month <= 8:  # July-August, use Sep first, then Dec
+        if current_month >= 10:  # October onwards, use Dec, then Mar
+            target_quarters = [
+                (12, current_year),     # December this year
+                (3, current_year + 1),  # March next year
+                (6, current_year + 1),  # June next year
+            ]
+        elif current_month >= 7:  # July-September, use Sep, then Dec
             target_quarters = [
                 (9, current_year),      # September this year
                 (12, current_year),     # December this year

@@ -129,9 +129,8 @@ class Tradovate(Broker):
                 # p-time is in minutes from Tradovate API
                 time_unit = "minutes" if p_time != 1 else "minute"
                 
-                # Determine correct web login URL based on whether we're using demo or live
-                is_demo = "demo.tradovateapi.com" in self.trading_api_url
-                web_url = "https://demo.tradovate.com/trader/" if is_demo else "https://tradovate.com/trader/"
+                # Determine correct web login URL
+                web_url = "https://tradovate.com/"
                 
                 raise TradovateAPIError(
                     f"Tradovate API is rate limiting login attempts. "

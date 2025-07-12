@@ -10,13 +10,13 @@ import os
 import sys
 
 from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradovate, Schwab, Bitunix, ProjectX
-import logging
 from dotenv import load_dotenv
 import termcolor
 from dateutil import parser
 
 # Configure logging
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 
 def find_and_load_dotenv(base_dir) -> bool:
@@ -137,18 +137,9 @@ STRATEGY_NAME = os.environ.get("STRATEGY_NAME")
 # Flag to determine if backtest progress should be logged to a file (True/False)
 LOG_BACKTEST_PROGRESS_TO_FILE = os.environ.get("LOG_BACKTEST_PROGRESS_TO_FILE")
 
-# Flag to determine if error logs should be logged to a CSV file (True/False)
-_log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
-if _log_errors_to_csv is None:
-    LOG_ERRORS_TO_CSV = False
-elif _log_errors_to_csv.lower() in ("true", "1", "yes", "on"):
-    LOG_ERRORS_TO_CSV = True
-elif _log_errors_to_csv.lower() in ("false", "0", "no", "off"):
-    LOG_ERRORS_TO_CSV = False
-else:
-    LOG_ERRORS_TO_CSV = False
+BACKTESTING_SHOW_PROGRESS_BAR = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR", "true").lower() == "true"
 
-# Determine if backtesting logs should be quiet via env variable (default True)
+# Determine if backtesting logs should be quiet via env variable (default None means not set)
 _btl = os.environ.get("BACKTESTING_QUIET_LOGS", None)
 if _btl is not None:
     if _btl.lower() == "true":
@@ -156,24 +147,11 @@ if _btl is not None:
     elif _btl.lower() == "false":
         BACKTESTING_QUIET_LOGS = False
     else:
-        colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
+        colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to None.", "yellow")
         logger.warning(colored_message)
-        BACKTESTING_QUIET_LOGS = True
+        BACKTESTING_QUIET_LOGS = None
 else:
     BACKTESTING_QUIET_LOGS = None
-
-_btl = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR", None)
-if _btl is not None:
-    if _btl.lower() == "true":
-        BACKTESTING_SHOW_PROGRESS_BAR = True
-    elif _btl.lower() == "false":
-        BACKTESTING_SHOW_PROGRESS_BAR = False
-    else:
-        colored_message = termcolor.colored(f"BACKTESTING_SHOW_PROGRESS_BAR must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to True.", "yellow")
-        logger.warning(colored_message)
-        BACKTESTING_SHOW_PROGRESS_BAR = True
-else:
-    BACKTESTING_SHOW_PROGRESS_BAR = None
 
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")

@@ -1,13 +1,13 @@
-import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Union, Optional
+from typing import Union
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Bars
 from lumibot.tools import databento_helper
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DataBentoData(DataSource):
@@ -118,7 +118,7 @@ class DataBentoData(DataSource):
         if current_dt.tzinfo is not None:
             current_dt = current_dt.replace(tzinfo=None)
         
-        logging.info(f"Using current datetime for live trading: {current_dt}")
+        logger.info(f"Using current datetime for live trading: {current_dt}")
         
         # Apply timeshift if specified
         if timeshift:
@@ -168,8 +168,8 @@ class DataBentoData(DataSource):
                 end_dt = start_dt + timedelta(minutes=1)
         
         # Get data from DataBento
-        logging.info(f"Requesting DataBento data for asset: {asset} (type: {asset.asset_type})")
-        logging.info(f"Date range: {start_dt} to {end_dt}")
+        logger.info(f"Requesting DataBento data for asset: {asset} (type: {asset.asset_type})")
+        logger.info(f"Date range: {start_dt} to {end_dt}")
         
         try:
             df = databento_helper.get_price_data_from_databento(
@@ -185,11 +185,11 @@ class DataBentoData(DataSource):
             return None
         
         if df is None or df.empty:
-            logging.error(f"No data returned from DataBento for {asset.symbol}. This could be due to:")
-            logging.error("1. Incorrect symbol format")
-            logging.error("2. Wrong dataset selection")
-            logging.error("3. Data not available for the requested time range")
-            logging.error("4. API authentication issues")
+            logger.error(f"No data returned from DataBento for {asset.symbol}. This could be due to:")
+            logger.error("1. Incorrect symbol format")
+            logger.error("2. Wrong dataset selection")
+            logger.error("3. Data not available for the requested time range")
+            logger.error("4. API authentication issues")
             return None
         
         # Filter data to the current time (for live trading)

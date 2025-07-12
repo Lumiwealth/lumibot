@@ -1,9 +1,8 @@
 import datetime
 import os
 import time
-import uuid
-from asyncio.log import logger
 from decimal import Decimal
+import uuid
 from typing import Union, List, Type, Callable
 
 import jsonpickle
@@ -3208,7 +3207,7 @@ class Strategy(_Strategy):
         This method is deprecated and will be removed in a future version.
         Please use self.get_historical_prices() instead.
         """
-        logger.warning(
+        self.logger.warning(
             "The get_bars method is deprecated and will be removed in a future version. "
             "Please use self.get_historical_prices() instead."
         )
@@ -3321,7 +3320,7 @@ class Strategy(_Strategy):
         """
         This method is deprecated and will be removed in a future version.
         Please use self.get_historical_prices_for_assets() instead."""
-        logger.warning(
+        self.logger.warning(
             "The get_bars method is deprecated and will be removed in a future version. "
             "Please use self.get_historical_prices_for_assets() instead."
         )

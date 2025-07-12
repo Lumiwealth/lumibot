@@ -12,59 +12,59 @@ These tests ensure that the timezone handling and error logging fixes remain sta
 import pytest
 from datetime import datetime, timedelta
 import pandas as pd
-import logging
 
-from lumibot.tools.error_logger import ErrorLogger
 from lumibot.data_sources import DataBentoData
 from lumibot.entities import Asset
 
-# Suppress unnecessary logging during tests
-logging.getLogger('lumibot').setLevel(logging.ERROR)
+# Set up unified logging for tests
+from lumibot.tools.lumibot_logger import get_logger, set_log_level
+set_log_level('ERROR')  # Suppress unnecessary logging during tests
 
 
 class TestErrorLoggerFixes:
-    """Test that ErrorLogger fixes are working correctly"""
+    """Test that unified logger fixes are working correctly"""
     
     def test_error_logger_initialization(self):
-        """Test that ErrorLogger can be initialized without errors"""
-        logger = ErrorLogger()
+        """Test that unified logger can be initialized without errors"""
+        logger = get_logger(__name__)
         assert logger is not None
         
     def test_error_logger_log_error_with_all_args(self):
-        """Test that log_error method accepts all required arguments correctly"""
-        logger = ErrorLogger()
+        """Test that unified logger error method accepts all required arguments correctly"""
+        logger = get_logger(__name__)
         
-        # Test with correct signature: severity, error_code, message, details
+        # Test with logger.error method
         try:
-            logger.log_error("ERROR", "TEST_ERROR", "This is a test error message", "test details")
+            logger.error("This is a test error message with details: test details")
             # If we reach here, the method signature is correct
             assert True
         except TypeError as e:
-            pytest.fail(f"ErrorLogger.log_error() has incorrect signature: {e}")
+            pytest.fail(f"Unified logger.error() has incorrect signature: {e}")
     
     def test_error_logger_log_error_with_minimal_args(self):
-        """Test that log_error method works with minimal required arguments"""
-        logger = ErrorLogger()
+        """Test that unified logger error method works with minimal required arguments"""
+        logger = get_logger(__name__)
         
-        # Test with minimum required arguments: severity, error_code, message
+        # Test with minimum required arguments
         try:
-            logger.log_error("ERROR", "TEST_ERROR", "Test message")
+            logger.error("Test message")
             assert True
         except Exception as e:
-            pytest.fail(f"ErrorLogger.log_error() failed with minimal args: {e}")
+            pytest.fail(f"Unified logger.error() failed with minimal args: {e}")
 
     def test_error_logger_log_error_critical_levels(self):
-        """Test that ErrorLogger handles different severity levels correctly"""
-        logger = ErrorLogger()
+        """Test that unified logger handles different severity levels correctly"""
+        logger = get_logger(__name__)
         
-        severity_levels = ["INFO", "WARNING", "ERROR", "CRITICAL"]
-        
-        for severity in severity_levels:
-            try:
-                logger.log_error(severity, "TEST_CODE", f"Test message for {severity}")
-                assert True
-            except Exception as e:
-                pytest.fail(f"ErrorLogger failed for severity '{severity}': {e}")
+        # Test different logger methods
+        try:
+            logger.info("Test message for INFO")
+            logger.warning("Test message for WARNING") 
+            logger.error("Test message for ERROR")
+            logger.critical("Test message for CRITICAL")
+            assert True
+        except Exception as e:
+            pytest.fail(f"Unified logger failed for different severity levels: {e}")
 
 
 class TestTimezoneHandling:

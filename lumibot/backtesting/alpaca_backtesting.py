@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Optional
 
@@ -12,6 +11,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting, AlpacaData
 from lumibot.entities import Asset, Bars
 from lumibot import (
@@ -23,8 +23,11 @@ from lumibot.tools.helpers import (
     get_trading_times,
     get_timezone_from_datetime,
     get_decimals,
-    quantize_to_num_decimals
+    quantize_to_num_decimals,
 )
+
+logger = get_logger(__name__)
+
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 
@@ -494,7 +497,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         filename = f"{key}.csv"
         filepath = os.path.join(cache_dir, filename)
 
-        logging.info(f"Fetching and caching data for {key}")
+        logger.info(f"Fetching and caching data for {key}")
 
         if base_asset.asset_type == 'crypto':
             client = self._crypto_client
@@ -560,7 +563,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # Store in _data_store
         df.set_index('timestamp', inplace=True)
         self._data_store[key] = df
-        logging.info(f"Finished fetching and caching data for {key}")
+        logger.info(f"Finished fetching and caching data for {key}")
         return df
 
     def _load_ohlcv_into_data_store(self, key: str) -> bool:
@@ -601,10 +604,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
             df.set_index('timestamp', inplace=True)
             self._data_store[key] = df
-            logging.info(f"Loaded cached data for key: {key} from cache.")
+            logger.info(f"Loaded cached data for key: {key} from cache.")
             return True
         except Exception as e:
-            logging.error(f"Failed to load cached data for key: {key}. Error: {e}")
+            logger.error(f"Failed to load cached data for key: {key}. Error: {e}")
             return False
 
     def get_historical_prices_between_dates(

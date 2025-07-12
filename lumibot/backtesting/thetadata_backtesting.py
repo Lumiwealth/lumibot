@@ -1,12 +1,9 @@
-import logging
-import re
-import traceback
 from decimal import Decimal
 from typing import Union
 
 import pandas as pd
 import subprocess
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
@@ -57,11 +54,11 @@ class ThetaDataBacktesting(PandasData):
             if pids:
                 for pid in pids:
                     if pid:  # Ensure the PID is not empty
-                        logging.info(f"Killing process with PID: {pid}")
+                        logger.info(f"Killing process with PID: {pid}")
                         subprocess.run(['kill', '-9', pid])
-                logging.info(f"All processes related to '{keyword}' have been killed.")
+                logger.info(f"All processes related to '{keyword}' have been killed.")
             else:
-                logging.info(f"No processes found related to '{keyword}'.")
+                logger.info(f"No processes found related to '{keyword}'.")
 
         except Exception as e:
             print(f"An error occurred during kill process: {e}")
@@ -98,7 +95,7 @@ class ThetaDataBacktesting(PandasData):
         if asset_separated.asset_type == "option":
             expiry = asset_separated.expiration
             if self.is_weekend(expiry):
-                logging.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
+                logger.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
                 return None
 
         # Get the start datetime and timestep unit
@@ -166,7 +163,7 @@ class ThetaDataBacktesting(PandasData):
                 datastyle="ohlc"
             )
             if df_ohlc is None:
-                logging.info(f"\nSKIP: No OHLC data found for {asset_separated} from ThetaData")
+                logger.info(f"\nSKIP: No OHLC data found for {asset_separated} from ThetaData")
                 return None
 
             if self._use_quote_data:
@@ -185,7 +182,7 @@ class ThetaDataBacktesting(PandasData):
 
                 # Check if we have data
                 if df_quote is None:
-                    logging.info(f"\nSKIP: No QUOTE data found for {quote_asset} from ThetaData")
+                    logger.info(f"\nSKIP: No QUOTE data found for {quote_asset} from ThetaData")
                     return None
 
                 # Combine the ohlc and quote data
@@ -221,7 +218,7 @@ class ThetaDataBacktesting(PandasData):
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
-            logging.error(f"\nERROR: _pull_source_symbol_bars from ThetaData: {e}, {dt}, asset:{asset}")
+            logger.error(f"\nERROR: _pull_source_symbol_bars from ThetaData: {e}, {dt}, asset:{asset}")
 
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
@@ -255,7 +252,7 @@ class ThetaDataBacktesting(PandasData):
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
-            logging.error(f"\nERROR: get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
+            logger.error(f"\nERROR: get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
 
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
@@ -285,7 +282,7 @@ class ThetaDataBacktesting(PandasData):
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
         except Exception as e:
-            logging.error(f"\nnERROR: get_quote from ThetaData: {e}, {dt}, asset:{asset}")
+            logger.error(f"\nnERROR: get_quote from ThetaData: {e}, {dt}, asset:{asset}")
 
         return super().get_quote(asset=asset, quote=quote, exchange=exchange)
 

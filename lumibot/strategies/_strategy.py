@@ -3,8 +3,8 @@ import logging
 from typing import Union, List, Dict
 
 from termcolor import colored
-from asyncio.log import logger
 from decimal import Decimal
+from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 import os
 import string
 import random
@@ -12,7 +12,6 @@ import traceback
 import math
 import time
 from sqlalchemy.exc import OperationalError
-import pytz
 import requests
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -57,10 +56,9 @@ from ..credentials import (
     BACKTESTING_START,
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
-    LOG_ERRORS_TO_CSV,
     INTERACTIVE_BROKERS_REST_CONFIG,
-    BACKTESTING_QUIET_LOGS,
-    BACKTESTING_SHOW_PROGRESS_BAR
+    BACKTESTING_SHOW_PROGRESS_BAR,
+    BACKTESTING_QUIET_LOGS
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -92,17 +90,6 @@ class SafeJSONEncoder(json.JSONEncoder):
             return list(obj)
             
         return super().default(obj)
-
-class CustomLoggerAdapter(logging.LoggerAdapter):
-    def __init__(self, logger, extra):
-        super().__init__(logger, extra)
-        self.prefix = f'[{self.extra["strategy_name"]}] '
-
-    def process(self, msg, kwargs):
-        try:
-            return self.prefix + msg, kwargs
-        except Exception as e:
-            return msg, kwargs
 
 class Vars:
     def __init__(self):
@@ -281,7 +268,7 @@ class _Strategy:
 
         # Create an adapter with 'strategy_name' set to the instance's name
         if not hasattr(self, "logger") or self.logger is None:
-            self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+            self.logger = get_strategy_logger(__name__, self._name)
 
         # Set the log level to INFO so that all logs INFO and above are displayed
         self.logger.setLevel(logging.INFO)
@@ -321,7 +308,7 @@ class _Strategy:
         
         if account_history_db_connection_str: 
             self.db_connection_str = account_history_db_connection_str  
-            logging.warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
+            get_logger(__name__).warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead") 
         elif db_connection_str:
             self.db_connection_str = db_connection_str
         else:
@@ -801,7 +788,7 @@ class _Strategy:
         return self._stats
 
     def _dump_stats(self):
-        logger = logging.getLogger()
+        logger = get_logger(__name__)
         current_level = logging.getLevelName(logger.level)
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":
@@ -909,7 +896,7 @@ class _Strategy:
                 )
 
                 if df is None or df.empty:
-                    logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
+                    self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
                     return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
                 df["return"] = df["close"].pct_change(fill_method=None)
@@ -1176,7 +1163,7 @@ class _Strategy:
             pass
         else:
             backtesting_start = datetime.datetime.now() - datetime.timedelta(days=365)
-            logging.warning(
+            get_logger(__name__).warning(
             colored(
                 "backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.",
                 "yellow"
@@ -1190,7 +1177,7 @@ class _Strategy:
             pass
         else:
             backtesting_end = datetime.datetime.now() - datetime.timedelta(days=1)
-            logging.warning(
+            get_logger(__name__).warning(
             colored(
                 "backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.",
                 "yellow"
@@ -1199,7 +1186,7 @@ class _Strategy:
 
         # Create an adapter with 'strategy_name' set to the instance's name
         if not hasattr(self, "logger") or self.logger is None:
-            self.logger = CustomLoggerAdapter(logger, {'strategy_name': self._name})
+            self.logger = get_strategy_logger(__name__, self._name)
 
         # If show_plot is None, then set it to True
         if show_plot is None:
@@ -1276,14 +1263,14 @@ class _Strategy:
                 )
 
         if not self.IS_BACKTESTABLE:
-            logging.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
+            get_logger(__name__).warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
 
         try:
             backtesting_start = to_datetime_aware(backtesting_start)
             backtesting_end = to_datetime_aware(backtesting_end)
         except AttributeError:
-            logging.error(
+            get_logger(__name__).error(
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
                 "You are receiving this error most likely because you are using \n"
                 "the original positional arguments for backtesting. \n\n"
@@ -1309,9 +1296,6 @@ class _Strategy:
                 show_progress_bar=show_progress_bar,
                 max_memory=POLYGON_MAX_MEMORY_BYTES,
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
-                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
-                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 **kwargs,
             )
         elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
@@ -1325,10 +1309,7 @@ class _Strategy:
                 pandas_data=pandas_data,
                 use_quote_data=use_quote_data,
                 show_progress_bar=show_progress_bar,
-                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
-                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
         elif datasource_class == InteractiveBrokersRESTBacktesting:
@@ -1339,10 +1320,7 @@ class _Strategy:
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
-                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
-                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
         else:
@@ -1353,10 +1331,7 @@ class _Strategy:
                 auto_adjust=auto_adjust,
                 pandas_data=pandas_data,
                 show_progress_bar=show_progress_bar,
-                progress_csv_path=f"{logdir}/{base_filename}_progress.csv",
-                errors_csv_path=f"{logdir}/{base_filename}_errors.csv",
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                log_errors_to_csv=LOG_ERRORS_TO_CSV,
                 **kwargs,
             )
 
@@ -1401,7 +1376,7 @@ class _Strategy:
         )
         self._trader.add_strategy(strategy)
 
-        logger.info("Starting backtest...")
+        self.logger.info("Starting backtest...")
         start = datetime.datetime.now()
 
         result = self._trader.run_all(
@@ -1416,7 +1391,7 @@ class _Strategy:
         end = datetime.datetime.now()
         backtesting_length = backtesting_end - backtesting_start
         backtesting_run_time = end - start
-        logger.info(
+        self.logger.info(
             f"Backtest took {backtesting_run_time} for a speed of {backtesting_run_time / backtesting_length:,.3f}"
         )
 
@@ -2122,12 +2097,12 @@ class _Strategy:
                             })
 
                 self._last_backup_state = current_state
-                logger.info("Variables backed up successfully")
+                self.logger.info("Variables backed up successfully")
             else:
-                logger.info("No variables to back up")
+                self.logger.info("No variables to back up")
 
         except Exception as e:
-            logger.error(f"Error backing up variables to DB: {e}", exc_info=True)
+            self.logger.error(f"Error backing up variables to DB: {e}", exc_info=True)
 
     def load_variables_from_db(self):
         if self.is_backtesting:
@@ -2143,7 +2118,7 @@ class _Strategy:
             # Check if backup table exists
             inspector = inspect(self.db_engine)
             if not inspector.has_table(self.backup_table_name):
-                logger.info(f"Backup for {self._name} does not exist in the database. Not restoring")
+                self.logger.info(f"Backup for {self._name} does not exist in the database. Not restoring")
                 return
 
              # Query the latest entry from the backup table
@@ -2154,7 +2129,7 @@ class _Strategy:
             df = pd.read_sql_query(query, self.db_engine, params=params)
 
             if df.empty:
-                logger.debug("No data found in the backup") 
+                self.logger.debug("No data found in the backup") 
             else:
                 # Parse the JSON data
                 json_data = df['variables'].iloc[0]
@@ -2174,10 +2149,10 @@ class _Strategy:
                 current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
                 self._last_backup_state = current_state
 
-                logger.info("Variables loaded successfully from database")
+                self.logger.info("Variables loaded successfully from database")
 
         except Exception as e:
-            logger.error(f"Error loading variables from database: {e}", exc_info=True)
+            self.logger.error(f"Error loading variables from database: {e}", exc_info=True)
 
     def calculate_returns(self):
         # Check if we are in backtesting mode, if so, don't send the message

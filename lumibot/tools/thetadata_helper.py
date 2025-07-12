@@ -1,17 +1,18 @@
 # This file contains helper functions for getting data from Polygon.io
-import logging
 import time
 from datetime import date, datetime, timedelta
-from enum import Enum
 from pathlib import Path
 import pytz
 import pandas as pd
 import pandas_market_calendars as mcal
 import requests
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset
 from thetadata import ThetaClient
 from tqdm import tqdm
+
+logger = get_logger(__name__)
 
 WAIT_TIME = 60
 MAX_DAYS = 30
@@ -65,7 +66,7 @@ def get_price_data(
     df_feather = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
     if cache_file.exists():
-        logging.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_feather = load_cache(cache_file)
         if df_feather is not None and not df_feather.empty:
             df_all = df_feather.copy() # Make a copy so we can check the original later for differences
@@ -82,7 +83,7 @@ def get_price_data(
     total_days = (end - start).days + 1
     total_queries = (total_days // MAX_DAYS) + 1
     description = f"\nDownloading '{datastyle}' data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
-    logging.info(description)
+    logger.info(description)
     pbar = tqdm(total=1, desc=description, dynamic_ncols=True)
 
     delta = timedelta(days=MAX_DAYS)
@@ -99,7 +100,7 @@ def get_price_data(
         interval_ms = 86400000
     else:
         interval_ms = 60000
-        logging.warning(f"Unsupported timespan: {timespan}, using default of 1 minute")
+        logger.warning(f"Unsupported timespan: {timespan}, using default of 1 minute")
 
     while start <= missing_dates[-1]:
         # If we don't have a paid subscription, we need to wait 1 minute between requests because of
@@ -111,7 +112,7 @@ def get_price_data(
         result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle)
 
         if result_df is None or len(result_df) == 0:
-            logging.warning(
+            logger.warning(
                 f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
             )
 
@@ -364,14 +365,14 @@ def check_connection(username: str, password: str):
             con_text = res.text
 
             if con_text == "CONNECTED":
-                logging.debug("Connected to Theta Data!")
+                logger.debug("Connected to Theta Data!")
                 connected = True
                 break
             elif con_text == "DISCONNECTED":
-                logging.debug("Disconnected from Theta Data!")
+                logger.debug("Disconnected from Theta Data!")
                 counter += 1
             else:
-                logging.info(f"Unknown connection status: {con_text}, starting theta data client")
+                logger.info(f"Unknown connection status: {con_text}, starting theta data client")
                 client = start_theta_data_client(username=username, password=password)
                 counter += 1
         except Exception as e:
@@ -379,7 +380,7 @@ def check_connection(username: str, password: str):
             counter += 1
 
         if counter > MAX_RETRIES:
-            logging.error("Cannot connect to Theta Data!")
+            logger.error("Cannot connect to Theta Data!")
             break
 
     return client, connected
@@ -400,11 +401,11 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
                     # Handle "NO_DATA" error
                     if json_resp["header"]["error_type"] == "NO_DATA":
-                        logging.warning(
+                        logger.warning(
                             f"No data returned for querystring: {querystring}")
                         return None
                     else:
-                        logging.error(
+                        logger.error(
                             f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
                         check_connection(username=username, password=password)
                 else:

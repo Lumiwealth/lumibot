@@ -1,5 +1,3 @@
-import logging
-import math
 import os
 import re
 import traceback
@@ -8,6 +6,7 @@ from typing import Union
 import pandas as pd
 from termcolor import colored
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.data_sources.tradier_data import TradierData
 from lumibot.entities import Asset, Order, Position
@@ -16,6 +15,8 @@ from lumibot.trading_builtins import PollingStream
 from lumiwealth_tradier import Tradier as _Tradier
 from lumiwealth_tradier.base import TradierApiError
 from lumiwealth_tradier.orders import OrderLeg
+
+logger = get_logger(__name__)
 
 
 class Tradier(Broker):
@@ -335,7 +336,7 @@ class Tradier(Broker):
 
                 for child_order in order.child_orders:
                     if child_order.asset is None:
-                        logging.error(f"Asset {child_order.asset} not supported by Tradier.")
+                        logger.error(f"Asset {child_order.asset} not supported by Tradier.")
                         return None
 
                     # Check if the child order is a stop limit order
@@ -401,7 +402,7 @@ class Tradier(Broker):
                 )
 
                 if not tradier_side or not option_symbol:
-                    logging.error(f"Unable to parse order {order} for Tradier.")
+                    logger.error(f"Unable to parse order {order} for Tradier.")
                     return None
 
                 order_response = self.tradier.orders.order_option(
@@ -417,7 +418,7 @@ class Tradier(Broker):
                 )
             else:
                 # Log the error and return None
-                logging.error(f"Asset {order.asset} not supported by Tradier.")
+                logger.error(f"Asset {order.asset} not supported by Tradier.")
                 return None
 
             order.identifier = order_response["id"]
@@ -454,9 +455,9 @@ class Tradier(Broker):
                 raise ValueError(colored_message) from e
             raise e
         except Exception as e:
-            logging.error(f"Error pulling balances from Tradier: {e}")
+            logger.error(f"Error pulling balances from Tradier: {e}")
             # Add traceback to the error message
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return None
 
         # Get the portfolio value (total_equity) column
@@ -471,7 +472,7 @@ class Tradier(Broker):
         return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
-        logging.error("The function get_historical_account_value is not implemented yet for Tradier.")
+        logger.error("The function get_historical_account_value is not implemented yet for Tradier.")
         return {"hourly": None, "daily": None}
 
     def _pull_positions(self, strategy):
@@ -492,7 +493,7 @@ class Tradier(Broker):
                 raise ValueError(colored_message) from e
             raise e
         except Exception as e:
-            logging.error(f"Error pulling positions from Tradier: {e}")
+            logger.error(f"Error pulling positions from Tradier: {e}")
             return []
 
         positions_ret = []
@@ -690,7 +691,7 @@ class Tradier(Broker):
         try:
             df = self.tradier.orders.get_orders()
         except Exception as e:
-            logging.error(f"Error pulling orders from Tradier: {e}")
+            logger.error(f"Error pulling orders from Tradier: {e}")
             return []
 
         # Check if the dataframe is empty or None
@@ -746,7 +747,7 @@ class Tradier(Broker):
                 elif position.quantity <= 0 and side == Order.OrderSide.SELL:
                     side = "sell_to_open"
                 else:
-                    logging.error(
+                    logger.error(
                         f"Unable to determine the correct side for the order. " f"Position: {position}, Order: {order}"
                     )
 
@@ -762,7 +763,7 @@ class Tradier(Broker):
 
         # Check if the side is a valid Tradier side
         if side not in ["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]:
-            logging.error(f"Invalid option order side for Tradier: {order.side}")
+            logger.error(f"Invalid option order side for Tradier: {order.side}")
             return ""
 
         return side
@@ -932,7 +933,7 @@ class Tradier(Broker):
         broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
-                logging.debug(
+                logger.debug(
                     f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. "
                     f"Dispatching as cancelled."
                 )
@@ -971,7 +972,7 @@ class Tradier(Broker):
         @broker.stream.add_action(broker.NEW_ORDER)
         def on_trade_event_new(order):
             # Log that the order was submitted
-            logging.info(f"Processing action for new order {order}")
+            logger.info(f"Processing action for new order {order}")
 
             try:
                 broker._process_trade_event(
@@ -980,12 +981,12 @@ class Tradier(Broker):
                 )
                 return True
             except:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
             # Log that the order was filled
-            logging.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
+            logger.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
 
             try:
                 broker._process_trade_event(
@@ -997,12 +998,12 @@ class Tradier(Broker):
                 )
                 return True
             except:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event_cancel(order):
             # Log that the order was cancelled
-            logging.info(f"Processing action for cancelled order {order}")
+            logger.info(f"Processing action for cancelled order {order}")
 
             try:
                 broker._process_trade_event(
@@ -1010,12 +1011,12 @@ class Tradier(Broker):
                     broker.CANCELED_ORDER,
                 )
             except:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CASH_SETTLED)
         def on_trade_event_cash(order, price, filled_quantity):
             # Log that the order was cash settled
-            logging.info(f"Processing action for cash settled order {order} | {price} | {filled_quantity}")
+            logger.info(f"Processing action for cash settled order {order} | {price} | {filled_quantity}")
 
             try:
                 broker._process_trade_event(
@@ -1026,12 +1027,12 @@ class Tradier(Broker):
                     multiplier=order.asset.multiplier,
                 )
             except:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
             # Log that the order had an error
-            logging.error(f"Processing action for error order {order} | {error_msg}")
+            logger.error(f"Processing action for error order {order} | {error_msg}")
             try:
                 if order.is_active():
                     # If the order has children, cancel them first upon error
@@ -1048,10 +1049,10 @@ class Tradier(Broker):
                         order,
                         broker.ERROR_ORDER,
                     )
-                logging.error(error_msg)
+                logger.error(error_msg)
                 order.set_error(error_msg)
             except:
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
 
     def _run_stream(self):
         self._stream_established()

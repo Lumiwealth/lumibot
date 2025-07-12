@@ -1,9 +1,9 @@
 import os
 import sys
 import importlib.util
-import logging
 
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 
 class ConfigsHelper:

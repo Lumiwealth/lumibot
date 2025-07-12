@@ -1,4 +1,3 @@
-import logging
 import uuid
 from collections import namedtuple
 from decimal import Decimal
@@ -15,7 +14,8 @@ from lumibot.tools.types import check_positive, check_price
 
 
 # Set up module-specific logger
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 
 # Custom string enum implementation for Python 3.9 compatibility
@@ -1142,14 +1142,14 @@ class Order:
     # =========Waiting methods==================
 
     def wait_to_be_registered(self):
-        logging.info("Waiting for order %r to be registered" % self)
+        logger.info("Waiting for order %r to be registered" % self)
         self._new_event.wait()
-        logging.info("Order %r registered" % self)
+        logger.info("Order %r registered" % self)
 
     def wait_to_be_closed(self):
-        logging.info("Waiting for broker to execute order %r" % self)
+        logger.info("Waiting for broker to execute order %r" % self)
         self._closed_event.wait()
-        logging.info("Order %r executed by broker" % self)
+        logger.info("Order %r executed by broker" % self)
 
     # ========= Serialization methods ===========
 

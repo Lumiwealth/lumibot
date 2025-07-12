@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict
 import datetime as dt
 from decimal import Decimal
@@ -7,17 +6,19 @@ import pytz
 
 import pandas as pd
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools.helpers import (
     create_options_symbol,
     parse_timestep_qty_and_unit,
-    get_trading_days,
     date_n_trading_days_from_date
 )
+from lumibot.tools.lumibot_logger import get_logger
 from lumiwealth_tradier import Tradier
 
 from .data_source import DataSource
+
+logger = get_logger(__name__)
 
 
 class TradierAPIError(Exception):
@@ -289,7 +290,7 @@ class TradierData(DataSource):
                     session_filter="all" if include_after_hours else "open",
                 )
         except Exception as e:
-            logging.error(f"Error getting historical prices for {symbol}: {e}")
+            logger.error(f"Error getting historical prices for {symbol}: {e}")
             return None
 
         # Drop the "time" and "timestamp" columns if they exist
@@ -365,7 +366,7 @@ class TradierData(DataSource):
             return price
 
         except Exception as e:
-            logging.error(f"Error getting last price for {symbol or asset.symbol}: {e}")
+            logger.error(f"Error getting last price for {symbol or asset.symbol}: {e}")
             return None
 
     def get_quote(self, asset, quote=None, exchange=None) -> Quote:

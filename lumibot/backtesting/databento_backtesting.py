@@ -1,9 +1,5 @@
-import logging
 import traceback
-from collections import OrderedDict
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-from typing import Union
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -13,7 +9,8 @@ from lumibot.entities import Asset, Data
 from lumibot.tools import databento_helper
 from lumibot.tools.helpers import to_datetime_aware
 
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 START_BUFFER = timedelta(days=5)
 

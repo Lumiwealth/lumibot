@@ -30,4 +30,11 @@ from .types import *
 from .yahoo_helper import YahooHelper
 from .ccxt_data_store import CcxtCacheDB
 from .schwab_helper import SchwabHelper
-from .error_logger import ErrorLogger
+
+# Unified logging system
+from .lumibot_logger import (
+    get_logger,
+    get_strategy_logger, 
+    set_log_level,
+    add_file_handler
+)

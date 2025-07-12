@@ -1,10 +1,10 @@
-import logging
 from decimal import Decimal
 from typing import Union
 
 from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.tools.lumibot_logger import get_logger
 from ..entities import Asset, Bars
 from .data_source import DataSource
 
@@ -14,6 +14,8 @@ import time
 import requests
 import urllib3
 from datetime import datetime, timezone
+
+logger = get_logger(__name__)
 import pandas as pd
 import tempfile # Added
 import importlib.resources # Added
@@ -81,7 +83,7 @@ class InteractiveBrokersRESTData(DataSource):
                     check=False,
                 )
             except Exception as e:
-                logging.warning(colored(f"Could not pull IBeam image: {e}", "yellow"))
+                logger.warning(colored(f"Could not pull IBeam image: {e}", "yellow"))
 
             # Check if Docker is installed
             docker_version_check = subprocess.run(
@@ -90,7 +92,7 @@ class InteractiveBrokersRESTData(DataSource):
                 stderr=subprocess.DEVNULL,
             )
             if docker_version_check.returncode != 0:
-                logging.error(colored("Error: Docker is not installed on this system. Please install Docker and try again.", "red"))
+                logger.error(colored("Error: Docker is not installed on this system. Please install Docker and try again.", "red"))
                 exit(1)
 
             # Check if Docker daemon is running by attempting a `docker ps`
@@ -102,13 +104,13 @@ class InteractiveBrokersRESTData(DataSource):
             )
             if docker_ps_check.returncode != 0:
                 error_output = docker_ps_check.stderr.strip()
-                logging.error(colored("Error: Unable to connect to the Docker daemon.", "red"))
-                logging.error(colored(f"Details: {error_output}", "yellow"))
-                logging.error(colored("Please ensure Docker is installed and running.", "red"))
+                logger.error(colored("Error: Unable to connect to the Docker daemon.", "red"))
+                logger.error(colored(f"Details: {error_output}", "yellow"))
+                logger.error(colored("Please ensure Docker is installed and running.", "red"))
                 exit(1)
 
             # If we reach this point, Docker is installed and running
-            logging.info(colored("Connecting to Interactive Brokers REST API...", "green"))
+            logger.info(colored("Connecting to Interactive Brokers REST API...", "green"))
 
             inputs_dir = "/srv/clientportal.gw/root/conf.yaml"
             env_variables = {
@@ -137,10 +139,10 @@ class InteractiveBrokersRESTData(DataSource):
                     tmp_conf_file.write(conf_content)
 
                 volume_mount = f"{self.temp_conf_path}:{inputs_dir}"
-                logging.info(f"Using temporary conf.yaml for Docker mount: {self.temp_conf_path} -> {inputs_dir}")
+                logger.info(f"Using temporary conf.yaml for Docker mount: {self.temp_conf_path} -> {inputs_dir}")
 
             except Exception as e:
-                logging.error(colored(f"Failed to prepare conf.yaml for Docker: {e}", "red"))
+                logger.error(colored(f"Failed to prepare conf.yaml for Docker: {e}", "red"))
                 # Exit or raise, as this is critical for IBeam operation
                 exit(1)
 
@@ -180,13 +182,13 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Wait until authenticated
         while not self.is_authenticated():
-            logging.info(
+            logger.info(
                 colored(
                     "Not connected to API server yet. Waiting for Interactive Brokers API Portal to start...",
                     "yellow",
                 )
             )
-            logging.info(
+            logger.info(
                 colored(
                     "Waiting for another 10 seconds before checking again...",
                     "yellow",
@@ -197,7 +199,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Set self.account_id once authenticated
         self.fetch_account_id()
 
-        logging.info(colored("Connected to the Interactive Brokers API", "green"))
+        logger.info(colored("Connected to the Interactive Brokers API", "green"))
         self.suppress_warnings()
 
     def suppress_warnings(self):
@@ -280,7 +282,7 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting Contract Rules")
 
         if response is not None and "error" in response:
-            logging.error(
+            logger.error(
                 colored(f"Failed to get contract rules: {response['error']}", "red")
             )
             return None
@@ -301,7 +303,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Error handle
         if response is not None and "error" in response:
-            logging.error(
+            logger.error(
                 colored(
                     f"Couldn't get account balances. Error: {response['error']}",
                     "red",
@@ -329,7 +331,7 @@ class InteractiveBrokersRESTData(DataSource):
             try:
                 response_json = response.json()
             except ValueError:
-                logging.error(
+                logger.error(
                     colored(f"Invalid JSON response", "red")
                 )
                 response_json = {}
@@ -410,15 +412,15 @@ class InteractiveBrokersRESTData(DataSource):
 
         if re_msg is not None:
             if not silent and retries%60 == 0:
-                logging.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+                logger.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
             else:
-                logging.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
+                logger.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
 
         elif is_error:
             if not silent and show_error(retries, allow_fail):
-                logging.error(colored(f"Task {description} failed: {to_return}", "red"))
+                logger.error(colored(f"Task {description} failed: {to_return}", "red"))
             else:
-                logging.debug(colored(f"Task {description} failed: {to_return}", "red"))
+                logger.debug(colored(f"Task {description} failed: {to_return}", "red"))
 
         if re_msg is not None:
             time.sleep(1)
@@ -441,7 +443,7 @@ class InteractiveBrokersRESTData(DataSource):
 
             # Check if the status code is 401
             if response.status_code == 401:
-                logging.error(colored("401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).", "red"))
+                logger.error(colored("401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).", "red"))
                 return None
 
             retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
@@ -553,7 +555,7 @@ class InteractiveBrokersRESTData(DataSource):
 
     def execute_order(self, order_data):
         if order_data is None:
-            logging.debug(colored("Failed to get order data.", "red"))
+            logger.debug(colored("Failed to get order data.", "red"))
             return None
 
         self.ping_iserver()
@@ -566,19 +568,19 @@ class InteractiveBrokersRESTData(DataSource):
             return response
 
         elif response is not None and "error" in response:
-            logging.error(
+            logger.error(
                 colored(f"Failed to execute order: {response['error']}", "red")
             )
             return None
         elif response is not None and "message" in response:
-            logging.error(
+            logger.error(
                 colored(f"Failed to execute order: {response['message']}", "red")
             )
             return None
         elif response is not None:
-            logging.error(colored(f"Failed to execute order: {response}", "red"))
+            logger.error(colored(f"Failed to execute order: {response}", "red"))
         else:
-            logging.error(colored(f"Failed to execute order: {order_data}", "red"))
+            logger.error(colored(f"Failed to execute order: {order_data}", "red"))
 
     def delete_order(self, order):
         self.ping_iserver()
@@ -586,11 +588,11 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
         status = self.delete_to_endpoint(url, description=f"Deleting order {orderId}")
         if status:
-            logging.info(
+            logger.info(
                 colored(f"Order with ID {orderId} canceled successfully.", "green")
             )
         else:
-            logging.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
+            logger.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
 
     def get_positions(self):
         """
@@ -610,7 +612,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Error handle
         if response is not None and "error" in response:
-            logging.error(
+            logger.error(
                 colored(
                     f"Couldn't get account positions. Error: {response['error']}",
                     "red",
@@ -635,10 +637,10 @@ class InteractiveBrokersRESTData(DataSource):
         if self.temp_conf_path:
             try:
                 os.remove(self.temp_conf_path)
-                logging.info(f"Removed temporary conf.yaml: {self.temp_conf_path}")
+                logger.info(f"Removed temporary conf.yaml: {self.temp_conf_path}")
                 self.temp_conf_path = None
             except OSError as e:
-                logging.warning(colored(f"Error removing temporary conf file {self.temp_conf_path}: {e}", "yellow"))
+                logger.warning(colored(f"Error removing temporary conf file {self.temp_conf_path}: {e}", "yellow"))
 
     def get_chains(self, asset: Asset, quote=None) -> dict:
         """
@@ -655,7 +657,7 @@ class InteractiveBrokersRESTData(DataSource):
             "Exchange": "unknown",
             "Chains": {"CALL": {}, "PUT": {}},
         }
-        logging.info(
+        logger.info(
             "This task is extremely slow. If you still wish to use it, prepare yourself for a long wait."
         )
         self.ping_iserver()
@@ -666,7 +668,7 @@ class InteractiveBrokersRESTData(DataSource):
         if response and isinstance(response, list) and "conid" in response[0]:
             conid = response[0]["conid"]
         else:
-            logging.error("Failed to get conid from response")
+            logger.error("Failed to get conid from response")
             return {}
 
         option_dates = None
@@ -676,14 +678,14 @@ class InteractiveBrokersRESTData(DataSource):
                     option_dates = section["months"]
                     break
         else:
-            logging.error("Failed to get sections from response")
+            logger.error("Failed to get sections from response")
             return {}
 
         # Array of options dates for asset
         if option_dates:
             months = option_dates.split(";")  # in MMMYY
         else:
-            logging.error("Option dates are None")
+            logger.error("Option dates are None")
             return {}
 
         for month in months:
@@ -711,7 +713,7 @@ class InteractiveBrokersRESTData(DataSource):
                             chains["Chains"]["CALL"][expiry_date] = []
                         chains["Chains"]["CALL"][expiry_date].append(strike)
                     else:
-                        logging.error("Invalid contract_info format")
+                        logger.error("Invalid contract_info format")
                         return {}
 
             if strikes and "put" in strikes:
@@ -734,7 +736,7 @@ class InteractiveBrokersRESTData(DataSource):
                             chains["Chains"]["PUT"][expiry_date] = []
                         chains["Chains"]["PUT"][expiry_date].append(strike)
                     else:
-                        logging.error("Invalid contract_info format")
+                        logger.error("Invalid contract_info format")
                         return {}
 
         return chains
@@ -748,17 +750,17 @@ class InteractiveBrokersRESTData(DataSource):
         try:
             response = requests.get(url, params=params, verify=False)
             if response.status_code != 200:
-                logging.error(colored(f"Failed to retrieve security definition for {symbol}: {response.text}", "red"))
+                logger.error(colored(f"Failed to retrieve security definition for {symbol}: {response.text}", "red"))
                 return None
             contracts = response.json().get(symbol, [])
             if not contracts:
-                logging.error(colored(f"No contracts found for {symbol} on {exchange}", "red"))
+                logger.error(colored(f"No contracts found for {symbol} on {exchange}", "red"))
                 return None
             # Pick the earliest expiration
             earliest = min(contracts, key=lambda d: int(d["expirationDate"]))
             return earliest["conid"]
         except Exception as e:
-            logging.error(colored(f"Error fetching continuous future conid: {e}", "red"))
+            logger.error(colored(f"Error fetching continuous future conid: {e}", "red"))
             return None
 
     def _get_futures_conid(self, asset: Asset, exchange: str = "CME"):
@@ -792,13 +794,13 @@ class InteractiveBrokersRESTData(DataSource):
         ):
             underlying_conid = int(response[0]["conid"])
         else:
-            logging.error(
+            logger.error(
                 colored(
                     f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}",
                     "red",
                 )
             )
-            logging.error(colored(f"Response: {response}", "red"))
+            logger.error(colored(f"Response: {response}", "red"))
             return None
         exchange_val = next(
             (section["exchange"] for section in response[0]["sections"] if section["secType"] == "FUT"),
@@ -892,7 +894,7 @@ class InteractiveBrokersRESTData(DataSource):
             period = f"{length * timestep_value}y"
             timestep = f"{timestep_value}y"
         else:
-            logging.error(colored(f"Unsupported timestep: {timestep}", "red"))
+            logger.error(colored(f"Unsupported timestep: {timestep}", "red"))
             return Bars(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
@@ -914,7 +916,7 @@ class InteractiveBrokersRESTData(DataSource):
         result = self.get_from_endpoint(url, "Getting Historical Prices")
 
         if result and "error" in result:
-            logging.error(
+            logger.error(
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
             return Bars(
@@ -930,7 +932,7 @@ class InteractiveBrokersRESTData(DataSource):
             )
 
         if not result or not result["data"]:
-            logging.error(
+            logger.error(
                 colored(
                     f"Failed to get historical prices for {asset.symbol}, result was: {result}",
                     "red",
@@ -991,11 +993,11 @@ class InteractiveBrokersRESTData(DataSource):
 
         if response is None or field not in response:
             if getattr(asset, "asset_type", None) in ["option", "future"]:
-                logging.debug(
+                logger.debug(
                     f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} with strike {getattr(asset, 'strike', None)} and expiration date {getattr(asset, 'expiration', None)}"
                 )
             else:
-                logging.debug(
+                logger.debug(
                     f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} of type {getattr(asset, 'asset_type', None)}"
                 )
             return None
@@ -1025,13 +1027,13 @@ class InteractiveBrokersRESTData(DataSource):
         ):
             underlying_conid = int(response[0]["conid"])
         else:
-            logging.error(
+            logger.error(
                 colored(
                     f"Failed to get conid of asset: {asset.symbol} of type {asset.asset_type}",
                     "red",
                 )
             )
-            logging.error(colored(f"Response: {response}", "red"))
+            logger.error(colored(f"Response: {response}", "red"))
             return None
 
         if asset.asset_type == Asset.AssetType.OPTION:
@@ -1106,7 +1108,7 @@ class InteractiveBrokersRESTData(DataSource):
             )
 
         if matching_contract is None:
-            logging.debug(
+            logger.debug(
                 colored(
                     f"No matching contract found for asset: {asset.symbol} with expiration date {expiration_date}",
                     "red",
@@ -1220,7 +1222,7 @@ class InteractiveBrokersRESTData(DataSource):
         result["price"] = result.pop("last_price")
 
         if isinstance(result["price"], str) and result["price"].startswith("C "):
-            logging.warning(
+            logger.warning(
                 colored(
                     f"Ticker {asset.symbol} of type {asset.asset_type} with strike price {asset.strike} and expiry date {asset.expiration} is not trading currently. Got the last close price instead.",
                     "yellow",

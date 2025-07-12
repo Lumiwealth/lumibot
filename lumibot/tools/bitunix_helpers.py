@@ -4,8 +4,7 @@ from typing import Dict, Any, Optional
 import hashlib
 import requests
 import json
-import logging
-
+from lumibot.tools.lumibot_logger import get_logger
 
 class BitUnixClient:
     """
@@ -37,7 +36,8 @@ class BitUnixClient:
         sign = SHA256(digest + secretKey)
         """
         # Prepare logger
-        logger = logging.getLogger(__name__)
+        from lumibot.tools.lumibot_logger import get_logger
+        logger = get_logger(__name__)
         # Prepare sorted query string: concatenated key and value, sorted by key
         qp = ''.join(f"{k}{params[k]}" for k in sorted(params)) if params else ""
         # Prepare compact JSON body string without spaces
@@ -112,8 +112,7 @@ class BitUnixClient:
         try:
             payload = resp.json()
             if isinstance(payload, dict) and payload.get("code") not in (0, None):
-                import logging
-                logging.getLogger(__name__).debug(
+                get_logger(__name__).debug(
                     "BitUnix business error %s on %s %s: %s",
                     payload.get("code"), method.upper(), endpoint, payload
                 )

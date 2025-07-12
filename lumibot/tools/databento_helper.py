@@ -1,21 +1,19 @@
 # This file contains helper functions for getting data from DataBento
-import logging
 import os
-import time
+import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Union
 from decimal import Decimal
 
 import pandas as pd
 import pandas_market_calendars as mcal
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.tools.error_logger import ErrorLogger
 
 # Set up module-specific logger
-logger = logging.getLogger(__name__)
+from lumibot.tools.lumibot_logger import get_logger
+logger = get_logger(__name__)
 
 # DataBento imports (will be installed as dependency)
 try:
@@ -31,9 +29,6 @@ CACHE_SUBFOLDER = "databento"
 LUMIBOT_DATABENTO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, CACHE_SUBFOLDER)
 RECENT_FILE_TOLERANCE_DAYS = 14
 MAX_DATABENTO_DAYS = 365  # DataBento can handle larger date ranges than some providers
-
-# Error logging
-error_logger = ErrorLogger()
 
 # Create cache directory if it doesn't exist
 if not os.path.exists(LUMIBOT_DATABENTO_CACHE_FOLDER):
@@ -147,16 +142,8 @@ class DataBentoClient:
             return df
             
         except Exception as e:
-            error_msg = f"DataBento API error: {str(e)}"
-            logger.error(error_msg)
-            
-            if error_logger:
-                error_logger.log_error(
-                    severity="ERROR",
-                    error_code="API_ERROR", 
-                    message=f"DataBento API error: {str(e)}",
-                    details=f"Symbols: {symbols}, Start: {start}, End: {end}"
-                )
+            logger.error("DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s", 
+                        str(e), symbols, start, end)
             
             raise e
 
@@ -632,27 +619,11 @@ def get_price_data_from_databento(
         logger.error("3. Markets may be closed (weekend/holiday)")
         logger.error("Check DataBento documentation: https://databento.com/docs/api-reference-historical/basics/symbology")
         
-        if error_logger:
-            error_logger.log_error(
-                severity="ERROR",
-                error_code="SYMBOL_RESOLUTION_FAILED",
-                message=f"DataBento symbol resolution failed for {asset.symbol}",
-                details=f"Symbols tried: {symbols_to_try}"
-            )
-        
         return None
         
     except Exception as e:
-        error_msg = f"Error fetching DataBento data for {asset.symbol}: {str(e)}"
-        logger.error(error_msg)
-        
-        if error_logger:
-            error_logger.log_error(
-                severity="ERROR",
-                error_code="DATA_FETCH_ERROR",
-                message=f"DataBento data fetch error: {str(e)}",
-                details=f"Asset: {asset.symbol}, Start: {start_naive}, End: {end_naive}"
-            )
+        logger.error("DATABENTO_DATA_FETCH_ERROR: DataBento data fetch error: %s | Asset: %s, Start: %s, End: %s", 
+                    str(e), asset.symbol, start, end)
         
         return None
 

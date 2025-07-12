@@ -1,11 +1,13 @@
-import logging
 from datetime import datetime
 from decimal import Decimal
 from typing import Union
 
 import pandas as pd
 
+from lumibot.tools.lumibot_logger import get_logger
 from .bar import Bar
+
+logger = get_logger(__name__)
 
 
 class Bars:
@@ -102,7 +104,7 @@ class Bars:
         df index: pd.Timestamp localized at the timezone America/New_York
         """
         if df.shape[0] == 0:
-            logging.warning(f"Unable to get bar data for {asset} {source}")
+            logger.warning(f"Unable to get bar data for {asset} {source}")
 
         self.source = source.upper()
         self.asset = asset
@@ -203,7 +205,7 @@ class Bars:
         if "dividend" in self.df.columns:
             return self.df["dividend"].iloc[-1]
         else:
-            logging.debug("Unable to find 'dividend' column in bars")
+            logger.debug("Unable to find 'dividend' column in bars")
             return 0
 
     def filter(self, start=None, end=None):
@@ -287,37 +289,6 @@ class Bars:
         >>> bars_agg = bars.aggregate_bars("15Min")
         """
         new_df = self.df.groupby(pd.Grouper(freq=frequency, **grouper_kwargs)).agg(
-            {
-                "open": "first",
-                "close": "last",
-                "low": "min",
-                "high": "max",
-                "volume": "sum",
-            }
-        )
-        new_df.columns = ["open", "close", "low", "high", "volume"]
-        new_df = new_df.dropna()
-
-        new_bars = Bars(new_df, self.source, self.asset)
-
-        return new_bars
-
-
-class NoBarDataFound(Exception):
-    def __init__(self, source, asset):
-        message = (
-            f"{source} did not return data for symbol {asset}. "
-            f"Make sure there is no symbol typo or use another data source"
-        )
-        super(NoBarDataFound, self).__init__(message)
-
-    def aggregate_bars(self, frequency):
-        """
-        Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
-        frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
-        Returns a new bars object.
-        """
-        new_df = self.df.groupby(pd.Grouper(freq=frequency)).agg(
             {
                 "open": "first",
                 "close": "last",

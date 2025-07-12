@@ -5,16 +5,16 @@ This module provides the core ProjectX API client and streaming functionality
 integrated into Lumibot's architecture based on the actual working Project X library.
 """
 
-import logging
 import time
-import os
 import warnings
 from datetime import datetime
-from typing import Callable, Optional, Dict, Any, List
+from typing import Callable, Optional, Dict, List
 
 import pandas as pd
 import pytz
 import requests
+
+from lumibot.tools.lumibot_logger import get_logger
 
 # Suppress SSL deprecation warnings from third-party websocket library
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="websocket")
@@ -22,6 +22,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, message="ssl.PROT
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.legacy is deprecated")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.client.connect is deprecated")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="websockets.client.WebSocketClientProtocol is deprecated")
+
+logger = get_logger(__name__)
 
 # SignalR imports - will be imported when needed
 try:
@@ -66,17 +68,17 @@ class ProjectXAuth:
             auth_resp = response.json()
             
         except requests.exceptions.RequestException as e:
-            logging.error(f"Request error: {e}")
+            logger.error(f"Request error: {e}")
             return None
         except ValueError as e:
-            logging.error(f"JSON decode error: {e}")
+            logger.error(f"JSON decode error: {e}")
             return None
         
         # Return None if authentication failed
         if not auth_resp.get("success"):
             error_code = auth_resp.get("errorCode")
             error_message = auth_resp.get("errorMessage", "No error message provided")
-            logging.error(f"Authentication failed - Error Code: {error_code}, Message: {error_message}")
+            logger.error(f"Authentication failed - Error Code: {error_code}, Message: {error_message}")
             return None
         
         return auth_resp.get("token")
@@ -117,7 +119,7 @@ class ProjectXStreaming:
         self.on_trade_update: Optional[Callable] = None
         
         # Setup logging
-        self.logger = logging.getLogger(f"ProjectXStreaming_{self.firm}")
+        self.logger = get_logger(f"ProjectXStreaming_{self.firm}")
     
     def start_user_hub(self) -> bool:
         """Start the user hub connection"""
@@ -273,7 +275,7 @@ class ProjectX:
             "Content-Type": "application/json"
         }
         
-        self.logger = logging.getLogger(f"ProjectXClient_{self.firm}")
+        self.logger = get_logger(f"ProjectXClient_{self.firm}")
     
     def get_streaming_client(self, account_id: int = None) -> ProjectXStreaming:
         """Get streaming client instance"""
@@ -583,7 +585,7 @@ class ProjectXClient:
         self.firm = config.get("firm")
         
         # Setup logging
-        self.logger = logging.getLogger(f"ProjectXClient_{self.firm}")
+        self.logger = get_logger(f"ProjectXClient_{self.firm}")
         
         # Get authentication token
         self.token = ProjectXAuth.get_auth_token(config)

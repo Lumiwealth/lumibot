@@ -1,10 +1,11 @@
-import logging
 import os
 import sys
 import warnings
-import appdirs
-import pytz
 import importlib
+
+from lumibot.tools.lumibot_logger import get_logger
+
+logger = get_logger(__name__)
 
 # Get and display the version
 try:
@@ -53,7 +54,7 @@ if not os.path.exists(LUMIBOT_CACHE_FOLDER):
     try:
         os.makedirs(LUMIBOT_CACHE_FOLDER)
     except Exception as e:
-        logging.critical(
+        logger.critical(
             f"""Could not create cache folder because of the following error:
             {e}. Please fix the issue to use data caching."""
         )
@@ -80,7 +81,7 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
     except ModuleNotFoundError as e:
         # If a particular sub-module was removed or fails to import (e.g., due to deeper issues like 'fp')
         # log a warning and skip. Sphinx will simply not find this specific alias.
-        logging.warning(f"[lumibot/__init__.py] Could not create alias '{_alias}' for '{_full}': {e}")
+        logger.warning(f"[lumibot/__init__.py] Could not create alias '{_alias}' for '{_full}': {e}")
         # Ensure the problematic alias isn't lingering if it was partially set or if it's a mock
         if _alias in sys.modules and isinstance(sys.modules[_alias], importlib.util.LazyLoader):
             pass # Don't remove if it's a lazy loader that might resolve later or differently
@@ -92,9 +93,9 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
             # Reconsidering removal: could interfere with Sphinx's own mock handling.
             pass # Reconsidering removal: could interfere with Sphinx's own mock handling
     except ImportError as e: # Catch other import-related errors
-        logging.warning(f"[lumibot/__init__.py] ImportError while creating alias '{_alias}' for '{_full}': {e}")
+        logger.warning(f"[lumibot/__init__.py] ImportError while creating alias '{_alias}' for '{_full}': {e}")
     except Exception as e: # Catch any other unexpected errors during aliasing
-        logging.warning(f"[lumibot/__init__.py] Unexpected error creating alias '{_alias}' for '{_full}': {e}")
+        logger.warning(f"[lumibot/__init__.py] Unexpected error creating alias '{_alias}' for '{_full}': {e}")
 
 # Export the default timezone constants so they can be imported by other modules
 __all__ = [

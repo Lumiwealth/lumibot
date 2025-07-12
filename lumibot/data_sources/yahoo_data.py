@@ -1,15 +1,15 @@
-import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Union
 
 import numpy
 
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class YahooData(DataSourceBacktesting):
@@ -245,7 +245,7 @@ class YahooData(DataSourceBacktesting):
             if data is None or data.shape[0] == 0:
                 # Use self.datetime_start and self.datetime_end in the error message for clarity
                 message = f"{self.SOURCE} did not return data for symbol {asset.symbol}. Tried: {symbols_to_try}. Make sure this symbol is valid and data exists for the period {self.datetime_start} to {self.datetime_end}."
-                logging.error(message)
+                logger.error(message)
                 return None
                 
             data = self._append_data(asset, data)

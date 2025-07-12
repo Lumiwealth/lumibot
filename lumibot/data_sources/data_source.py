@@ -1,4 +1,3 @@
-import logging
 import os
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,10 +11,13 @@ import pytz
 import pandas as pd
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset, AssetsMapping, Bars, Quote
 from lumibot.tools import black_scholes, create_options_symbol
 
 from .exceptions import UnavailabeTimestep
+
+logger = get_logger(__name__)
 
 
 class DataSource(ABC):
@@ -374,9 +376,9 @@ class DataSource(ABC):
                     time.sleep(0.1)
                 except Exception as e:
                     # Log once per asset to avoid spamming with a huge traceback
-                    logging.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
+                    logger.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
                     tb = traceback.format_exc()
-                    logging.warning(tb)  # This prints the traceback
+                    logger.warning(tb)  # This prints the traceback
                     chunk_result[asset] = None
             return chunk_result
 
@@ -518,7 +520,7 @@ class DataSource(ABC):
                 row.update({f"greeks.{col}": val for col, val in greeks.items()})
                 rows.append(row)
 
-        logging.info(f"Chain Full Info Query Total: {query_total:.2f}s. "
+        logger.info(f"Chain Full Info Query Total: {query_total:.2f}s. "
                      f"Total Time: {time.perf_counter() - start_t:.2f}s, "
                      f"Rows: {len(rows)}")
         return pd.DataFrame(rows).sort_values("strike") if rows else pd.DataFrame()
@@ -586,7 +588,7 @@ class DataSource(ABC):
 
     def query_greeks(self, asset):
         """Query for the Greeks as it can be more accurate than calculating locally."""
-        logging.info(f"Querying Options Greeks for {asset.symbol} is not supported for this "
+        logger.info(f"Querying Options Greeks for {asset.symbol} is not supported for this "
                      f"data source {self.__class__}.")
         return {}
 

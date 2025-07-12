@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict, OrderedDict
 from datetime import timedelta
 from decimal import Decimal
@@ -7,6 +6,9 @@ from typing import Union
 import pandas as pd
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars, Quote
+from lumibot.tools.lumibot_logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class PandasData(DataSourceBacktesting):
@@ -44,7 +46,7 @@ class PandasData(DataSourceBacktesting):
                 # If quote is not specified, use USD as the quote
                 if data.quote is None:
                     # Warn that USD is being used as the quote
-                    logging.warning(f"No quote specified for {data.asset}. Using USD as the quote.")
+                    logger.warning(f"No quote specified for {data.asset}. Using USD as the quote.")
                     return data.asset, Asset(symbol="USD", asset_type="forex")
                 return data.asset, data.quote
             else:
@@ -226,19 +228,19 @@ class PandasData(DataSourceBacktesting):
                 if pd.isna(price):
                     # Provide more specific error message for index assets
                     if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                        logging.warning(f"Index asset `{asset.symbol}` returned NaN price. This could be due to missing data for the index or a subscription issue if using Polygon.io. Note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                        logger.warning(f"Index asset `{asset.symbol}` returned NaN price. This could be due to missing data for the index or a subscription issue if using Polygon.io. Note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
                     else:
-                        logging.info(f"Error getting last price for {tuple_to_find}: price is NaN")
+                        logger.info(f"Error getting last price for {tuple_to_find}: price is NaN")
                     return None
 
                 return price
             except Exception as e:
-                logging.info(f"Error getting last price for {tuple_to_find}: {e}")
+                logger.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None
         else:
             # Provide more specific error message when asset not found in data store
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                logger.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
             return None
 
     def get_quote(self, asset, quote=None, exchange=None) -> Quote:
@@ -272,7 +274,7 @@ class PandasData(DataSourceBacktesting):
 
             # Check if ohlcv_bid_ask_dict is NaN
             if pd.isna(ohlcv_bid_ask_dict):
-                logging.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
+                logger.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
                 return Quote(asset=asset)
 
             # Convert dictionary to Quote object
@@ -319,7 +321,7 @@ class PandasData(DataSourceBacktesting):
     ):
         timestep = timestep if timestep else self.MIN_TIMESTEP
         if exchange is not None:
-            logging.warning(
+            logger.warning(
                 f"the exchange parameter is not implemented for PandasData, but {exchange} was passed as the exchange"
             )
 
@@ -332,9 +334,9 @@ class PandasData(DataSourceBacktesting):
             data = self._data_store[asset_to_find]
         else:
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                logger.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
             else:
-                logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+                logger.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return
 
         now = self.get_datetime()
@@ -342,7 +344,7 @@ class PandasData(DataSourceBacktesting):
             res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            logging.info(f"Error getting bars for {asset}: {e}")
+            logger.info(f"Error getting bars for {asset}: {e}")
             return None
 
         return res
@@ -365,16 +367,16 @@ class PandasData(DataSourceBacktesting):
             data = self._data_store[asset_to_find]
         else:
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                logging.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                logger.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
             else:
-                logging.warning(f"The asset: `{asset}` does not exist or does not have data.")
+                logger.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return
 
         try:
             res = data.get_bars_between_dates(start_date=start_date, end_date=end_date, timestep=timestep)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
-            logging.info(f"Error getting bars for {asset}: {e}")
+            logger.info(f"Error getting bars for {asset}: {e}")
             res = None
         return res
 

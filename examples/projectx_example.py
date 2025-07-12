@@ -21,7 +21,6 @@ PROJECTX_PREFERRED_ACCOUNT_NAME=Practice-Account-1
 """
 
 import logging
-from datetime import datetime, timedelta
 
 from lumibot.brokers import ProjectX
 from lumibot.data_sources import ProjectXData

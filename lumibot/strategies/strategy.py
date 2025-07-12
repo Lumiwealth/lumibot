@@ -2,7 +2,6 @@ import datetime
 import os
 import time
 from decimal import Decimal
-from lumibot.tools.lumibot_logger import get_logger
 import uuid
 from typing import Union, List, Type, Callable
 
@@ -4000,6 +3999,7 @@ class Strategy(_Strategy):
         thetadata_password: str = None,
         use_quote_data: bool = False,
         show_progress_bar: bool = True,
+        quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,
         save_stats_file: bool = True,
         **kwargs,
@@ -4087,6 +4087,8 @@ class Strategy(_Strategy):
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
         show_progress_bar : bool
             Whether to show the progress bar. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet noisy logs by setting the log level to ERROR. Defaults to True.
         trader_class : Trader class
             The trader class to use. Defaults to Trader.
 
@@ -4159,6 +4161,7 @@ class Strategy(_Strategy):
             thetadata_password=thetadata_password,
             use_quote_data=use_quote_data,
             show_progress_bar=show_progress_bar,
+            quiet_logs=quiet_logs,
             trader_class=trader_class,
             save_stats_file=save_stats_file,
             **kwargs,

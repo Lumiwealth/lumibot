@@ -171,6 +171,7 @@ class TestIndicators:
             name=strategy_name,
             budget=40000,
             show_progress_bar=False,
+            quiet_logs=False,
         )
         logger.info(f"Result: {result}")
         assert result is not None
@@ -195,7 +196,8 @@ class TestIndicators:
             save_logfile=False,
             name=strategy_name,
             budget=40000,
-            show_progress_bar=False
+            show_progress_bar=False,
+            quiet_logs=False,
         )
         logger.info(f"Result: {result}")
         assert result is not None

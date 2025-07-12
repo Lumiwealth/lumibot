@@ -44,6 +44,7 @@ class TestPassingTraderIntoBacktest:
             budget=10000,
             parameters=parameters,
             show_progress_bar=False,
+            quiet_logs=True,
         )
         trader = strat_obj._trader
         assert isinstance(trader, Trader)
@@ -79,6 +80,7 @@ class TestPassingTraderIntoBacktest:
             budget=10000,
             parameters=parameters,
             show_progress_bar=False,
+            quiet_logs=True,
             trader_class=DebugLogTrader,
         )
         trader = strat_obj._trader

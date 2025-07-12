@@ -54,6 +54,7 @@ if __name__ == "__main__":
             backtesting_end,
             benchmark_asset="SPY",
             # show_progress_bar=False,
+            # quiet_logs=False,
         )
 
         # Print the results

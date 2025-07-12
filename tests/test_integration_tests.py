@@ -65,7 +65,7 @@ class TestIntegrationTests:
             include_cash_positions=True
         )
 
-        trader = Trader(logfile="", backtest=True)
+        trader = Trader(logfile="", backtest=True, quiet_logs=True)
         trader.add_strategy(strategy)
         results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
         assert results

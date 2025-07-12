@@ -57,7 +57,8 @@ from ..credentials import (
     BACKTESTING_END,
     LOG_BACKTEST_PROGRESS_TO_FILE,
     INTERACTIVE_BROKERS_REST_CONFIG,
-    BACKTESTING_SHOW_PROGRESS_BAR
+    BACKTESTING_SHOW_PROGRESS_BAR,
+    BACKTESTING_QUIET_LOGS
 )
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
@@ -1024,6 +1025,7 @@ class _Strategy:
         save_logfile = False,
         use_quote_data = False,
         show_progress_bar = True,
+        quiet_logs = False,
         trader_class = Trader,
         include_cash_positions=False,
         save_stats_file = True,
@@ -1107,6 +1109,8 @@ class _Strategy:
             When set to true this requests Quote data in addition to OHLC which adds time to backtests.
         show_progress_bar : bool
             Whether to show the progress bar during the backtest. Defaults to True.
+        quiet_logs : bool
+            Whether to quiet the logs during the backtest. Defaults to True.
         trader_class : class
             The class to use for the trader. Defaults to Trader.
 
@@ -1272,11 +1276,14 @@ class _Strategy:
                 "the original positional arguments for backtesting. \n\n"
             )
             return None
+        
+        if BACKTESTING_QUIET_LOGS is not None:
+            quiet_logs = BACKTESTING_QUIET_LOGS
 
         if BACKTESTING_SHOW_PROGRESS_BAR is not None:
             show_progress_bar = BACKTESTING_SHOW_PROGRESS_BAR
         
-        self._trader = trader_class(logfile=logfile, backtest=True)
+        self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
         if datasource_class == PolygonDataBacktesting:
             data_source = datasource_class(

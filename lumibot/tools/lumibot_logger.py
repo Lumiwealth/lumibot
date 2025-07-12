@@ -543,8 +543,8 @@ def add_file_handler(file_path: str, level: str = 'INFO'):
     file_handler.setLevel(file_level)
     file_handler.setFormatter(LumibotFormatter())
     
-    # Add to root logger
-    root_logger = get_logger("root")
+    # Add to the actual root logger, not a logger named "root"
+    root_logger = logging.getLogger("lumibot")
     root_logger.addHandler(file_handler)
 
 

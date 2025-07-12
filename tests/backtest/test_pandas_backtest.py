@@ -35,6 +35,7 @@ class TestPandasBacktest:
             name=strategy_name,
             budget=40000,
             show_progress_bar=False,
+            quiet_logs=False,
         )
         logger.info(f"Result: {result}")
         assert result is not None

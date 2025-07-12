@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 
 class Trader:
-    def __init__(self, logfile="", backtest=False, debug=False, strategies=None):
+    def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=False):
         """
 
         Parameters
@@ -26,19 +26,18 @@ class Trader:
             Whether to run the strategies in debug mode or not. This will set the log level to DEBUG.
         strategies: list
             A list of strategies to run. If not specified, you must add strategies using trader.add_strategy(strategy)
+        quiet_logs: bool
+            Whether to quiet backtest logs by setting the log level to ERROR. Defaults to False.
         """
         # Check if the logfile is a valid path
         if logfile:
             if not isinstance(logfile, str):
                 raise ValueError("logfile must be a string")
 
-        # Setting debug and _logfile parameters and setting global log format
+        # Setting debug and _logfile parameters
         self.debug = debug
         self.backtest = backtest
-        std_format = "%(asctime)s: %(levelname)s: %(message)s"
-        debug_format = "%(asctime)s: %(name)s: %(levelname)s: %(message)s"
-        log_format = std_format if not self.debug else debug_format
-        self.log_format = logging.Formatter(log_format)
+        self.quiet_logs = quiet_logs  # Turns off all logging execpt for error messages in backtesting
 
         if logfile:
             self.logfile = Path(logfile)
@@ -171,42 +170,32 @@ class Trader:
 
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
+        # Import here to avoid circular imports
+        from lumibot.tools.lumibot_logger import set_log_level, add_file_handler
+        
+        # Set external library log levels to reduce noise
         get_logger("urllib3").setLevel(logging.ERROR)
         get_logger("requests").setLevel(logging.ERROR)
         get_logger("apscheduler.scheduler").setLevel(logging.ERROR)
         get_logger("apscheduler.executors.default").setLevel(logging.ERROR)
         get_logger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
-        logger = get_logger("root")
 
-        for handler in logger.handlers:
-            if handler.__class__.__name__ == "StreamHandler":
-                logger.removeHandler(handler)
-
-        stream_handler = logging.StreamHandler(stream=sys.stdout)
-        stream_handler.setLevel(logging.INFO)
-        logger.addHandler(stream_handler)
-
+        # Configure global log level based on trader settings
         if self.debug:
-            logger.setLevel(logging.DEBUG)
+            set_log_level("DEBUG")
         elif self.is_backtest_broker:
-            logger.setLevel(logging.INFO)
-
+            # Quiet logs turns off all backtesting logging except for error messages
+            if self.quiet_logs:
+                set_log_level("ERROR")
+            else:
+                set_log_level("INFO")
         else:
             # Live trades should always have full logging.
-            logger.setLevel(logging.INFO)
+            set_log_level("INFO")
 
-        # Setting file logging
+        # Setting file logging if specified
         if self.logfile:
-            dir = os.path.dirname(os.path.abspath(self.logfile))
-            if not os.path.exists(dir):
-                os.mkdir(dir)
-            fileHandler = logging.FileHandler(self.logfile, mode="w", encoding="utf-8")
-            logger.addHandler(fileHandler)
-
-        for handler in logger.handlers:
-            handler.setFormatter(self.log_format)
-
-        logger.propagate = True
+            add_file_handler(str(self.logfile), level="DEBUG" if self.debug else "INFO")
 
         # Disable Interactive Brokers logs
         for log_name, log_obj in logging.Logger.manager.loggerDict.items():

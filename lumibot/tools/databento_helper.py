@@ -1,5 +1,6 @@
 # This file contains helper functions for getting data from DataBento
 import os
+import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Union
@@ -617,14 +618,6 @@ def get_price_data_from_databento(
         logger.error("2. Data may not be available for the requested time range")
         logger.error("3. Markets may be closed (weekend/holiday)")
         logger.error("Check DataBento documentation: https://databento.com/docs/api-reference-historical/basics/symbology")
-        
-        if error_logger:
-            error_logger.log_error(
-                severity="ERROR",
-                error_code="SYMBOL_RESOLUTION_FAILED",
-                message=f"DataBento symbol resolution failed for {asset.symbol}",
-                details=f"Symbols tried: {symbols_to_try}"
-            )
         
         return None
         

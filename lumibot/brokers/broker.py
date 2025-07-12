@@ -965,13 +965,37 @@ class Broker(ABC):
         >>> self.is_market_open()
         True
         """
-        open_time = self.utc_to_local(self.market_hours(close=False))
-        close_time = self.utc_to_local(self.market_hours(close=True))
-
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        # Handle 24/7 markets immediately
         if self.market == "24/7":
             return True
-        return (current_time >= open_time) and (close_time >= current_time)
+            
+        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        
+        # For ANY market, check both today's and tomorrow's sessions since trading sessions 
+        # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
+        # crypto sessions, international markets, etc.)
+        
+        # Check today's session
+        try:
+            open_time_today = self.utc_to_local(self.market_hours(close=False, next=False))
+            close_time_today = self.utc_to_local(self.market_hours(close=True, next=False))
+            
+            if (current_time >= open_time_today) and (close_time_today >= current_time):
+                return True
+        except:
+            pass  # Today might not have a session
+        
+        # Check tomorrow's session (which might have started today)
+        try:
+            open_time_tomorrow = self.utc_to_local(self.market_hours(close=False, next=True))
+            close_time_tomorrow = self.utc_to_local(self.market_hours(close=True, next=True))
+            
+            if (current_time >= open_time_tomorrow) and (close_time_tomorrow >= current_time):
+                return True
+        except:
+            pass  # Tomorrow might not have a session
+        
+        return False
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds"""

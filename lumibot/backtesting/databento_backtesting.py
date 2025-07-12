@@ -1,5 +1,5 @@
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -264,9 +264,9 @@ class DataBentoDataBacktesting(PandasData):
                     df=empty_df,
                     timestep=ts_unit,
                     quote=quote_asset,
-                    # Explicitly set dates to avoid timezone issues
-                    date_start=None,
-                    date_end=None
+                    # Use timezone-aware dates to avoid timezone issues
+                    date_start=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2000, 1, 1)),
+                    date_end=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2000, 1, 1))
                 )
                 self.pandas_data[search_asset] = data_obj
                 return

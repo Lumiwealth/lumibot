@@ -28,7 +28,7 @@ except ImportError:
 CACHE_SUBFOLDER = "databento"
 LUMIBOT_DATABENTO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, CACHE_SUBFOLDER)
 RECENT_FILE_TOLERANCE_DAYS = 14
-MAX_DATABENTO_DAYS = 365  # DataBento can handle larger date ranges than some providers
+MAX_DATABENTO_DAYS = 90  # DataBento can handle larger date ranges than some providers
 
 # Create cache directory if it doesn't exist
 if not os.path.exists(LUMIBOT_DATABENTO_CACHE_FOLDER):

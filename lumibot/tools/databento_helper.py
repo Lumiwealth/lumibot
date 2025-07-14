@@ -76,6 +76,7 @@ class DataBentoClient:
         start: Union[str, datetime, date],
         end: Union[str, datetime, date],
         venue: Optional[str] = None,
+        show_progress: bool = True,
         **kwargs
     ) -> pd.DataFrame:
         """
@@ -95,6 +96,8 @@ class DataBentoClient:
             End date/time for data retrieval
         venue : str, optional
             Venue filter
+        show_progress : bool, optional
+            Whether to show progress bars during download and processing, default True
         **kwargs
             Additional parameters for DataBento API
             
@@ -123,38 +126,46 @@ class DataBentoClient:
         logger.info(f"Requesting DataBento data: {symbols} from {start} to {end}")
         logger.info(f"Making DataBento API call with: dataset={dataset}, symbols={symbols}, schema={schema}")
         
-        # Create progress bar for download
-        with tqdm(total=1, desc=f"Downloading {symbols} data from DataBento", unit="request") as pbar:
-            try:
-                data = self.client.timeseries.get_range(
-                    dataset=dataset,
-                    symbols=symbols,
-                    schema=schema,
-                    start=start,
-                    end=end,
-                    **kwargs
-                )
-                
-                # Update progress bar to show download complete
-                pbar.update(1)
-                
-                # Convert to DataFrame if not already
-                with tqdm(desc="Converting to DataFrame", leave=False) as convert_pbar:
+        # Create progress bar for download (if enabled)
+        try:
+            data = self.client.timeseries.get_range(
+                dataset=dataset,
+                symbols=symbols,
+                schema=schema,
+                start=start,
+                end=end,
+                **kwargs
+            )
+            
+            if show_progress:
+                # Show progress bar for download and conversion
+                with tqdm(total=2, desc=f"Processing {symbols} data", unit="step") as pbar:
+                    pbar.set_description(f"Downloaded {symbols} data from DataBento")
+                    pbar.update(1)
+                    
+                    # Convert to DataFrame if not already
                     if hasattr(data, 'to_df'):
                         df = data.to_df()
                     else:
                         df = pd.DataFrame(data)
-                    convert_pbar.update(1)
-                
-                logger.info(f"Successfully retrieved {len(df)} rows from DataBento for symbols: {symbols}")
-                return df
-                
-            except Exception as e:
-                pbar.set_description(f"Error downloading {symbols}")
-                logger.error("DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s", 
-                            str(e), symbols, start, end)
-                
-                raise e
+                    
+                    pbar.set_description(f"Converted {symbols} to DataFrame")
+                    pbar.update(1)
+            else:
+                # Convert to DataFrame without progress bar
+                if hasattr(data, 'to_df'):
+                    df = data.to_df()
+                else:
+                    df = pd.DataFrame(data)
+            
+            logger.info(f"Successfully retrieved {len(df)} rows from DataBento for symbols: {symbols}")
+            return df
+            
+        except Exception as e:
+            logger.error("DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s", 
+                        str(e), symbols, start, end)
+            
+            raise e
 
 
 def _convert_to_databento_format(symbol: str, asset_symbol: str = None) -> str:
@@ -548,12 +559,10 @@ def get_price_data_from_databento(
     
     # Try to load from cache first
     if not force_cache_update:
-        with tqdm(total=1, desc=f"Checking cache for {asset.symbol}", leave=False) as pbar:
-            cached_data = _load_cache(cache_file)
-            pbar.update(1)
-            if cached_data is not None and not cached_data.empty:
-                logger.debug(f"Loaded DataBento data from cache: {cache_file}")
-                return cached_data
+        cached_data = _load_cache(cache_file)
+        if cached_data is not None and not cached_data.empty:
+            logger.debug(f"Loaded DataBento data from cache: {cache_file}")
+            return cached_data
     
     # Initialize DataBento client
     try:
@@ -596,22 +605,18 @@ def get_price_data_from_databento(
                     schema=schema,
                     start=start_naive,
                     end=end_naive,
+                    show_progress=True,
                     **kwargs
                 )
                 
                 if df is not None and not df.empty:
                     logger.info(f"✓ SUCCESS: Retrieved {len(df)} rows for symbol: {symbol_to_use}")
                     
-                    # Normalize the data with progress bar
-                    with tqdm(total=2, desc=f"Processing {symbol_to_use} data", leave=False) as pbar:
-                        # Normalize the data
-                        df_normalized = _normalize_databento_dataframe(df)
-                        pbar.update(1)
-                        pbar.set_description(f"Caching {symbol_to_use} data")
-                        
-                        # Cache the data
-                        _save_cache(df_normalized, cache_file)
-                        pbar.update(1)
+                    # Normalize the data
+                    df_normalized = _normalize_databento_dataframe(df)
+                    
+                    # Cache the data
+                    _save_cache(df_normalized, cache_file)
                     
                     logger.debug(f"Successfully retrieved and cached {len(df_normalized)} rows")
                     return df_normalized

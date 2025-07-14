@@ -472,6 +472,7 @@ class TestDataBentoHelper(unittest.TestCase):
             mock_resolve.assert_not_called()
             self.assertEqual(result, 'MESU25')  # Direct formatting
 
+    @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.Historical')
     def test_get_last_price_from_databento_success(self, mock_historical):
         """Test successful last price retrieval"""
@@ -508,6 +509,7 @@ class TestDataBentoHelper(unittest.TestCase):
         mock_client.metadata.get_dataset_range.assert_called_once()
         mock_client.timeseries.get_range.assert_called_once()
 
+    @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.Historical')
     def test_get_last_price_from_databento_empty_data(self, mock_historical):
         """Test handling of empty data response"""
@@ -532,6 +534,7 @@ class TestDataBentoHelper(unittest.TestCase):
         # Should return None for no data
         self.assertIsNone(result)
 
+    @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.Historical')
     def test_get_last_price_from_databento_no_data(self, mock_historical):
         """Test handling of None data response"""
@@ -555,6 +558,7 @@ class TestDataBentoHelper(unittest.TestCase):
         # Should return None for no data
         self.assertIsNone(result)
 
+    @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.Historical')
     def test_get_last_price_from_databento_exception(self, mock_historical):
         """Test handling of exception during data retrieval"""
@@ -578,7 +582,8 @@ class TestDataBentoHelper(unittest.TestCase):
 
     def test_timezone_aware_datetime_usage(self):
         """Test that the last price function uses timezone-aware datetime objects"""
-        with patch('lumibot.tools.databento_helper.Historical') as mock_historical:
+        with patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True), \
+             patch('lumibot.tools.databento_helper.Historical') as mock_historical:
             mock_df = pd.DataFrame({
                 'close': [5025.0]
             })

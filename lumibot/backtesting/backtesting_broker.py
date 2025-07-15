@@ -167,7 +167,18 @@ class BacktestingBroker(Broker):
         now = self.datetime
 
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
-        idx = self._trading_days.index.searchsorted(now, side='left')
+        # For futures markets, trading days can span calendar days (e.g., Sunday 6pm to Monday 6pm)
+        # We need to find the trading session that contains 'now'
+        idx = self._trading_days.index.searchsorted(now, side='right')
+        
+        # Check if we're in a current session (now is between open and close)
+        if idx > 0:
+            prev_idx = idx - 1
+            prev_close = self._trading_days.index[prev_idx]
+            prev_open = self._trading_days.at[prev_close, 'market_open']
+            if prev_open <= now < prev_close:
+                # We're in the previous session
+                idx = prev_idx
 
         if idx >= len(self._trading_days):
             logger.critical("Cannot predict future")

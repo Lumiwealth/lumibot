@@ -919,7 +919,16 @@ class StrategyExecutor(Thread):
 
         strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)
 
-        if not self.should_continue or strategy_sleeptime == 0 or time_to_before_closing <= 0:
+        if not self.should_continue or strategy_sleeptime == 0:
+            return False
+            
+        # In backtesting, always advance time even if close to market close
+        # This prevents infinite loops when we're at exact market boundaries
+        if self.strategy.is_backtesting and time_to_before_closing <= 0:
+            self.safe_sleep(strategy_sleeptime)
+            return True
+            
+        if time_to_before_closing <= 0:
             return False
         else:
             self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))
@@ -985,8 +994,9 @@ class StrategyExecutor(Thread):
             return
 
         if not is_247:
-            # Set date to the start date, but account for minutes_before_opening
-            self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
+            # Check if market is already open before waiting
+            if not self.broker.is_market_open():
+                self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
             # Check if we should continue to run when we are in a new day.
             broker_continue = self.broker.should_continue()
             if not broker_continue:

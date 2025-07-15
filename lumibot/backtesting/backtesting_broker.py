@@ -1,8 +1,7 @@
 import traceback
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from typing import Union
-from functools import lru_cache
 
 import pytz
 
@@ -25,11 +24,6 @@ class BacktestingBroker(Broker):
         # Calling init methods
         self.max_workers = max_workers
         self.option_source = option_source
-        
-        # Cache for market hours lookups
-        self._market_hours_cache = {}
-        self._cache_hits = 0
-        self._cache_misses = 0
 
         # Legacy strategy.backtest code will always pass in a config even for Brokers that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
@@ -99,14 +93,6 @@ class BacktestingBroker(Broker):
         # Handle 24/7 markets immediately
         if self.market == "24/7":
             return True
-
-        # Check cache first
-        cache_key = (now.date(), now.hour, now.minute)
-        if cache_key in self._market_hours_cache:
-            self._cache_hits += 1
-            return self._market_hours_cache[cache_key]
-        
-        self._cache_misses += 1
         
         # For ANY market, check both today's and tomorrow's sessions since trading sessions 
         # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
@@ -120,7 +106,6 @@ class BacktestingBroker(Broker):
             market_open_today = self._trading_days.at[market_close_today, 'market_open']
             
             if market_open_today <= now < market_close_today:
-                self._market_hours_cache[cache_key] = True
                 return True
         
         # If not in today's session, check tomorrow's session (might have started today)
@@ -131,7 +116,6 @@ class BacktestingBroker(Broker):
             market_open_tomorrow = self._trading_days.at[market_close_tomorrow, 'market_open']
             
             if market_open_tomorrow <= now < market_close_tomorrow:
-                self._market_hours_cache[cache_key] = True
                 return True
         
         # Also check if we should look at yesterday's session that might extend to today
@@ -141,10 +125,8 @@ class BacktestingBroker(Broker):
             market_open_yesterday = self._trading_days.at[market_close_yesterday, 'market_open']
             
             if market_open_yesterday <= now < market_close_yesterday:
-                self._market_hours_cache[cache_key] = True
                 return True
         
-        self._market_hours_cache[cache_key] = False
         return False
 
     def _get_next_trading_day(self):
@@ -184,16 +166,6 @@ class BacktestingBroker(Broker):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
 
-        # Check cache first (cache by minute to avoid too many entries)
-        cache_key = ('time_to_close', now.date(), now.hour, now.minute)
-        if cache_key in self._market_hours_cache:
-            self._cache_hits += 1
-            cached_time, cached_close = self._market_hours_cache[cache_key]
-            # Adjust for seconds within the minute
-            return cached_time - (now.second + now.microsecond / 1e6)
-        
-        self._cache_misses += 1
-
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
         # For futures markets, trading days can span calendar days (e.g., Sunday 6pm to Monday 6pm)
         # We need to find the trading session that contains 'now'
@@ -222,25 +194,10 @@ class BacktestingBroker(Broker):
         # can advance instead of stalling.
         if now < market_open:
             delta = market_close - now
-            result = delta.total_seconds()
-        else:
-            delta = market_close - now
-            result = delta.total_seconds()
+            return delta.total_seconds()
         
-        # Cache the result (store at minute granularity)
-        self._market_hours_cache[cache_key] = (result, market_close)
-        
-        # Clean cache periodically to prevent unbounded growth
-        if len(self._market_hours_cache) > 10000:
-            # Keep only recent entries
-            cutoff_datetime = now - timedelta(days=1)
-            self._market_hours_cache = {
-                k: v for k, v in self._market_hours_cache.items() 
-                if len(k) > 1 and datetime.combine(k[1], datetime.min.time()) >= cutoff_datetime
-            }
-            logger.debug(f"Cleaned market hours cache, cache hits: {self._cache_hits}, misses: {self._cache_misses}")
-        
-        return result
+        delta = market_close - now
+        return delta.total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
         # Process outstanding orders first before waiting for market to open
@@ -866,38 +823,6 @@ class BacktestingBroker(Broker):
                 close = df["close"].iloc[0]
                 volume = df["volume"].iloc[0]
 
-            # Handle any other backtesting data source (including DuckDB)
-            else:
-                # For other backtesting data sources, use similar logic to PANDAS
-                ohlc = self.data_source.get_historical_prices(
-                    asset=asset,
-                    length=2,
-                    quote=order.quote,
-                    timeshift=-2,
-                    timestep=getattr(self.data_source, '_timestep', 'minute'),
-                )
-                # Check if we got any ohlc data
-                if ohlc is None or ohlc.df.empty:
-                    self.cancel_order(order)
-                    continue
-
-                df_original = ohlc.df
-
-                # Make sure that we are only getting the prices for the current time exactly or in the future
-                df = df_original[df_original.index >= self.datetime]
-
-                # If the dataframe is empty, then we should get the last row of the original dataframe
-                # because it is the best data we have
-                if df.empty:
-                    df = df_original.iloc[-1:]
-
-                dt = df.index[0]
-                open = df["open"].iloc[0]
-                high = df["high"].iloc[0]
-                low = df["low"].iloc[0]
-                close = df["close"].iloc[0]
-                volume = df["volume"].iloc[0]
-
             #############################
             # Determine transaction price.
             #############################
@@ -1124,32 +1049,3 @@ class BacktestingBroker(Broker):
         response = self._pull_broker_position(asset)
         result = self._parse_broker_position(response, strategy)
         return result
-    
-    def get_cache_statistics(self) -> dict:
-        """
-        Get cache statistics for market hours lookups.
-        
-        Returns
-        -------
-        dict
-            Dictionary containing cache hit rate and other statistics
-        """
-        total_lookups = self._cache_hits + self._cache_misses
-        hit_rate = self._cache_hits / total_lookups if total_lookups > 0 else 0
-        
-        return {
-            "cache_hits": self._cache_hits,
-            "cache_misses": self._cache_misses,
-            "hit_rate": hit_rate,
-            "cache_size": len(self._market_hours_cache),
-            "total_lookups": total_lookups
-        }
-    
-    def clear_cache(self):
-        """
-        Clear the market hours cache and reset statistics.
-        """
-        self._market_hours_cache.clear()
-        self._cache_hits = 0
-        self._cache_misses = 0
-        logger.debug("Cleared market hours cache")

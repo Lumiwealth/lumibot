@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Union
 
 import pandas as pd
-
+import numpy as np
 from lumibot.tools.lumibot_logger import get_logger
 from .bar import Bar
 
@@ -160,21 +160,27 @@ class Bars:
         -------
         list of Bars objects
         """
+        # Vectorized operation to avoid iterrows
+        timestamps = self.df.index.astype(np.int64) // 10**9
+        
+        # Create list of dictionaries efficiently
+        data = {
+            "timestamp": timestamps,
+            "open": self.df.get("open", default=np.nan),
+            "high": self.df.get("high", default=np.nan),
+            "low": self.df.get("low", default=np.nan),
+            "close": self.df.get("close", default=np.nan),
+            "volume": self.df.get("volume", default=np.nan),
+            "dividend": self.df.get("dividend", default=0),
+            "stock_splits": self.df.get("stock_splits", default=0),
+        }
+        
+        # Convert to list of Bar objects
         result = []
-        for index, row in self.df.iterrows():
-            item = {
-                "timestamp": int(index.timestamp()),
-                "open": row.get("open"),
-                "high": row.get("high"),
-                "low": row.get("low"),
-                "close": row.get("close"),
-                "volume": row.get("volume"),
-                "dividend": row.get("dividend", 0),
-                "stock_splits": row.get("stock_splits", 0),
-            }
-            bar = Bar(item)
-            result.append(bar)
-
+        for i in range(len(self.df)):
+            item = {k: v.iloc[i] if hasattr(v, 'iloc') else v[i] for k, v in data.items()}
+            result.append(Bar(item))
+        
         return result
 
     def get_last_price(self) -> Union[float, Decimal, None]:

@@ -498,20 +498,24 @@ class Tradier(Broker):
 
         positions_ret = []
 
-        # Loop through each row in the dataframe
-        for _, row in positions_df.iterrows():
-            # Get the symbol/quantity and create the position asset
-            symbol = row["symbol"]
-            quantity = row["quantity"]
-            asset = Asset.symbol2asset(symbol)  # Parse the symbol. Handles 'stock' and 'option' types
+        # Vectorized approach to avoid iterrows
+        if not positions_df.empty:
+            symbols = positions_df["symbol"].values
+            quantities = positions_df["quantity"].values
+            
+            for i in range(len(positions_df)):
+                # Get the symbol/quantity and create the position asset
+                symbol = symbols[i]
+                quantity = quantities[i]
+                asset = Asset.symbol2asset(symbol)  # Parse the symbol. Handles 'stock' and 'option' types
 
-            # Create the position
-            position = Position(
-                strategy=strategy.name if strategy else "Unknown",
-                asset=asset,
-                quantity=quantity,
-            )
-            positions_ret.append(position)  # Add the position to the list
+                # Create the position
+                position = Position(
+                    strategy=strategy.name if strategy else "Unknown",
+                    asset=asset,
+                    quantity=quantity,
+                )
+                positions_ret.append(position)  # Add the position to the list
 
         return positions_ret
 

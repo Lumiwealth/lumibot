@@ -184,12 +184,17 @@ def get_trading_times(
     # For minute bars, we need to generate minutes between open and close
     trading_minutes = []
 
-    for _, row in pcal.iterrows():
-        start = row['market_open']
-        end = row['market_close']
+    # Vectorized approach to avoid iterrows
+    opens = pcal['market_open'].values
+    closes = pcal['market_close'].values
+    
+    for i in range(len(pcal)):
+        start = opens[i]
+        end = closes[i]
 
         # Check if it's a 24/7 market by checking if close time is 23:59
-        is_24_7 = end.hour == 23 and end.minute == 59
+        end_dt = pd.to_datetime(end)
+        is_24_7 = end_dt.hour == 23 and end_dt.minute == 59
 
         # Generate minute bars between open and close
         minutes = pd.date_range(start=start, end=end, freq='min')

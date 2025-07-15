@@ -529,13 +529,22 @@ class YahooHelper:
         end = df.index[-1]
         filtered_actions = dividends_actions[(dividends_actions.index >= start) & (dividends_actions.index <= end)]
 
-        for index, row in filtered_actions.iterrows():
-            dividends = row["Dividends"]
-            stock_splits = row["Stock Splits"]
-            search = df[df.index >= index]
-            if not search.empty:
-                target_day = search.index[0]
-                df.loc[target_day, "dividend"] = dividends
-                df.loc[target_day, "stock_splits"] = stock_splits
+        # Vectorized approach to avoid iterrows
+        if not filtered_actions.empty:
+            # Find the nearest forward date in df for each action date
+            action_indices = filtered_actions.index
+            df_indices = df.index
+            
+            for i in range(len(filtered_actions)):
+                action_date = action_indices[i]
+                dividends = filtered_actions["Dividends"].iloc[i]
+                stock_splits = filtered_actions["Stock Splits"].iloc[i]
+                
+                # Find first date in df that is >= action_date
+                mask = df_indices >= action_date
+                if mask.any():
+                    target_day = df_indices[mask][0]
+                    df.loc[target_day, "dividend"] = dividends
+                    df.loc[target_day, "stock_splits"] = stock_splits
 
         return df

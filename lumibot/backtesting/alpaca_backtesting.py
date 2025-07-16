@@ -542,6 +542,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
         else:
             df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
+        
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 

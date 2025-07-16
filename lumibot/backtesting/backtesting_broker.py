@@ -65,8 +65,10 @@ class BacktestingBroker(Broker):
         else:
             new_datetime = update_dt
 
-        # This is needed to handle Daylight Savings Time changes
-        new_datetime = tz.normalize(new_datetime) if is_pytz else new_datetime
+        # Only normalize if we're doing arithmetic operations that might cross DST boundaries
+        # Don't normalize when setting an explicit datetime as it can cause incorrect time shifts
+        if is_pytz and isinstance(update_dt, (timedelta, int, float)):
+            new_datetime = tz.normalize(new_datetime)
 
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
@@ -80,6 +82,7 @@ class BacktestingBroker(Broker):
         check if the limit datetime was reached"""
 
         # If we are at the end of the data source, we should stop
+        # Use strict inequality to stop before we exceed the data range
         if self.datetime >= self.data_source.datetime_end:
             return False
 

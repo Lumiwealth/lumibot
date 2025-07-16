@@ -1127,7 +1127,11 @@ class StrategyExecutor(Thread):
         if self.strategy.is_backtesting:
             while is_247 or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
                 # Stop after we pass the backtesting end date
-                if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
+                if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime >= self.broker.data_source.datetime_end:
+                    break
+
+                # Check if we should continue from the broker's perspective
+                if self.broker.IS_BACKTESTING_BROKER and not self.broker.should_continue():
                     break
 
                 # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()

@@ -79,7 +79,7 @@ class BacktestingBroker(Broker):
         Needs to be overloaded for backtesting to
         check if the limit datetime was reached"""
 
-        # If we are at the end of the data source, we should stop
+        # If we are at or past the end of the data source, we should stop
         if self.datetime >= self.data_source.datetime_end:
             return False
 
@@ -199,7 +199,7 @@ class BacktestingBroker(Broker):
         delta = market_close - now
         return delta.total_seconds()
 
-    def _await_market_to_open(self, timedelta=None, strategy=None):
+    def _await_market_to_open(self, timedelta_param=None, strategy=None):
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
         self.process_pending_orders(strategy=strategy)
@@ -207,17 +207,28 @@ class BacktestingBroker(Broker):
         time_to_open = self.get_time_to_open()
 
         # Allow the caller to specify a buffer (in minutes) before the actual open
-        if timedelta:
-            time_to_open -= 60 * timedelta
+        if timedelta_param:
+            time_to_open -= 60 * timedelta_param
 
         # Only advance time if there is something positive to advance;
         # prevents zero or negative time updates.
         if time_to_open <= 0:
             return
 
-        self._update_datetime(time_to_open)
+        # Don't advance past the end of the backtest
+        if isinstance(time_to_open, (int, float)):
+            new_datetime = self.datetime + timedelta(seconds=time_to_open)
+        else:
+            new_datetime = self.datetime + time_to_open
+        if new_datetime > self.data_source.datetime_end:
+            # If advancing to market open would go past the end, just advance to the end
+            time_to_end = (self.data_source.datetime_end - self.datetime).total_seconds()
+            if time_to_end > 0:
+                self._update_datetime(time_to_end)
+        else:
+            self._update_datetime(time_to_open)
 
-    def _await_market_to_close(self, timedelta=None, strategy=None):
+    def _await_market_to_close(self, timedelta_param=None, strategy=None):
         """Wait until market closes or specified time before close"""
         # Process outstanding orders first before waiting for market to close
         # or else they don't get processed until the next day
@@ -231,8 +242,8 @@ class BacktestingBroker(Broker):
 
         time_to_close = result
 
-        if timedelta is not None:
-            time_to_close -= 60 * timedelta
+        if timedelta_param is not None:
+            time_to_close -= 60 * timedelta_param
 
         # Only advance time if there is positive time remaining.
         if time_to_close > 0:

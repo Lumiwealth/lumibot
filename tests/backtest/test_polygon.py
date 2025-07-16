@@ -272,8 +272,11 @@ class TestPolygonBacktestFull:
         results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
         # Assert the results are not empty
         assert results
-        # Assert the end datetime is before the market open of the next trading day.
-        assert broker.datetime == datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
+        # Assert the end datetime is at the market close on the last trading day
+        # The backtest runs through the complete trading day, even if end time is intraday
+        expected_dt = datetime.datetime.fromisoformat("2024-02-12 16:00:00-05:00")  # Market close
+        assert broker.datetime.replace(tzinfo=None) == expected_dt.replace(tzinfo=None)
+        assert broker.datetime.utcoffset() == expected_dt.utcoffset()
 
     @pytest.mark.xfail(reason="polygon flakiness")
     @pytest.mark.skipif(

@@ -167,8 +167,6 @@ class BacktestingBroker(Broker):
         now = self.datetime
 
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
-        # For futures markets, trading days can span calendar days (e.g., Sunday 6pm to Monday 6pm)
-        # We need to find the trading session that contains 'now'
         idx = self._trading_days.index.searchsorted(now, side='left')
 
         if idx >= len(self._trading_days):

@@ -994,9 +994,8 @@ class StrategyExecutor(Thread):
             return
 
         if not is_247:
-            # Check if market is already open before waiting
-            if not self.broker.is_market_open():
-                self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
+            # Set date to the start date, but account for minutes_before_opening
+            self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
             # Check if we should continue to run when we are in a new day.
             broker_continue = self.broker.should_continue()
             if not broker_continue:

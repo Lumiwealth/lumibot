@@ -922,13 +922,16 @@ class StrategyExecutor(Thread):
         if not self.should_continue or strategy_sleeptime == 0:
             return False
             
-        # In backtesting, always advance time even if close to market close
-        # This prevents infinite loops when we're at exact market boundaries
-        if self.strategy.is_backtesting and time_to_before_closing <= 0:
-            self.safe_sleep(strategy_sleeptime)
-            return True
-            
         if time_to_before_closing <= 0:
+            # In backtesting, if we're stuck at exact market boundaries (time_to_before_closing is exactly 0)
+            # advance by a minimal amount to prevent infinite loops, but only if we haven't exceeded the end date
+            if (self.strategy.is_backtesting and 
+                time_to_before_closing == 0 and 
+                hasattr(self.broker, 'data_source') and 
+                hasattr(self.broker.data_source, 'datetime_end') and
+                self.broker.datetime < self.broker.data_source.datetime_end):
+                self.safe_sleep(1)  # Advance by 1 second only
+                return True
             return False
         else:
             self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))

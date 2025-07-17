@@ -167,7 +167,7 @@ class BacktestingBroker(Broker):
         now = self.datetime
 
         # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
-        idx = self._trading_days.index.searchsorted(now, side='left')
+        idx = self._trading_days.index.searchsorted(now, side='right')
 
         if idx >= len(self._trading_days):
             logger.critical("Cannot predict future")

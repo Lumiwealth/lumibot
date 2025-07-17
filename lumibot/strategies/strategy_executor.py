@@ -919,7 +919,16 @@ class StrategyExecutor(Thread):
 
         strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)
 
-        if not self.should_continue or strategy_sleeptime == 0 or time_to_before_closing <= 0:
+        if not self.should_continue or strategy_sleeptime == 0:
+            return False
+            
+        # In backtesting, always advance time even if close to market close
+        # This prevents infinite loops when we're at exact market boundaries
+        if self.strategy.is_backtesting and time_to_before_closing <= 0:
+            self.safe_sleep(strategy_sleeptime)
+            return True
+            
+        if time_to_before_closing <= 0:
             return False
         else:
             self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))

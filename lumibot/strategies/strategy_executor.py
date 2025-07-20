@@ -93,12 +93,24 @@ class StrategyExecutor(Thread):
 
     def safe_sleep(self, sleeptime):
         # This method should only be run in back testing. If it's running during live, something has gone wrong.
+        
+        print(f"[DEBUG] safe_sleep called with sleeptime: {sleeptime}")
 
         if self.strategy.is_backtesting:
+            print(f"[DEBUG] Processing queue before updating datetime")
             self.process_queue()
+            
+            old_datetime = self.broker.datetime if hasattr(self.broker, 'datetime') else 'unknown'
+            print(f"[DEBUG] About to update datetime from {old_datetime} by {sleeptime} seconds")
+            
             self.broker._update_datetime(
                 sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value
             )
+            
+            new_datetime = self.broker.datetime if hasattr(self.broker, 'datetime') else 'unknown'
+            print(f"[DEBUG] DateTime updated from {old_datetime} to {new_datetime}")
+        else:
+            print(f"[DEBUG] Not backtesting, safe_sleep doing nothing")
 
     def sync_broker(self):
         # Log that we are syncing the broker.
@@ -952,9 +964,13 @@ class StrategyExecutor(Thread):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
+        
+        print(f"[DEBUG] _run_trading_session STARTED")
 
         has_data_source = hasattr(self.broker, "_data_source")
         is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
+        
+        print(f"[DEBUG] has_data_source: {has_data_source}, is_247: {is_247}")
 
         # Set the time_to_close variable to infinity if the market is 24/7.
         if is_247:
@@ -1115,22 +1131,36 @@ class StrategyExecutor(Thread):
         # TODO: speed up this loop for backtesting (it's a major bottleneck)
 
         if self.strategy.is_backtesting:
+            print(f"[DEBUG] Starting backtesting main loop - is_247: {is_247}, time_to_close: {time_to_close}")
+            iteration_count = 0
             while is_247 or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
+                iteration_count += 1
+                
+                # Print debug info every 10 iterations to track progress
+                if iteration_count % 10 == 0:
+                    current_broker_time = self.broker.datetime if hasattr(self.broker, 'datetime') else 'unknown'
+                    print(f"[DEBUG] Iteration {iteration_count}: broker time = {current_broker_time}")
+                
                 # Stop after we pass the backtesting end date
                 if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
+                    print(f"[DEBUG] Stopping: broker datetime {self.broker.datetime} > end datetime {self.broker.data_source.datetime_end}")
                     break
 
                 # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()
+                print(f"[DEBUG] About to call _on_trading_iteration at broker time {self.broker.datetime if hasattr(self.broker, 'datetime') else 'unknown'}")
                 self._on_trading_iteration()
+                print(f"[DEBUG] _on_trading_iteration completed at broker time {self.broker.datetime if hasattr(self.broker, 'datetime') else 'unknown'}")
 
                 if self.broker.IS_BACKTESTING_BROKER:
                     self.broker.process_pending_orders(strategy=self.strategy)
 
                 # Sleep until the next trading iteration
                 # TODO: next line speed implication: high (2625 microseconds) _strategy_sleep()
-
+                print(f"[DEBUG] About to call _strategy_sleep")
                 if not self._strategy_sleep():
+                    print(f"[DEBUG] _strategy_sleep returned False, breaking loop")
                     break
+                print(f"[DEBUG] _strategy_sleep completed, continuing loop")
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
@@ -1178,24 +1208,55 @@ class StrategyExecutor(Thread):
             self.broker._trading_days.set_index('market_close', inplace=True)
 
             #####
-            # The main loop for running any strategy
+            # Session-based execution to prevent infinite restart bugs
             ####
-            while self.broker.should_continue() and self.should_continue:
-                try:
-                    self._run_trading_session()
-                except Exception as e:
-                    # The bot crashed so log the error, call the on_bot_crash method, and continue
-                    self.strategy.logger.error(e)
-                    self.strategy.logger.error(traceback.format_exc())
+            
+            # Import session manager classes
+            from lumibot.strategies.session_manager import BacktestingSession, LiveTradingSession
+            
+            # Choose appropriate session manager based on execution mode
+            if self.strategy.is_backtesting:
+                self.strategy.logger.info("[StrategyExecutor] Using BacktestingSession for guaranteed time progression")
+                session = BacktestingSession(self)
+                
+                # Configure backtesting time parameters if available
+                if hasattr(self.strategy, 'backtesting_start') and hasattr(self.strategy, 'backtesting_end'):
+                    self.strategy.logger.info(f"[StrategyExecutor] Configuring session: {self.strategy.backtesting_start} to {self.strategy.backtesting_end}")
+                    session.set_time_parameters(
+                        self.strategy.backtesting_start,
+                        self.strategy.backtesting_end
+                    )
+                else:
+                    self.strategy.logger.info("[StrategyExecutor] No backtesting time parameters found, using defaults")
+                    
+                # Run session-based execution (replaces problematic _run_trading_session loop)
+                self.strategy.logger.info("[StrategyExecutor] Starting session-based execution")
+                session.run_session()
+                self.strategy.logger.info("[StrategyExecutor] Session-based execution completed")
+                
+            else:
+                self.strategy.logger.info("[StrategyExecutor] Using LiveTradingSession for real-time execution")
+                session = LiveTradingSession(self)
+                
+                # For live trading, fall back to original loop structure for now
+                # TODO: Eventually migrate live trading to session-based approach
+                while self.broker.should_continue() and self.should_continue:
                     try:
-                        self._on_bot_crash(e)
-                    except Exception as e1:
-                        self.strategy.logger.error(e1)
+                        self._run_trading_session()
+                                
+                    except Exception as e:
+                        # The bot crashed so log the error, call the on_bot_crash method, and continue
+                        self.strategy.logger.error(e)
                         self.strategy.logger.error(traceback.format_exc())
+                        try:
+                            self._on_bot_crash(e)
+                        except Exception as e1:
+                            self.strategy.logger.error(e1)
+                            self.strategy.logger.error(traceback.format_exc())
 
-                    # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
-                    if self.strategy.is_backtesting:
-                        raise e  # Re-raise original exception to preserve error message for tests
+                        # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
+                        if self.strategy.is_backtesting:
+                            raise e  # Re-raise original exception to preserve error message for tests
 
                     # Only stop the strategy if it's time, otherwise keep running the bot
                     if not self._strategy_sleep():

@@ -97,7 +97,7 @@ class TestDividends:
         # Run backtest
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strategy)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
         
         return results, strategy
     

@@ -179,7 +179,7 @@ class TestLiveTradingResilience(unittest.TestCase):
         # Run the trader - it should handle errors gracefully in live mode
         start_time = time.time()
         try:
-            trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file='')
+            trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file='')
         except Exception as e:
             # If an exception propagated up, it means resilience failed
             self.fail(f"Live trading should be resilient but crashed with: {e}")

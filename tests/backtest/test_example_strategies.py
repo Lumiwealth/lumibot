@@ -281,6 +281,7 @@ class TestExampleStrategies:
             benchmark_asset=None,
             show_plot=False,
             show_tearsheet=False,
+            show_indicators=False,
             save_tearsheet=False,
             polygon_api_key=POLYGON_CONFIG["API_KEY"],
         )
@@ -325,6 +326,7 @@ class TestExampleStrategies:
             benchmark_asset=f"{base_symbol}/{quote_symbol}",
             show_plot=False,
             show_tearsheet=False,
+            show_indicators=False,
             save_tearsheet=False,
             risk_free_rate=0.0,
             parameters={

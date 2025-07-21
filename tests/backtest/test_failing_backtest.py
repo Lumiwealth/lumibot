@@ -72,7 +72,7 @@ class TestFailingBacktest:
         
         # This should raise an exception
         with pytest.raises(Exception) as exc_info:
-            trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
+            trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file="")
         
         # Verify the error message contains our intentional error
         assert "Intentional error in initialize() for testing" in str(exc_info.value)
@@ -102,7 +102,7 @@ class TestFailingBacktest:
         
         # This should raise an exception
         with pytest.raises(Exception) as exc_info:
-            trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
+            trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file="")
         
         # Verify the error message contains our intentional error
         assert "Intentional error in on_trading_iteration() for testing" in str(exc_info.value)

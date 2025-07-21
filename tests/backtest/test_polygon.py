@@ -237,7 +237,7 @@ class TestPolygonBacktestFull:
         )
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(poly_strat_obj)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=True)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
 
         assert results
         self.verify_backtest_results(poly_strat_obj)

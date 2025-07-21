@@ -58,18 +58,25 @@ class TestESFuturesHangBug(unittest.TestCase):
         After fix: Should restart only 1-2 times (normal behavior)
         """
         restart_count = 0
+        original_method = None
         
         def count_restarts(self):
-            nonlocal restart_count
+            nonlocal restart_count, original_method
             restart_count += 1
             
             # Fail if infinite restart detected
             if restart_count > 5:
                 raise AssertionError(f"INFINITE RESTART BUG DETECTED: {restart_count} restarts")
             
+            # Call the original method to maintain proper execution flow
+            if original_method:
+                return original_method(self)
             return None
         
         from lumibot.strategies.strategy_executor import StrategyExecutor
+        
+        # Store the original method before patching
+        original_method = StrategyExecutor._run_trading_session
         
         with patch.object(StrategyExecutor, '_run_trading_session', count_restarts):
             strategy = ESFuturesTestStrategy()

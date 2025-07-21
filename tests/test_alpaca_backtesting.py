@@ -1684,7 +1684,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             timestep=timestep,
         )
 
-        now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
+        now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
         assert price == 60.1  # open price of the daily bar
@@ -1725,26 +1725,26 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             timestep=timestep,
         )
 
-        now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
+        now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 98308.914000000 # open price of the daily bar
+        assert price == 96091.267 # open price of the daily bar
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 98308.914000000 # open price of the daily bar
+        assert price == 96091.267 # open price of the daily bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 15, 59))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 98308.914000000 # open price of the daily bar
+        assert price == 96091.267 # open price of the daily bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 16, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 98308.914000000 # open price of the daily bar
+        assert price == 96091.267 # open price of the daily bar
 
         # test tuple
         quote = Asset("USD", Asset.AssetType.FOREX)
@@ -1766,7 +1766,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             timestep=timestep,
         )
 
-        now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
+        now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
         assert price == 60.1  # open price of the minute bar
@@ -1797,10 +1797,10 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             timestep=timestep,
         )
 
-        now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
+        now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 98308.914000000  # open price of the minute bar
+        assert price == 96091.267  # open price of the minute bar
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
@@ -1996,7 +1996,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             timestep=timestep,
         )
 
-        now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
+        now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         for length in [1, 10]:
             bars = data_source.get_historical_prices(
@@ -2091,7 +2091,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=time(0 ,0),
+                time_check=time(18, 0),
                 market=market
             )
 
@@ -2113,7 +2113,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=time(0 ,0),
+                time_check=time(18, 0),
                 market=market,
             )
 
@@ -2136,7 +2136,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             timestep=timestep,
         )
 
-        now = tzinfo.localize(datetime(2025, 2, 21, 0, 0))
+        now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         for length in [1, 10]:
             bars = data_source.get_historical_prices(
@@ -2153,7 +2153,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=time(0 ,0),
+                time_check=time(18, 0),
                 market=market
             )
 

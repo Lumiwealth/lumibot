@@ -1,4 +1,5 @@
 import inspect
+import logging
 import math
 import time
 import traceback
@@ -1195,22 +1196,12 @@ class StrategyExecutor(Thread):
     def _run_backtesting_loop(self, is_continuous_market, time_to_close):
         """Execute the main backtesting iteration loop"""
         iteration_count = 0
-        print(f"🔧 BACKTESTING LOOP START: is_continuous_market={is_continuous_market}, initial_time_to_close={time_to_close}")
         
         while is_continuous_market or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
             iteration_count += 1
             
-            if iteration_count % 50 == 0:  # Debug every 50 iterations
-                current_time = self.broker.datetime if hasattr(self.broker, 'datetime') else "unknown"
-                end_time = self.broker.data_source.datetime_end if hasattr(self.broker, 'data_source') and hasattr(self.broker.data_source, 'datetime_end') else "unknown"
-                print(f"🔧 LOOP ITERATION {iteration_count}: current_time={current_time}, end_time={end_time}")
-                if not is_continuous_market:
-                    updated_time_to_close = self.broker.get_time_to_close() if hasattr(self.broker, 'get_time_to_close') else "unknown"
-                    print(f"🔧 LOOP ITERATION {iteration_count}: updated_time_to_close={updated_time_to_close}, minutes_before_closing={self.strategy.minutes_before_closing}")
-            
             # Stop after we pass the backtesting end date
             if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
-                print(f"🛑 LOOP EXIT: Passed end date. Current: {self.broker.datetime}, End: {self.broker.data_source.datetime_end}")
                 break
 
             self._on_trading_iteration()
@@ -1221,15 +1212,9 @@ class StrategyExecutor(Thread):
             # Sleep until the next trading iteration
             sleep_result = self._strategy_sleep()
             if not sleep_result:
-                print(f"🛑 LOOP EXIT: _strategy_sleep returned False at iteration {iteration_count}")
-                print(f"🛑 LOOP EXIT DEBUG: should_continue={getattr(self, 'should_continue', 'not_set')}")
-                print(f"🛑 LOOP EXIT DEBUG: sleeptime={getattr(self.strategy, 'sleeptime', 'not_set')}")
-                if not is_continuous_market:
-                    final_time_to_close = self.broker.get_time_to_close() if hasattr(self.broker, 'get_time_to_close') else "unknown"
-                    print(f"🛑 LOOP EXIT DEBUG: final_time_to_close={final_time_to_close}")
                 break
                 
-        print(f"🏁 BACKTESTING LOOP COMPLETE: Total iterations={iteration_count}")
+        logging.info(f"Backtesting loop completed with {iteration_count} iterations")
 
     # ======Execution methods ====================
     def _run_trading_session(self):

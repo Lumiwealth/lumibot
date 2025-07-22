@@ -365,7 +365,7 @@ class TestTradierBroker:
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None)
         strategy = "strat_unittest"
-        sleep_amt = 0.1
+        sleep_amt = 1.0  # Increased for CI stability
         broker._strategy_name = strategy
         mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}

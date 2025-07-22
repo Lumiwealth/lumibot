@@ -79,7 +79,6 @@ class TestESFuturesHangBug(unittest.TestCase):
         original_method = StrategyExecutor._run_trading_session
         
         with patch.object(StrategyExecutor, '_run_trading_session', count_restarts):
-            strategy = ESFuturesTestStrategy()
             
             try:
                 ESFuturesTestStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **self.backtesting_params)

@@ -21,6 +21,8 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture
 def tradier():
+    if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+        pytest.skip("These tests require a Tradier API key")
     return Tradier(
         account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
         access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],

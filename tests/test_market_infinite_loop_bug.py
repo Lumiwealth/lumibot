@@ -82,7 +82,7 @@ class TestESFuturesHangBug(unittest.TestCase):
             strategy = ESFuturesTestStrategy()
             
             try:
-                strategy.backtest(**self.backtesting_params)
+                ESFuturesTestStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **self.backtesting_params)
             except Exception as e:
                 if "INFINITE RESTART BUG DETECTED" in str(e):
                     raise
@@ -119,7 +119,7 @@ class TestESFuturesHangBug(unittest.TestCase):
                             self._executor.stop_event.set()
                 
                 try:
-                    result = TestSleeptimeStrategy.backtest(**self.backtesting_params)
+                    result = TestSleeptimeStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **self.backtesting_params)
                     self.assertIsNotNone(result)
                     print(f"✅ Sleeptime {sleeptime}: Success")
                                 
@@ -156,7 +156,7 @@ class TestESFuturesHangBug(unittest.TestCase):
                 try:
                     params = dict(self.backtesting_params)
                     params['datasource_class'] = datasource
-                    result = TestMarketStrategy.backtest(**params)
+                    result = TestMarketStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **params)
                     self.assertIsNotNone(result)
                     print(f"✅ Market {market}/{symbol}: Success")
                             
@@ -187,7 +187,7 @@ class TestESFuturesHangBug(unittest.TestCase):
         # Test continuous market (futures)
         print("\n🔄 Testing continuous market (futures)")
         try:
-            result = ContinuousMarketStrategy.backtest(**self.backtesting_params)
+            result = ContinuousMarketStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **self.backtesting_params)
             self.assertIsNotNone(result)
             print("✅ Continuous market test completed")
         except Exception as e:
@@ -223,7 +223,7 @@ class TestESFuturesHangBug(unittest.TestCase):
                             return
                 
                 try:
-                    result = DiagnosticSleeptimeStrategy.backtest(**self.backtesting_params)
+                    result = DiagnosticSleeptimeStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **self.backtesting_params)
                     self.assertIsNotNone(result)
                     print(f"✅ Sleeptime {sleeptime}: Success")
                 except Exception as e:
@@ -256,7 +256,7 @@ class TestESFuturesHangBug(unittest.TestCase):
                             return
                 
                 try:
-                    result = DiagnosticAssetStrategy.backtest(**self.backtesting_params)
+                    result = DiagnosticAssetStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **self.backtesting_params)
                     self.assertIsNotNone(result)
                     print(f"✅ Asset {symbol}: Success")
                 except Exception as e:
@@ -286,7 +286,7 @@ class TestESFuturesHangBug(unittest.TestCase):
             stress_params = dict(self.backtesting_params)
             stress_params['backtesting_end'] = datetime(2025, 6, 9)  # 4 days
             
-            result = StressTestStrategy.backtest(**stress_params)
+            result = StressTestStrategy.backtest(quote_asset=Asset("USD", Asset.AssetType.FOREX), **stress_params)
             self.assertIsNotNone(result)
             print("✅ Stress test: Success")
         except Exception as e:

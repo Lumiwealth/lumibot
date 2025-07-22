@@ -306,7 +306,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=dt.time(0 ,0),
+                time_check=dt.time(19, 0),
                 market=market
             )
 

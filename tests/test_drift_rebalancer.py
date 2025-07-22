@@ -2099,7 +2099,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 105021.76805867575
+        assert strat_obj.stats['portfolio_value'][-1] == 105596.4107392428
 
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
@@ -2181,7 +2181,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 104767.7476530826
+        assert strat_obj.stats['portfolio_value'][-1] == 105341.29698417989
 
     @patch("lumibot.strategies.Strategy")
     def test_get_last_price_or_raise_returns_decimal(self, MockStrategy):

@@ -134,6 +134,7 @@ class BacktestingBroker(Broker):
         search = self._trading_days[now < self._trading_days.market_open]
         if search.empty:
             logger.critical("Cannot predict future")
+            return None
 
         return search.market_open[0].to_pydatetime()
 
@@ -144,7 +145,7 @@ class BacktestingBroker(Broker):
         search = self._trading_days[now < self._trading_days.index]
         if search.empty:
             logger.info("Cannot predict future")
-            return 0
+            return None
 
         trading_day = search.iloc[0]
         open_time = trading_day.market_open
@@ -170,8 +171,9 @@ class BacktestingBroker(Broker):
         idx = self._trading_days.index.searchsorted(now, side='left')
 
         if idx >= len(self._trading_days):
-            logger.critical("Cannot predict future")
-            return 0
+            logger.warning(f"Backtest has reached the end of available trading days data. Current time: {now}, Last trading day: {self._trading_days.index[-1] if len(self._trading_days) > 0 else 'No data'}")
+            # Return None to signal that backtesting should stop
+            return None
 
         # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
@@ -194,6 +196,11 @@ class BacktestingBroker(Broker):
         self.process_pending_orders(strategy=strategy)
 
         time_to_open = self.get_time_to_open()
+        
+        # If None is returned, it means we've reached the end of available trading days
+        if time_to_open is None:
+            logger.info("Backtesting reached end of available trading days data")
+            return
 
         # Allow the caller to specify a buffer (in minutes) before the actual open
         if timedelta:

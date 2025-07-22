@@ -299,4 +299,3 @@ class TestESFuturesHangBug(unittest.TestCase):
 if __name__ == '__main__':
     print("🧪 Testing ES Futures hang bug fix...")
     unittest.main(verbosity=2)
-# Test file fix

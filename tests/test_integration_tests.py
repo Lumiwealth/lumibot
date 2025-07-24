@@ -67,7 +67,7 @@ class TestIntegrationTests:
 
         trader = Trader(logfile="", backtest=True, quiet_logs=True)
         trader.add_strategy(strategy)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False, tearsheet_file="")
+        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file="")
         assert results
         result = list(results.values())[0]
 

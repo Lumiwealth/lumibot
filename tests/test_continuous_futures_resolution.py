@@ -129,17 +129,23 @@ class TestContinuousFuturesResolution(unittest.TestCase):
 
     @patch('datetime.datetime')
     def test_year_rollover_edge_cases(self, mock_datetime):
-        """Test contract generation around year boundaries."""
-        # Test December to January rollover
+        """Test contract generation around year boundaries with expiration-aware logic."""
+        # Test December rollover - after Dec 15th, should use March next year
+        # (December contract expires ~Dec 19th, so Dec 31st would be using expired contract)
         mock_datetime.now.return_value = datetime(2025, 12, 31)
         asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
         contract = asset.resolve_continuous_futures_contract()
-        self.assertEqual(contract, 'ESZ25')  # December 2025
+        self.assertEqual(contract, 'ESH26')  # March 2026 (after rollover)
         
-        # Test January after rollover
+        # Test January after rollover - should still be March
         mock_datetime.now.return_value = datetime(2026, 1, 1)
         contract = asset.resolve_continuous_futures_contract()
         self.assertEqual(contract, 'ESH26')  # March 2026
+        
+        # Test before December rollover - should still use December
+        mock_datetime.now.return_value = datetime(2025, 12, 14)
+        contract = asset.resolve_continuous_futures_contract()
+        self.assertEqual(contract, 'ESZ25')  # December 2025 (before rollover)
 
     @patch('datetime.datetime')
     def test_different_symbol_formats(self, mock_datetime):
@@ -205,24 +211,25 @@ class TestContinuousFuturesResolution(unittest.TestCase):
 
     @patch('datetime.datetime')
     def test_month_progression_logic(self, mock_datetime):
-        """Test that month selection follows proper logic throughout the year."""
+        """Test that month selection follows proper logic with expiration-aware rollover."""
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
         
-        # Test each month and verify the logic
+        # Test each month and verify the logic accounts for 3rd Friday expiration
+        # Rollover happens on 15th of expiry month to avoid expired contracts
         test_cases = [
             # (month, expected_front_month_quarter_code)
-            (1, 'H'),   # Jan -> Mar (H) - current quarter
-            (2, 'H'),   # Feb -> Mar (H) - current quarter
-            (3, 'H'),   # Mar -> Mar (H) - current quarter
-            (4, 'M'),   # Apr -> Jun (M) - current quarter
-            (5, 'M'),   # May -> Jun (M) - current quarter
-            (6, 'M'),   # Jun -> Jun (M) - current quarter
-            (7, 'U'),   # Jul -> Sep (U) - current quarter
-            (8, 'U'),   # Aug -> Sep (U) - current quarter
-            (9, 'U'),   # Sep -> Sep (U) - current quarter
-            (10, 'Z'),  # Oct -> Dec (Z) - current quarter
-            (11, 'Z'),  # Nov -> Dec (Z) - current quarter
-            (12, 'Z'),  # Dec -> Dec (Z) - current quarter
+            (1, 'H'),   # Jan -> Mar (H) - before rollover
+            (2, 'H'),   # Feb -> Mar (H) - before rollover  
+            (3, 'M'),   # Mar 15 -> Jun (M) - after rollover (Mar expires ~21st)
+            (4, 'M'),   # Apr -> Jun (M) - before rollover
+            (5, 'M'),   # May -> Jun (M) - before rollover
+            (6, 'U'),   # Jun 15 -> Sep (U) - after rollover (Jun expires ~20th)
+            (7, 'U'),   # Jul -> Sep (U) - before rollover
+            (8, 'U'),   # Aug -> Sep (U) - before rollover
+            (9, 'Z'),   # Sep 15 -> Dec (Z) - after rollover (Sep expires ~19th)
+            (10, 'Z'),  # Oct -> Dec (Z) - before rollover
+            (11, 'Z'),  # Nov -> Dec (Z) - before rollover
+            (12, 'H'),  # Dec 15 -> Mar next year (H) - after rollover (Dec expires ~19th)
         ]
         
         for month, expected_month_code in test_cases:
@@ -230,7 +237,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
             contract = asset.resolve_continuous_futures_contract()
             actual_month_code = contract[-3]  # Third character from end
             self.assertEqual(actual_month_code, expected_month_code, 
-                           f"Month {month} should resolve to {expected_month_code}, got {actual_month_code}")
+                           f"Month {month} (15th) should resolve to {expected_month_code}, got {actual_month_code}")
 
     def test_contract_format_validation(self):
         """Test that generated contracts follow proper format conventions."""
@@ -273,6 +280,79 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         # Asset class returns full format, DataBento helper applies its formatting
         self.assertEqual(expected_symbol, "MESU25")  # Asset class format
         self.assertEqual(resolved_symbol, "MESU5")   # DataBento format
+
+    @patch('datetime.datetime')
+    def test_quarterly_contract_consistency(self, mock_datetime):
+        """
+        Test that contract resolution follows quarterly pattern with proper expiration handling.
+        This test prevents regression of the original MES backtesting issue while ensuring
+        we don't use expired contracts in live trading.
+        """
+        asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+        
+        # Test that contract resolution properly accounts for 3rd Friday expiration
+        # Rollover happens on 15th of expiry month to avoid expired contracts
+        quarterly_tests = [
+            # Q1: Jan-Feb should resolve to March (H), Mar 15+ should roll to June (M)
+            (datetime(2024, 1, 15), 'H24'),
+            (datetime(2024, 2, 15), 'H24'),
+            (datetime(2024, 3, 14), 'H24'),  # Before rollover
+            (datetime(2024, 3, 15), 'M24'),  # After rollover (Mar expires ~21st)
+            # Q2: Apr-May should resolve to June (M), Jun 15+ should roll to Sep (U)
+            (datetime(2024, 4, 15), 'M24'),
+            (datetime(2024, 5, 15), 'M24'),
+            (datetime(2024, 6, 14), 'M24'),  # Before rollover
+            (datetime(2024, 6, 15), 'U24'),  # After rollover (Jun expires ~20th)
+            # Q3: Jul-Aug should resolve to September (U), Sep 15+ should roll to Dec (Z)
+            (datetime(2024, 7, 15), 'U24'),
+            (datetime(2024, 8, 15), 'U24'),
+            (datetime(2024, 9, 14), 'U24'),  # Before rollover
+            (datetime(2024, 9, 15), 'Z24'),  # After rollover (Sep expires ~19th)
+            # Q4: Oct-Nov should resolve to December (Z), Dec 15+ should roll to Mar next year (H)
+            (datetime(2024, 10, 15), 'Z24'),
+            (datetime(2024, 11, 15), 'Z24'),
+            (datetime(2024, 12, 14), 'Z24'),  # Before rollover
+            (datetime(2024, 12, 15), 'H25'),  # After rollover (Dec expires ~19th)
+        ]
+        
+        for test_date, expected_suffix in quarterly_tests:
+            mock_datetime.now.return_value = test_date
+            contract = asset.resolve_continuous_futures_contract()
+            expected_contract = f"MES{expected_suffix}"
+            self.assertEqual(contract, expected_contract,
+                           f"Date {test_date.strftime('%Y-%m-%d')} should resolve to {expected_contract}, got {contract}")
+
+    @patch('datetime.datetime')
+    def test_expiration_edge_cases(self, mock_datetime):
+        """
+        Test contract resolution around actual futures expiration dates.
+        This ensures we properly avoid expired contracts.
+        """
+        asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
+        
+        # Test around March 2025 expiration (3rd Friday is March 21st)
+        test_cases = [
+            (datetime(2025, 3, 14), 'ESH25'),  # Before rollover - still March
+            (datetime(2025, 3, 15), 'ESM25'),  # Rollover day - move to June
+            (datetime(2025, 3, 21), 'ESM25'),  # Actual expiry day - already rolled
+            (datetime(2025, 3, 22), 'ESM25'),  # After expiry - definitely rolled
+            
+            # Test around June 2025 expiration (3rd Friday is June 20th) 
+            (datetime(2025, 6, 14), 'ESM25'),  # Before rollover - still June
+            (datetime(2025, 6, 15), 'ESU25'),  # Rollover day - move to September
+            (datetime(2025, 6, 20), 'ESU25'),  # Actual expiry day - already rolled
+            
+            # Test around December 2025 expiration (3rd Friday is December 19th)
+            (datetime(2025, 12, 14), 'ESZ25'),  # Before rollover - still December
+            (datetime(2025, 12, 15), 'ESH26'),  # Rollover day - move to March next year
+            (datetime(2025, 12, 19), 'ESH26'),  # Actual expiry day - already rolled
+        ]
+        
+        for test_date, expected_contract in test_cases:
+            mock_datetime.now.return_value = test_date
+            contract = asset.resolve_continuous_futures_contract()
+            self.assertEqual(contract, expected_contract,
+                           f"Date {test_date.strftime('%Y-%m-%d')} should resolve to {expected_contract}, got {contract}")
 
 
 if __name__ == '__main__':

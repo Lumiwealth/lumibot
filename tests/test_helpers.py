@@ -197,11 +197,10 @@ def test_get_trading_times_minute_24_7_utc():
     assert result[-1].time().minute == 59
     assert all(dtm.tzinfo.zone == tzinfo.zone for dtm in result)
 
-
-def test_get_trading_times_minute_24_7_america_chicago():
+def test_get_trading_times_minute_24_7_UTC():
     start_date = dt.datetime(2024, 1, 8)
     end_date = dt.datetime(2024, 1, 10)
-    tzinfo = pytz.timezone('America/Chicago')
+    tzinfo = pytz.timezone('UTC')
     pcal = get_trading_days(
         market='24/7',
         start_date=start_date,

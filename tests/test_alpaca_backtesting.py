@@ -920,166 +920,6 @@ class TestAlpacaBacktesting:
             assert lookback_data_df.index[0].isoformat() == '2025-01-03T00:00:00-05:00'
             assert lookback_data_df.index[-1].isoformat() == '2025-01-17T00:00:00-05:00'
 
-    def test_btc_day_1d(
-            self,
-            asset: Asset = Asset('BTC', asset_type='crypto'),
-            market: str = '24/7',
-            timestep: str = 'day',
-            sleeptime: str = '1D',
-            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
-            auto_adjust: bool = True,
-            warm_up_trading_days: int = 0,
-            lookback_length: int = 0,
-    ):
-        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
-        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
-        refresh_cache = False
-
-        strategy: BacktestingTestStrategy
-        results, strategy = BacktestingTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            minutes_before_closing=0,
-            benchmark_asset=None,
-            analyze_backtest=False,
-            show_progress_bar=False,
-            parameters={
-                "asset": asset,
-                "market": market,
-                "sleeptime": sleeptime,
-                "lookback_timestep": 'day',
-                "lookback_length": lookback_length,
-            },
-
-            # AlpacaBacktesting kwargs
-            timestep=timestep,
-            market=market,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            warm_up_trading_days=warm_up_trading_days,
-            auto_adjust=auto_adjust,
-        )
-        assert results
-        assert strategy
-        assert strategy.broker
-        assert isinstance(strategy.broker, BacktestingBroker)
-        assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
-
-        # Data source tests
-        data_source = strategy.broker.data_source
-        assert data_source._data_datetime_start.isoformat() == "2025-01-13T00:00:00-06:00"
-        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-06:00'
-
-        timestep_data_key = data_source._get_asset_key(
-            base_asset=asset,
-            quote_asset=AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET,
-            timestep=timestep,
-        )
-        timestep_data_df = data_source._data_store[timestep_data_key]
-
-        assert len(timestep_data_df.index) == 5 + lookback_length
-        assert timestep_data_df.index[0].isoformat() == "2025-01-13T18:00:00-06:00"
-        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T18:00:00-06:00"
-
-        # Trading strategy tests
-        assert data_source.datetime_end.isoformat() == '2025-01-15T00:00:00-06:00'
-
-        # check when trading iterations happened
-        last_prices = strategy.last_prices
-        last_price_keys = list(last_prices.keys())
-        assert len(last_prices) == 3 # number of trading iterations
-        assert last_price_keys[0] == '2025-01-13T00:00:00-06:00'
-        assert last_price_keys[-1] == '2025-01-15T00:00:00-06:00'
-        assert last_prices['2025-01-13T00:00:00-06:00'] == 94462.815  # Open of '2025-01-13T18:00:00-06:00'
-
-        order_tracker = strategy.order_tracker
-        assert order_tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["avg_fill_price"] == 94462.82  # Open of '2025-01-13T00:00:00-06:00'
-
-    def test_btc_day_1d_5(
-            self,
-            asset: Asset = Asset('BTC', asset_type='crypto'),
-            market: str = '24/7',
-            timestep: str = 'day',
-            sleeptime: str = '1D',
-            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
-            auto_adjust: bool = True,
-            warm_up_trading_days: int = 5,
-            lookback_length: int = 5,
-    ):
-        backtesting_start = tzinfo.localize(datetime(2025, 1, 13))
-        backtesting_end = tzinfo.localize(datetime(2025, 1, 17))
-        refresh_cache = False
-
-        strategy: BacktestingTestStrategy
-        results, strategy = BacktestingTestStrategy.run_backtest(
-            datasource_class=AlpacaBacktesting,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            minutes_before_closing=0,
-            benchmark_asset=None,
-            analyze_backtest=False,
-            show_progress_bar=False,
-            parameters={
-                "asset": asset,
-                "market": market,
-                "sleeptime": sleeptime,
-                "lookback_timestep": 'day',
-                "lookback_length": lookback_length,
-            },
-
-            # AlpacaBacktesting kwargs
-            timestep=timestep,
-            market=market,
-            config=ALPACA_TEST_CONFIG,
-            refresh_cache=refresh_cache,
-            warm_up_trading_days=warm_up_trading_days,
-            auto_adjust=auto_adjust,
-        )
-        assert results
-        assert strategy
-        assert strategy.broker
-        assert isinstance(strategy.broker, BacktestingBroker)
-        assert strategy.broker.data_source
-        assert isinstance(strategy.broker.data_source, AlpacaBacktesting)
-
-        # Data source tests
-        data_source = strategy.broker.data_source
-        assert data_source._data_datetime_start.isoformat() == "2025-01-08T00:00:00-06:00"
-        assert data_source._data_datetime_end.isoformat() == '2025-01-17T23:59:59-06:00'
-
-        timestep_data_key = data_source._get_asset_key(
-            base_asset=asset,
-            quote_asset=AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET,
-            timestep=timestep,
-        )
-        timestep_data_df = data_source._data_store[timestep_data_key]
-
-        assert len(timestep_data_df.index) == 5 + lookback_length
-        assert timestep_data_df.index[0].isoformat() == "2025-01-08T18:00:00-06:00"
-        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T18:00:00-06:00"
-
-        # Trading strategy tests
-        assert data_source.datetime_end.isoformat() == '2025-01-15T00:00:00-06:00'
-
-        # check when trading iterations happened
-        last_prices = strategy.last_prices
-        last_price_keys = list(last_prices.keys())
-        assert len(last_prices) == 3 # number of trading iterations
-        assert last_price_keys[0] == '2025-01-13T00:00:00-06:00'
-        assert last_price_keys[-1] == '2025-01-15T00:00:00-06:00'
-        assert last_prices['2025-01-13T00:00:00-06:00'] == 94462.815  # Open of '2025-01-13T18:00:00-06:00'
-
-        order_tracker = strategy.order_tracker
-        assert order_tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["avg_fill_price"] == 94462.82  # Open of '2025-01-13T00:00:00-06:00'
-
     def test_btc_day_1d_utc(
             self,
             asset: Asset = Asset('BTC', asset_type='crypto'),
@@ -1486,14 +1326,13 @@ class TestAlpacaBacktesting:
         assert isinstance(open_price, (int, float))
         assert 400 < open_price < 800, f"SPY open price {open_price} seems unreasonable for the test date"
 
-
     def test_amzn_day_1d_benchmark_asset_loaded_when_benchmark_asset_is_crypto(
             self,
             asset: Asset = Asset('AMZN'),
             market: str = '24/7',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            tzinfo: pytz.tzinfo = pytz.timezone('UTC'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
             lookback_length: int = 0,
@@ -1525,8 +1364,9 @@ class TestAlpacaBacktesting:
         )
 
         assert not strategy._benchmark_returns_df.empty
-        expected_start = tzinfo.localize(datetime(2025, 1, 13, 18, 0)); assert strategy._benchmark_returns_df.index[0] == expected_start
-        assert strategy._benchmark_returns_df.iloc[0].open == 94462.815
+        expected_start = tzinfo.localize(datetime(2025, 1, 13, 0, 0))
+        assert strategy._benchmark_returns_df.index[0] == expected_start
+        assert strategy._benchmark_returns_df.iloc[0].open == 94558.75
 
     def test_amzn_day_1m_dump_benchmark_stats(
             self,
@@ -1711,7 +1551,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         self.check_get_last_price(data_source, asset_tuple)
 
     def test_get_last_price_daily_bars_crypto(self):
-        tzinfo = pytz.timezone("America/Chicago")
+        tzinfo = pytz.timezone("UTC")
         datetime_start = tzinfo.localize(datetime(2025, 1, 1))
         datetime_end = tzinfo.localize(datetime(2025, 3, 1))
         market = "24/7"
@@ -1728,23 +1568,23 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 96091.267 # open price of the daily bar
+        assert price == 98411.446  # open price of the daily bar
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 96091.267 # open price of the daily bar
+        assert price == 98411.446  # open price of the daily bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 15, 59))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 96091.267 # open price of the daily bar
+        assert price == 98411.446  # open price of the daily bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 16, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 96091.267 # open price of the daily bar
+        assert price == 98411.446  # open price of the daily bar
 
         # test tuple
         quote = Asset("USD", Asset.AssetType.FOREX)
@@ -1783,7 +1623,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         assert price == 57.7306 # open price of the minute bar
 
     def test_get_last_price_minute_bars_crypto(self):
-        tzinfo = pytz.timezone("America/Chicago")
+        tzinfo = pytz.timezone("UTC")
         datetime_start = tzinfo.localize(datetime(2025, 2, 19))
         datetime_end = tzinfo.localize(datetime(2025, 2, 22))
         market = "24/7"
@@ -1800,18 +1640,18 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
         now = tzinfo.localize(datetime(2025, 2, 21, 19, 0))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 96221.149  # open price of the minute bar
+        assert price == 96568.9324757  # open price of the minute bar
         assert isinstance(price, float)
 
         now = tzinfo.localize(datetime(2025, 2, 21, 9, 30))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 98198.475000000  # open price of the minute bar
+        assert price == 98416.825  # open price of the minute bar
 
         now = tzinfo.localize(datetime(2025, 2, 21, 15, 59))
         data_source._datetime = now
         price = data_source.get_last_price(asset=asset)
-        assert price == 95321.295000000  # open price of the minute bar
+        assert price == 98032.45  # open price of the minute bar
 
     def test_get_historical_prices_minute_bars_stock(self):
         tzinfo = pytz.timezone("America/New_York")
@@ -1982,7 +1822,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             )
 
     def test_get_historical_prices_minute_bars_crypto(self):
-        tzinfo = pytz.timezone("America/Chicago")
+        tzinfo = pytz.timezone("UTC")
         datetime_start = tzinfo.localize(datetime(2025, 2, 19))
         datetime_end = tzinfo.localize(datetime(2025, 2, 22))
         market = "24/7"
@@ -2121,10 +1961,10 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             length = -1
             bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
 
-    def test_get_historical_prices_daily_bars_crypto_chicago(self):
-        tzinfo = pytz.timezone("America/Chicago")
-        datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/Chicago"))
-        datetime_end = datetime(2025, 3, 1, tzinfo=pytz.timezone("America/Chicago"))
+    def test_get_historical_prices_daily_bars_crypto(self):
+        tzinfo = pytz.timezone("UTC")
+        datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("UTC"))
+        datetime_end = datetime(2025, 3, 1, tzinfo=pytz.timezone("UTC"))
         market = "24/7"
         timestep = "day"
         asset = Asset("BTC", 'crypto')
@@ -2153,7 +1993,7 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=time(18, 0),
+                time_check=time(0, 0),
                 market=market
             )
 

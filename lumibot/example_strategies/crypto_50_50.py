@@ -42,7 +42,7 @@ if __name__ == "__main__":
         )
         exit()
 
-    tzinfo = pytz.timezone('America/Chicago')
+    tzinfo = pytz.timezone('UTC')
     backtesting_start = tzinfo.localize(datetime(2024, 1, 1))
     backtesting_end = tzinfo.localize(datetime(2024, 2, 1))
     timestep = 'minute'

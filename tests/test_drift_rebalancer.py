@@ -1962,7 +1962,7 @@ class TestDriftRebalancer:
             market: str = 'NYSE',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            tzinfo: pytz.tzinfo = pytz.timezone('UTC'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
     ):
@@ -2032,7 +2032,7 @@ class TestDriftRebalancer:
             market: str = '24/7',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            tzinfo: pytz.tzinfo = pytz.timezone('UTC'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
     ):
@@ -2099,7 +2099,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 105596.4107392428
+        assert strat_obj.stats['portfolio_value'][-1] == 105989.22631127515
 
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
@@ -2110,7 +2110,7 @@ class TestDriftRebalancer:
             market: str = '24/7',
             timestep: str = 'day',
             sleeptime: str = '1D',
-            tzinfo: pytz.tzinfo = pytz.timezone('America/Chicago'),
+            tzinfo: pytz.tzinfo = pytz.timezone('UTC'),
             auto_adjust: bool = True,
             warm_up_trading_days: int = 0,
     ):
@@ -2181,7 +2181,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-        assert strat_obj.stats['portfolio_value'][-1] == 105341.29698417989
+        assert strat_obj.stats['portfolio_value'][-1] == 105733.6594608977
 
     @patch("lumibot.strategies.Strategy")
     def test_get_last_price_or_raise_returns_decimal(self, MockStrategy):

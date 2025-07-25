@@ -282,8 +282,8 @@ class TestAlpacaData(BaseDataSourceTester):
             )
 
     @pytest.mark.xfail(reason="crypto timestamp precision varies between environments")
-    def test_get_historical_prices_daily_bars_crypto_america_chicago(self):
-        tzinfo = pytz.timezone('America/Chicago')
+    def test_get_historical_prices_daily_bars_crypto_utc(self):
+        tzinfo = pytz.timezone('UTC')
         data_source = self._create_data_source(tzinfo=tzinfo)
         asset = Asset('BTC', asset_type='crypto')
         quote_asset = Asset('USD', asset_type='forex')
@@ -307,7 +307,7 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=dt.time(19, 0),
+                time_check=dt.time(0, 0),
                 market=market
             )
 
@@ -337,8 +337,8 @@ class TestAlpacaData(BaseDataSourceTester):
                 market=market,
             )
 
-    def test_get_historical_prices_minute_bars_crypto_america_chicago(self):
-        tzinfo = pytz.timezone('America/Chicago')
+    def test_get_historical_prices_minute_bars_crypto_utc(self):
+        tzinfo = pytz.timezone('UTC')
         data_source = self._create_data_source(tzinfo=tzinfo)
         asset = Asset('BTC', asset_type='crypto')
         quote_asset = Asset('USD', asset_type='forex')

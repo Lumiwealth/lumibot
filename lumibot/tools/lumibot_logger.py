@@ -7,6 +7,7 @@ ensuring consistent formatting, behavior, and ease of use across all modules.
 Features:
 - Standard console/file logging with enhanced formatting
 - Optional CSV error logging with deduplication via CSVErrorHandler
+- Optional Botspot API error reporting via BotspotErrorHandler
 - Strategy-specific logging with context
 - Thread-safe operations
 - External library noise reduction
@@ -18,6 +19,8 @@ Environment Variables (all handled centrally in this module):
 - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
 - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
 - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false) - only shows ERROR+ messages
+- BOTSPOT_ERROR_API_KEY: API key for Botspot error reporting (when set, enables automatic error reporting)
+- BOT_ID: Bot ID for Botspot error reporting (required when BOTSPOT_ERROR_API_KEY is set)
 
 Note: Some logging-related environment variables are also available in credentials.py 
 for backwards compatibility, but this module is the authoritative source for configuration.
@@ -43,10 +46,11 @@ import os
 import re
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from functools import lru_cache
+from enum import Enum
 
 class CSVErrorHandler(logging.Handler):
     """
@@ -215,6 +219,178 @@ potential data corruption or unsafe trading operations.
             pass
 
 
+class BotspotSeverity(Enum):
+    """Severity levels for Botspot error reporting."""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class BotspotErrorHandler(logging.Handler):
+    """
+    Handler that reports errors to Botspot API endpoint.
+    Only active when BOTSPOT_ERROR_API_KEY environment variable is set.
+    """
+    
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.base_url = "https://api.botspot.trade/bots/report-bot-error"
+        self.api_key = os.environ.get("BOTSPOT_ERROR_API_KEY")
+        self.bot_id = os.environ.get("BOT_ID")
+        self._error_counts: Dict[Tuple[str, str, str], int] = {}
+        self._lock = threading.Lock()
+        
+        # Only import requests if we need it
+        if self.api_key:
+            try:
+                import requests
+                self.requests = requests
+            except ImportError:
+                logging.getLogger(__name__).warning(
+                    "requests library not available - Botspot error reporting disabled"
+                )
+                self.requests = None
+        else:
+            self.requests = None
+    
+    def _map_log_level_to_severity(self, level: int) -> BotspotSeverity:
+        """Map logging level to Botspot severity."""
+        if level >= logging.CRITICAL:
+            return BotspotSeverity.CRITICAL
+        elif level >= logging.ERROR:
+            return BotspotSeverity.CRITICAL  # Treat ERROR as CRITICAL for Botspot
+        elif level >= logging.WARNING:
+            return BotspotSeverity.WARNING
+        elif level >= logging.INFO:
+            return BotspotSeverity.INFO
+        else:
+            return BotspotSeverity.DEBUG
+    
+    def _extract_error_info(self, record: logging.LogRecord) -> Tuple[str, str, str]:
+        """Extract error code, message, and details from log record."""
+        message = record.getMessage()
+        
+        # Try to extract structured error code if message has format "ERROR_CODE: message | details"
+        error_code = ""
+        details = ""
+        
+        if ":" in message and "|" in message:
+            parts = message.split(":", 1)
+            if len(parts) == 2:
+                potential_error_code = parts[0].strip()
+                rest = parts[1].strip()
+                
+                if "|" in rest:
+                    msg_part, details_part = rest.split("|", 1)
+                    error_code = potential_error_code
+                    message = msg_part.strip()
+                    details = details_part.strip()
+        
+        # Check if message has [StrategyName] prefix
+        strategy_name = ""
+        if message.startswith("[") and "]" in message:
+            end_bracket = message.index("]")
+            strategy_name = message[1:end_bracket]
+            # Update message to remove strategy prefix for cleaner error message
+            message = message[end_bracket + 1:].strip()
+        
+        # Fallback: create error code from logger name and strategy
+        if not error_code:
+            logger_name = record.name.split('.')[-1].upper()
+            if strategy_name:
+                error_code = f"_{strategy_name.upper()}_ERROR"
+            else:
+                error_code = f"{logger_name}_{record.levelname}"
+        
+        # Ensure details includes file location
+        if not details or "File:" not in details:
+            file_info = f"File: {record.pathname}:{record.lineno}, Function: {record.funcName}"
+            if details:
+                details = f"{details} | {file_info}"
+            else:
+                details = file_info
+        
+        # If we have a strategy name, prepend it to the message
+        if strategy_name and strategy_name not in message:
+            message = f"[{strategy_name}] {message}"
+        
+        return error_code, message, details
+    
+    def _report_to_botspot(self, severity: BotspotSeverity, error_code: str, 
+                          message: str, details: str, count: int) -> bool:
+        """Send error report to Botspot API."""
+        if not self.api_key or not self.bot_id or not self.requests:
+            return False
+        
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key
+        }
+        payload = {
+            "bot_id": self.bot_id,
+            "severity": severity.value,
+            "error_code": error_code,
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if details:
+            payload["details"] = details
+        
+        if count > 1:
+            payload["count"] = count
+        
+        try:
+            response = self.requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                print(f"Botspot API error: {response.status_code} - {response.text}")
+            
+            return response.status_code == 200
+            
+        except Exception as e:
+            # Silently fail - don't let API errors break the application
+            print(e)
+
+            return False
+    
+    def emit(self, record):
+        """Handle a log record by reporting to Botspot API."""
+        if not self.api_key or not self.bot_id:
+            return
+        if record.levelno < logging.WARNING:
+            return
+        
+        try:
+            with self._lock:
+                severity = self._map_log_level_to_severity(record.levelno)
+                error_code, message, details = self._extract_error_info(record)
+                
+                # Create a key for deduplication
+                error_key = (error_code, message, details)
+                
+                # Update count
+                if error_key in self._error_counts:
+                    self._error_counts[error_key] += 1
+                else:
+                    self._error_counts[error_key] = 1
+                
+                count = self._error_counts[error_key]
+                
+                # Report to Botspot
+                self._report_to_botspot(severity, error_code, message, details, count)
+                
+        except Exception as e:
+            # Don't let Botspot errors break the main application
+            pass
+
+
 class LumibotLogger(logging.Logger):
     """
     Enhanced Logger class for Lumibot with consistent formatting.
@@ -331,6 +507,8 @@ def _ensure_handlers_configured():
     - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
     - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
     - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false)
+    - BOTSPOT_ERROR_API_KEY: API key for Botspot error reporting (when set, enables automatic error reporting)
+    - BOT_ID: Bot ID for Botspot error reporting (required when BOTSPOT_ERROR_API_KEY is set)
     """
     global _handlers_configured
     
@@ -383,6 +561,11 @@ def _ensure_handlers_configured():
             csv_handler = CSVErrorHandler(csv_path)
             root_logger.addHandler(csv_handler)
         
+        # Add Botspot error handler if API key is set
+        botspot_api_key = os.environ.get("BOTSPOT_ERROR_API_KEY")
+        if botspot_api_key:
+            botspot_handler = BotspotErrorHandler()
+            root_logger.addHandler(botspot_handler)
         # Keep propagation enabled for proper logging behavior
         root_logger.propagate = True
         

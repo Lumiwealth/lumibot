@@ -21,6 +21,8 @@ Environment Variables (all handled centrally in this module):
 - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false) - only shows ERROR+ messages
 - BOTSPOT_ERROR_API_KEY: API key for Botspot error reporting (when set, enables automatic error reporting)
 - BOT_ID: Bot ID for Botspot error reporting (required when BOTSPOT_ERROR_API_KEY is set)
+- BOTSPOT_RATE_LIMIT_WINDOW: Rate limit window in seconds (default: 60) - same errors are only sent once per window
+- BOTSPOT_MAX_ERRORS_PER_MINUTE: Maximum total errors sent per minute (default: 100)
 
 Note: Some logging-related environment variables are also available in credentials.py 
 for backwards compatibility, but this module is the authoritative source for configuration.
@@ -46,6 +48,7 @@ import os
 import re
 import sys
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Tuple, Optional
@@ -231,6 +234,10 @@ class BotspotErrorHandler(logging.Handler):
     """
     Handler that reports errors to Botspot API endpoint.
     Only active when BOTSPOT_ERROR_API_KEY environment variable is set.
+    
+    Includes rate limiting to prevent excessive API calls:
+    - Same errors are only sent once per time window (default: 60 seconds)
+    - Maximum total errors per minute (default: 100)
     """
     
     def __init__(self):
@@ -239,7 +246,14 @@ class BotspotErrorHandler(logging.Handler):
         self.api_key = os.environ.get("BOTSPOT_ERROR_API_KEY")
         self.bot_id = os.environ.get("BOT_ID")
         self._error_counts: Dict[Tuple[str, str, str], int] = {}
+        self._last_sent_times: Dict[Tuple[str, str, str], float] = {}
+        self._total_errors_sent = 0
+        self._minute_start_time = time.time()
         self._lock = threading.Lock()
+        
+        # Rate limiting configuration
+        self.rate_limit_window = int(os.environ.get("BOTSPOT_RATE_LIMIT_WINDOW", "60"))
+        self.max_errors_per_minute = int(os.environ.get("BOTSPOT_MAX_ERRORS_PER_MINUTE", "100"))
         
         # Only import requests if we need it
         if self.api_key:
@@ -360,6 +374,31 @@ class BotspotErrorHandler(logging.Handler):
 
             return False
     
+    def _check_rate_limits(self, error_key: Tuple[str, str, str]) -> bool:
+        """
+        Check if we should send this error based on rate limits.
+        
+        Returns True if the error should be sent, False if rate limited.
+        """
+        current_time = time.time()
+        
+        # Reset minute counter if a minute has passed
+        if current_time - self._minute_start_time >= 60:
+            self._total_errors_sent = 0
+            self._minute_start_time = current_time
+        
+        # Check global rate limit (max errors per minute)
+        if self._total_errors_sent >= self.max_errors_per_minute:
+            return False
+        
+        # Check per-error rate limit (deduplication window)
+        if error_key in self._last_sent_times:
+            time_since_last_sent = current_time - self._last_sent_times[error_key]
+            if time_since_last_sent < self.rate_limit_window:
+                return False
+        
+        return True
+    
     def emit(self, record):
         """Handle a log record by reporting to Botspot API."""
         if not self.api_key or not self.bot_id:
@@ -380,6 +419,16 @@ class BotspotErrorHandler(logging.Handler):
                     self._error_counts[error_key] += 1
                 else:
                     self._error_counts[error_key] = 1
+                
+                # Check rate limits
+                if not self._check_rate_limits(error_key):
+                    # Rate limited - don't send
+                    return
+                
+                # Update tracking for rate limiting
+                current_time = time.time()
+                self._last_sent_times[error_key] = current_time
+                self._total_errors_sent += 1
                 
                 count = self._error_counts[error_key]
                 

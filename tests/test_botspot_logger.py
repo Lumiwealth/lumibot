@@ -6,11 +6,13 @@ Tests the Botspot API error reporting functionality including:
 - Error mapping and formatting
 - API call behavior
 - Integration with strategy loggers
+- Rate limiting and deduplication
 """
 
 import os
 import logging
 import tempfile
+import time
 from unittest.mock import patch, MagicMock, call
 import pytest
 
@@ -203,6 +205,94 @@ class TestBotspotErrorHandler:
             assert calls[0][0][4] == 1  # First call has count=1
             assert calls[1][0][4] == 2  # Second call has count=2
             assert calls[2][0][4] == 3  # Third call has count=3
+    
+    def test_rate_limit_window(self):
+        """Test that same errors are rate limited within the time window."""
+        with patch.dict(os.environ, {
+            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
+            'BOT_ID': 'test-bot-id',
+            'BOTSPOT_RATE_LIMIT_WINDOW': '2'  # 2 second window
+        }):
+            handler = BotspotErrorHandler()
+            handler._report_to_botspot = MagicMock(return_value=True)
+            
+            # Create identical log records
+            record = logging.LogRecord(
+                name="test", level=logging.ERROR, pathname="test.py",
+                lineno=10, msg="Rate limited error", args=(), exc_info=None,
+                func="test_func"
+            )
+            
+            # First emit should go through
+            handler.emit(record)
+            assert handler._report_to_botspot.call_count == 1
+            
+            # Second emit within window should be rate limited
+            handler.emit(record)
+            assert handler._report_to_botspot.call_count == 1  # No new call
+            
+            # Wait for window to expire
+            time.sleep(2.1)
+            
+            # Third emit after window should go through
+            handler.emit(record)
+            assert handler._report_to_botspot.call_count == 2
+    
+    def test_max_errors_per_minute(self):
+        """Test that total errors per minute are limited."""
+        with patch.dict(os.environ, {
+            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
+            'BOT_ID': 'test-bot-id',
+            'BOTSPOT_MAX_ERRORS_PER_MINUTE': '3'  # Only 3 errors per minute
+        }):
+            handler = BotspotErrorHandler()
+            handler._report_to_botspot = MagicMock(return_value=True)
+            
+            # Send different errors to avoid per-error rate limiting
+            for i in range(5):
+                record = logging.LogRecord(
+                    name="test", level=logging.ERROR, pathname="test.py",
+                    lineno=10, msg=f"Error {i}", args=(), exc_info=None,
+                    func="test_func"
+                )
+                handler.emit(record)
+            
+            # Only first 3 should be sent
+            assert handler._report_to_botspot.call_count == 3
+    
+    def test_rate_limit_counter_reset(self):
+        """Test that the per-minute counter resets after 60 seconds."""
+        with patch.dict(os.environ, {
+            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
+            'BOT_ID': 'test-bot-id',
+            'BOTSPOT_MAX_ERRORS_PER_MINUTE': '2'
+        }):
+            handler = BotspotErrorHandler()
+            handler._report_to_botspot = MagicMock(return_value=True)
+            
+            # Send 2 errors (hitting the limit)
+            for i in range(2):
+                record = logging.LogRecord(
+                    name="test", level=logging.ERROR, pathname="test.py",
+                    lineno=10, msg=f"Error {i}", args=(), exc_info=None,
+                    func="test_func"
+                )
+                handler.emit(record)
+            
+            assert handler._report_to_botspot.call_count == 2
+            
+            # Manually advance the minute start time to simulate time passing
+            handler._minute_start_time = time.time() - 61
+            
+            # Send another error - should go through after counter reset
+            record = logging.LogRecord(
+                name="test", level=logging.ERROR, pathname="test.py",
+                lineno=10, msg="Error after reset", args=(), exc_info=None,
+                func="test_func"
+            )
+            handler.emit(record)
+            
+            assert handler._report_to_botspot.call_count == 3
 
 
 class TestBotspotIntegration:

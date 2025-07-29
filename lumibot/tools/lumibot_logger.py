@@ -231,23 +231,25 @@ class LumibotFormatter(logging.Formatter):
     """
     
     def __init__(self):
+        super().__init__()
+
         # Define format strings for different log levels
-        self.info_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+        # In the vast majority of cases, log_message() is used by strategies so the %(name)s setting isn't useful
+        # and simply clutters the output because it always points to _strategy.py.
+        self.info_format = "%(asctime)s | %(levelname)s | %(message)s"
         self.warning_format = "%(asctime)s | %(levelname)s | %(pathname)s:%(funcName)s:%(lineno)d | %(message)s"
         self.error_format = "%(asctime)s | %(levelname)s | %(pathname)s:%(funcName)s:%(lineno)d | %(message)s"
         
-        # Create formatters for each level
+        # Create formatters for each level. Use default datefmt for ISO format so that milliseconds are included to
+        # assist with performance evaluations when running Live.
         self.info_formatter = logging.Formatter(
             self.info_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
         )
         self.warning_formatter = logging.Formatter(
             self.warning_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
         )
         self.error_formatter = logging.Formatter(
             self.error_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
         )
     
     def format(self, record):

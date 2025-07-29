@@ -179,7 +179,7 @@ class TestBotspotErrorHandler:
             handler._report_to_botspot.assert_not_called()
     
     def test_error_counting(self):
-        """Test that duplicate errors are counted."""
+        """Test that duplicate errors are counted but rate limited."""
         with patch.dict(os.environ, {
             'BOTSPOT_ERROR_API_KEY': 'test-api-key',
             'BOT_ID': 'test-bot-id'
@@ -199,12 +199,14 @@ class TestBotspotErrorHandler:
             handler.emit(record)
             handler.emit(record)
             
-            # Check that count increases
+            # Only one call should be made due to rate limiting
             calls = handler._report_to_botspot.call_args_list
-            assert len(calls) == 3
+            assert len(calls) == 1
             assert calls[0][0][4] == 1  # First call has count=1
-            assert calls[1][0][4] == 2  # Second call has count=2
-            assert calls[2][0][4] == 3  # Third call has count=3
+            
+            # Verify that the error count was tracked internally
+            error_key = ('TEST_ERROR', 'Duplicate error', 'File: test.py:10, Function: test_func')
+            assert handler._error_counts[error_key] == 3
     
     def test_rate_limit_window(self):
         """Test that same errors are rate limited within the time window."""

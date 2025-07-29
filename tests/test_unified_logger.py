@@ -148,17 +148,22 @@ class TestLoggerConfiguration:
     
     def test_set_log_level(self):
         """Test setting global log level."""
+        import os
+        from unittest.mock import patch
+        
         original_level = logging.getLogger("lumibot").level
         
-        try:
-            set_log_level('DEBUG')
-            assert logging.getLogger("lumibot").level == logging.DEBUG
-            
-            set_log_level('ERROR')
-            assert logging.getLogger("lumibot").level == logging.ERROR
-        finally:
-            # Restore original level
-            logging.getLogger("lumibot").setLevel(original_level)
+        # Clear any environment variables that might interfere with log level setting
+        with patch.dict(os.environ, {'BACKTESTING_QUIET_LOGS': '', 'LUMIBOT_LOG_LEVEL': ''}, clear=False):
+            try:
+                set_log_level('DEBUG')
+                assert logging.getLogger("lumibot").level == logging.DEBUG
+                
+                set_log_level('ERROR')
+                assert logging.getLogger("lumibot").level == logging.ERROR
+            finally:
+                # Restore original level
+                logging.getLogger("lumibot").setLevel(original_level)
     
     def test_invalid_log_level(self):
         """Test that invalid log level raises ValueError."""

@@ -515,6 +515,40 @@ def set_log_level(level: str):
         raise ValueError(f"Invalid log level: {level}. Must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 
 
+def set_console_log_level(level: str):
+    """
+    Set the log level for the console handler of the root logger.
+
+    This allows you to change the verbosity of console output without affecting
+    the global log level.
+
+    Parameters
+    ----------
+    level : str
+        The log level to set for console output ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL').
+
+    Examples
+    --------
+    >>> from lumibot.tools.lumibot_logger import set_console_log_level
+    >>> set_console_log_level('DEBUG')  # Enable debug logging in console
+    >>> set_console_log_level('ERROR')  # Only show errors and critical messages in console
+    """
+    _ensure_handlers_configured()
+
+    # Check both "root" and "lumibot" logger to ensure we get the correct root logger.
+    # Currently, "lumibot" is used in _ensure_handlers_configured() to set up the console handler, but "root" is
+    # used by the set_log_level() function.
+    for root_logger_name in ["root", "lumibot"]:
+        root_logger = logging.getLogger(root_logger_name)
+        for handler in root_logger.handlers:
+            if isinstance(handler, logging.StreamHandler) and handler.__class__.__name__ == "StreamHandler":
+                try:
+                    handler.setLevel(level)
+                except AttributeError:
+                    raise ValueError(f"Invalid log level: {level}. Must be one of: "
+                                     f"DEBUG, INFO, WARNING, ERROR, CRITICAL")
+
+
 def add_file_handler(file_path: str, level: str = 'INFO'):
     """
     Add a file handler to the root logger to also log to a file.
@@ -539,7 +573,7 @@ def add_file_handler(file_path: str, level: str = 'INFO'):
         raise ValueError(f"Invalid log level: {level}")
     
     # Create file handler
-    file_handler = logging.FileHandler(file_path)
+    file_handler = logging.FileHandler(file_path, mode='w', encoding='utf-8')
     file_handler.setLevel(file_level)
     file_handler.setFormatter(LumibotFormatter())
     

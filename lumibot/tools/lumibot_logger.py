@@ -249,7 +249,7 @@ class BotspotErrorHandler(logging.Handler):
         super().__init__(level=logging.WARNING)
         self.base_url = "https://api.botspot.trade/bots/report-bot-error"
         # Use LUMIWEALTH_API_KEY from credentials or environment
-        self.api_key = LUMIWEALTH_API_KEY
+        self.api_key = LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY")
         self._error_counts: Dict[Tuple[str, str, str], int] = {}
         self._last_sent_times: Dict[Tuple[str, str, str], float] = {}
         self._total_errors_sent = 0
@@ -617,7 +617,7 @@ def _ensure_handlers_configured():
             root_logger.addHandler(csv_handler)
         
         # Add Botspot error handler if API key is available
-        if LUMIWEALTH_API_KEY:
+        if LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY"):
             botspot_handler = BotspotErrorHandler()
             root_logger.addHandler(botspot_handler)
         # Keep propagation enabled for proper logging behavior

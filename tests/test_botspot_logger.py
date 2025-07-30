@@ -40,9 +40,10 @@ class TestBotspotErrorHandler:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            handler = BotspotErrorHandler()
-            assert handler.api_key == 'test-api-key'
-            assert handler.base_url == "https://api.botspot.trade/bots/report-bot-error"
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                assert handler.api_key == 'test-api-key'
+                assert handler.base_url == "https://api.botspot.trade/bots/report-bot-error"
     
     def test_log_level_to_severity_mapping(self):
         """Test mapping of log levels to Botspot severity."""
@@ -161,9 +162,10 @@ class TestBotspotErrorHandler:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            handler = BotspotErrorHandler()
-            handler.requests = MagicMock()
-            handler.requests.post = mock_post
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler.requests = MagicMock()
+                handler.requests.post = mock_post
             
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -211,8 +213,9 @@ class TestBotspotErrorHandler:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            handler = BotspotErrorHandler()
-            handler._report_to_botspot = MagicMock()
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler._report_to_botspot = MagicMock()
             
             record = logging.LogRecord(
                 name="test", level=logging.INFO, pathname="test.py",
@@ -230,8 +233,9 @@ class TestBotspotErrorHandler:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            handler = BotspotErrorHandler()
-            handler._report_to_botspot = MagicMock(return_value=True)
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler._report_to_botspot = MagicMock(return_value=True)
             
             # Create identical log records
             record = logging.LogRecord(
@@ -260,8 +264,9 @@ class TestBotspotErrorHandler:
             'LUMIWEALTH_API_KEY': 'test-api-key',
             'BOTSPOT_RATE_LIMIT_WINDOW': '2'  # 2 second window
         }):
-            handler = BotspotErrorHandler()
-            handler._report_to_botspot = MagicMock(return_value=True)
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler._report_to_botspot = MagicMock(return_value=True)
             
             # Create identical log records
             record = logging.LogRecord(
@@ -291,8 +296,9 @@ class TestBotspotErrorHandler:
             'LUMIWEALTH_API_KEY': 'test-api-key',
             'BOTSPOT_MAX_ERRORS_PER_MINUTE': '3'  # Only 3 errors per minute
         }):
-            handler = BotspotErrorHandler()
-            handler._report_to_botspot = MagicMock(return_value=True)
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler._report_to_botspot = MagicMock(return_value=True)
             
             # Send different errors to avoid per-error rate limiting
             for i in range(5):
@@ -312,8 +318,9 @@ class TestBotspotErrorHandler:
             'LUMIWEALTH_API_KEY': 'test-api-key',
             'BOTSPOT_MAX_ERRORS_PER_MINUTE': '2'
         }):
-            handler = BotspotErrorHandler()
-            handler._report_to_botspot = MagicMock(return_value=True)
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler._report_to_botspot = MagicMock(return_value=True)
             
             # Send 2 errors (hitting the limit)
             for i in range(2):
@@ -346,9 +353,10 @@ class TestBotspotErrorHandler:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            handler = BotspotErrorHandler()
-            handler.requests = MagicMock()
-            handler.requests.post = mock_post
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler.requests = MagicMock()
+                handler.requests.post = mock_post
             
             # Mock logger
             mock_logger = MagicMock()
@@ -381,9 +389,10 @@ class TestBotspotErrorHandler:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            handler = BotspotErrorHandler()
-            handler.requests = MagicMock()
-            handler.requests.post = mock_post
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                handler.requests = MagicMock()
+                handler.requests.post = mock_post
             
             # Mock logger
             mock_logger = MagicMock()
@@ -447,9 +456,10 @@ class TestBotspotIntegration:
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_post.return_value = mock_response
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_post.return_value = mock_response
             
             strategy_logger = get_strategy_logger(__name__, "TestStrategy")
             

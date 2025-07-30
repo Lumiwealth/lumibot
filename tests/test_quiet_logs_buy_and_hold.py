@@ -6,8 +6,12 @@ Test version of stock_buy_and_hold.py specifically for testing quiet logs functi
 # Test version - imports local lumibot for development
 
 import datetime as dt
+from dotenv import load_dotenv
+from pathlib import Path
 import pytz
 
+from lumibot.backtesting import BacktestingBroker
+from lumibot.traders import Trader
 from lumibot.strategies.strategy import Strategy
 from lumibot.credentials import ALPACA_TEST_CONFIG
 
@@ -19,7 +23,10 @@ class BuyAndHoldQuietLogsTest(Strategy):
 
     def initialize(self):
         # Set the sleep time to one day (the strategy will run once per day)
-        self.sleeptime = "1D"
+        self.sleeptime = "10M"
+
+    def after_market_closes(self):
+        self.log_message("Custom After Market Closes method called")
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
@@ -58,6 +65,7 @@ if __name__ == "__main__":
     os.environ["BACKTESTING_QUIET_LOGS"] = "true"
     
     from lumibot.backtesting import AlpacaBacktesting
+    from lumibot.backtesting import PolygonDataBacktesting
 
     if not ALPACA_TEST_CONFIG:
         print("This strategy requires an ALPACA_TEST_CONFIG config file to be set.")
@@ -70,9 +78,14 @@ if __name__ == "__main__":
         )
         exit()
 
+    secrets_path = Path(__file__).parent.parent / '.secrets'
+    if secrets_path.exists():
+        for secret_file in list(secrets_path.glob('*.env')) + list(secrets_path.glob('*.env.example')):
+            load_dotenv(secret_file)
+
     tzinfo = pytz.timezone('America/New_York')
-    backtesting_start = tzinfo.localize(dt.datetime(2023, 1, 1))
-    backtesting_end = tzinfo.localize(dt.datetime(2023, 1, 10))  # Short test period
+    backtesting_start = tzinfo.localize(dt.datetime(2025, 1, 6))
+    backtesting_end = tzinfo.localize(dt.datetime(2025, 1, 8))  # Short test period
     timestep = 'day'
     auto_adjust = True
     warm_up_trading_days = 0
@@ -85,29 +98,50 @@ if __name__ == "__main__":
     print(f"quiet_logs_enabled: {quiet_logs_enabled}")
     print(f"show_progress_bar: {show_progress_bar}")
 
-    results, strategy = BuyAndHoldQuietLogsTest.run_backtest(
-        datasource_class=AlpacaBacktesting,
-        backtesting_start=backtesting_start,
-        backtesting_end=backtesting_end,
-        minutes_before_closing=0,
-        benchmark_asset='SPY',
-        analyze_backtest=True,
+    # Execute Backtest | Polygon.io API Connection
+    POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+    data_source = PolygonDataBacktesting(
+        datetime_start=backtesting_start,
+        datetime_end=backtesting_end,
+        api_key=POLYGON_API_KEY,
+    )
+    broker = BacktestingBroker(data_source=data_source)
+    strategy = BuyAndHoldQuietLogsTest(
+        broker=broker,
+        sleeptime="5M",
+        budget=35000,  # Set a budget for the backtest
         parameters={
             "buy_symbol": "SPY",
         },
-        show_progress_bar=show_progress_bar,
-        show_tearsheet=False,
-        show_plot=False,
-        show_indicators=False,
-
-        # AlpacaBacktesting kwargs
-        timestep=timestep,
-        market='NYSE',
-        config=ALPACA_TEST_CONFIG,
-        refresh_cache=refresh_cache,
-        warm_up_trading_days=warm_up_trading_days,
-        auto_adjust=auto_adjust,
+        save_logfile=True,
     )
+    trader = Trader(logfile="./testing_quiet.log", backtest=True, quiet_logs=False)
+    trader.add_strategy(strategy)
+    results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+
+    # results, strategy = BuyAndHoldQuietLogsTest.run_backtest(
+    #     datasource_class=AlpacaBacktesting,
+    #     backtesting_start=backtesting_start,
+    #     backtesting_end=backtesting_end,
+    #     minutes_before_closing=0,
+    #     benchmark_asset='SPY',
+    #     analyze_backtest=True,
+    #     parameters={
+    #         "buy_symbol": "SPY",
+    #     },
+    #     show_progress_bar=show_progress_bar,
+    #     show_tearsheet=False,
+    #     show_plot=False,
+    #     show_indicators=False,
+    #
+    #     # AlpacaBacktesting kwargs
+    #     timestep=timestep,
+    #     market='NYSE',
+    #     config=ALPACA_TEST_CONFIG,
+    #     refresh_cache=refresh_cache,
+    #     warm_up_trading_days=warm_up_trading_days,
+    #     auto_adjust=auto_adjust,
+    # )
 
     print("Backtest completed successfully!")
     print(f"Results: {results}")

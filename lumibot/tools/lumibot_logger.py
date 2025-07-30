@@ -502,7 +502,8 @@ def set_log_level(level: str):
     """
     try:
         log_level = getattr(logging, level.upper())
-        root_logger = get_logger("root")
+        # Get the actual lumibot root logger (where handlers are configured)
+        root_logger = logging.getLogger("lumibot")
         root_logger.setLevel(log_level)
         
         # Also update all handlers to the new level

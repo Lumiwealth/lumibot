@@ -735,6 +735,7 @@ class Order:
                     side=self.side,
                     limit_price=self.limit_price,
                     order_type=Order.OrderType.LIMIT,
+                    quote=self.quote, 
                 )
                 stop_order = Order(
                     # Stop Type will be filled in automatically for child based on the Stop Modifiers
@@ -746,6 +747,7 @@ class Order:
                     stop_limit_price=self.stop_limit_price,
                     trail_price=self.trail_price,
                     trail_percent=self.trail_percent,
+                    quote=self.quote, 
                 )
                 # Set dependencies so that the two orders will cancel the other in BackTesting
                 limit_order.dependent_order = stop_order
@@ -780,6 +782,7 @@ class Order:
                             side=child_side,
                             limit_price=secondary_limit_price,
                             order_type=Order.OrderType.LIMIT,
+                            quote=self.quote, 
                         )
                     )
                 if secondary_stop_price is not None:
@@ -794,6 +797,7 @@ class Order:
                             stop_limit_price=secondary_stop_limit_price,
                             trail_price=secondary_trail_price,
                             trail_percent=secondary_trail_percent,
+                            quote=self.quote, 
                         )
                     )
 
@@ -830,6 +834,7 @@ class Order:
                             side=child_side,
                             limit_price=secondary_limit_price,
                             order_type=Order.OrderType.LIMIT,
+                            quote=self.quote, 
                         )
                     )
                 elif secondary_stop_price is not None:
@@ -844,6 +849,7 @@ class Order:
                             stop_limit_price=secondary_stop_limit_price,
                             trail_price=secondary_trail_price,
                             trail_percent=secondary_trail_percent,
+                            quote=self.quote, 
                         )
                     )
 

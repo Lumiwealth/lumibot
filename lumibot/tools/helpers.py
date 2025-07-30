@@ -333,10 +333,16 @@ def print_progress_bar(
     portfolio_value=None,
 ):
     # Respect BACKTESTING_QUIET_LOGS environment variable
-    import os
-    quiet_logs_enabled = os.environ.get("BACKTESTING_QUIET_LOGS", "").lower() == "true"
-    if quiet_logs_enabled:
-        return
+    try:
+        from lumibot.credentials import BACKTESTING_QUIET_LOGS
+        if BACKTESTING_QUIET_LOGS:
+            return
+    except ImportError:
+        # Fallback to environment variable if credentials not available
+        import os
+        quiet_logs_enabled = os.environ.get("BACKTESTING_QUIET_LOGS", "").lower() == "true"
+        if quiet_logs_enabled:
+            return
     total_length = end_value - start_value
     current_length = value - start_value
     percent = min((current_length / total_length) * 100, 100)

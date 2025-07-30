@@ -31,11 +31,11 @@ class TestProjectXURLMappings:
         # TopStepX uses different pattern
         assert PROJECTX_BASE_URLS["topstepx"] == "https://api.topstepx.com/"
         
-        # Other firms use gateway pattern
-        assert "gateway-api-" in PROJECTX_BASE_URLS["topone"]
-        assert "s2f.projectx.com" in PROJECTX_BASE_URLS["topone"]
+        # Other firms use new api.*.projectx.com pattern
+        assert "api.toponefutures.projectx.com" in PROJECTX_BASE_URLS["topone"]
+        assert "projectx.com" in PROJECTX_BASE_URLS["topone"]
         
-        # Streaming URLs use gateway-rtc pattern
+        # Streaming URLs still use gateway-rtc pattern
         assert "gateway-rtc-" in PROJECTX_STREAMING_URLS["topone"]
         assert "s2f.projectx.com" in PROJECTX_STREAMING_URLS["topone"]
     
@@ -136,7 +136,7 @@ class TestProjectXBrokerValidation:
             "firm": "TOPONE",
             "api_key": "test_key",
             "username": "test_user",
-            "base_url": "https://gateway-api-toponefutures.s2f.projectx.com/",
+            "base_url": "https://api.toponefutures.projectx.com/",
             "preferred_account_name": "test_account"
         }
 
@@ -188,7 +188,7 @@ class TestProjectXBrokerValidation:
             assert config['api_key'] == 'test_topone_key'
             assert config['username'] == 'test_topone_user'
             assert config['preferred_account_name'] == 'test_account'
-            assert config['base_url'] == 'https://gateway-api-toponefutures.s2f.projectx.com/'
+            assert config['base_url'] == 'https://api.toponefutures.projectx.com/'
             assert config['streaming_base_url'] == 'https://gateway-rtc-demo.s2f.projectx.com/'
     
     def test_no_legacy_firm_names_in_mappings(self):
@@ -203,10 +203,10 @@ class TestProjectXBrokerValidation:
         assert 'topone' in PROJECTX_BASE_URLS
         assert 'topone' in PROJECTX_STREAMING_URLS
         
-        # Ensure all mappings use the v2 gateway pattern
+        # Ensure all mappings use the new api.*.projectx.com pattern (except demo)
         for firm, url in PROJECTX_BASE_URLS.items():
-            if firm != 'topstepx':  # topstepx has different URL pattern
-                assert 'gateway-api-' in url or 's2f.projectx.com' in url
+            if firm not in ['topstepx', 'demo']:  # topstepx and demo have different URL patterns
+                assert 'api.' in url and 'projectx.com' in url
         
         for firm, url in PROJECTX_STREAMING_URLS.items():
             if firm != 'topstepx':  # topstepx has different URL pattern  

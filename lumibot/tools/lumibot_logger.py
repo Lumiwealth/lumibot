@@ -314,10 +314,16 @@ class StrategyLoggerAdapter(logging.LoggerAdapter):
     
     def isEnabledFor(self, level):
         """Override to respect BACKTESTING_QUIET_LOGS for strategy loggers"""
-        # Check if we're in quiet logs mode
-        quiet_logs = os.environ.get("BACKTESTING_QUIET_LOGS", "").lower() == "true"
-        if quiet_logs and level < logging.ERROR:
-            return False
+        # BACKTESTING_QUIET_LOGS only applies during backtesting, not live trading
+        is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
+        
+        if is_backtesting:
+            # During backtesting, check quiet logs setting
+            quiet_logs = os.environ.get("BACKTESTING_QUIET_LOGS", "true").lower() == "true"  # Default to True
+            if quiet_logs and level < logging.ERROR:
+                return False
+        
+        # For live trading, always show messages
         return self.logger.isEnabledFor(level)
     
     def info(self, msg, *args, **kwargs):
@@ -388,14 +394,25 @@ def _ensure_handlers_configured():
         except AttributeError:
             log_level = logging.INFO
 
-        # Handle BACKTESTING_QUIET_LOGS environment variable
-        backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
-        if backtesting_quiet and backtesting_quiet.lower() == "true":
-            # When quiet logs are enabled, only show ERROR and CRITICAL messages
-            log_level = logging.ERROR
-            console_handler.setLevel(logging.ERROR)
+        # Handle console output based on mode
+        is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
+        
+        if is_backtesting:
+            # During backtesting, check BACKTESTING_QUIET_LOGS setting
+            backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
+            if backtesting_quiet is None:
+                # Default to quiet logs for backtesting
+                backtesting_quiet = "true"
+            
+            if backtesting_quiet.lower() == "true":
+                # Quiet logs: only show ERROR+ messages
+                log_level = logging.ERROR
+                console_handler.setLevel(logging.ERROR)
+            else:
+                # Verbose logs: show INFO+ messages
+                console_handler.setLevel(log_level)
         else:
-            # Set console handler to same level as logger
+            # Live trading: always show console messages
             console_handler.setLevel(log_level)
         
         root_logger.setLevel(log_level)

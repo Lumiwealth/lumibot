@@ -151,7 +151,7 @@ if _btl is not None:
         logger.warning(colored_message)
         BACKTESTING_QUIET_LOGS = None
 else:
-    BACKTESTING_QUIET_LOGS = None
+    BACKTESTING_QUIET_LOGS = True  # Default to quiet logs for better performance
 
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")

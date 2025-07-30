@@ -54,6 +54,7 @@ def clean_environment():
 def test_quiet_logs_buy_and_hold_integration(clean_environment):
     """Integration test for Buy and Hold strategy with quiet logs"""
     os.environ["BACKTESTING_QUIET_LOGS"] = "true"
+    os.environ["IS_BACKTESTING"] = "true"  # Set backtesting mode
     
     # Force reload to pick up environment variable
     import importlib

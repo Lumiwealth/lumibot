@@ -52,6 +52,7 @@ def test_progress_bar_always_shows_with_quiet_logs(clean_environment):
 def test_strategy_logger_respects_quiet_logs(clean_environment):
     """Test that strategy logger respects BACKTESTING_QUIET_LOGS setting"""
     os.environ["BACKTESTING_QUIET_LOGS"] = "true"
+    os.environ["IS_BACKTESTING"] = "true"  # Set backtesting mode
     
     # Force reload to pick up environment variable
     import importlib

@@ -57,13 +57,13 @@ def test_file_handler_uses_lumibot_formatter():
 
 def test_quiet_logs_functionality():
     """Test that quiet logs work correctly through BACKTESTING_QUIET_LOGS env var and Trader"""
-    # Test via environment variable
-    with patch.dict(os.environ, {'BACKTESTING_QUIET_LOGS': 'true'}):
+    # Test via environment variable during backtesting
+    with patch.dict(os.environ, {'BACKTESTING_QUIET_LOGS': 'true', 'IS_BACKTESTING': 'true'}):
         # Reset logger state to pick up environment variable
         lumibot_logger._handlers_configured = False
         lumibot_logger._ensure_handlers_configured()
         
-        # Check that the global log level is set to ERROR
+        # Check that the global log level is set to ERROR during backtesting
         root_logger = logging.getLogger("lumibot")
         assert root_logger.level == logging.ERROR
         
@@ -76,9 +76,11 @@ def test_trader_quiet_logs_integration():
     """Test that Trader's quiet_logs parameter integrates with unified logger"""
     from lumibot.traders.trader import Trader
     
-    # Create trader with quiet_logs=True
-    trader = Trader(quiet_logs=True, backtest=True)
-    
-    # The trader's _set_logger should have called set_log_level("ERROR")
-    root_logger = logging.getLogger("lumibot")
-    assert root_logger.level == logging.ERROR
+    # Set environment to simulate backtesting
+    with patch.dict(os.environ, {'IS_BACKTESTING': 'true'}):
+        # Create trader with quiet_logs=True
+        trader = Trader(quiet_logs=True, backtest=True)
+        
+        # The trader's _set_logger should have called set_log_level("ERROR")
+        root_logger = logging.getLogger("lumibot")
+        assert root_logger.level == logging.ERROR

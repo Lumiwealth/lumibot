@@ -312,6 +312,29 @@ class StrategyLoggerAdapter(logging.LoggerAdapter):
         # Add strategy name prefix to all messages
         return f"[{self.strategy_name}] {msg}", kwargs
     
+    def isEnabledFor(self, level):
+        """Override to respect BACKTESTING_QUIET_LOGS for strategy loggers"""
+        # Check if we're in quiet logs mode
+        quiet_logs = os.environ.get("BACKTESTING_QUIET_LOGS", "").lower() == "true"
+        if quiet_logs and level < logging.ERROR:
+            return False
+        return self.logger.isEnabledFor(level)
+    
+    def info(self, msg, *args, **kwargs):
+        """Override info to respect quiet logs"""
+        if self.isEnabledFor(logging.INFO):
+            super().info(msg, *args, **kwargs)
+    
+    def debug(self, msg, *args, **kwargs):
+        """Override debug to respect quiet logs"""
+        if self.isEnabledFor(logging.DEBUG):
+            super().debug(msg, *args, **kwargs)
+    
+    def warning(self, msg, *args, **kwargs):
+        """Override warning to respect quiet logs"""
+        if self.isEnabledFor(logging.WARNING):
+            super().warning(msg, *args, **kwargs)
+    
     def update_strategy_name(self, new_strategy_name: str):
         """Update the strategy name for this logger adapter."""
         self.strategy_name = new_strategy_name

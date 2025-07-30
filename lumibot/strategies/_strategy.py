@@ -271,11 +271,8 @@ class _Strategy:
         if not hasattr(self, "logger") or self.logger is None:
             self.logger = get_strategy_logger(__name__, self._name)
 
-        # Set the log level to INFO so that all logs INFO and above are displayed
-        # But respect BACKTESTING_QUIET_LOGS setting - don't override quiet logs
-        from lumibot.credentials import BACKTESTING_QUIET_LOGS
-        if not (BACKTESTING_QUIET_LOGS and hasattr(self, 'is_backtesting') and self.is_backtesting):
-            self.logger.setLevel(logging.INFO)
+        # Don't set log level here - let the logger hierarchy and quiet logs setting handle it
+        # The StrategyLoggerAdapter will check BACKTESTING_QUIET_LOGS in its methods
         
         # Track which assets we've logged "Getting historical prices" for to reduce noise
         self._logged_get_historical_prices_assets = set()

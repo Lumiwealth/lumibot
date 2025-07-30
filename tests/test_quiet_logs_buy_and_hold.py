@@ -115,7 +115,7 @@ if __name__ == "__main__":
         },
         save_logfile=True,
     )
-    trader = Trader(logfile="./testing_quiet.log", backtest=True, quiet_logs=False)
+    trader = Trader(logfile="./testing_quiet.log", backtest=True, quiet_logs=True)
     trader.add_strategy(strategy)
     results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
 

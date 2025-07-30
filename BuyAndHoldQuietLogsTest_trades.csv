@@ -1,0 +1,3 @@
+time,strategy,identifier,symbol,side,type,status,multiplier,time_in_force,asset.strike,asset.multiplier,asset.asset_type,price,filled_quantity,trade_cost
+2025-01-06 09:30:00-05:00,BuyAndHoldQuietLogsTest,7ff299a6f8db4944bae9375a7bfb562f,SPY,buy,market,new,1,gtc,0.0,1,stock,,,
+2025-01-06 09:30:00-05:00,BuyAndHoldQuietLogsTest,7ff299a6f8db4944bae9375a7bfb562f,SPY,buy,market,fill,1,gtc,0.0,1,stock,596.27,58.0,0.0

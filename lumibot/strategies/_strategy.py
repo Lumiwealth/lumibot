@@ -41,6 +41,7 @@ from ..credentials import (
     STRATEGY_NAME, 
     BROKER,
     DATA_SOURCE,
+    IS_BACKTESTING,
     POLYGON_API_KEY, 
     DISCORD_WEBHOOK_URL, 
     DB_CONNECTION_STR,
@@ -328,12 +329,30 @@ class _Strategy:
         else:
             self.strategy_id = strategy_id
 
-        self._quote_asset = quote_asset if self.broker.name != "bitunix" else Asset("USDT", Asset.AssetType.CRYPTO)
-
-        # Check if self.broker is set
+        # Check if self.broker is set before accessing its attributes
         if self.broker is None:
-            self.logger.error(colored("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.", "red"))
-            raise ValueError("No broker is set. Please set a broker using environment variables, secrets or by passing it as an argument.")
+            error_message = (
+                "No broker is set. This typically happens when:\n"
+                "1. IS_BACKTESTING is not set to 'true' (so it defaults to live trading)\n"
+                "2. No broker credentials are configured in your environment variables\n\n"
+                "To fix this, you need to:\n"
+                "1. Create a .env file in your project root directory\n"
+                "2. Set IS_BACKTESTING=true for backtesting, OR\n"
+                "3. Configure a broker by setting the appropriate environment variables\n\n"
+                "For example, add to your .env file:\n"
+                "IS_BACKTESTING=true\n"
+                "BACKTESTING_START=2023-01-01\n"
+                "BACKTESTING_END=2023-12-31\n\n"
+                "OR for live trading, set broker credentials like:\n"
+                "ALPACA_API_KEY=your_api_key\n"
+                "ALPACA_API_SECRET=your_api_secret\n"
+                "ALPACA_IS_PAPER=true\n\n"
+                "For more information, see: http://lumibot.lumiwealth.com/deployment.html#secrets-configuration"
+            )
+            self.logger.error(colored(error_message, "red"))
+            raise ValueError(error_message)
+
+        self._quote_asset = quote_asset if self.broker.name != "bitunix" else Asset("USDT", Asset.AssetType.CRYPTO)
 
         # Check if the quote_assets exists on the broker
         if not hasattr(self.broker, "quote_assets"):

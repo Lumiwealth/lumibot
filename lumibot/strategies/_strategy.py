@@ -272,7 +272,7 @@ class _Strategy:
             self.logger = get_strategy_logger(__name__, self._name)
 
         # Set the log level to INFO so that all logs INFO and above are displayed
-        self.logger.setLevel(logging.INFO)
+        # self.logger.setLevel(logging.INFO)
         
         # Track which assets we've logged "Getting historical prices" for to reduce noise
         self._logged_get_historical_prices_assets = set()
@@ -808,7 +808,7 @@ class _Strategy:
 
     def _dump_stats(self):
         logger = get_logger(__name__)
-        current_level = logging.getLevelName(logger.level)
+        current_level = logger.level  # Save INTEGER directly
         for handler in logger.handlers:
             if handler.__class__.__name__ == "StreamHandler":
                 current_stream_handler_level = handler.level

@@ -869,7 +869,8 @@ class StrategyExecutor(Thread):
         # Create a dictionary to define the cron trigger based on the units of time.
         kwargs = {}
         if units in "Ss":
-            kwargs["second"] = "*"
+            kwargs["second"] = f"*/{time_raw}"
+            self.cron_count_target = 1
         elif units in "MmTt":
             kwargs["minute"] = "*"
         elif units in "Hh":
@@ -1124,6 +1125,7 @@ class StrategyExecutor(Thread):
                 id="OTIM",
                 name="On Trading Iteration Main Thread",
                 jobstore="On_Trading_Iteration",
+                max_instances=2 if "S" in self.strategy.sleeptime or "s" in self.strategy.sleeptime else 1,
             )
 
             # Set the cron count to the cron count target so that the on_trading_iteration method will be executed

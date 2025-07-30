@@ -31,7 +31,8 @@ def test_print_progress_bar_respects_quiet_logs():
         assert "Portfolio Val:" in output
         assert "50.00%" in output
     
-    # Test 2: With BACKTESTING_QUIET_LOGS=true (should NOT print)
+    # Test 2: With BACKTESTING_QUIET_LOGS=true (progress bar should STILL print)
+    # Progress bar ALWAYS shows, even with quiet logs - this is the only output users want to see
     with patch.dict(os.environ, {"BACKTESTING_QUIET_LOGS": "true"}):
         captured_output = StringIO()
         print_progress_bar(
@@ -44,7 +45,8 @@ def test_print_progress_bar_respects_quiet_logs():
             portfolio_value=100000.0
         )
         output = captured_output.getvalue()
-        assert output == ""  # Should be empty
+        assert "Test Silent" in output  # Progress bar should show even with quiet logs
+        assert "50.00%" in output
     
     # Test 3: With BACKTESTING_QUIET_LOGS=false (should print)
     with patch.dict(os.environ, {"BACKTESTING_QUIET_LOGS": "false"}):
@@ -145,10 +147,11 @@ def test_environment_variable_variations():
             )
             output = captured_output.getvalue()
             
-            if should_be_quiet:
-                assert output == "", f"Expected quiet logs for '{env_value}', but got output: {output}"
-            else:
-                assert output != "", f"Expected output for '{env_value}', but got no output"
+            # Progress bar should ALWAYS show, regardless of quiet logs setting
+            # This is the only output users want to see during quiet backtesting
+            assert output != "", f"Progress bar should always show for '{env_value}', but got no output"
+            assert f"Test {env_value}" in output, f"Progress bar should contain prefix for '{env_value}'"
+            assert "50.00%" in output, f"Progress bar should show percentage for '{env_value}'"
 
 
 if __name__ == "__main__":

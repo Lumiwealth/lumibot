@@ -30,20 +30,18 @@ class TestBotspotErrorHandler:
     def test_handler_initialization_without_api_key(self):
         """Test handler initialization when API key is not set."""
         with patch.dict(os.environ, {}, clear=True):
-            handler = BotspotErrorHandler()
-            assert handler.api_key is None
-            assert handler.bot_id is None
-            assert handler.requests is None
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                handler = BotspotErrorHandler()
+                assert handler.api_key is None
+                assert handler.requests is None
     
     def test_handler_initialization_with_api_key(self):
         """Test handler initialization when API key is set."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id'
+            'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
             handler = BotspotErrorHandler()
             assert handler.api_key == 'test-api-key'
-            assert handler.bot_id == 'test-bot-id'
             assert handler.base_url == "https://api.botspot.trade/bots/report-bot-error"
     
     def test_log_level_to_severity_mapping(self):
@@ -85,7 +83,7 @@ class TestBotspotErrorHandler:
         
         error_code, message, details = handler._extract_error_info(record)
         
-        assert error_code == "_MYSTRATEGY_ERROR"
+        assert error_code == "MYSTRATEGY_ERROR"
         assert message == "[MyStrategy] Strategy error occurred"
         assert "File: test.py:10" in details
     
@@ -106,12 +104,62 @@ class TestBotspotErrorHandler:
         assert "Additional context here" in details
         assert "File: test.py:10" in details
     
+    def test_extract_error_info_strategy_with_structured_format(self):
+        """Test error info extraction with both strategy prefix and structured format."""
+        handler = BotspotErrorHandler()
+        
+        record = logging.LogRecord(
+            name="test.module", level=logging.ERROR, pathname="test.py",
+            lineno=10, msg="[MyStrategy] CUSTOM_ERROR: Something went wrong | Additional context",
+            args=(), exc_info=None, func="test_func"
+        )
+        
+        error_code, message, details = handler._extract_error_info(record)
+        
+        # Should extract CUSTOM_ERROR, not include the strategy prefix in error code
+        assert error_code == "CUSTOM_ERROR"
+        assert message == "[MyStrategy] Something went wrong"
+        assert "Additional context" in details
+        assert "File: test.py:10" in details
+    
+    def test_extract_error_info_strategy_name_in_message(self):
+        """Test that strategy name in message content doesn't prevent prefix re-addition."""
+        handler = BotspotErrorHandler()
+        
+        record = logging.LogRecord(
+            name="test.module", level=logging.ERROR, pathname="test.py",
+            lineno=10, msg="[MyStrategy] Failed to process MyStrategy configuration",
+            args=(), exc_info=None, func="test_func"
+        )
+        
+        error_code, message, details = handler._extract_error_info(record)
+        
+        assert error_code == "MYSTRATEGY_ERROR"
+        # Strategy prefix should be present exactly once
+        assert message == "[MyStrategy] Failed to process MyStrategy configuration"
+        assert message.count("[MyStrategy]") == 1
+    
+    def test_extract_error_info_no_double_spacing(self):
+        """Test that removing and re-adding strategy prefix doesn't create double spaces."""
+        handler = BotspotErrorHandler()
+        
+        record = logging.LogRecord(
+            name="test.module", level=logging.ERROR, pathname="test.py",
+            lineno=10, msg="[MyStrategy]  Double space after prefix", args=(), exc_info=None,
+            func="test_func"
+        )
+        
+        error_code, message, details = handler._extract_error_info(record)
+        
+        # Should not have double spaces
+        assert message == "[MyStrategy] Double space after prefix"
+        assert "  " not in message
+    
     @patch('requests.post')
     def test_report_to_botspot_success(self, mock_post):
         """Test successful API call to Botspot."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id'
+            'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
             handler = BotspotErrorHandler()
             handler.requests = MagicMock()
@@ -137,7 +185,7 @@ class TestBotspotErrorHandler:
             
             assert args[0] == handler.base_url
             assert kwargs['headers']['x-api-key'] == 'test-api-key'
-            assert kwargs['json']['bot_id'] == 'test-bot-id'
+            assert 'bot_id' not in kwargs['json']  # bot_id should not be sent
             assert kwargs['json']['severity'] == 'CRITICAL'
             assert kwargs['json']['error_code'] == 'TEST_ERROR'
             assert kwargs['json']['message'] == 'Test message'
@@ -161,8 +209,7 @@ class TestBotspotErrorHandler:
     def test_emit_below_warning_level(self):
         """Test that emit ignores messages below WARNING level."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id'
+            'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
             handler = BotspotErrorHandler()
             handler._report_to_botspot = MagicMock()
@@ -181,8 +228,7 @@ class TestBotspotErrorHandler:
     def test_error_counting(self):
         """Test that duplicate errors are counted but rate limited."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id'
+            'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
             handler = BotspotErrorHandler()
             handler._report_to_botspot = MagicMock(return_value=True)
@@ -211,8 +257,7 @@ class TestBotspotErrorHandler:
     def test_rate_limit_window(self):
         """Test that same errors are rate limited within the time window."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id',
+            'LUMIWEALTH_API_KEY': 'test-api-key',
             'BOTSPOT_RATE_LIMIT_WINDOW': '2'  # 2 second window
         }):
             handler = BotspotErrorHandler()
@@ -243,8 +288,7 @@ class TestBotspotErrorHandler:
     def test_max_errors_per_minute(self):
         """Test that total errors per minute are limited."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id',
+            'LUMIWEALTH_API_KEY': 'test-api-key',
             'BOTSPOT_MAX_ERRORS_PER_MINUTE': '3'  # Only 3 errors per minute
         }):
             handler = BotspotErrorHandler()
@@ -265,8 +309,7 @@ class TestBotspotErrorHandler:
     def test_rate_limit_counter_reset(self):
         """Test that the per-minute counter resets after 60 seconds."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id',
+            'LUMIWEALTH_API_KEY': 'test-api-key',
             'BOTSPOT_MAX_ERRORS_PER_MINUTE': '2'
         }):
             handler = BotspotErrorHandler()
@@ -295,6 +338,73 @@ class TestBotspotErrorHandler:
             handler.emit(record)
             
             assert handler._report_to_botspot.call_count == 3
+    
+    @patch('logging.getLogger')
+    @patch('requests.post')
+    def test_api_error_uses_logging_not_print(self, mock_post, mock_get_logger):
+        """Test that API errors are logged using logger, not print()."""
+        with patch.dict(os.environ, {
+            'LUMIWEALTH_API_KEY': 'test-api-key'
+        }):
+            handler = BotspotErrorHandler()
+            handler.requests = MagicMock()
+            handler.requests.post = mock_post
+            
+            # Mock logger
+            mock_logger = MagicMock()
+            mock_get_logger.return_value = mock_logger
+            
+            # Simulate API error
+            mock_response = MagicMock()
+            mock_response.status_code = 500
+            mock_response.text = "Internal Server Error"
+            mock_post.return_value = mock_response
+            
+            result = handler._report_to_botspot(
+                BotspotSeverity.CRITICAL,
+                "TEST_ERROR",
+                "Test message",
+                "Test details",
+                1
+            )
+            
+            assert result is False
+            
+            # Verify logger.debug was called, not print()
+            mock_logger.debug.assert_called_once()
+            assert "Botspot API error: 500" in mock_logger.debug.call_args[0][0]
+    
+    @patch('logging.getLogger')
+    @patch('requests.post')
+    def test_api_exception_uses_logging_not_print(self, mock_post, mock_get_logger):
+        """Test that API exceptions are logged using logger, not print()."""
+        with patch.dict(os.environ, {
+            'LUMIWEALTH_API_KEY': 'test-api-key'
+        }):
+            handler = BotspotErrorHandler()
+            handler.requests = MagicMock()
+            handler.requests.post = mock_post
+            
+            # Mock logger
+            mock_logger = MagicMock()
+            mock_get_logger.return_value = mock_logger
+            
+            # Simulate exception
+            mock_post.side_effect = Exception("Connection timeout")
+            
+            result = handler._report_to_botspot(
+                BotspotSeverity.CRITICAL,
+                "TEST_ERROR",
+                "Test message",
+                "Test details",
+                1
+            )
+            
+            assert result is False
+            
+            # Verify logger.debug was called for the exception
+            mock_logger.debug.assert_called_once()
+            assert "Botspot API exception: Connection timeout" in mock_logger.debug.call_args[0][0]
 
 
 class TestBotspotIntegration:
@@ -310,16 +420,16 @@ class TestBotspotIntegration:
     def test_handler_added_when_api_key_set(self):
         """Test that Botspot handler is added when API key is set."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id'
+            'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
-            logger = get_logger(__name__)
-            
-            # Check that a BotspotErrorHandler was added to the root lumibot logger
-            root_logger = logging.getLogger("lumibot")
-            botspot_handlers = [h for h in root_logger.handlers 
-                              if isinstance(h, BotspotErrorHandler)]
-            assert len(botspot_handlers) > 0
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', 'test-api-key'):
+                logger = get_logger(__name__)
+                
+                # Check that a BotspotErrorHandler was added to the root lumibot logger
+                root_logger = logging.getLogger("lumibot")
+                botspot_handlers = [h for h in root_logger.handlers 
+                                  if isinstance(h, BotspotErrorHandler)]
+                assert len(botspot_handlers) > 0
     
     def test_handler_not_added_without_api_key(self):
         """Test that Botspot handler is not added without API key."""
@@ -335,8 +445,7 @@ class TestBotspotIntegration:
     def test_strategy_logger_integration(self, mock_post):
         """Test that strategy logger errors are properly reported to Botspot."""
         with patch.dict(os.environ, {
-            'BOTSPOT_ERROR_API_KEY': 'test-api-key',
-            'BOT_ID': 'test-bot-id'
+            'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -353,7 +462,7 @@ class TestBotspotIntegration:
             
             # Check that strategy name is in the message
             assert "[TestStrategy]" in kwargs['json']['message']
-            assert kwargs['json']['error_code'] == "_TESTSTRATEGY_ERROR"
+            assert kwargs['json']['error_code'] == "TESTSTRATEGY_ERROR"
 
 
 if __name__ == "__main__":

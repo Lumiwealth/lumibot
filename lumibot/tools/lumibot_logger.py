@@ -19,8 +19,7 @@ Environment Variables (all handled centrally in this module):
 - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
 - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
 - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false) - only shows ERROR+ messages
-- BOTSPOT_ERROR_API_KEY: API key for Botspot error reporting (when set, enables automatic error reporting)
-- BOT_ID: Bot ID for Botspot error reporting (required when BOTSPOT_ERROR_API_KEY is set)
+- LUMIWEALTH_API_KEY: API key for Lumiwealth/Botspot error reporting (when set, enables automatic error reporting)
 - BOTSPOT_RATE_LIMIT_WINDOW: Rate limit window in seconds (default: 60) - same errors are only sent once per window
 - BOTSPOT_MAX_ERRORS_PER_MINUTE: Maximum total errors sent per minute (default: 100)
 
@@ -54,6 +53,12 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional
 from functools import lru_cache
 from enum import Enum
+
+# Import LUMIWEALTH_API_KEY from credentials
+try:
+    from ..credentials import LUMIWEALTH_API_KEY
+except ImportError:
+    LUMIWEALTH_API_KEY = None
 
 class CSVErrorHandler(logging.Handler):
     """
@@ -233,7 +238,7 @@ class BotspotSeverity(Enum):
 class BotspotErrorHandler(logging.Handler):
     """
     Handler that reports errors to Botspot API endpoint.
-    Only active when BOTSPOT_ERROR_API_KEY environment variable is set.
+    Only active when LUMIWEALTH_API_KEY is available.
     
     Includes rate limiting to prevent excessive API calls:
     - Same errors are only sent once per time window (default: 60 seconds)
@@ -243,8 +248,8 @@ class BotspotErrorHandler(logging.Handler):
     def __init__(self):
         super().__init__(level=logging.WARNING)
         self.base_url = "https://api.botspot.trade/bots/report-bot-error"
-        self.api_key = os.environ.get("BOTSPOT_ERROR_API_KEY")
-        self.bot_id = os.environ.get("BOT_ID")
+        # Use LUMIWEALTH_API_KEY from credentials or environment
+        self.api_key = LUMIWEALTH_API_KEY
         self._error_counts: Dict[Tuple[str, str, str], int] = {}
         self._last_sent_times: Dict[Tuple[str, str, str], float] = {}
         self._total_errors_sent = 0
@@ -283,7 +288,16 @@ class BotspotErrorHandler(logging.Handler):
     
     def _extract_error_info(self, record: logging.LogRecord) -> Tuple[str, str, str]:
         """Extract error code, message, and details from log record."""
-        message = record.getMessage()
+        original_message = record.getMessage()
+        
+        # First, extract strategy name if present
+        strategy_name = ""
+        message = original_message
+        if message.startswith("[") and "]" in message:
+            end_bracket = message.index("]")
+            strategy_name = message[1:end_bracket]
+            # Remove strategy prefix temporarily for parsing
+            message = message[end_bracket + 1:].strip()
         
         # Try to extract structured error code if message has format "ERROR_CODE: message | details"
         error_code = ""
@@ -301,19 +315,11 @@ class BotspotErrorHandler(logging.Handler):
                     message = msg_part.strip()
                     details = details_part.strip()
         
-        # Check if message has [StrategyName] prefix
-        strategy_name = ""
-        if message.startswith("[") and "]" in message:
-            end_bracket = message.index("]")
-            strategy_name = message[1:end_bracket]
-            # Update message to remove strategy prefix for cleaner error message
-            message = message[end_bracket + 1:].strip()
-        
         # Fallback: create error code from logger name and strategy
         if not error_code:
             logger_name = record.name.split('.')[-1].upper()
             if strategy_name:
-                error_code = f"_{strategy_name.upper()}_ERROR"
+                error_code = f"{strategy_name.upper()}_ERROR"
             else:
                 error_code = f"{logger_name}_{record.levelname}"
         
@@ -325,8 +331,8 @@ class BotspotErrorHandler(logging.Handler):
             else:
                 details = file_info
         
-        # If we have a strategy name, prepend it to the message
-        if strategy_name and strategy_name not in message:
+        # Always include strategy name in message if it was present originally
+        if strategy_name:
             message = f"[{strategy_name}] {message}"
         
         return error_code, message, details
@@ -334,7 +340,7 @@ class BotspotErrorHandler(logging.Handler):
     def _report_to_botspot(self, severity: BotspotSeverity, error_code: str, 
                           message: str, details: str, count: int) -> bool:
         """Send error report to Botspot API."""
-        if not self.api_key or not self.bot_id or not self.requests:
+        if not self.api_key or not self.requests:
             return False
         
         headers = {
@@ -342,7 +348,6 @@ class BotspotErrorHandler(logging.Handler):
             "x-api-key": self.api_key
         }
         payload = {
-            "bot_id": self.bot_id,
             "severity": severity.value,
             "error_code": error_code,
             "message": message,
@@ -364,14 +369,16 @@ class BotspotErrorHandler(logging.Handler):
             )
             
             if response.status_code != 200:
-                print(f"Botspot API error: {response.status_code} - {response.text}")
+                # Log API errors using the logger module itself
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Botspot API error: {response.status_code} - {response.text}")
             
             return response.status_code == 200
             
         except Exception as e:
-            # Silently fail - don't let API errors break the application
-            print(e)
-
+            # Log exceptions using the logger module itself
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Botspot API exception: {e}")
             return False
     
     def _check_rate_limits(self, error_key: Tuple[str, str, str]) -> bool:
@@ -401,7 +408,7 @@ class BotspotErrorHandler(logging.Handler):
     
     def emit(self, record):
         """Handle a log record by reporting to Botspot API."""
-        if not self.api_key or not self.bot_id:
+        if not self.api_key:
             return
         if record.levelno < logging.WARNING:
             return
@@ -556,8 +563,7 @@ def _ensure_handlers_configured():
     - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
     - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
     - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false)
-    - BOTSPOT_ERROR_API_KEY: API key for Botspot error reporting (when set, enables automatic error reporting)
-    - BOT_ID: Bot ID for Botspot error reporting (required when BOTSPOT_ERROR_API_KEY is set)
+    - LUMIWEALTH_API_KEY: API key for Lumiwealth/Botspot error reporting (when set, enables automatic error reporting)
     """
     global _handlers_configured
     
@@ -610,9 +616,8 @@ def _ensure_handlers_configured():
             csv_handler = CSVErrorHandler(csv_path)
             root_logger.addHandler(csv_handler)
         
-        # Add Botspot error handler if API key is set
-        botspot_api_key = os.environ.get("BOTSPOT_ERROR_API_KEY")
-        if botspot_api_key:
+        # Add Botspot error handler if API key is available
+        if LUMIWEALTH_API_KEY:
             botspot_handler = BotspotErrorHandler()
             root_logger.addHandler(botspot_handler)
         # Keep propagation enabled for proper logging behavior

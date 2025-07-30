@@ -2,16 +2,14 @@
 Example demonstrating Botspot error reporting integration with Lumibot logger.
 
 This example shows how errors logged through the unified logger are automatically
-reported to the Botspot API when the BOTSPOT_ERROR_API_KEY environment variable is set.
+reported to the Botspot API when the LUMIWEALTH_API_KEY is available.
 
 To enable Botspot error reporting:
-1. Set BOTSPOT_ERROR_API_KEY environment variable with your API key
-2. Set BOT_ID environment variable with your bot ID
-3. Use the standard Lumibot logger for all logging
+1. Set LUMIWEALTH_API_KEY environment variable with your API key (or have it in your .env file)
+2. Use the standard Lumibot logger for all logging
 
 Example:
-    export BOTSPOT_ERROR_API_KEY="your-api-key-here"
-    export BOT_ID="your-bot-id-here"
+    export LUMIWEALTH_API_KEY="your-api-key-here"
     python botspot_error_reporting_example.py
 """
 
@@ -82,12 +80,13 @@ def main():
     print("=" * 50)
     
     # Check if Botspot is configured
-    if os.environ.get("BOTSPOT_ERROR_API_KEY"):
+    from lumibot.credentials import LUMIWEALTH_API_KEY
+    if LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY"):
         print("✅ Botspot error reporting is ENABLED")
-        print(f"   Bot ID: {os.environ.get('BOT_ID', 'NOT SET')}")
+        print("   Bot ID is handled automatically by the API")
     else:
         print("❌ Botspot error reporting is DISABLED")
-        print("   Set BOTSPOT_ERROR_API_KEY to enable")
+        print("   Set LUMIWEALTH_API_KEY to enable")
     
     print("\nRunning examples...\n")
     

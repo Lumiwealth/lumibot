@@ -166,7 +166,7 @@ class TestIndicators:
             show_plot=False,
             save_tearsheet=False,
             show_tearsheet=False,
-            show_indicators=True,  # This is set to True as per the requirement
+            show_indicators=False,  # Disabled to prevent files from opening during tests
             save_logfile=False,
             name=strategy_name,
             budget=40000,
@@ -192,7 +192,7 @@ class TestIndicators:
             show_plot=False,
             save_tearsheet=False,
             show_tearsheet=False,
-            show_indicators=True,  # This is set to True as per the requirement
+            show_indicators=False,  # Disabled to prevent files from opening during tests
             save_logfile=False,
             name=strategy_name,
             budget=40000,

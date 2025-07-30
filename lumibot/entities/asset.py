@@ -550,7 +550,7 @@ class Asset:
         str
             Contract symbol (e.g., 'MESU25')
         """
-        from datetime import datetime
+        from datetime import datetime, timedelta
         
         month_codes = {
             1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
@@ -562,30 +562,57 @@ class Asset:
         
         current_month = reference_date.month
         current_year = reference_date.year
+        current_day = reference_date.day
         
         # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
-        # Standard quarterly contract rollover logic based on market conventions
-        # We use the current quarter if it hasn't expired, otherwise the next quarter
-        if current_month >= 10:  # October onwards, use December
-            target_month = 12  # December
-            target_year = current_year
-        elif current_month >= 7:  # July-September, use September
-            target_month = 9  # September
-            target_year = current_year
-        elif current_month >= 4:  # April-June, use June
-            target_month = 6  # June
-            target_year = current_year
-        elif current_month >= 1:  # Jan-March, use March
-            target_month = 3  # March
-            target_year = current_year
-        else:  # December (fallback), use March next year
-            target_month = 3  # March
+        # Futures contracts typically expire on the 3rd Friday of the contract month
+        # For safety, we roll to the next contract around the 15th of the expiry month
+        # This prevents using expired contracts
+        
+        # Determine target quarter based on current date and expiration logic
+        if current_month == 12 and current_day >= 15:
+            # Mid-December onwards, December contract has expired, use March
+            target_month = 3
             target_year = current_year + 1
+        elif current_month >= 10:  # October-November, use December
+            target_month = 12
+            target_year = current_year
+        elif current_month == 9 and current_day >= 15:
+            # Mid-September onwards, September contract has expired, use December
+            target_month = 12
+            target_year = current_year
+        elif current_month >= 7:  # July-August, use September
+            target_month = 9
+            target_year = current_year
+        elif current_month == 6 and current_day >= 15:
+            # Mid-June onwards, June contract has expired, use September
+            target_month = 9
+            target_year = current_year
+        elif current_month >= 4:  # April-May, use June
+            target_month = 6
+            target_year = current_year
+        elif current_month == 3 and current_day >= 15:
+            # Mid-March onwards, March contract has expired, use June
+            target_month = 6
+            target_year = current_year
+        else:  # Jan-Feb, use March
+            target_month = 3
+            target_year = current_year
         
         month_code = month_codes.get(target_month, 'U')  # Default to September
         year_code = target_year % 100
         
         contract = f"{self.symbol}{month_code}{year_code:02d}"
+        
+        # Add warning for old contracts (more than 6 months old)
+        contract_date = datetime(target_year, target_month, 1)
+        months_old = ((reference_date.year - target_year) * 12 + (reference_date.month - target_month))
+        
+        if months_old > 6:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"⚠️ FUTURES CONTRACT WARNING: Resolved {self.symbol} continuous future to {contract} which is {months_old} months old (target date: {target_year}-{target_month:02d}). This contract may be expired or have limited data availability. Consider using a more recent time period for backtesting.")
+        
         return contract
     
     def _generate_potential_contracts(self) -> list:

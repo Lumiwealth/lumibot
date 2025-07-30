@@ -18,8 +18,10 @@ making them suitable for CI/CD environments like GitHub Actions.
 
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 import logging
+import time
+import requests
 
 
 class TestTradovateImports:
@@ -584,6 +586,329 @@ class TestTradovateAPIPayload:
                     assert payload['orderType'] == 'Stop'
                     
         print("✅ Stop order payload format test passed")
+
+
+class TestTradovateTokenRenewal:
+    """Test the token renewal functionality."""
+    
+    def test_token_renewal_on_expiry(self):
+        """Test that tokens are renewed when they're about to expire."""
+        from lumibot.brokers.tradovate import Tradovate
+        from unittest.mock import patch, MagicMock
+        
+        # Mock the broker initialization
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            
+            # Initial token response
+            mock_get_tokens.return_value = {
+                'accessToken': 'initial_token',
+                'marketToken': 'initial_market_token',
+                'hasMarketData': True
+            }
+            
+            mock_get_account_info.return_value = {
+                'accountSpec': 'TEST_ACCOUNT',
+                'accountId': 12345
+            }
+            
+            mock_get_user_info.return_value = 'test_user_id'
+            
+            # Create broker instance
+            config = {
+                "USERNAME": "test_user",
+                "DEDICATED_PASSWORD": "test_pass",
+                "CID": "test_cid",
+                "SECRET": "test_secret",
+                "IS_PAPER": True
+            }
+            
+            broker = Tradovate(config=config)
+            
+            # Verify initial token
+            assert broker.trading_token == 'initial_token'
+            assert broker.market_token == 'initial_market_token'
+            
+            # Mock time to simulate token aging
+            original_time = broker.token_acquired_time
+            broker.token_acquired_time = original_time - (broker.token_lifetime * 0.95)  # 95% expired
+            
+            # Update mock to return new tokens
+            mock_get_tokens.return_value = {
+                'accessToken': 'renewed_token',
+                'marketToken': 'renewed_market_token',
+                'hasMarketData': True
+            }
+            
+            # Call token check method
+            broker._check_and_renew_token()
+            
+            # Verify tokens were renewed
+            assert broker.trading_token == 'renewed_token'
+            assert broker.market_token == 'renewed_market_token'
+            assert broker.token_acquired_time > original_time
+            
+        print("✅ Token renewal on expiry test passed")
+    
+    def test_automatic_retry_on_401(self):
+        """Test that API requests automatically retry on 401 errors."""
+        from lumibot.brokers.tradovate import Tradovate
+        from unittest.mock import patch, MagicMock
+        
+        # Mock the broker initialization
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            
+            # Initial setup
+            mock_get_tokens.return_value = {
+                'accessToken': 'expired_token',
+                'marketToken': 'expired_market_token',
+                'hasMarketData': True
+            }
+            
+            mock_get_account_info.return_value = {
+                'accountSpec': 'TEST_ACCOUNT', 
+                'accountId': 12345
+            }
+            
+            mock_get_user_info.return_value = 'test_user_id'
+            
+            config = {
+                "USERNAME": "test_user",
+                "DEDICATED_PASSWORD": "test_pass",
+                "CID": "test_cid",
+                "SECRET": "test_secret",
+                "IS_PAPER": True
+            }
+            
+            broker = Tradovate(config=config)
+            
+            # Force token to be expired
+            broker.token_acquired_time = time.time() - (broker.token_lifetime * 0.95)
+            
+            # Create a mock request function that fails with 401 first time
+            call_count = 0
+            def mock_request_func():
+                nonlocal call_count
+                call_count += 1
+                
+                if call_count == 1:
+                    # First call: simulate 401 error
+                    response = Mock()
+                    response.status_code = 401
+                    error = requests.exceptions.HTTPError()
+                    error.response = response
+                    raise error
+                else:
+                    # Second call: success after token renewal
+                    response = Mock()
+                    response.json.return_value = {"success": True}
+                    return response
+            
+            # Update the mock to return new tokens when called again
+            mock_get_tokens.return_value = {
+                'accessToken': 'new_token',
+                'marketToken': 'new_market_token', 
+                'hasMarketData': True
+            }
+            
+            # Test the retry mechanism
+            result = broker._handle_api_request(mock_request_func)
+            
+            # Verify it retried and succeeded
+            assert call_count == 2
+            assert result.json() == {"success": True}
+            assert broker.trading_token == 'new_token'
+            
+        print("✅ Automatic retry on 401 test passed")
+    
+    def test_get_balances_with_token_renewal(self):
+        """Test that _get_balances_at_broker handles token renewal correctly."""
+        from lumibot.brokers.tradovate import Tradovate
+        from lumibot.entities import Asset
+        from unittest.mock import patch, MagicMock, Mock
+        
+        # Mock the broker initialization
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            
+            # Initial setup
+            mock_get_tokens.return_value = {
+                'accessToken': 'initial_token',
+                'marketToken': 'initial_market_token',
+                'hasMarketData': True
+            }
+            
+            mock_get_account_info.return_value = {
+                'accountSpec': 'TEST_ACCOUNT',
+                'accountId': 12345
+            }
+            
+            mock_get_user_info.return_value = 'test_user_id'
+            
+            config = {
+                "USERNAME": "test_user",
+                "DEDICATED_PASSWORD": "test_pass",
+                "CID": "test_cid",
+                "SECRET": "test_secret",
+                "IS_PAPER": True
+            }
+            
+            broker = Tradovate(config=config)
+            
+            # Mock requests.post to simulate 401 then success
+            call_count = 0
+            def mock_post(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                
+                response = Mock()
+                if call_count == 1:
+                    # First call: 401 error
+                    response.status_code = 401
+                    response.raise_for_status.side_effect = requests.exceptions.HTTPError()
+                    response.raise_for_status.side_effect.response = response
+                    return response
+                else:
+                    # Second call: success
+                    response.status_code = 200
+                    response.json.return_value = {
+                        "totalCashValue": 100000,
+                        "netLiq": 105000
+                    }
+                    response.raise_for_status.return_value = None
+                    return response
+            
+            # Force token to be expired  
+            broker.token_acquired_time = time.time() - (broker.token_lifetime * 0.95)
+            
+            # Update the mock to return new tokens when called again
+            mock_get_tokens.return_value = {
+                'accessToken': 'renewed_token',
+                'marketToken': 'renewed_market_token',
+                'hasMarketData': True
+            }
+            
+            with patch('requests.post', side_effect=mock_post):
+                # Call get_balances
+                quote_asset = Asset("USD", asset_type=Asset.AssetType.FOREX)
+                cash, positions_value, portfolio_value = broker._get_balances_at_broker(quote_asset, None)
+                
+                # Verify results
+                assert cash == 100000
+                assert positions_value == 5000  # netLiq - cash
+                assert portfolio_value == 105000
+                assert call_count == 2  # Should have retried
+                assert broker.trading_token == 'renewed_token'
+            
+        print("✅ Get balances with token renewal test passed")
+    
+    def test_proactive_token_check(self):
+        """Test the public check_token_expiry method."""
+        from lumibot.brokers.tradovate import Tradovate
+        from unittest.mock import patch
+        
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            
+            # Initial setup
+            mock_get_tokens.return_value = {
+                'accessToken': 'initial_token',
+                'marketToken': 'initial_market_token',
+                'hasMarketData': True
+            }
+            
+            mock_get_account_info.return_value = {
+                'accountSpec': 'TEST_ACCOUNT',
+                'accountId': 12345
+            }
+            
+            mock_get_user_info.return_value = 'test_user_id'
+            
+            config = {
+                "USERNAME": "test_user",
+                "DEDICATED_PASSWORD": "test_pass",
+                "CID": "test_cid",
+                "SECRET": "test_secret",
+                "IS_PAPER": True
+            }
+            
+            broker = Tradovate(config=config)
+            
+            # Age the token
+            broker.token_acquired_time = time.time() - (broker.token_lifetime * 0.95)
+            
+            # Mock renewal response
+            mock_get_tokens.return_value = {
+                'accessToken': 'renewed_token',
+                'marketToken': 'renewed_market_token',
+                'hasMarketData': True
+            }
+            
+            # Call public method
+            broker.check_token_expiry()
+            
+            # Verify renewal happened
+            assert broker.trading_token == 'renewed_token'
+            assert broker.market_token == 'renewed_market_token'
+            
+        print("✅ Proactive token check test passed")
+    
+    def test_token_not_renewed_when_fresh(self):
+        """Test that tokens are NOT renewed when they're still fresh."""
+        from lumibot.brokers.tradovate import Tradovate
+        from unittest.mock import patch
+        
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            
+            # Initial setup
+            initial_call_count = 0
+            def token_getter():
+                nonlocal initial_call_count
+                initial_call_count += 1
+                return {
+                    'accessToken': f'token_{initial_call_count}',
+                    'marketToken': f'market_token_{initial_call_count}',
+                    'hasMarketData': True
+                }
+            
+            mock_get_tokens.side_effect = token_getter
+            
+            mock_get_account_info.return_value = {
+                'accountSpec': 'TEST_ACCOUNT',
+                'accountId': 12345
+            }
+            
+            mock_get_user_info.return_value = 'test_user_id'
+            
+            config = {
+                "USERNAME": "test_user",
+                "DEDICATED_PASSWORD": "test_pass",
+                "CID": "test_cid",
+                "SECRET": "test_secret",
+                "IS_PAPER": True
+            }
+            
+            broker = Tradovate(config=config)
+            
+            # Token should be fresh (just created)
+            assert broker.trading_token == 'token_1'
+            assert initial_call_count == 1
+            
+            # Call check method - should NOT renew
+            broker._check_and_renew_token()
+            
+            # Verify no renewal happened
+            assert broker.trading_token == 'token_1'  # Still the same
+            assert initial_call_count == 1  # No additional calls
+            
+        print("✅ Token not renewed when fresh test passed")
 
 
 if __name__ == "__main__":

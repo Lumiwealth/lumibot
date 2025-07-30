@@ -1,6 +1,7 @@
 import requests
 from typing import Union
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 
 from termcolor import colored
 from lumibot.brokers import Broker
@@ -45,6 +46,8 @@ class Tradovate(Broker):
             self.trading_token = tokens["accessToken"]
             self.market_token = tokens["marketToken"]
             self.has_market_data = tokens["hasMarketData"]
+            self.token_acquired_time = time.time()
+            self.token_lifetime = 4800  # Tradovate tokens expire after 80 minutes
             logger.info(colored("Successfully acquired tokens from Tradovate.", "green"))
             
             # Now create the data source with the tokens if it wasn't provided
@@ -192,6 +195,48 @@ class Tradovate(Broker):
                                      status_code=getattr(e.response, 'status_code', None), 
                                      response_text=getattr(e.response, 'text', None), 
                                      original_exception=e)
+    
+    def _check_and_renew_token(self):
+        """
+        Check if the token is expired or about to expire and renew it if necessary.
+        """
+        current_time = time.time()
+        token_age = current_time - self.token_acquired_time
+        
+        # Renew token if it's older than 90% of its lifetime (72 minutes for 80 minute tokens)
+        if token_age > (self.token_lifetime * 0.9):
+            logger.info(colored("Token is about to expire, renewing...", "yellow"))
+            try:
+                tokens = self._get_tokens()
+                self.trading_token = tokens["accessToken"]
+                self.market_token = tokens["marketToken"]
+                self.has_market_data = tokens["hasMarketData"]
+                self.token_acquired_time = time.time()
+                
+                # Update the data source tokens if it exists
+                if hasattr(self, 'data_source') and self.data_source:
+                    self.data_source.trading_token = self.trading_token
+                    self.data_source.market_token = self.market_token
+                
+                logger.info(colored("Successfully renewed Tradovate tokens.", "green"))
+            except Exception as e:
+                logger.error(colored(f"Failed to renew tokens: {e}", "red"))
+                raise e
+    
+    def _handle_api_request(self, request_func, *args, **kwargs):
+        """
+        Wrapper to handle API requests with automatic token renewal on 401 errors.
+        """
+        try:
+            return request_func(*args, **kwargs)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                logger.warning(colored("Received 401 error, attempting to renew token...", "yellow"))
+                self._check_and_renew_token()
+                # Retry the request once after renewal
+                return request_func(*args, **kwargs)
+            else:
+                raise e
 
     def _resolve_tradovate_futures_symbol(self, asset) -> str:
         """
@@ -271,12 +316,16 @@ class Tradovate(Broker):
           - Positions value (netLiq - totalCashValue)
           - Portfolio value (netLiq)
         """
-        url = f"{self.trading_api_url}/cashBalance/getcashbalancesnapshot"
-        headers = self._get_headers(with_content_type=True)
-        payload = {"accountId": self.account_id}
-        try:
+        def _make_request():
+            url = f"{self.trading_api_url}/cashBalance/getcashbalancesnapshot"
+            headers = self._get_headers(with_content_type=True)
+            payload = {"accountId": self.account_id}
             response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
+            return response
+        
+        try:
+            response = self._handle_api_request(_make_request)
             data = response.json()
             cash_balance = data.get("totalCashValue")
             net_liq = data.get("netLiq")
@@ -294,6 +343,13 @@ class Tradovate(Broker):
     def _get_stream_object(self):
         logger.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
         return None  # Return None as a placeholder
+    
+    def check_token_expiry(self):
+        """
+        Public method to proactively check and renew token if needed.
+        This can be called periodically by the strategy or trading framework.
+        """
+        self._check_and_renew_token()
 
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order:
         """

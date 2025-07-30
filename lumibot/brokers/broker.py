@@ -54,7 +54,6 @@ DEFAULT_CLEANUP_CONFIG = {
 class LumibotBrokerAPIError(Exception):
     pass
 
-
 class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
@@ -948,6 +947,72 @@ class Broker(ABC):
     def market_open_time(self):
         return self.utc_to_local(self.market_hours(close=False))
 
+    def _is_continuous_market(self, market_name):
+        """
+        Determine if a market trades continuously (24/7 or near-24/7) by checking its trading schedule.
+        
+        This method uses pandas_market_calendars to check actual trading hours and caches results
+        to avoid expensive repeated lookups.
+        
+        Args:
+            market_name (str): Name of the market (e.g., 'NYSE', 'us_futures', '24/7')
+            
+        Returns:
+            bool: True if market trades continuously (>=20 hours per day), False otherwise
+        """
+
+        if not hasattr(self, '_market_type_cache'):
+            self._market_type_cache = {}
+            
+        if market_name in self._market_type_cache:
+            result = self._market_type_cache[market_name]
+            
+            return result
+            
+        try:
+            # Special cases that are definitely continuous
+            if market_name == '24/7':
+                self._market_type_cache[market_name] = True
+                
+                return True
+                
+            # Get market calendar
+            import pandas_market_calendars as mcal
+            import pandas as pd
+            cal = mcal.get_calendar(market_name)
+            
+            # Test with a recent Monday (typical trading day)
+            test_date = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
+            schedule = cal.schedule(start_date=test_date, end_date=test_date)
+            
+            if schedule.empty:
+                # No trading on this date, assume it's not continuous
+                self._market_type_cache[market_name] = False
+                
+                return False
+                
+            # Calculate trading hours duration
+            market_open = schedule.iloc[0, 0]
+            market_close = schedule.iloc[0, 1]
+            duration_hours = (market_close - market_open).total_seconds() / 3600
+            
+            # Consider markets with 20+ hours per day as continuous
+            # This catches futures markets that trade ~22-24 hours
+            is_continuous = duration_hours >= 20.0
+            
+            self._market_type_cache[market_name] = is_continuous
+            
+            return is_continuous
+            
+        except Exception as e:
+            # If we can't determine market type, default to non-continuous for safety
+            # Log the error for debugging
+            
+            if hasattr(self, 'logger'):
+                self.logger.warning(f'Could not determine market type for {market_name}: {e}')
+            self._market_type_cache[market_name] = False
+            return False
+
     def is_market_open(self):
         """Determines if the market is open.
 
@@ -965,12 +1030,19 @@ class Broker(ABC):
         >>> self.is_market_open()
         True
         """
+
         # Handle 24/7 markets immediately
-        if self.market == "24/7":
+        if self.market == '24/7':
+            
+            return True
+            
+        # Check if this is a continuous market (futures, forex, crypto)
+        if self._is_continuous_market(self.market):
+            
             return True
             
         current_time = datetime.now().astimezone(tz=tz.tzlocal())
-        
+
         # For ANY market, check both today's and tomorrow's sessions since trading sessions 
         # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
         # crypto sessions, international markets, etc.)

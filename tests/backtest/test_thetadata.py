@@ -347,7 +347,7 @@ class TestThetaDataBacktestFull:
         )
         trader = Trader(backtest=True)
         trader.add_strategy(strat_obj)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
         assert results
         self.verify_backtest_results(strat_obj)

@@ -1,4 +1,5 @@
 import inspect
+import logging
 import math
 import time
 import traceback
@@ -9,6 +10,8 @@ from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
+import pandas as pd
+import pandas_market_calendars as mcal
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -72,6 +75,64 @@ class StrategyExecutor(Thread):
         }
 
         self._market_closed_logged = False  # Track if closed message was logged
+        
+        # Cache for market type detection to avoid repeated expensive calendar lookups
+        self._market_type_cache = {}
+
+    def _is_continuous_market(self, market_name):
+        """
+        Determine if a market trades continuously (24/7 or near-24/7) by checking its trading schedule.
+        
+        This method uses pandas_market_calendars to check actual trading hours and caches results
+        to avoid expensive repeated lookups during backtesting.
+        
+        Args:
+            market_name (str): Name of the market (e.g., 'NYSE', 'us_futures', '24/7')
+            
+        Returns:
+            bool: True if market trades continuously (>=20 hours per day), False otherwise
+        """
+        if market_name in self._market_type_cache:
+            return self._market_type_cache[market_name]
+            
+        try:
+            # Special cases that are definitely continuous
+            if market_name == "24/7":
+                self._market_type_cache[market_name] = True
+                return True
+                
+            # Get market calendar
+            cal = mcal.get_calendar(market_name)
+            
+            # Test with a recent Monday (typical trading day)
+            test_date = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
+            schedule = cal.schedule(start_date=test_date, end_date=test_date)
+            
+            if schedule.empty:
+                # No trading on this date, assume it's not continuous
+                self._market_type_cache[market_name] = False
+                return False
+                
+            # Calculate trading hours duration
+            market_open = schedule.iloc[0, 0]
+            market_close = schedule.iloc[0, 1]
+            duration_hours = (market_close - market_open).total_seconds() / 3600
+            
+            # Consider markets with 20+ hours per day as continuous
+            # This catches futures markets that trade ~22-24 hours
+            is_continuous = duration_hours >= 20.0
+            
+            self._market_type_cache[market_name] = is_continuous
+            return is_continuous
+            
+        except Exception as e:
+            # If we can't determine market type, default to non-continuous for safety
+            # Log the error for debugging
+            if hasattr(self, 'strategy') and hasattr(self.strategy, 'logger'):
+                self.strategy.logger.warning(f"Could not determine market type for {market_name}: {e}")
+            
+            self._market_type_cache[market_name] = False
+            return False
 
     @property
     def name(self):
@@ -93,9 +154,10 @@ class StrategyExecutor(Thread):
 
     def safe_sleep(self, sleeptime):
         # This method should only be run in back testing. If it's running during live, something has gone wrong.
-
+        
         if self.strategy.is_backtesting:
             self.process_queue()
+            
             self.broker._update_datetime(
                 sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value
             )
@@ -882,15 +944,51 @@ class StrategyExecutor(Thread):
         return CronTrigger(**kwargs)
 
     # TODO: speed up this function, it's a major bottleneck for backtesting
+    def _advance_to_next_trading_day(self):
+        """Advance to the next trading day for non-continuous markets"""
+        if not self.strategy.is_backtesting:
+            # For live trading, don't advance time - let real time pass
+            return True
+            
+        # For backtesting, check if we should advance to the next trading day
+        
+        # First, check if we've reached the end of the backtest period
+        if not self.broker.should_continue():
+            return False
+            
+        # Get current time and backtest end time
+        current_time = self.broker.datetime
+        end_time = self.broker.data_source.datetime_end
+        
+        # If advancing to next trading day would exceed the backtest end time, don't advance
+        # This ensures we end at the exact time specified in the backtest, not at market open of next day
+        from datetime import timedelta
+        next_day = current_time + timedelta(days=1)
+        if next_day.date() > end_time.date():
+            # We're on the last day of backtesting, don't advance further
+            return False
+            
+        # Advance to the next trading day
+        try:
+            self.strategy.await_market_to_open()
+            return self.broker.should_continue()
+        except Exception as e:
+            self.strategy.logger.warning(f"Could not advance to next trading day: {e}")
+            return False
+
     def _strategy_sleep(self):
         """Sleep for the strategy's sleep time"""
 
-        is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
+        # Check if this is a continuous market using actual calendar data
+        market_name = getattr(self.broker, "market", None)
+        is_continuous_market = market_name and self._is_continuous_market(market_name)
 
         # Set the sleeptime to close.
-        if is_247:
+        if is_continuous_market and self.strategy.is_backtesting:
+            # For continuous markets in backtesting, treat as always open
             time_to_before_closing = float("inf")
         else:
+            # For traditional markets or live trading, check actual market close times
             # TODO: next line speed implication: v high (2233 microseconds) get_time_to_close()
             result = self.broker.get_time_to_close()
 
@@ -919,127 +1017,235 @@ class StrategyExecutor(Thread):
 
         strategy_sleeptime = self._sleeptime_to_seconds(self.strategy.sleeptime)
 
-        if not self.should_continue or strategy_sleeptime == 0 or time_to_before_closing <= 0:
+        # Check if we should stop
+        if not self.should_continue or strategy_sleeptime == 0:
             return False
-        else:
-            self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))
 
-            # Run process orders at the market close time first (if not 24/7)
-            if not is_247:
-                # Get the time to close.
-                time_to_close = self.broker.get_time_to_close()
+        # If the market is closed and this is not a continuous market, handle appropriately
+        if time_to_before_closing <= 0 and not is_continuous_market:
+            # For backtesting: market close means end of current trading day, not end of entire backtest
+            # For live trading: market close means stop trading
+            if self.strategy.is_backtesting:
+                # In backtesting, when market closes, we should advance to the next trading day
+                # The broker should handle advancing to the next day automatically
+                # Just return False to end this trading session, but the main loop should continue
+                # if there are more trading days within the backtest period
+                return False
+            else:
+                # For live trading, stop when market closes
+                return False
+            
+        self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))
 
-                # If strategy sleep time is greater than the time to close, process expired option contracts.
-                if strategy_sleeptime > time_to_close:
-                    # Sleep until the market closes.
-                    self.safe_sleep(time_to_close)
+        # Run process orders at the market close time first (if not continuous market)
+        if not is_continuous_market:
+            # Get the time to close.
+            time_to_close = self.broker.get_time_to_close()
 
-                    # Remove the time to close from the strategy sleep time.
-                    strategy_sleeptime -= time_to_close
+            # If strategy sleep time is greater than the time to close, process expired option contracts.
+            if strategy_sleeptime > time_to_close:
+                # Sleep until the market closes.
+                self.safe_sleep(time_to_close)
 
-                    # Check if the broker has a function to process expired option contracts.
-                    if hasattr(self.broker, "process_expired_option_contracts"):
-                        # Process expired option contracts.
-                        self.broker.process_expired_option_contracts(self.strategy)
+                # Remove the time to close from the strategy sleep time.
+                strategy_sleeptime -= time_to_close
 
-            # TODO: next line speed implication: medium (371 microseconds)
-            self.safe_sleep(strategy_sleeptime)
+                # Check if the broker has a function to process expired option contracts.
+                if hasattr(self.broker, "process_expired_option_contracts"):
+                    # Process expired option contracts.
+                    self.broker.process_expired_option_contracts(self.strategy)
+
+        # TODO: next line speed implication: medium (371 microseconds)
+        self.safe_sleep(strategy_sleeptime)
 
         return True
+
+    # ======Helper methods for _run_trading_session ====================
+    
+    def _is_pandas_daily_data_source(self):
+        """Check if the broker has a pandas daily data source"""
+        has_data_source = hasattr(self.broker, "_data_source")
+        return (
+            has_data_source
+            and self.broker.data_source.SOURCE == "PANDAS"
+            and self.broker.data_source._timestep == "day"
+        )
+    
+    def _process_pandas_daily_data(self):
+        """Process pandas daily data and execute one trading iteration"""
+        if self.broker.data_source._iter_count is None:
+            # Get the first date from _date_index equal or greater than
+            # backtest start date.
+            dates = self.broker.data_source._date_index
+            self.broker.data_source._iter_count = dates.get_loc(dates[dates > self.broker.datetime][0])
+        else:
+            self.broker.data_source._iter_count += 1
+
+        dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
+        self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
+        self.strategy._update_cash_with_dividends()
+
+        self._on_trading_iteration()
+
+        if self.broker.IS_BACKTESTING_BROKER:
+            self.broker.process_pending_orders(strategy=self.strategy)
+    
+    def _should_continue_trading_loop(self, jobs, is_continuous_market, should_we_stop):
+        """Determine if the trading loop should continue based on various conditions"""
+        if not jobs:
+            return False
+        
+        if not self.broker.should_continue():
+            return False
+            
+        if not self.should_continue:
+            return False
+            
+        # For continuous markets, ignore should_we_stop (they never stop for market hours)
+        if not is_continuous_market and should_we_stop:
+            return False
+            
+        return True
+
+    def _setup_live_trading_scheduler(self):
+        """Set up the APScheduler for live trading sessions"""
+        if not self.scheduler.running:
+            self.scheduler.start()
+
+            # Choose the cron trigger for the strategy based on the desired sleep time.
+            chosen_trigger = self.calculate_strategy_trigger(
+                force_start_immediately=self.strategy.force_start_immediately
+            )
+
+            # Add the on_trading_iteration method to the scheduler with the chosen trigger.
+            self.scheduler.add_job(
+                self._on_trading_iteration,
+                chosen_trigger,
+                id="OTIM",
+                name="On Trading Iteration Main Thread",
+                jobstore="On_Trading_Iteration",
+            )
+
+            # Set the cron count to the cron count target so that the on_trading_iteration method will be executed
+            # the first time the scheduler runs.
+            self.cron_count = self.cron_count_target
+
+    def _calculate_should_we_stop(self):
+        """Calculate if we should stop based on time to close and minutes before closing"""
+        time_to_close = self.broker.get_time_to_close()
+        
+        if time_to_close is None:
+            return False
+        else:
+            # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
+            # closing.
+            return time_to_close <= self.strategy.minutes_before_closing * 60
+
+    def _handle_lifecycle_methods(self):
+        """Handle all lifecycle method timing and execution"""
+        current_datetime = self.strategy.get_datetime()
+        current_date = current_datetime.date()
+        min_before_closing = timedelta(minutes=self.strategy.minutes_before_closing)
+        min_before_open = timedelta(minutes=self.strategy.minutes_before_opening)
+        min_after_close = timedelta(minutes=self.strategy.minutes_after_closing)
+
+        # After market closes
+        if (current_datetime >= self.broker.market_close_time() + min_after_close and
+                current_date != self.lifecycle_last_date['after_market_closes']):
+            self._after_market_closes()
+            self.lifecycle_last_date['after_market_closes'] = current_date
+
+        # Before market closes
+        elif (current_datetime >= self.broker.market_close_time() - min_before_closing and
+                current_date != self.lifecycle_last_date['before_market_closes']):
+            self._before_market_closes()
+            self.lifecycle_last_date['before_market_closes'] = current_date
+
+        # Before market opens
+        elif (current_datetime >= self.broker.market_open_time() - min_before_open and
+                current_date != self.lifecycle_last_date['before_market_opens']):
+            self._before_market_opens()
+            self.lifecycle_last_date['before_market_opens'] = current_date
+
+    def _setup_market_session(self, has_data_source):
+        """Set up the market session for non-24/7 markets"""
+        # Set date to the start date, but account for minutes_before_opening
+        self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
+        
+        # Check if we should continue to run when we are in a new day.
+        broker_continue = self.broker.should_continue()
+        if not broker_continue:
+            return False
+
+        # TODO: I think we should remove the OR. Pandas data can have dividends.
+        # Especially if it was saved from yahoo.
+        if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
+            self.strategy._update_cash_with_dividends()
+
+        if not self.broker.is_market_open():
+            self._before_market_opens()
+            self.lifecycle_last_date['before_market_opens'] = self.strategy.get_datetime().date()
+
+        # Now go to the actual open without considering minutes_before_opening
+        self.strategy.await_market_to_open(timedelta=0)
+        self._before_starting_trading()
+        self.lifecycle_last_date['before_starting_trading'] = self.strategy.get_datetime().date()
+
+        return True
+
+    def _run_backtesting_loop(self, is_continuous_market, time_to_close):
+        """Execute the main backtesting iteration loop"""
+        iteration_count = 0
+        
+        while is_continuous_market or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
+            iteration_count += 1
+            
+            # Stop after we pass the backtesting end date
+            if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
+                break
+
+            self._on_trading_iteration()
+
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.process_pending_orders(strategy=self.strategy)
+
+            # Sleep until the next trading iteration
+            sleep_result = self._strategy_sleep()
+            if not sleep_result:
+                break
+                
+        logging.info(f"Backtesting loop completed with {iteration_count} iterations")
 
     # ======Execution methods ====================
     def _run_trading_session(self):
         """This is really intraday trading method. Timeframes of less than a day, seconds,
         minutes, hours.
         """
-
+        
         has_data_source = hasattr(self.broker, "_data_source")
-        is_247 = hasattr(self.broker, "market") and self.broker.market == "24/7"
-
-        # Set the time_to_close variable to infinity if the market is 24/7.
-        if is_247:
-            time_to_close = float("inf")
+        market_name = getattr(self.broker, "market", None)
+        is_continuous_market = market_name and self._is_continuous_market(market_name)
 
         # Process pandas daily and get out.
-        if (
-            has_data_source
-            and self.broker.data_source.SOURCE == "PANDAS"
-            and self.broker.data_source._timestep == "day"
-        ):
-            if self.broker.data_source._iter_count is None:
-                # Get the first date from _date_index equal or greater than
-                # backtest start date.
-                dates = self.broker.data_source._date_index
-                self.broker.data_source._iter_count = dates.get_loc(dates[dates > self.broker.datetime][0])
-            else:
-                self.broker.data_source._iter_count += 1
-
-            dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-            self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
-            self.strategy._update_cash_with_dividends()
-
-            self._on_trading_iteration()
-
-            if self.broker.IS_BACKTESTING_BROKER:
-                self.broker.process_pending_orders(strategy=self.strategy)
+        if self._is_pandas_daily_data_source():
+            self._process_pandas_daily_data()
             return
 
-        if not is_247:
-            # Set date to the start date, but account for minutes_before_opening
-            self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
-            # Check if we should continue to run when we are in a new day.
-            broker_continue = self.broker.should_continue()
-            if not broker_continue:
+        # Set up market session and determine time_to_close
+        if not is_continuous_market:
+            # Set up market session and check if we should continue
+            if not self._setup_market_session(has_data_source):
                 return
-
-            # TODO: I think we should remove the OR. Pandas data can have dividends.
-            # Especially if it was saved from yahoo.
-            if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
-                self.strategy._update_cash_with_dividends()
-
-            if not self.broker.is_market_open():
-                self._before_market_opens()
-                self.lifecycle_last_date['before_market_opens'] = self.strategy.get_datetime().date()
-
-            # Now go to the actual open without considering minutes_before_opening
-            self.strategy.await_market_to_open(timedelta=0)
-            self._before_starting_trading()
-            self.lifecycle_last_date['before_starting_trading'] = self.strategy.get_datetime().date()
-
             time_to_close = self.broker.get_time_to_close()
+        else:
+            time_to_close = float("inf")
 
         if not self.strategy.is_backtesting:
             # Start APScheduler for the trading session.
-            if not self.scheduler.running:
-                self.scheduler.start()
+            self._setup_live_trading_scheduler()
 
-                # Choose the cron trigger for the strategy based on the desired sleep time.
-                chosen_trigger = self.calculate_strategy_trigger(
-                    force_start_immediately=self.strategy.force_start_immediately
-                )
-
-                # Add the on_trading_iteration method to the scheduler with the chosen trigger.
-                self.scheduler.add_job(
-                    self._on_trading_iteration,
-                    chosen_trigger,
-                    id="OTIM",
-                    name="On Trading Iteration Main Thread",
-                    jobstore="On_Trading_Iteration",
-                )
-
-                # Set the cron count to the cron count target so that the on_trading_iteration method will be executed
-                # the first time the scheduler runs.
-                self.cron_count = self.cron_count_target
-
-            # Get the time to close.
-            time_to_close = self.broker.get_time_to_close()
-
-            if time_to_close is None:
-                should_we_stop = False
-            else:
-                # Check if it's time to stop the strategy based on the time to close and the strategy's minutes before
-                # closing.
-                should_we_stop = time_to_close <= self.strategy.minutes_before_closing * 60
+            # Calculate if we should stop based on market timing
+            should_we_stop = self._calculate_should_we_stop()
 
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.
@@ -1057,24 +1263,8 @@ class StrategyExecutor(Thread):
                 # Get the current jobs from the scheduler.
                 jobs = self.scheduler.get_jobs()
 
-                # Check if the broker should continue.
-                broker_continue = self.broker.should_continue()
-                # Check if the strategy should continue.
-                should_continue = self.should_continue
-                # Check if the strategy is 24/7 or if it's time to stop.
-                is_247_or_should_we_stop = not is_247 or not should_we_stop
-                
-                if not jobs:
-                    print("Breaking loop because no jobs.")
-                    break
-                if not broker_continue:
-                    print("Breaking loop because broker should not continue.")
-                    break
-                if not should_continue:
-                    print("Breaking loop because should not continue.")
-                    break
-                if not is_247_or_should_we_stop:
-                    print("Breaking loop because it's 24/7 and time to stop.")
+                # Check if we should continue trading loop
+                if not self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop):
                     break
                 
                 # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
@@ -1083,29 +1273,7 @@ class StrategyExecutor(Thread):
                     self._last_updated_cloud = datetime.now()
                 
                 # Handle LifeCycle methods
-                current_datetime = self.strategy.get_datetime()
-                current_date = current_datetime.date()
-                min_before_closing = timedelta(minutes=self.strategy.minutes_before_closing)
-                min_before_open = timedelta(minutes=self.strategy.minutes_before_opening)
-                min_after_close = timedelta(minutes=self.strategy.minutes_after_closing)
-
-                # After market closes
-                if (current_datetime >= self.broker.market_close_time() + min_after_close and
-                        current_date != self.lifecycle_last_date['after_market_closes']):
-                    self._after_market_closes()
-                    self.lifecycle_last_date['after_market_closes'] = current_date
-
-                # Before market closes
-                elif (current_datetime >= self.broker.market_close_time() - min_before_closing and
-                        current_date != self.lifecycle_last_date['before_market_closes']):
-                    self._before_market_closes()
-                    self.lifecycle_last_date['before_market_closes'] = current_date
-
-                # Before market opens
-                elif (current_datetime >= self.broker.market_open_time() - min_before_open and
-                        current_date != self.lifecycle_last_date['before_market_opens']):
-                    self._before_market_opens()
-                    self.lifecycle_last_date['before_market_opens'] = current_date
+                self._handle_lifecycle_methods()
 
                 time.sleep(1)  # Sleep to save CPU
 
@@ -1115,22 +1283,7 @@ class StrategyExecutor(Thread):
         # TODO: speed up this loop for backtesting (it's a major bottleneck)
 
         if self.strategy.is_backtesting:
-            while is_247 or (time_to_close is not None and (time_to_close > self.strategy.minutes_before_closing * 60)):
-                # Stop after we pass the backtesting end date
-                if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
-                    break
-
-                # TODO: next line speed implication: v high (7563 microseconds) _on_trading_iteration()
-                self._on_trading_iteration()
-
-                if self.broker.IS_BACKTESTING_BROKER:
-                    self.broker.process_pending_orders(strategy=self.strategy)
-
-                # Sleep until the next trading iteration
-                # TODO: next line speed implication: high (2625 microseconds) _strategy_sleep()
-
-                if not self._strategy_sleep():
-                    break
+            self._run_backtesting_loop(is_continuous_market, time_to_close)
 
         self.strategy.await_market_to_close()
         if self.broker.is_market_open():
@@ -1178,11 +1331,17 @@ class StrategyExecutor(Thread):
             self.broker._trading_days.set_index('market_close', inplace=True)
 
             #####
-            # The main loop for running any strategy
+            # Main strategy execution loop
             ####
+            
+            # Determine market type once to avoid repeated lookups
+            market_name = getattr(self.broker, "market", None)
+            is_continuous_market = market_name and self._is_continuous_market(market_name)
+            
             while self.broker.should_continue() and self.should_continue:
                 try:
                     self._run_trading_session()
+                            
                 except Exception as e:
                     # The bot crashed so log the error, call the on_bot_crash method, and continue
                     self.strategy.logger.error(e)
@@ -1197,10 +1356,16 @@ class StrategyExecutor(Thread):
                     if self.strategy.is_backtesting:
                         raise e  # Re-raise original exception to preserve error message for tests
 
-                    # Only stop the strategy if it's time, otherwise keep running the bot
-                    if not self._strategy_sleep():
-                        self.result = self.strategy._analysis
-                        return False
+                # Different logic for continuous vs non-continuous markets
+                if is_continuous_market:
+                    # For continuous markets (24/7, futures), _run_trading_session handles the entire backtest
+                    # No need to call _strategy_sleep or continue the loop - we're done
+                    break
+                else:
+                    # For non-continuous markets (stocks), advance to next trading day
+                    if not self._advance_to_next_trading_day():
+                        # Can't advance to next day (end of backtest period)
+                        break
             try:
                 self._on_strategy_end()
             except Exception as e:

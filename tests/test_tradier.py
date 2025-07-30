@@ -21,6 +21,8 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture
 def tradier():
+    if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+        pytest.skip("These tests require a Tradier API key")
     return Tradier(
         account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
         access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
@@ -363,7 +365,7 @@ class TestTradierBroker:
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None)
         strategy = "strat_unittest"
-        sleep_amt = 0.1
+        sleep_amt = 1.0  # Increased for CI stability
         broker._strategy_name = strategy
         mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}

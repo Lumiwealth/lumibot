@@ -901,9 +901,11 @@ class Order:
         quantity = Decimal(value)
         self._quantity = quantity
 
-        # Update the quantity for all child orders
-        for child_order in self.child_orders:
-            child_order.quantity = quantity
+        # Update the quantity for all OCO child orders. Multileg orders will have child orders that
+        # can have different quantities, so do not update them here.
+        if self.order_class != self.OrderClass.MULTILEG and self.child_orders:
+            for child_order in self.child_orders:
+                child_order.quantity = quantity
 
     def __hash__(self):
         return hash(self.identifier)

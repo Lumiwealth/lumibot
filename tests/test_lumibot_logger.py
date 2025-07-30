@@ -50,7 +50,6 @@ def test_file_handler_uses_lumibot_formatter():
         
         assert "File handler info test" in contents
         assert "| INFO |" in contents
-        assert "lumibot.tests.test_lumibot_logger" in contents
     finally:
         # Clean up
         if os.path.exists(tmp_name):

@@ -387,6 +387,10 @@ def _ensure_handlers_configured():
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(LumibotFormatter())
         
+        # Create stderr handler to prevent fallback to lastResort
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setFormatter(LumibotFormatter())
+        
         # Set default level (can be overridden by environment variable)
         default_level = os.environ.get('LUMIBOT_LOG_LEVEL', 'INFO').upper()
         try:
@@ -402,6 +406,7 @@ def _ensure_handlers_configured():
             # regardless of BACKTESTING_QUIET_LOGS setting
             # BACKTESTING_QUIET_LOGS only controls file logging
             console_handler.setLevel(logging.ERROR)
+            stderr_handler.setLevel(logging.ERROR)
             
             # File logging level is controlled by BACKTESTING_QUIET_LOGS
             backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
@@ -418,9 +423,22 @@ def _ensure_handlers_configured():
         else:
             # Live trading: always show console messages at full level
             console_handler.setLevel(log_level)
+            stderr_handler.setLevel(log_level)
         
         root_logger.setLevel(log_level)
         root_logger.addHandler(console_handler)
+        root_logger.addHandler(stderr_handler)
+        
+        # During backtesting, replace Python's lastResort handler with one that
+        # respects our ERROR level setting
+        if is_backtesting:
+            class QuietLastResortHandler(logging.StreamHandler):
+                def __init__(self):
+                    super().__init__(sys.stderr)
+                    self.setLevel(logging.ERROR)
+                    self.setFormatter(LumibotFormatter())
+            
+            logging.lastResort = QuietLastResortHandler()
         
         # Add CSV error handler if enabled
         log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
@@ -548,20 +566,30 @@ def set_log_level(level: str):
         log_level = getattr(logging, level.upper())
         # Get the actual lumibot root logger (where handlers are configured)
         root_logger = logging.getLogger("lumibot")
-        root_logger.setLevel(log_level)
         
         # Update handlers but respect console handler's ERROR level during backtesting
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-        for handler in root_logger.handlers:
-            if is_backtesting and isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
-                # During backtesting, console handler should ALWAYS be ERROR level
-                handler.setLevel(logging.ERROR)
-            else:
-                handler.setLevel(log_level)
         
-        # Also update all existing loggers in our registry
-        for logger in _logger_registry.values():
-            logger.setLevel(log_level)
+        if is_backtesting:
+            # During backtesting, we need special handling to ensure console stays quiet
+            # Set root logger to allow messages through (for file logging)
+            root_logger.setLevel(log_level)
+            
+            # But ensure ALL console handlers stay at ERROR level
+            for handler in root_logger.handlers:
+                if isinstance(handler, logging.StreamHandler):
+                    handler.setLevel(logging.ERROR)
+            
+            # Don't update individual logger levels - this would bypass handler filtering
+        else:
+            # For live trading, set everything normally
+            root_logger.setLevel(log_level)
+            for handler in root_logger.handlers:
+                handler.setLevel(log_level)
+            
+            # Update all existing loggers in our registry
+            for logger in _logger_registry.values():
+                logger.setLevel(log_level)
             
     except AttributeError:
         raise ValueError(f"Invalid log level: {level}. Must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL")

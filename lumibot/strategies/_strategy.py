@@ -808,12 +808,7 @@ class _Strategy:
 
     def _dump_stats(self):
         logger = get_logger(__name__)
-        current_level = logging.getLevelName(logger.level)
-        for handler in logger.handlers:
-            if handler.__class__.__name__ == "StreamHandler":
-                current_stream_handler_level = handler.level
-                handler.setLevel(logging.INFO)
-        logger.setLevel(logging.INFO)
+        # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
@@ -833,10 +828,6 @@ class _Strategy:
             # Get performance for the benchmark asset
             self._dump_benchmark_stats()
 
-        for handler in logger.handlers:
-            if handler.__class__.__name__ == "StreamHandler":
-                handler.setLevel(current_stream_handler_level)
-        logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
         if not self.is_backtesting or not self._benchmark_asset:

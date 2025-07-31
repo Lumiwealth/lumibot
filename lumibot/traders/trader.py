@@ -142,7 +142,7 @@ class Trader:
         result = self._collect_analysis()
 
         if self.is_backtest_broker:
-            logger.setLevel(logging.INFO)
+            # Don't override the logger level - respect the quiet logs setting
             logger.info("Backtesting finished")
 
             if strat._analyze_backtest:

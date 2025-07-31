@@ -332,6 +332,8 @@ def print_progress_bar(
     cash=None,
     portfolio_value=None,
 ):
+    # Progress bar should ALWAYS show, even with quiet logs
+    # This is the ONLY output users want to see during quiet backtesting
     total_length = end_value - start_value
     current_length = value - start_value
     percent = min((current_length / total_length) * 100, 100)

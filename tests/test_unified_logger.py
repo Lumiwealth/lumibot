@@ -269,15 +269,15 @@ class TestEnvironmentVariables:
     """Test environment variable handling."""
     
     def test_backtesting_quiet_logs(self):
-        """Test BACKTESTING_QUIET_LOGS environment variable."""
-        with patch.dict(os.environ, {'BACKTESTING_QUIET_LOGS': 'true'}):
+        """Test BACKTESTING_QUIET_LOGS environment variable during backtesting."""
+        with patch.dict(os.environ, {'BACKTESTING_QUIET_LOGS': 'true', 'IS_BACKTESTING': 'true'}):
             # Reset handlers to pick up environment change  
             import lumibot.tools.lumibot_logger as logger_module
             logger_module._handlers_configured = False
             
             logger_module._ensure_handlers_configured()
             
-            # Should be at ERROR level
+            # Should be at ERROR level during backtesting
             root_logger = logging.getLogger("lumibot")
             console_handlers = [h for h in root_logger.handlers 
                              if isinstance(h, logging.StreamHandler)]

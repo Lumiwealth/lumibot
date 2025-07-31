@@ -1216,7 +1216,8 @@ class StrategyExecutor(Thread):
             if not sleep_result:
                 break
                 
-        logging.info(f"Backtesting loop completed with {iteration_count} iterations")
+        # Don't log this to avoid creating root handler
+        # self.strategy.log_message(f"Backtesting loop completed with {iteration_count} iterations")
 
     # ======Execution methods ====================
     def _run_trading_session(self):

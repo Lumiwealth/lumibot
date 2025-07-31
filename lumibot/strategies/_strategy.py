@@ -271,8 +271,8 @@ class _Strategy:
         if not hasattr(self, "logger") or self.logger is None:
             self.logger = get_strategy_logger(__name__, self._name)
 
-        # Set the log level to INFO so that all logs INFO and above are displayed
-        # self.logger.setLevel(logging.INFO)
+        # Don't set log level here - let the logger hierarchy and quiet logs setting handle it
+        # The StrategyLoggerAdapter will check BACKTESTING_QUIET_LOGS in its methods
         
         # Track which assets we've logged "Getting historical prices" for to reduce noise
         self._logged_get_historical_prices_assets = set()
@@ -808,12 +808,7 @@ class _Strategy:
 
     def _dump_stats(self):
         logger = get_logger(__name__)
-        current_level = logger.level  # Save INTEGER directly
-        for handler in logger.handlers:
-            if handler.__class__.__name__ == "StreamHandler":
-                current_stream_handler_level = handler.level
-                handler.setLevel(logging.INFO)
-        logger.setLevel(logging.INFO)
+        # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()
             if self._stats_file:
@@ -833,10 +828,6 @@ class _Strategy:
             # Get performance for the benchmark asset
             self._dump_benchmark_stats()
 
-        for handler in logger.handlers:
-            if handler.__class__.__name__ == "StreamHandler":
-                handler.setLevel(current_stream_handler_level)
-        logger.setLevel(current_level)
 
     def _dump_benchmark_stats(self):
         if not self.is_backtesting or not self._benchmark_asset:

@@ -550,9 +550,14 @@ def set_log_level(level: str):
         root_logger = logging.getLogger("lumibot")
         root_logger.setLevel(log_level)
         
-        # Also update all handlers to the new level
+        # Update handlers but respect console handler's ERROR level during backtesting
+        is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
         for handler in root_logger.handlers:
-            handler.setLevel(log_level)
+            if is_backtesting and isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+                # During backtesting, console handler should ALWAYS be ERROR level
+                handler.setLevel(logging.ERROR)
+            else:
+                handler.setLevel(log_level)
         
         # Also update all existing loggers in our registry
         for logger in _logger_registry.values():

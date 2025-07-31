@@ -398,21 +398,25 @@ def _ensure_handlers_configured():
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
         
         if is_backtesting:
-            # During backtesting, check BACKTESTING_QUIET_LOGS setting
+            # During backtesting, console should ALWAYS be quiet (ERROR+ only)
+            # regardless of BACKTESTING_QUIET_LOGS setting
+            # BACKTESTING_QUIET_LOGS only controls file logging
+            console_handler.setLevel(logging.ERROR)
+            
+            # File logging level is controlled by BACKTESTING_QUIET_LOGS
             backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
             if backtesting_quiet is None:
                 # Default to quiet logs for backtesting
                 backtesting_quiet = "true"
             
             if backtesting_quiet.lower() == "true":
-                # Quiet logs: only show ERROR+ messages
+                # Quiet logs: file logging at ERROR+ level
                 log_level = logging.ERROR
-                console_handler.setLevel(logging.ERROR)
             else:
-                # Verbose logs: show INFO+ messages
-                console_handler.setLevel(log_level)
+                # Verbose logs: file logging at INFO+ level (but console still ERROR+)
+                pass  # Keep original log_level
         else:
-            # Live trading: always show console messages
+            # Live trading: always show console messages at full level
             console_handler.setLevel(log_level)
         
         root_logger.setLevel(log_level)

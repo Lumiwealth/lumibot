@@ -1117,6 +1117,19 @@ class StrategyExecutor(Thread):
                 force_start_immediately=self.strategy.force_start_immediately
             )
 
+            # Calculate appropriate max_instances based on sleeptime
+            # For strategies with sleeptime < 1 minute, we need higher max_instances
+            # to avoid "maximum number of running instances reached" warnings
+            max_instances = 1
+            if hasattr(self.strategy, 'sleeptime'):
+                sleeptime = self.strategy.sleeptime
+                if isinstance(sleeptime, str) and sleeptime.endswith('S'):
+                    # For second-based sleeptimes, calculate how many could fire per minute
+                    seconds = int(sleeptime[:-1])
+                    if seconds < 60:
+                        # Allow enough instances to cover a full minute
+                        max_instances = max(1, (60 // seconds) + 1)
+
             # Add the on_trading_iteration method to the scheduler with the chosen trigger.
             self.scheduler.add_job(
                 self._on_trading_iteration,
@@ -1124,6 +1137,7 @@ class StrategyExecutor(Thread):
                 id="OTIM",
                 name="On Trading Iteration Main Thread",
                 jobstore="On_Trading_Iteration",
+                max_instances=max_instances,
             )
 
             # Set the cron count to the cron count target so that the on_trading_iteration method will be executed
@@ -1214,7 +1228,8 @@ class StrategyExecutor(Thread):
             if not sleep_result:
                 break
                 
-        logging.info(f"Backtesting loop completed with {iteration_count} iterations")
+        # Don't log this to avoid creating root handler
+        # self.strategy.log_message(f"Backtesting loop completed with {iteration_count} iterations")
 
     # ======Execution methods ====================
     def _run_trading_session(self):

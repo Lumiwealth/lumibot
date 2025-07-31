@@ -151,7 +151,7 @@ if _btl is not None:
         logger.warning(colored_message)
         BACKTESTING_QUIET_LOGS = None
 else:
-    BACKTESTING_QUIET_LOGS = None
+    BACKTESTING_QUIET_LOGS = True  # Default to quiet logs for better performance
 
 # Set a hard limit on the memory polygon uses
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
@@ -296,24 +296,24 @@ BITUNIX_CONFIG = {
 # ProjectX URL mappings - REST API base URLs (v2 gateway URLs preferred)
 PROJECTX_BASE_URLS = {
     "topstepx": "https://api.topstepx.com/",
-    "topone": "https://gateway-api-toponefutures.s2f.projectx.com/",  # Top One Futures
-    "tickticktrader": "https://gateway-api-tickticktrader.s2f.projectx.com/",
-    "alphaticks": "https://gateway-api-alphaticks.s2f.projectx.com/",
-    "aquafutures": "https://gateway-api-aquafutures.s2f.projectx.com/",
-    "blueguardianfutures": "https://gateway-api-blueguardianfutures.s2f.projectx.com/",
-    "blusky": "https://gateway-api-blusky.s2f.projectx.com/",
-    "bulenox": "https://gateway-api-bulenox.s2f.projectx.com/",
-    "e8x": "https://gateway-api-e8x.s2f.projectx.com/",
-    "fundingfutures": "https://gateway-api-fundingfutures.s2f.projectx.com/",
-    "thefuturesdesk": "https://gateway-api-thefuturesdesk.s2f.projectx.com/",
-    "futureselite": "https://gateway-api-futureselite.s2f.projectx.com/",
-    "fxifyfutures": "https://gateway-api-fxifyfutures.s2f.projectx.com/",
-    "goatfundedfutures": "https://gateway-api-goatfundedfutures.s2f.projectx.com/",
-    "holaprime": "https://gateway-api-holaprime.s2f.projectx.com/",
-    "nexgen": "https://gateway-api-nexgen.s2f.projectx.com/",
-    "tx3funding": "https://gateway-api-tx3funding.s2f.projectx.com/",
-    "demo": "https://gateway-api-demo.s2f.projectx.com/",
-    "daytraders": "https://gateway-api-daytraders.s2f.projectx.com/",
+    "topone": "https://api.toponefutures.projectx.com/",  # Top One Futures
+    "tickticktrader": "https://api.tickticktrader.projectx.com/",
+    "alphaticks": "https://api.alphaticks.projectx.com/",
+    "aquafutures": "https://api.aquafutures.projectx.com/",
+    "blueguardianfutures": "https://api.blueguardianfutures.projectx.com/",
+    "blusky": "https://api.blusky.projectx.com/",
+    "bulenox": "https://api.bulenox.projectx.com/",
+    "e8x": "https://api.e8.projectx.com/",  # E8X uses "e8" not "e8x"
+    "fundingfutures": "https://api.fundingfutures.projectx.com/",
+    "thefuturesdesk": "https://api.thefuturesdesk.projectx.com/",
+    "futureselite": "https://api.futureselite.projectx.com/",
+    "fxifyfutures": "https://api.fxifyfutures.projectx.com/",
+    "goatfundedfutures": "https://api.goatfundedfutures.projectx.com/",
+    "holaprime": "https://api.holaprime.projectx.com/",
+    "nexgen": "https://api.nexgen.projectx.com/",
+    "tx3funding": "https://api.tx3funding.projectx.com/",
+    "demo": "https://gateway-api-demo.s2f.projectx.com/",  # Demo still uses old pattern
+    "daytraders": "https://api.daytraders.projectx.com/",
 }
 
 # ProjectX SignalR streaming URL mappings
@@ -439,6 +439,52 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 broker = ProjectX(config, data_source=data_source)
             except Exception as e:
                 colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                logger.error(colored_message)
+        elif trading_broker_name.lower().startswith("projectx-"):
+            try:
+                # Extract firm name from broker name (e.g., "projectx-topone" -> "topone")
+                firm_suffix = trading_broker_name.lower()[9:]  # Remove "projectx-" prefix
+                
+                # Map broker suffixes to firm names (must match Node.js mapping)
+                suffix_to_firm_mapping = {
+                    'topstepx': 'TOPSTEPX',
+                    'topone': 'TOPONE', 
+                    'tickticktrader': 'TICKTICKTRADER',
+                    'alphaticks': 'ALPHATICKS',
+                    'aquafutures': 'AQUAFUTURES',
+                    'blueguardianfutures': 'BLUEGUARDIANFUTURES',
+                    'blusky': 'BLUSKY',
+                    'bulenox': 'BULENOX',
+                    'e8x': 'E8X',
+                    'fundingfutures': 'FUNDINGFUTURES',
+                    'thefuturesdesk': 'THEFUTURESDESK',
+                    'futureselite': 'FUTURESELITE',
+                    'fxifyfutures': 'FXIFYFUTURES',
+                    'goatfundedfutures': 'GOATFUNDEDFUTURES',
+                    'holaprime': 'HOLAPRIME',
+                    'nexgen': 'NEXGEN',
+                    'tx3funding': 'TX3FUNDING',
+                    'daytraders': 'DAYTRADERS',
+                    'demo': 'DEMO',
+                    # Legacy brokers for backward compatibility
+                    'earn2trade': 'EARN2TRADE',
+                    'uprofit': 'UPROFIT'
+                }
+                
+                if firm_suffix not in suffix_to_firm_mapping:
+                    raise ValueError(f"Unknown ProjectX firm: {firm_suffix}. Supported firms: {list(suffix_to_firm_mapping.keys())}")
+                
+                firm = suffix_to_firm_mapping[firm_suffix]
+                config = get_projectx_config(firm)
+                
+                if not config or not config.get("api_key"):
+                    raise ValueError(f"No valid ProjectX configuration found for firm {firm}. Please set environment variables.")
+                
+                from .data_sources import ProjectXData
+                data_source = ProjectXData(config)
+                broker = ProjectX(config, data_source=data_source)
+            except Exception as e:
+                colored_message = termcolor.colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
                 logger.error(colored_message)
         else:
             colored_message = termcolor.colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")

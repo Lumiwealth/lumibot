@@ -1125,7 +1125,6 @@ class StrategyExecutor(Thread):
                 id="OTIM",
                 name="On Trading Iteration Main Thread",
                 jobstore="On_Trading_Iteration",
-                max_instances=2 if "S" in self.strategy.sleeptime or "s" in self.strategy.sleeptime else 1,
             )
 
             # Set the cron count to the cron count target so that the on_trading_iteration method will be executed

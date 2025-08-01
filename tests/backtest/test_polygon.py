@@ -172,11 +172,11 @@ class TestPolygonBacktestFull:
         stoploss_order_id = stoploss_order.identifier
         assert asset_order_id in poly_strat_obj.prices
         assert option_order_id in poly_strat_obj.prices
-        assert 130.0 < poly_strat_obj.prices[asset_order_id] < 140.0, "Valid asset price between 130 and 140"
+        assert 185.0 < poly_strat_obj.prices[asset_order_id] < 195.0, "Valid asset price between 185 and 195"
         sfp = stock_order.get_fill_price()
-        assert 130.0 < sfp < 140.0, "Valid Fill price between 130 and 140"
-        assert poly_strat_obj.prices[option_order_id] == 4.10, "Opening Price is $4.10 on 08/01/2023"
-        assert option_order.get_fill_price() == 4.10, "Fills at 1st candle open price of $4.10 on 08/01/2023"
+        assert 185.0 < sfp < 195.0, "Valid Fill price between 185 and 195"
+        assert poly_strat_obj.prices[option_order_id] == 6.10, "Opening Price is $6.10 on 08/01/2023"
+        assert option_order.get_fill_price() == 6.10, "Fills at 1st candle open price of $6.10 on 08/01/2023"
 
         assert option_order.is_filled()
 
@@ -222,9 +222,9 @@ class TestPolygonBacktestFull:
         """
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
-        backtesting_start = datetime.datetime(2023, 8, 1)
+        backtesting_start = datetime.datetime(2024, 8, 1)
         # Ensure the entire last day is processed by setting time to end of day
-        backtesting_end = datetime.datetime(2023, 8, 4, 23, 59, 59)
+        backtesting_end = datetime.datetime(2024, 8, 4, 23, 59, 59)
 
         data_source = PolygonDataBacktesting(
             datetime_start=backtesting_start,
@@ -292,8 +292,8 @@ class TestPolygonBacktestFull:
 
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
-        backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
+        backtesting_start = datetime.datetime(2024, 8, 1)
+        backtesting_end = datetime.datetime(2024, 8, 4)
 
         # Execute Backtest | Polygon.io API Connection
         results, poly_strat_obj = PolygonBacktestStrat.run_backtest(
@@ -323,8 +323,8 @@ class TestPolygonBacktestFull:
         """Test that the legacy backtest() function call works without returning the startegy object"""
         # Parameters: True = Live Trading | False = Backtest
         # trade_live = False
-        backtesting_start = datetime.datetime(2023, 8, 1)
-        backtesting_end = datetime.datetime(2023, 8, 4)
+        backtesting_start = datetime.datetime(2024, 8, 1)
+        backtesting_end = datetime.datetime(2024, 8, 4)
 
         # Execute Backtest | Polygon.io API Connection
         results = PolygonBacktestStrat.backtest(

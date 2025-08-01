@@ -386,11 +386,7 @@ def _ensure_handlers_configured():
         # Create console handler with our custom formatter
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(LumibotFormatter())
-        
-        # Create stderr handler to prevent fallback to lastResort
-        stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setFormatter(LumibotFormatter())
-        
+
         # Set default level (can be overridden by environment variable)
         default_level = os.environ.get('LUMIBOT_LOG_LEVEL', 'INFO').upper()
         try:
@@ -406,7 +402,6 @@ def _ensure_handlers_configured():
             # regardless of BACKTESTING_QUIET_LOGS setting
             # BACKTESTING_QUIET_LOGS only controls file logging
             console_handler.setLevel(logging.ERROR)
-            stderr_handler.setLevel(logging.ERROR)
             
             # File logging level is controlled by BACKTESTING_QUIET_LOGS
             backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
@@ -423,22 +418,9 @@ def _ensure_handlers_configured():
         else:
             # Live trading: always show console messages at full level
             console_handler.setLevel(log_level)
-            stderr_handler.setLevel(log_level)
         
         root_logger.setLevel(log_level)
         root_logger.addHandler(console_handler)
-        root_logger.addHandler(stderr_handler)
-        
-        # During backtesting, replace Python's lastResort handler with one that
-        # respects our ERROR level setting
-        if is_backtesting:
-            class QuietLastResortHandler(logging.StreamHandler):
-                def __init__(self):
-                    super().__init__(sys.stderr)
-                    self.setLevel(logging.ERROR)
-                    self.setFormatter(LumibotFormatter())
-            
-            logging.lastResort = QuietLastResortHandler()
         
         # Add CSV error handler if enabled
         log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")

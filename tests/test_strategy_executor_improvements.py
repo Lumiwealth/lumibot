@@ -132,6 +132,7 @@ class TestStrategyExecutorImprovements:
         """Test the extracted live trading scheduler setup"""
         strategy = Mock()
         strategy.force_start_immediately = False
+        strategy.sleeptime = "1M"
         
         executor = StrategyExecutor(strategy)
         executor.scheduler = Mock()

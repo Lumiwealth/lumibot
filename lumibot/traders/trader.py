@@ -142,7 +142,7 @@ class Trader:
         result = self._collect_analysis()
 
         if self.is_backtest_broker:
-            logger.setLevel(logging.INFO)
+            # Don't override the logger level - respect the quiet logs setting
             logger.info("Backtesting finished")
 
             if strat._analyze_backtest:
@@ -171,7 +171,7 @@ class Trader:
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
         # Import here to avoid circular imports
-        from lumibot.tools.lumibot_logger import set_log_level, add_file_handler
+        from lumibot.tools.lumibot_logger import set_log_level, set_console_log_level, add_file_handler
         
         # Set external library log levels to reduce noise
         get_logger("urllib3").setLevel(logging.ERROR)
@@ -189,8 +189,9 @@ class Trader:
                 set_log_level("ERROR")
             else:
                 set_log_level("INFO")
+                set_console_log_level("ERROR")  # Only show errors in console for backtesting
         else:
-            # Live trades should always have full logging.
+            # Live trades should always have full logging for both console and file
             set_log_level("INFO")
 
         # Setting file logging if specified

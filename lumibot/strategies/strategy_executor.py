@@ -696,6 +696,12 @@ class StrategyExecutor(Thread):
         if self.strategy.broker is not None and hasattr(self.strategy.broker, '_close_connection'):
             self.strategy.broker._close_connection()
 
+        # Stop and cleanup check_queue thread
+        self.check_queue_stop_event.set()
+        if hasattr(self, 'check_queue_thread') and self.check_queue_thread is not None:
+            if self.check_queue_thread.is_alive():
+                self.check_queue_thread.join(timeout=5.0)
+
         self.strategy.backup_variables_to_db()
 
     @event_method
@@ -1262,10 +1268,19 @@ class StrategyExecutor(Thread):
             # Calculate if we should stop based on market timing
             should_we_stop = self._calculate_should_we_stop()
 
+            # Clean up any existing check_queue thread before starting new one
+            if hasattr(self, 'check_queue_thread') and self.check_queue_thread is not None:
+                if self.check_queue_thread.is_alive():
+                    self.check_queue_stop_event.set()
+                    self.check_queue_thread.join(timeout=5.0)
+            
+            # Reset the stop event for the new thread
+            self.check_queue_stop_event.clear()
+            
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.
-            check_queue_thread = Thread(target=self.check_queue)
-            check_queue_thread.start()
+            self.check_queue_thread = Thread(target=self.check_queue)
+            self.check_queue_thread.start()
 
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None:

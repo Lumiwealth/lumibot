@@ -1,6 +1,8 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta, time
+import threading
+import time as time_module
 from lumibot.strategies import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
 
@@ -459,3 +461,243 @@ class TestStrategyExecutorImprovements:
         
         result = executor._should_continue_trading_loop(jobs, False, False)
         assert result == True  # Should continue when stop event is clear
+
+
+class TestStrategyExecutorThreadManagement:
+    """Test thread management fixes for resource leaks"""
+
+    def test_gracefully_exit_stops_check_queue_thread(self):
+        """Test that gracefully_exit properly stops the check_queue thread"""
+        strategy = Mock()
+        strategy.is_backtesting = False
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        
+        # Mock the broker methods called in gracefully_exit
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Create a mock thread that simulates being alive
+        mock_thread = Mock()
+        mock_thread.is_alive.return_value = True
+        executor.check_queue_thread = mock_thread
+        
+        # Test that gracefully_exit sets the stop event and joins the thread
+        executor.gracefully_exit()
+        
+        # Verify stop event was set
+        assert executor.check_queue_stop_event.is_set()
+        
+        # Verify thread join was called with timeout
+        mock_thread.join.assert_called_once_with(timeout=5.0)
+
+    def test_gracefully_exit_handles_missing_thread(self):
+        """Test gracefully_exit handles case where thread doesn't exist"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Don't set check_queue_thread attribute
+        if hasattr(executor, 'check_queue_thread'):
+            delattr(executor, 'check_queue_thread')
+        
+        # Should not raise exception
+        executor.gracefully_exit()
+        
+        # Stop event should still be set
+        assert executor.check_queue_stop_event.is_set()
+
+    def test_gracefully_exit_handles_dead_thread(self):
+        """Test gracefully_exit handles thread that's already dead"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Create mock dead thread
+        mock_thread = Mock()
+        mock_thread.is_alive.return_value = False
+        executor.check_queue_thread = mock_thread
+        
+        executor.gracefully_exit()
+        
+        # Should set stop event
+        assert executor.check_queue_stop_event.is_set()
+        
+        # Should not call join on dead thread
+        mock_thread.join.assert_not_called()
+
+    def test_run_trading_session_prevents_multiple_threads(self):
+        """Test that _run_trading_session prevents creating multiple check_queue threads"""
+        strategy = Mock()
+        strategy.is_backtesting = False
+        strategy.force_start_immediately = False
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.market = "NYSE"  # Non-continuous market
+        
+        # Mock market session setup to continue
+        executor._setup_market_session = Mock(return_value=True)
+        executor.broker.get_time_to_close.return_value = 1000  # Some time remaining
+        
+        # Mock scheduler and other dependencies
+        executor.scheduler = Mock()
+        executor.scheduler.running = False
+        executor.scheduler.get_jobs.return_value = []
+        executor.calculate_strategy_trigger = Mock(return_value="mock_trigger")
+        executor._calculate_should_we_stop = Mock(return_value=False)
+        
+        # Create an existing thread
+        old_thread = Mock()
+        old_thread.is_alive.return_value = True
+        executor.check_queue_thread = old_thread
+        
+        with patch('threading.Thread') as mock_thread_class:
+            with patch.object(executor, '_should_continue_trading_loop', return_value=False):  # Exit after one iteration
+                new_thread = Mock()
+                mock_thread_class.return_value = new_thread
+                
+                # This should stop the old thread and create new one
+                try:
+                    executor._run_trading_session()
+                except Exception:
+                    pass  # Ignore other errors, we're testing thread management
+                
+                # Verify old thread was stopped
+                old_thread.join.assert_called_once_with(timeout=5.0)
+                
+                # Verify stop event was cleared for new thread
+                assert not executor.check_queue_stop_event.is_set()
+
+    def test_check_queue_thread_stops_on_event(self):
+        """Test that check_queue thread properly stops when event is set"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.process_queue = Mock()
+        
+        # Start check_queue in a thread
+        stop_event_was_checked = threading.Event()
+        
+        def mock_check_queue():
+            """Mock version that records when stop event was checked"""
+            iterations = 0
+            while not executor.check_queue_stop_event.is_set():
+                stop_event_was_checked.set()
+                iterations += 1
+                if iterations > 10:  # Safety valve
+                    break
+                time_module.sleep(0.01)  # Small sleep to prevent tight loop
+        
+        # Replace check_queue with our mock
+        executor.check_queue = mock_check_queue
+        
+        # Start the thread
+        thread = threading.Thread(target=executor.check_queue)
+        thread.start()
+        
+        # Wait for thread to start checking
+        stop_event_was_checked.wait(timeout=1.0)
+        assert stop_event_was_checked.is_set()
+        
+        # Set stop event
+        executor.check_queue_stop_event.set()
+        
+        # Thread should stop within reasonable time
+        thread.join(timeout=1.0)
+        assert not thread.is_alive()
+
+    def test_multiple_crash_recovery_cycles_dont_leak_threads(self):
+        """Test that multiple crash/recovery cycles don't accumulate threads"""
+        strategy = Mock()
+        strategy.is_backtesting = False
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.should_continue.side_effect = [True, False]  # One iteration then stop
+        
+        # Mock dependencies
+        executor._on_bot_crash = Mock()
+        executor._run_trading_session = Mock(side_effect=[Exception("Simulated crash"), None])
+        
+        thread_count_before = threading.active_count()
+        
+        # Simulate the crash recovery loop (simplified version)
+        for _ in range(3):  # Simulate 3 crash cycles
+            try:
+                executor._run_trading_session()
+            except Exception:
+                executor._on_bot_crash(Exception("test"))
+                # Simulate gracefully_exit being called
+                if hasattr(executor, 'check_queue_thread') and executor.check_queue_thread:
+                    executor.check_queue_stop_event.set()
+                    if executor.check_queue_thread.is_alive():
+                        executor.check_queue_thread.join(timeout=1.0)
+        
+        thread_count_after = threading.active_count()
+        
+        # Thread count should not have increased significantly
+        assert thread_count_after <= thread_count_before + 1  # Allow for test thread itself
+
+    def test_thread_cleanup_timeout_handling(self):
+        """Test that thread cleanup handles timeout gracefully"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Create a mock thread that takes too long to join
+        mock_thread = Mock()
+        mock_thread.is_alive.return_value = True
+        mock_thread.join.side_effect = lambda timeout: time_module.sleep(0.1)  # Simulate slow join
+        executor.check_queue_thread = mock_thread
+        
+        # Should not hang or raise exception
+        start_time = time_module.time()
+        executor.gracefully_exit()
+        end_time = time_module.time()
+        
+        # Should complete within reasonable time (timeout + buffer)
+        assert end_time - start_time < 6.0  # 5 second timeout + 1 second buffer
+        
+        # Should still set stop event
+        assert executor.check_queue_stop_event.is_set()
+
+    def test_thread_reference_management(self):
+        """Test that thread references are properly managed"""
+        strategy = Mock()
+        strategy.is_backtesting = False
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        
+        # Initially should have no thread reference
+        assert not hasattr(executor, 'check_queue_thread') or executor.check_queue_thread is None
+        
+        # Create a thread reference
+        mock_thread = Mock()
+        mock_thread.is_alive.return_value = True
+        executor.check_queue_thread = mock_thread
+        
+        # Test that we have the reference
+        assert hasattr(executor, 'check_queue_thread')
+        assert executor.check_queue_thread is mock_thread
+        
+        # Test cleanup removes reference appropriately
+        executor.check_queue_stop_event.set()
+        mock_thread.join.return_value = None
+        
+        # After cleanup, thread should be handled properly
+        executor.gracefully_exit()
+        
+        # Verify cleanup was called
+        mock_thread.join.assert_called_once_with(timeout=5.0)

@@ -15,10 +15,11 @@ class TestEnvironmentVariableHandling:
     """Test centralized environment variable handling in lumibot_logger."""
     
     def test_backtesting_quiet_logs_overrides_log_level(self):
-        """Test that BACKTESTING_QUIET_LOGS=true overrides LUMIBOT_LOG_LEVEL."""
+        """Test that BACKTESTING_QUIET_LOGS=true overrides LUMIBOT_LOG_LEVEL during backtesting."""
         with patch.dict(os.environ, {
             'LUMIBOT_LOG_LEVEL': 'DEBUG',  # This should be overridden
-            'BACKTESTING_QUIET_LOGS': 'true'  # This should force ERROR level
+            'BACKTESTING_QUIET_LOGS': 'true',  # This should force ERROR level
+            'IS_BACKTESTING': 'true'  # This is required for quiet logs to take effect
         }):
             # Reset handlers to pick up environment changes
             import lumibot.tools.lumibot_logger as logger_module

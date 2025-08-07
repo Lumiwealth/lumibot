@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import time
 from decimal import Decimal
@@ -370,6 +371,10 @@ class Strategy(_Strategy):
 
         # If we are backtesting and we don't want to save the logfile, don't log (they're not displayed in the console anyway)
         if not self.save_logfile and self.is_backtesting:
+            return
+
+        # Check if INFO level is enabled before logging
+        if not self.logger.isEnabledFor(logging.INFO):
             return
 
         if color:

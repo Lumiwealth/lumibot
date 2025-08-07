@@ -18,7 +18,12 @@ class TestAlpacaMultiLegOrders:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.broker = Alpaca({"ALPACA_CREDS": "mock_for_testing"})
+        # Provide proper test credentials
+        self.test_config = {
+            "API_KEY": "test_api_key_multileg",
+            "API_SECRET": "test_api_secret_multileg", 
+            "PAPER": True
+        }
         
         # Create sample option assets for testing
         self.expiration = datetime.now() + timedelta(days=30)
@@ -39,10 +44,14 @@ class TestAlpacaMultiLegOrders:
             right="put"
         )
     
-    def test_multileg_order_class_is_correct(self):
+    @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_multileg_order_class_is_correct(self, mock_trading_client):
         """Test that multi-leg orders use the correct order_class value."""
+        mock_trading_client.return_value = Mock()
+        broker = Alpaca(self.test_config, connect_stream=False)
         # Create sample orders for a spread
         call_order = Order(
+            strategy="test_strategy",
             asset=self.call_asset,
             quantity=1,
             side="sell",
@@ -51,6 +60,7 @@ class TestAlpacaMultiLegOrders:
         )
         
         put_order = Order(
+            strategy="test_strategy",
             asset=self.put_asset,
             quantity=1,
             side="buy", 
@@ -61,14 +71,14 @@ class TestAlpacaMultiLegOrders:
         orders = [call_order, put_order]
         
         # Mock the API submit_order method to capture the kwargs
-        with patch.object(self.broker, 'api') as mock_api:
+        with patch.object(broker, 'api') as mock_api:
             mock_response = Mock()
             mock_response.id = "test_order_id"
             mock_response.status = "submitted"
             mock_api.submit_order.return_value = mock_response
             
             try:
-                self.broker._submit_multileg_order(orders, "SPY", price=1.00)
+                broker._submit_multileg_order(orders, "SPY", price=1.00)
             except Exception:
                 # We expect this to fail due to mocking, but we can check the call
                 pass
@@ -82,9 +92,13 @@ class TestAlpacaMultiLegOrders:
                 assert hasattr(order_data, 'order_class'), "OrderData should have order_class attribute"
                 assert order_data.order_class == "multileg", f"Expected order_class 'multileg', got '{order_data.order_class}'"
     
-    def test_multileg_order_has_required_fields(self):
+    @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_multileg_order_has_required_fields(self, mock_trading_client):
         """Test that multi-leg orders include all required fields for Alpaca API."""
+        mock_trading_client.return_value = Mock()
+        broker = Alpaca(self.test_config, connect_stream=False)
         call_order = Order(
+            strategy="test_strategy",
             asset=self.call_asset,
             quantity=1,
             side="sell",
@@ -93,6 +107,7 @@ class TestAlpacaMultiLegOrders:
         )
         
         put_order = Order(
+            strategy="test_strategy",
             asset=self.put_asset,
             quantity=1,
             side="buy", 
@@ -136,8 +151,11 @@ class TestAlpacaMultiLegOrders:
         # Test that side is mapped correctly
         assert kwargs["side"] in ["buy", "sell"], f"side must be 'buy' or 'sell', got '{kwargs['side']}'"
     
-    def test_side_mapping_for_multileg_orders(self):
+    @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_side_mapping_for_multileg_orders(self, mock_trading_client):
         """Test that extended side values are correctly mapped to simple buy/sell."""
+        mock_trading_client.return_value = Mock()
+        broker = Alpaca(self.test_config, connect_stream=False)
         test_cases = [
             ("buy_to_open", "buy"),
             ("buy_to_close", "buy"), 
@@ -150,6 +168,7 @@ class TestAlpacaMultiLegOrders:
         for input_side, expected_side in test_cases:
             # Create a mock order with the input side
             order = Order(
+                strategy="test_strategy",
                 asset=self.call_asset,
                 quantity=1,
                 side=input_side,
@@ -166,9 +185,13 @@ class TestAlpacaMultiLegOrders:
             
             assert side == expected_side, f"Side '{input_side}' should map to '{expected_side}', got '{side}'"
     
-    def test_multileg_order_with_limit_price(self):
+    @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_multileg_order_with_limit_price(self, mock_trading_client):
         """Test that multi-leg orders correctly handle limit prices."""
+        mock_trading_client.return_value = Mock()
+        broker = Alpaca(self.test_config, connect_stream=False)
         call_order = Order(
+            strategy="test_strategy",
             asset=self.call_asset,
             quantity=1,
             side="sell",
@@ -187,7 +210,7 @@ class TestAlpacaMultiLegOrders:
         # Test that limit price requirement is enforced
         with pytest.raises(ValueError, match="limit price is required"):
             # This should raise an error because price is None for a limit order
-            self.broker._submit_multileg_order(orders, "SPY", price=None, order_type="limit")
+            broker._submit_multileg_order(orders, order_type="limit", price=None)
 
 
 if __name__ == "__main__":

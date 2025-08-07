@@ -662,19 +662,19 @@ class TestAlpacaData(BaseDataSourceTester):
         option_client = data_source._get_option_client()
         assert option_client is not None
 
-    def test_oauth_priority_over_api_key(self):
-        """Test that OAuth token takes priority over API key/secret."""
+    def test_api_key_priority_over_oauth(self):
+        """Test that API key/secret takes priority over OAuth token."""
         mixed_config = {
-            "OAUTH_TOKEN": "priority_oauth_token",
-            "API_KEY": "should_not_be_used",
-            "API_SECRET": "should_not_be_used_either",
+            "OAUTH_TOKEN": "should_not_be_used",
+            "API_KEY": "priority_api_key",
+            "API_SECRET": "priority_api_secret",
             "PAPER": True
         }
 
         data_source = AlpacaData(mixed_config)
-        assert data_source.oauth_token == "priority_oauth_token"
-        assert data_source.api_key is None
-        assert data_source.api_secret is None
+        assert data_source.api_key == "priority_api_key"
+        assert data_source.api_secret == "priority_api_secret"
+        assert data_source.oauth_token is None
 
     def test_oauth_empty_fallback_to_api_key(self):
         """Test fallback to API key when OAuth token is empty."""

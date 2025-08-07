@@ -124,7 +124,7 @@ class TestAlpacaBroker:
         assert broker.is_oauth_only == True
 
     def test_oauth_mixed_credentials(self):
-        """Test that mixed OAuth + API credentials work correctly."""
+        """Test that mixed OAuth + API credentials work correctly (API keys take precedence)."""
         mixed_config = {
             "OAUTH_TOKEN": "test_oauth_token",
             "API_KEY": "test_api_key", 
@@ -133,10 +133,11 @@ class TestAlpacaBroker:
         }
 
         broker = Alpaca(mixed_config, connect_stream=False)
-        assert broker.oauth_token == "test_oauth_token"
+        # API keys take precedence, so OAuth token should be cleared
+        assert broker.oauth_token == ""
         assert broker.api_key == "test_api_key"
         assert broker.api_secret == "test_api_secret"
-        assert broker.is_oauth_only == False  # Has both OAuth and API credentials
+        assert broker.is_oauth_only == False  # Has API credentials
 
     def test_oauth_fallback_to_api_keys(self):
         """Test that broker falls back to API keys when OAuth token is empty."""

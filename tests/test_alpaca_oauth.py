@@ -61,11 +61,11 @@ class TestAlpacaOAuth(unittest.TestCase):
         """Test that AlpacaData works with both OAuth and API credentials."""
         data_source = AlpacaData(self.mixed_config)
         
-        # When both OAuth token and API credentials are present, OAuth takes precedence
-        self.assertEqual(data_source.oauth_token, "test_oauth_token_12345")
-        # API key/secret are None because OAuth token is present and takes precedence
-        self.assertIsNone(data_source.api_key)
-        self.assertIsNone(data_source.api_secret)
+        # When both OAuth token and API credentials are present, API keys take precedence
+        self.assertEqual(data_source.api_key, "test_api_key_12345")
+        self.assertEqual(data_source.api_secret, "test_api_secret_12345")
+        # OAuth token is None because API keys are present and take precedence
+        self.assertIsNone(data_source.oauth_token)
 
     def test_no_credentials_error(self):
         """Test that AlpacaData raises error when no credentials provided."""
@@ -116,14 +116,14 @@ class TestAlpacaOAuth(unittest.TestCase):
         
         broker = Alpaca(self.mixed_config, connect_stream=False)
         
-        # Should use OAuth when both are available
-        self.assertEqual(broker.oauth_token, "test_oauth_token_12345")
+        # Should use API keys when both are available (API keys take precedence)
         self.assertEqual(broker.api_key, "test_api_key_12345")
         self.assertEqual(broker.api_secret, "test_api_secret_12345")
-        self.assertFalse(broker.is_oauth_only)  # Both credentials available
+        self.assertEqual(broker.oauth_token, "")  # OAuth cleared when API keys present
+        self.assertFalse(broker.is_oauth_only)  # Has API credentials
         
-        # Should initialize with OAuth token
-        mock_trading_client.assert_called_with(oauth_token="test_oauth_token_12345", paper=True)
+        # Should initialize with API key/secret
+        mock_trading_client.assert_called_with("test_api_key_12345", "test_api_secret_12345", paper=True)
 
     @patch('lumibot.brokers.alpaca.TradingClient')
     def test_oauth_only_stream_object(self, mock_trading_client):

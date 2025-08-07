@@ -447,6 +447,10 @@ class TestBotspotIntegration:
             'LUMIWEALTH_API_KEY': 'test-api-key'
         }):
             with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', 'test-api-key'):
+                # Force reconfiguration after patching
+                import lumibot.tools.lumibot_logger as logger_module
+                logger_module._handlers_configured = False
+                
                 logger = get_logger(__name__)
                 
                 # Check that a BotspotErrorHandler was added to the root lumibot logger
@@ -458,12 +462,18 @@ class TestBotspotIntegration:
     def test_handler_not_added_without_api_key(self):
         """Test that Botspot handler is not added without API key."""
         with patch.dict(os.environ, {}, clear=True):
-            logger = get_logger(__name__)
-            
-            # Check that no BotspotErrorHandler was added
-            botspot_handlers = [h for h in logger.handlers 
-                              if isinstance(h, BotspotErrorHandler)]
-            assert len(botspot_handlers) == 0
+            with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
+                # Force reconfiguration after patching
+                import lumibot.tools.lumibot_logger as logger_module
+                logger_module._handlers_configured = False
+                
+                logger = get_logger(__name__)
+                
+                # Check that no BotspotErrorHandler was added to the root lumibot logger
+                root_logger = logging.getLogger("lumibot")
+                botspot_handlers = [h for h in root_logger.handlers 
+                                  if isinstance(h, BotspotErrorHandler)]
+                assert len(botspot_handlers) == 0
     
     def test_strategy_logger_integration(self):
         """Test that strategy logger errors are properly reported to Botspot."""

@@ -284,11 +284,15 @@ class Data:
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
     def repair_times_and_fill(self, idx):
-        # Trim the global index so that it is within the local data.
-        idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+        # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
+        # Replace: idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+        start_pos = idx.searchsorted(self.datetime_start, side='left')
+        end_pos = idx.searchsorted(self.datetime_end, side='right')
+        idx = idx[start_pos:end_pos]
         
-        # Ensure that the DataFrame's index is unique by dropping duplicate timestamps.
-        self.df = self.df[~self.df.index.duplicated(keep='first')]
+        # OPTIMIZATION: More efficient duplicate removal
+        if self.df.index.has_duplicates:
+            self.df = self.df[~self.df.index.duplicated(keep='first')]
         
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
@@ -299,22 +303,28 @@ class Data:
         else:
             df["volume"] = None
 
-        # Forward fill all columns except for open, high, and low.
-        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
-            :, ~df.columns.isin(["open", "high", "low"])
-        ].ffill()
+        # OPTIMIZATION: More efficient column selection and forward fill
+        ohlc_cols = ["open", "high", "low"]
+        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols]
+        if non_ohlc_cols:
+            df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:
             if col not in df.columns:
                 df[col] = None
 
-        # If there are any NaNs in open, high, or low, fill them with the close value.
-        for col in ["open", "high", "low"]:
-            try:
-                df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
-            except Exception as e:
-                logger.error(f"Error filling {col} column: {e}")
+        # OPTIMIZATION: Vectorized NaN filling for OHLC columns
+        if "close" in df.columns:
+            for col in ["open", "high", "low"]:
+                if col in df.columns:
+                    try:
+                        # More efficient: compute mask once, use where
+                        mask = df[col].isna()
+                        if mask.any():
+                            df[col] = df[col].where(~mask, df["close"])
+                    except Exception as e:
+                        logger.error(f"Error filling {col} column: {e}")
 
         self.df = df
 

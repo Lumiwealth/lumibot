@@ -2,10 +2,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Union
 
-import pandas as pd
+import numpy as np
+import polars as pl
+from datetime import datetime
+from typing import Union
+from decimal import Decimal
 
 from lumibot.tools.lumibot_logger import get_logger
 from .bar import Bar
+from .polars_dataframe_wrapper import PolarsDataFrameWrapper
 
 logger = get_logger(__name__)
 
@@ -101,8 +106,16 @@ class Bars:
     def __init__(self, df, source, asset, quote=None, raw=None):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
-        df index: pd.Timestamp localized at the timezone America/New_York
+        datetime column for polars DataFrames
         """
+        # Convert pandas to polars if needed
+        if not isinstance(df, pl.DataFrame):
+            # This is a pandas DataFrame, convert it
+            if hasattr(df, 'index') and hasattr(df.index, 'name'):
+                df = pl.from_pandas(df.reset_index())
+            else:
+                df = pl.from_pandas(df)
+        
         if df.shape[0] == 0:
             logger.warning(f"Unable to get bar data for {asset} {source}")
 
@@ -115,16 +128,59 @@ class Bars:
         self.quote = quote
         self._raw = raw
 
-        if "dividend" in df.columns:
-            df.loc[:, "price_change"] = df["close"].pct_change(fill_method=None)
-            df.loc[:, "dividend_yield"] = df["dividend"] / df["close"]
-            df.loc[:, "return"] = df["dividend_yield"] + df["price_change"]
+        # Polars implementation - use native operations
+        columns = df.columns
+        
+        # Use polars native operations for maximum efficiency
+        if "dividend" in columns:
+            # Calculate all derived columns in one operation
+            df = df.with_columns([
+                pl.col("close").pct_change().alias("price_change"),
+                (pl.col("dividend") / pl.col("close")).alias("dividend_yield"),
+                ((pl.col("dividend") / pl.col("close")) + pl.col("close").pct_change()).alias("return")
+            ])
         else:
-            df = df.assign(return_=df["close"].pct_change(fill_method=None))
-            df.rename(columns={"return_": "return"}, inplace=True)
+            # Just price returns
+            df = df.with_columns([
+                pl.col("close").pct_change().alias("return")
+            ])
 
-        self.df = df
+        # Store the polars DataFrame internally
+        self._polars_df = df
+        # Create wrapper for compatibility
+        self._df_wrapper = PolarsDataFrameWrapper(df)
+        # Convert to pandas for full compatibility with strategies
+        self._pandas_df = None  # Lazy conversion
 
+    @property
+    def df(self):
+        """Return the DataFrame - convert to pandas for compatibility"""
+        if self._pandas_df is None:
+            # Lazy conversion to pandas
+            self._pandas_df = self._polars_df.to_pandas()
+            # Debug logging
+            logger.debug(f"[Bars.df] Converted Polars to Pandas. Columns: {self._pandas_df.columns.tolist()}")
+            # Set datetime-like column as index if it exists
+            # Check for common datetime column names
+            for col_name in ['datetime', 'timestamp', 'date', 'time']:
+                if col_name in self._pandas_df.columns:
+                    logger.debug(f"[Bars.df] Setting {col_name} as index")
+                    self._pandas_df = self._pandas_df.set_index(col_name)
+                    break
+            else:
+                logger.debug(f"[Bars.df] No datetime-like column found to set as index!")
+        return self._pandas_df
+    
+    @df.setter
+    def df(self, value):
+        """Allow setting the DataFrame"""
+        if isinstance(value, pl.DataFrame):
+            self._polars_df = value
+            self._pandas_df = None  # Reset pandas cache
+        else:
+            self._pandas_df = value
+            self._polars_df = None  # Reset polars cache
+    
     def __repr__(self):
         return repr(self.df)
 
@@ -134,6 +190,15 @@ class Bars:
     def __len__(self):
         """Return the number of bars (rows) in the DataFrame"""
         return len(self.df)
+    
+    @property
+    def empty(self):
+        """Check if the DataFrame is empty (compatible with both pandas and polars)"""
+        if self._polars_df is not None:
+            return self._polars_df.is_empty()
+        elif self._pandas_df is not None:
+            return self._pandas_df.empty
+        return True
 
     @classmethod
     def parse_bar_list(cls, bar_list, source, asset):
@@ -141,11 +206,20 @@ class Bars:
         for bar in bar_list:
             raw.append(bar)
 
-        df = pd.DataFrame(raw)
-        df = df.set_index("timestamp")
-        df["price_change"] = df["close"].pct_change()
-        df["dividend_yield"] = df["dividend"] / df["close"]
-        df["return"] = df["dividend_yield"] + df["price_change"]
+        # Create polars DataFrame directly
+        df = pl.DataFrame(raw)
+        
+        # Calculate derived columns using polars
+        df = df.with_columns([
+            pl.col("close").pct_change().alias("price_change"),
+            (pl.col("dividend") / pl.col("close")).alias("dividend_yield"),
+        ])
+        
+        # Calculate return
+        df = df.with_columns([
+            (pl.col("dividend_yield") + pl.col("price_change")).alias("return")
+        ])
+        
         bars = cls(df, source, asset, raw=bar_list)
         return bars
 
@@ -161,9 +235,28 @@ class Bars:
         list of Bars objects
         """
         result = []
-        for index, row in self.df.iterrows():
+        # Use polars DataFrame for iteration
+        underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+        # Polars implementation
+        for row in underlying_df.iter_rows(named=True):
+            # Find datetime column
+            dt_val = None
+            for col in underlying_df.columns:
+                if underlying_df[col].dtype in [pl.Datetime, pl.Date]:
+                    dt_val = row[col]
+                    break
+            
+            if dt_val is None:
+                # Try to find a column with date/time in the name
+                for col in ['datetime', 'date', 'timestamp']:
+                    if col in row:
+                        dt_val = row[col]
+                        break
+            
+            timestamp = int(dt_val.timestamp()) if hasattr(dt_val, 'timestamp') else int(dt_val.timestamp())
+            
             item = {
-                "timestamp": int(index.timestamp()),
+                "timestamp": timestamp,
                 "open": row.get("open"),
                 "high": row.get("high"),
                 "low": row.get("low"),
@@ -189,7 +282,7 @@ class Bars:
         float, Decimal or None
 
         """
-        return self.df["close"].iloc[-1]
+        return self.df["close"][-1]
 
     def get_last_dividend(self):
         """Return the last dividend of the last bar
@@ -203,7 +296,7 @@ class Bars:
         float
         """
         if "dividend" in self.df.columns:
-            return self.df["dividend"].iloc[-1]
+            return self.df["dividend"][-1]
         else:
             logger.debug("Unable to find 'dividend' column in bars")
             return 0
@@ -223,11 +316,27 @@ class Bars:
         -------
         Bars object
         """
-        df_copy = self.df
-        if isinstance(start, datetime):
-            df_copy = df_copy[df_copy.index >= start]
-        if isinstance(end, datetime):
-            df_copy = df_copy[df_copy.index <= end]
+        # Get polars DataFrame for operations
+        df_copy = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+        # Find datetime column
+        dt_col = None
+        for col in df_copy.columns:
+            if df_copy[col].dtype in [pl.Datetime, pl.Date]:
+                dt_col = col
+                break
+        
+        if dt_col is None:
+            # Try common datetime column names
+            for col in ['datetime', 'date', 'timestamp']:
+                if col in df_copy.columns:
+                    dt_col = col
+                    break
+        
+        if dt_col:
+            if isinstance(start, datetime):
+                df_copy = df_copy.filter(pl.col(dt_col) >= start)
+            if isinstance(end, datetime):
+                df_copy = df_copy.filter(pl.col(dt_col) <= end)
 
         return df_copy
 
@@ -236,12 +345,19 @@ class Bars:
         Calculate the momentum of the asset over the last num_periods rows. If dividends are provided by the data source,
         and included in the return calculation, the momentum will be adjusted for dividends.
         """
-        df_copy = self.df.copy()
-        if "return" in df_copy.columns:
-            period_adj_returns = df_copy['return'].iloc[-num_periods:]
-            momentum = (1 + period_adj_returns).cumprod().iloc[-1] - 1
+        if "return" in self.df.columns:
+            # Use existing return column
+            underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+            period_adj_returns = underlying_df['return'].tail(num_periods)
+            momentum = float((1 + period_adj_returns).product() - 1)
         else:
-            momentum = df_copy['close'].pct_change(num_periods).iloc[-1]
+            # Calculate momentum directly
+            underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+            close_values = underlying_df['close'].to_numpy()
+            if len(close_values) > num_periods:
+                momentum = (close_values[-1] / close_values[-num_periods-1]) - 1
+            else:
+                momentum = np.nan
         return momentum
 
     def get_total_volume(self, start=None, end=None):
@@ -288,17 +404,57 @@ class Bars:
         >>> bars = self.get_historical_prices("AAPL", 60, "minute")
         >>> bars_agg = bars.aggregate_bars("15Min")
         """
-        new_df = self.df.groupby(pd.Grouper(freq=frequency, **grouper_kwargs)).agg(
-            {
-                "open": "first",
-                "close": "last",
-                "low": "min",
-                "high": "max",
-                "volume": "sum",
-            }
+        # Get polars DataFrame
+        underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+        # Find datetime column
+        dt_col = None
+        for col in underlying_df.columns:
+            if underlying_df[col].dtype in [pl.Datetime, pl.Date]:
+                dt_col = col
+                break
+        
+        if dt_col is None:
+            # Try common datetime column names
+            for col in ['datetime', 'date', 'timestamp']:
+                if col in underlying_df.columns:
+                    dt_col = col
+                    break
+        
+        if dt_col is None:
+            raise ValueError("No datetime column found in DataFrame")
+        
+        # Convert frequency string to polars duration
+        freq_map = {
+            "15Min": "15m", "15m": "15m", "15T": "15m",
+            "1H": "1h", "1h": "1h", "H": "1h",
+            "1D": "1d", "1d": "1d", "D": "1d",
+            "5Min": "5m", "5m": "5m", "5T": "5m",
+            "30Min": "30m", "30m": "30m", "30T": "30m",
+        }
+        
+        polars_freq = freq_map.get(frequency, frequency)
+        
+        # Group by time intervals and aggregate
+        new_df = (
+            underlying_df
+            .sort(dt_col)
+            .group_by_dynamic(
+                dt_col,
+                every=polars_freq,
+                closed="left",
+                **grouper_kwargs
+            )
+            .agg([
+                pl.col("open").first().alias("open"),
+                pl.col("high").max().alias("high"),
+                pl.col("low").min().alias("low"),
+                pl.col("close").last().alias("close"),
+                pl.col("volume").sum().alias("volume"),
+            ])
         )
-        new_df.columns = ["open", "close", "low", "high", "volume"]
-        new_df = new_df.dropna()
+        
+        # Drop null rows
+        new_df = new_df.drop_nulls()
 
         new_bars = Bars(new_df, self.source, self.asset)
 

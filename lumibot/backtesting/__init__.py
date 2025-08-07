@@ -7,4 +7,9 @@ from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 from .ccxt_backtesting import CcxtBacktesting
 from .interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
-from .databento_backtesting import DataBentoDataBacktesting
+# Import DataBento backtesting based on backend
+from lumibot.config import use_polars
+if use_polars():
+    from .databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataBacktesting
+else:
+    from .databento_backtesting import DataBentoDataBacktesting

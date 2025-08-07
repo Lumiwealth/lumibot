@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Union
 
 import numpy
+import pandas as pd
 
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting
@@ -21,7 +22,7 @@ class YahooData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1m", "1 minute"]},
     ]
 
-    def __init__(self, *args, auto_adjust=False, datetime_start=None, datetime_end=None, **kwargs):
+    def __init__(self, auto_adjust=False, datetime_start=None, datetime_end=None, **kwargs):
         # Log received parameters BEFORE applying defaults
         logger.info(f"YahooData.__init__ received: datetime_start={datetime_start}, datetime_end={datetime_end}")
         
@@ -274,18 +275,35 @@ class YahooData(DataSourceBacktesting):
                 timeshift = timedelta(days=timeshift)
             end_filter = end_filter - timeshift
 
-        # Filter the data store. Use '<' to get data strictly before the end_filter.
-        result_data = data[data.index < end_filter]
-
-        # Log if insufficient data is available before taking the tail
-        if len(result_data) < length:
+        # OPTIMIZED: Use searchsorted for O(log n) filtering instead of expensive boolean indexing
+        index_array = data.index.values  # Get numpy array for fast operations
+        
+        # Convert end_filter to numpy datetime64 for comparison
+        if hasattr(end_filter, 'to_numpy'):
+            end_filter_np = end_filter.to_numpy()
+        elif hasattr(end_filter, 'asm8'):  # pandas Timestamp
+            end_filter_np = end_filter.asm8
+        else:
+            # Convert datetime to pandas Timestamp first, then to numpy
+            end_filter_np = pd.Timestamp(end_filter).asm8
+        
+        # Find the insertion point for end_filter (first position where index >= end_filter)
+        end_idx = index_array.searchsorted(end_filter_np, side='left')
+        
+        # Calculate start index for the requested length
+        start_idx = max(0, end_idx - length)
+        
+        # Use iloc for fast integer-based slicing (much faster than boolean indexing)
+        result = data.iloc[start_idx:end_idx].copy()
+        
+        # Log if insufficient data is available
+        if len(result) < length:
             logger.warning(
                 f"Insufficient historical data for {asset.symbol} before {end_filter} "
-                f"to satisfy length {length}. Available: {len(result_data)}. "
+                f"to satisfy length {length}. Available: {len(result)}. "
                 f"Check backtest start date and data availability."
             )
 
-        result = result_data.tail(length)
         return result
 
     def _pull_source_bars(
@@ -347,6 +365,23 @@ class YahooData(DataSourceBacktesting):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()
+
+        # OPTIMIZATION: Cache last price lookups to avoid redundant get_historical_prices calls
+        current_datetime = self._datetime
+        cache_key = (asset, timestep, quote, exchange, current_datetime)
+        
+        if not hasattr(self, '_last_price_cache'):
+            self._last_price_cache = {}
+            self._last_price_cache_datetime = None
+        
+        # Clear cache if datetime changed
+        if self._last_price_cache_datetime != current_datetime:
+            self._last_price_cache.clear()
+            self._last_price_cache_datetime = current_datetime
+        
+        # Check cache first
+        if cache_key in self._last_price_cache:
+            return self._last_price_cache[cache_key]
 
         # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
         bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1))

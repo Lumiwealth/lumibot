@@ -7,6 +7,7 @@ matplotlib>=3.3.3
 quandl
 numpy>=1.20.0
 pandas>=2.2.0
+polars>=0.20.0
 pandas_market_calendars>=5.1.0
 plotly>=5.18.0
 sqlalchemy
@@ -37,3 +38,4 @@ schwab-py>=1.5.0
 Flask>=2.3
 free-proxy
 requests-oauthlib
+polars

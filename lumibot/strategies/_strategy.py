@@ -22,6 +22,7 @@ import io
 from sqlalchemy import create_engine, inspect, text
 
 import pandas as pd
+import polars as pl
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from ..backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting, AlpacaBacktesting, InteractiveBrokersRESTBacktesting
 from ..entities import Asset, Position, Order, Data
@@ -860,10 +861,14 @@ class _Strategy:
                 df = bars.df
 
                 # Add returns column
-                df["return"] = df["close"].pct_change(fill_method=None)
-
-                # Add the symbol_cumprod column
-                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+                if hasattr(df, 'select'):  # Polars DataFrame
+                    df = df.with_columns(pl.col("close").pct_change().alias("return"))
+                    # Add the symbol_cumprod column for polars
+                    df = df.with_columns((1 + pl.col("return")).cum_prod().alias("symbol_cumprod"))
+                else:  # Pandas DataFrame
+                    df["return"] = df["close"].pct_change(fill_method=None)
+                    # Add the symbol_cumprod column for pandas
+                    df["symbol_cumprod"] = (1 + df["return"]).cumprod()
 
                 self._benchmark_returns_df = df
 
@@ -909,8 +914,12 @@ class _Strategy:
                     self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
                     return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
-                df["return"] = df["close"].pct_change(fill_method=None)
-                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
+                if hasattr(df, 'select'):  # Polars DataFrame
+                    df = df.with_columns(pl.col("close").pct_change().alias("return"))
+                    df = df.with_columns((1 + pl.col("return")).cumprod().alias("symbol_cumprod"))
+                else:  # Pandas DataFrame
+                    df["return"] = df["close"].pct_change(fill_method=None)
+                    df["symbol_cumprod"] = (1 + df["return"]).cumprod()
                 self._benchmark_returns_df = df
 
             # If we are using any other data source, then get the benchmark returns from yahoo

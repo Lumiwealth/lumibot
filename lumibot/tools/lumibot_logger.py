@@ -663,17 +663,12 @@ def _ensure_handlers_configured():
             root_logger.addHandler(csv_handler)
         
         # Add Botspot error handler if API key is available
-        # Check both the imported value and environment variable dynamically
-        api_key = None
-        try:
-            # Re-import to get the current value (useful for testing)
-            from ..credentials import LUMIWEALTH_API_KEY as current_api_key
-            api_key = current_api_key
-        except ImportError:
-            pass
+        # Check environment variable (this is what tests patch)
+        api_key = os.environ.get("LUMIWEALTH_API_KEY")
         
-        if not api_key:
-            api_key = os.environ.get("LUMIWEALTH_API_KEY")
+        # Fall back to the imported value if not in environment
+        if not api_key and LUMIWEALTH_API_KEY:
+            api_key = LUMIWEALTH_API_KEY
         
         if api_key:
             botspot_handler = BotspotErrorHandler()

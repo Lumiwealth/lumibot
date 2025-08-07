@@ -702,6 +702,15 @@ class StrategyExecutor(Thread):
             if self.check_queue_thread.is_alive():
                 self.check_queue_thread.join(timeout=5.0)
 
+        # Shutdown APScheduler to prevent infinite error loops
+        if hasattr(self, 'scheduler') and self.scheduler is not None:
+            try:
+                if self.scheduler.running:
+                    self.scheduler.shutdown(wait=False)
+            except Exception as e:
+                # Log but don't let scheduler shutdown errors prevent graceful exit
+                print(f"Warning: Error shutting down scheduler: {e}")
+
         self.strategy.backup_variables_to_db()
 
     @event_method

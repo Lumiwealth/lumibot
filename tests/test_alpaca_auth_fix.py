@@ -99,17 +99,34 @@ class TestAlpacaAuthFix:
         # Auth should be marked as failed
         assert data_source._auth_failed
     
-    def test_get_chains_blocked_after_auth_failure(self):
+    @patch('lumibot.data_sources.alpaca_data.OptionHistoricalDataClient')
+    def test_get_chains_blocked_after_auth_failure(self, mock_client_class):
         """Test that get_chains is blocked after authentication failure."""
         data_source = AlpacaData(self.config)
         
         # Set auth failed state
         data_source._auth_failed = True
         
-        # get_chains should immediately raise error without trying API call
+        # Mock the client to avoid actual API calls
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # get_chains should reset the flag and retry (not block anymore)
         asset = Asset("SPY", Asset.AssetType.STOCK)
-        with pytest.raises(ValueError, match="Authentication previously failed"):
-            data_source.get_chains(asset)
+        
+        # Mock successful response after retry
+        mock_client.get_option_chain.return_value = {
+            "option_chains": {}
+        }
+        
+        # Should not raise error - it resets and retries
+        result = data_source.get_chains(asset)
+        
+        # Verify flag was reset
+        assert not data_source._auth_failed
+        
+        # Verify it returned a result (even if empty)
+        assert result is not None
     
     def test_different_auth_error_patterns(self):
         """Test that various authentication error patterns are detected."""

@@ -3,9 +3,18 @@ from lumibot.entities import Asset
 import pandas as pd
 import yfinance as yf
 from scipy import stats
-import pandas_ta as ta
 import traceback
 import datetime
+
+# Fix for NumPy 2.0+ compatibility with pandas_ta
+import numpy as np
+
+# pandas_ta 0.3.14b uses numpy.NaN which was removed in NumPy 2.0
+# Create alias for backward compatibility if needed
+if not hasattr(np, 'NaN'):
+    np.NaN = np.nan
+
+import pandas_ta as ta
 
 """ 
     Description

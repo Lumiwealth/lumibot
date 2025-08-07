@@ -701,3 +701,95 @@ class TestStrategyExecutorThreadManagement:
         
         # Verify cleanup was called
         mock_thread.join.assert_called_once_with(timeout=5.0)
+
+    def test_gracefully_exit_shuts_down_scheduler(self):
+        """Test that gracefully_exit properly shuts down APScheduler"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Mock scheduler
+        mock_scheduler = Mock()
+        mock_scheduler.running = True
+        executor.scheduler = mock_scheduler
+        
+        # Call gracefully_exit
+        executor.gracefully_exit()
+        
+        # Verify scheduler shutdown was called
+        mock_scheduler.shutdown.assert_called_once_with(wait=False)
+        
+    def test_gracefully_exit_handles_scheduler_shutdown_error(self):
+        """Test that scheduler shutdown errors don't prevent graceful exit"""
+        import io
+        import sys
+        
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Mock scheduler that raises error on shutdown
+        mock_scheduler = Mock()
+        mock_scheduler.running = True
+        mock_scheduler.shutdown.side_effect = Exception("Scheduler error")
+        executor.scheduler = mock_scheduler
+        
+        # Capture printed output
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        
+        try:
+            # This should not raise an exception
+            executor.gracefully_exit()
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        # Verify shutdown was attempted and warning was printed
+        mock_scheduler.shutdown.assert_called_once_with(wait=False)
+        output = captured_output.getvalue()
+        assert "Warning: Error shutting down scheduler: Scheduler error" in output
+        
+    def test_gracefully_exit_handles_no_scheduler(self):
+        """Test that gracefully_exit handles case where scheduler doesn't exist"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Don't set scheduler attribute
+        if hasattr(executor, 'scheduler'):
+            delattr(executor, 'scheduler')
+        
+        # Should not raise an exception
+        executor.gracefully_exit()
+        
+        # Should still complete backup
+        executor.strategy.backup_variables_to_db.assert_called_once()
+        
+    def test_gracefully_exit_handles_stopped_scheduler(self):
+        """Test that gracefully_exit handles scheduler that's already stopped"""
+        strategy = Mock()
+        
+        executor = StrategyExecutor(strategy)
+        executor.broker = Mock()
+        executor.broker.IS_BACKTESTING_BROKER = False
+        executor.strategy.backup_variables_to_db = Mock()
+        
+        # Mock stopped scheduler
+        mock_scheduler = Mock()
+        mock_scheduler.running = False
+        executor.scheduler = mock_scheduler
+        
+        # Call gracefully_exit
+        executor.gracefully_exit()
+        
+        # Verify shutdown was NOT called since scheduler is already stopped
+        mock_scheduler.shutdown.assert_not_called()

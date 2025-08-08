@@ -690,6 +690,22 @@ class StrategyExecutor(Thread):
 
 
     def gracefully_exit(self):
+        # Shutdown APScheduler FIRST to prevent infinite error loops during exit
+        if hasattr(self, 'scheduler') and self.scheduler is not None:
+            try:
+                if self.scheduler.running:
+                    # Remove all jobs first to prevent new scheduling
+                    self.scheduler.remove_all_jobs()
+                    # Shutdown and wait for completion to prevent race conditions
+                    self.scheduler.shutdown(wait=True)
+                # Set scheduler to None to prevent reuse
+                self.scheduler = None
+            except Exception as e:
+                # Log but don't let scheduler shutdown errors prevent graceful exit
+                print(f"Warning: Error shutting down scheduler: {e}")
+                # Force set to None even if shutdown failed
+                self.scheduler = None
+        
         if self.broker.IS_BACKTESTING_BROKER:
             self.strategy._dump_stats()
 
@@ -702,16 +718,21 @@ class StrategyExecutor(Thread):
             if self.check_queue_thread.is_alive():
                 self.check_queue_thread.join(timeout=5.0)
 
-        # Shutdown APScheduler to prevent infinite error loops
-        if hasattr(self, 'scheduler') and self.scheduler is not None:
-            try:
-                if self.scheduler.running:
-                    self.scheduler.shutdown(wait=False)
-            except Exception as e:
-                # Log but don't let scheduler shutdown errors prevent graceful exit
-                print(f"Warning: Error shutting down scheduler: {e}")
-
         self.strategy.backup_variables_to_db()
+
+    def __del__(self):
+        """Destructor to ensure scheduler is shut down when executor is garbage collected"""
+        try:
+            if hasattr(self, 'scheduler') and self.scheduler is not None:
+                if self.scheduler.running:
+                    # Remove all jobs first to prevent new scheduling
+                    self.scheduler.remove_all_jobs()
+                    # Quick shutdown during garbage collection
+                    self.scheduler.shutdown(wait=False)
+                self.scheduler = None
+        except Exception:
+            # Ignore errors during garbage collection
+            pass
 
     @event_method
     def _on_new_order(self, order):
@@ -1124,7 +1145,8 @@ class StrategyExecutor(Thread):
 
     def _setup_live_trading_scheduler(self):
         """Set up the APScheduler for live trading sessions"""
-        if not self.scheduler.running:
+        # Safety check: ensure scheduler exists and is not None
+        if hasattr(self, 'scheduler') and self.scheduler is not None and not self.scheduler.running:
             self.scheduler.start()
 
             # Choose the cron trigger for the strategy based on the desired sleep time.

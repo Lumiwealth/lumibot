@@ -719,8 +719,8 @@ class TestStrategyExecutorThreadManagement:
         # Call gracefully_exit
         executor.gracefully_exit()
         
-        # Verify scheduler shutdown was called
-        mock_scheduler.shutdown.assert_called_once_with(wait=False)
+        # Verify scheduler shutdown was called with proper waiting for completion
+        mock_scheduler.shutdown.assert_called_once_with(wait=True)
         
     def test_gracefully_exit_handles_scheduler_shutdown_error(self):
         """Test that scheduler shutdown errors don't prevent graceful exit"""
@@ -751,7 +751,7 @@ class TestStrategyExecutorThreadManagement:
             sys.stdout = sys.__stdout__
         
         # Verify shutdown was attempted and warning was printed
-        mock_scheduler.shutdown.assert_called_once_with(wait=False)
+        mock_scheduler.shutdown.assert_called_once_with(wait=True)
         output = captured_output.getvalue()
         assert "Warning: Error shutting down scheduler: Scheduler error" in output
         

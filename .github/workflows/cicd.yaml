@@ -77,10 +77,20 @@ jobs:
       # ------------------------------------------------------------
       - name: Run Unit Tests
         run: |
-          # Run tests without coverage for speed - coverage is causing 10x slowdown in CI
-          # Tests run in 2-3 minutes locally but 26+ minutes with coverage in CI
-          echo "Running tests without coverage for faster CI"
-          python -m pytest tests/ -m "not apitest" --tb=short -v
+          # Run tests in smaller batches to avoid resource exhaustion and hangs
+          echo "Running tests in batches to prevent CI hangs..."
+          
+          # First run quick unit tests (exclude slow backtest tests)
+          echo "=== Running unit tests (excluding backtests) ==="
+          python -m pytest tests/ -m "not apitest" --ignore=tests/backtest/ --tb=short -v --durations=10 || true
+          
+          # Then run backtest tests separately
+          echo "=== Running backtest tests ==="
+          python -m pytest tests/backtest/ -m "not apitest" --tb=short -v --durations=10 || true
+          
+          # Check if all tests passed
+          echo "=== Running all tests to verify ==="
+          python -m pytest tests/ -m "not apitest" --tb=short -q
           
           # Create placeholder coverage files for badge generation
           echo '<?xml version="1.0" ?><coverage version="1.0"><packages></packages></coverage>' > coverage.xml

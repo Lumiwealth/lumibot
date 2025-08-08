@@ -145,12 +145,12 @@ class Alpaca(Broker):
             max_workers=max_workers,
         )
 
-        # Initialize TradingClient based on available authentication method
+        # Initialize TradingClient based on available authentication method (API keys have precedence)
         try:
-            if self.oauth_token:
-                self.api = TradingClient(oauth_token=self.oauth_token, paper=self.is_paper)
-            elif self.api_key and self.api_secret:
+            if self.api_key and self.api_secret:
                 self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
+            elif self.oauth_token:
+                self.api = TradingClient(oauth_token=self.oauth_token, paper=self.is_paper)
             else:
                 raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
         except Exception as e:
@@ -183,28 +183,47 @@ class Alpaca(Broker):
                 raise e
 
     def _update_attributes_from_config(self, config):
-        """Override parent method to handle OAuth token configuration."""
+        """Override parent method to handle OAuth token configuration with API key precedence."""
         value_dict = config
         if not isinstance(config, dict):
             value_dict = config.__dict__
 
+        # Initialize credentials
+        temp_api_key = ""
+        temp_api_secret = ""
+        temp_oauth_token = ""
+        
+        # Extract all credential values
         for key in value_dict:
-            # Special handling for OAuth token
             if key == "OAUTH_TOKEN":
-                self.oauth_token = config[key] or ""
-            # Special handling for paper trading
+                temp_oauth_token = config[key] or ""
+            elif key == "API_KEY":
+                temp_api_key = config[key] or ""
+            elif key == "API_SECRET":
+                temp_api_secret = config[key] or ""
+            # Handle paper trading
             elif "paper" in key.lower():
                 self.is_paper = config[key]
-            # Special handling for API key and secret
-            elif key == "API_KEY":
-                self.api_key = config[key] or ""
-            elif key == "API_SECRET":
-                self.api_secret = config[key] or ""
             # Handle other attributes normally
             else:
                 attr = key.lower()
                 if hasattr(self, attr):
                     setattr(self, attr, config[key])
+        
+        # Apply precedence logic: API key/secret takes precedence over OAuth token
+        if temp_api_key and temp_api_secret:
+            self.api_key = temp_api_key
+            self.api_secret = temp_api_secret
+            self.oauth_token = ""  # Clear OAuth token when using API keys
+        elif temp_oauth_token:
+            self.oauth_token = temp_oauth_token
+            self.api_key = ""
+            self.api_secret = ""
+        else:
+            # Keep empty values
+            self.api_key = ""
+            self.api_secret = ""
+            self.oauth_token = ""
 
     # =========Clock functions=====================
 
@@ -678,13 +697,25 @@ class Alpaca(Broker):
                     new_qty = int(orig_qty // leg_gcd)
                     leg["ratio_qty"] = str(new_qty)
                 qty = str(int(qty) // leg_gcd)
+        # For multi-leg orders, we need to set the primary asset info from the first leg
+        first_order = orders[0]
+        
+        # Map extended side values to simple buy/sell for Alpaca API
+        side = first_order.side
+        if side in ("buy_to_open", "buy_to_close"):
+            side = "buy"
+        elif side in ("sell_to_open", "sell_to_close"):
+            side = "sell"
+        
         # Compose order payload
         kwargs = {
-            "order_class": "mleg",
-            "qty": qty,
-            "type": order_type or "limit",
-            "time_in_force": duration,
-            "legs": legs,
+            "symbol": symbol,  # Required: Primary symbol
+            "qty": qty,        # Required: Total quantity
+            "side": side,      # Required: Primary side (buy/sell)
+            "type": order_type or "limit",  # Required: Order type
+            "order_class": "multileg",      # Required: Must be "multileg" for multi-leg orders
+            "time_in_force": duration,      # Required: Duration
+            "legs": legs,      # Required: Individual legs
         }
         # For limit/credit/debit orders, price is required
         if (order_type in ["limit", "credit", "debit", None]) and price is None:

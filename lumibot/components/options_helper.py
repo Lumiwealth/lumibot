@@ -215,22 +215,53 @@ class OptionsHelper:
         Optional[float]
             The strike price that best matches the target delta, or None.
         """
-        self.strategy.log_message(f"Finding strike for target delta {target_delta} on {underlying_asset.symbol}", color="blue")
+        self.strategy.log_message(
+            f"🎯 STRIKE SEARCH: Finding strike for {underlying_asset.symbol} "
+            f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})", 
+            color="blue"
+        )
+        
+        # Validate input parameters
+        if underlying_price <= 0:
+            self.strategy.log_message(f"❌ ERROR: Invalid underlying price {underlying_price}", color="red")
+            return None
+            
+        if target_delta is None:
+            self.strategy.log_message(f"❌ ERROR: target_delta is None", color="red")
+            return None
+            
+        if abs(target_delta) > 1:
+            self.strategy.log_message(f"❌ ERROR: Invalid target delta {target_delta} (should be between -1 and 1)", color="red")
+            return None
+        
         low_strike = int(underlying_price - 20)
         high_strike = int(underlying_price + 30)
+        
+        # Ensure strikes are positive
+        low_strike = max(1, low_strike)
+        
+        self.strategy.log_message(
+            f"🔍 Search range: strikes {low_strike} to {high_strike} (underlying=${underlying_price})", 
+            color="blue"
+        )
+        
         closest_strike: Optional[float] = None
         closest_delta: Optional[float] = None
 
         while low_strike <= high_strike:
             mid_strike = (low_strike + high_strike) // 2
+            self.strategy.log_message(f"🔎 Trying strike {mid_strike} (range: {low_strike}-{high_strike})", color="blue")
+            
             mid_delta = self.get_delta_for_strike(underlying_asset, underlying_price, mid_strike, expiry, right)
             if mid_delta is None:
-                self.strategy.log_message(f"Mid delta at strike {mid_strike} is None; adjusting search.", color="yellow")
+                self.strategy.log_message(f"⚠️  Mid delta at strike {mid_strike} is None; adjusting search.", color="yellow")
                 high_strike -= 1
                 continue
 
+            self.strategy.log_message(f"📈 Strike {mid_strike} has delta {mid_delta:.4f} (target: {target_delta})", color="blue")
+
             if abs(mid_delta - target_delta) < 0.001:
-                self.strategy.log_message(f"Exact match found at strike {mid_strike} with delta {mid_delta}", color="green")
+                self.strategy.log_message(f"🎯 Exact match found at strike {mid_strike} with delta {mid_delta:.4f}", color="green")
                 return mid_strike
 
             if mid_delta < target_delta:
@@ -241,9 +272,25 @@ class OptionsHelper:
             if closest_delta is None or abs(mid_delta - target_delta) < abs(closest_delta - target_delta):
                 closest_delta = mid_delta
                 closest_strike = mid_strike
-                self.strategy.log_message(f"New closest strike: {mid_strike} (delta {mid_delta})", color="blue")
+                self.strategy.log_message(f"📊 New closest strike: {mid_strike} (delta {mid_delta:.4f})", color="blue")
 
-        self.strategy.log_message(f"Closest strike found: {closest_strike} with delta {closest_delta}", color="blue")
+        if closest_strike is not None:
+            self.strategy.log_message(
+                f"✅ RESULT: Closest strike {closest_strike} with delta {closest_delta:.4f} "
+                f"(target was {target_delta})", 
+                color="green"
+            )
+            
+            # Sanity check the result
+            if underlying_price > 50 and closest_strike < 10:
+                self.strategy.log_message(
+                    f"⚠️  WARNING: Strike {closest_strike} seems too low for underlying price ${underlying_price}. "
+                    f"This might indicate a data issue.",
+                    color="red"
+                )
+        else:
+            self.strategy.log_message(f"❌ No valid strike found for target delta {target_delta}", color="red")
+            
         return closest_strike
 
     def calculate_multileg_limit_price(self, orders: List[Order], limit_type: str) -> Optional[float]:
@@ -270,20 +317,20 @@ class OptionsHelper:
                 continue
             try:
                 quote = self.strategy.get_quote(asset)
-                self.strategy.log_message(f"Quote for {asset.symbol}: bid={quote.get('bid')}, ask={quote.get('ask')}", color="blue")
+                self.strategy.log_message(f"Quote for {asset.symbol}: bid={quote.bid}, ask={quote.ask}", color="blue")
             except Exception as e:
                 self.strategy.log_message(f"Error fetching quote for {asset.symbol}: {e}", color="red")
                 continue
-            if not quote or quote.get("ask") is None or quote.get("bid") is None:
+            if not quote or quote.ask is None or quote.bid is None:
                 self.strategy.log_message(f"Missing quote for {asset.symbol}", color="red")
                 continue
             if limit_type == "mid":
-                mid = (quote["ask"] + quote["bid"]) / 2
+                mid = (quote.ask + quote.bid) / 2
                 quotes.append(mid if order.side.lower() == "buy" else -mid)
             elif limit_type == "best":
-                quotes.append(quote["bid"] if order.side.lower() == "buy" else -quote["ask"])
+                quotes.append(quote.bid if order.side.lower() == "buy" else -quote.ask)
             elif limit_type == "fastest":
-                quotes.append(quote["ask"] if order.side.lower() == "buy" else -quote["bid"])
+                quotes.append(quote.ask if order.side.lower() == "buy" else -quote.bid)
         if not quotes:
             self.strategy.log_message("No valid quotes for calculating limit price.", color="red")
             return None
@@ -313,11 +360,11 @@ class OptionsHelper:
         except Exception as e:
             self.strategy.log_message(f"Error fetching quote for liquidity check on {option_asset.symbol}: {e}", color="red")
             return False
-        if not quote or quote.get("bid") is None or quote.get("ask") is None:
+        if not quote or quote.bid is None or quote.ask is None:
             self.strategy.log_message(f"Liquidity check: Missing quote for {option_asset.symbol}", color="red")
             return False
-        bid = quote["bid"]
-        ask = quote["ask"]
+        bid = quote.bid
+        ask = quote.ask
         mid = (bid + ask) / 2
         spread_pct = (ask - bid) / mid
         self.strategy.log_message(f"{option_asset.symbol} liquidity spread: {spread_pct:.2%}", color="blue")
@@ -356,7 +403,7 @@ class OptionsHelper:
         Parameters
         ----------
         dt : date
-            The starting date.
+            The starting date. Can be a datetime.date or datetime.datetime object.
         chains : dict
             A dictionary containing option chains.
         call_or_put : str
@@ -367,6 +414,13 @@ class OptionsHelper:
         date
             The adjusted expiration date.
         """
+        
+        # Handle both datetime.datetime and datetime.date objects
+        from datetime import datetime, date
+        if isinstance(dt, datetime):
+            dt = dt.date()  # Convert datetime to date
+        elif not isinstance(dt, date):
+            raise TypeError(f"dt must be a datetime.date or datetime.datetime object, got {type(dt)}")
         
         # Make it all caps and get the specific chain.
         call_or_put_caps = call_or_put.upper()
@@ -765,6 +819,11 @@ class OptionsHelper:
         Determine the Tradier multileg order type based on the limit price.
         Returns "debit" if price > 0, "credit" if price < 0, "even" if price == 0.
         """
+        # Handle None limit price
+        if limit_price is None:
+            self.strategy.log_message("Warning: limit_price is None, defaulting to 'even' order type", color="yellow")
+            return "even"
+            
         if limit_price > 0:
             return "debit"
         elif limit_price < 0:
@@ -792,6 +851,9 @@ class OptionsHelper:
         self.strategy.log_message("Executing orders...", color="blue")
         if limit_type:
             limit_price = self.calculate_multileg_limit_price(orders, limit_type)
+            if limit_price is None:
+                self.strategy.log_message("Failed to calculate limit price - cannot execute orders", color="red")
+                return False
             order_type = self._determine_multileg_order_type(limit_price)
             self.strategy.log_message(
                 f"Submitting multileg order at price {limit_price} as {order_type}", color="blue"

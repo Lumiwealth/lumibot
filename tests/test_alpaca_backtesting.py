@@ -1431,11 +1431,11 @@ class TestAlpacaBacktesting:
         assert data_source._alpaca_data.oauth_token == "test_oauth_backtesting_token"
         
     def test_oauth_mixed_config_backtesting(self):
-        """Test backtesting with mixed OAuth and API key config (OAuth takes precedence)."""
+        """Test backtesting with mixed OAuth and API key config (API keys take precedence)."""
         mixed_config = {
-            "OAUTH_TOKEN": "test_oauth_backtesting_mixed",
-            "API_KEY": "should_not_be_used",
-            "API_SECRET": "should_not_be_used_either",
+            "OAUTH_TOKEN": "should_not_be_used",
+            "API_KEY": "test_api_backtesting_mixed",
+            "API_SECRET": "test_secret_backtesting_mixed",
             "PAPER": True
         }
         
@@ -1449,10 +1449,10 @@ class TestAlpacaBacktesting:
             timestep="day"
         )
         
-        # Verify OAuth is used over API key/secret
-        assert data_source._alpaca_data.oauth_token == "test_oauth_backtesting_mixed"
-        assert data_source._alpaca_data.api_key is None
-        assert data_source._alpaca_data.api_secret is None
+        # Verify API keys are used over OAuth token
+        assert data_source._alpaca_data.api_key == "test_api_backtesting_mixed"
+        assert data_source._alpaca_data.api_secret == "test_secret_backtesting_mixed"
+        assert data_source._alpaca_data.oauth_token is None
         
     def test_oauth_fallback_backtesting(self):
         """Test backtesting fallback when OAuth token is empty."""

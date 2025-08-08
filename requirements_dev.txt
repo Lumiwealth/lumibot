@@ -5,6 +5,9 @@ pytest
 pytest-mock
 coverage
 
+# Technical Analysis (needed for VixHelper and other TA components)
+pandas_ta
+
 # Linting modules
 ruff
 isort

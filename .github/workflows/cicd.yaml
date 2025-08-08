@@ -77,21 +77,20 @@ jobs:
       # ------------------------------------------------------------
       - name: Run Unit Tests
         run: |
-          # Run tests in smaller batches to avoid resource exhaustion and hangs
-          echo "Running tests in batches to prevent CI hangs..."
+          # Run tests with explicit timeout and better error handling
           echo "Starting test execution at $(date)"
+          echo "Python version: $(python --version)"
+          echo "Pytest version: $(python -m pytest --version)"
           
-          # First run quick unit tests (exclude slow backtest tests)
-          echo "=== Running unit tests (excluding backtests) ==="
-          python -m pytest tests/ -m "not apitest" --ignore=tests/backtest/ --tb=short -v --durations=10 || true
+          # Run tests with explicit timeouts and in smaller chunks
+          echo "=== Step 1: Running non-backtest unit tests ==="
+          timeout 600 python -m pytest tests/ -m "not apitest" --ignore=tests/backtest/ --tb=short -x --durations=20 || echo "Non-backtest tests completed with status $?"
           
-          # Then run backtest tests separately
-          echo "=== Running backtest tests ==="
-          python -m pytest tests/backtest/ -m "not apitest" --tb=short -v --durations=10 || true
+          echo "=== Step 2: Running backtest tests ==="
+          timeout 600 python -m pytest tests/backtest/ -m "not apitest" --tb=short -x --durations=20 || echo "Backtest tests completed with status $?"
           
-          # Check if all tests passed
-          echo "=== Running all tests to verify ==="
-          python -m pytest tests/ -m "not apitest" --tb=short -q
+          echo "=== Step 3: Final verification run ==="
+          python -m pytest tests/ -m "not apitest" --tb=no -q
           
           # Create placeholder coverage files for badge generation
           echo '<?xml version="1.0" ?><coverage version="1.0"><packages></packages></coverage>' > coverage.xml

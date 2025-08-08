@@ -79,6 +79,7 @@ jobs:
         run: |
           # Run tests in smaller batches to avoid resource exhaustion and hangs
           echo "Running tests in batches to prevent CI hangs..."
+          echo "Starting test execution at $(date)"
           
           # First run quick unit tests (exclude slow backtest tests)
           echo "=== Running unit tests (excluding backtests) ==="

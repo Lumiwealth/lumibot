@@ -7,6 +7,7 @@ ensuring consistent formatting, behavior, and ease of use across all modules.
 Features:
 - Standard console/file logging with enhanced formatting
 - Optional CSV error logging with deduplication via CSVErrorHandler
+- Optional Botspot API error reporting via BotspotErrorHandler
 - Strategy-specific logging with context
 - Thread-safe operations
 - External library noise reduction
@@ -18,6 +19,9 @@ Environment Variables (all handled centrally in this module):
 - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
 - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
 - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false) - only shows ERROR+ messages
+- LUMIWEALTH_API_KEY: API key for Lumiwealth/Botspot error reporting (when set, enables automatic error reporting)
+- BOTSPOT_RATE_LIMIT_WINDOW: Rate limit window in seconds (default: 60) - same errors are only sent once per window
+- BOTSPOT_MAX_ERRORS_PER_MINUTE: Maximum total errors sent per minute (default: 100)
 
 Note: Some logging-related environment variables are also available in credentials.py 
 for backwards compatibility, but this module is the authoritative source for configuration.
@@ -43,10 +47,18 @@ import os
 import re
 import sys
 import threading
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from functools import lru_cache
+from enum import Enum
+
+# Import LUMIWEALTH_API_KEY from credentials
+try:
+    from ..credentials import LUMIWEALTH_API_KEY
+except ImportError:
+    LUMIWEALTH_API_KEY = None
 
 class CSVErrorHandler(logging.Handler):
     """
@@ -215,6 +227,226 @@ potential data corruption or unsafe trading operations.
             pass
 
 
+class BotspotSeverity(Enum):
+    """Severity levels for Botspot error reporting."""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class BotspotErrorHandler(logging.Handler):
+    """
+    Handler that reports errors to Botspot API endpoint.
+    Only active when LUMIWEALTH_API_KEY is available.
+    
+    Includes rate limiting to prevent excessive API calls:
+    - Same errors are only sent once per time window (default: 60 seconds)
+    - Maximum total errors per minute (default: 100)
+    """
+    
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.base_url = "https://api.botspot.trade/bots/report-bot-error"
+        # Use LUMIWEALTH_API_KEY from credentials or environment
+        self.api_key = LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY")
+        self._error_counts: Dict[Tuple[str, str, str], int] = {}
+        self._last_sent_times: Dict[Tuple[str, str, str], float] = {}
+        self._total_errors_sent = 0
+        self._minute_start_time = time.time()
+        self._lock = threading.Lock()
+        
+        # Rate limiting configuration
+        self.rate_limit_window = int(os.environ.get("BOTSPOT_RATE_LIMIT_WINDOW", "60"))
+        self.max_errors_per_minute = int(os.environ.get("BOTSPOT_MAX_ERRORS_PER_MINUTE", "100"))
+        
+        # Only import requests if we need it
+        if self.api_key:
+            try:
+                import requests
+                self.requests = requests
+            except ImportError:
+                logging.getLogger(__name__).warning(
+                    "requests library not available - Botspot error reporting disabled"
+                )
+                self.requests = None
+        else:
+            self.requests = None
+    
+    def _map_log_level_to_severity(self, level: int) -> BotspotSeverity:
+        """Map logging level to Botspot severity."""
+        if level >= logging.CRITICAL:
+            return BotspotSeverity.CRITICAL
+        elif level >= logging.ERROR:
+            return BotspotSeverity.CRITICAL  # Treat ERROR as CRITICAL for Botspot
+        elif level >= logging.WARNING:
+            return BotspotSeverity.WARNING
+        elif level >= logging.INFO:
+            return BotspotSeverity.INFO
+        else:
+            return BotspotSeverity.DEBUG
+    
+    def _extract_error_info(self, record: logging.LogRecord) -> Tuple[str, str, str]:
+        """Extract error code, message, and details from log record."""
+        original_message = record.getMessage()
+        
+        # First, extract strategy name if present
+        strategy_name = ""
+        message = original_message
+        if message.startswith("[") and "]" in message:
+            end_bracket = message.index("]")
+            strategy_name = message[1:end_bracket]
+            # Remove strategy prefix temporarily for parsing
+            message = message[end_bracket + 1:].strip()
+        
+        # Try to extract structured error code if message has format "ERROR_CODE: message | details"
+        error_code = ""
+        details = ""
+        
+        if ":" in message and "|" in message:
+            parts = message.split(":", 1)
+            if len(parts) == 2:
+                potential_error_code = parts[0].strip()
+                rest = parts[1].strip()
+                
+                if "|" in rest:
+                    msg_part, details_part = rest.split("|", 1)
+                    error_code = potential_error_code
+                    message = msg_part.strip()
+                    details = details_part.strip()
+        
+        # Fallback: create error code from logger name and strategy
+        if not error_code:
+            logger_name = record.name.split('.')[-1].upper()
+            if strategy_name:
+                error_code = f"{strategy_name.upper()}_ERROR"
+            else:
+                error_code = f"{logger_name}_{record.levelname}"
+        
+        # Ensure details includes file location
+        if not details or "File:" not in details:
+            file_info = f"File: {record.pathname}:{record.lineno}, Function: {record.funcName}"
+            if details:
+                details = f"{details} | {file_info}"
+            else:
+                details = file_info
+        
+        # Always include strategy name in message if it was present originally
+        if strategy_name:
+            message = f"[{strategy_name}] {message}"
+        
+        return error_code, message, details
+    
+    def _report_to_botspot(self, severity: BotspotSeverity, error_code: str, 
+                          message: str, details: str, count: int) -> bool:
+        """Send error report to Botspot API."""
+        if not self.api_key or not self.requests:
+            return False
+        
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key
+        }
+        payload = {
+            "severity": severity.value,
+            "error_code": error_code,
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if details:
+            payload["details"] = details
+        
+        if count > 1:
+            payload["count"] = count
+        
+        try:
+            response = self.requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                # Log API errors using the logger module itself
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Botspot API error: {response.status_code} - {response.text}")
+            
+            return response.status_code == 200
+            
+        except Exception as e:
+            # Log exceptions using the logger module itself
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Botspot API exception: {e}")
+            return False
+    
+    def _check_rate_limits(self, error_key: Tuple[str, str, str]) -> bool:
+        """
+        Check if we should send this error based on rate limits.
+        
+        Returns True if the error should be sent, False if rate limited.
+        """
+        current_time = time.time()
+        
+        # Reset minute counter if a minute has passed
+        if current_time - self._minute_start_time >= 60:
+            self._total_errors_sent = 0
+            self._minute_start_time = current_time
+        
+        # Check global rate limit (max errors per minute)
+        if self._total_errors_sent >= self.max_errors_per_minute:
+            return False
+        
+        # Check per-error rate limit (deduplication window)
+        if error_key in self._last_sent_times:
+            time_since_last_sent = current_time - self._last_sent_times[error_key]
+            if time_since_last_sent < self.rate_limit_window:
+                return False
+        
+        return True
+    
+    def emit(self, record):
+        """Handle a log record by reporting to Botspot API."""
+        if not self.api_key:
+            return
+        if record.levelno < logging.WARNING:
+            return
+        
+        try:
+            with self._lock:
+                severity = self._map_log_level_to_severity(record.levelno)
+                error_code, message, details = self._extract_error_info(record)
+                
+                # Create a key for deduplication
+                error_key = (error_code, message, details)
+                
+                # Update count
+                if error_key in self._error_counts:
+                    self._error_counts[error_key] += 1
+                else:
+                    self._error_counts[error_key] = 1
+                
+                # Check rate limits
+                if not self._check_rate_limits(error_key):
+                    # Rate limited - don't send
+                    return
+                
+                # Update tracking for rate limiting
+                current_time = time.time()
+                self._last_sent_times[error_key] = current_time
+                self._total_errors_sent += 1
+                
+                count = self._error_counts[error_key]
+                
+                # Report to Botspot
+                self._report_to_botspot(severity, error_code, message, details, count)
+                
+        except Exception as e:
+            # Don't let Botspot errors break the main application
+            pass
+
+
 class LumibotLogger(logging.Logger):
     """
     Enhanced Logger class for Lumibot with consistent formatting.
@@ -362,6 +594,7 @@ def _ensure_handlers_configured():
     - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
     - LUMIBOT_ERROR_CSV_PATH: Path for CSV error log file (default: logs/errors.csv)
     - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false)
+    - LUMIWEALTH_API_KEY: API key for Lumiwealth/Botspot error reporting (when set, enables automatic error reporting)
     """
     global _handlers_configured
     
@@ -386,11 +619,7 @@ def _ensure_handlers_configured():
         # Create console handler with our custom formatter
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(LumibotFormatter())
-        
-        # Create stderr handler to prevent fallback to lastResort
-        stderr_handler = logging.StreamHandler(sys.stderr)
-        stderr_handler.setFormatter(LumibotFormatter())
-        
+
         # Set default level (can be overridden by environment variable)
         default_level = os.environ.get('LUMIBOT_LOG_LEVEL', 'INFO').upper()
         try:
@@ -406,7 +635,6 @@ def _ensure_handlers_configured():
             # regardless of BACKTESTING_QUIET_LOGS setting
             # BACKTESTING_QUIET_LOGS only controls file logging
             console_handler.setLevel(logging.ERROR)
-            stderr_handler.setLevel(logging.ERROR)
             
             # File logging level is controlled by BACKTESTING_QUIET_LOGS
             backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
@@ -423,22 +651,9 @@ def _ensure_handlers_configured():
         else:
             # Live trading: always show console messages at full level
             console_handler.setLevel(log_level)
-            stderr_handler.setLevel(log_level)
         
         root_logger.setLevel(log_level)
         root_logger.addHandler(console_handler)
-        root_logger.addHandler(stderr_handler)
-        
-        # During backtesting, replace Python's lastResort handler with one that
-        # respects our ERROR level setting
-        if is_backtesting:
-            class QuietLastResortHandler(logging.StreamHandler):
-                def __init__(self):
-                    super().__init__(sys.stderr)
-                    self.setLevel(logging.ERROR)
-                    self.setFormatter(LumibotFormatter())
-            
-            logging.lastResort = QuietLastResortHandler()
         
         # Add CSV error handler if enabled
         log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
@@ -447,6 +662,17 @@ def _ensure_handlers_configured():
             csv_handler = CSVErrorHandler(csv_path)
             root_logger.addHandler(csv_handler)
         
+        # Add Botspot error handler if API key is available
+        # Check environment variable (this is what tests patch)
+        api_key = os.environ.get("LUMIWEALTH_API_KEY")
+        
+        # Fall back to the imported value if not in environment
+        if not api_key and LUMIWEALTH_API_KEY:
+            api_key = LUMIWEALTH_API_KEY
+        
+        if api_key:
+            botspot_handler = BotspotErrorHandler()
+            root_logger.addHandler(botspot_handler)
         # Keep propagation enabled for proper logging behavior
         root_logger.propagate = True
         
@@ -564,8 +790,10 @@ def set_log_level(level: str):
     """
     try:
         log_level = getattr(logging, level.upper())
-        # Get the actual lumibot root logger (where handlers are configured)
+
+        # Get the actual lumibot root logger
         root_logger = logging.getLogger("lumibot")
+        root_logger.setLevel(log_level)
         
         # Update handlers but respect console handler's ERROR level during backtesting
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"

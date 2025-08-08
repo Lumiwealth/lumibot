@@ -77,9 +77,12 @@ def test_cleanup():
     """Per-test cleanup to prevent scheduler leaks between tests"""
     yield
     
-    # Cleanup after each test
-    cleanup_all_schedulers()
-    gc.collect()
+    # Only cleanup after tests that might use schedulers (less aggressive)
+    import os
+    if os.environ.get('CI'):
+        # More aggressive cleanup only in CI
+        cleanup_all_schedulers()
+        gc.collect()
 
 
 # Register cleanup functions to run on exit

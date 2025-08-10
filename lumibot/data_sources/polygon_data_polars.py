@@ -127,10 +127,11 @@ class PolygonDataPolars(DataSourceBacktesting):
             except:
                 items_with_sizes.append((asset, 100000))  # 100KB default
         
-        logger.info(f"Storage used: {storage_used:,} bytes for {len(data_store)} items")
+        # Log estimated storage usage
+        logger.info(f"Storage used: {estimated_storage:,} bytes for {len(data_store)} items")
         
         # Remove oldest items if over limit
-        if storage_used > self.MAX_STORAGE_BYTES:
+        if estimated_storage > self.MAX_STORAGE_BYTES:
             # Convert to list for removal
             assets = list(data_store.keys())
             for asset in assets[:len(assets)//2]:  # Remove half of the oldest

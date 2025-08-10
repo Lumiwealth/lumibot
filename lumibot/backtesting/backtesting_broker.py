@@ -45,6 +45,12 @@ class BacktestingBroker(Broker):
         self._daily_sessions = {}  # {date: [(start, end), ...]} 
         self._sessions_built = False
         
+        # Prefetchers (optional). Some builds/tests won't configure these.
+        # Initialize to None so attribute checks are safe in processing code.
+        self.prefetcher = None
+        self.hybrid_prefetcher = None
+        self._last_cache_clear = None
+        
 
     
     def _build_daily_sessions(self):

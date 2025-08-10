@@ -16,13 +16,14 @@ import numpy as np
 
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting
+from lumibot.data_sources.polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars
 from lumibot.tools.yahoo_helper_polars_optimized import YahooHelperPolarsOptimized
 
 logger = get_logger(__name__)
 
 
-class YahooDataPolars(DataSourceBacktesting):
+class YahooDataPolars(PolarsMixin, DataSourceBacktesting):
     """Ultra-optimized Yahoo data source with pure polars."""
     
     SOURCE = "YAHOO"
@@ -43,54 +44,23 @@ class YahooDataPolars(DataSourceBacktesting):
         self.name = "yahoo_optimized"
         self.auto_adjust = auto_adjust
         
-        # Optimized data storage - lazy frames ONLY for efficiency
-        self._data_store: Dict[Asset, pl.LazyFrame] = {}
-        # Remove eager cache to save memory - collect on demand
-        # self._eager_cache: Dict[Asset, pl.DataFrame] = {}
-        
-        # Performance optimizations
-        self._last_price_cache = {}
-        self._cache_datetime = None
-        
-        # Column access optimization - pre-compute column indices
-        self._column_indices: Dict[Asset, Dict[str, int]] = {}
-        
-        # Pre-filtered data cache for massive speedup
-        self._filtered_data_cache: Dict[tuple, pl.DataFrame] = {}
-        self._cache_date = None
+        # Initialize polars storage from mixin
+        self._init_polars_storage()
 
     def _store_data(self, asset: Asset, data: pl.DataFrame) -> pl.LazyFrame:
         """Store data efficiently using lazy frames.
         
         Returns lazy frame for efficient subsequent operations.
         """
-        # Process columns efficiently
-        if isinstance(data, pl.DataFrame):
-            # Already polars - perfect!
-            pass
-        else:
-            # This should not happen in optimized version
+        if not isinstance(data, pl.DataFrame):
             raise TypeError("Only polars DataFrames supported in optimized version")
-        
-        # Standardize column names
-        rename_map = {
-            "Open": "open", "High": "high", "Low": "low", "Close": "close",
-            "Volume": "volume", "Dividends": "dividend", "Stock Splits": "stock_splits",
-            "Adj Close": "adj_close", "index": "datetime", "Date": "datetime"
-        }
-        
-        existing_renames = {k: v for k, v in rename_map.items() if k in data.columns}
-        if existing_renames:
-            data = data.rename(existing_renames)
         
         # Remove unnecessary columns
         if "adj_close" in data.columns and self.auto_adjust:
             data = data.drop("adj_close")
         
-        # OPTIMIZATION: Calculate derived columns in single expression
+        # Calculate derived columns
         exprs = []
-        
-        # Always calculate price change and return
         exprs.append(pl.col("close").pct_change().alias("price_change"))
         
         if "dividend" in data.columns:
@@ -107,18 +77,9 @@ class YahooDataPolars(DataSourceBacktesting):
         # Apply all calculations at once
         data = data.with_columns(exprs)
         
-        # Store as lazy frame for efficient operations
-        lazy_data = data.lazy()
-        self._data_store[asset] = lazy_data
-        
-        # Cache column indices for fast access
-        self._column_indices[asset] = {col: i for i, col in enumerate(data.columns)}
-        
-        return lazy_data
+        # Use mixin's store method
+        return self._store_data_polars(asset, data)
 
-    def _get_data_lazy(self, asset: Asset) -> Optional[pl.LazyFrame]:
-        """Get lazy frame for asset."""
-        return self._data_store.get(asset)
     
     def _format_symbol(self, asset: Asset) -> str:
         """Format symbol for Yahoo Finance."""
@@ -165,17 +126,13 @@ class YahooDataPolars(DataSourceBacktesting):
         if quote is not None:
             logger.warning(f"quote parameter not supported, ignoring {quote}")
 
-        # For daily timestep, use optimized caching strategy
+        # Check cache for daily data
         if timestep == "day":
-            # Check if we need to clear cache for new date
             current_date = self._datetime.date()
-            
-            # Try to get from filtered cache first
             cache_key = (asset, current_date, timestep)
             if cache_key in self._filtered_data_cache:
                 result = self._filtered_data_cache[cache_key]
                 if len(result) >= length:
-                    # Cache hit!
                     return result.tail(length)
 
         interval = self._parse_source_timestep(timestep, reverse=True)
@@ -251,46 +208,8 @@ class YahooDataPolars(DataSourceBacktesting):
             logger.error("No datetime column found")
             return None
 
-        # OPTIMIZATION: Single lazy operation for filter and tail
-        # Convert end_filter to naive datetime to match data
-        import pandas as pd
-        if hasattr(end_filter, 'tz_localize'):
-            # pandas timestamp
-            end_filter_naive = end_filter.tz_localize(None)
-        elif hasattr(end_filter, 'replace'):
-            # datetime with timezone
-            end_filter_naive = end_filter.replace(tzinfo=None)
-        else:
-            end_filter_naive = end_filter
-            
-        # Optimize collection with single operation
-        if timestep == "day":
-            fetch_length = max(length * 2, 100)  # Fetch extra for caching
-            # Single optimized collection
-            # Cast datetime column to microsecond precision to match comparison
-            result = (
-                lazy_data
-                .with_columns(pl.col(dt_col).cast(pl.Datetime("us")))
-                .filter(pl.col(dt_col) <= end_filter_naive)
-                .sort(dt_col)  # Ensure sorted for tail operation
-                .tail(fetch_length)
-                .collect()
-            )
-            # Cache the filtered data
-            current_date = self._datetime.date()
-            cache_key = (asset, current_date, timestep)
-            self._filtered_data_cache[cache_key] = result
-        else:
-            # For minute data, minimize memory usage
-            # Cast datetime column to microsecond precision to match comparison
-            result = (
-                lazy_data
-                .with_columns(pl.col(dt_col).cast(pl.Datetime("us")))
-                .filter(pl.col(dt_col) <= end_filter_naive)
-                .sort(dt_col)  # Ensure sorted
-                .tail(length)
-                .collect()
-            )
+        # Use mixin's filter method
+        result = self._filter_data_polars(asset, lazy_data, end_filter, length, timestep)
 
         if len(result) < length:
             logger.debug(
@@ -362,9 +281,8 @@ class YahooDataPolars(DataSourceBacktesting):
         if quote is not None:
             logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
-        # Bars class will automatically use polars backend
-        bars = Bars(response, self.SOURCE, asset, raw=response)
-        return bars
+        # Use mixin's parse method
+        return self._parse_source_symbol_bars_polars(response, asset, self.SOURCE, quote, length)
 
     def get_last_price(
         self,
@@ -379,26 +297,12 @@ class YahooDataPolars(DataSourceBacktesting):
         if timestep is None:
             timestep = self.get_timestep()
 
-        # Check cache - use date-based caching for daily data
         current_datetime = self._datetime
-        current_date = current_datetime.date()
         
-        # For daily data, cache by date instead of datetime for better hit rate
-        if timestep == "day":
-            cache_key = (asset, timestep, quote, exchange, current_date)
-        else:
-            cache_key = (asset, timestep, quote, exchange, current_datetime)
-        
-        # Check if we need to clear cache
-        if timestep == "day" and self._cache_date != current_date:
-            self._last_price_cache.clear()
-            self._cache_date = current_date
-        elif timestep != "day" and self._cache_datetime != current_datetime:
-            self._last_price_cache.clear()
-            self._cache_datetime = current_datetime
-        
-        if cache_key in self._last_price_cache:
-            return self._last_price_cache[cache_key]
+        # Use mixin's cache check
+        cached_price = self._get_cached_last_price_polars(asset, current_datetime, timestep)
+        if cached_price is not None:
+            return cached_price
 
         # Get price efficiently
         # For daily data, don't apply additional timeshift since _pull_source_symbol_bars
@@ -413,7 +317,7 @@ class YahooDataPolars(DataSourceBacktesting):
         
         if bars_data is None or len(bars_data) == 0:
             logger.warning(f"No bars data for {asset.symbol} at {current_datetime}")
-            self._last_price_cache[cache_key] = None
+            self._cache_last_price_polars(asset, None, current_datetime, timestep)
             return None
 
         # Direct column access - since we only request 1 bar, take the first (and only) element
@@ -425,7 +329,8 @@ class YahooDataPolars(DataSourceBacktesting):
         elif isinstance(open_price, (np.float64, np.floating)):
             open_price = float(open_price)
         
-        self._last_price_cache[cache_key] = open_price
+        # Use mixin's cache method
+        self._cache_last_price_polars(asset, open_price, current_datetime, timestep)
         return open_price
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):

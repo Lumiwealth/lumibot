@@ -15,13 +15,14 @@ import polars as pl
 
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSource
+from lumibot.data_sources.polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars
 from lumibot.tools import databento_helper_polars
 
 logger = get_logger(__name__)
 
 
-class DataBentoDataPolars(DataSource):
+class DataBentoDataPolars(PolarsMixin, DataSource):
     """
     Ultra-optimized DataBento data source using pure polars for maximum performance.
     
@@ -75,19 +76,11 @@ class DataBentoDataPolars(DataSource):
         self.MAX_STORAGE_BYTES = max_memory
         self.enable_cache = enable_cache
         
-        # Optimized data storage - lazy frames for efficiency
-        self._data_store: Dict[Asset, pl.LazyFrame] = {}
+        # Initialize polars storage from mixin
+        self._init_polars_storage()
+        
+        # Additional DataBento-specific caches
         self._eager_cache: Dict[Asset, pl.DataFrame] = {}
-        
-        # Performance optimizations
-        self._last_price_cache: Dict[Asset, float] = {}
-        self._cache_datetime = None
-        
-        # Column access optimization - pre-compute column indices
-        self._column_indices: Dict[Asset, Dict[str, int]] = {}
-        
-        # Pre-filtered data cache for massive speedup
-        self._filtered_data_cache: Dict[tuple, pl.DataFrame] = {}
         
         # For live trading, this is a live data source
         self.is_backtesting_mode = False
@@ -102,60 +95,29 @@ class DataBentoDataPolars(DataSource):
         
         Returns lazy frame for efficient subsequent operations.
         """
-        # Standardize column names
-        rename_map = {
-            "Open": "open", "High": "high", "Low": "low", "Close": "close",
-            "Volume": "volume", "Dividends": "dividend", "Stock Splits": "stock_splits",
-            "Adj Close": "adj_close", "index": "datetime", "Date": "datetime"
-        }
+        # Use mixin's store method
+        lazy_data = self._store_data_polars(asset, data)
         
-        existing_renames = {k: v for k, v in rename_map.items() if k in data.columns}
-        if existing_renames:
-            data = data.rename(existing_renames)
-        
-        # OPTIMIZATION: Use lazy evaluation for all operations
-        lazy_data = data.lazy()
-        
-        # Store lazy frame
-        self._data_store[asset] = lazy_data
-        
-        # Cache eager version for fast access (collect only once)
-        self._eager_cache[asset] = lazy_data.collect()
-        
-        # Cache column indices for fast access
-        self._column_indices[asset] = {col: i for i, col in enumerate(self._eager_cache[asset].columns)}
-        
-        # Enforce storage limit
-        self._enforce_storage_limit(self._data_store)
+        if lazy_data is not None:
+            # Cache eager version for DataBento's fast access needs
+            self._eager_cache[asset] = lazy_data.collect()
+            
+            # Enforce storage limit
+            self._enforce_storage_limit(self._data_store)
         
         return lazy_data
 
     def _enforce_storage_limit(self, data_store: Dict[Asset, pl.LazyFrame]):
         """Enforce storage limit by removing least recently used data."""
-        if not self.MAX_STORAGE_BYTES:
-            return
-            
-        # Calculate total storage used
-        storage_used = 0
-        for asset, lazy_df in data_store.items():
-            if asset in self._eager_cache:
-                df = self._eager_cache[asset]
-                storage_used += df.estimated_size()
+        # Use mixin's enforce method
+        self._enforce_storage_limit_polars(self.MAX_STORAGE_BYTES)
         
-        logger.debug(f"Storage used: {storage_used:,} bytes for {len(data_store)} items")
-        
-        # Remove oldest items if over limit
-        if storage_used > self.MAX_STORAGE_BYTES:
-            # Convert to list for removal
-            assets = list(data_store.keys())
-            for asset in assets[:len(assets)//2]:  # Remove half of the oldest
-                if asset in data_store:
-                    del data_store[asset]
-                if asset in self._eager_cache:
-                    del self._eager_cache[asset]
-                if asset in self._column_indices:
-                    del self._column_indices[asset]
-                logger.debug(f"Storage limit exceeded. Evicted data for {asset}")
+        # Clean up DataBento-specific caches
+        if self.MAX_STORAGE_BYTES and len(self._eager_cache) > 0:
+            # Remove from eager cache too
+            assets_to_remove = [a for a in self._eager_cache.keys() if a not in data_store]
+            for asset in assets_to_remove:
+                del self._eager_cache[asset]
 
     def _convert_to_polars(self, df, asset: Asset = None) -> pl.DataFrame:
         """Convert pandas DataFrame or raw data to polars DataFrame efficiently."""
@@ -479,15 +441,8 @@ class DataBentoDataPolars(DataSource):
                 logger.warning(f"Missing required columns in DataBento data for {asset.symbol}")
                 return None
             
-            # Create Bars object
-            bars = Bars(
-                df=df,
-                source=self.SOURCE,
-                asset=asset,
-                quote=quote
-            )
-            
-            return bars
+            # Use mixin's parse method
+            return self._parse_source_symbol_bars_polars(df, asset, self.SOURCE, quote)
             
         except Exception as e:
             logger.error(f"Error parsing DataBento data for {asset.symbol}: {e}")
@@ -495,9 +450,8 @@ class DataBentoDataPolars(DataSource):
 
     def clear_cache(self):
         """Clear all cached data to free memory"""
-        self._data_store.clear()
+        # Use mixin's clear method
+        self._clear_cache_polars()
+        # Clear DataBento-specific caches
         self._eager_cache.clear()
-        self._column_indices.clear()
-        self._filtered_data_cache.clear()
-        self._last_price_cache.clear()
         logger.info("Cleared all DataBento data caches")

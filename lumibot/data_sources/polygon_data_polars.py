@@ -21,6 +21,7 @@ from termcolor import colored
 
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting
+from lumibot.data_sources.polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars
 from lumibot.tools import polygon_helper_polars_optimized
 try:
@@ -34,7 +35,7 @@ logger = get_logger(__name__)
 START_BUFFER = timedelta(days=5)
 
 
-class PolygonDataPolars(DataSourceBacktesting):
+class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
     """Ultra-optimized Polygon data source with pure polars."""
     
     SOURCE = "POLYGON"
@@ -69,20 +70,11 @@ class PolygonDataPolars(DataSourceBacktesting):
         from lumibot.tools.polygon_helper import PolygonClient
         self.polygon_client = PolygonClient.create(api_key=api_key)
         
-        # Optimized data storage - lazy frames for efficiency
-        self._data_store: Dict[Asset, pl.LazyFrame] = {}
+        # Initialize polars storage from mixin
+        self._init_polars_storage()
+        
+        # Additional Polygon-specific caches
         self._eager_cache: Dict[Asset, pl.DataFrame] = {}
-        
-        # Performance optimizations
-        self._last_price_cache = {}
-        self._cache_datetime = None
-        
-        # Column access optimization - pre-compute column indices
-        self._column_indices: Dict[Asset, Dict[str, int]] = {}
-        
-        # Pre-filtered data cache for massive speedup
-        self._filtered_data_cache: Dict[tuple, pl.DataFrame] = {}
-        self._cache_date = None
         
         # Batch download queue for optimized downloads
         self._download_queue = set()
@@ -99,70 +91,28 @@ class PolygonDataPolars(DataSourceBacktesting):
 
     def _enforce_storage_limit(self, data_store: Dict[Asset, pl.LazyFrame]):
         """Enforce storage limit by removing least recently used data."""
-        if not self.MAX_STORAGE_BYTES:
-            return
-            
-        # Estimate storage without collecting
-        estimated_storage = 0
-        items_with_sizes = []
+        # Use mixin's enforce method
+        self._enforce_storage_limit_polars(self.MAX_STORAGE_BYTES)
         
-        for asset, lazy_df in data_store.items():
-            try:
-                # Estimate size without collecting
-                schema = lazy_df.collect_schema()
-                # Rough estimate: 8 bytes per numeric, 50 per string
-                bytes_per_row = sum(8 if str(dtype).startswith(('Float', 'Int')) 
-                                  else 50 for dtype in schema.dtypes())
-                
-                # Estimate rows from cache if available
-                estimated_rows = 10000  # Default
-                for key in self._filtered_data_cache:
-                    if key[0] == asset:
-                        estimated_rows = len(self._filtered_data_cache[key])
-                        break
-                
-                estimated_bytes = bytes_per_row * estimated_rows
-                estimated_storage += estimated_bytes
-                items_with_sizes.append((asset, estimated_bytes))
-            except:
-                items_with_sizes.append((asset, 100000))  # 100KB default
-        
-        # Log estimated storage usage
-        logger.info(f"Storage used: {estimated_storage:,} bytes for {len(data_store)} items")
-        
-        # Remove oldest items if over limit
-        if estimated_storage > self.MAX_STORAGE_BYTES:
-            # Convert to list for removal
-            assets = list(data_store.keys())
-            for asset in assets[:len(assets)//2]:  # Remove half of the oldest
-                if asset in data_store:
-                    del data_store[asset]
-                if asset in self._eager_cache:
-                    del self._eager_cache[asset]
-                if asset in self._column_indices:
-                    del self._column_indices[asset]
-                logger.info(f"Storage limit exceeded. Evicted data for {asset}")
+        # Clean up Polygon-specific caches
+        if self.MAX_STORAGE_BYTES and len(self._eager_cache) > 0:
+            # Remove from eager cache too
+            assets_to_remove = [a for a in self._eager_cache.keys() if a not in data_store]
+            for asset in assets_to_remove:
+                del self._eager_cache[asset]
 
     def _store_data(self, asset: Asset, data: pl.DataFrame) -> pl.LazyFrame:
         """Store data efficiently using lazy frames.
         
         Returns lazy frame for efficient subsequent operations.
         """
-        # Standardize column names
-        rename_map = {
-            "Open": "open", "High": "high", "Low": "low", "Close": "close",
-            "Volume": "volume", "Dividends": "dividend", "Stock Splits": "stock_splits",
-            "Adj Close": "adj_close", "index": "datetime", "Date": "datetime"
-        }
+        # Use mixin's store method first
+        lazy_data = self._store_data_polars(asset, data)
         
-        existing_renames = {k: v for k, v in rename_map.items() if k in data.columns}
-        if existing_renames:
-            data = data.rename(existing_renames)
-        
-        # OPTIMIZATION: Use lazy evaluation for all operations
-        lazy_data = data.lazy()
-        
-        # Calculate derived columns using lazy evaluation
+        if lazy_data is None:
+            return None
+            
+        # Calculate additional derived columns for Polygon
         lazy_data = lazy_data.with_columns([
             pl.col("close").pct_change().alias("price_change"),
             pl.when(pl.col("dividend").is_not_null())
@@ -179,29 +129,14 @@ class PolygonDataPolars(DataSourceBacktesting):
         if "dividend" not in data.columns:
             lazy_data = lazy_data.with_columns(pl.lit(0.0).alias("dividend"))
         
-        # Store lazy frame
+        # Update the stored data
         self._data_store[asset] = lazy_data
-        
-        # DON'T cache eager version - use lazy evaluation for memory efficiency
-        # Remove: self._eager_cache[asset] = lazy_data.collect()
-        
-        # Cache column indices from schema without collecting
-        try:
-            schema = lazy_data.collect_schema()
-            self._column_indices[asset] = {col: i for i, col in enumerate(schema.names())}
-        except:
-            # Fallback: collect tiny sample for column info
-            sample = lazy_data.limit(1).collect()
-            self._column_indices[asset] = {col: i for i, col in enumerate(sample.columns)}
         
         # Enforce storage limit
         self._enforce_storage_limit(self._data_store)
         
         return lazy_data
 
-    def _get_data_lazy(self, asset: Asset) -> Optional[pl.LazyFrame]:
-        """Get lazy frame for asset."""
-        return self._data_store.get(asset)
 
     def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=timedelta(days=5)):
         """
@@ -459,40 +394,20 @@ class PolygonDataPolars(DataSourceBacktesting):
             
         logger.debug(f"Filtering {asset.symbol} data: current_dt={current_dt}, end_filter={end_filter}, timestep={timestep}, timeshift={timeshift}")
 
-        # Convert end_filter to naive datetime to match data
-        if hasattr(end_filter, 'tz_localize'):
-            end_filter_naive = end_filter.tz_localize(None)
-        elif hasattr(end_filter, 'replace'):
-            end_filter_naive = end_filter.replace(tzinfo=None)
-        else:
-            end_filter_naive = end_filter
+        # Convert to lazy frame for filtering
+        lazy_data = data.lazy() if not hasattr(data, 'collect') else data
+        
+        # Use mixin's filter method
+        result = self._filter_data_polars(search_asset, lazy_data, end_filter, length, timestep)
+        
+        if result is None:
+            return None
             
-        # For daily data, use optimized filtering and caching
-        if timestep == "day":
-            # Chain operations for efficiency
-            filtered = data.filter(pl.col("datetime") <= end_filter_naive)
-            
-            # Cache more than needed for future requests
-            fetch_length = max(length * 2, 100)
-            result = filtered.tail(fetch_length)
-            
-            # Cache the filtered data
-            current_date = self._datetime.date()
-            cache_key = (search_asset, current_date, timestep)
-            self._filtered_data_cache[cache_key] = result
-        else:
-            # For minute data, chain operations efficiently
-            result = data.filter(pl.col("datetime") <= end_filter_naive).tail(length)
-
         if len(result) < length:
             logger.debug(
                 f"Requested {length} bars but only {len(result)} available "
                 f"for {asset.symbol} before {end_filter}"
             )
-            
-        # Return only requested length
-        if len(result) > length:
-            result = result.tail(length)
             
         logger.debug(f"Returning {len(result)} bars for {asset.symbol}")
 
@@ -509,9 +424,8 @@ class PolygonDataPolars(DataSourceBacktesting):
         if quote is not None:
             logger.warning(f"quote is not implemented for PolygonData, but {quote} was passed as the quote")
 
-        # Bars class will automatically use polars backend
-        bars = Bars(response, self.SOURCE, asset, raw=response)
-        return bars
+        # Use mixin's parse method
+        return self._parse_source_symbol_bars_polars(response, asset, self.SOURCE, quote, length)
 
     def get_last_price(
         self,
@@ -526,26 +440,11 @@ class PolygonDataPolars(DataSourceBacktesting):
         if timestep is None:
             timestep = self.get_timestep()
 
-        # Check cache - use date-based caching for daily data
+        # Use mixin's cache check
         current_datetime = self._datetime
-        current_date = current_datetime.date()
-        
-        # For daily data, cache by date instead of datetime for better hit rate
-        if timestep == "day":
-            cache_key = (asset, timestep, quote, exchange, current_date)
-        else:
-            cache_key = (asset, timestep, quote, exchange, current_datetime)
-        
-        # Check if we need to clear cache
-        if timestep == "day" and self._cache_date != current_date:
-            self._last_price_cache.clear()
-            self._cache_date = current_date
-        elif timestep != "day" and self._cache_datetime != current_datetime:
-            self._last_price_cache.clear()
-            self._cache_datetime = current_datetime
-        
-        if cache_key in self._last_price_cache:
-            return self._last_price_cache[cache_key]
+        cached_price = self._get_cached_last_price_polars(asset, current_datetime, timestep)
+        if cached_price is not None:
+            return cached_price
 
         try:
             dt = self.get_datetime()
@@ -553,7 +452,7 @@ class PolygonDataPolars(DataSourceBacktesting):
         except Exception as e:
             logger.error(f"Error get_last_price from Polygon: {e}")
             logger.error(f"Error get_last_price from Polygon: {asset=} {quote=} {timestep=} {dt=} {e}")
-            self._last_price_cache[cache_key] = None
+            self._cache_last_price_polars(asset, None, current_datetime, timestep)
             return None
 
         # Get price efficiently
@@ -569,7 +468,7 @@ class PolygonDataPolars(DataSourceBacktesting):
         
         if bars_data is None or len(bars_data) == 0:
             logger.warning(f"No bars data for {asset.symbol} at {current_datetime}")
-            self._last_price_cache[cache_key] = None
+            self._cache_last_price_polars(asset, None, current_datetime, timestep)
             return None
 
         # Direct column access - since we only request 1 bar, take the first (and only) element
@@ -581,7 +480,8 @@ class PolygonDataPolars(DataSourceBacktesting):
         elif isinstance(open_price, (np.float64, np.floating)):
             open_price = float(open_price)
         
-        self._last_price_cache[cache_key] = open_price
+        # Use mixin's cache method
+        self._cache_last_price_polars(asset, open_price, current_datetime, timestep)
         return open_price
 
     def get_historical_prices(

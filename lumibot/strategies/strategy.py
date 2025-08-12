@@ -3069,6 +3069,7 @@ class Strategy(_Strategy):
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
+        return_polars: bool = False,
     ):
         """Get historical pricing data for a given symbol or asset.
 
@@ -3100,6 +3101,9 @@ class Strategy(_Strategy):
             The exchange to pull the historical data from. Default is None (decided based on the broker)
         include_after_hours : bool
             Whether to include after hours data. Default is True. Currently only works with Interactive Brokers.
+        return_polars : bool
+            If True, return Bars with Polars DataFrame for better performance. Default is False (returns pandas).
+            When False and data is in Polars format, a warning will be issued about the conversion.
 
         Returns
         -------
@@ -3186,6 +3190,7 @@ class Strategy(_Strategy):
                 exchange=exchange,
                 include_after_hours=include_after_hours,
                 quote=quote,
+                return_polars=return_polars,
             )
         else:
             return self.broker.data_source.get_historical_prices(
@@ -3196,6 +3201,7 @@ class Strategy(_Strategy):
                 exchange=exchange,
                 include_after_hours=include_after_hours,
                 quote=quote,
+                return_polars=return_polars,
             )
 
     def get_symbol_bars(

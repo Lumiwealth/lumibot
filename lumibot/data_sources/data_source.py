@@ -98,7 +98,7 @@ class DataSource(ABC):
 
     @abstractmethod
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars=False
     ) -> Bars:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
@@ -128,6 +128,8 @@ class DataSource(ABC):
             The exchange to get the bars for.
         include_after_hours : bool
             Whether to include after hours data.
+        return_polars : bool
+            If True, return Bars with Polars DataFrame for better performance. Default is False (returns pandas).
 
         Returns
         -------

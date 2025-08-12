@@ -1,14 +1,15 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Union
+import warnings
 
 import numpy as np
+import pandas as pd
 import polars as pl
 
 from lumibot.tools.lumibot_logger import get_logger
 
 from .bar import Bar
-from .polars_dataframe_wrapper import PolarsDataFrameWrapper
 
 logger = get_logger(__name__)
 
@@ -101,22 +102,12 @@ class Bars:
     >>> self.log_message(df["close"][-1])
     """
 
-    def __init__(self, df, source, asset, quote=None, raw=None):
+    def __init__(self, df, source, asset, quote=None, raw=None, return_polars=False):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
         datetime column for polars DataFrames
+        return_polars: if True, keep as polars DataFrame, otherwise convert to pandas
         """
-        # Convert pandas to polars if needed
-        if not isinstance(df, pl.DataFrame):
-            # This is a pandas DataFrame, convert it
-            if hasattr(df, 'index') and hasattr(df.index, 'name'):
-                df = pl.from_pandas(df.reset_index())
-            else:
-                df = pl.from_pandas(df)
-
-        if df.shape[0] == 0:
-            logger.warning(f"Unable to get bar data for {asset} {source}")
-
         self.source = source.upper()
         self.asset = asset
         if isinstance(asset, tuple):
@@ -125,59 +116,78 @@ class Bars:
             self.symbol = asset.symbol.upper()
         self.quote = quote
         self._raw = raw
-
-        # Polars implementation - use native operations
-        columns = df.columns
-
-        # Use polars native operations for maximum efficiency
-        if "dividend" in columns:
-            # Calculate all derived columns in one operation
-            df = df.with_columns([
-                pl.col("close").pct_change().alias("price_change"),
-                (pl.col("dividend") / pl.col("close")).alias("dividend_yield"),
-                ((pl.col("dividend") / pl.col("close")) + pl.col("close").pct_change()).alias("return")
-            ])
+        self._return_polars = return_polars
+        
+        # Check if empty
+        if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
+           (isinstance(df, pd.DataFrame) and df.shape[0] == 0):
+            logger.warning(f"Unable to get bar data for {asset} {source}")
+        
+        if isinstance(df, pl.DataFrame):
+            # Already polars, process it
+            columns = df.columns
+            
+            # Calculate derived columns using polars
+            if "dividend" in columns:
+                df = df.with_columns([
+                    pl.col("close").pct_change().alias("price_change"),
+                    (pl.col("dividend") / pl.col("close")).alias("dividend_yield"),
+                    ((pl.col("dividend") / pl.col("close")) + pl.col("close").pct_change()).alias("return")
+                ])
+            else:
+                df = df.with_columns([
+                    pl.col("close").pct_change().alias("return")
+                ])
+            
+            if return_polars:
+                # Keep as polars
+                self._df = df
+            else:
+                # Convert to pandas with warning
+                warnings.warn(
+                    f"Converting Polars DataFrame to Pandas for {asset.symbol}. "
+                    "Consider using return_polars=True for better performance.",
+                    UserWarning,
+                    stacklevel=2
+                )
+                self._df = df.to_pandas()
+                # Set datetime index if exists
+                for col_name in ['datetime', 'timestamp', 'date', 'time']:
+                    if col_name in self._df.columns:
+                        self._df = self._df.set_index(col_name)
+                        break
         else:
-            # Just price returns
-            df = df.with_columns([
-                pl.col("close").pct_change().alias("return")
-            ])
-
-        # Store the polars DataFrame internally
-        self._polars_df = df
-        # Create wrapper for compatibility
-        self._df_wrapper = PolarsDataFrameWrapper(df)
-        # Convert to pandas for full compatibility with strategies
-        self._pandas_df = None  # Lazy conversion
+            # Already pandas, keep it as is
+            self._df = df
+            # Calculate derived columns if needed
+            if "dividend" in df.columns:
+                self._df["price_change"] = df["close"].pct_change()
+                self._df["dividend_yield"] = df["dividend"] / df["close"]
+                self._df["return"] = self._df["dividend_yield"] + self._df["price_change"]
+            else:
+                self._df["return"] = df["close"].pct_change()
 
     @property
     def df(self):
-        """Return the DataFrame - convert to pandas for compatibility"""
-        if self._pandas_df is None:
-            # Lazy conversion to pandas
-            self._pandas_df = self._polars_df.to_pandas()
-            # Debug logging
-            logger.debug(f"[Bars.df] Converted Polars to Pandas. Columns: {self._pandas_df.columns.tolist()}")
-            # Set datetime-like column as index if it exists
-            # Check for common datetime column names
-            for col_name in ['datetime', 'timestamp', 'date', 'time']:
-                if col_name in self._pandas_df.columns:
-                    logger.debug(f"[Bars.df] Setting {col_name} as index")
-                    self._pandas_df = self._pandas_df.set_index(col_name)
-                    break
-            else:
-                logger.debug("[Bars.df] No datetime-like column found to set as index!")
-        return self._pandas_df
+        """Return the DataFrame"""
+        return self._df
 
     @df.setter
     def df(self, value):
         """Allow setting the DataFrame"""
-        if isinstance(value, pl.DataFrame):
-            self._polars_df = value
-            self._pandas_df = None  # Reset pandas cache
+        self._df = value
+    
+    @property
+    def polars_df(self):
+        """Return as Polars DataFrame if needed"""
+        if isinstance(self._df, pl.DataFrame):
+            return self._df
         else:
-            self._pandas_df = value
-            self._polars_df = None  # Reset polars cache
+            # Convert pandas to polars if requested
+            if hasattr(self._df, 'index') and self._df.index.name:
+                return pl.from_pandas(self._df.reset_index())
+            else:
+                return pl.from_pandas(self._df)
 
     def __repr__(self):
         return repr(self.df)
@@ -192,11 +202,10 @@ class Bars:
     @property
     def empty(self):
         """Check if the DataFrame is empty (compatible with both pandas and polars)"""
-        if self._polars_df is not None:
-            return self._polars_df.is_empty()
-        elif self._pandas_df is not None:
-            return self._pandas_df.empty
-        return True
+        if isinstance(self._df, pl.DataFrame):
+            return self._df.is_empty()
+        else:
+            return self._df.empty
 
     @classmethod
     def parse_bar_list(cls, bar_list, source, asset):
@@ -233,8 +242,11 @@ class Bars:
         list of Bars objects
         """
         result = []
-        # Use polars DataFrame for iteration
-        underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+        # Use appropriate DataFrame for iteration
+        if isinstance(self._df, pl.DataFrame):
+            underlying_df = self._df
+        else:
+            underlying_df = pl.from_pandas(self._df.reset_index() if hasattr(self._df, 'index') else self._df)
         # Polars implementation
         for row in underlying_df.iter_rows(named=True):
             # Find datetime column

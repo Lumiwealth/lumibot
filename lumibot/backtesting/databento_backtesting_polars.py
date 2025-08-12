@@ -254,6 +254,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        return_polars=False,
     ):
         """
         Get historical price data for an asset using optimized polars operations
@@ -339,7 +340,8 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                             df=df_result,
                             source=self.SOURCE,
                             asset=asset,
-                            quote=quote
+                            quote=quote,
+                            return_polars=return_polars
                         )
 
         # Calculate date range for data retrieval
@@ -489,7 +491,8 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                 df=df_result,
                 source=self.SOURCE,
                 asset=asset,
-                quote=quote
+                quote=quote,
+                return_polars=return_polars
             )
 
             logger.debug(f"Retrieved {len(df_result)} bars for {asset.symbol}")

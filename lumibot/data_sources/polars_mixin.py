@@ -91,7 +91,8 @@ class PolarsMixin:
         asset: Asset,
         source: str,
         quote: Optional[Asset] = None,
-        length: Optional[int] = None
+        length: Optional[int] = None,
+        return_polars: bool = False
     ) -> Bars:
         """Parse bars from polars DataFrame.
         
@@ -121,7 +122,7 @@ class PolarsMixin:
             response = response.tail(length)
 
         # Create bars object
-        bars = Bars(response, source, asset, raw=response, quote=quote)
+        bars = Bars(response, source, asset, raw=response, quote=quote, return_polars=return_polars)
         return bars
 
     def _clear_cache_polars(self, asset: Optional[Asset] = None):

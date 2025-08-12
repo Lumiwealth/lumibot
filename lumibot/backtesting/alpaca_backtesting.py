@@ -258,6 +258,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote: Asset | None = None,
             exchange: str | None = None,
             include_after_hours: bool = True,
+            return_polars: bool = False,
             remove_incomplete_current_bar: Optional[bool] = None,
     ) -> Bars | None:
         """
@@ -366,7 +367,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
 
-        return Bars(result_df, self.SOURCE, asset=asset, quote=quote)
+        return Bars(result_df, self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
 
     def get_chains(self, asset, quote=None):
         """Mock implementation for getting option chains"""

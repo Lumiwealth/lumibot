@@ -3,10 +3,11 @@ import os
 from decimal import ROUND_DOWN, Decimal, getcontext
 from typing import Union
 
-from lumibot.tools.lumibot_logger import get_logger
+from termcolor import colored
+
 from lumibot.data_sources import CcxtData
 from lumibot.entities import Asset, Order, Position
-from termcolor import colored
+from lumibot.tools.lumibot_logger import get_logger
 
 from .broker import Broker
 
@@ -437,11 +438,11 @@ class Ccxt(Broker):
             getcontext().prec = 8
             getcontext().rounding = ROUND_DOWN
             decimal_value = Decimal(precision["amount"])
-            precision_amount = decimal_value.quantize(Decimal("1e-{0}".format(8)), rounding=ROUND_DOWN)
+            precision_amount = decimal_value.quantize(Decimal(f"1e-{8}"), rounding=ROUND_DOWN)
 
         # Convert the amount to Decimal.
-        if hasattr(order, "quantity") and getattr(order, "quantity") is not None:
-            qty = Decimal(getattr(order, "quantity"))
+        if hasattr(order, "quantity") and order.quantity is not None:
+            qty = Decimal(order.quantity)
 
             # Calculate the precision factor as the reciprocal of precision_amount
             precision_factor = Decimal("1") / precision_amount
@@ -454,11 +455,7 @@ class Ccxt(Broker):
                 )
                 return
 
-            setattr(
-                order,
-                "quantity",
-                new_qty,
-            )
+            order.quantity = new_qty
 
             # TODO: Remove this if really not needed by several brokers (keeping for now because it's a big change and need to monitor first).
             # try:

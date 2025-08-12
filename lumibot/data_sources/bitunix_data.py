@@ -1,12 +1,12 @@
-import time
-from typing import Optional, Dict, Any
+from typing import Optional
 
 import pandas as pd
 import pytz
 
-from lumibot.entities import Asset, Bars
 from lumibot.data_sources.data_source import DataSource
+from lumibot.entities import Asset, Bars
 from lumibot.tools.bitunix_helpers import BitUnixClient
+
 
 class BitunixData(DataSource):
     SOURCE = "BITUNIX"
@@ -72,7 +72,7 @@ class BitunixData(DataSource):
             symbol = asset.symbol
         else:
             symbol = f"{asset.symbol}USDT"
-        
+
         # For futures, use mark price
         try:
             resp = self.client.get_funding_rate(symbol)
@@ -82,13 +82,13 @@ class BitunixData(DataSource):
         except Exception as e:
             print(e)
             return None
-    
+
         return None
-    
+
     def _parse_source_timestep(self, timestep: str) -> str:
         """Convert Lumibot timestep to BitUnix interval format."""
         normalized = self.get_timestep_from_string(timestep)
-        
+
         if normalized == "minute":
             return "1m"
         elif normalized == "3 minutes":
@@ -124,32 +124,32 @@ class BitunixData(DataSource):
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if not timestep:
             timestep = self.get_timestep()
-            
+
         # Determine symbol format based on asset type
         if asset.asset_type == Asset.AssetType.FUTURE:
             symbol = asset.symbol
         else:
             symbol = f"{asset.symbol}{quote.symbol}"
-            
+
         # Add to tracked symbols
         self.client_symbols.add(symbol)
-        
+
         # Convert Lumibot timestep to BitUnix interval format
         interval = self._parse_source_timestep(timestep)
-        
+
         try:
             # Calculate limit - request more than needed to ensure we get enough data
             limit = min(1000, length * 2)  # BitUnix might limit to 1000 candles
-            
+
             resp = self.client.get_kline(symbol=symbol, interval=interval, limit=limit)
             if resp and resp.get("code") == 0:
                 bars_data = resp.get("data", [])
                 if not bars_data:
                     return None
-                
+
                 # Construct DataFrame from candle data
                 df = pd.DataFrame(bars_data)
-                
+
                 # Expected format from documentation - adjust if needed
                 if "t" in df.columns:  # Timestamp
                     df["ts"] = df["t"]
@@ -165,38 +165,38 @@ class BitunixData(DataSource):
                     df["close"] = df["c"]
                 if "baseVol" in df.columns:  # Volume
                     df["volume"] = df["baseVol"]
-                
+
                 # Ensure numeric columns
                 for col in ("open", "high", "low", "close", "volume"):
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
-                
+
                 # Set timestamp as index
                 if "ts" in df.columns:
                     df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms")
                     # Convert timezone
                     df.index = df.index.tz_localize(pytz.utc).tz_convert(self.tzinfo)
-                
+
                 # Select only required columns
                 required_cols = ["open", "high", "low", "close", "volume"]
                 for col in required_cols:
                     if col not in df.columns:
                         df[col] = 0.0
-                
+
                 # Limit to the requested length
                 df = df.sort_index()
                 if len(df) > length:
                     df = df.tail(length)
-                
+
                 # Wrap in Bars object
                 return self._parse_source_symbol_bars(
-                    df[required_cols], 
-                    asset, 
-                    quote=None if asset.asset_type == Asset.AssetType.FUTURE else quote, 
+                    df[required_cols],
+                    asset,
+                    quote=None if asset.asset_type == Asset.AssetType.FUTURE else quote,
                     length=length
                 )
-                
-        except Exception as e:
+
+        except Exception:
             import traceback
             traceback.print_exc()
             return None

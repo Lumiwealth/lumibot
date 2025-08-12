@@ -1,17 +1,20 @@
-import time
-import duckdb
+import math
 import os
+import time
 import uuid
-import ccxt
 from datetime import datetime
-from tabulate import tabulate
+from typing import Union
+
+import ccxt
+import duckdb
+import numpy as np
 import pandas as pd
 from pandas import DataFrame
-from ..constants import LUMIBOT_CACHE_FOLDER
+from tabulate import tabulate
+
 from lumibot.tools.lumibot_logger import get_logger
-import math
-import numpy as np
-from typing import Union
+
+from ..constants import LUMIBOT_CACHE_FOLDER
 
 logger = get_logger(__name__)
 
@@ -50,9 +53,7 @@ class CcxtCacheDB:
             exchange_class = getattr(ccxt, exchange_id)
         except:
             raise Exception(
-                "Could not find exchange named '{}'. Are you sure you are spelling the exchange_id correctly?".format(
-                    exchange_id
-                )
+                f"Could not find exchange named '{exchange_id}'. Are you sure you are spelling the exchange_id correctly?"
             )
 
         self.exchange_id = exchange_id
@@ -83,7 +84,7 @@ class CcxtCacheDB:
             if not os.path.exists(cache_folder):
                 os.makedirs(cache_folder)
         except OSError:
-            raise Exception("Could not create cache folder at {}".format(cache_folder))
+            raise Exception(f"Could not create cache folder at {cache_folder}")
 
         cache_file = os.path.join(cache_folder,
                                   f"{symbol.replace('/', '_')}_{timeframe}.duckdb")

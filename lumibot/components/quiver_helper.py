@@ -1,10 +1,11 @@
+import datetime
+import io
 import os
+import time
+
+import pandas as pd
 import requests
 from dotenv import load_dotenv
-import datetime
-import time
-import pandas as pd
-import io
 
 # Load the .env file where the API key is stored
 load_dotenv()
@@ -147,7 +148,7 @@ class QuiverHelper:
             "Authorization": f"Bearer {api_token}",
             "Accept": "application/json"
         }
-        
+
         params = {
             "page": page,
             "page_size": page_size,
@@ -170,7 +171,7 @@ class QuiverHelper:
                     params=params,
                     timeout=30  # Add timeout to prevent hanging
                 )
-                
+
                 # Handle different status codes
                 if response.status_code == 200:
                     return response.json()
@@ -254,18 +255,18 @@ class QuiverHelper:
         while True:
             # Fetch the data for this page
             data = self.fetch_congress_trading_data(bioguide_id, page, page_size)
-            
+
             if not data:
                 # If there is no more data or we got an empty response due to errors, stop fetching
                 break
-            
+
             # Add a small delay between page requests to avoid rate limiting
             time.sleep(1)
-            
+
             # Accumulate results
             total_results.extend(data)
             self.strategy.log_message(f"Fetched {len(data)} results from page {page}.")
-            
+
             # Increment page to fetch the next set of results
             page += 1
 
@@ -281,10 +282,10 @@ class QuiverHelper:
         if not existing_entry.empty:
             # 1) Find which columns are shared by both DataFrames
             shared_cols = self.bulk_congress_trading_df.columns.intersection(new_entry.columns)
-            
+
             # 2) Create a mask for the rows to update
             mask = self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
-            
+
             # 3) Assign only the shared columns (this avoids mismatched column errors)
             self.bulk_congress_trading_df.loc[mask, shared_cols] = (
                 new_entry.loc[:, shared_cols].iloc[0].values
@@ -351,11 +352,11 @@ class QuiverHelper:
                 ticker = transaction["Ticker"]
                 amount = float(transaction["Amount"])
                 action = transaction["Transaction"]
-                
+
                 # If the ticker is not in the portfolio yet, initialize to 0
                 if ticker not in portfolio:
                     portfolio[ticker] = 0.0
-                
+
                 # Adjust holdings based on the transaction action
                 if action == "Purchase":
                     portfolio[ticker] += amount
@@ -364,8 +365,8 @@ class QuiverHelper:
 
         # Filter out tickers with zero or negative holdings
         portfolio = {
-            ticker: holdings 
-            for ticker, holdings in portfolio.items() 
+            ticker: holdings
+            for ticker, holdings in portfolio.items()
             if holdings > 0
         }
 

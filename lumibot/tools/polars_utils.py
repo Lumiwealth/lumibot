@@ -1,10 +1,8 @@
 from datetime import time, timedelta
-from decimal import Decimal
-from typing import Union, Optional
+from typing import Optional
 
-import polars as pl
-import numpy as np
 import pandas as pd
+import polars as pl
 
 
 def day_deduplicate(df_: pl.DataFrame) -> pl.DataFrame:
@@ -17,10 +15,10 @@ def day_deduplicate(df_: pl.DataFrame) -> pl.DataFrame:
 def is_daily_data(df_: pl.DataFrame) -> bool:
     """Check if the DataFrame contains daily data (all times are 00:00)."""
     dt_col = _get_datetime_column(df_)
-    
+
     # Extract time component and check if all are midnight
     times = df_.select(pl.col(dt_col).dt.time()).unique()
-    
+
     if len(times) == 1:
         # Get the single time value
         time_val = times.item(0, 0)
@@ -32,51 +30,51 @@ def is_daily_data(df_: pl.DataFrame) -> bool:
 def fill_void(df_: pl.DataFrame, interval: timedelta, end) -> pl.DataFrame:
     """Fill missing time intervals in the DataFrame using native polars operations."""
     dt_col = _get_datetime_column(df_)
-    
+
     # Get the datetime column as a series
     dt_series = df_[dt_col].sort()
-    
+
     # Find gaps in the time series
     gaps = []
     dt_values = dt_series.to_list()
-    
+
     for i in range(len(dt_values) - 1):
         current = dt_values[i]
         next_val = dt_values[i + 1]
         expected_next = current + interval
-        
+
         # If there's a gap
         if next_val > expected_next:
             # Calculate number of missing intervals
             n_missing = int((next_val - current) / interval) - 1
-            
+
             # Get the row data for forward filling
             row_data = df_.filter(pl.col(dt_col) == current)
-            
+
             # Create missing timestamps
             for j in range(1, n_missing + 1):
                 new_timestamp = current + (interval * j)
                 # Clone the row with new timestamp
                 new_row = row_data.with_columns(pl.lit(new_timestamp).alias(dt_col))
                 gaps.append(new_row)
-    
+
     # Handle gap at the end if needed
     last_dt = dt_values[-1]
     if last_dt < end:
         n_missing = int((end - last_dt) / interval)
         row_data = df_.filter(pl.col(dt_col) == last_dt)
-        
+
         for j in range(1, n_missing + 1):
             new_timestamp = last_dt + (interval * j)
             new_row = row_data.with_columns(pl.lit(new_timestamp).alias(dt_col))
             gaps.append(new_row)
-    
+
     # Combine original data with gaps
     if gaps:
         all_dfs = [df_] + gaps
         result = pl.concat(all_dfs).sort(dt_col)
         return result
-    
+
     return df_
 
 
@@ -116,17 +114,17 @@ def pandas_to_polars(df_pandas: pd.DataFrame) -> pl.DataFrame:
 def polars_to_pandas(df_polars: pl.DataFrame, index_col: Optional[str] = None) -> pd.DataFrame:
     """Convert polars DataFrame to pandas DataFrame, optionally setting index."""
     df_pandas = df_polars.to_pandas()
-    
+
     # If no index column specified, try to find datetime column
     if index_col is None:
         dt_col = _find_datetime_column(df_polars)
         if dt_col:
             index_col = dt_col
-    
+
     if index_col and index_col in df_pandas.columns:
         df_pandas = df_pandas.set_index(index_col)
         df_pandas.index.name = index_col
-    
+
     return df_pandas
 
 
@@ -136,13 +134,13 @@ def _get_datetime_column(df: pl.DataFrame) -> str:
     for col in df.columns:
         if df[col].dtype in [pl.Datetime, pl.Date]:
             return col
-    
+
     # Then check for common datetime column names
     datetime_names = ['datetime', 'date', 'time', 'timestamp', 'Datetime', 'Date', 'Time', 'Timestamp']
     for col in df.columns:
         if col in datetime_names:
             return col
-    
+
     # Default to first column
     return df.columns[0]
 
@@ -153,13 +151,13 @@ def _find_datetime_column(df: pl.DataFrame) -> Optional[str]:
     for col in df.columns:
         if df[col].dtype in [pl.Datetime, pl.Date]:
             return col
-    
+
     # Check for common names
     datetime_names = ['datetime', 'date', 'time', 'timestamp']
     for col in df.columns:
         if col.lower() in datetime_names:
             return col
-    
+
     return None
 
 

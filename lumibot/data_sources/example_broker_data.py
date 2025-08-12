@@ -2,8 +2,9 @@ from decimal import Decimal
 from typing import Union
 
 from termcolor import colored
-from lumibot.entities import Asset, Bars, Quote
+
 from lumibot.data_sources import DataSource
+from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)

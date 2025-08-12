@@ -1,24 +1,25 @@
+import os
+import subprocess
+import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Union
 
+import requests
+import urllib3
 from termcolor import colored
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
+
 from ..entities import Asset, Bars
 from .data_source import DataSource
 
-import subprocess
-import os
-import time
-import requests
-import urllib3
-from datetime import datetime, timezone
-
 logger = get_logger(__name__)
+import importlib.resources  # Added
+import tempfile  # Added
+
 import pandas as pd
-import tempfile # Added
-import importlib.resources # Added
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -332,7 +333,7 @@ class InteractiveBrokersRESTData(DataSource):
                 response_json = response.json()
             except ValueError:
                 logger.error(
-                    colored(f"Invalid JSON response", "red")
+                    colored("Invalid JSON response", "red")
                 )
                 response_json = {}
         else:
@@ -340,7 +341,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         status_code = response.status_code
 
-        if isinstance(response_json, dict): 
+        if isinstance(response_json, dict):
             error_message = response_json.get("error", "") or response_json.get("message", "")
         else:
             error_message = ""
@@ -353,7 +354,7 @@ class InteractiveBrokersRESTData(DataSource):
                 if isinstance(order, dict) and 'id' in order:
                     confirm_url = f"{self.base_url}/iserver/reply/{order['id']}"
                     confirm_response = self.post_to_endpoint(
-                        confirm_url, 
+                        confirm_url,
                         {"confirmed": True},
                         description="Confirming Order",
                         silent=True,
@@ -407,7 +408,7 @@ class InteractiveBrokersRESTData(DataSource):
             is_error = True
             retrying = False
 
-        else: 
+        else:
             retrying = False
 
         if re_msg is not None:
@@ -1168,7 +1169,7 @@ class InteractiveBrokersRESTData(DataSource):
                     response
                     and isinstance(response, list)
                     and len(response) > 0
-                    and not field in response[0]
+                    and field not in response[0]
                 ):
                     missing_fields = True
                     break

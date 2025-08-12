@@ -1,4 +1,4 @@
-from decimal import Decimal, getcontext
+from decimal import Decimal
 
 import lumibot.entities as entities
 
@@ -29,13 +29,13 @@ class Position:
     """
 
     def __init__(
-            self, 
-            strategy, 
-            asset, 
-            quantity, 
-            orders=None, 
-            hold=0, 
-            available=0, 
+            self,
+            strategy,
+            asset,
+            quantity,
+            orders=None,
+            hold=0,
+            available=0,
             avg_fill_price=None
         ):
         self.strategy = strategy
@@ -189,7 +189,7 @@ class Position:
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
-    
+
     @classmethod
     def from_dict(cls, data):
         asset = entities.Asset.from_dict(data["asset"])

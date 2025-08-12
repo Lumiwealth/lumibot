@@ -11,13 +11,12 @@ import pytz
 import quantstats_lumi as qs
 from plotly.subplots import make_subplots
 
-from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
-from plotly.subplots import make_subplots
+from lumibot.tools.lumibot_logger import get_logger
 
+from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 from .yahoo_helper import YahooHelper as yh
 
-from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 
@@ -469,6 +468,12 @@ def plot_returns(
         logger.info("show_plot is False, not creating the plot file or CSV.")
         return
 
+    # Optimization: Check environment variable to skip plotting during performance testing
+    import os
+    if os.environ.get("LUMIBOT_SKIP_PLOTTING", "").lower() == "true":
+        logger.info("LUMIBOT_SKIP_PLOTTING is set, skipping plot generation for performance.")
+        return
+
     logger.info("\nCreating trades plot and CSV...")
 
     # --- Start: CSV Generation for trades_df ---
@@ -552,7 +557,7 @@ def plot_returns(
         if 'time' in processed_trades_for_merge.columns:
             processed_trades_for_merge['time'] = pd.to_datetime(processed_trades_for_merge['time'])
             processed_trades_for_merge = processed_trades_for_merge.set_index('time')
-            
+
             # Ensure all standard columns (excluding 'time') are present, filling missing ones with NA
             _columns_to_ensure_in_merge = [col for col in standard_trade_columns if col != "time"]
             for col in _columns_to_ensure_in_merge:
@@ -581,6 +586,10 @@ def plot_returns(
     # fig = go.Figure()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
+    # Optimization: Collect all traces first, then add them in batch to avoid repeated deepcopy
+    traces_primary = []
+    traces_secondary = []
+
     # Updated format_positions function to handle lists and dicts
     def format_positions(positions):
         if isinstance(positions, list):
@@ -596,7 +605,7 @@ def plot_returns(
     formatted_positions_list = [format_positions(pos) for pos in df_final["positions"]]
 
     # Modify the strategy line to include positions
-    fig.add_trace(
+    traces_primary.append(
         go.Scatter(
             x=df_final.index,
             y=df_final[strategy_name],
@@ -615,7 +624,7 @@ def plot_returns(
     )
 
     # Benchmark line
-    fig.add_trace(
+    traces_primary.append(
         go.Scatter(
             x=df_final.index,
             y=df_final[benchmark_name],
@@ -627,7 +636,7 @@ def plot_returns(
     )
 
     # Cash line
-    fig.add_trace(
+    traces_secondary.append(
         go.Scatter(
             x=df_final.index,
             y=df_final["cash"],
@@ -635,8 +644,7 @@ def plot_returns(
             name="cash",
             connectgaps=True,
             hovertemplate="Cash<br>Value: %{y:$,.2f}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
-        ),
-        secondary_y=True,
+        )
     )
 
     # Use a % of the range of df_final[strategy_name] to shift the buy and sell ticks
@@ -738,7 +746,7 @@ def plot_returns(
         )
         buys = buys.set_index("datetime")
         buys["buy_shift"] = buys[strategy_name] - vshift
-        fig.add_trace(
+        traces_primary.append(
             go.Scatter(
                 x=buys.index,
                 y=buys["buy_shift"],
@@ -778,7 +786,7 @@ def plot_returns(
         )
         sells = sells.set_index("datetime")
         sells["sell_shift"] = sells[strategy_name] + vshift
-        fig.add_trace(
+        traces_primary.append(
             go.Scatter(
                 x=sells.index,
                 y=sells["sell_shift"],
@@ -795,6 +803,15 @@ def plot_returns(
     ###############################
     # Chart Titles and Layouts
     ###############################
+
+    # Optimization: Add all traces at once to minimize deepcopy operations
+    # Add primary y-axis traces
+    for trace in traces_primary:
+        fig.add_trace(trace, secondary_y=False)
+
+    # Add secondary y-axis traces
+    for trace in traces_secondary:
+        fig.add_trace(trace, secondary_y=True)
 
     # Set title and layout
     bm_text = f"Compared With {benchmark_name}" if benchmark_name else ""
@@ -895,7 +912,7 @@ def create_tearsheet(
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
-    
+
     '''
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:

@@ -1,14 +1,14 @@
 from datetime import datetime
+
 import pytz
 
-from lumibot.components.configs_helper import ConfigsHelper
-from lumibot.credentials import IS_BACKTESTING, ALPACA_TEST_CONFIG
-from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.backtesting import AlpacaBacktesting
+from lumibot.components.configs_helper import ConfigsHelper
+from lumibot.credentials import ALPACA_TEST_CONFIG, IS_BACKTESTING
+from lumibot.entities import Asset
+from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.tools.pandas import print_full_pandas_dataframes
 from lumibot.traders.debug_log_trader import DebugLogTrader
-from lumibot.entities import Asset
-
 
 print_full_pandas_dataframes()
 
@@ -76,6 +76,6 @@ if __name__ == "__main__":
     trades_df = strategy.broker._trade_event_log_df  # noqa
     filled_orders = trades_df[(trades_df["status"] == "fill")]
     print(
-        f"\nfilled_orders:\n",
+        "\nfilled_orders:\n",
         f"{filled_orders[['time', 'symbol', 'type', 'side', 'status', 'price', 'filled_quantity', 'trade_cost']]}"
     )

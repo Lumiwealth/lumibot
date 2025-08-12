@@ -1,17 +1,18 @@
-import time, traceback
 import os
+import time
+import traceback
 from decimal import Decimal
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
+
 import pandas as pd
 
-from lumibot.trading_builtins import PollingStream
-
+from .broker import Broker, LumibotBrokerAPIError
 from lumibot.data_sources.bitunix_data import BitunixData
-from lumibot.brokers import Broker, LumibotBrokerAPIError
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
-
 from lumibot.tools.lumibot_logger import get_logger
+from lumibot.trading_builtins import PollingStream
+
 logger = get_logger(__name__)
 
 class Bitunix(Broker):
@@ -40,7 +41,7 @@ class Bitunix(Broker):
         forex=[],
         crypto=["crypto"],
     )
-    
+
     # Default quote asset for crypto transactions
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset("USDT", Asset.AssetType.CRYPTO)
 
@@ -64,7 +65,7 @@ class Bitunix(Broker):
         else:
             api_key = getattr(config, "API_KEY", None)
             api_secret = getattr(config, "API_SECRET", None)
-        
+
         # Track current leverage per symbol to avoid redundant API calls
         self.current_leverage: Dict[str, int] = {}
         # Override default market setting for to be 24/7, but still respect config/env if set
@@ -118,8 +119,8 @@ class Bitunix(Broker):
         if not (len(self.quote_assets) == 1 and Asset("USDT", Asset.AssetType.CRYPTO) in self.quote_assets):
             self.quote_assets.clear()
             self.quote_assets.add(Asset("USDT", Asset.AssetType.CRYPTO))
-        
-        return Asset("USDT", Asset.AssetType.CRYPTO)  
+
+        return Asset("USDT", Asset.AssetType.CRYPTO)
 
     def get_timestamp(self):
         return time.time()
@@ -132,7 +133,7 @@ class Bitunix(Broker):
 
     def get_time_to_close(self):
         return float("inf")
-    
+
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> Optional[Tuple[float, float, float]]:
         """
         Returns (cash, positions_value, total_liquidation_value)
@@ -207,7 +208,7 @@ class Bitunix(Broker):
     def _map_side_to_bitunix(self, side: Order.OrderSide) -> str:
         """Map Lumibot order side to BitUnix side."""
         return "BUY" if side == Order.OrderSide.BUY else "SELL"
-    
+
     def _map_type_to_bitunix(self, order_type: Order.OrderType) -> str:
         """Map Lumibot order type to BitUnix order type."""
         if order_type == Order.OrderType.LIMIT:
@@ -245,7 +246,7 @@ class Bitunix(Broker):
         if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
             symbol = order.asset.symbol
         else:
-            error_msg = f"Invalid asset type: asset can only be CRYPTO_FUTURE"
+            error_msg = "Invalid asset type: asset can only be CRYPTO_FUTURE"
             order.set_error(LumibotBrokerAPIError(error_msg))
             order.status = Order.OrderStatus.ERROR  # ensure status is enum
             return order
@@ -253,7 +254,7 @@ class Bitunix(Broker):
         # Prepare quantity and price
         quantity = abs(float(order.quantity))
         price = float(order.limit_price) if order.limit_price else None
-        
+
         # Generate a client order ID for tracking
         client_order_id = f"lmbot_{int(time.time() * 1000)}_{hash(str(order)) % 10000}"
 
@@ -281,14 +282,14 @@ class Bitunix(Broker):
             }
             if price is not None:
                 params["price"] = price
-            
+
             # TP/SL
             tp = getattr(order, "secondary_limit_price", None) or getattr(order, "take_profit_price", None)
             sl = getattr(order, "secondary_stop_price", None) or getattr(order, "stop_loss_price", None)
 
             if tp is not None:
                 params["take_profit_price"] = float(tp)
-            
+
             if sl is not None:
                 params["stop_loss_price"] = float(sl)
 
@@ -322,7 +323,7 @@ class Bitunix(Broker):
                 error_msg = f"No order ID in response: {response}"
                 order.set_error(LumibotBrokerAPIError(error_msg))
                 order.status = Order.OrderStatus.ERROR  # ensure status is enum
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)                
+                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
             order.set_error(LumibotBrokerAPIError(error_msg))
@@ -356,10 +357,10 @@ class Bitunix(Broker):
         position = self.get_tracked_position(strategy_name, asset)
         if not position or position.quantity == 0:
             return None
-        
+
         # Ensure fraction is between 0 and 1
         quantity = abs(position.quantity)
-        
+
         # Create the order object
         order = Order(strategy_name, asset, quantity * fraction)
 
@@ -370,7 +371,7 @@ class Bitunix(Broker):
             order.side = Order.OrderSide.BUY
 
         # Mark as reduce‑only so `_submit_order` will send tradeSide="CLOSE"
-        setattr(order, "reduce_only", True)
+        order.reduce_only = True
 
         return self.submit_order(order)
 
@@ -381,7 +382,7 @@ class Bitunix(Broker):
         if not order.identifier:
             self.logger.warning("Specified order doesn't exist")
             return
-            
+
         try:
             # Retry up to 5 times on network error
             response = self.api.cancel_order(order_id=order.identifier)
@@ -458,7 +459,7 @@ class Bitunix(Broker):
         """Converts BitUnix order response to Lumibot Order object."""
         if not response:
             return None
-        
+
         try:
             # Extract order details
             order_id = response.get("orderId")
@@ -466,7 +467,7 @@ class Bitunix(Broker):
             status = response.get("status", "")
             side_raw = response.get("side", "")
             order_type = response.get("orderType", "")
-            
+
             # Extract quantities and prices
             # fields use 'qty'/'tradeQty' for BitUnix
             qty_original = Decimal(str(response.get("qty",     "0")))
@@ -481,15 +482,15 @@ class Bitunix(Broker):
             ap = response.get("avgPrice")
             if ap:
                 price_avg = Decimal(str(ap))
-            
+
             leverage=int(str(response.get("leverage", "1")))
-                        
+
             asset = Asset(symbol, Asset.AssetType.CRYPTO_FUTURE, leverage=leverage)
             quote = None
-            
+
             # Map order side
             side = Order.OrderSide.BUY if side_raw.upper() == "BUY" else Order.OrderSide.SELL
-            
+
             # Map order type
             if order_type.upper() == "LIMIT":
                 order_type_enum = Order.OrderType.LIMIT
@@ -501,10 +502,10 @@ class Bitunix(Broker):
                 order_type_enum = Order.OrderType.STOP_LIMIT
             else:
                 order_type_enum = Order.OrderType.MARKET  # Default
-            
+
             # Map order status
             order_status = self._map_status_from_bitunix(status)
-            
+
             # Create Lumibot Order object (use keywords to avoid duplicate positional limit_price)
             order = Order(
                 strategy=strategy_name,
@@ -521,16 +522,16 @@ class Bitunix(Broker):
             # Set filled info
             order.filled_quantity = qty_executed
             order.avg_fill_price = price_avg
-            
+
             # Set creation time if available
             create_time = response.get("time") or response.get("createTime")
             if create_time:
                 order.broker_create_date = pd.to_datetime(create_time, unit='ms', utc=True)
-            
+
             # Store raw response for reference
             order.update_raw(response)
             return order
-            
+
         except Exception as e:
             logger.error(f"Error parsing order: {str(e)}")
             logger.error(traceback.format_exc())
@@ -665,7 +666,7 @@ class Bitunix(Broker):
         """
         if not order.identifier:
             raise LumibotBrokerAPIError("Cannot modify order without order ID")
-            
+
         try:
             # Determine symbol format based on asset type
             if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
@@ -673,22 +674,22 @@ class Bitunix(Broker):
             else:
                 logger.error(f"Cannot modify order for asset type {order.asset.asset_type}")
                 return order
-                
+
             # Prepare modification parameters
             params = {
                 "orderId": order.identifier,
                 "symbol": symbol
             }
-            
+
             # Add optional modifications
             if price is not None:
                 params["price"] = str(price)
             if quantity is not None:
                 params["quantity"] = str(quantity)
-                
+
             # Send modification request
             response = self.api.modify_order(**params)
-            
+
             # Process response
             if response and response.get("code") == 0:
                 # Update the order object with new values
@@ -696,7 +697,7 @@ class Bitunix(Broker):
                     order.limit_price = Decimal(str(price))
                 if quantity is not None:
                     order.quantity = Decimal(str(quantity))
-                    
+
                 # Update raw data
                 order.update_raw(response)
                 return order
@@ -715,7 +716,7 @@ class Bitunix(Broker):
             if pos.asset == asset:
                 return pos
         return None
-    
+
     def get_historical_account_value(self, start_date=None, end_date=None, frequency=None) -> dict:
         """
         Not implemented: Bitunix does not support historical account value retrieval.
@@ -752,20 +753,20 @@ class Bitunix(Broker):
         """
         if hasattr(self.data_source, '_parse_source_timestep'):
             return self.data_source._parse_source_timestep(timestep)
-        
+
         # Fallback implementation if data source doesn't have the method
         normalized = timestep.lower().strip()
-        
+
         timestep_map = {
             "1m": "1m", "minute": "1m",
-            "3m": "3m", 
+            "3m": "3m",
             "5m": "5m",
             "15m": "15m",
-            "30m": "30m", 
+            "30m": "30m",
             "1h": "1h", "hour": "1h",
             "2h": "2h",
-            "4h": "4h", 
+            "4h": "4h",
             "1d": "1d", "day": "1d", "d": "1d"
         }
-        
+
         return timestep_map.get(normalized, "1m")  # Default to 1m if unknown

@@ -9,21 +9,21 @@ This implementation:
 """
 
 import traceback
-from collections import OrderedDict
 from datetime import timedelta
 from decimal import Decimal
-from typing import Union, Dict, List, Optional
-import polars as pl
-import numpy as np
+from typing import Dict, List, Optional, Union
 
+import numpy as np
+import polars as pl
 from polygon.exceptions import BadResponse
 from termcolor import colored
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.data_sources.polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars
 from lumibot.tools import polygon_helper_polars_optimized
+from lumibot.tools.lumibot_logger import get_logger
+
 try:
     from lumibot.tools import polygon_helper_async
     ASYNC_AVAILABLE = True
@@ -37,7 +37,7 @@ START_BUFFER = timedelta(days=5)
 
 class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
     """Ultra-optimized Polygon data source with pure polars."""
-    
+
     SOURCE = "POLYGON"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
@@ -57,33 +57,33 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         **kwargs,
     ):
         super().__init__(
-            datetime_start=datetime_start, 
-            datetime_end=datetime_end, 
-            api_key=api_key, 
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            api_key=api_key,
             **kwargs
         )
-        
+
         # Memory limit, off by default
         self.MAX_STORAGE_BYTES = max_memory
-        
+
         # RESTClient API for Polygon.io polygon-api-client
         from lumibot.tools.polygon_helper import PolygonClient
         self.polygon_client = PolygonClient.create(api_key=api_key)
-        
+
         # Initialize polars storage from mixin
         self._init_polars_storage()
-        
+
         # Additional Polygon-specific caches
         self._eager_cache: Dict[Asset, pl.DataFrame] = {}
-        
+
         # Batch download queue for optimized downloads
         self._download_queue = set()
         self._download_lock = False
-        
+
         # Prefetch cache for aggressive prefetching
         self.enable_prefetch_cache = enable_prefetch_cache
         self._prefetch_cache: Dict[tuple, bool] = {}  # Track what's been prefetched
-        
+
         # Use async downloads if available and requested
         self.use_async = use_async and ASYNC_AVAILABLE
         if self.use_async:
@@ -93,7 +93,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         """Enforce storage limit by removing least recently used data."""
         # Use mixin's enforce method
         self._enforce_storage_limit_polars(self.MAX_STORAGE_BYTES)
-        
+
         # Clean up Polygon-specific caches
         if self.MAX_STORAGE_BYTES and len(self._eager_cache) > 0:
             # Remove from eager cache too
@@ -108,10 +108,10 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         """
         # Use mixin's store method first
         lazy_data = self._store_data_polars(asset, data)
-        
+
         if lazy_data is None:
             return None
-            
+
         # Calculate additional derived columns for Polygon
         lazy_data = lazy_data.with_columns([
             pl.col("close").pct_change().alias("price_change"),
@@ -124,17 +124,17 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
                 .otherwise(pl.col("close").pct_change())
                 .alias("return")
         ])
-        
+
         # Add missing dividend column if needed
         if "dividend" not in data.columns:
             lazy_data = lazy_data.with_columns(pl.lit(0.0).alias("dividend"))
-        
+
         # Update the stored data
         self._data_store[asset] = lazy_data
-        
+
         # Enforce storage limit
         self._enforce_storage_limit(self._data_store)
-        
+
         return lazy_data
 
 
@@ -196,21 +196,21 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         search_asset = asset
         if isinstance(asset, tuple):
             search_asset = asset
-        
+
         # Check if in data store
         if search_asset not in self._data_store:
             return False
-            
+
         # Check if in filtered cache for daily data
         if timestep == "day":
             cache_key = (search_asset, start_dt.date(), timestep)
             if cache_key in self._filtered_data_cache:
                 return True
-                
+
         # Check prefetch cache
         cache_key = (search_asset, start_dt.date(), end_dt.date(), timestep)
         return cache_key in self._prefetch_cache
-    
+
     def _update_data(self, asset: Asset, quote: Asset, length: int, timestep: str, start_dt=None):
         """
         Get asset data and update the self._data_store dictionary.
@@ -241,14 +241,14 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
-        
+
         # Check if we have data for this asset
         if search_asset in self._data_store:
             # For daily timestep, use optimized caching strategy
             if ts_unit == "day":
                 # Check if we need to clear cache for new date
                 current_date = self._datetime.date()
-                
+
                 # Try to get from filtered cache first
                 cache_key = (search_asset, current_date, ts_unit)
                 if cache_key in self._filtered_data_cache:
@@ -316,7 +316,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
 
         if (df is None) or len(df) == 0:
             return
-            
+
         # Store data
         self._store_data(search_asset, df)
 
@@ -331,23 +331,23 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         include_after_hours: bool = True,
     ) -> Optional[pl.DataFrame]:
         """Pull bars with maximum efficiency using pre-filtered cache."""
-        
+
         # Build search key
         search_asset = asset if not isinstance(asset, tuple) else asset
         if quote:
             search_asset = (asset, quote)
-        
+
         # For daily timestep, use optimized caching strategy
         if timestep == "day":
             current_date = self._datetime.date()
             cache_key = (search_asset, current_date, timestep)
-            
+
             # Try cache first
             if cache_key in self._filtered_data_cache:
                 result = self._filtered_data_cache[cache_key]
                 if len(result) >= length:
                     return result.tail(length)
-        
+
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
         # Get data from Polygon
@@ -357,12 +357,12 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         search_asset = asset if not isinstance(asset, tuple) else asset
         if quote:
             search_asset = (asset, quote)
-            
+
         lazy_data = self._get_data_lazy(search_asset)
-        
+
         if lazy_data is None:
             return None
-        
+
         # Use lazy evaluation and collect only when needed
         # Check if we have cached filtered data first
         if timestep == "day":
@@ -376,39 +376,39 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         else:
             # For minute data, collect on demand
             data = lazy_data.collect()
-        
+
         # OPTIMIZATION: Direct filtering on eager DataFrame
         current_dt = self.to_default_timezone(self._datetime)
-        
+
         # Determine end filter
         if timestep == "day":
             dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
             end_filter = dt - timedelta(days=1)
         else:
             end_filter = current_dt
-            
+
         if timeshift:
             if isinstance(timeshift, int):
                 timeshift = timedelta(days=timeshift)
             end_filter = end_filter - timeshift
-            
+
         logger.debug(f"Filtering {asset.symbol} data: current_dt={current_dt}, end_filter={end_filter}, timestep={timestep}, timeshift={timeshift}")
 
         # Convert to lazy frame for filtering
         lazy_data = data.lazy() if not hasattr(data, 'collect') else data
-        
+
         # Use mixin's filter method
         result = self._filter_data_polars(search_asset, lazy_data, end_filter, length, timestep)
-        
+
         if result is None:
             return None
-            
+
         if len(result) < length:
             logger.debug(
                 f"Requested {length} bars but only {len(result)} available "
                 f"for {asset.symbol} before {end_filter}"
             )
-            
+
         logger.debug(f"Returning {len(result)} bars for {asset.symbol}")
 
         return result
@@ -436,7 +436,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         **kwargs
     ) -> Union[float, Decimal, None]:
         """Get last price with aggressive caching."""
-        
+
         if timestep is None:
             timestep = self.get_timestep()
 
@@ -461,11 +461,11 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         # Only request 1 bar for efficiency (matching pandas implementation)
         timeshift = None if timestep == "day" else timedelta(days=-1)
         length = 1
-        
+
         bars_data = self._pull_source_symbol_bars(
             asset, length, timestep=timestep, timeshift=timeshift, quote=quote
         )
-        
+
         if bars_data is None or len(bars_data) == 0:
             logger.warning(f"No bars data for {asset.symbol} at {current_datetime}")
             self._cache_last_price_polars(asset, None, current_datetime, timestep)
@@ -473,13 +473,13 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
 
         # Direct column access - since we only request 1 bar, take the first (and only) element
         open_price = bars_data["open"][0]
-        
+
         # Convert if needed
         if isinstance(open_price, (np.int64, np.integer)):
             open_price = Decimal(int(open_price))
         elif isinstance(open_price, (np.float64, np.floating)):
             open_price = float(open_price)
-        
+
         # Use mixin's cache method
         self._cache_last_price_polars(asset, open_price, current_datetime, timestep)
         return open_price
@@ -508,7 +508,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
             quote=quote,
             include_after_hours=include_after_hours
         )
-        
+
         if bars_data is None:
             return None
 
@@ -531,9 +531,9 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         search_asset = asset if not isinstance(asset, tuple) else asset
         if quote:
             search_asset = (asset, quote)
-            
+
         lazy_data = self._get_data_lazy(search_asset)
-        
+
         if lazy_data is None:
             return None
 
@@ -544,7 +544,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
                 filters.append(pl.col("datetime") >= start_date)
             if end_date:
                 filters.append(pl.col("datetime") <= end_date)
-            
+
             response = lazy_data.filter(pl.all_horizontal(filters)).collect()
         else:
             response = lazy_data.collect()
@@ -623,7 +623,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
     def get_quote(self, asset: Asset) -> None:
         """Get quote - not implemented for Polygon."""
         return None
-    
+
     def batch_prefetch_data(self, prefetch_requests: List[tuple]):
         """
         Batch prefetch multiple data requests for maximum efficiency.
@@ -637,23 +637,22 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
             List of (asset, start_dt, end_dt, timestep) tuples to prefetch
         """
         import concurrent.futures
-        import threading
-        
+
         if not prefetch_requests:
             return
-            
+
         # Filter out already cached data
         requests_to_fetch = []
         for asset, start_dt, end_dt, timestep in prefetch_requests:
             if not self.is_data_cached(asset, start_dt, end_dt, timestep):
                 requests_to_fetch.append((asset, start_dt, end_dt, timestep))
-                
+
         if not requests_to_fetch:
             logger.debug("All requested data already cached")
             return
-            
+
         logger.debug(f"Batch prefetching {len(requests_to_fetch)} data requests")
-        
+
         def fetch_single(request):
             """Fetch a single data request."""
             asset, start_dt, end_dt, timestep = request
@@ -663,27 +662,27 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
                     length = (end_dt - start_dt).days + 30  # Extra buffer
                 else:
                     length = 200  # Default lookback for minute data
-                
+
                 # Use the existing update method
                 self._update_data(asset, None, length, timestep, start_dt)
-                
+
                 # Mark as prefetched
                 cache_key = (asset, start_dt.date(), end_dt.date(), timestep)
                 self._prefetch_cache[cache_key] = True
-                
+
                 return True
             except Exception as e:
                 logger.debug(f"Failed to prefetch {asset}: {e}")
                 return False
-        
+
         # Use thread pool for concurrent downloads
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = []
             for request in requests_to_fetch:
                 future = executor.submit(fetch_single, request)
                 futures.append(future)
-            
+
             # Wait for all to complete with timeout
             concurrent.futures.wait(futures, timeout=30)
-            
+
         logger.debug(f"Batch prefetch completed for {len(requests_to_fetch)} requests")

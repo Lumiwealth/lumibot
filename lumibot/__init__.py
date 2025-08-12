@@ -1,7 +1,7 @@
+import importlib
 import os
 import sys
 import warnings
-import importlib
 
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -32,22 +32,16 @@ if (major, minor) < (3, 10):
 
 # SOURCE PATH
 # Import constants from constants module
+# Import main submodules
+from . import backtesting, brokers, data_sources, entities, strategies, traders
 from .constants import (
-    LUMIBOT_SOURCE_PATH,
-    LUMIBOT_DEFAULT_TIMEZONE,
+    LUMIBOT_CACHE_FOLDER,
     LUMIBOT_DEFAULT_PYTZ,
     LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
     LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
-    LUMIBOT_CACHE_FOLDER
+    LUMIBOT_DEFAULT_TIMEZONE,
+    LUMIBOT_SOURCE_PATH,
 )
-
-# Import main submodules
-from . import strategies
-from . import brokers
-from . import backtesting
-from . import entities
-from . import data_sources
-from . import traders
 
 # Ensure cache folder exists
 if not os.path.exists(LUMIBOT_CACHE_FOLDER):
@@ -68,6 +62,7 @@ if not os.path.exists(LUMIBOT_CACHE_FOLDER):
 
 # Map the root package alias.
 import lumibot.entities as _lb_entities
+
 sys.modules.setdefault("entities", _lb_entities)
 
 # Expose common sub-modules (asset, bars, data, order, position, trading_fee)
@@ -99,7 +94,7 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
 
 # Import configuration utilities
 try:
-    from .config import set_data_backend, get_data_backend, use_polars, configure_polars
+    from .config import configure_polars, get_data_backend, set_data_backend, use_polars
 except ImportError:
     # If config module doesn't exist yet, provide dummy functions
     def set_data_backend(backend): pass

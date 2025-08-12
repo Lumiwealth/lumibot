@@ -2,17 +2,18 @@
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Union
 from decimal import Decimal
+from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 import polars as pl
-import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
+
+from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 # DataBento imports (will be installed as dependency)
@@ -40,16 +41,16 @@ if not os.path.exists(LUMIBOT_DATABENTO_CACHE_FOLDER):
 
 class DataBentoClientPolars:
     """Optimized DataBento client using polars for data handling"""
-    
+
     def __init__(self, api_key: str, timeout: int = 30, max_retries: int = 3):
         if not DATABENTO_AVAILABLE:
             raise ImportError("DataBento package not available. Please install with: pip install databento")
-        
+
         self.api_key = api_key
         self.timeout = timeout
         self.max_retries = max_retries
         self._client = None
-        
+
     @property
     def client(self):
         """Lazy initialization of DataBento client"""
@@ -58,7 +59,7 @@ class DataBentoClientPolars:
                 raise ImportError("DataBento package not available")
             self._client = Historical(key=self.api_key)
         return self._client
-    
+
     def get_available_range(self, dataset: str) -> Dict[str, str]:
         """Get the available date range for a dataset"""
         try:
@@ -108,20 +109,20 @@ class DataBentoClientPolars:
             import pandas as pd
             available_end = pd.to_datetime(available_range['end'])
             request_end = pd.to_datetime(end)
-            
+
             # Ensure both dates are timezone-naive for comparison
             if available_end.tzinfo is not None:
                 available_end = available_end.replace(tzinfo=None)
             if request_end.tzinfo is not None:
                 request_end = request_end.replace(tzinfo=None)
-            
+
             # Clamp end date to available range
             if request_end > available_end:
                 logger.debug(f"Clamping end date from {end} to available end: {available_end}")
                 end = available_end
-        
+
         logger.debug(f"Requesting DataBento data: {symbols} from {start} to {end}")
-        
+
         try:
             data = self.client.timeseries.get_range(
                 dataset=dataset,
@@ -131,14 +132,14 @@ class DataBentoClientPolars:
                 end=end,
                 **kwargs
             )
-            
+
             # Convert to polars DataFrame directly
             if hasattr(data, 'to_df'):
                 # Get pandas DataFrame first
                 pandas_df = data.to_df()
                 logger.debug(f"[DataBentoClientPolars] Raw pandas df columns: {pandas_df.columns.tolist()}")
                 logger.debug(f"[DataBentoClientPolars] Raw pandas df index name: {pandas_df.index.name}")
-                
+
                 # Reset index to get datetime as a column
                 if pandas_df.index.name:
                     # The index contains the timestamp, reset it to make it a column
@@ -158,10 +159,10 @@ class DataBentoClientPolars:
             else:
                 # Create polars DataFrame from data
                 df = pl.DataFrame(data)
-            
+
             logger.debug(f"Successfully retrieved {len(df)} rows from DataBento for symbols: {symbols}")
             return df
-            
+
         except Exception as e:
             logger.error(f"DataBento API error: {e}")
             raise e
@@ -173,29 +174,28 @@ def _convert_to_databento_format(symbol: str, asset_symbol: str = None) -> str:
     
     DataBento uses short year format (e.g., MESU5 instead of MESU25).
     """
-    import re
-    
+
     # Handle mock values used in tests
     if asset_symbol and symbol in ['MOCKED_CONTRACT', 'CENTRALIZED_RESULT']:
         if symbol == 'MOCKED_CONTRACT' and asset_symbol == 'MES':
             return f"{asset_symbol}K{symbol[-1]}"
         elif symbol == 'CENTRALIZED_RESULT' and asset_symbol == 'ES':
             return f"{asset_symbol}{symbol[2]}{symbol[-1]}"
-    
+
     # Match pattern: SYMBOL + MONTH_CODE + YY (e.g., MESU25)
     pattern = r'^([A-Z]+)([FGHJKMNQUVXZ])(\d{2})$'
     match = re.match(pattern, symbol)
-    
+
     if match:
         root_symbol = match.group(1)
         month_code = match.group(2)
         year_digits = match.group(3)
-        
+
         # Convert to single digit year if it's a 2-digit year
         if len(year_digits) == 2:
             short_year = int(year_digits) % 10
             return f"{root_symbol}{month_code}{short_year}"
-    
+
     return symbol
 
 
@@ -204,16 +204,16 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
     Format a futures Asset object for DataBento symbol conventions
     """
     symbol = asset.symbol
-    
+
     # For continuous contracts, resolve to active contract for the reference date
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
         logger.debug(f"Resolving continuous futures symbol: {symbol}")
-        
+
         # Use Asset class method for contract resolution
         resolved_symbol = asset.resolve_continuous_futures_contract(reference_date)
-        
+
         logger.debug(f"Resolved continuous future {symbol} -> {resolved_symbol}")
-        
+
         # Return format based on whether reference_date was provided
         if reference_date is not None:
             return resolved_symbol
@@ -221,22 +221,22 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
             # Convert to DataBento format
             databento_symbols = _generate_databento_symbol_alternatives(symbol, resolved_symbol)
             return databento_symbols[0] if databento_symbols else resolved_symbol
-    
+
     # For specific futures contracts, format with expiration if provided
     if asset.asset_type == Asset.AssetType.FUTURE and asset.expiration:
         month_codes = {
             1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
             7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
         }
-        
+
         year = asset.expiration.year % 100
         month_code = month_codes.get(asset.expiration.month, 'H')
-        
+
         formatted_symbol = f"{symbol}{month_code}{year:02d}"
         logger.debug(f"Formatted specific futures symbol: {asset.symbol} -> {formatted_symbol}")
-        
+
         return formatted_symbol
-    
+
     return symbol
 
 
@@ -249,12 +249,12 @@ def _determine_databento_dataset(asset: Asset, venue: Optional[str] = None) -> s
                 return 'GLBX.MDP3'
             elif venue_upper in ['ICE']:
                 return 'IFEU.IMPACT'
-        
+
         return 'GLBX.MDP3'
-    
+
     elif asset.asset_type in ['stock', 'equity']:
         return 'XNAS.ITCH'
-    
+
     return 'GLBX.MDP3'
 
 
@@ -262,7 +262,7 @@ def _determine_databento_schema(timestep: str) -> str:
     """Map Lumibot timestep to DataBento schema"""
     schema_mapping = {
         'minute': 'ohlcv-1m',
-        'hour': 'ohlcv-1h', 
+        'hour': 'ohlcv-1h',
         'day': 'ohlcv-1d',
         '1minute': 'ohlcv-1m',
         '1hour': 'ohlcv-1h',
@@ -271,7 +271,7 @@ def _determine_databento_schema(timestep: str) -> str:
         '1h': 'ohlcv-1h',
         '1d': 'ohlcv-1d',
     }
-    
+
     return schema_mapping.get(timestep.lower(), 'ohlcv-1m')
 
 
@@ -280,11 +280,11 @@ def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep
     symbol = asset.symbol
     if asset.expiration:
         symbol += f"_{asset.expiration.strftime('%Y%m%d')}"
-    
+
     start_str = start.strftime('%Y%m%d')
     end_str = end.strftime('%Y%m%d')
     filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
-    
+
     return Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
 
 
@@ -301,7 +301,7 @@ def _load_cache(cache_file: Path) -> Optional[pl.LazyFrame]:
             cache_file.unlink(missing_ok=True)
         except:
             pass
-    
+
     return None
 
 
@@ -310,7 +310,7 @@ def _save_cache(df: pl.DataFrame, cache_file: Path) -> None:
     try:
         # Ensure directory exists
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Save as parquet with compression for better storage efficiency
         df.write_parquet(
             cache_file,
@@ -338,10 +338,10 @@ def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """
     if df.is_empty():
         return df
-    
+
     # Make a copy
     df_norm = df.clone()
-    
+
     # DataBento timestamp column mapping
     timestamp_cols = ['ts_event', 'timestamp', 'time']
     timestamp_col = None
@@ -349,30 +349,30 @@ def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
         if col in df_norm.columns:
             timestamp_col = col
             break
-    
+
     if timestamp_col and timestamp_col != 'datetime':
         # Rename timestamp column to datetime
         df_norm = df_norm.rename({timestamp_col: 'datetime'})
-    
+
     # Standardize column names to Lumibot format
     column_mapping = {
         'open': 'open',
-        'high': 'high', 
+        'high': 'high',
         'low': 'low',
         'close': 'close',
         'volume': 'volume',
         'vwap': 'vwap',  # Keep if available
     }
-    
+
     # Apply column mapping
     for old_col, new_col in column_mapping.items():
         if old_col in df_norm.columns and old_col != new_col:
             df_norm = df_norm.rename({old_col: new_col})
-    
+
     # Ensure we have the required OHLCV columns
     required_cols = ['open', 'high', 'low', 'close', 'volume']
     missing_cols = [col for col in required_cols if col not in df_norm.columns]
-    
+
     if missing_cols:
         logger.warning(f"Missing required columns in DataBento data: {missing_cols}")
         # Fill missing columns with appropriate defaults
@@ -381,17 +381,17 @@ def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
                 df_norm = df_norm.with_columns(pl.lit(0).alias(col))
             else:
                 df_norm = df_norm.with_columns(pl.lit(None).alias(col))
-    
+
     # Ensure numeric data types
     numeric_cols = ['open', 'high', 'low', 'close', 'volume']
     for col in numeric_cols:
         if col in df_norm.columns:
             df_norm = df_norm.with_columns(pl.col(col).cast(pl.Float64))
-    
+
     # Sort by datetime if exists
     if 'datetime' in df_norm.columns:
         df_norm = df_norm.sort('datetime')
-    
+
     return df_norm
 
 
@@ -435,10 +435,10 @@ def get_price_data_from_databento_polars(
     if not DATABENTO_AVAILABLE:
         logger.error("DataBento package not available. Please install with: pip install databento")
         return None
-    
+
     # Build cache filename
     cache_file = _build_cache_filename(asset, start, end, timestep)
-    
+
     # Try to load from cache first
     if not force_cache_update:
         cached_lazy = _load_cache(cache_file)
@@ -449,15 +449,15 @@ def get_price_data_from_databento_polars(
                 logger.debug(f"[get_price_data_from_databento_polars] Loaded from cache: {cache_file}")
                 logger.debug(f"[get_price_data_from_databento_polars] Cached data columns: {cached_data.columns}")
                 return cached_data
-    
+
     # Initialize DataBento client
     try:
         client = DataBentoClientPolars(api_key=api_key)
-        
+
         # Determine dataset and schema
         dataset = _determine_databento_dataset(asset, venue)
         schema = _determine_databento_schema(timestep)
-        
+
         # For continuous futures, resolve to a specific contract
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
             resolved_symbol = _format_futures_symbol_for_databento(asset, reference_date=start)
@@ -466,16 +466,16 @@ def get_price_data_from_databento_polars(
         else:
             symbol = _format_futures_symbol_for_databento(asset)
             symbols_to_try = [symbol]
-        
+
         # Ensure start and end are timezone-naive for DataBento API
         start_naive = start.replace(tzinfo=None) if start.tzinfo is not None else start
         end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
-        
+
         for symbol_to_use in symbols_to_try:
             try:
                 logger.debug(f"[get_price_data_from_databento_polars] Using DataBento symbol: {symbol_to_use}, dataset={dataset}, schema={schema}")
                 logger.debug(f"[get_price_data_from_databento_polars] Date range: {start_naive} to {end_naive}")
-                
+
                 df = client.get_historical_data(
                     dataset=dataset,
                     symbols=symbol_to_use,
@@ -484,22 +484,22 @@ def get_price_data_from_databento_polars(
                     end=end_naive,
                     **kwargs
                 )
-                
+
                 if df is not None and not df.is_empty():
                     logger.debug(f"[get_price_data_from_databento_polars] Retrieved {len(df)} rows for symbol: {symbol_to_use}")
                     logger.debug(f"[get_price_data_from_databento_polars] Raw columns before normalization: {df.columns}")
-                    
+
                     # Normalize the data
                     df_normalized = _normalize_databento_dataframe(df)
                     logger.debug(f"[get_price_data_from_databento_polars] After normalization: {len(df_normalized)} rows, columns: {df_normalized.columns}")
-                    
+
                     # Cache the data
                     _save_cache(df_normalized, cache_file)
-                    
+
                     return df_normalized
                 else:
                     logger.warning(f"[get_price_data_from_databento_polars] No data returned for symbol: {symbol_to_use}")
-                    
+
             except Exception as e:
                 error_str = str(e).lower()
                 # Pre-compiled patterns for faster checking
@@ -508,10 +508,10 @@ def get_price_data_from_databento_polars(
                 else:
                     logger.warning(f"Error with symbol {symbol_to_use}: {str(e)}")
                 continue
-        
+
         logger.error(f"DataBento symbol resolution failed for {asset.symbol}")
         return None
-        
+
     except Exception as e:
         logger.error(f"DataBento data fetch error: {e}")
         return None
@@ -545,14 +545,14 @@ def get_last_price_from_databento_polars(
     if not DATABENTO_AVAILABLE:
         logger.error("DataBento package not available")
         return None
-    
+
     try:
         # Get recent data to extract last price
         import pandas as pd
         from databento import Historical
-        
+
         dataset = _determine_databento_dataset(asset, venue)
-        
+
         # For continuous futures, resolve to the current active contract
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
             resolved_symbol = asset.resolve_continuous_futures_contract()
@@ -563,7 +563,7 @@ def get_last_price_from_databento_polars(
         else:
             symbol = _format_futures_symbol_for_databento(asset)
             symbols_to_try = [symbol]
-        
+
         # Get available range first
         client = Historical(api_key)
         try:
@@ -580,16 +580,16 @@ def get_last_price_from_databento_polars(
         except Exception as e:
             logger.warning(f"Could not get dataset range for {dataset}: {e}")
             available_end = datetime.now(tz=timezone.utc) - timedelta(days=1)
-        
+
         # Request the most recent available data
         end_date = available_end
         start_date = end_date - timedelta(hours=6)
-        
+
         # Try multiple symbol formats
         for symbol_to_use in symbols_to_try:
             try:
                 logger.debug(f"Getting last price for {asset.symbol} -> trying symbol {symbol_to_use}")
-                
+
                 # Get recent data using polars client
                 client_polars = DataBentoClientPolars(api_key)
                 df = client_polars.get_historical_data(
@@ -600,7 +600,7 @@ def get_last_price_from_databento_polars(
                     end=end_date,
                     **kwargs
                 )
-                
+
                 if df is not None and not df.is_empty():
                     # Get the last available price using polars-native operations
                     if 'close' in df.columns:
@@ -608,11 +608,11 @@ def get_last_price_from_databento_polars(
                         if price is not None:
                             logger.debug(f"Got last price for {symbol_to_use}: {price}")
                             return float(price)
-                    
+
                     logger.warning(f"No valid close price found for symbol '{symbol_to_use}'")
                 else:
                     logger.warning(f"No data returned for symbol '{symbol_to_use}'")
-                    
+
             except Exception as e:
                 error_str = str(e).lower()
                 if "symbology_invalid_request" in error_str or "none of the symbols could be resolved" in error_str:
@@ -620,10 +620,10 @@ def get_last_price_from_databento_polars(
                 else:
                     logger.warning(f"Error getting last price with symbol {symbol_to_use}: {str(e)}")
                 continue
-        
+
         logger.error(f"DataBento symbol resolution failed for last price: {asset.symbol}")
         return None
-            
+
     except Exception as e:
         logger.error(f"Error getting last price from DataBento for {asset.symbol}: {e}")
         return None
@@ -640,13 +640,13 @@ def _generate_databento_symbol_alternatives(base_symbol: str, resolved_contract:
             return [f"{base_symbol}NT"]
         elif resolved_contract == 'MOCKED_CONTRACT':
             return [f"{base_symbol}KT"]
-    
+
     # Extract month and year from resolved contract
     if len(resolved_contract) >= len(base_symbol) + 3:
         month_char = resolved_contract[len(base_symbol)]
         year_digits = resolved_contract[len(base_symbol) + 1:]
         year_char = year_digits[-1]
-        
+
         working_format = f"{base_symbol}{month_char}{year_char}"
         return [working_format]
     else:

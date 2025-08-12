@@ -1,10 +1,8 @@
+import csv
+import datetime as dt
+import os
 from abc import ABC
 from datetime import datetime, timedelta
-import os
-import datetime as dt
-
-import pandas as pd
-import csv
 
 from lumibot.data_sources import DataSource
 from lumibot.tools import print_progress_bar, to_datetime_aware
@@ -119,14 +117,14 @@ class DataSourceBacktesting(DataSource, ABC):
                 cash=cash,
                 portfolio_value=portfolio_value,
             )
-        
+
         if self.log_backtest_progress_to_file:
             if portfolio_value is None:
                 if hasattr(self, "_portfolio_value") and self._portfolio_value is not None:
                     portfolio_value = self._portfolio_value
             else:
                 self._portfolio_value = portfolio_value
-            
+
             now_wall = dt.datetime.now()
             if (self._last_logging_time is None) or ((now_wall - self._last_logging_time).total_seconds() >= 2):
                 self._last_logging_time = now_wall
@@ -153,10 +151,10 @@ class DataSourceBacktesting(DataSource, ABC):
         # If portfolio_value is None, use the last known value if available.
         if portfolio_value is None and hasattr(self, "_portfolio_value") and self._portfolio_value is not None:
             portfolio_value = self._portfolio_value
-        
+
         elif portfolio_value is not None:
             self._portfolio_value = portfolio_value
-        
+
         current_time = dt.datetime.now().isoformat()
         row = [
             current_time,

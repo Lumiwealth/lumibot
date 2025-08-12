@@ -1,9 +1,10 @@
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from datetime import timedelta
 from decimal import Decimal
 from typing import Union
 
 import pandas as pd
+
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools.lumibot_logger import get_logger
@@ -505,7 +506,7 @@ class PandasData(DataSourceBacktesting):
         return start_datetime, ts_unit
 
     def get_historical_prices(
-        self, 
+        self,
         asset: Asset,
         length: int,
         timestep: str = None,

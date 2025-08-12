@@ -1,35 +1,26 @@
-import os
 import datetime as dt
+import os
 from decimal import Decimal
-from typing import Union, Optional
-import pytz
+from typing import Optional, Union
 
 import pandas as pd
-from alpaca.data.historical import (
-    CryptoHistoricalDataClient,
-    StockHistoricalDataClient,
-    OptionHistoricalDataClient
-)
+import pytz
+from alpaca.data.enums import Adjustment
+from alpaca.data.historical import CryptoHistoricalDataClient, OptionHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.requests import (
     CryptoBarsRequest,
-    StockBarsRequest,
     OptionBarsRequest,
     OptionChainRequest,
     OptionSnapshotRequest,
+    StockBarsRequest,
 )
 from alpaca.data.timeframe import TimeFrame
-from alpaca.data.enums import Adjustment
 
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.constants import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
 from lumibot.entities import Asset, Bars, Quote
-from lumibot import (
-    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
-    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
-)
-from lumibot.tools.helpers import (
-    date_n_trading_days_from_date
-)
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
+from lumibot.tools.helpers import date_n_trading_days_from_date
+from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
@@ -132,9 +123,9 @@ class AlpacaData(DataSource):
                 )
             else:
                 error_msg += (
-                    f"1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
-                    f"2. Verify your API credentials are valid\n"
-                    f"3. Check that your account has proper data permissions\n\n"
+                    "1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
+                    "2. Verify your API credentials are valid\n"
+                    "3. Check that your account has proper data permissions\n\n"
                 )
             error_msg += f"💀 STOPPING STRATEGY EXECUTION\n\nOriginal error: {e}"
             logger.error(error_msg)
@@ -373,7 +364,7 @@ class AlpacaData(DataSource):
             for symbol in option_symbols:
                 # Parse option symbol to extract details
                 # Alpaca option symbols format: SPYYYMMDDCPPPPPPPPP
-                # Where: SPY = underlying, YY = year, MM = month, DD = day, 
+                # Where: SPY = underlying, YY = year, MM = month, DD = day,
                 #        C/P = call/put, PPPPPPPPP = strike price (padded)
 
                 if len(symbol) < 15:  # Skip invalid symbols

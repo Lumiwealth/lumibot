@@ -1,25 +1,23 @@
 import asyncio
 import datetime
+import time
 import traceback
 from asyncio import CancelledError
-import time
 from datetime import timezone
 from decimal import Decimal
-from typing import Union
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
-from alpaca.trading.stream import TradingStream
-from alpaca.trading.requests import ReplaceOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import QueryOrderStatus
-
+from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
+from alpaca.trading.stream import TradingStream
 from dateutil import tz
 from termcolor import colored
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import AlpacaData
 from lumibot.entities import Asset, Order, Position, Quote
 from lumibot.tools.helpers import has_more_than_n_decimal_places
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import PollingStream
 
 from .broker import Broker
@@ -164,16 +162,16 @@ class Alpaca(Broker):
                 )
                 if self.oauth_token:
                     error_msg += (
-                        f"1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
-                        f"2. Verify your OAuth token is valid and not expired\n"
-                        f"3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success\n"
-                        f"4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n\n"
+                        "1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
+                        "2. Verify your OAuth token is valid and not expired\n"
+                        "3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success\n"
+                        "4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n\n"
                     )
                 else:
                     error_msg += (
-                        f"1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
-                        f"2. Verify your API credentials are valid\n"
-                        f"3. Check that your account has trading permissions\n\n"
+                        "1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
+                        "2. Verify your API credentials are valid\n"
+                        "3. Check that your account has trading permissions\n\n"
                     )
                 error_msg += f"Original error: {e}"
                 logger.error(error_msg)
@@ -464,7 +462,7 @@ class Alpaca(Broker):
             first_leg_symbol = None
             legs = resp_raw.get('legs') if isinstance(resp_raw, dict) else None
             if legs is None and hasattr(response, 'legs'):
-                legs = getattr(response, 'legs')
+                legs = response.legs
             if isinstance(legs, list) and legs:
                 first_leg = legs[0]
                 if isinstance(first_leg, dict):
@@ -499,7 +497,7 @@ class Alpaca(Broker):
         if asset_class_value is None:
             legs = resp_raw.get('legs') if isinstance(resp_raw, dict) else None
             if legs is None and hasattr(response, 'legs'):
-                legs = getattr(response, 'legs')
+                legs = response.legs
             if isinstance(legs, list) and legs:
                 first_leg = legs[0]
                 if isinstance(first_leg, dict):
@@ -667,8 +665,8 @@ class Alpaca(Broker):
                 "position_intent": position_intent
             })
         # Ensure leg ratio quantities are relatively prime (GCD == 1)
-        from math import gcd
         from functools import reduce
+        from math import gcd
         if len(leg_quantities) > 1:
             leg_gcd = reduce(gcd, leg_quantities)
             if leg_gcd > 1:
@@ -1152,19 +1150,19 @@ class Alpaca(Broker):
                         # Dispatch the appropriate event based on the new status
                         if order.status == "filled" or order.status == "fill":
                             # Get price and quantity with proper fallbacks for Alpaca API
-                            price = (getattr(alpaca_order, 'filled_avg_price', None) or 
+                            price = (getattr(alpaca_order, 'filled_avg_price', None) or
                                    getattr(alpaca_order, 'avg_fill_price', None) or
                                    getattr(order, 'limit_price', None))
-                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or 
+                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or
                                         getattr(alpaca_order, 'qty', None) or
                                         getattr(order, 'quantity', None))
                             self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty)
                         elif order.status == "partially_filled":
-                            # Get price and quantity with proper fallbacks for Alpaca API  
-                            price = (getattr(alpaca_order, 'filled_avg_price', None) or 
+                            # Get price and quantity with proper fallbacks for Alpaca API
+                            price = (getattr(alpaca_order, 'filled_avg_price', None) or
                                    getattr(alpaca_order, 'avg_fill_price', None) or
                                    getattr(order, 'limit_price', None))
-                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or 
+                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or
                                         getattr(alpaca_order, 'qty', None) or
                                         getattr(order, 'quantity', None))
                             self.stream.dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty)
@@ -1199,10 +1197,10 @@ class Alpaca(Broker):
                             # Dispatch appropriate event based on new status
                             if individual_order.status in ["filled", "fill"]:
                                 # Get price and quantity with proper fallbacks for Alpaca API
-                                price = (getattr(individual_order, 'filled_avg_price', None) or 
+                                price = (getattr(individual_order, 'filled_avg_price', None) or
                                        getattr(individual_order, 'avg_fill_price', None) or
                                        getattr(order, 'limit_price', None))
-                                filled_qty = (getattr(individual_order, 'filled_qty', None) or 
+                                filled_qty = (getattr(individual_order, 'filled_qty', None) or
                                             getattr(individual_order, 'qty', None) or
                                             getattr(order, 'quantity', None))
                                 self.stream.dispatch(self.FILLED_ORDER, order=order, price=price, filled_quantity=filled_qty)
@@ -1229,16 +1227,16 @@ class Alpaca(Broker):
                 )
                 if self.oauth_token:
                     error_msg += (
-                        f"1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
-                        f"2. Verify your OAuth token is valid and not expired\n"
-                        f"3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success\n"
-                        f"4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n\n"
+                        "1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
+                        "2. Verify your OAuth token is valid and not expired\n"
+                        "3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success\n"
+                        "4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n\n"
                     )
                 else:
                     error_msg += (
-                        f"1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
-                        f"2. Verify your API credentials are valid\n"
-                        f"3. Check that your account has trading permissions\n\n"
+                        "1. Check that your ALPACA_API_KEY and ALPACA_API_SECRET environment variables are set correctly\n"
+                        "2. Verify your API credentials are valid\n"
+                        "3. Check that your account has trading permissions\n\n"
                     )
                 error_msg += f"Original error: {e}"
                 logger.error(error_msg)

@@ -1,5 +1,5 @@
-import logging
 import datetime
+import logging
 
 from lumibot.strategies.strategy import Strategy
 
@@ -60,8 +60,8 @@ if __name__ == "__main__":
         # Print the results
         print(results)
     else:
-        from lumibot.credentials import ALPACA_CONFIG
         from lumibot.brokers import Alpaca
+        from lumibot.credentials import ALPACA_CONFIG
 
         broker = Alpaca(ALPACA_CONFIG)
         strategy = LifecycleLogger(broker=broker)

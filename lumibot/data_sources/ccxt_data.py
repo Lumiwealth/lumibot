@@ -6,8 +6,8 @@ from typing import Union
 import ccxt
 import pandas as pd
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset, Bars
+from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 

@@ -1,32 +1,23 @@
 # This file contains helper functions for getting data from Polygon.io optimized with Polars
 import time
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib3.exceptions import MaxRetryError
-from urllib.parse import urlparse, urlunparse
-from collections import defaultdict
-from typing import Optional, List, Dict, Any
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Iterator, List, Optional
 
-import polars as pl
 import pandas_market_calendars as mcal
-from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
-from lumibot.tools.lumibot_logger import get_logger
+import polars as pl
 
 # noinspection PyPackageRequirements
-from polygon.rest import RESTClient
-from polygon.exceptions import BadResponse
-from typing import Iterator
 from termcolor import colored
 from tqdm import tqdm
 
-from lumibot import LUMIBOT_CACHE_FOLDER
+from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
-from lumibot import LUMIBOT_DEFAULT_PYTZ
 
 # Adjust as desired, in days. We'll reuse any existing chain file
 # that is not older than RECENT_FILE_TOLERANCE_DAYS.
@@ -204,12 +195,12 @@ def get_price_data_from_polygon_polars(
     # Optimized batch processing with better memory management
     batch_size = min(max_workers * 2, len(chunks))
     results_buffer = []
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all futures at once for better concurrency
         futures = {executor.submit(fetch_chunk, cstart, cend): (cstart, cend)
                   for (cstart, cend) in chunks}
-        
+
         for future in as_completed(futures):
             try:
                 result = future.result(timeout=30)
@@ -225,12 +216,12 @@ def get_price_data_from_polygon_polars(
                 logger.warning(f"Error processing chunk: {e}")
             finally:
                 pbar.update(1)
-    
+
     # Process remaining results
     if results_buffer:
         for res in results_buffer:
             df_all = update_polygon_data_polars(df_all, res)
-    
+
     pbar.close()
 
     # Recompute missing dates after downloads and update the cache.
@@ -365,7 +356,6 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         The symbol for the asset in a format that Polygon will understand
     """
     # Import PolygonClient here to avoid circular imports
-    from lumibot.tools.polygon_helper import PolygonClient
     # Crypto Asset for Backtesting
     if asset.asset_type == Asset.AssetType.CRYPTO:
         quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
@@ -528,8 +518,8 @@ def load_cache_polars(cache_file: Path) -> pl.DataFrame:
 
 
 def update_cache_polars(
-    cache_file: Path, 
-    df_all: Optional[pl.DataFrame], 
+    cache_file: Path,
+    df_all: Optional[pl.DataFrame],
     missing_dates: Optional[List[datetime.date]] = None
 ) -> pl.DataFrame:
     """
@@ -564,7 +554,7 @@ def update_cache_polars(
 
     # Determine dates already present in the cache
     cached_dates = set(df_all["datetime"].dt.date().to_list()) if len(df_all) > 0 else set()
-    
+
     # Create dummy rows for missing dates
     dummy_rows = []
     for d in missing_dates or []:
@@ -580,7 +570,7 @@ def update_cache_polars(
                 "close": None,
                 "volume": None
             })
-    
+
     # If any dummy rows were created, add them to the DataFrame.
     if dummy_rows:
         missing_df = pl.DataFrame(dummy_rows)
@@ -589,12 +579,12 @@ def update_cache_polars(
         else:
             df_all = missing_df
         df_all = df_all.sort("datetime")
-    
+
     # Save the updated DataFrame to the cache file.
     if len(df_all) > 0:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         df_all.write_parquet(cache_file)
-    
+
     return df_all
 
 
@@ -618,7 +608,7 @@ def update_polygon_data_polars(df_all, result):
     """
     if not result:
         return df_all
-        
+
     # Convert result to polars DataFrame with optimized schema
     df = pl.DataFrame(result, schema_overrides={
         "o": pl.Float64,
@@ -628,7 +618,7 @@ def update_polygon_data_polars(df_all, result):
         "v": pl.Int64,
         "t": pl.Int64
     })
-    
+
     if len(df) == 0:
         return df_all
 
@@ -780,7 +770,7 @@ def get_chains_cached(
         "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
     }
 
-    # 6) We do not use real "today" at all. By default, let's fetch both expired & unexpired 
+    # 6) We do not use real "today" at all. By default, let's fetch both expired & unexpired
     #    to ensure we get all relevant strikes near that historical date.
     expired_list = [True, False]
 

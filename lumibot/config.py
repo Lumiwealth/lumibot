@@ -59,15 +59,15 @@ def configure_polars():
     """Configure polars with optimized settings."""
     try:
         import polars as pl
-        
+
         if POLARS_SETTINGS["n_threads"] is not None:
             pl.Config.set_streaming_n_threads(POLARS_SETTINGS["n_threads"])
-        
+
         if POLARS_SETTINGS["enable_string_cache"]:
             pl.enable_string_cache()
-        
+
         pl.Config.set_fmt_table_cell_list_len(POLARS_SETTINGS["fmt_table_cell_list_len"])
         pl.Config.set_fmt_str_lengths(POLARS_SETTINGS["fmt_str_lengths"])
-        
+
     except ImportError:
         pass  # Polars not installed

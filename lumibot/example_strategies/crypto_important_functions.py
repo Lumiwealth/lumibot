@@ -4,6 +4,7 @@ from lumibot.brokers import Ccxt
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 
+
 class ImportantFunctions(Strategy):
     def initialize(self):
         # Set the time between trading iterations

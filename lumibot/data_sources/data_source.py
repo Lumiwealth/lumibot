@@ -1,19 +1,19 @@
 import os
+import time
+import traceback
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-import traceback
-import time
 from decimal import Decimal
 from typing import Union
-import pytz
 
 import pandas as pd
+import pytz
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping, Bars, Quote
 from lumibot.tools import black_scholes, create_options_symbol
+from lumibot.tools.lumibot_logger import get_logger
 
 from .exceptions import UnavailabeTimestep
 
@@ -534,10 +534,41 @@ class DataSource(ABC):
         risk_free_rate: float,
     ):
         """Returns Greeks in backtesting."""
+        # Handle None values - don't cache or calculate if inputs are invalid
+        if asset_price is None or underlying_price is None or risk_free_rate is None:
+            return None
+
+        # Optimization: Cache Greeks calculations based on key parameters
+        # Round prices to 2 decimal places for cache key to handle minor price fluctuations
+        current_date = self.get_datetime()
+        cache_key = (
+            asset.symbol,
+            asset.strike,
+            asset.right,
+            asset.expiration,
+            round(asset_price, 2),
+            round(underlying_price, 2),
+            round(risk_free_rate, 4),
+            current_date.date() if hasattr(current_date, 'date') else current_date  # Cache per day to handle time decay
+        )
+
+        # Check cache
+        if not hasattr(self, '_greeks_cache'):
+            self._greeks_cache = {}
+
+        if cache_key in self._greeks_cache:
+            return self._greeks_cache[cache_key]
+
+        # Keep cache size limited to prevent memory issues
+        if len(self._greeks_cache) > 10000:
+            # Clear oldest half of cache
+            keys_to_remove = list(self._greeks_cache.keys())[:5000]
+            for key in keys_to_remove:
+                del self._greeks_cache[key]
+
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
-        current_date = self.get_datetime()
 
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
@@ -583,6 +614,9 @@ class DataSource(ABC):
             theta=c.callTheta if is_call else c.putTheta,
             underlying_price=und_price,
         )
+
+        # Cache the result
+        self._greeks_cache[cache_key] = greeks
 
         return greeks
 

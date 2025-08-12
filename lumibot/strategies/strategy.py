@@ -2,23 +2,22 @@ import datetime
 import logging
 import os
 import time
-from decimal import Decimal
 import uuid
-from typing import Union, List, Type, Callable
+from decimal import Decimal
+from typing import Callable, List, Type, Union
 
 import jsonpickle
 import matplotlib
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from termcolor import colored
 from apscheduler.triggers.cron import CronTrigger
+from termcolor import colored
 
-from ..entities import Asset, Order, Position, Data, TradingFee, Quote
+from ..data_sources import DataSource
+from ..entities import Asset, Data, Order, Position, Quote, TradingFee
 from ..tools import get_risk_free_rate
 from ..traders import Trader
-from ..data_sources import DataSource
-
 from ._strategy import _Strategy
 
 matplotlib.use("Agg")
@@ -985,7 +984,7 @@ class Strategy(_Strategy):
             from termcolor import colored
             error_msg = colored(
                 "No broker is set. Cannot set market. Please set a broker using environment variables, "
-                "secrets or by passing it as an argument to the strategy constructor.", 
+                "secrets or by passing it as an argument to the strategy constructor.",
                 "red"
             )
             self.logger.error(error_msg)
@@ -3158,7 +3157,7 @@ class Strategy(_Strategy):
         if not isinstance(length, int):
             try:
                 length = int(length)
-            except Exception as e:
+            except Exception:
                 raise ValueError(
                     f"Invalid length parameter in get_historical_prices() method. Length must be an int but instead got {length}, "
                     f"which is a type {type(length)}."

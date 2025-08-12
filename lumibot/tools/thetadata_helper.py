@@ -2,15 +2,17 @@
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-import pytz
+
 import pandas as pd
 import pandas_market_calendars as mcal
+import pytz
 import requests
-from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.entities import Asset
 from thetadata import ThetaClient
 from tqdm import tqdm
+
+from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
+from lumibot.entities import Asset
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -375,7 +377,7 @@ def check_connection(username: str, password: str):
                 logger.info(f"Unknown connection status: {con_text}, starting theta data client")
                 client = start_theta_data_client(username=username, password=password)
                 counter += 1
-        except Exception as e:
+        except Exception:
             client = start_theta_data_client(username=username, password=password)
             counter += 1
 
@@ -411,7 +413,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 else:
                     break
 
-        except Exception as e:
+        except Exception:
             check_connection(username=username, password=password)
 
         counter += 1

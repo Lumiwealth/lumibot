@@ -6,6 +6,7 @@ from lumibot.backtesting import YahooDataBacktesting
 from lumibot.brokers import Alpaca
 from lumibot.strategies.strategy import Strategy
 
+
 class MyStrategy(Strategy):
     def initialize(self, symbol=""):
         # Will make on_trading_iteration() run every 180 minutes

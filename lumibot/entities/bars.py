@@ -4,11 +4,9 @@ from typing import Union
 
 import numpy as np
 import polars as pl
-from datetime import datetime
-from typing import Union
-from decimal import Decimal
 
 from lumibot.tools.lumibot_logger import get_logger
+
 from .bar import Bar
 from .polars_dataframe_wrapper import PolarsDataFrameWrapper
 
@@ -115,7 +113,7 @@ class Bars:
                 df = pl.from_pandas(df.reset_index())
             else:
                 df = pl.from_pandas(df)
-        
+
         if df.shape[0] == 0:
             logger.warning(f"Unable to get bar data for {asset} {source}")
 
@@ -130,7 +128,7 @@ class Bars:
 
         # Polars implementation - use native operations
         columns = df.columns
-        
+
         # Use polars native operations for maximum efficiency
         if "dividend" in columns:
             # Calculate all derived columns in one operation
@@ -168,9 +166,9 @@ class Bars:
                     self._pandas_df = self._pandas_df.set_index(col_name)
                     break
             else:
-                logger.debug(f"[Bars.df] No datetime-like column found to set as index!")
+                logger.debug("[Bars.df] No datetime-like column found to set as index!")
         return self._pandas_df
-    
+
     @df.setter
     def df(self, value):
         """Allow setting the DataFrame"""
@@ -180,17 +178,17 @@ class Bars:
         else:
             self._pandas_df = value
             self._polars_df = None  # Reset polars cache
-    
+
     def __repr__(self):
         return repr(self.df)
 
     def _repr_html_(self):
         return self.df._repr_html_()
-    
+
     def __len__(self):
         """Return the number of bars (rows) in the DataFrame"""
         return len(self.df)
-    
+
     @property
     def empty(self):
         """Check if the DataFrame is empty (compatible with both pandas and polars)"""
@@ -208,18 +206,18 @@ class Bars:
 
         # Create polars DataFrame directly
         df = pl.DataFrame(raw)
-        
+
         # Calculate derived columns using polars
         df = df.with_columns([
             pl.col("close").pct_change().alias("price_change"),
             (pl.col("dividend") / pl.col("close")).alias("dividend_yield"),
         ])
-        
+
         # Calculate return
         df = df.with_columns([
             (pl.col("dividend_yield") + pl.col("price_change")).alias("return")
         ])
-        
+
         bars = cls(df, source, asset, raw=bar_list)
         return bars
 
@@ -245,16 +243,16 @@ class Bars:
                 if underlying_df[col].dtype in [pl.Datetime, pl.Date]:
                     dt_val = row[col]
                     break
-            
+
             if dt_val is None:
                 # Try to find a column with date/time in the name
                 for col in ['datetime', 'date', 'timestamp']:
                     if col in row:
                         dt_val = row[col]
                         break
-            
+
             timestamp = int(dt_val.timestamp()) if hasattr(dt_val, 'timestamp') else int(dt_val.timestamp())
-            
+
             item = {
                 "timestamp": timestamp,
                 "open": row.get("open"),
@@ -324,14 +322,14 @@ class Bars:
             if df_copy[col].dtype in [pl.Datetime, pl.Date]:
                 dt_col = col
                 break
-        
+
         if dt_col is None:
             # Try common datetime column names
             for col in ['datetime', 'date', 'timestamp']:
                 if col in df_copy.columns:
                     dt_col = col
                     break
-        
+
         if dt_col:
             if isinstance(start, datetime):
                 df_copy = df_copy.filter(pl.col(dt_col) >= start)
@@ -412,17 +410,17 @@ class Bars:
             if underlying_df[col].dtype in [pl.Datetime, pl.Date]:
                 dt_col = col
                 break
-        
+
         if dt_col is None:
             # Try common datetime column names
             for col in ['datetime', 'date', 'timestamp']:
                 if col in underlying_df.columns:
                     dt_col = col
                     break
-        
+
         if dt_col is None:
             raise ValueError("No datetime column found in DataFrame")
-        
+
         # Convert frequency string to polars duration
         freq_map = {
             "15Min": "15m", "15m": "15m", "15T": "15m",
@@ -431,9 +429,9 @@ class Bars:
             "5Min": "5m", "5m": "5m", "5T": "5m",
             "30Min": "30m", "30m": "30m", "30T": "30m",
         }
-        
+
         polars_freq = freq_map.get(frequency, frequency)
-        
+
         # Group by time intervals and aggregate
         new_df = (
             underlying_df
@@ -452,7 +450,7 @@ class Bars:
                 pl.col("volume").sum().alias("volume"),
             ])
         )
-        
+
         # Drop null rows
         new_df = new_df.drop_nulls()
 

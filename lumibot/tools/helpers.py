@@ -1,13 +1,12 @@
+import datetime as dt
 import os
 import re
 import sys
-from decimal import Decimal, ROUND_HALF_EVEN
-
-import pytz
-import datetime as dt
+from decimal import ROUND_HALF_EVEN, Decimal
 
 import pandas as pd
 import pandas_market_calendars as mcal
+import pytz
 from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
@@ -318,6 +317,14 @@ class ComparaisonMixin:
         return getattr(self, self.COMPARAISON_PROP) >= getattr(other, self.COMPARAISON_PROP)
 
 
+# Global cache for progress bar throttling
+_progress_bar_cache = {
+    'last_update_time': None,
+    'last_percent': None,
+    'terminal_length': None,
+    'last_terminal_check': None
+}
+
 def print_progress_bar(
     value,
     start_value,
@@ -334,13 +341,34 @@ def print_progress_bar(
 ):
     # Progress bar should ALWAYS show, even with quiet logs
     # This is the ONLY output users want to see during quiet backtesting
+
+    # Optimization: Calculate percent first for throttling check
     total_length = end_value - start_value
     current_length = value - start_value
     percent = min((current_length / total_length) * 100, 100)
+
+    # Optimization: Throttle updates - only update if:
+    # 1. First call (last_update_time is None)
+    # 2. Percent changed by at least 0.1%
+    # 3. At least 0.1 seconds have passed since last update
+    # 4. We're at 100% completion
+    now = dt.datetime.now()
+
+    if _progress_bar_cache['last_update_time'] is not None:
+        time_since_last = (now - _progress_bar_cache['last_update_time']).total_seconds()
+        percent_change = abs(percent - (_progress_bar_cache['last_percent'] or 0))
+
+        # Skip this update if conditions aren't met
+        if time_since_last < 0.1 and percent_change < 0.1 and percent < 99.99:
+            return
+
+    # Update cache
+    _progress_bar_cache['last_update_time'] = now
+    _progress_bar_cache['last_percent'] = percent
+
     percent_str = ("  {:.%df}" % decimals).format(percent)
     percent_str = percent_str[-decimals - 4 :]
 
-    now = dt.datetime.now()
     elapsed = now - backtesting_started
 
     if percent > 0:
@@ -355,15 +383,22 @@ def print_progress_bar(
     else:
         portfolio_value_str = ""
 
+    # Optimization: Cache terminal size for 1 second to avoid repeated system calls
     if not isinstance(length, int):
-        try:
-            terminal_length, _ = os.get_terminal_size()
-            length = max(
-                0,
-                terminal_length - len(prefix) - len(suffix) - decimals - len(eta_str) - len(portfolio_value_str) - 13,
-            )
-        except:
-            length = 0
+        if (_progress_bar_cache['last_terminal_check'] is None or
+            (now - _progress_bar_cache['last_terminal_check']).total_seconds() > 1.0):
+            try:
+                terminal_length, _ = os.get_terminal_size()
+                _progress_bar_cache['terminal_length'] = terminal_length
+                _progress_bar_cache['last_terminal_check'] = now
+            except:
+                _progress_bar_cache['terminal_length'] = 80  # Default fallback
+
+        terminal_length = _progress_bar_cache['terminal_length'] or 80
+        length = max(
+            0,
+            terminal_length - len(prefix) - len(suffix) - decimals - len(eta_str) - len(portfolio_value_str) - 13,
+        )
 
     filled_length = int(length * percent / 100)
     bar = fill * filled_length + "-" * (length - filled_length)
@@ -401,7 +436,7 @@ def parse_symbol(symbol):
     # Check that the symbol is a string
     if not isinstance(symbol, str):
         return {"type": None}
-    
+
     # Pattern to match the option symbol format
     option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
 

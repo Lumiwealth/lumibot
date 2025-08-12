@@ -1,30 +1,26 @@
 import os
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Optional
 
-import pytz
-from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_EVEN
-
 import pandas as pd
-from alpaca.data.historical import CryptoHistoricalDataClient
-from alpaca.data.historical import StockHistoricalDataClient
+import pytz
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+from alpaca.data.timeframe import TimeFrame
 
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.data_sources import DataSourceBacktesting, AlpacaData
+from lumibot.constants import LUMIBOT_CACHE_FOLDER
+from lumibot.data_sources import AlpacaData, DataSourceBacktesting
 from lumibot.entities import Asset, Bars
-from lumibot import (
-    LUMIBOT_CACHE_FOLDER,
-)
 from lumibot.tools.helpers import (
     date_n_trading_days_from_date,
+    get_decimals,
+    get_timezone_from_datetime,
     get_trading_days,
     get_trading_times,
-    get_timezone_from_datetime,
-    get_decimals,
     quantize_to_num_decimals,
 )
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -127,7 +123,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
-        
+
         if oauth_token:
             self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
             self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
@@ -696,7 +692,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
         if timestep not in ['day', 'minute']:
-            raise ValueError(f"The timestep must be 'day' or 'minute'.")
+            raise ValueError("The timestep must be 'day' or 'minute'.")
 
         # For daily bars, we want to preserve original timestamps but add missing days
         if timestep == 'day':

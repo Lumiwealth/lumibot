@@ -1,7 +1,5 @@
 import logging  # Needed for logging infrastructure setup
-import os
 import signal
-import sys
 from pathlib import Path
 
 from lumibot.tools.lumibot_logger import get_logger
@@ -64,12 +62,12 @@ class Trader:
         self._strategies.append(strategy)
 
     def run_all(
-            self, 
-            async_=False, 
-            show_plot=True, 
-            show_tearsheet=True, 
-            save_tearsheet=True, 
-            show_indicators=True, 
+            self,
+            async_=False,
+            show_plot=True,
+            show_tearsheet=True,
+            save_tearsheet=True,
+            show_indicators=True,
             tearsheet_file=None,
             base_filename=None,
             ):
@@ -171,8 +169,8 @@ class Trader:
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
         # Import here to avoid circular imports
-        from lumibot.tools.lumibot_logger import set_log_level, set_console_log_level, add_file_handler
-        
+        from lumibot.tools.lumibot_logger import add_file_handler, set_console_log_level, set_log_level
+
         # Set external library log levels to reduce noise
         get_logger("urllib3").setLevel(logging.ERROR)
         get_logger("requests").setLevel(logging.ERROR)
@@ -215,7 +213,7 @@ class Trader:
     def _join_pool(self):
         for strategy_thread in self._pool:
             strategy_thread.join()
-            
+
         # For backtesting, check if any strategy failed and raise exception
         if self.is_backtest_broker:
             for strategy_thread in self._pool:

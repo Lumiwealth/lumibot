@@ -7,8 +7,9 @@ These are defined here to avoid circular import issues.
 """
 
 import os
-import pytz
+
 import appdirs
+import pytz
 
 # SOURCE PATH
 LUMIBOT_SOURCE_PATH = os.path.abspath(os.path.dirname(__file__))
@@ -20,4 +21,4 @@ LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL = "USD"
 LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE = "forex"
 
 # CACHING CONFIGURATIONS
-LUMIBOT_CACHE_FOLDER = appdirs.user_cache_dir(appauthor="LumiWealth", appname="lumibot", version="1.0") 
+LUMIBOT_CACHE_FOLDER = appdirs.user_cache_dir(appauthor="LumiWealth", appname="lumibot", version="1.0")

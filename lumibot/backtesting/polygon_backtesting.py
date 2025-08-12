@@ -7,10 +7,10 @@ from typing import Union
 from polygon.exceptions import BadResponse
 from termcolor import colored
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import polygon_helper
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.tools.polygon_helper import PolygonClient
 
 logger = get_logger(__name__)
@@ -36,7 +36,7 @@ class PolygonDataBacktesting(PandasData):
 
         # Memory limit, off by default
         self.MAX_STORAGE_BYTES = max_memory
-        
+
         # Store errors CSV path for use in data retrieval
 
         # RESTClient API for Polygon.io polygon-api-client

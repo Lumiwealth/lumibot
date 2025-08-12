@@ -3,7 +3,8 @@ from decimal import Decimal
 from typing import Union
 
 import pandas as pd
-from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -289,14 +290,14 @@ class Data:
         start_pos = idx.searchsorted(self.datetime_start, side='left')
         end_pos = idx.searchsorted(self.datetime_end, side='right')
         idx = idx[start_pos:end_pos]
-        
+
         # OPTIMIZATION: More efficient duplicate removal
         if self.df.index.has_duplicates:
             self.df = self.df[~self.df.index.duplicated(keep='first')]
-        
+
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
-        
+
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
             df.loc[df["volume"].isna(), "volume"] = 0
@@ -348,7 +349,7 @@ class Data:
                 )
             }
         )
-        setattr(self, "datetime", self.datalines["datetime"].dataline)
+        self.datetime = self.datalines["datetime"].dataline
 
         for column in self.df.columns:
             self.datalines.update(
@@ -481,7 +482,7 @@ class Data:
             raise ValueError(
                 f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: open, high, low, close, and volume. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source."
             )
-        
+
         # Check if this data object has bid and ask
         if not all(
             [

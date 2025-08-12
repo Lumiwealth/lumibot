@@ -396,7 +396,7 @@ class Bars:
         Bars object
         """
         # Get polars DataFrame for operations
-        df_copy = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+        df_copy = self.polars_df
         # Find datetime column
         dt_col = None
         for col in df_copy.columns:
@@ -426,12 +426,12 @@ class Bars:
         """
         if "return" in self.df.columns:
             # Use existing return column
-            underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+            underlying_df = self.polars_df
             period_adj_returns = underlying_df['return'].tail(num_periods)
             momentum = float((1 + period_adj_returns).product() - 1)
         else:
             # Calculate momentum directly
-            underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+            underlying_df = self.polars_df
             close_values = underlying_df['close'].to_numpy()
             if len(close_values) > num_periods:
                 momentum = (close_values[-1] / close_values[-num_periods-1]) - 1
@@ -484,7 +484,7 @@ class Bars:
         >>> bars_agg = bars.aggregate_bars("15Min")
         """
         # Get polars DataFrame
-        underlying_df = self._polars_df if self._polars_df is not None else pl.from_pandas(self.df)
+        underlying_df = self.polars_df
         # Find datetime column
         dt_col = None
         for col in underlying_df.columns:

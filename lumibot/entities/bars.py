@@ -1,7 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Union
+from typing import Union, Set
 import warnings
+import atexit
 
 import numpy as np
 import pandas as pd
@@ -12,6 +13,55 @@ from lumibot.tools.lumibot_logger import get_logger
 from .bar import Bar
 
 logger = get_logger(__name__)
+
+
+class PolarsConversionTracker:
+    """Track Polars to Pandas conversions and report them efficiently."""
+    _instance = None
+    _warned_assets: Set[str] = set()
+    _total_conversions: int = 0
+    _first_warning_shown: bool = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            # Register cleanup function to show summary
+            atexit.register(cls._instance.show_summary)
+        return cls._instance
+    
+    def track_conversion(self, asset_symbol: str):
+        """Track a conversion and show warning if needed."""
+        self._total_conversions += 1
+        
+        # Show warning on first encounter
+        if not self._first_warning_shown:
+            logger.info(
+                "Performance Notice: Polars DataFrames are being converted to Pandas. "
+                "Consider using return_polars=True in get_historical_prices() for better performance."
+            )
+            self._first_warning_shown = True
+        
+        # Track which assets have been converted
+        if asset_symbol not in self._warned_assets:
+            self._warned_assets.add(asset_symbol)
+    
+    def show_summary(self):
+        """Show summary at the end if there were conversions."""
+        if self._total_conversions > 0:
+            unique_assets = len(self._warned_assets)
+            logger.info(
+                f"\nPerformance Summary: {self._total_conversions} Polars→Pandas conversions "
+                f"for {unique_assets} unique asset(s). "
+                f"Use return_polars=True to improve performance."
+            )
+    
+    @classmethod
+    def reset(cls):
+        """Reset the tracker (useful for testing)."""
+        if cls._instance:
+            cls._instance._warned_assets.clear()
+            cls._instance._total_conversions = 0
+            cls._instance._first_warning_shown = False
 
 
 class Bars:
@@ -143,13 +193,10 @@ class Bars:
                 # Keep as polars
                 self._df = df
             else:
-                # Convert to pandas with warning
-                warnings.warn(
-                    f"Converting Polars DataFrame to Pandas for {asset.symbol}. "
-                    "Consider using return_polars=True for better performance.",
-                    UserWarning,
-                    stacklevel=2
-                )
+                # Convert to pandas and track the conversion
+                tracker = PolarsConversionTracker()
+                tracker.track_conversion(asset.symbol if hasattr(asset, 'symbol') else str(asset))
+                
                 self._df = df.to_pandas()
                 # Set datetime index if exists
                 for col_name in ['datetime', 'timestamp', 'date', 'time']:

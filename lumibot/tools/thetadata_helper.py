@@ -2,17 +2,15 @@
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-
+import pytz
 import pandas as pd
 import pandas_market_calendars as mcal
-import pytz
 import requests
+from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
+from lumibot.tools.lumibot_logger import get_logger
+from lumibot.entities import Asset
 from thetadata import ThetaClient
 from tqdm import tqdm
-
-from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset
-from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 

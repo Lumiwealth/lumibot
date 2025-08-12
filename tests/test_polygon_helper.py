@@ -20,12 +20,12 @@ class TestPolygonHelpers:
         asset = Asset("SPY")
         timespan = "1D"
         mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
-        expected = tmpdir / "polygon" / "stock_SPY_1D.feather"
+        expected = tmpdir / "polygon" / "stock_SPY_1D.parquet"
         assert ph.build_cache_filename(asset, timespan) == expected
 
         expire_date = datetime.date(2023, 8, 1)
         option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        expected = tmpdir / "polygon" / "option_SPY_230801_100_CALL_1D.feather"
+        expected = tmpdir / "polygon" / "option_SPY_230801_100_CALL_1D.parquet"
         assert ph.build_cache_filename(option_asset, timespan) == expected
 
         # Bad option asset with no expiration
@@ -171,7 +171,7 @@ class TestPolygonHelpers:
 
     def test_load_data_from_cache(self, tmpdir):
         # Setup some basics
-        cache_file = tmpdir / "stock_SPY_1D.feather"
+        cache_file = tmpdir / "stock_SPY_1D.parquet"
 
         # No cache file
         with pytest.raises(FileNotFoundError):
@@ -191,7 +191,7 @@ class TestPolygonHelpers:
                 ],
             }
         )
-        df.to_feather(cache_file)
+        df.to_parquet(cache_file, engine='pyarrow', compression='snappy')
         df_loaded = ph.load_cache(cache_file)
         assert len(df_loaded)
         assert df_loaded["close"].iloc[0] == 2
@@ -211,14 +211,14 @@ class TestPolygonHelpers:
                 ],
             }
         )
-        df.to_feather(cache_file)
+        df.to_parquet(cache_file, engine='pyarrow', compression='snappy')
         df_loaded = ph.load_cache(cache_file)
         assert len(df_loaded)
         assert df_loaded["close"].iloc[0] == 2
         assert df_loaded.index[0] == pd.DatetimeIndex(["2023-07-01 09:30:00-00:00"])[0]
 
     def test_update_cache(self, tmpdir):
-        cache_file = Path(tmpdir / "polygon" / "stock_SPY_1D.feather")
+        cache_file = Path(tmpdir / "polygon" / "stock_SPY_1D.parquet")
         df = pd.DataFrame(
             {
                 "close": [2, 3, 4, 5, 6],

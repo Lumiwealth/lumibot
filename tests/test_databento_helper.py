@@ -217,7 +217,7 @@ class TestDataBentoHelper(unittest.TestCase):
             "minute"
         )
         
-        expected_name = "ES_20250315_minute_20250101_20250131.feather"
+        expected_name = "ES_20250315_minute_20250101_20250131.parquet"
         self.assertEqual(filename.name, expected_name)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
@@ -415,7 +415,7 @@ class TestDataBentoHelper(unittest.TestCase):
                 )
                 
                 # Should be a valid filename
-                self.assertTrue(filename.name.endswith('.feather'))
+                self.assertTrue(filename.name.endswith('.parquet'))
                 self.assertNotIn('/', filename.name)  # No path separators
                 self.assertNotIn('\\', filename.name)  # No path separators
                 

@@ -240,12 +240,12 @@ def test_build_cache_filename(mocker, tmpdir, datastyle):
     asset = Asset("SPY")
     timespan = "1D"
     mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    expected = tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.feather"
+    expected = tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(asset, timespan, datastyle) == expected
 
     expire_date = datetime.date(2023, 8, 1)
     option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-    expected = tmpdir / "thetadata" / f"option_SPY_230801_100_CALL_1D_{datastyle}.feather"
+    expected = tmpdir / "thetadata" / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(option_asset, timespan, datastyle) == expected
 
     # Bad option asset with no expiration
@@ -302,7 +302,7 @@ def test_missing_dates():
 
 
 @pytest.mark.parametrize(
-    "df_all, df_feather, datastyle",
+    "df_all, df_cached, datastyle",
     [
         # case 1
         (pd.DataFrame(), 
@@ -341,27 +341,27 @@ def test_missing_dates():
         'quote'),
     ],
 )
-def test_update_cache(mocker, tmpdir, df_all, df_feather, datastyle):
+def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
     mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.feather")
+    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
     
     # Empty DataFrame of df_all, don't write cache file
-    thetadata_helper.update_cache(cache_file, df_all, df_feather)
+    thetadata_helper.update_cache(cache_file, df_all, df_cached)
     assert not cache_file.exists()
 
-    # When df_all and df_feather are the same, don't write cache file
-    thetadata_helper.update_cache(cache_file, df_feather, df_feather)
+    # When df_all and df_cached are the same, don't write cache file
+    thetadata_helper.update_cache(cache_file, df_cached, df_cached)
     assert not cache_file.exists()
 
     # Changes in data, write cache file
-    df_all = df_feather * 10
-    thetadata_helper.update_cache(cache_file, df_all, df_feather)
+    df_all = df_cached * 10
+    thetadata_helper.update_cache(cache_file, df_all, df_cached)
     assert cache_file.exists()
 
 
 
 @pytest.mark.parametrize(
-    "df_feather, datastyle",
+    "df_cached, datastyle",
     [
         # case 1
         (pd.DataFrame(
@@ -397,10 +397,10 @@ def test_update_cache(mocker, tmpdir, df_all, df_feather, datastyle):
         'quote'),
     ],
 )
-def test_load_data_from_cache(mocker, tmpdir, df_feather, datastyle):
+def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
     # Setup some basics
     mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.feather")
+    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
 
     # No cache file
     with pytest.raises(FileNotFoundError):
@@ -408,7 +408,7 @@ def test_load_data_from_cache(mocker, tmpdir, df_feather, datastyle):
 
     # Cache file exists
     cache_file.parent.mkdir(parents=True, exist_ok=True)
-    df_feather.to_feather(cache_file)
+    df_cached.to_parquet(cache_file, engine='pyarrow', compression='snappy')
     df_loaded = thetadata_helper.load_cache(cache_file)
     assert len(df_loaded)
     assert df_loaded.index[0] == pd.DatetimeIndex(["2023-07-01 09:30:00-04:00"])[0]

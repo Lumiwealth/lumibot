@@ -365,7 +365,7 @@ def _determine_databento_schema(timestep: str) -> str:
 def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep: str) -> Path:
     """Build a cache filename for the given parameters.
 
-    Uses .feather extension for backward compatibility with existing caches/tests.
+    Uses .parquet extension for better compression and performance.
     """
     symbol = asset.symbol
     if asset.expiration:
@@ -373,7 +373,7 @@ def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep
 
     start_str = start.strftime('%Y%m%d')
     end_str = end.strftime('%Y%m%d')
-    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.feather"
+    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
 
     return Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
 
@@ -381,30 +381,11 @@ def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep
 def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
     """Load data from cache file.
 
-    Supports both Feather and Parquet for compatibility.
+    Uses parquet format exclusively.
     """
     try:
         if cache_file.exists():
-            # Read based on extension; fallback to the other format if needed
-            df = None
-            if str(cache_file).endswith('.feather'):
-                try:
-                    df = pd.read_feather(cache_file)
-                except Exception:
-                    # Fallback to parquet if the file was migrated
-                    parquet_path = cache_file.with_suffix('.parquet')
-                    if parquet_path.exists():
-                        df = pd.read_parquet(parquet_path, engine='pyarrow')
-            else:
-                try:
-                    df = pd.read_parquet(cache_file, engine='pyarrow')
-                except Exception:
-                    feather_path = cache_file.with_suffix('.feather')
-                    if feather_path.exists():
-                        df = pd.read_feather(feather_path)
-
-            if df is None:
-                return None
+            df = pd.read_parquet(cache_file, engine='pyarrow')
             # Ensure datetime index
             if 'ts_event' in df.columns:
                 df.set_index('ts_event', inplace=True)
@@ -429,7 +410,7 @@ def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
 def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
     """Save data to cache file.
 
-    Writes Feather for backward compatibility.
+    Uses parquet format for better compression and performance.
     """
     try:
         # Ensure directory exists
@@ -439,10 +420,9 @@ def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
         df_to_save = df.copy()
         if isinstance(df_to_save.index, pd.DatetimeIndex):
             df_to_save.reset_index(inplace=True)
-        # Ensure feather extension
-        if cache_file.suffix != '.feather':
-            cache_file = cache_file.with_suffix('.feather')
-        df_to_save.to_feather(cache_file)
+        
+        # Save as parquet with compression
+        df_to_save.to_parquet(cache_file, engine='pyarrow', compression='snappy')
         logger.debug(f"Cached data saved to {cache_file}")
     except Exception as e:
         logger.warning(f"Error saving cache file {cache_file}: {e}")

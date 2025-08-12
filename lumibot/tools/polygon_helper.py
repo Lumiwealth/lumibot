@@ -400,8 +400,8 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
     else:
         uniq_str = asset.symbol
 
-    # Use .feather for backward compatibility with existing caches/tests
-    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.feather"
+    # Use .parquet for better compression and performance
+    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.parquet"
     cache_file = lumibot_polygon_cache_folder / cache_filename
     return cache_file
 
@@ -464,7 +464,7 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
     Parameters
     ----------
     cache_file : Path
-        The path to the Feather cache file.
+        The path to the Parquet cache file.
         
     Returns
     -------
@@ -478,20 +478,8 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
     """
     # Normalize to Path in case a py.path local was passed
     cache_file = Path(str(cache_file))
-    # Read feather by default, but support parquet for forward compatibility
-    if cache_file.suffix == '.feather':
-        try:
-            df = pd.read_feather(cache_file)
-        except Exception:
-            # If a parquet version exists, try that
-            parquet_path = cache_file.with_suffix('.parquet')
-            df = pd.read_parquet(parquet_path, engine='pyarrow')
-    else:
-        try:
-            df = pd.read_parquet(cache_file, engine='pyarrow')
-        except Exception:
-            feather_path = cache_file.with_suffix('.feather')
-            df = pd.read_feather(feather_path)
+    # Read parquet exclusively
+    df = pd.read_parquet(cache_file, engine='pyarrow')
     if "datetime" not in df.columns:
         raise KeyError(f"'datetime' column not found in {cache_file}")
     # Set 'datetime' column as index and convert to datetime objects
@@ -569,10 +557,8 @@ def update_cache(
     if not df_all.empty:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         df_to_save = df_all.reset_index()
-        # Ensure feather extension
-        if cache_file.suffix != '.feather':
-            cache_file = cache_file.with_suffix('.feather')
-        df_to_save.to_feather(cache_file)
+        # Save as parquet with compression
+        df_to_save.to_parquet(cache_file, engine='pyarrow', compression='snappy')
     return df_all
 
 def update_polygon_data(df_all, result):
@@ -685,7 +671,7 @@ def get_chains_cached(
     2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
        exists, it is reused directly.
     3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
-       `LUMIBOT_CACHE_FOLDER/polygon/option_chains/{symbol}_{date}.feather`.
+       `LUMIBOT_CACHE_FOLDER/polygon/option_chains/{symbol}_{date}.parquet`.
     4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
        historical + near-future options for your specified date.
     """

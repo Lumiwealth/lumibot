@@ -63,15 +63,15 @@ def get_price_data(
 
     """
 
-    # Check if we already have data for this asset in the feather file
+    # Check if we already have data for this asset in the cache file
     df_all = None
-    df_feather = None
+    df_cached = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
     if cache_file.exists():
         logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
-        df_feather = load_cache(cache_file)
-        if df_feather is not None and not df_feather.empty:
-            df_all = df_feather.copy() # Make a copy so we can check the original later for differences
+        df_cached = load_cache(cache_file)
+        if df_cached is not None and not df_cached.empty:
+            df_all = df_cached.copy() # Make a copy so we can check the original later for differences
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
@@ -128,7 +128,7 @@ def get_price_data(
         if asset.expiration and start > asset.expiration:
             break
 
-    update_cache(cache_file, df_all, df_feather)
+    update_cache(cache_file, df_all, df_cached)
     # Close the progress bar when done
     pbar.close()
     return df_all
@@ -191,7 +191,7 @@ def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
     else:
         uniq_str = asset.symbol
 
-    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}_{datastyle}.feather"
+    cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}_{datastyle}.parquet"
     cache_file = lumibot_cache_folder / cache_filename
     return cache_file
 
@@ -237,30 +237,30 @@ def get_missing_dates(df_all, asset, start, end):
 
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
-    df_feather = pd.read_feather(cache_file)
+    df = pd.read_parquet(cache_file, engine='pyarrow')
 
     # Set the 'datetime' column as the index of the DataFrame
-    df_feather.set_index("datetime", inplace=True)
+    df.set_index("datetime", inplace=True)
 
-    df_feather.index = pd.to_datetime(
-        df_feather.index
-    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the feather file
-    df_feather = df_feather.sort_index()
+    df.index = pd.to_datetime(
+        df.index
+    )  # TODO: Is there some way to speed this up? It takes several times longer than just reading the cache file
+    df = df.sort_index()
 
     # Check if the index is already timezone aware
-    if df_feather.index.tzinfo is None:
+    if df.index.tzinfo is None:
         # Set the timezone to UTC
-        df_feather.index = df_feather.index.tz_localize("UTC")
+        df.index = df.index.tz_localize("UTC")
 
-    return df_feather
+    return df
 
 
-def update_cache(cache_file, df_all, df_feather):
+def update_cache(cache_file, df_all, df_cached):
     """Update the cache file with the new data"""
-    # Check if df_all is different from df_feather (if df_feather exists)
+    # Check if df_all is different from df_cached (if df_cached exists)
     if df_all is not None and len(df_all) > 0:
         # Check if the dataframes are the same
-        if df_all.equals(df_feather):
+        if df_all.equals(df_cached):
             return
 
         # Create the directory if it doesn't exist
@@ -269,8 +269,8 @@ def update_cache(cache_file, df_all, df_feather):
         # Reset the index to convert DatetimeIndex to a regular column
         df_all_reset = df_all.reset_index()
 
-        # Save the data to a feather file
-        df_all_reset.to_feather(cache_file)
+        # Save the data to a parquet file
+        df_all_reset.to_parquet(cache_file, engine='pyarrow', compression='snappy')
 
 
 def update_df(df_all, result):

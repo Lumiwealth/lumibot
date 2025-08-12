@@ -35,9 +35,19 @@ class PolarsConversionTracker:
         
         # Show warning on first encounter
         if not self._first_warning_shown:
-            logger.info(
-                "Performance Notice: Polars DataFrames are being converted to Pandas. "
-                "Consider using return_polars=True in get_historical_prices() for better performance."
+            logger.warning(
+                "\n" + "="*70 + "\n"
+                "PERFORMANCE TIP: DataFrame Conversion Detected\n" + 
+                "="*70 + "\n"
+                "Polars DataFrames are being converted to Pandas, which adds overhead.\n"
+                "\n"
+                "For ~2-5x faster backtesting, modify your strategy:\n"
+                "\n"
+                "  Change: bars = self.get_historical_prices(asset, length, timestep)\n"
+                "      To: bars = self.get_historical_prices(asset, length, timestep, return_polars=True)\n"
+                "\n"
+                "Note: When using return_polars=True, use Polars DataFrame methods instead of Pandas.\n" +
+                "="*70
             )
             self._first_warning_shown = True
         
@@ -49,10 +59,22 @@ class PolarsConversionTracker:
         """Show summary at the end if there were conversions."""
         if self._total_conversions > 0:
             unique_assets = len(self._warned_assets)
-            logger.info(
-                f"\nPerformance Summary: {self._total_conversions} Polars→Pandas conversions "
-                f"for {unique_assets} unique asset(s). "
-                f"Use return_polars=True to improve performance."
+            assets_list = list(self._warned_assets)[:5]  # Show first 5 assets
+            assets_str = ", ".join(assets_list)
+            if unique_assets > 5:
+                assets_str += f", ... ({unique_assets - 5} more)"
+            
+            logger.warning(
+                f"\n" + "="*70 + "\n"
+                f"BACKTEST PERFORMANCE SUMMARY\n" + 
+                "="*70 + "\n"
+                f"Total DataFrame conversions: {self._total_conversions}\n"
+                f"Unique assets affected: {unique_assets} [{assets_str}]\n"
+                f"\n"
+                f"Estimated performance impact: ~{self._total_conversions * 10}-{self._total_conversions * 50}ms added overhead\n"
+                f"\n"
+                f"To speed up your backtest, add return_polars=True to get_historical_prices()\n" +
+                "="*70
             )
     
     @classmethod

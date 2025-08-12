@@ -2,7 +2,6 @@ import logging
 import queue
 from queue import Queue
 
-
 class CustomStream:
 
     def __init__(self):

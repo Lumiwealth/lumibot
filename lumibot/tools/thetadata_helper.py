@@ -377,7 +377,7 @@ def check_connection(username: str, password: str):
                 logger.info(f"Unknown connection status: {con_text}, starting theta data client")
                 client = start_theta_data_client(username=username, password=password)
                 counter += 1
-        except Exception:
+        except Exception as e:
             client = start_theta_data_client(username=username, password=password)
             counter += 1
 
@@ -413,7 +413,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 else:
                     break
 
-        except Exception:
+        except Exception as e:
             check_connection(username=username, password=password)
 
         counter += 1

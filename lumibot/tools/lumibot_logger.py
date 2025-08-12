@@ -44,16 +44,15 @@ import re
 import sys
 import threading
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Tuple
-
+from functools import lru_cache
 
 class CSVErrorHandler(logging.Handler):
     """
     Handler that writes ERROR and WARNING messages to CSV with deduplication.
     """
-
+    
     def __init__(self, csv_path: str):
         super().__init__(level=logging.WARNING)
         self.csv_path = os.path.abspath(csv_path)
@@ -61,25 +60,25 @@ class CSVErrorHandler(logging.Handler):
         self._csv_lock = threading.Lock()
         self._csv_initialized = False
         self._auto_shutdown_on_critical = True
-
+    
     def _ensure_csv_initialized(self):
         """Initialize the errors CSV file with headers if needed."""
         if not self._csv_initialized:
             Path(self.csv_path).parent.mkdir(parents=True, exist_ok=True)
-
+            
             if not os.path.exists(self.csv_path):
                 with open(self.csv_path, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow(['severity', 'error_code', 'timestamp', 'message', 'details', 'count'])
             else:
                 self._load_existing_error_counts()
-
+            
             self._csv_initialized = True
-
+    
     def _load_existing_error_counts(self):
         """Load existing error counts from CSV for deduplication."""
         try:
-            with open(self.csv_path, newline='', encoding='utf-8') as csvfile:
+            with open(self.csv_path, 'r', newline='', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     normalized_details = self._normalize_error_details(row['details'], row.get('error_code', ''))
@@ -88,7 +87,7 @@ class CSVErrorHandler(logging.Handler):
                     self._error_counts[key] = count
         except (FileNotFoundError, KeyError, ValueError):
             self._error_counts = {}
-
+    
     def _rewrite_csv_with_updated_counts(self):
         """Rewrite CSV file with updated error counts."""
         temp_file = self.csv_path + '.tmp'
@@ -96,66 +95,66 @@ class CSVErrorHandler(logging.Handler):
             with open(temp_file, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow(['severity', 'error_code', 'timestamp', 'message', 'details', 'count'])
-
+                
                 for (severity, error_code, message, details), count in self._error_counts.items():
                     timestamp = datetime.now().isoformat()
                     writer.writerow([severity, error_code, timestamp, message, details, count])
-
+            
             os.replace(temp_file, self.csv_path)
         except Exception as e:
             if os.path.exists(temp_file):
                 os.remove(temp_file)
             raise e
-
+    
     def _normalize_error_details(self, details: str, error_code: str) -> str:
         """Normalize error details for deduplication by removing dynamic values."""
         normalized = details
-
+        
         # Remove request IDs and session IDs
         normalized = re.sub(r'"request_id":"[^"]*"', '"request_id":"<REDACTED>"', normalized)
         normalized = re.sub(r'request_id=[^,\s]*', 'request_id=<REDACTED>', normalized)
-
+        
         # Normalize date ranges and timestamps
         normalized = re.sub(r'/\d{4}-\d{2}-\d{2}/\d{4}-\d{2}-\d{2}', '/<DATE_RANGE>', normalized)
         normalized = re.sub(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', '<TIMESTAMP>', normalized)
         normalized = re.sub(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', '<TIMESTAMP>', normalized)
         normalized = re.sub(r'\d{4}-\d{2}-\d{2}', '<DATE>', normalized)
-
+        
         return normalized
-
+    
     def _extract_error_details(self, record: logging.LogRecord) -> Tuple[str, str, str]:
         """Extract error code and details from log record."""
         message = record.getMessage()
-
+        
         # Try to extract structured error code if message has format "ERROR_CODE: message | details"
         error_code = ""
         details = ""
-
+        
         if ":" in message and "|" in message:
             parts = message.split(":", 1)
             if len(parts) == 2:
                 potential_error_code = parts[0].strip()
                 rest = parts[1].strip()
-
+                
                 if "|" in rest:
                     msg_part, details_part = rest.split("|", 1)
                     error_code = potential_error_code
                     message = msg_part.strip()
                     details = details_part.strip()
-
+        
         # Fallback: create error code from logger name
         if not error_code:
             logger_name = record.name.split('.')[-1].upper()
             error_code = f"{logger_name}_{record.levelname}"
             details = f"File: {record.pathname}:{record.lineno}, Function: {record.funcName}"
-
+        
         return error_code, message, details
-
+    
     def _trigger_emergency_shutdown(self, record: logging.LogRecord, error_code: str, message: str):
         """Trigger emergency shutdown when a CRITICAL error is logged."""
         import sys
         import time
-
+        
         # Print emergency message to stderr
         emergency_msg = f"""
 {'='*60}
@@ -172,45 +171,45 @@ potential data corruption or unsafe trading operations.
 {'='*60}
 """
         print(emergency_msg, file=sys.stderr, flush=True)
-
+        
         # Try to flush all logging handlers
         try:
             logging.shutdown()
         except:
             pass
-
+        
         # Small delay to ensure message is visible
         time.sleep(0.1)
-
+        
         # Emergency exit
         sys.exit(1)
-
+    
     def emit(self, record):
         """Handle a log record by writing to CSV."""
         if record.levelno < logging.WARNING:
             return
-
+            
         try:
             with self._csv_lock:
                 self._ensure_csv_initialized()
-
+                
                 severity = record.levelname
                 error_code, message, details = self._extract_error_details(record)
-
+                
                 normalized_details = self._normalize_error_details(details, error_code)
                 error_key = (severity, error_code, message, normalized_details)
-
+                
                 if error_key in self._error_counts:
                     self._error_counts[error_key] += 1
                 else:
                     self._error_counts[error_key] = 1
-
+                
                 self._rewrite_csv_with_updated_counts()
-
+                
                 # Emergency shutdown on CRITICAL messages
                 if record.levelno >= logging.CRITICAL and self._auto_shutdown_on_critical:
                     self._trigger_emergency_shutdown(record, error_code, message)
-
+                
         except Exception:
             # Don't let CSV logging errors break the main application
             pass
@@ -220,7 +219,7 @@ class LumibotLogger(logging.Logger):
     """
     Enhanced Logger class for Lumibot with consistent formatting.
     """
-
+    
     def __init__(self, name: str, level=logging.NOTSET):
         super().__init__(name, level)
 
@@ -230,7 +229,7 @@ class LumibotFormatter(logging.Formatter):
     Custom formatter for Lumibot that provides consistent formatting
     and includes source information for warnings and errors.
     """
-
+    
     def __init__(self):
         super().__init__()
 
@@ -240,7 +239,7 @@ class LumibotFormatter(logging.Formatter):
         self.info_format = "%(asctime)s | %(levelname)s | %(message)s"
         self.warning_format = "%(asctime)s | %(levelname)s | %(pathname)s:%(funcName)s:%(lineno)d | %(message)s"
         self.error_format = "%(asctime)s | %(levelname)s | %(pathname)s:%(funcName)s:%(lineno)d | %(message)s"
-
+        
         # Create formatters for each level. Use default datefmt for ISO format so that milliseconds are included to
         # assist with performance evaluations when running Live.
         self.info_formatter = logging.Formatter(
@@ -252,27 +251,27 @@ class LumibotFormatter(logging.Formatter):
         self.error_formatter = logging.Formatter(
             self.error_format,
         )
-
+    
     def format(self, record):
         # Shorten the pathname to just the filename for cleaner output
         if hasattr(record, 'pathname'):
             record.pathname = os.path.basename(record.pathname)
-
+        
         # Clean up the message by stripping leading/trailing whitespace and newlines
         if hasattr(record, 'msg') and isinstance(record.msg, str):
             record.msg = record.msg.strip()
-
+        
         # Also clean up the formatted message if it exists
         original_message = record.getMessage()
         cleaned_message = original_message.strip()
-
+        
         # Temporarily replace the getMessage method to return cleaned message
         def clean_getMessage():
             return cleaned_message
-
+        
         original_getMessage = record.getMessage
         record.getMessage = clean_getMessage
-
+        
         try:
             # Choose formatter based on log level
             if record.levelno >= logging.ERROR:
@@ -284,7 +283,7 @@ class LumibotFormatter(logging.Formatter):
         finally:
             # Restore original getMessage method
             record.getMessage = original_getMessage
-
+        
         return formatted
 
 
@@ -300,48 +299,48 @@ class StrategyLoggerAdapter(logging.LoggerAdapter):
     Logger adapter that adds strategy name prefix to log messages.
     This provides context for which strategy is generating the log message.
     """
-
+    
     def __init__(self, logger, strategy_name: str):
         super().__init__(logger, {'strategy_name': strategy_name})
         self.strategy_name = strategy_name
-
+    
     def process(self, msg, kwargs):
         # Clean up the message by stripping leading/trailing whitespace and newlines
         if isinstance(msg, str):
             msg = msg.strip()
-
+        
         # Add strategy name prefix to all messages
         return f"[{self.strategy_name}] {msg}", kwargs
-
+    
     def isEnabledFor(self, level):
         """Override to respect BACKTESTING_QUIET_LOGS for strategy loggers"""
         # BACKTESTING_QUIET_LOGS only applies during backtesting, not live trading
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-
+        
         if is_backtesting:
             # During backtesting, check quiet logs setting
             quiet_logs = os.environ.get("BACKTESTING_QUIET_LOGS", "true").lower() == "true"  # Default to True
             if quiet_logs and level < logging.ERROR:
                 return False
-
+        
         # For live trading, always show messages
         return self.logger.isEnabledFor(level)
-
+    
     def info(self, msg, *args, **kwargs):
         """Override info to respect quiet logs"""
         if self.isEnabledFor(logging.INFO):
             super().info(msg, *args, **kwargs)
-
+    
     def debug(self, msg, *args, **kwargs):
         """Override debug to respect quiet logs"""
         if self.isEnabledFor(logging.DEBUG):
             super().debug(msg, *args, **kwargs)
-
+    
     def warning(self, msg, *args, **kwargs):
         """Override warning to respect quiet logs"""
         if self.isEnabledFor(logging.WARNING):
             super().warning(msg, *args, **kwargs)
-
+    
     def update_strategy_name(self, new_strategy_name: str):
         """Update the strategy name for this logger adapter."""
         self.strategy_name = new_strategy_name
@@ -365,7 +364,7 @@ def _ensure_handlers_configured():
     - BACKTESTING_QUIET_LOGS: Enable quiet logs for backtesting (true/false)
     """
     global _handlers_configured
-
+    
     if _handlers_configured:
         return
 
@@ -373,17 +372,17 @@ def _ensure_handlers_configured():
         # Double-check pattern to avoid race conditions
         if _handlers_configured:
             return
-
+        
         # Set the logger class to our custom LumibotLogger
         logging.setLoggerClass(LumibotLogger)
-
+            
         # Get the root logger directly to avoid circular calls
         root_logger = logging.getLogger("lumibot")
-
+        
         # Remove any existing handlers to avoid duplicates
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
-
+        
         # Create console handler with our custom formatter
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(LumibotFormatter())
@@ -397,19 +396,19 @@ def _ensure_handlers_configured():
 
         # Handle console output based on mode
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-
+        
         if is_backtesting:
             # During backtesting, console should ALWAYS be quiet (ERROR+ only)
             # regardless of BACKTESTING_QUIET_LOGS setting
             # BACKTESTING_QUIET_LOGS only controls file logging
             console_handler.setLevel(logging.ERROR)
-
+            
             # File logging level is controlled by BACKTESTING_QUIET_LOGS
             backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
             if backtesting_quiet is None:
                 # Default to quiet logs for backtesting
                 backtesting_quiet = "true"
-
+            
             if backtesting_quiet.lower() == "true":
                 # Quiet logs: file logging at ERROR+ level
                 log_level = logging.ERROR
@@ -419,20 +418,20 @@ def _ensure_handlers_configured():
         else:
             # Live trading: always show console messages at full level
             console_handler.setLevel(log_level)
-
+        
         root_logger.setLevel(log_level)
         root_logger.addHandler(console_handler)
-
+        
         # Add CSV error handler if enabled
         log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
         if log_errors_to_csv and log_errors_to_csv.lower() in ("true", "1", "yes", "on"):
             csv_path = os.environ.get("LUMIBOT_ERROR_CSV_PATH", "logs/errors.csv")
             csv_handler = CSVErrorHandler(csv_path)
             root_logger.addHandler(csv_handler)
-
+        
         # Keep propagation enabled for proper logging behavior
         root_logger.propagate = True
-
+        
         _handlers_configured = True
 
 
@@ -470,20 +469,20 @@ def get_logger(name: str) -> logging.Logger:
     """
     # Ensure global handler configuration is done
     _ensure_handlers_configured()
-
+    
     # Ensure the logger name is under the lumibot hierarchy
     if not name.startswith("lumibot"):
         # If the name doesn't start with lumibot, make it a child of lumibot
         logger_name = f"lumibot.{name}"
     else:
         logger_name = name
-
+    
     # Get or create the logger
     logger = logging.getLogger(logger_name)
-
+    
     # Store in registry for potential cleanup later
     _logger_registry[name] = logger
-
+    
     return logger
 
 
@@ -515,18 +514,18 @@ def get_strategy_logger(name: str, strategy_name: str) -> StrategyLoggerAdapter:
     """
     # Create cache key combining logger name and strategy name
     cache_key = f"{name}::{strategy_name}"
-
+    
     # Check if strategy logger already exists
     if cache_key in _strategy_logger_registry:
         return _strategy_logger_registry[cache_key]
-
+    
     # Create new strategy logger
     base_logger = get_logger(name)
     strategy_logger = StrategyLoggerAdapter(base_logger, strategy_name)
-
+    
     # Cache the strategy logger
     _strategy_logger_registry[cache_key] = strategy_logger
-
+    
     return strategy_logger
 
 
@@ -549,31 +548,31 @@ def set_log_level(level: str):
         log_level = getattr(logging, level.upper())
         # Get the actual lumibot root logger (where handlers are configured)
         root_logger = logging.getLogger("lumibot")
-
+        
         # Update handlers but respect console handler's ERROR level during backtesting
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-
+        
         if is_backtesting:
             # During backtesting, we need special handling to ensure console stays quiet
             # Set root logger to allow messages through (for file logging)
             root_logger.setLevel(log_level)
-
+            
             # But ensure ALL console handlers stay at ERROR level
             for handler in root_logger.handlers:
                 if isinstance(handler, logging.StreamHandler):
                     handler.setLevel(logging.ERROR)
-
+            
             # Don't update individual logger levels - this would bypass handler filtering
         else:
             # For live trading, set everything normally
             root_logger.setLevel(log_level)
             for handler in root_logger.handlers:
                 handler.setLevel(log_level)
-
+            
             # Update all existing loggers in our registry
             for logger in _logger_registry.values():
                 logger.setLevel(log_level)
-
+            
     except AttributeError:
         raise ValueError(f"Invalid log level: {level}. Must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 
@@ -629,17 +628,17 @@ def add_file_handler(file_path: str, level: str = 'INFO'):
     >>> add_file_handler('/path/to/lumibot.log', 'DEBUG')
     """
     _ensure_handlers_configured()
-
+    
     try:
         file_level = getattr(logging, level.upper())
     except AttributeError:
         raise ValueError(f"Invalid log level: {level}")
-
+    
     # Create file handler
     file_handler = logging.FileHandler(file_path, mode='w', encoding='utf-8')
     file_handler.setLevel(file_level)
     file_handler.setFormatter(LumibotFormatter())
-
+    
     # Add to the actual root logger, not a logger named "root"
     root_logger = logging.getLogger("lumibot")
     root_logger.addHandler(file_handler)

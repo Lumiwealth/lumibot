@@ -123,7 +123,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
-
+        
         if oauth_token:
             self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
             self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
@@ -692,7 +692,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
         if timestep not in ['day', 'minute']:
-            raise ValueError("The timestep must be 'day' or 'minute'.")
+            raise ValueError(f"The timestep must be 'day' or 'minute'.")
 
         # For daily bars, we want to preserve original timestamps but add missing days
         if timestep == 'day':

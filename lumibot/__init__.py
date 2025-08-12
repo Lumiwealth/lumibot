@@ -1,7 +1,7 @@
-import importlib
 import os
 import sys
 import warnings
+import importlib
 
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -41,6 +41,7 @@ from .constants import (
     LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
     LUMIBOT_DEFAULT_TIMEZONE,
     LUMIBOT_SOURCE_PATH,
+    LUMIBOT_CACHE_FOLDER,    
 )
 
 # Ensure cache folder exists
@@ -62,7 +63,6 @@ if not os.path.exists(LUMIBOT_CACHE_FOLDER):
 
 # Map the root package alias.
 import lumibot.entities as _lb_entities
-
 sys.modules.setdefault("entities", _lb_entities)
 
 # Expose common sub-modules (asset, bars, data, order, position, trading_fee)
@@ -91,8 +91,6 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
         logger.warning(f"[lumibot/__init__.py] ImportError while creating alias '{_alias}' for '{_full}': {e}")
     except Exception as e: # Catch any other unexpected errors during aliasing
         logger.warning(f"[lumibot/__init__.py] Unexpected error creating alias '{_alias}' for '{_full}': {e}")
-
-# Configuration utilities removed - polars is used by default where available
 
 # Export the default timezone constants so they can be imported by other modules
 __all__ = [

@@ -1,7 +1,7 @@
 import os
 import pickle
-import random
 import time
+import random
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -9,8 +9,8 @@ import yfinance as yf
 from fp.fp import FreeProxy
 
 from ..constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from .helpers import get_lumibot_datetime
 from .lumibot_logger import get_logger
+from .helpers import get_lumibot_datetime
 
 logger = get_logger(__name__)
 
@@ -61,7 +61,7 @@ class YahooHelper:
         try:
             os.makedirs(LUMIBOT_YAHOO_CACHE_FOLDER)
             CACHING_ENABLED = True
-        except Exception:
+        except Exception as e:
             pass
     else:
         CACHING_ENABLED = True

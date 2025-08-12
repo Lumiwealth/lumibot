@@ -1,8 +1,7 @@
-import warnings
 from math import e, log
-
 import numpy as np
 
+import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 try:

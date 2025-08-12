@@ -65,14 +65,7 @@ class SafeList:
 
     def get_list(self):
         with self.__lock:
-            # Return a reference to the list - this is safe because the list itself
-            # is protected by the lock when modified. Returning a copy would be expensive.
             return self.__items
-
-    def get_list_copy(self):
-        """Get a copy of the list for cases where the list might be modified"""
-        with self.__lock:
-            return self.__items.copy()
 
     def remove_all(self):
         with self.__lock:

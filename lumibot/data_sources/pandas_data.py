@@ -514,6 +514,9 @@ class PandasData(DataSourceBacktesting):
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
+        # Accept `return_polars` for API compatibility with other data sources.
+        # PandasData always returns pandas-backed Bars, so this flag is ignored.
+        return_polars: bool = False,
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):

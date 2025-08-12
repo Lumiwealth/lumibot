@@ -31,9 +31,7 @@ if (major, minor) < (3, 10):
     warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
 
 # SOURCE PATH
-# Import constants from constants module
-# Import main submodules
-from . import backtesting, brokers, data_sources, entities, strategies, traders
+# Import constants from constants module (before importing submodules to avoid circular imports)
 from .constants import (
     LUMIBOT_CACHE_FOLDER,
     LUMIBOT_DEFAULT_PYTZ,
@@ -41,8 +39,10 @@ from .constants import (
     LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
     LUMIBOT_DEFAULT_TIMEZONE,
     LUMIBOT_SOURCE_PATH,
-    LUMIBOT_CACHE_FOLDER,    
 )
+
+# Import main submodules (after constants to avoid circular imports)
+from . import backtesting, brokers, data_sources, entities, strategies, traders
 
 # Ensure cache folder exists
 if not os.path.exists(LUMIBOT_CACHE_FOLDER):

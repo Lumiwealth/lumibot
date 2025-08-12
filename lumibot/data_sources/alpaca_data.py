@@ -102,7 +102,18 @@ class AlpacaData(DataSource):
         This will mark the strategy as failed to stop execution.
         """
         error_message = str(e).lower()
-        if "unauthorized" in error_message or "401" in error_message:
+        # Only treat specific authentication-related errors as auth failures
+        is_auth_error = (
+            "unauthorized" in error_message or 
+            "401" in error_message or
+            "403" in error_message or
+            "invalid credentials" in error_message or
+            "authentication failed" in error_message or
+            "invalid api key" in error_message or
+            "invalid token" in error_message
+        )
+        
+        if is_auth_error:
             auth_method = "OAuth token" if self.oauth_token else "API key/secret"
             error_msg = (
                 f"❌ ALPACA AUTHENTICATION ERROR: Your {auth_method} appears to be invalid or expired during {operation}.\n\n"
@@ -136,6 +147,8 @@ class AlpacaData(DataSource):
             # Raise a regular exception that will be caught by the strategy
             raise ValueError(f"Authentication failed: {auth_method} is invalid or expired. {error_msg}")
         else:
+            # For non-auth errors, log the error but don't mark as auth failed
+            logger.warning(f"Non-authentication error during {operation}: {e}")
             # Re-raise the original exception for other errors
             raise e
 
@@ -148,7 +161,17 @@ class AlpacaData(DataSource):
                 else:
                     self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
             except Exception as e:
-                self._handle_auth_error(e, "stock client initialization")
+                # Check if this is specifically an authentication error
+                error_message = str(e).lower()
+                if any(auth_keyword in error_message for auth_keyword in [
+                    "unauthorized", "401", "403", "invalid credentials", 
+                    "authentication failed", "invalid api key", "invalid token"
+                ]):
+                    self._handle_auth_error(e, "stock client initialization")
+                else:
+                    # For other errors, log and re-raise without marking as auth failed
+                    logger.warning(f"Error initializing stock client (will retry): {e}")
+                    raise e
         return self._stock_client
 
     def _get_crypto_client(self):
@@ -160,7 +183,17 @@ class AlpacaData(DataSource):
                 else:
                     self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
             except Exception as e:
-                self._handle_auth_error(e, "crypto client initialization")
+                # Check if this is specifically an authentication error
+                error_message = str(e).lower()
+                if any(auth_keyword in error_message for auth_keyword in [
+                    "unauthorized", "401", "403", "invalid credentials", 
+                    "authentication failed", "invalid api key", "invalid token"
+                ]):
+                    self._handle_auth_error(e, "crypto client initialization")
+                else:
+                    # For other errors, log and re-raise without marking as auth failed
+                    logger.warning(f"Error initializing crypto client (will retry): {e}")
+                    raise e
         return self._crypto_client
 
     def _get_option_client(self):
@@ -172,7 +205,18 @@ class AlpacaData(DataSource):
                 else:
                     self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
             except Exception as e:
-                self._handle_auth_error(e, "option client initialization")
+                # Log the actual error without going through auth error handler immediately
+                logger.error(f"Error initializing option client: {e}")
+                # Only call auth error handler for actual auth errors
+                error_message = str(e).lower()
+                if any(auth_keyword in error_message for auth_keyword in [
+                    "unauthorized", "401", "403", "invalid credentials", 
+                    "authentication failed", "invalid api key", "invalid token"
+                ]):
+                    self._handle_auth_error(e, "option client initialization")
+                else:
+                    # For other errors, just re-raise so the actual error is visible
+                    raise e
         return self._option_client
 
     def __init__(
@@ -239,13 +283,8 @@ class AlpacaData(DataSource):
         self.oauth_token = None
         self._auth_failed = False  # Flag to track authentication failures
 
-        # Check for OAuth token first
-        if isinstance(config, dict) and "OAUTH_TOKEN" in config and config["OAUTH_TOKEN"]:
-            self.oauth_token = config["OAUTH_TOKEN"]
-        elif hasattr(config, "OAUTH_TOKEN") and config.OAUTH_TOKEN:
-            self.oauth_token = config.OAUTH_TOKEN
-        # If no OAuth token, check for API key/secret
-        elif isinstance(config, dict) and "API_KEY" in config and config["API_KEY"]:
+        # Check for API key/secret first (prefer API keys over OAuth tokens)
+        if isinstance(config, dict) and "API_KEY" in config and config["API_KEY"]:
             self.api_key = config["API_KEY"]
             if "API_SECRET" in config and config["API_SECRET"]:
                 self.api_secret = config["API_SECRET"]
@@ -257,6 +296,11 @@ class AlpacaData(DataSource):
                 self.api_secret = config.API_SECRET
             else:
                 raise ValueError("API_SECRET not found in config when API_KEY is provided")
+        # If no API key/secret, check for OAuth token
+        elif isinstance(config, dict) and "OAUTH_TOKEN" in config and config["OAUTH_TOKEN"]:
+            self.oauth_token = config["OAUTH_TOKEN"]
+        elif hasattr(config, "OAUTH_TOKEN") and config.OAUTH_TOKEN:
+            self.oauth_token = config.OAUTH_TOKEN
         else:
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
@@ -283,6 +327,17 @@ class AlpacaData(DataSource):
             self.version = config.VERSION
         else:
             self.version = "v2"
+
+    def reset_auth_failure(self):
+        """
+        Reset the authentication failure state and clear cached clients.
+        This allows the data source to retry authentication after a failure.
+        """
+        self._auth_failed = False
+        self._stock_client = None
+        self._crypto_client = None
+        self._option_client = None
+        logger.info("Authentication failure state has been reset - will retry API calls")
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
         asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
@@ -316,7 +371,13 @@ class AlpacaData(DataSource):
         """
         # Check if authentication has previously failed
         if getattr(self, '_auth_failed', False):
-            raise ValueError("Authentication previously failed - cannot make further API requests")
+            logger.warning("Authentication failure flag is set - attempting to clear and retry")
+            # Instead of immediately failing, reset the flag and let the actual error show
+            self._auth_failed = False
+            # Clear the cached clients so they get recreated
+            self._stock_client = None
+            self._crypto_client = None
+            self._option_client = None
 
         try:
             # Use the existing option client getter which has proper error handling
@@ -423,8 +484,39 @@ class AlpacaData(DataSource):
             return chains_data
 
         except Exception as e:
-            # Handle any additional errors not caught by client initialization
-            self._handle_auth_error(e, "option chain retrieval")
+            # Log the actual error first so we can see what's really happening
+            logger.error(f"Error retrieving option chains for {asset.symbol}: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Full error details: {str(e)}")
+            
+            # Check if this is specifically an authentication error
+            error_message = str(e).lower()
+            
+            # Be more specific about what constitutes an auth error
+            # Don't treat every 401 as an auth error - could be data permissions, rate limits, etc.
+            is_likely_auth_error = (
+                ("unauthorized" in error_message and (
+                    "invalid" in error_message or 
+                    "expired" in error_message or 
+                    "credentials" in error_message or
+                    "api key" in error_message or
+                    "token" in error_message
+                )) or
+                "authentication failed" in error_message or
+                "invalid api key" in error_message or
+                "invalid token" in error_message or
+                "invalid credentials" in error_message
+            )
+            
+            if is_likely_auth_error:
+                logger.error("This appears to be an authentication error - handling as auth failure")
+                # Handle authentication errors which will set _auth_failed flag
+                self._handle_auth_error(e, "option chain retrieval")
+            else:
+                # For other errors (network, rate limits, data permissions, etc.), just re-raise the original error
+                # This ensures the user sees the actual error, not a generic auth message
+                logger.error("This does not appear to be an authentication error - re-raising original error")
+                raise e
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         """
@@ -623,7 +715,13 @@ class AlpacaData(DataSource):
 
         # Check if authentication has previously failed
         if getattr(self, '_auth_failed', False):
-            raise ValueError("Authentication previously failed - cannot make further API requests")
+            logger.warning("Authentication failure flag is set - attempting to clear and retry")
+            # Instead of immediately failing, reset the flag and let the actual error show
+            self._auth_failed = False
+            # Clear the cached clients so they get recreated
+            self._stock_client = None
+            self._crypto_client = None
+            self._option_client = None
 
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if asset.asset_type == Asset.AssetType.CRYPTO:

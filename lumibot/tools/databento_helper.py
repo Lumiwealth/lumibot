@@ -58,6 +58,11 @@ class DataBentoClient:
             self._client = Historical(key=self.api_key)
         return self._client
     
+    def _recreate_client(self):
+        """Force recreation of DataBento client (useful after auth errors)"""
+        self._client = None
+        logger.info("DataBento client recreated due to authentication error")
+    
     def get_available_range(self, dataset: str) -> Dict[str, str]:
         """Get the available date range for a dataset"""
         try:
@@ -77,7 +82,7 @@ class DataBentoClient:
         **kwargs
     ) -> pd.DataFrame:
         """
-        Get historical data from DataBento (no retry logic - fail fast on parameter errors)
+        Get historical data from DataBento with authentication retry logic
         
         Parameters
         ----------
@@ -121,30 +126,48 @@ class DataBentoClient:
         logger.info(f"Requesting DataBento data: {symbols} from {start} to {end}")
         logger.info(f"Making DataBento API call with: dataset={dataset}, symbols={symbols}, schema={schema}")
         
-        try:
-            data = self.client.timeseries.get_range(
-                dataset=dataset,
-                symbols=symbols,
-                schema=schema,
-                start=start,
-                end=end,
-                **kwargs
-            )
-            
-            # Convert to DataFrame if not already
-            if hasattr(data, 'to_df'):
-                df = data.to_df()
-            else:
-                df = pd.DataFrame(data)
-            
-            logger.info(f"Successfully retrieved {len(df)} rows from DataBento for symbols: {symbols}")
-            return df
-            
-        except Exception as e:
-            logger.error("DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s", 
-                        str(e), symbols, start, end)
-            
-            raise e
+        retry_count = 0
+        while retry_count <= self.max_retries:
+            try:
+                data = self.client.timeseries.get_range(
+                    dataset=dataset,
+                    symbols=symbols,
+                    schema=schema,
+                    start=start,
+                    end=end,
+                    **kwargs
+                )
+                
+                # Convert to DataFrame if not already
+                if hasattr(data, 'to_df'):
+                    df = data.to_df()
+                else:
+                    df = pd.DataFrame(data)
+                
+                logger.info(f"Successfully retrieved {len(df)} rows from DataBento for symbols: {symbols}")
+                return df
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Check for authentication errors (401, 403, token expired, etc.)
+                if any(auth_error in error_str for auth_error in ['401', '403', 'unauthorized', 'authentication', 'token', 'forbidden']):
+                    retry_count += 1
+                    if retry_count <= self.max_retries:
+                        logger.warning(f"DataBento authentication error (attempt {retry_count}/{self.max_retries}): {str(e)}")
+                        logger.info("Recreating DataBento client and retrying...")
+                        self._recreate_client()
+                        continue
+                    else:
+                        logger.error(f"DataBento authentication failed after {self.max_retries} retries")
+                        
+                # For non-auth errors, don't retry - fail fast
+                logger.error("DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s", 
+                            str(e), symbols, start, end)
+                raise e
+        
+        # This should never be reached, but just in case
+        raise Exception(f"DataBento request failed after {self.max_retries} retries")
 
 
 def _convert_to_databento_format(symbol: str, asset_symbol: str = None) -> str:

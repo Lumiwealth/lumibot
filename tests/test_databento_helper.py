@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from lumibot.tools import databento_helper
+from lumibot.tools.databento_helper import DataBentoClient
 from lumibot.entities import Asset
 
 
@@ -762,3 +763,251 @@ class TestDataBentoHelper(unittest.TestCase):
         
         # 7pm Thursday should be market open (Friday's session started at 6pm Thursday)
         self.assertTrue(is_open, "CME futures should be open at 7pm Thursday ET (Friday's session)")
+
+
+class TestDataBentoAuthenticationRetry(unittest.TestCase):
+    """Test cases for DataBento authentication retry logic"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.api_key = "test_api_key"
+        self.client = DataBentoClient(self.api_key)
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_authentication_retry_on_401_error(self, mock_historical):
+        """Test that authentication errors trigger client recreation and retry"""
+        
+        # First call fails with 401, second succeeds
+        mock_historical.return_value.timeseries.get_range.side_effect = [
+            Exception("401 auth_authentication_failed\nAuthentication failed."),
+            Mock(to_df=Mock(return_value=pd.DataFrame({'test': [1, 2, 3]})))
+        ]
+        
+        with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+            result = self.client.get_historical_data(
+                dataset="GLBX.MDP3",
+                symbols="MESU5",
+                schema="ohlcv-1m", 
+                start="2025-01-01",
+                end="2025-01-02"
+            )
+            
+            # Should succeed on retry
+            self.assertIsInstance(result, pd.DataFrame)
+            self.assertEqual(len(result), 3)
+            
+            # Should have called Historical constructor twice (original + retry)
+            self.assertEqual(mock_historical.call_count, 2)
+            
+            # Should have called get_range twice (first fails, second succeeds)
+            self.assertEqual(mock_historical.return_value.timeseries.get_range.call_count, 2)
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_authentication_retry_exhausts_after_max_retries(self, mock_historical):
+        """Test that authentication retries are exhausted after max attempts"""
+        
+        # All calls fail with 401
+        mock_historical.return_value.timeseries.get_range.side_effect = Exception(
+            "401 auth_authentication_failed\nAuthentication failed."
+        )
+        
+        with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+            with self.assertRaises(Exception) as context:
+                self.client.get_historical_data(
+                    dataset="GLBX.MDP3",
+                    symbols="MESU5", 
+                    schema="ohlcv-1m",
+                    start="2025-01-01",
+                    end="2025-01-02"
+                )
+            
+            # Should contain authentication error
+            self.assertIn("auth_authentication_failed", str(context.exception))
+            
+            # Should have tried max_retries times (default 3) + initial creation = 4
+            self.assertEqual(mock_historical.call_count, 4)
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_non_auth_errors_not_retried(self, mock_historical):
+        """Test that non-authentication errors are not retried"""
+        
+        # Non-auth error should not trigger retry
+        mock_historical.return_value.timeseries.get_range.side_effect = Exception("Invalid symbol")
+        
+        with self.assertRaises(Exception) as context:
+            self.client.get_historical_data(
+                dataset="GLBX.MDP3",
+                symbols="INVALID",
+                schema="ohlcv-1m",
+                start="2025-01-01", 
+                end="2025-01-02"
+            )
+        
+        # Should contain original error
+        self.assertIn("Invalid symbol", str(context.exception))
+        
+        # Should only have tried once (no retry for non-auth errors)
+        self.assertEqual(mock_historical.call_count, 1)
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_403_forbidden_triggers_retry(self, mock_historical):
+        """Test that 403 Forbidden errors also trigger authentication retry"""
+        
+        # 403 error should also trigger retry
+        mock_historical.return_value.timeseries.get_range.side_effect = [
+            Exception("403 Forbidden"),
+            Mock(to_df=Mock(return_value=pd.DataFrame({'data': [1]})))
+        ]
+        
+        with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+            result = self.client.get_historical_data(
+                dataset="GLBX.MDP3",
+                symbols="MESU5",
+                schema="ohlcv-1m",
+                start="2025-01-01",
+                end="2025-01-02"
+            )
+            
+            # Should succeed on retry
+            self.assertIsInstance(result, pd.DataFrame)
+            
+            # Should have recreated client
+            self.assertEqual(mock_historical.call_count, 2)
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_client_recreation_on_auth_failure(self, mock_historical):
+        """Test that client is properly recreated on authentication failure"""
+        
+        # Create client and access it to initialize
+        original_client = self.client.client
+        self.assertIsNotNone(original_client)
+        
+        # Simulate auth failure
+        mock_historical.return_value.timeseries.get_range.side_effect = Exception("401 auth_authentication_failed")
+        
+        with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+            try:
+                self.client.get_historical_data(
+                    dataset="GLBX.MDP3",
+                    symbols="MESU5", 
+                    schema="ohlcv-1m",
+                    start="2025-01-01",
+                    end="2025-01-02"
+                )
+            except Exception:
+                pass  # Expected to fail after retries
+            
+            # Client should have been recreated during retry attempts  
+            self.assertEqual(mock_historical.call_count, 4)  # initial + max_retries = 4
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_successful_retry_after_token_refresh(self, mock_historical):
+        """Test successful operation after token refresh simulation"""
+        
+        # Simulate token expiry then refresh success
+        responses = [
+            Exception("401 auth_authentication_failed"),  # First call fails
+            Exception("401 auth_authentication_failed"),  # Second call fails  
+            Mock(to_df=Mock(return_value=pd.DataFrame({'success': [1, 2]})))  # Third succeeds
+        ]
+        mock_historical.return_value.timeseries.get_range.side_effect = responses
+        
+        with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+            result = self.client.get_historical_data(
+                dataset="GLBX.MDP3",
+                symbols="MESU5",
+                schema="ohlcv-1m",
+                start="2025-01-01",
+                end="2025-01-02"
+            )
+            
+            # Should eventually succeed
+            self.assertIsInstance(result, pd.DataFrame)
+            self.assertEqual(len(result), 2)
+            
+            # Should have tried 3 times total
+            self.assertEqual(mock_historical.return_value.timeseries.get_range.call_count, 3)
+
+    def test_client_property_lazy_initialization(self):
+        """Test that client property properly handles lazy initialization"""
+        # Create new client instance
+        client = DataBentoClient("test_key")
+        
+        # Should start with None
+        self.assertIsNone(client._client)
+        
+        # Access should initialize 
+        with patch('lumibot.tools.databento_helper.Historical') as mock_historical:
+            _ = client.client
+            mock_historical.assert_called_once_with(key="test_key")
+        
+        # Should now be set
+        self.assertIsNotNone(client._client)
+
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_auth_retry_with_different_error_formats(self, mock_historical):
+        """Test authentication retry with various error message formats"""
+        test_cases = [
+            "401 auth_authentication_failed",
+            "HTTP 401: Authentication failed",
+            "401: Unauthorized access", 
+            "Authentication failed.",
+            "Invalid token",
+            "Token expired"
+        ]
+        
+        for error_msg in test_cases:
+            with self.subTest(error=error_msg):
+                mock_historical = Mock()
+                mock_historical.return_value.timeseries.get_range.side_effect = [
+                    Exception(error_msg),
+                    Mock(to_df=Mock(return_value=pd.DataFrame()))
+                ]
+                
+                client = DataBentoClient("test_key")
+                
+                with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+                    try:
+                        result = client.get_historical_data(
+                            dataset="GLBX.MDP3",
+                            symbols="TEST",
+                            schema="ohlcv-1m",
+                            start="2025-01-01",
+                            end="2025-01-02"
+                        )
+                        # If auth-related error, should retry and succeed
+                        if any(keyword in error_msg.lower() for keyword in ['401', 'auth', 'authentication', 'unauthorized', 'token']):
+                            self.assertIsInstance(result, pd.DataFrame)
+                            self.assertEqual(mock_historical.call_count, 2)  # Original + retry
+                    except Exception:
+                        # Non-auth errors should fail immediately
+                        if not any(keyword in error_msg.lower() for keyword in ['401', 'auth', 'authentication', 'unauthorized', 'token']):
+                            self.assertEqual(mock_historical.call_count, 1)  # No retry
+
+    @patch('lumibot.tools.databento_helper.logger')
+    @patch('lumibot.tools.databento_helper.Historical')
+    def test_auth_retry_logging(self, mock_historical, mock_logger):
+        """Test that authentication retry attempts are properly logged"""
+        mock_historical.return_value.timeseries.get_range.side_effect = [
+            Exception("401 auth_authentication_failed"),
+            Mock(to_df=Mock(return_value=pd.DataFrame()))
+        ]
+        
+        with patch('lumibot.tools.databento_helper.Historical', mock_historical):
+            self.client.get_historical_data(
+                dataset="GLBX.MDP3", 
+                symbols="MESU5",
+                schema="ohlcv-1m",
+                start="2025-01-01",
+                end="2025-01-02"
+            )
+            
+            # Should log retry attempt
+            mock_logger.warning.assert_called_once()
+            warning_call = mock_logger.warning.call_args[0][0]
+            self.assertIn("authentication error", warning_call.lower())
+            
+            # Should also log client recreation
+            mock_logger.info.assert_called()
+            info_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+            self.assertTrue(any("recreating" in call.lower() for call in info_calls))

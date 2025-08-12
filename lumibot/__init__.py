@@ -92,15 +92,7 @@ for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
     except Exception as e: # Catch any other unexpected errors during aliasing
         logger.warning(f"[lumibot/__init__.py] Unexpected error creating alias '{_alias}' for '{_full}': {e}")
 
-# Import configuration utilities
-try:
-    from .config import configure_polars, get_data_backend, set_data_backend, use_polars
-except ImportError:
-    # If config module doesn't exist yet, provide dummy functions
-    def set_data_backend(backend): pass
-    def get_data_backend(): return "pandas"
-    def use_polars(): return False
-    def configure_polars(): pass
+# Configuration utilities removed - polars is used by default where available
 
 # Export the default timezone constants so they can be imported by other modules
 __all__ = [
@@ -116,9 +108,5 @@ __all__ = [
     'backtesting',
     'entities',
     'data_sources',
-    'traders',
-    'set_data_backend',
-    'get_data_backend',
-    'use_polars',
-    'configure_polars'
+    'traders'
 ]

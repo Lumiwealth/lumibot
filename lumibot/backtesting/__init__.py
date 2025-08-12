@@ -1,6 +1,3 @@
-# Import DataBento backtesting based on backend
-from lumibot.config import use_polars
-
 from .alpaca_backtesting import AlpacaBacktesting
 from .alpha_vantage_backtesting import AlphaVantageBacktesting
 from .backtesting_broker import BacktestingBroker
@@ -11,7 +8,8 @@ from .polygon_backtesting import PolygonDataBacktesting
 from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 
-if use_polars():
+# Import DataBento backtesting - use polars by default if available
+try:
     from .databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataBacktesting
-else:
+except ImportError:
     from .databento_backtesting import DataBentoDataBacktesting

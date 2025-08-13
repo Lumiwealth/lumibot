@@ -98,13 +98,15 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
             order_type=order_type,
             fractional_shares=fractional_shares
         )
+        self.default_portfolio = 100000.0
+        self.portfolio_value = self.default_portfolio
 
     def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         return Decimal(100.0)  # Mock price
 
     def get_portfolio_value(self) -> float:
         # Default implementation that matches most test expectations
-        return 100000.0  # Can be overridden in individual tests
+        return self.default_portfolio  # Can be overridden in individual tests
 
     def update_broker_balances(self, force_update: bool = False) -> None:
         pass
@@ -197,7 +199,9 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=3300.0)
+        strategy.portfolio_value = 3300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
+
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -261,7 +265,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (400+400+200=1000)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=1000.0)
+        strategy.portfolio_value = 1000.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
         # print(f"/n{df[['symbol', 'current_weight', 'target_weight', 'drift']]}")
@@ -325,7 +330,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=3300.0)
+        strategy.portfolio_value = 3300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -389,7 +395,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=3300.0)
+        strategy.portfolio_value = 3300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -457,7 +464,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=3300.0)
+        strategy.portfolio_value = 3300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -523,7 +531,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=3300.0)
+        strategy.portfolio_value = 3300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -595,7 +604,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of all current values (1000+1500+1000+800=4300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=4300.0)
+        strategy.portfolio_value = 4300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -668,7 +678,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of all current values (1000+1500+1000+800=4300)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=4300.0)
+        strategy.portfolio_value = 4300.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -734,7 +745,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (0+500+500=1000)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=1000.0)
+        strategy.portfolio_value = 1000.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -772,7 +784,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1000+0=1000)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=1000.0)
+        strategy.portfolio_value = 1000.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -812,7 +825,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1500+(-550)=950)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=950.0)
+        strategy.portfolio_value = 950.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
         assert df["current_weight"].tolist() == [Decimal('-0.5789473684210526315789473684'),
@@ -858,7 +872,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (0+500+500=1000)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=1000.0)
+        strategy.portfolio_value = 1000.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -897,7 +912,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1000+0=1000)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=1000.0)
+        strategy.portfolio_value = 1000.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
@@ -935,7 +951,8 @@ class TestDriftCalculationLogic:
 
         mocker.patch.object(DriftCalculationLogic, "_add_positions", mock_add_positions)
         # Mock portfolio value to return the sum of current values (1000+0=1000)
-        mocker.patch.object(strategy, "get_portfolio_value", return_value=1000.0)
+        strategy.portfolio_value = 1000.0
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
         
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 

@@ -159,7 +159,7 @@ class StrategyExecutor(Thread):
             self.process_queue()
             
             self.broker._update_datetime(
-                sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value
+                sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.get_portfolio_value()
             )
 
     def sync_broker(self):
@@ -206,6 +206,7 @@ class StrategyExecutor(Thread):
                 cash_balance = broker_balances[0]
                 portfolio_value = broker_balances[2]
                 self.strategy._set_cash_position(cash_balance)
+                self.strategy.portfolio_value = portfolio_value
                 self.strategy.logger.debug(f"Got Cash Balance: ${cash_balance:.2f}, Portfolio: ${portfolio_value:.2f}")
 
 
@@ -502,7 +503,7 @@ class StrategyExecutor(Thread):
             result = self.strategy.trace_stats(context, snapshot_before)
 
         result["datetime"] = self.strategy.get_datetime()
-        result["portfolio_value"] = self.strategy.portfolio_value
+        result["portfolio_value"] = self.strategy.portfolio_value  # Fast lookup for portfolio value
         result["cash"] = self.strategy.cash
 
         # Add positions column
@@ -751,7 +752,7 @@ class StrategyExecutor(Thread):
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
         # Get the portfolio value
-        portfolio_value = self.strategy.get_portfolio_value()
+        portfolio_value = self.strategy.portfolio_value
 
         # Calculate the value of the position
         order_value = price * float(quantity)
@@ -838,12 +839,12 @@ class StrategyExecutor(Thread):
             raise ValueError(val_err_msg)
 
     @staticmethod
-    def _seconds_to_sleeptime_count(secounds, unit="s"):
+    def _seconds_to_sleeptime_count(seconds, unit="s"):
         """
         Convert seconds to the sleeptime count
         Parameters
         ----------
-        secounds : int
+        seconds : int
             The number of seconds
         unit : str
             The unit of time to convert to (M, S, H, D)
@@ -854,13 +855,13 @@ class StrategyExecutor(Thread):
             The number of units of time that the seconds represent
         """
         if unit.lower() == "s":
-            return secounds
+            return seconds
         elif unit.lower() == "m" or unit.lower() == "t":
-            return secounds // 60
+            return seconds // 60
         elif unit.lower() == "h":
-            return secounds // (60 * 60)
+            return seconds // (60 * 60)
         elif unit.lower() == "d":
-            return secounds / (60 * 60 * 24)
+            return seconds / (60 * 60 * 24)
         else:
             raise ValueError("The unit must be 'S', 'M', 'T', 'H', or 'D'")
 
@@ -905,8 +906,7 @@ class StrategyExecutor(Thread):
         # Create a dictionary to define the cron trigger based on the units of time.
         kwargs = {}
         if units in "Ss":
-            kwargs["second"] = f"*/{time_raw}"
-            self.cron_count_target = 1
+            kwargs["second"] = "*"
         elif units in "MmTt":
             kwargs["minute"] = "*"
         elif units in "Hh":
@@ -1119,7 +1119,7 @@ class StrategyExecutor(Thread):
             self.broker.data_source._iter_count += 1
 
         dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-        self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.portfolio_value)
+        self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.get_portfolio_value())
         self.strategy._update_cash_with_dividends()
 
         self._on_trading_iteration()

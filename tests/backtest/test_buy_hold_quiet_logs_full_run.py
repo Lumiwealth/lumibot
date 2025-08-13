@@ -51,7 +51,7 @@ class BuyAndHoldQuietLogsTest(Strategy):
         # If we don't own anything (other than USD), buy the asset
         if len(all_positions) == 0:
             # Calculate the quantity to buy
-            quantity = int(self.portfolio_value // current_value)
+            quantity = int(self.get_portfolio_value() // current_value)
 
             # Create the order and submit it
             purchase_order = self.create_order(buy_symbol, quantity, "buy")

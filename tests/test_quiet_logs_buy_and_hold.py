@@ -37,7 +37,7 @@ class BuyAndHoldQuietLogsTest(Strategy):
         
         all_positions = self.get_positions()
         if len(all_positions) == 0:
-            quantity = int(self.portfolio_value // current_value)
+            quantity = int(self.get_portfolio_value() // current_value)
             purchase_order = self.create_order(buy_symbol, quantity, "buy")
             self.submit_order(purchase_order)
 

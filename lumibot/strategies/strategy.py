@@ -20,6 +20,7 @@ from ..traders import Trader
 from ..data_sources import DataSource
 
 from ._strategy import _Strategy
+from ..ai import AgentManager
 
 matplotlib.use("Agg")
 
@@ -36,6 +37,13 @@ class Strategy(_Strategy):
         >>> self.log_message(f'Strategy name: {self.name}')
         """
         return self._name
+
+    # -------- AI Agents API --------
+    @property
+    def agents(self) -> AgentManager:
+        if not hasattr(self, "_agents") or self._agents is None:
+            self._agents = AgentManager(self)
+        return self._agents
 
     @property
     def initial_budget(self):

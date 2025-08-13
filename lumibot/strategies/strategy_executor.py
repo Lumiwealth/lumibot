@@ -453,9 +453,22 @@ class StrategyExecutor(Thread):
 
     def _before_lifecycle_method(self):
         self.process_queue()
+        # Drain AI pending decisions before lifecycle methods on strategy thread
+        try:
+            if hasattr(self.strategy, "agents") and getattr(self.strategy, "_agents", None) is not None:
+                # In backtests, also let agents advance due ticks
+                self.strategy._agents.on_iteration()
+                self.strategy._agents.drain_pending()
+        except Exception:
+            pass
 
     def _after_lifecycle_method(self):
         self.process_queue()
+        try:
+            if hasattr(self.strategy, "agents") and getattr(self.strategy, "_agents", None) is not None:
+                self.strategy._agents.drain_pending()
+        except Exception:
+            pass
 
     @staticdecorator
     @staticmethod
@@ -526,6 +539,15 @@ class StrategyExecutor(Thread):
     def _initialize(self):
         self.strategy.log_message(f"Strategy {self.strategy._name} is initializing", color="green")
         self.strategy.log_message("Executing the initialize lifecycle method")
+
+        # Always print broker and data source at startup
+        try:
+            broker_name = getattr(getattr(self.strategy, 'broker', None), 'name', 'unknown')
+            data_source_obj = getattr(getattr(self.strategy, 'broker', None), 'data_source', None)
+            data_source_name = getattr(data_source_obj, 'SOURCE', None) or getattr(data_source_obj, 'name', 'unknown')
+            self.strategy.log_message(f"Broker: {broker_name} | Data source: {data_source_name}")
+        except Exception:
+            pass
 
         # Do this for backwards compatibility.
         initialize_argspecs = inspect.getfullargspec(self.strategy.initialize)

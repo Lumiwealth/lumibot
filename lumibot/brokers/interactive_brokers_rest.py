@@ -1,16 +1,18 @@
-import os
-
-from termcolor import colored
-from lumibot.tools.lumibot_logger import get_logger
-from ..brokers import Broker
-from ..entities import Order, Asset, Position
-from ..data_sources import InteractiveBrokersRESTData
 import datetime
-from decimal import Decimal
-from math import gcd
+import os
 import re
 import traceback
+from decimal import Decimal
+from math import gcd
 from typing import Union
+
+from termcolor import colored
+
+from lumibot.tools.lumibot_logger import get_logger
+
+from ..brokers import Broker
+from ..data_sources import InteractiveBrokersRESTData
+from ..entities import Asset, Order, Position
 from ..trading_builtins import PollingStream
 
 logger = get_logger(__name__)
@@ -77,8 +79,8 @@ class InteractiveBrokersREST(Broker):
             data_source = InteractiveBrokersRESTData(config)
 
         super().__init__(
-            name=self.NAME, 
-            data_source=data_source, 
+            name=self.NAME,
+            data_source=data_source,
             config=config
         )
 
@@ -314,7 +316,7 @@ class InteractiveBrokersREST(Broker):
 
         if parent_identifier is not None:
             order.parent_identifier=parent_identifier
-        
+
         if child_order_number:
             order.identifier = f'{parent_identifier}-{child_order_number}'
 
@@ -471,7 +473,7 @@ class InteractiveBrokersREST(Broker):
                     # Locate the square brackets and extract the option details part
                     start_idx = contract_desc.find('[')
                     end_idx = contract_desc.find(']', start_idx)
-                    
+
                     if start_idx == -1 or end_idx == -1:
                         logger.error(f"Brackets not found in contract description '{contract_desc}'. Expected format like '[SPY   241105P00562000 100]'.")
                         continue  # Skip if brackets are missing
@@ -480,13 +482,13 @@ class InteractiveBrokersREST(Broker):
                     bracket_content = contract_desc[start_idx + 1:end_idx].strip()
                     # Search for 6 digits, followed by 'C' or 'P', followed by 8 digits for strike
                     details_match = re.search(r'\d{6}[CP]\d{8}', bracket_content)
-                    
+
                     if not details_match:
                         logger.error(f"Expected option pattern not found in contract '{contract_desc}'.")
                         continue  # Skip if pattern does not match
 
-                    contract_details = details_match.group(0);
-                    
+                    contract_details = details_match.group(0)
+
                     # Parse components from the details
                     expiry_raw = contract_details[:6]      # First six digits (YYMMDD format)
                     right_raw = contract_details[6]        # Seventh character (C or P)
@@ -515,8 +517,8 @@ class InteractiveBrokersREST(Broker):
                     right = Asset.OptionRight.CALL if right_raw.upper() == "C" else Asset.OptionRight.PUT
 
                     # Extract the underlying symbol, assumed to be the first word in contract_desc
-                    underlying_asset_raw = contract_desc.split()[0];
-                    
+                    underlying_asset_raw = contract_desc.split()[0]
+
                     # Ensure underlying symbol is alphanumeric and non-empty
                     if not underlying_asset_raw.isalnum():
                         logger.error(f"Invalid underlying asset symbol '{underlying_asset_raw}' in '{contract_desc}'.")
@@ -540,7 +542,7 @@ class InteractiveBrokersREST(Broker):
 
                 except Exception as e:
                     logger.error(f"Error processing contract '{contract_desc}': {e}")
-                    
+
             elif asset_class == Asset.AssetType.FUTURE:
                 contract_details = self.data_source.get_contract_details(position['conid'])
 
@@ -708,7 +710,7 @@ class InteractiveBrokersREST(Broker):
                 msg = "Broker returned no response"
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                 return order
-            
+
             self._log_order_status(order, "executed", success=True)
 
             order.identifier = response[0]["order_id"]
@@ -720,8 +722,8 @@ class InteractiveBrokersREST(Broker):
             return order
 
         except Exception as e:
-            msg = colored(f"Error submitting order {order}: {e}", color="red")            
-            logger.error(colored(f"Error details:", "red"), exc_info=True)
+            msg = colored(f"Error submitting order {order}: {e}", color="red")
+            logger.error(colored("Error details:", "red"), exc_info=True)
             self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
             return order
 
@@ -816,7 +818,7 @@ class InteractiveBrokersREST(Broker):
             for order in orders:
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=e)
 
-            logger.error(colored(f"Error details:", "red"), exc_info=True)
+            logger.error(colored("Error details:", "red"), exc_info=True)
 
     def cancel_order(self, order: Order) -> None:
         self.data_source.delete_order(order)
@@ -910,7 +912,7 @@ class InteractiveBrokersREST(Broker):
                     f"An error occurred while processing the order: {str(e)}", "red"
                 )
             )
-            logger.error(colored(f"Error details:", "red"), exc_info=True)
+            logger.error(colored("Error details:", "red"), exc_info=True)
             return None
 
     def get_order_data_from_orders(self, orders: list[Order]):
@@ -1126,7 +1128,7 @@ class InteractiveBrokersREST(Broker):
         def on_trade_event_error(order, error_msg):
             # Log that the order had an error
             logger.error(f"Processing action for error order {order} | {error_msg}")
-                                                                         
+
             try:
                 if order.is_active():
                     broker._process_trade_event(
@@ -1166,7 +1168,7 @@ class InteractiveBrokersREST(Broker):
 
         for order_raw in raw_orders:
             order = self._parse_broker_order(order_raw, self._strategy_name)
-            
+
             # Process child orders first so they are tracked in the Lumi system
             all_orders = [child for child in order.child_orders] + [order]
 
@@ -1199,7 +1201,7 @@ class InteractiveBrokersREST(Broker):
                     stored_order.quantity = order.quantity
                     stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
                                     for o in order.child_orders]
-                    
+
                     if stored_children:
                         stored_order.child_orders = stored_children
 

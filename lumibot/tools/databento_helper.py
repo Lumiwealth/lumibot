@@ -7,7 +7,6 @@ from typing import Optional, List, Dict, Union
 from decimal import Decimal
 
 import pandas as pd
-import pandas_market_calendars as mcal
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 
@@ -393,8 +392,8 @@ def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep
     
     start_str = start.strftime('%Y%m%d')
     end_str = end.strftime('%Y%m%d')
-    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.feather"
-    
+    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
+
     return Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
 
 
@@ -402,7 +401,7 @@ def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
     """Load data from cache file"""
     try:
         if cache_file.exists():
-            df = pd.read_feather(cache_file)
+            df = pd.read_parquet(cache_file, engine='pyarrow')
             # Ensure datetime index
             if 'ts_event' in df.columns:
                 df.set_index('ts_event', inplace=True)
@@ -435,7 +434,8 @@ def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
         if isinstance(df_to_save.index, pd.DatetimeIndex):
             df_to_save.reset_index(inplace=True)
         
-        df_to_save.to_feather(cache_file)
+        # Save as parquet with compression
+        df_to_save.to_parquet(cache_file, engine='pyarrow', compression='snappy')
         logger.debug(f"Cached data saved to {cache_file}")
     except Exception as e:
         logger.warning(f"Error saving cache file {cache_file}: {e}")

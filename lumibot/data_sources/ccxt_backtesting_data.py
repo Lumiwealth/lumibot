@@ -1,17 +1,15 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any, Dict, Union
 
 import numpy as np
 import pytz
-from datetime import timedelta,datetime
-
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars
-
-from lumibot.tools import CcxtCacheDB
 from pandas import DataFrame
 
-from typing import Union, Any, Dict
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+from lumibot.data_sources import DataSourceBacktesting
+from lumibot.entities import Asset, Bars
+from lumibot.tools import CcxtCacheDB
 
 
 class CcxtBacktestingData(DataSourceBacktesting):
@@ -46,7 +44,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
 
     def _to_utc_timezone(self, dt:datetime)->datetime:
-        if not dt.tzinfo is None:
+        if dt.tzinfo is not None:
             dt = dt.astimezone(pytz.utc)
         else:
             dt = pytz.utc.localize(dt)

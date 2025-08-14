@@ -1,8 +1,9 @@
 import datetime as dt
+
 import pytz
 
-from lumibot.strategies.strategy import Strategy
 from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.strategies.strategy import Strategy
 
 """
 Strategy Description

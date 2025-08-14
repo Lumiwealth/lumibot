@@ -3,11 +3,12 @@ from decimal import Decimal
 from typing import Union
 
 import numpy
+import pandas as pd
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
 from lumibot.tools import YahooHelper
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,10 +22,10 @@ class YahooData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1m", "1 minute"]},
     ]
 
-    def __init__(self, *args, auto_adjust=False, datetime_start=None, datetime_end=None, **kwargs):
+    def __init__(self, auto_adjust=False, datetime_start=None, datetime_end=None, **kwargs):
         # Log received parameters BEFORE applying defaults
         logger.info(f"YahooData.__init__ received: datetime_start={datetime_start}, datetime_end={datetime_end}")
-        
+
         # Set default date range if not provided
         if datetime_start is None:
             logger.info("YahooData.__init__: datetime_start is None, using default.")
@@ -32,15 +33,18 @@ class YahooData(DataSourceBacktesting):
         if datetime_end is None:
             logger.info("YahooData.__init__: datetime_end is None, using default.")
             datetime_end = datetime.now()
-            
+
         # Log the dates being passed to super().__init__
         logger.info(f"YahooData.__init__ calling super().__init__ with: datetime_start={datetime_start}, datetime_end={datetime_end}")
-        
+
         # Pass datetime_start and datetime_end as keyword arguments only, not as positional args
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, **kwargs)
         self.name = "yahoo"
         self.auto_adjust = auto_adjust
         self._data_store = {}
+        # Initialize last-price cache here to avoid per-call hasattr checks
+        self._last_price_cache = {}
+        self._last_price_cache_datetime = None
 
     def _append_data(self, asset, data):
         """
@@ -96,54 +100,54 @@ class YahooData(DataSourceBacktesting):
         # Strip any $ prefix if present (sometimes used in futures symbols)
         if symbol.startswith('$'):
             symbol = symbol[1:]
-        
+
         formatted_symbols = []
-        
+
         # If already contains a dot (like ESZ23.CME), it's likely already properly formatted
         if '.' in symbol:
             # Already has exchange suffix, keep as is
             formatted_symbols.append(symbol)
-            
+
             # Also try continuous contract (extract root symbol and add =F)
             parts = symbol.split('.')
             base_symbol = parts[0]
             # Extract root symbol (usually first 2 characters for most futures)
             root_symbol = ''.join([c for c in base_symbol if c.isalpha()])[:2]
             formatted_symbols.append(f"{root_symbol}=F")
-            
+
         # If it has =F already, it's formatted for continuous contract
         elif '=F' in symbol:
             formatted_symbols.append(symbol)
-            
+
         # No special formatting, try to determine if it's a specific contract or continuous
         else:
             # Check if it looks like a specific contract (e.g., ESH25)
             # Extract letters (should be root symbol + month code) and numbers (year)
             letters = ''.join([c for c in symbol if c.isalpha()])
             numbers = ''.join([c for c in symbol if c.isdigit()])
-            
+
             # If it follows pattern of root + month code + year digits
             if len(letters) >= 3 and len(numbers) >= 1:
                 # This looks like a specific contract, try both with and without exchange
                 root_symbol = letters[:2]  # First two letters usually the root
-                
+
                 # Add with common exchanges
                 for exchange in ['CME', 'NYMEX', 'CBOT', 'COMEX', 'NYBOT']:
                     formatted_symbols.append(f"{symbol}.{exchange}")
-                
+
                 # Also try as continuous
                 formatted_symbols.append(f"{root_symbol}=F")
-                
+
                 # Add original as fallback
                 formatted_symbols.append(symbol)
             else:
                 # Looks like a root symbol, try as continuous
                 formatted_symbols.append(f"{symbol}=F")
                 formatted_symbols.append(symbol)
-        
+
         # Log the potential symbols we'll try
         logger.info(f"Trying futures symbols for Yahoo Finance: {formatted_symbols}")
-        
+
         return formatted_symbols
 
     def _format_index_symbol(self, symbol):
@@ -167,7 +171,7 @@ class YahooData(DataSourceBacktesting):
             A list of properly formatted index symbols to try in order of preference
         """
         formatted_symbols = []
-        
+
         # If already has ^ prefix, keep as is
         if symbol.startswith('^'):
             formatted_symbols.append(symbol)
@@ -178,10 +182,10 @@ class YahooData(DataSourceBacktesting):
             formatted_symbols.append(f"^{symbol}")
             # Also try original symbol as fallback
             formatted_symbols.append(symbol)
-        
+
         # Log the potential symbols we'll try
         logger.info(f"Trying index symbols for Yahoo Finance: {formatted_symbols}")
-        
+
         return formatted_symbols
 
     def _pull_source_symbol_bars(
@@ -189,7 +193,7 @@ class YahooData(DataSourceBacktesting):
     ):
         # Log the current backtest datetime being processed
         logger.info(f"Inside _pull_source_symbol_bars for {asset.symbol}: self._datetime = {self._datetime}, requesting length {length}")
-        
+
         if exchange is not None:
             logger.warning(
                 f"the exchange parameter is not implemented for YahooData, but {exchange} was passed as the exchange"
@@ -199,11 +203,11 @@ class YahooData(DataSourceBacktesting):
             logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
         interval = self._parse_source_timestep(timestep, reverse=True)
-        
+
         # Check if the asset is a futures contract or index and format the symbol accordingly
         symbol = asset.symbol
         symbols_to_try = [symbol]  # Default to just trying the original symbol
-        
+
         if asset.asset_type == 'futures' or getattr(asset, 'asset_type', None) == Asset.AssetType.FUTURE:
             symbols_to_try = self._format_futures_symbol(symbol)
             if not isinstance(symbols_to_try, list):
@@ -212,14 +216,14 @@ class YahooData(DataSourceBacktesting):
             symbols_to_try = self._format_index_symbol(symbol)
             if not isinstance(symbols_to_try, list):
                 symbols_to_try = [symbols_to_try]
-        
+
         if asset in self._data_store:
             data = self._data_store[asset]
         else:
             # Try each symbol format until we get data
             data = None
             successful_symbol = None
-            
+
             for sym in symbols_to_try:
                 logger.info(f"Attempting to fetch data for symbol: {sym}")
                 try:
@@ -240,16 +244,16 @@ class YahooData(DataSourceBacktesting):
                     import traceback
                     traceback.print_exc()
 
-                
-            
+
+
             if data is None or data.shape[0] == 0:
                 # Use self.datetime_start and self.datetime_end in the error message for clarity
                 message = f"{self.SOURCE} did not return data for symbol {asset.symbol}. Tried: {symbols_to_try}. Make sure this symbol is valid and data exists for the period {self.datetime_start} to {self.datetime_end}."
                 logger.error(message)
                 return None
-                
+
             data = self._append_data(asset, data)
-            
+
             # Update the asset symbol to the successful one for future reference
             if successful_symbol and successful_symbol != asset.symbol:
                 logger.info(f"Updating asset symbol from {asset.symbol} to successful format: {successful_symbol}")
@@ -274,18 +278,35 @@ class YahooData(DataSourceBacktesting):
                 timeshift = timedelta(days=timeshift)
             end_filter = end_filter - timeshift
 
-        # Filter the data store. Use '<' to get data strictly before the end_filter.
-        result_data = data[data.index < end_filter]
+        # OPTIMIZED: Use searchsorted for O(log n) filtering instead of expensive boolean indexing
+        index_array = data.index.values  # Get numpy array for fast operations
 
-        # Log if insufficient data is available before taking the tail
-        if len(result_data) < length:
+        # Convert end_filter to numpy datetime64 for comparison
+        if hasattr(end_filter, 'to_numpy'):
+            end_filter_np = end_filter.to_numpy()
+        elif hasattr(end_filter, 'asm8'):  # pandas Timestamp
+            end_filter_np = end_filter.asm8
+        else:
+            # Convert datetime to pandas Timestamp first, then to numpy
+            end_filter_np = pd.Timestamp(end_filter).asm8
+
+        # Find the insertion point for end_filter (first position where index >= end_filter)
+        end_idx = index_array.searchsorted(end_filter_np, side='left')
+
+        # Calculate start index for the requested length
+        start_idx = max(0, end_idx - length)
+
+        # Use iloc for fast integer-based slicing (much faster than boolean indexing)
+        result = data.iloc[start_idx:end_idx].copy()
+
+        # Log if insufficient data is available
+        if len(result) < length:
             logger.warning(
                 f"Insufficient historical data for {asset.symbol} before {end_filter} "
-                f"to satisfy length {length}. Available: {len(result_data)}. "
+                f"to satisfy length {length}. Available: {len(result)}. "
                 f"Check backtest start date and data availability."
             )
 
-        result = result_data.tail(length)
         return result
 
     def _pull_source_bars(
@@ -298,7 +319,7 @@ class YahooData(DataSourceBacktesting):
 
         interval = self._parse_source_timestep(timestep, reverse=True)
         missing_assets = []
-        
+
         # Check for futures and index symbols and properly format them
         for asset in assets:
             if asset not in self._data_store:
@@ -314,8 +335,8 @@ class YahooData(DataSourceBacktesting):
         if missing_assets:
             # Fetch data using the helper without restricting dates here
             dfs = YahooHelper.get_symbols_data(
-                missing_assets, 
-                interval=interval, 
+                missing_assets,
+                interval=interval,
                 auto_adjust=self.auto_adjust
             )
             for symbol, df in dfs.items():
@@ -326,7 +347,7 @@ class YahooData(DataSourceBacktesting):
                         asset_symbol = self._format_futures_symbol(asset_symbol)
                     elif asset.asset_type == Asset.AssetType.INDEX:
                         asset_symbol = self._format_index_symbol(asset_symbol)
-                    
+
                     if asset_symbol == symbol:
                         self._append_data(asset, df)
                         break
@@ -347,6 +368,19 @@ class YahooData(DataSourceBacktesting):
         """Takes an asset and returns the last known price"""
         if timestep is None:
             timestep = self.get_timestep()
+
+        # OPTIMIZATION: Cache last price lookups to avoid redundant get_historical_prices calls
+        current_datetime = self._datetime
+        cache_key = (asset, timestep, quote, exchange, current_datetime)
+
+        # Clear cache if datetime changed
+        if self._last_price_cache_datetime != current_datetime:
+            self._last_price_cache.clear()
+            self._last_price_cache_datetime = current_datetime
+
+        # Check cache first
+        if cache_key in self._last_price_cache:
+            return self._last_price_cache[cache_key]
 
         # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
         bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1))

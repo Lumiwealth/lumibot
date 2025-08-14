@@ -47,7 +47,7 @@ class FuturesHoldToExpiry(Strategy):
                 10,
                 "buy_to_open",
             )
-            
+
             # Submit order
             self.submit_order(order)
 

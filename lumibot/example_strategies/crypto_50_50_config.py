@@ -1,13 +1,7 @@
-from datetime import datetime
-import logging
 from decimal import Decimal
 
-from lumibot.credentials import broker
-from lumibot.backtesting import YahooDataBacktesting
-from lumibot.brokers import Alpaca
-from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
-from lumibot.entities import Order, Asset
+from lumibot.entities import Asset, Order
 
 parameters = {
     "market": "24/7",

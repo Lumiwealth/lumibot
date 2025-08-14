@@ -1,8 +1,6 @@
 import logging
 import queue
 from queue import Queue
-from threading import Thread
-
 
 class CustomStream:
 

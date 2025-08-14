@@ -1,4 +1,3 @@
-import warnings
 from decimal import Decimal
 
 

@@ -3,7 +3,8 @@ from decimal import Decimal
 from typing import Union
 
 import pandas as pd
-from lumibot import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -284,37 +285,47 @@ class Data:
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
     def repair_times_and_fill(self, idx):
-        # Trim the global index so that it is within the local data.
-        idx = idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
-        
-        # Ensure that the DataFrame's index is unique by dropping duplicate timestamps.
-        self.df = self.df[~self.df.index.duplicated(keep='first')]
-        
+        # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
+        # Replace: idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
+        start_pos = idx.searchsorted(self.datetime_start, side='left')
+        end_pos = idx.searchsorted(self.datetime_end, side='right')
+        idx = idx[start_pos:end_pos]
+
+        # OPTIMIZATION: More efficient duplicate removal
+        if self.df.index.has_duplicates:
+            self.df = self.df[~self.df.index.duplicated(keep='first')]
+
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = self.df.reindex(idx, method="ffill")
-        
+
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
             df.loc[df["volume"].isna(), "volume"] = 0
         else:
             df["volume"] = None
 
-        # Forward fill all columns except for open, high, and low.
-        df.loc[:, ~df.columns.isin(["open", "high", "low"])] = df.loc[
-            :, ~df.columns.isin(["open", "high", "low"])
-        ].ffill()
+        # OPTIMIZATION: More efficient column selection and forward fill
+        ohlc_cols = ["open", "high", "low"]
+        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols]
+        if non_ohlc_cols:
+            df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:
             if col not in df.columns:
                 df[col] = None
 
-        # If there are any NaNs in open, high, or low, fill them with the close value.
-        for col in ["open", "high", "low"]:
-            try:
-                df.loc[df[col].isna(), col] = df.loc[df[col].isna(), "close"]
-            except Exception as e:
-                logger.error(f"Error filling {col} column: {e}")
+        # OPTIMIZATION: Vectorized NaN filling for OHLC columns
+        if "close" in df.columns:
+            for col in ["open", "high", "low"]:
+                if col in df.columns:
+                    try:
+                        # More efficient: compute mask once, use where
+                        mask = df[col].isna()
+                        if mask.any():
+                            df[col] = df[col].where(~mask, df["close"])
+                    except Exception as e:
+                        logger.error(f"Error filling {col} column: {e}")
 
         self.df = df
 
@@ -338,7 +349,7 @@ class Data:
                 )
             }
         )
-        setattr(self, "datetime", self.datalines["datetime"].dataline)
+        self.datetime = self.datalines["datetime"].dataline
 
         for column in self.df.columns:
             self.datalines.update(
@@ -471,7 +482,7 @@ class Data:
             raise ValueError(
                 f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: open, high, low, close, and volume. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source."
             )
-        
+
         # Check if this data object has bid and ask
         if not all(
             [

@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Bars
+from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 

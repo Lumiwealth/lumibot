@@ -17,12 +17,12 @@ class StrEnum(str, Enum):
     """
     def __str__(self):
         return self.value
-        
+
     def __eq__(self, other):
         if isinstance(other, str):
             return self.value == other
         return super().__eq__(other)
-    
+
     def __hash__(self):
         # Use the hash of the enum member, not the string value
         # This ensures proper hashability while maintaining enum identity
@@ -150,7 +150,7 @@ class Asset:
         CRYPTO = "crypto" # Crypto
         INDEX = "index" # Index
         MULTILEG = "multileg" # Multileg option
-    
+
     class AutoExpiry(StrEnum):
         FRONT_MONTH = "front_month" # Front month (nearest quarterly expiry)
         NEXT_QUARTER = "next_quarter" # Next quarterly expiry (same as front month for quarterly contracts)
@@ -317,13 +317,22 @@ class Asset:
         if not isinstance(other, Asset):
             return False
 
+        # Optimize: Check symbol first as it's most likely to differ
+        # This avoids expensive enum comparisons when symbols don't match
+        if self.symbol != other.symbol:
+            return False
+
+        # Only check other attributes if symbols match
         return (
-            self.symbol == other.symbol
-            and self.asset_type == other.asset_type
+            self.asset_type == other.asset_type
             and self.expiration == other.expiration
             and self.strike == other.strike
             and self.right == other.right
         )
+
+    def __hash__(self):
+        """Make Asset hashable for use in sets and dicts."""
+        return hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right))
 
     def asset_type_must_be_one_of(self, v):
         # TODO: check if this works!
@@ -384,7 +393,7 @@ class Asset:
             "precision": self.precision,
             "underlying_asset": self.underlying_asset.to_dict() if self.underlying_asset else None,
         }
-    
+
     @classmethod
     def from_dict(cls, data):
         return cls(
@@ -413,10 +422,10 @@ class Asset:
         datetime.date
             The calculated expiry date
         """
-        from datetime import date, datetime, timedelta
-        
+        from datetime import date
+
         current_date = date.today()
-        
+
         # Handle different auto_expiry options
         if auto_expiry in [True, Asset.AutoExpiry.AUTO, Asset.AutoExpiry.FRONT_MONTH]:
             return self._get_front_month_expiry(current_date)
@@ -425,33 +434,33 @@ class Asset:
         else:
             # Default to front month if unrecognized option
             return self._get_front_month_expiry(current_date)
-    
+
     def _get_front_month_expiry(self, current_date):
         """Get the front month (nearest) futures expiry"""
         # Standard futures expiry: 3rd Friday of the month
         # For active months, use quarterly cycle: Mar, Jun, Sep, Dec
         quarterly_months = [3, 6, 9, 12]
-        
+
         current_year = current_date.year
         current_month = current_date.month
-        
+
         # Find the next quarterly month
         target_month = None
         target_year = current_year
-        
+
         for month in quarterly_months:
             if month >= current_month:
                 target_month = month
                 break
-        
+
         # If no month found in current year, use March of next year
         if target_month is None:
             target_month = 3
             target_year += 1
-        
+
         # Calculate 3rd Friday of the target month
         third_friday = self._get_third_friday(target_year, target_month)
-        
+
         # If we're in the expiry month and past the 3rd Friday, move to next quarter
         if target_year == current_year and target_month == current_month and current_date >= third_friday:
             next_quarter_idx = (quarterly_months.index(target_month) + 1) % len(quarterly_months)
@@ -461,32 +470,32 @@ class Asset:
             else:
                 target_month = quarterly_months[next_quarter_idx]
             third_friday = self._get_third_friday(target_year, target_month)
-        
+
         return third_friday
-    
+
     def _get_next_quarterly_expiry(self, current_date):
         """Get the next quarterly expiry (Mar, Jun, Sep, Dec)"""
         # This is the same as front month for most futures since they follow quarterly cycles
         return self._get_front_month_expiry(current_date)
-    
+
     def _get_third_friday(self, year, month):
         """Calculate the 3rd Friday of a given month/year"""
         from datetime import date, timedelta
-        
+
         # Start with the first day of the month
         first_day = date(year, month, 1)
-        
+
         # Find the first Friday
         days_until_friday = (4 - first_day.weekday()) % 7  # Friday is day 4
         first_friday = first_day + timedelta(days=days_until_friday)
-        
+
         # Add 14 days to get the third Friday
         third_friday = first_friday + timedelta(days=14)
-        
+
         return third_friday
 
     # ========== Continuous Futures Resolution Methods ==========
-    
+
     def resolve_continuous_futures_contract(self, reference_date: datetime = None) -> str:
         """
         Resolve a continuous futures asset to a specific contract symbol.
@@ -511,9 +520,9 @@ class Asset:
         """
         if self.asset_type != self.AssetType.CONT_FUTURE:
             raise ValueError(f"resolve_continuous_futures_contract() can only be called on CONT_FUTURE assets, got {self.asset_type}")
-        
+
         return self._generate_current_futures_contract(reference_date)
-    
+
     def get_potential_futures_contracts(self) -> list:
         """
         Get a list of potential futures contracts in order of preference.
@@ -533,9 +542,9 @@ class Asset:
         """
         if self.asset_type != self.AssetType.CONT_FUTURE:
             raise ValueError(f"get_potential_futures_contracts() can only be called on CONT_FUTURE assets, got {self.asset_type}")
-        
+
         return self._generate_potential_contracts()
-    
+
     def _generate_current_futures_contract(self, reference_date: datetime = None) -> str:
         """
         Generate the most appropriate futures contract for the given date.
@@ -550,25 +559,25 @@ class Asset:
         str
             Contract symbol (e.g., 'MESU25')
         """
-        from datetime import datetime, timedelta
-        
+        from datetime import datetime
+
         month_codes = {
             1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
             7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
         }
-        
+
         if reference_date is None:
             reference_date = datetime.now()
-        
+
         current_month = reference_date.month
         current_year = reference_date.year
         current_day = reference_date.day
-        
+
         # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
         # Futures contracts typically expire on the 3rd Friday of the contract month
         # For safety, we roll to the next contract around the 15th of the expiry month
         # This prevents using expired contracts
-        
+
         # Determine target quarter based on current date and expiration logic
         if current_month == 12 and current_day >= 15:
             # Mid-December onwards, December contract has expired, use March
@@ -598,23 +607,23 @@ class Asset:
         else:  # Jan-Feb, use March
             target_month = 3
             target_year = current_year
-        
+
         month_code = month_codes.get(target_month, 'U')  # Default to September
         year_code = target_year % 100
-        
+
         contract = f"{self.symbol}{month_code}{year_code:02d}"
-        
+
         # Add warning for old contracts (more than 6 months old)
         contract_date = datetime(target_year, target_month, 1)
         months_old = ((reference_date.year - target_year) * 12 + (reference_date.month - target_month))
-        
+
         if months_old > 6:
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f"⚠️ FUTURES CONTRACT WARNING: Resolved {self.symbol} continuous future to {contract} which is {months_old} months old (target date: {target_year}-{target_month:02d}). This contract may be expired or have limited data availability. Consider using a more recent time period for backtesting.")
-        
+
         return contract
-    
+
     def _generate_potential_contracts(self) -> list:
         """
         Generate potential contract symbols in order of preference.
@@ -625,18 +634,18 @@ class Asset:
             List of contract symbols
         """
         from datetime import datetime
-        
+
         month_codes = {
             1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
             7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
         }
-        
+
         now = datetime.now()
         current_year = now.year
         current_month = now.month
-        
+
         potential_contracts = []
-        
+
         # Generate quarterly contracts based on current month
         if current_month >= 10:  # October onwards, use Dec, then Mar
             target_quarters = [
@@ -662,41 +671,41 @@ class Asset:
                 (9, current_year),      # September this year
                 (12, current_year),     # December this year
             ]
-        
+
         # Generate quarterly contract symbols in multiple formats
         for month, year in target_quarters:
             month_code = month_codes.get(month, 'Z')
             year_code = year % 100
-            
+
             # Format 1: Standard futures format (MESZ25)
             contract1 = f"{self.symbol}{month_code}{year_code:02d}"
             potential_contracts.append(contract1)
-            
+
             # Format 2: With dot separator (MES.Z25) - some platforms use this
             contract2 = f"{self.symbol}.{month_code}{year_code:02d}"
             potential_contracts.append(contract2)
-            
+
             # Format 3: Full year format (MESZ2025) - some platforms use this
             contract3 = f"{self.symbol}{month_code}{year}"
             potential_contracts.append(contract3)
-        
+
         # Also add some monthly contracts as backup
         for month_offset in range(1, 4):  # Next 3 months
             target_month = current_month + month_offset
             target_year = current_year
-            
+
             # Handle year rollover
             while target_month > 12:
                 target_month -= 12
                 target_year += 1
-            
+
             month_code = month_codes.get(target_month, 'H')
             year_code = target_year % 100
-            
+
             contract = f"{self.symbol}{month_code}{year_code:02d}"
             if contract not in potential_contracts:  # Avoid duplicates
                 potential_contracts.append(contract)
-        
+
         # Remove duplicates while preserving order
         seen = set()
         unique_contracts = []
@@ -704,7 +713,7 @@ class Asset:
             if contract not in seen:
                 seen.add(contract)
                 unique_contracts.append(contract)
-        
+
         return unique_contracts
 
 

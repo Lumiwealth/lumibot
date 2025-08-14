@@ -1,8 +1,8 @@
 from datetime import datetime
 
+from lumibot.credentials import IS_BACKTESTING
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
-from lumibot.credentials import IS_BACKTESTING
 
 """
 Strategy Description
@@ -58,7 +58,7 @@ class FuturesHoldToExpiry(Strategy):
                 1,
                 "buy_to_open",
             )
-            
+
             # Submit order
             self.submit_order(order)
 

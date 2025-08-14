@@ -1,14 +1,16 @@
 import traceback
+from collections import OrderedDict
 from datetime import timedelta
 from decimal import Decimal
 from typing import Union
 
+import polars as pl
 import pytz
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import CustomStream
 
 logger = get_logger(__name__)
@@ -29,8 +31,87 @@ class BacktestingBroker(Broker):
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
         # self._config = config
 
-        if not isinstance(self.data_source, DataSourceBacktesting):
+        # Check if data source is a backtesting data source
+        if not (isinstance(self.data_source, DataSourceBacktesting) or
+                (hasattr(self.data_source, 'IS_BACKTESTING_DATA_SOURCE') and
+                 self.data_source.IS_BACKTESTING_DATA_SOURCE)):
             raise ValueError("Must provide a backtesting data_source to run with a BacktestingBroker")
+
+        # Market session caching for performance optimization
+        self._market_session_cache = OrderedDict()  # LRU-style cache
+        self._cache_max_size = 500
+
+        # Simple day-based session dict for O(1) lookup
+        self._daily_sessions = {}  # {date: [(start, end), ...]}
+        self._sessions_built = False
+
+        # Prefetchers (optional). Some builds/tests won't configure these.
+        # Initialize to None so attribute checks are safe in processing code.
+        self.prefetcher = None
+        self.hybrid_prefetcher = None
+        self._last_cache_clear = None
+        # Market open lookup cache (populated when calendars are initialized)
+        self._market_open_cache = {}
+    def initialize_market_calendars(self, trading_days_df):
+        """Initialize trading calendar and eagerly build caches for backtesting."""
+        super().initialize_market_calendars(trading_days_df)
+        # Prepare caches when calendar is set
+        self._market_open_cache = {}
+        self._daily_sessions = {}
+        self._sessions_built = False
+        if self._trading_days is None or len(self._trading_days) == 0:
+            return
+        self._market_open_cache = self._trading_days['market_open'].to_dict()
+        for close_time in self._trading_days.index:
+            open_time = self._market_open_cache[close_time]
+            for dt in (open_time, close_time):
+                day = dt.date()
+                sess = (open_time, close_time)
+                self._daily_sessions.setdefault(day, [])
+                if sess not in self._daily_sessions[day]:
+                    self._daily_sessions[day].append(sess)
+        self._sessions_built = True
+
+    def _build_daily_sessions(self):
+        """Build day-based session dict for fast O(1) day lookup."""
+        if (
+            self._trading_days is None or
+            len(self._trading_days) == 0 or
+            self._sessions_built
+        ):
+            return
+
+        # Optimize: Convert market_open column to dict once to avoid many .at calls
+        if not self._market_open_cache:
+            self._market_open_cache = self._trading_days['market_open'].to_dict()
+
+        # Group sessions by day for fast lookup
+        for close_time in self._trading_days.index:
+            open_time = self._market_open_cache[close_time]
+
+            # Add to both days the session might span
+            for dt in [open_time, close_time]:
+                day = dt.date()
+                if day not in self._daily_sessions:
+                    self._daily_sessions[day] = []
+                if (open_time, close_time) not in self._daily_sessions[day]:
+                    self._daily_sessions[day].append((open_time, close_time))
+
+        self._sessions_built = True
+
+    def _is_market_open_dict(self, now):
+        """Fast O(1) day lookup then check few sessions."""
+        if not self._sessions_built:
+            self._build_daily_sessions()
+
+        # O(1) lookup by day, then check just a few sessions
+        day = now.date()
+        sessions = self._daily_sessions.get(day, [])
+
+        for start, end in sessions:
+            if start <= now < end:
+                return True
+        return False
 
     @property
     def datetime(self):
@@ -94,40 +175,23 @@ class BacktestingBroker(Broker):
         if self.market == "24/7":
             return True
 
-        # For ANY market, check both today's and tomorrow's sessions since trading sessions 
-        # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
-        # crypto sessions, international markets, etc.)
-        
-        # First try to find today's session
-        idx_today = self._trading_days.index.searchsorted(now, side='right')
-        
-        if idx_today < len(self._trading_days):
-            market_close_today = self._trading_days.index[idx_today]
-            market_open_today = self._trading_days.at[market_close_today, 'market_open']
-            
-            if market_open_today <= now < market_close_today:
-                return True
-        
-        # If not in today's session, check tomorrow's session (might have started today)
-        idx_tomorrow = idx_today + 1 if idx_today < len(self._trading_days) else len(self._trading_days)
-        
-        if idx_tomorrow < len(self._trading_days):
-            market_close_tomorrow = self._trading_days.index[idx_tomorrow]
-            market_open_tomorrow = self._trading_days.at[market_close_tomorrow, 'market_open']
-            
-            if market_open_tomorrow <= now < market_close_tomorrow:
-                return True
-        
-        # Also check if we should look at yesterday's session that might extend to today
-        if idx_today > 0:
-            idx_yesterday = idx_today - 1
-            market_close_yesterday = self._trading_days.index[idx_yesterday]
-            market_open_yesterday = self._trading_days.at[market_close_yesterday, 'market_open']
-            
-            if market_open_yesterday <= now < market_close_yesterday:
-                return True
-        
-        return False
+        # Simple, fast cache with timestamp key
+        cache_key = int(now.timestamp() * 1000)
+
+        # Check cache first
+        if cache_key in self._market_session_cache:
+            self._market_session_cache.move_to_end(cache_key)
+            return self._market_session_cache[cache_key]
+
+        # Use fast day-based dict lookup
+        result = self._is_market_open_dict(now)
+
+        # Cache result with LRU eviction
+        self._market_session_cache[cache_key] = result
+        if len(self._market_session_cache) > self._cache_max_size:
+            self._market_session_cache.popitem(last=False)
+
+        return result
 
     def _get_next_trading_day(self):
         now = self.datetime
@@ -177,7 +241,11 @@ class BacktestingBroker(Broker):
 
         # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
-        market_open = self._trading_days.at[market_close_time, 'market_open']
+        # Use cached dict instead of .at for performance; cache should be ready from initialization
+        if not self._market_open_cache:
+            # Safety: rebuild via centralized path rather than inline logic
+            self.initialize_market_calendars(self._trading_days.reset_index())
+        market_open = self._market_open_cache[market_close_time]
         market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
         # If we're before the market opens for the found trading day,
@@ -196,7 +264,7 @@ class BacktestingBroker(Broker):
         self.process_pending_orders(strategy=strategy)
 
         time_to_open = self.get_time_to_open()
-        
+
         # If None is returned, it means we've reached the end of available trading days
         if time_to_open is None:
             logger.info("Backtesting reached end of available trading days data")
@@ -715,16 +783,98 @@ class BacktestingBroker(Broker):
         # Process expired contracts.
         self.process_expired_option_contracts(strategy)
 
-        pending_orders = [
-            order for order in self.get_tracked_orders(strategy.name) if order.status in ["unprocessed", "new"]
-        ]
+        # OPTIMIZATION: Get orders only once per list to minimize lock acquisitions
+        # This function is called 179k times
+        strategy_name = strategy.name
+        pending_orders = []
+
+        # Get unprocessed orders once with single lock acquisition
+        if hasattr(self, '_unprocessed_orders'):
+            unprocessed = self._unprocessed_orders.get_list()  # One lock acquisition
+            # Use list comprehension which is faster than extend with filter
+            pending_orders.extend([o for o in unprocessed if o.strategy == strategy_name])
+
+        # Get new orders once with single lock acquisition
+        if hasattr(self, '_new_orders'):
+            new_orders = self._new_orders.get_list()  # One lock acquisition
+            pending_orders.extend([o for o in new_orders if o.strategy == strategy_name])
 
         if len(pending_orders) == 0:
             return
 
+        # Prefetching: Track assets and schedule prefetch
+        current_dt = self.datetime
+
+        if self.hybrid_prefetcher:
+            # Use advanced hybrid prefetcher
+            try:
+                import asyncio
+
+                # Record access patterns for all pending orders
+                for order in pending_orders:
+                    asset = order.asset if order.asset.asset_type != "crypto" else order.asset
+                    timestep = getattr(strategy, 'timestep', 'minute')
+                    lookback = getattr(strategy, 'bars_lookback', 100)
+
+                    # Record this access for pattern learning
+                    self.hybrid_prefetcher.record_access(asset, current_dt, timestep, lookback)
+
+                # Get predictions and prefetch
+                predictions = self.hybrid_prefetcher.get_predictions(current_dt, horizon=30)
+
+                # Execute prefetch asynchronously if possible
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(self.hybrid_prefetcher.prefetch_parallel(predictions))
+                    else:
+                        loop.run_until_complete(self.hybrid_prefetcher.prefetch_parallel(predictions))
+                except:
+                    # Fall back to sync if async not available
+                    pass
+
+                # Periodic cleanup
+                if hasattr(self, '_last_cache_clear'):
+                    if (current_dt - self._last_cache_clear).days > 1:
+                        self.hybrid_prefetcher.cleanup(max_age_hours=48)
+                        self._last_cache_clear = current_dt
+                        # Log stats
+                        stats = self.hybrid_prefetcher.get_stats()
+                        logger.debug(f"Hybrid prefetch stats: {stats}")
+                else:
+                    self._last_cache_clear = current_dt
+
+            except Exception as e:
+                logger.debug(f"Hybrid prefetching error (non-critical): {e}")
+
+        elif self.prefetcher:
+            # Use standard aggressive prefetcher
+            try:
+                # Track all assets from pending orders
+                for order in pending_orders:
+                    asset = order.asset if order.asset.asset_type != "crypto" else order.asset
+                    timestep = getattr(strategy, 'timestep', 'minute')
+                    lookback = getattr(strategy, 'bars_lookback', 100)
+                    self.prefetcher.track_asset(asset, timestep=timestep, lookback=lookback)
+
+                # Schedule aggressive prefetch for future iterations
+                self.prefetcher.schedule_prefetch(current_dt)
+
+                # Clear old cache periodically to prevent memory bloat
+                if hasattr(self, '_last_cache_clear'):
+                    if (current_dt - self._last_cache_clear).days > 1:
+                        self.prefetcher.clear_old_cache(current_dt, max_age_days=3)
+                        self._last_cache_clear = current_dt
+                else:
+                    self._last_cache_clear = current_dt
+
+            except Exception as e:
+                logger.debug(f"Standard prefetching error (non-critical): {e}")
+
         for order in pending_orders:
-            if order.dependent_order_filled or order.status == self.CANCELED_ORDER:
+            if order.dependent_order_filled:
                 continue
+            # No need to check status since we already filtered for pending orders only
 
             # OCO parent orders do not get filled
             if order.order_class == Order.OrderClass.OCO:
@@ -761,9 +911,9 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
-            if data_source_name in ["CCXT", "YAHOO", "ALPACA"]:
-                if data_source_name in ["CCXT", "ALPACA"]:
-                    # If we're using the CCXT or Alpaca data source, we don't need to timeshift the data.
+            if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO"]:
+                if data_source_name in ["CCXT", "ALPACA", "DATABENTO"]:
+                    # If we're using the CCXT, Alpaca, or DataBento data source, we don't need to timeshift the data.
                     # We fill at the open price of the current bar.
                     timeshift = None
                 else:
@@ -780,12 +930,26 @@ class BacktestingBroker(Broker):
                     timeshift=timeshift,
                 )
 
-                dt = ohlc.df.index[-1]
-                open = ohlc.df['open'].iloc[-1]
-                high = ohlc.df['high'].iloc[-1]
-                low = ohlc.df['low'].iloc[-1]
-                close = ohlc.df['close'].iloc[-1]
-                volume = ohlc.df['volume'].iloc[-1]
+                # Handle both pandas and polars DataFrames
+                if hasattr(ohlc.df, 'index'):  # pandas
+                    dt = ohlc.df.index[-1]
+                    open = ohlc.df['open'].iloc[-1]
+                    high = ohlc.df['high'].iloc[-1]
+                    low = ohlc.df['low'].iloc[-1]
+                    close = ohlc.df['close'].iloc[-1]
+                    volume = ohlc.df['volume'].iloc[-1]
+                else:  # polars
+                    # Find datetime column
+                    dt_cols = [col for col in ohlc.df.columns if 'date' in col.lower() or 'time' in col.lower()]
+                    if dt_cols:
+                        dt = ohlc.df[dt_cols[0]][-1]
+                    else:
+                        dt = None
+                    open = ohlc.df['open'][-1]
+                    high = ohlc.df['high'][-1]
+                    low = ohlc.df['low'][-1]
+                    close = ohlc.df['close'][-1]
+                    volume = ohlc.df['volume'][-1]
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
@@ -798,26 +962,52 @@ class BacktestingBroker(Broker):
                     timestep=self.data_source._timestep,
                 )
                 # Check if we got any ohlc data
-                if ohlc is None or ohlc.df.empty:
+                if ohlc is None or ohlc.empty:
                     self.cancel_order(order)
                     continue
 
                 df_original = ohlc.df
 
-                # # Make sure that we are only getting the prices for the current time exactly or in the future
-                df = df_original[df_original.index >= self.datetime]
+                # Handle both pandas and polars DataFrames
+                if hasattr(df_original, 'select'):  # Polars DataFrame
+                    # Find datetime column
+                    dt_col = None
+                    for col in df_original.columns:
+                        if df_original[col].dtype in [pl.Datetime, pl.Date]:
+                            dt_col = col
+                            break
+                    if dt_col is None:
+                        dt_col = 'datetime'  # fallback
 
-                # If the dataframe is empty, then we should get the last row of the original dataframe
-                # because it is the best data we have
-                if df.empty:
-                    df = df_original.iloc[-1:]
+                    # Filter for current time or future
+                    df = df_original.filter(pl.col(dt_col) >= self.datetime)
 
-                dt = df.index[0]
-                open = df["open"].iloc[0]
-                high = df["high"].iloc[0]
-                low = df["low"].iloc[0]
-                close = df["close"].iloc[0]
-                volume = df["volume"].iloc[0]
+                    # If the dataframe is empty, get the last row
+                    if len(df) == 0:
+                        df = df_original.tail(1)
+
+                    # Get values
+                    dt = df[dt_col][0]
+                    open = df["open"][0]
+                    high = df["high"][0]
+                    low = df["low"][0]
+                    close = df["close"][0]
+                    volume = df["volume"][0]
+                else:  # Pandas DataFrame
+                    # Make sure that we are only getting the prices for the current time exactly or in the future
+                    df = df_original[df_original.index >= self.datetime]
+
+                    # If the dataframe is empty, then we should get the last row of the original dataframe
+                    # because it is the best data we have
+                    if len(df) == 0:
+                        df = df_original.iloc[-1:]
+
+                    dt = df.index[0]
+                    open = df["open"].iloc[0]
+                    high = df["high"].iloc[0]
+                    low = df["low"].iloc[0]
+                    close = df["close"].iloc[0]
+                    volume = df["volume"].iloc[0]
 
             #############################
             # Determine transaction price.

@@ -4,17 +4,17 @@ import traceback
 from typing import Union
 
 import pandas as pd
-from termcolor import colored
-
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.brokers import Broker, LumibotBrokerAPIError
-from lumibot.data_sources.tradier_data import TradierData
-from lumibot.entities import Asset, Order, Position
-from lumibot.tools.helpers import create_options_symbol
-from lumibot.trading_builtins import PollingStream
 from lumiwealth_tradier import Tradier as _Tradier
 from lumiwealth_tradier.base import TradierApiError
 from lumiwealth_tradier.orders import OrderLeg
+from termcolor import colored
+
+from .broker import Broker, LumibotBrokerAPIError
+from lumibot.data_sources.tradier_data import TradierData
+from lumibot.entities import Asset, Order, Position
+from lumibot.tools.helpers import create_options_symbol
+from lumibot.tools.lumibot_logger import get_logger
+from lumibot.trading_builtins import PollingStream
 
 logger = get_logger(__name__)
 
@@ -224,7 +224,7 @@ class Tradier(Broker):
             raise ValueError(f"Invalid order type '{order_type}' for multi-leg order.")
 
         # Check if the duration is valid
-        if duration not in ["day", "gtc", "pre", "post"]:   
+        if duration not in ["day", "gtc", "pre", "post"]:
             raise ValueError(f"Invalid duration {duration} for multi-leg order.")
 
         # Check if the price is required

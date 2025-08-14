@@ -1,14 +1,13 @@
-from typing import Dict, Any, List
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
 import time
+from decimal import ROUND_DOWN, ROUND_UP, Decimal
+from typing import Any, Dict, List
 
 import pandas as pd
 
 from lumibot.entities import Asset, TradingFee
-from lumibot.strategies.strategy import Strategy
 from lumibot.entities.order import Order
+from lumibot.strategies.strategy import Strategy
 from lumibot.tools.pandas import prettify_dataframe_with_decimals
-from lumibot.tools.helpers import quantize_to_num_decimals
 
 
 class DriftType:
@@ -277,8 +276,7 @@ class DriftCalculationLogic:
         """
         # Use total portfolio value instead of just current asset values
         # This fixes the issue where starting from all-cash positions would result in zero target values
-        total_value = Decimal(str(self.strategy.portfolio_value))
-        
+        total_value = Decimal(str(self.strategy.get_portfolio_value()))
         self.df["current_weight"] = self.df["current_value"] / total_value if total_value > 0 else Decimal(0)
         self.df["target_value"] = self.df["target_weight"] * total_value
         self.df["drift"] = self.df.apply(self._calculate_drift_row, axis=1)
@@ -414,7 +412,7 @@ class DriftOrderLogic:
                 base_asset = row["base_asset"]
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="sell", asset=base_asset)
-                
+
                 # For options, account for the 100-share multiplier in selling too
                 if base_asset.asset_type == Asset.AssetType.OPTION:
                     # Options prices are quoted per share but each contract represents 100 shares
@@ -422,7 +420,7 @@ class DriftOrderLogic:
                     quantity = (row["current_value"] - row["target_value"]) / effective_price
                 else:
                     quantity = (row["current_value"] - row["target_value"]) / limit_price
-                
+
                 # Apply quantity rounding - options must be whole contracts
                 if base_asset.asset_type == Asset.AssetType.OPTION:
                     quantity = quantity.quantize(Decimal('1'), rounding=ROUND_DOWN)
@@ -474,7 +472,7 @@ class DriftOrderLogic:
                 last_price = get_last_price_or_raise(self.strategy, base_asset, self.strategy.quote_asset)
                 limit_price = self.calculate_limit_price(last_price=last_price, side="buy", asset=base_asset)
                 order_value = row["target_value"] - row["current_value"]
-                
+
                 # For options, account for the 100-share multiplier
                 if base_asset.asset_type == Asset.AssetType.OPTION:
                     # Options prices are quoted per share but each contract represents 100 shares
@@ -505,7 +503,7 @@ class DriftOrderLogic:
                         actual_cost = quantity * limit_price * 100
                     else:
                         actual_cost = quantity * limit_price
-                        
+
                     if actual_cost > cash_position:
                         self.strategy.logger.error(
                             f"Quantity {quantity} of {base_asset.symbol} * cost: {actual_cost:.2f}"
@@ -520,7 +518,7 @@ class DriftOrderLogic:
                         side="buy"
                     )
                     buy_orders.append(order)
-                    
+
                     # Deduct actual cost from cash position
                     if base_asset.asset_type == Asset.AssetType.OPTION:
                         cash_position -= quantity * limit_price * 100
@@ -603,7 +601,7 @@ class DriftOrderLogic:
             if abs(row["drift"]) > self.drift_threshold:
                 rebalance_needed = True
                 msg += (
-                    f" Drift exceeds threshold."
+                    " Drift exceeds threshold."
                 )
             self.strategy.logger.info(msg)
 
@@ -641,7 +639,7 @@ class DriftOrderLogic:
             # For options, calculate fees based on actual cost (price * 100 * quantity)
             # Note: We need to determine if this is an options trade - we'll approximate by checking the calling context
             # This is a limitation of the current design, but works for most cases
-            
+
             fees = self.calculate_trading_costs(desired_quantity, price, trading_fees)
             total_cost = desired_quantity * price + fees
 

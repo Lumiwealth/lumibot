@@ -1,7 +1,5 @@
 from collections import OrderedDict
-from datetime import datetime, timedelta
 
-import pandas as pd
 
 from lumibot.data_sources import InteractiveBrokersRESTData, DataSourceBacktesting
 from lumibot.entities import Asset, Data
@@ -16,7 +14,7 @@ class InteractiveBrokersRESTBacktesting(DataSourceBacktesting, InteractiveBroker
     """
 
     def __init__(self, datetime_start, datetime_end, pandas_data=None, **kwargs):
-        # Initialize the data store before anything else 
+        # Initialize the data store before anything else
         self.pandas_data = OrderedDict()
         self._data_store = self.pandas_data
         self._date_index = None

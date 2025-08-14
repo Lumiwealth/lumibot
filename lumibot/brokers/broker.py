@@ -130,6 +130,27 @@ class Broker(ABC):
             if self.stream is not None:
                 self._launch_stream()
 
+        # Trading calendar placeholder; StrategyExecutor will initialize.
+        self._trading_days = None
+
+    # --- Trading calendar initialization ---
+    def initialize_market_calendars(self, trading_days_df):
+        """Initialize broker trading calendar from a DataFrame.
+
+        Sorts by market_close and sets index for fast lookups; stores
+        DataFrame on the broker as `_trading_days`.
+        """
+        if trading_days_df is None:
+            self._trading_days = None
+            return
+        try:
+            df = trading_days_df.sort_values('market_close').copy()
+            df.set_index('market_close', inplace=True)
+            self._trading_days = df
+        except Exception:
+            # If trading_days_df is already indexed/sorted, accept as-is
+            self._trading_days = trading_days_df
+
     def _update_attributes_from_config(self, config):
         value_dict = config
         if not isinstance(config, dict):
@@ -977,8 +998,8 @@ class Broker(ABC):
                 return True
                 
             # Get market calendar
-            import pandas_market_calendars as mcal
             import pandas as pd
+            import pandas_market_calendars as mcal
             cal = mcal.get_calendar(market_name)
             
             # Test with a recent Monday (typical trading day)

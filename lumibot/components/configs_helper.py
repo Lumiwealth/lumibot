@@ -1,8 +1,9 @@
+import importlib.util
 import os
 import sys
-import importlib.util
 
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 

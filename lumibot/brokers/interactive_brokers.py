@@ -1,14 +1,13 @@
 import datetime
+import math
 import os
 import random
 import time
 from collections import deque
 from decimal import Decimal
-from threading import Thread
-import math
-from sys import exit
 from functools import reduce
-from termcolor import colored
+from sys import exit
+from threading import Thread
 from typing import Union
 
 from dateutil import tz
@@ -16,9 +15,10 @@ from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
+from termcolor import colored
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import InteractiveBrokersData
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -60,10 +60,10 @@ class InteractiveBrokers(Broker):
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
 
         super().__init__(
-            name="interactive_brokers", 
-            config=config, 
-            data_source=data_source, 
-            max_workers=max_workers, 
+            name="interactive_brokers",
+            config=config,
+            data_source=data_source,
+            max_workers=max_workers,
             **kwargs
             )
         if not self.name:
@@ -262,13 +262,13 @@ class InteractiveBrokers(Broker):
         else:
             action = response.action
             order = self._parse_order_object(strategy_name, response.contract, totalQuantity, action, limit_price, stop_price, time_in_force, good_till_date)
-        
+
         order._transmitted = True
         order.set_identifier(response.orderId)
         order.status = response.orderState.status
         order.update_raw(response)
         return order
-    
+
     def _parse_order_object(self, strategy_name, contract, quantity, action, limit_price = None, stop_price = None, time_in_force = None, good_till_date = None):
         expiration = None
         multiplier = 1
@@ -302,7 +302,7 @@ class InteractiveBrokers(Broker):
             time_in_force = time_in_force,
             good_till_date = good_till_date,
             quote = Asset(symbol=contract.currency, asset_type="forex"),
-        )   
+        )
 
         return order
 
@@ -317,10 +317,10 @@ class InteractiveBrokers(Broker):
         orders = self.ib.get_open_orders()
         return orders
 
-    def _flatten_order(self, orders): # implement for stop loss. 
+    def _flatten_order(self, orders): # implement for stop loss.
         """Not used for Interactive Brokers. Just returns the orders."""
         return orders
-    
+
     def _submit_orders(self, orders, is_multileg=False, duration="day", price=None, **kwargs):
         if is_multileg:
             multileg_order = OrderLum(orders[0].strategy)
@@ -399,7 +399,7 @@ class InteractiveBrokers(Broker):
             # Delete the ib object and create a new one
             del self.ib
             self.ib = None
-            del self.data_source.ib 
+            del self.data_source.ib
             self.data_source.ib = None
             self.start_ib()
 
@@ -450,7 +450,7 @@ class InteractiveBrokers(Broker):
 
         if summary is None:
             return None
-        
+
         total_cash_value = [float(c["Value"]) for c in summary if c["Tag"] == "TotalCashBalance" and c["Currency"] == 'BASE'][0]
         gross_position_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
         net_liquidation_value = [float(c["Value"]) for c in summary if c["Tag"] == "NetLiquidationByCurrency" and c["Currency"] == 'BASE'][0]
@@ -1184,7 +1184,7 @@ class IBClient(EClient):
         elif only_price:
             return requested_tick["price"]
         else:
-            return requested_tick       
+            return requested_tick
 
     def get_historical_data(
         self,
@@ -1322,13 +1322,13 @@ class IBClient(EClient):
         except queue.Empty:
             print("The queue was empty or max time reached for orders.")
             requested_orders = None
-        
+
         while self.wrapper.is_error():
             print(f"Error: {self.get_error(timeout=5)}")
 
         if isinstance(requested_orders, Order):
             requested_orders = [requested_orders]
-        
+
         return requested_orders
 
     def cancel_order(self, order):
@@ -1347,7 +1347,7 @@ class IBClient(EClient):
             print(f"Error: {self.get_error(timeout=5)}")
 
         return 0
-    
+
     def get_contract_details_for_contract(self, contract):
         contract_details_storage = self.wrapper.init_contract_details()
 
@@ -1425,7 +1425,7 @@ class IBApp(IBWrapper, IBClient):
         # Ensure a connection before running
         self.connect(self.ip_address, self.socket_port, client_id)
 
-        
+
         thread = Thread(target=self.run)
         thread.start()
         self._thread = thread
@@ -1437,15 +1437,15 @@ class IBApp(IBWrapper, IBClient):
     def get_safe_action(self, action):
         """Convert complex action types to simple buy/sell actions"""
         if action.lower() in [
-            OrderLum.OrderSide.BUY, 
-            OrderLum.OrderSide.BUY_TO_OPEN, 
+            OrderLum.OrderSide.BUY,
+            OrderLum.OrderSide.BUY_TO_OPEN,
             OrderLum.OrderSide.BUY_TO_CLOSE
             ]:
             return OrderLum.OrderSide.BUY.upper()
         elif action.lower() in [
-            OrderLum.OrderSide.SELL, 
-            OrderLum.OrderSide.SELL_SHORT, 
-            OrderLum.OrderSide.SELL_TO_OPEN, 
+            OrderLum.OrderSide.SELL,
+            OrderLum.OrderSide.SELL_SHORT,
+            OrderLum.OrderSide.SELL_TO_OPEN,
             OrderLum.OrderSide.SELL_TO_CLOSE
             ]:
             return OrderLum.OrderSide.SELL.upper()
@@ -1610,7 +1610,7 @@ class IBApp(IBWrapper, IBClient):
             ib_order.tif = order.time_in_force.upper()
             ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
             return [ib_order]
-        
+
     def _create_multileg_order(self, order, exchange=None, **kwargs):
         """Submit a list of orders as a single multileg order"""
         # Initialize the combo contract
@@ -1666,7 +1666,7 @@ class IBApp(IBWrapper, IBClient):
         if order.order_type == OrderLum.OrderType.LIMIT and order.limit_price:
             combo_order.lmtPrice = order.limit_price
 
-        # Return the combo contract and order        
+        # Return the combo contract and order
         return combo_contract, combo_order
 
     def execute_order(self, orders):

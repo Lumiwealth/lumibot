@@ -1,6 +1,4 @@
 import sys
-from asyncio.log import logger
-from copy import deepcopy
 from functools import wraps
 
 

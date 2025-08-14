@@ -2,8 +2,9 @@ from decimal import Decimal
 from typing import Union
 
 from termcolor import colored
-from lumibot.entities import Asset, Bars
+
 from lumibot.data_sources import DataSource
+from lumibot.entities import Asset, Bars
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -76,7 +77,7 @@ class TradovateData(DataSource):
         This method first retrieves the contract ID for the asset's symbol, then subscribes
         to market data using that contract ID.
         """
-       
+
         # Log that this method is not supported because Tradovate requires you to get a CME subscription which costs $440/month
         logger.error(colored("Method 'get_last_price' is not implemented for Tradovate because it requires a CME subscription which costs $440/month.", "red"))
         return None

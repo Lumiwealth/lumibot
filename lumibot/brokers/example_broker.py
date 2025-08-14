@@ -1,10 +1,11 @@
 from typing import Union
 
 from termcolor import colored
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.brokers import Broker
-from lumibot.entities import Order, Asset, Position
+
+from .broker import Broker
 from lumibot.data_sources import ExampleBrokerData
+from lumibot.entities import Asset, Order, Position
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 

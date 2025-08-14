@@ -277,7 +277,6 @@ class DriftCalculationLogic:
         # Use total portfolio value instead of just current asset values
         # This fixes the issue where starting from all-cash positions would result in zero target values
         total_value = Decimal(str(self.strategy.get_portfolio_value()))
-
         self.df["current_weight"] = self.df["current_value"] / total_value if total_value > 0 else Decimal(0)
         self.df["target_value"] = self.df["target_weight"] * total_value
         self.df["drift"] = self.df.apply(self._calculate_drift_row, axis=1)

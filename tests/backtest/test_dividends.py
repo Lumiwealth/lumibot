@@ -30,12 +30,13 @@ class DividendTestStrategy(Strategy):
     def on_trading_iteration(self):
         current_dt = self.get_datetime()
         current_cash = self.get_cash()
+        portfolio_value = self.portfolio_value
         
         # Track cash every iteration
         self.cash_tracking.append({
             'datetime': current_dt,
             'cash': current_cash,
-            'portfolio_value': self.get_portfolio_value()
+            'portfolio_value': portfolio_value,
         })
         
         if not self.purchase_made:
@@ -70,7 +71,8 @@ class DividendTestStrategy(Strategy):
         # Always update final cash (will be the last iteration's value)
         self.final_cash = current_cash
         
-        self.log_message(f"Date: {current_dt.strftime('%Y-%m-%d')}, Cash: ${current_cash:.2f}, Portfolio Value: ${self.get_portfolio_value():.2f}")
+        self.log_message(f"Date: {current_dt.strftime('%Y-%m-%d')}, Cash: ${current_cash:.2f}, "
+                         f"Portfolio Value: ${portfolio_value:.2f}")
 
 
 class TestDividends:

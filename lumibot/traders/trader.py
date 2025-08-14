@@ -172,11 +172,12 @@ class Trader:
         from lumibot.tools.lumibot_logger import set_log_level, set_console_log_level, add_file_handler
         
         # Set external library log levels to reduce noise
-        get_logger("urllib3").setLevel(logging.ERROR)
-        get_logger("requests").setLevel(logging.ERROR)
-        get_logger("apscheduler.scheduler").setLevel(logging.ERROR)
-        get_logger("apscheduler.executors.default").setLevel(logging.ERROR)
-        get_logger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
+        # NOTE: lumilogger.get_logger doesn't work with non-lumibot loggers, so we use logging.getLogger directly
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
+        logging.getLogger("requests").setLevel(logging.ERROR)
+        logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
+        logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
+        logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
 
         # Configure global log level based on trader settings
         if self.debug:

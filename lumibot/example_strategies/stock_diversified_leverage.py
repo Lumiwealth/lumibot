@@ -92,14 +92,17 @@ class DiversifiedLeverage(Strategy):
                 quantity = float(position.quantity)
 
             # Calculate how many shares we need to buy or sell
-            shares_value = self.portfolio_value * weight
+            portfolio_value = self.get_portfolio_value()
+            shares_value = portfolio_value * weight
             self.log_message(
-                f"The current portfolio value is {self.portfolio_value} and the weight needed is {weight}, so we should buy {shares_value}"
+                f"The current portfolio value is {portfolio_value} and the weight needed is {weight}, "
+                f"so we should buy {shares_value}"
             )
             new_quantity = shares_value // last_price
             quantity_difference = new_quantity - quantity
             self.log_message(
-                f"Currently own {quantity} shares of {symbol} but need {new_quantity}, so the difference is {quantity_difference}"
+                f"Currently own {quantity} shares of {symbol} but need {new_quantity}, so the difference is "
+                f"{quantity_difference}"
             )
 
             # If quantity is positive then buy, if it's negative then sell

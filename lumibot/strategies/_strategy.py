@@ -665,17 +665,9 @@ class _Strategy:
 
     def _update_portfolio_value(self):
         """updates self.portfolio_value"""
+        # Live runs don't need to recalculate portfolio value here, as the broker sync should handle it
         if not self.is_backtesting:
-            try:
-                broker_balances = self.broker._get_balances_at_broker(self._quote_asset, self)
-            except Exception as e:
-                self.logger.error(f"Error getting broker balances: {e}")
-                return None
-
-            if broker_balances is not None:
-                return broker_balances[2]
-            else:
-                return None
+            return
 
         with self._executor.lock:
             # Used for traditional brokers, for crypto this could be 0

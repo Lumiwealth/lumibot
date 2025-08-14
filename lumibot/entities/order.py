@@ -1,20 +1,20 @@
+import datetime
 import uuid
 from collections import namedtuple
 from decimal import Decimal
 from enum import Enum
 from threading import Event
-import datetime
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from lumibot.entities.asset import Asset
 
 import lumibot.entities as entities
-from lumibot.tools.types import check_positive, check_price
-
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
+from lumibot.tools.types import check_positive, check_price
+
 logger = get_logger(__name__)
 
 
@@ -30,12 +30,12 @@ class StrEnum(str, Enum):
     """
     def __str__(self):
         return self.value
-        
+
     def __eq__(self, other):
         if isinstance(other, str):
             return self.value == other
         return super().__eq__(other)
-    
+
     def __hash__(self):
         # Use the hash of the enum member, not the string value
         # This ensures proper hashability while maintaining enum identity
@@ -402,7 +402,7 @@ class Order:
         # Cryptocurrency market.
         if self.asset and self.asset.asset_type == "crypto":
             self.pair = f"{self.asset.symbol}/{self.quote.symbol}"
-        else: 
+        else:
             self.pair = pair
 
         # setting events
@@ -448,10 +448,10 @@ class Order:
                 filename = frame.f_code.co_filename.split('/')[-1]  # Just the filename
                 lineno = frame.f_lineno
                 function_name = frame.f_code.co_name
-                
+
                 logger.warning(f"DEPRECATED in {filename}:{function_name}:{lineno} - "
                              f"Order parameter '{param}' is deprecated. Use '{new_param}' instead.")
-                
+
                 if locals()[new_param]:
                     raise ValueError(f"You cannot set both {param} and {new_param}. "
                                    f"This may cause unexpected behavior.")
@@ -735,7 +735,7 @@ class Order:
                     side=self.side,
                     limit_price=self.limit_price,
                     order_type=Order.OrderType.LIMIT,
-                    quote=self.quote, 
+                    quote=self.quote,
                 )
                 stop_order = Order(
                     # Stop Type will be filled in automatically for child based on the Stop Modifiers
@@ -747,7 +747,7 @@ class Order:
                     stop_limit_price=self.stop_limit_price,
                     trail_price=self.trail_price,
                     trail_percent=self.trail_percent,
-                    quote=self.quote, 
+                    quote=self.quote,
                 )
                 # Set dependencies so that the two orders will cancel the other in BackTesting
                 limit_order.dependent_order = stop_order
@@ -782,7 +782,7 @@ class Order:
                             side=child_side,
                             limit_price=secondary_limit_price,
                             order_type=Order.OrderType.LIMIT,
-                            quote=self.quote, 
+                            quote=self.quote,
                         )
                     )
                 if secondary_stop_price is not None:
@@ -797,7 +797,7 @@ class Order:
                             stop_limit_price=secondary_stop_limit_price,
                             trail_price=secondary_trail_price,
                             trail_percent=secondary_trail_percent,
-                            quote=self.quote, 
+                            quote=self.quote,
                         )
                     )
 
@@ -834,7 +834,7 @@ class Order:
                             side=child_side,
                             limit_price=secondary_limit_price,
                             order_type=Order.OrderType.LIMIT,
-                            quote=self.quote, 
+                            quote=self.quote,
                         )
                     )
                 elif secondary_stop_price is not None:
@@ -849,7 +849,7 @@ class Order:
                             stop_limit_price=secondary_stop_limit_price,
                             trail_price=secondary_trail_price,
                             trail_percent=secondary_trail_percent,
-                            quote=self.quote, 
+                            quote=self.quote,
                         )
                     )
 
@@ -1197,7 +1197,7 @@ class Order:
                 order_dict[key] = value
 
         return order_dict
-    
+
     @classmethod
     def from_dict(cls, order_dict):
         # Extract the core essential arguments to pass to __init__
@@ -1206,12 +1206,12 @@ class Order:
         if asset_data and isinstance(asset_data, dict):
             # Assuming Asset has its own from_dict method
             asset_obj = entities.Asset.from_dict(asset_data)
-        
+
         # Extract essential arguments, using None if the values are missing
         strategy = order_dict.get('strategy', None)
         side = order_dict.get('side', None)  # Default to None if side is missing
         quantity = order_dict.get('quantity', None)
-        
+
         # Create the initial object using the essential arguments
         obj = cls(
             strategy=strategy,
@@ -1228,24 +1228,24 @@ class Order:
         # Handle additional fields directly after the instance is created
         for key, value in order_dict.items():
             if key not in ['strategy', 'side', 'asset', 'quantity'] and key not in non_serializable_keys:
-                
+
                 # Convert datetime strings back to datetime objects
                 if isinstance(value, str) and "T" in value:
                     try:
                         setattr(obj, key, datetime.datetime.fromisoformat(value))
                     except ValueError:
                         setattr(obj, key, value)
-                
+
                 # Recursively convert nested objects using from_dict (for objects like quote)
                 elif isinstance(value, dict) and hasattr(cls, key) and hasattr(getattr(cls, key), 'from_dict'):
                     nested_class = getattr(cls, key)
                     setattr(obj, key, nested_class.from_dict(value))
-                
+
                 # Handle list of orders (child_orders)
                 elif isinstance(value, list) and key == 'child_orders':
                     child_orders = [cls.from_dict(item) for item in value]  # Recursively create Order objects
                     setattr(obj, key, child_orders)
-                
+
                 # Set simple values directly
                 else:
                     setattr(obj, key, value)

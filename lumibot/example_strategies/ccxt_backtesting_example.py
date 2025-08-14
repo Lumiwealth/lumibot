@@ -1,9 +1,11 @@
-from lumibot.entities import Asset, Order
-from lumibot.backtesting import CcxtBacktesting
-from lumibot.strategies.strategy import Strategy
-from lumibot.example_strategies.crypto_important_functions import ImportantFunctions
 from datetime import datetime
+
 from pandas import DataFrame
+
+from lumibot.backtesting import CcxtBacktesting
+from lumibot.entities import Asset, Order
+from lumibot.strategies.strategy import Strategy
+
 
 class CcxtBacktestingExampleStrategy(Strategy):
     def initialize(self, asset:tuple[Asset,Asset] = None,

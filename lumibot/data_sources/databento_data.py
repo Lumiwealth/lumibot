@@ -2,10 +2,10 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Union
 
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Bars
 from lumibot.tools import databento_helper
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -17,7 +17,7 @@ class DataBentoData(DataSource):
     This data source provides access to DataBento's institutional-grade market data,
     with a focus on futures data and support for multiple asset types.
     """
-    
+
     SOURCE = "DATABENTO"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
@@ -27,7 +27,7 @@ class DataBentoData(DataSource):
     ]
 
     def __init__(
-        self, 
+        self,
         api_key: str,
         timeout: int = 30,
         max_retries: int = 3,
@@ -49,16 +49,16 @@ class DataBentoData(DataSource):
         """
         # Initialize parent class
         super().__init__(api_key=api_key, **kwargs)
-        
+
         self.name = "databento"
         self._api_key = api_key
         self._timeout = timeout
         self._max_retries = max_retries
         self._data_store = {}
-        
+
         # For live trading, this is a live data source
         self.is_backtesting_mode = False
-        
+
         # Verify DataBento availability
         if not databento_helper.DATABENTO_AVAILABLE:
             logger.error("DataBento package not available. Please install with: pip install databento")
@@ -100,30 +100,30 @@ class DataBentoData(DataSource):
             Historical price data as Bars object
         """
         logger.info(f"Getting historical prices for {asset.symbol}, length={length}, timestep={timestep}")
-        
+
         # Validate asset type - DataBento primarily supports futures
         supported_asset_types = [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]
         if asset.asset_type not in supported_asset_types:
             error_msg = f"DataBento data source only supports futures assets. Received asset type '{asset.asset_type}' for symbol '{asset.symbol}'. Supported types: {[t.value for t in supported_asset_types]}"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        
+
         # Additional logging for debugging
         logger.info(f"DataBento request - Asset: {asset.symbol}, Type: {asset.asset_type}, Length: {length}, Timestep: {timestep}")
         logger.info(f"DataBento live trading mode: Requesting data for futures asset {asset.symbol}")
-        
+
         # Calculate the date range for data retrieval
         # Use timezone-naive datetime for consistency
         current_dt = datetime.now()
         if current_dt.tzinfo is not None:
             current_dt = current_dt.replace(tzinfo=None)
-        
+
         logger.info(f"Using current datetime for live trading: {current_dt}")
-        
+
         # Apply timeshift if specified
         if timeshift:
             current_dt = current_dt - timeshift
-        
+
         # Calculate start date based on length and timestep
         if timestep == "day":
             buffer_days = max(10, length // 2)  # Buffer for live trading
@@ -131,7 +131,7 @@ class DataBentoData(DataSource):
             # For live trading, end should be current time (no future data available)
             end_dt = current_dt
         elif timestep == "hour":
-            buffer_hours = max(24, length // 2)  # Buffer for live trading  
+            buffer_hours = max(24, length // 2)  # Buffer for live trading
             start_dt = current_dt - timedelta(hours=length + buffer_hours)
             # For live trading, end should be current time (no future data available)
             end_dt = current_dt
@@ -140,13 +140,13 @@ class DataBentoData(DataSource):
             start_dt = current_dt - timedelta(minutes=length + buffer_minutes)
             # For live trading, end should be current time (no future data available)
             end_dt = current_dt
-        
+
         # Ensure both dates are timezone-naive for consistency
         if start_dt.tzinfo is not None:
             start_dt = start_dt.replace(tzinfo=None)
         if end_dt.tzinfo is not None:
             end_dt = end_dt.replace(tzinfo=None)
-        
+
         # Ensure we always have a valid date range (start < end)
         if start_dt >= end_dt:
             # If dates are equal or start is after end, adjust end date
@@ -156,7 +156,7 @@ class DataBentoData(DataSource):
                 end_dt = start_dt + timedelta(hours=max(1, length))
             else:  # minute or other
                 end_dt = start_dt + timedelta(minutes=max(1, length))
-        
+
         # Final safety check: ensure end is always after start
         if start_dt >= end_dt:
             logger.error(f"Invalid date range after adjustment: start={start_dt}, end={end_dt}")
@@ -166,11 +166,11 @@ class DataBentoData(DataSource):
                 end_dt = start_dt + timedelta(hours=1)
             else:
                 end_dt = start_dt + timedelta(minutes=1)
-        
+
         # Get data from DataBento
         logger.info(f"Requesting DataBento data for asset: {asset} (type: {asset.asset_type})")
         logger.info(f"Date range: {start_dt} to {end_dt}")
-        
+
         try:
             df = databento_helper.get_price_data_from_databento(
                 api_key=self._api_key,
@@ -183,7 +183,7 @@ class DataBentoData(DataSource):
         except Exception as e:
             logger.error(f"Error getting data from DataBento for {asset.symbol}: {e}")
             return None
-        
+
         if df is None or df.empty:
             logger.error(f"No data returned from DataBento for {asset.symbol}. This could be due to:")
             logger.error("1. Incorrect symbol format")
@@ -191,7 +191,7 @@ class DataBentoData(DataSource):
             logger.error("3. Data not available for the requested time range")
             logger.error("4. API authentication issues")
             return None
-        
+
         # Filter data to the current time (for live trading)
         # Handle timezone consistency for comparison
         if hasattr(df.index, 'tz') and df.index.tz is not None:
@@ -203,16 +203,16 @@ class DataBentoData(DataSource):
             # DataFrame has timezone-naive index, ensure current_dt is also naive
             if current_dt.tzinfo is not None:
                 current_dt = current_dt.replace(tzinfo=None)
-        
+
         df_filtered = df[df.index <= current_dt]
-        
+
         # Take the last 'length' bars
         df_result = df_filtered.tail(length)
-        
+
         if df_result.empty:
             logger.warning(f"No data available for {asset.symbol} up to {current_dt}")
             return None
-        
+
         # Create and return Bars object
         bars = Bars(
             df=df_result,
@@ -220,7 +220,7 @@ class DataBentoData(DataSource):
             asset=asset,
             quote=quote
         )
-        
+
         logger.info(f"Retrieved {len(df_result)} bars for {asset.symbol}")
         return bars
 
@@ -248,21 +248,21 @@ class DataBentoData(DataSource):
             Last known price of the asset
         """
         logger.info(f"Getting last price for {asset.symbol}")
-        
+
         try:
             last_price = databento_helper.get_last_price_from_databento(
                 api_key=self._api_key,
                 asset=asset,
                 venue=exchange
             )
-            
+
             if last_price is not None:
                 logger.info(f"Last price for {asset.symbol}: {last_price}")
                 return last_price
             else:
                 logger.warning(f"No last price available for {asset.symbol}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
@@ -331,13 +331,13 @@ class DataBentoData(DataSource):
         try:
             if response is None or response.empty:
                 return None
-                
+
             # Check if required columns exist
             required_columns = ['open', 'high', 'low', 'close', 'volume']
             if not all(col in response.columns for col in required_columns):
                 logger.warning(f"Missing required columns in DataBento data for {asset.symbol}")
                 return None
-            
+
             # Create Bars object
             bars = Bars(
                 df=response,
@@ -345,9 +345,9 @@ class DataBentoData(DataSource):
                 asset=asset,
                 quote=quote
             )
-            
+
             return bars
-            
+
         except Exception as e:
             logger.error(f"Error parsing DataBento data for {asset.symbol}: {e}")
             return None

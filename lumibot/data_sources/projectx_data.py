@@ -8,11 +8,11 @@ Supports historical data retrieval for futures contracts.
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-import pandas as pd
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset, Bars, Quote
+from lumibot.tools.lumibot_logger import get_logger
 from lumibot.tools.projectx_helpers import ProjectXClient
+
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
 
@@ -65,7 +65,7 @@ class ProjectXData(DataSource):
         # Validate required configuration
         required_fields = ["api_key", "username", "base_url"]
         missing_fields = [field for field in required_fields if not config.get(field)]
-        
+
         if missing_fields:
             firm_name = config.get("firm", "unknown")
             raise ValueError(
@@ -89,7 +89,7 @@ class ProjectXData(DataSource):
 
     # ========== Required DataSource Methods ==========
 
-    def get_last_price(self, asset: Asset, quote: Asset = None, 
+    def get_last_price(self, asset: Asset, quote: Asset = None,
                       exchange: str = None) -> float:
         """
         Get the last price for an asset.
@@ -120,8 +120,8 @@ class ProjectXData(DataSource):
             self.logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
 
-    def get_bars(self, asset: Asset, length: int, timespan: str = "minute", 
-                timeshift: int = None, chunk_size: int = None, 
+    def get_bars(self, asset: Asset, length: int, timespan: str = "minute",
+                timeshift: int = None, chunk_size: int = None,
                 max_workers: int = None) -> Bars:
         """
         Get historical bars for an asset.
@@ -224,7 +224,7 @@ class ProjectXData(DataSource):
         """
         return 0.0
 
-    def get_historical_prices(self, asset: Asset, length: int, timestep: str = "minute", 
+    def get_historical_prices(self, asset: Asset, length: int, timestep: str = "minute",
                              timeshift=None, quote=None, exchange=None, include_after_hours=True) -> Bars:
         """
         Get historical prices for an asset.
@@ -463,7 +463,7 @@ class ProjectXData(DataSource):
             self.logger.error(f"Error getting quote for {asset.symbol}: {e}")
             return Quote(asset=asset)
 
-    def get_bars_from_datetime(self, asset: Asset, start_datetime: datetime, 
+    def get_bars_from_datetime(self, asset: Asset, start_datetime: datetime,
                               end_datetime: datetime, timespan: str = "minute") -> Bars:
         """
         Get historical bars between specific datetime range.
@@ -520,4 +520,4 @@ class ProjectXData(DataSource):
 
         except Exception as e:
             self.logger.error(f"Error getting bars from datetime for {asset.symbol}: {e}")
-            return None 
+            return None

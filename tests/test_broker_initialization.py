@@ -18,7 +18,7 @@ class TestBrokerInitializationSimple:
         """
         # Mock both the credentials imports in the strategy module
         with patch('lumibot.strategies._strategy.BROKER', None):
-            with patch('lumibot.strategies._strategy.IS_BACKTESTING', False):
+            with patch('lumibot.credentials.IS_BACKTESTING', False):
                 # Create a minimal strategy class for testing
                 class TestStrategy(Strategy):
                     def on_trading_iteration(self):

@@ -1,6 +1,7 @@
 import json
-import time
 import re
+import time
+
 from openai import OpenAI
 
 from lumibot.tools.lumibot_logger import get_logger
@@ -102,7 +103,7 @@ class PerplexityHelper:
       - Financial news queries: Returns structured financial news data.
       - General queries: Returns structured responses based on a provided (or default) JSON schema.
     """
-    
+
     def __init__(self, api_key: str):
         """
         Initializes the PerplexityHelper with your API key and creates an OpenAI-compatible client.
@@ -123,13 +124,13 @@ class PerplexityHelper:
             api_key = os.getenv("PERPLEXITY_API_KEY")
             if not api_key:
                 raise ValueError("API key is required for PerplexityHelper. Set it as PERPLEXITY_API_KEY in your environment or your secrets")
-        
+
         self.api_key = api_key
         self.client = OpenAI(
             api_key=self.api_key,
             base_url="https://api.perplexity.ai",  # Correct base URL
         )
-    
+
     # --------------------------------------------------------------------------
     # Private Helper Methods
     # --------------------------------------------------------------------------
@@ -450,7 +451,7 @@ Return only valid JSON following the schema.
                 "analysis_summary": f"Error calling Perplexity API: {str(e)}",
                 "items": []
             }
-        
+
         # Clean the raw response to remove markdown formatting and extraneous text
         cleaned_text = self._clean_response(assistant_text)
         try:
@@ -462,7 +463,7 @@ Return only valid JSON following the schema.
                 "analysis_summary": f"Error: LLM output was not valid JSON. {str(e)}",
                 "items": []
             }
-        
+
         self._post_process_data(data)
         return data
 
@@ -620,7 +621,7 @@ Return only valid JSON following the schema.
                 "detailed_response": "",
                 "symbols": []
             }
-        
+
         # Clean the raw response to remove markdown formatting and any extraneous text
         cleaned_text = self._clean_response(assistant_text)
         try:
@@ -633,7 +634,7 @@ Return only valid JSON following the schema.
                 "detailed_response": "",
                 "symbols": []
             }
-        
+
         return data
 
     # --------------------------------------------------------------------------
@@ -680,6 +681,7 @@ Return only valid JSON following the schema.
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
     import os
+
     import dotenv
 
     dotenv.load_dotenv()

@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Union, Tuple, Optional
 
 from lumibot.entities import Asset
-from lumibot import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
+from lumibot.constants import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
 
 _OPTION_SYMBOL_RE = re.compile(r'^([A-Z]+)(\d{6})([CP])(\d{8})$')
 

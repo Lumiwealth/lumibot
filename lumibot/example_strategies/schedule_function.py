@@ -1,9 +1,7 @@
-import datetime as dt
-import pytz
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.brokers import Alpaca
+from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.strategies.strategy import Strategy
 
 """
 Strategy Description
@@ -28,12 +26,12 @@ class ScheduledFunctionStrategy(Strategy):
         """
         # Set the sleep time to one day (the strategy will run once per day)
         self.sleeptime = "1D"
-        
+
         # Register the midnight_update function to be called 5 minutes before midnight every night
         # Cron format: minute hour day_of_month month day_of_week
         # 55 23 * * * = 11:55 PM every day
         self.register_cron_callback("55 23 * * *", self.midnight_update)
-        
+
         self.log_message("Strategy initialized. Midnight update scheduled for 11:55 PM every night.")
 
     def on_trading_iteration(self):
@@ -52,12 +50,12 @@ class ScheduledFunctionStrategy(Strategy):
         current_dt = self.get_datetime()
         self.log_message(f"Midnight update triggered at: {current_dt}", color="green")
         self.log_message("Performing end-of-day tasks...", color="green")
-        
+
         # Simulate some work
         self.log_message("1. Analyzing daily performance", color="green")
         self.log_message("2. Preparing for next trading day", color="green")
         self.log_message("3. Sending daily report", color="green")
-        
+
         self.log_message("Midnight update completed!", color="green")
 
 

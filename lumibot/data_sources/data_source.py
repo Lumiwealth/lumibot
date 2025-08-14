@@ -1,19 +1,19 @@
 import os
+import time
+import traceback
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-import traceback
-import time
 from decimal import Decimal
 from typing import Union
-import pytz
 
 import pandas as pd
+import pytz
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping, Bars, Quote
 from lumibot.tools import black_scholes, create_options_symbol
+from lumibot.tools.lumibot_logger import get_logger
 
 from .exceptions import UnavailabeTimestep
 
@@ -68,6 +68,9 @@ class DataSource(ABC):
             tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
         self.tzinfo = tzinfo
 
+        # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
+        self._greeks_cache = {}
+
     # ========Required Implementations ======================
     @abstractmethod
     def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
@@ -98,7 +101,7 @@ class DataSource(ABC):
 
     @abstractmethod
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars=False
     ) -> Bars:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
@@ -128,6 +131,8 @@ class DataSource(ABC):
             The exchange to get the bars for.
         include_after_hours : bool
             Whether to include after hours data.
+        return_polars : bool
+            If True, return Bars with Polars DataFrame for better performance. Default is False (returns pandas).
 
         Returns
         -------
@@ -534,10 +539,38 @@ class DataSource(ABC):
         risk_free_rate: float,
     ):
         """Returns Greeks in backtesting."""
+        # Handle None values - don't cache or calculate if inputs are invalid
+        if asset_price is None or underlying_price is None or risk_free_rate is None:
+            return None
+
+        # Optimization: Cache Greeks calculations based on key parameters
+        # Round prices to 2 decimal places for cache key to handle minor price fluctuations
+        current_date = self.get_datetime()
+        cache_key = (
+            asset.symbol,
+            asset.strike,
+            asset.right,
+            asset.expiration,
+            round(asset_price, 2),
+            round(underlying_price, 2),
+            round(risk_free_rate, 4),
+            current_date.date() if hasattr(current_date, 'date') else current_date  # Cache per day to handle time decay
+        )
+
+        # Check cache
+        if cache_key in self._greeks_cache:
+            return self._greeks_cache[cache_key]
+
+        # Keep cache size limited to prevent memory issues
+        if len(self._greeks_cache) > 10000:
+            # Clear oldest half of cache
+            keys_to_remove = list(self._greeks_cache.keys())[:5000]
+            for key in keys_to_remove:
+                del self._greeks_cache[key]
+
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
-        current_date = self.get_datetime()
 
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration
@@ -583,6 +616,9 @@ class DataSource(ABC):
             theta=c.callTheta if is_call else c.putTheta,
             underlying_price=und_price,
         )
+
+        # Cache the result
+        self._greeks_cache[cache_key] = greeks
 
         return greeks
 

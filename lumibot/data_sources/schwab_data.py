@@ -1,16 +1,17 @@
+import datetime
+import os
+from datetime import timedelta
 from decimal import Decimal
 from typing import Union
-import datetime
-from termcolor import colored
-import pandas as pd
-from datetime import timedelta
-import os
 
-from lumibot.entities import Asset, Bars, Quote, Chains
+import pandas as pd
+from termcolor import colored
+
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.data_sources import DataSource
-from lumibot.tools import parse_timestep_qty_and_unit, get_trading_days
+from lumibot.entities import Asset, Bars, Chains, Quote
+from lumibot.tools import get_trading_days, parse_timestep_qty_and_unit
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 
 logger = get_logger(__name__)
 
@@ -39,17 +40,17 @@ class SchwabData(DataSource):
             account_number: Schwab account number (used if client is None)
         """
         super().__init__()
-        
+
         # If client is provided, use it
         if client is not None:
             self.client = client
         else:
             # Otherwise try to create a client with provided credentials
             self.client = self.create_schwab_client(api_key, secret, account_number)
-            
+
         if self.client is None:
             logger.warning(colored("SchwabData initialized without client. Methods will not work until a client is provided.", "yellow"))
-    
+
     @staticmethod
     def create_schwab_client(api_key=None, secret=None, account_number=None):
         """
@@ -68,15 +69,15 @@ class SchwabData(DataSource):
             api_key = api_key or os.environ.get('SCHWAB_API_KEY')
             secret = secret or os.environ.get('SCHWAB_SECRET')
             account_number = account_number or os.environ.get('SCHWAB_ACCOUNT_NUMBER')
-            
+
             if not all([api_key, secret, account_number]):
                 logger.warning(colored("Missing Schwab API credentials. Ensure SCHWAB_API_KEY, SCHWAB_SECRET, and SCHWAB_ACCOUNT_NUMBER are set in .env file or passed as parameters.", "yellow"))
                 return None
-        
+
         try:
             # Import Schwab-specific libraries
             from schwab.auth import easy_client
-            
+
             # Store Schwab token in the working directory (or override with SCHWAB_TOKEN_PATH)
             token_path_value = os.environ.get('SCHWAB_TOKEN_PATH')
             if token_path_value:
@@ -86,11 +87,11 @@ class SchwabData(DataSource):
 
             # Ensure directory exists
             os.makedirs(os.path.dirname(token_path), exist_ok=True)
-            
+
             # Create Schwab API client
             client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
-            
-            logger.info(colored(f"Successfully created Schwab client", "green"))
+
+            logger.info(colored("Successfully created Schwab client", "green"))
             return client
         except Exception as e:
             logger.error(colored(f"Error creating Schwab client: {e}", "red"))
@@ -137,14 +138,14 @@ class SchwabData(DataSource):
         if self.client is None:
             logger.error(colored("No Schwab client available for get_chains", "red"))
             return {}
-        
+
         # Initialize chains structure
         chains = {
             "Multiplier": 100,  # Standard option contracts are for 100 shares
             "Exchange": "SMART",  # Default exchange routing
             "Chains": {"CALL": {}, "PUT": {}}
         }
-        
+
         try:
             # Find an appropriate strike range value
             strike_range = None
@@ -166,15 +167,15 @@ class SchwabData(DataSource):
                 else:
                     # Fallback to all strikes
                     strike_range = self.client.Options.StrikeRange.ALL
-                
+
                 logger.debug(colored(f"Using strike range: {strike_range}", "blue"))
             except Exception as e:
                 logger.warning(colored(f"Error finding strike range options: {e}. Using None.", "yellow"))
                 strike_range = None
-            
+
             # Fetch both call and put options in a single API call using ALL contract type
             logger.info(colored(f"Fetching option chains for {asset.symbol}", "blue"))
-            
+
             params = {
                 "symbol": asset.symbol,
                 "contract_type": self.client.Options.ContractType.ALL,  # Get both calls and puts
@@ -182,18 +183,18 @@ class SchwabData(DataSource):
                 "include_underlying_quote": False,
                 "strike_count": strike_count
             }
-            
+
             # Add strike_range if available
             if strike_range is not None:
                 params["strike_range"] = strike_range
-            
+
             response = self.client.get_option_chain(**params)
-            
+
             # Process response
             if not response:
                 logger.error(colored(f"No response from API for {asset.symbol}", "red"))
                 return {}
-                
+
             if hasattr(response, 'status_code'):
                 if response.status_code == 200:
                     data = response.json()
@@ -202,39 +203,39 @@ class SchwabData(DataSource):
                     return {}
             else:
                 data = response
-            
+
             # Extract option data for both call and put types
             success = False
-            
+
             # Helper function to extract option data for a specific type (CALL/PUT)
             def extract_option_data(option_type):
                 map_key = f"{option_type.lower()}ExpDateMap"
                 if map_key not in data:
                     return False
-                
+
                 option_dates = data[map_key]
                 for exp_date_str, strikes_data in option_dates.items():
                     # Format the expiration date (assumed format: YYYY-MM-DD:days_to_expiry)
                     exp_date = exp_date_str.split(':')[0]  # Extract just the date part
-                    
+
                     # Initialize list to store strikes for this expiration
                     chains["Chains"][option_type][exp_date] = []
-                    
+
                     # Add all available strikes for this expiration date
                     for strike_str, strike_data in strikes_data.items():
                         strike = float(strike_str)
                         chains["Chains"][option_type][exp_date].append(strike)
-                        
+
                     # Sort the strikes in ascending order
                     chains["Chains"][option_type][exp_date].sort()
-                
+
                 return True
-            
+
             # Extract data for both call and put options
             call_success = extract_option_data("CALL")
             put_success = extract_option_data("PUT")
             success = call_success or put_success
-            
+
             # Extract underlying data if available
             if 'underlying' in data and (not chains.get("Exchange") or not chains.get("Multiplier")):
                 underlying = data.get('underlying', {})
@@ -243,28 +244,28 @@ class SchwabData(DataSource):
                     multiplier = underlying.get('multiplier')
                     if multiplier:
                         chains["Multiplier"] = int(multiplier)
-                        
+
                     # Update exchange if available
                     exchange_name = underlying.get('exchange')
                     if exchange_name:
                         chains["Exchange"] = exchange_name
-            
+
             # If we got no data and we're not already using ALL strikes, try again with ALL strikes
             if not success and strike_range is not None and strike_range != self.client.Options.StrikeRange.ALL:
-                logger.warning(colored(f"No option data found with current strike range. Trying with ALL strikes...", "yellow"))
+                logger.warning(colored("No option data found with current strike range. Trying with ALL strikes...", "yellow"))
                 # Set to ALL for the recursive call
                 params["strike_range"] = self.client.Options.StrikeRange.ALL
                 return self.get_chains(asset, quote, exchange, strike_count)
-            
+
             if not success:
                 logger.error(colored(f"No option data found for {asset.symbol}", "red"))
-                
+
             # Wrap into Chains entity for richer interface (backwards-compatible: Chains inherits dict)
             try:
                 return Chains(chains)
             except Exception:
                 return chains
-            
+
         except Exception as e:
             logger.error(colored(f"Error getting option chains for {asset.symbol}: {str(e)}", "red"))
             return {}
@@ -280,7 +281,7 @@ class SchwabData(DataSource):
             tuple: (timedelta object, timestep_unit string)
         """
         qty, unit = parse_timestep_qty_and_unit(timestep_str)
-        
+
         if unit == "minute":
             return timedelta(minutes=qty), unit
         elif unit == "hour":
@@ -328,7 +329,7 @@ class SchwabData(DataSource):
         if self.client is None:
             logger.error(colored("No Schwab client available for get_historical_prices", "red"))
             return None
-            
+
         # According to the documentation, Schwab doesn't provide price history for futures
         if asset.asset_type == "future" or asset.asset_type == "option":
             logger.error(colored(f"Schwab doesn't provide price history for {asset.asset_type}s", "red"))
@@ -358,7 +359,7 @@ class SchwabData(DataSource):
             # What we really want is the last n bars, not the bars from the last n days.
             # Get twice as many days as we need to ensure we get enough bars, then add 3 days for long weekends
             tcal_start_date = end_date - (td * length * 2 + timedelta(days=3))
-            
+
             try:
                 trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
                 # Filter out trading days when the market_open is after the end_date
@@ -374,7 +375,7 @@ class SchwabData(DataSource):
             period_type = None
             frequency_type = None
             frequency = None
-            
+
             # Set appropriate frequency_type and frequency based on timestep_unit
             if timestep_unit == "minute":
                 frequency_type = self.client.PriceHistory.FrequencyType.MINUTE
@@ -408,7 +409,7 @@ class SchwabData(DataSource):
                 logger.warning(colored(f"Unknown timestep unit: {timestep_unit}. Using 'daily' as default.", "yellow"))
                 frequency_type = self.client.PriceHistory.FrequencyType.DAILY
                 frequency = 1
-            
+
             # Get price history using the simplified API function
             if timestep_unit == "day":
                 response = self.client.get_price_history_every_day(
@@ -434,14 +435,14 @@ class SchwabData(DataSource):
                     end_datetime=end_date,
                     need_extended_hours_data=include_after_hours
                 )
-            
+
             # Check if the response is a Response object and handle accordingly
             if hasattr(response, 'status_code'):
                 # It's a Response object from requests library
                 if response.status_code != 200:
                     logger.error(colored(f"Error fetching historical prices for {asset.symbol}: {response.status_code}, {response.text}", "red"))
                     return None
-                    
+
                 # Parse the JSON response
                 try:
                     data = response.json()
@@ -451,45 +452,45 @@ class SchwabData(DataSource):
             else:
                 # It's already a dictionary or other data structure
                 data = response
-                
+
             # Check if data contains candles data
             if not data or 'candles' not in data:
                 logger.error(colored(f"No candles data found in the response for {asset.symbol}", "red"))
                 return None
-                
+
             candles = data['candles']
-            
+
             # If no candles were returned, return None
             if not candles or len(candles) == 0:
                 logger.warning(colored(f"No price data available for {asset.symbol} in the requested time range", "yellow"))
                 return None
-            
+
             # Convert candles to a DataFrame
             df = pd.DataFrame(candles)
-            
+
             # Ensure expected columns are present
             expected_columns = ['open', 'high', 'low', 'close', 'volume', 'datetime']
             if not all(col in df.columns for col in expected_columns):
                 logger.warning(colored(f"Missing expected columns in response. Got: {df.columns.tolist()}", "yellow"))
-            
+
             # Set datetime as the index
             if 'datetime' in df.columns:
                 df['datetime'] = pd.to_datetime(df['datetime'], unit='ms')
                 df.set_index('datetime', inplace=True)
-            
+
             # Drop any duplicate indices
             df = df[~df.index.duplicated(keep='first')]
-            
+
             # Ensure index is timezone-aware
             if df.index.tz is None:
                 df.index = df.index.tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
             else:
                 df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
-            
+
             # Create and return the Bars object
             bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
             return bars
-            
+
         except Exception as e:
             logger.error(colored(f"Error getting historical prices for {asset.symbol}: {str(e)}", "red"))
             return None
@@ -509,18 +510,18 @@ class SchwabData(DataSource):
         if self.client is None:
             logger.error(colored("No Schwab client available for get_last_price", "red"))
             return None
-            
+
         try:
             # Get the quote for the asset
             asset_quote = self.get_quote(asset, quote, exchange)
-            
+
             # If we have a valid quote with a price, return it
             if asset_quote and asset_quote.price is not None:
                 return float(asset_quote.price)
-                
+
             logger.warning(colored(f"Could not find last price for {asset.symbol}", "yellow"))
             return None
-            
+
         except Exception as e:
             logger.error(colored(f"Error in get_last_price for {asset.symbol}: {str(e)}", "red"))
             return None
@@ -536,7 +537,7 @@ class SchwabData(DataSource):
         except Exception as e:
             logger.error(colored(f"Error converting timestamp: {e}", "red"))
             return None
-        
+
     def get_quote(self, asset, quote=None, exchange=None) -> Quote:
         """
         This function returns the quote of an asset as a Quote object.
@@ -558,32 +559,32 @@ class SchwabData(DataSource):
         if self.client is None:
             logger.error(colored("No Schwab client available for get_quote", "red"))
             return None
-            
+
         try:
             # Format the symbol according to asset type
             if asset.asset_type == Asset.AssetType.OPTION:
                 # For options, construct symbol in Schwab's format: RRRRRRYYMMDDsWWWWWddd
                 # Where R is space-filled root symbol, YY is year, MM is month, DD is day,
                 # s is side (C/P for call/put), WWWWW is whole strike price, nnn is decimal portion
-                
+
                 # Get the root symbol, pad with spaces to 6 characters
                 root_symbol = asset.symbol.ljust(6)
-                
+
                 # Format date portions
                 year_str = asset.expiration.strftime('%y')  # 2-digit year
                 month_str = asset.expiration.strftime('%m')  # 2-digit month
                 day_str = asset.expiration.strftime('%d')    # 2-digit day
-                
+
                 # Determine option type (C for call, P for put)
                 option_type = 'C' if asset.right.upper() == 'CALL' else 'P'
-                
+
                 # Format strike price (whole and decimal parts)
                 strike_whole = int(asset.strike)
                 strike_decimal = int((asset.strike - strike_whole) * 1000)  # Get 3 decimal digits
-                
+
                 # Construct the full option symbol
                 symbol = f"{root_symbol}{year_str}{month_str}{day_str}{option_type}{strike_whole:05d}{strike_decimal:03d}"
-                                
+
             elif asset.asset_type == Asset.AssetType.FUTURE:
                 # For futures, add a slash prefix if not already present
                 symbol = asset.symbol if asset.symbol.startswith('/') else f"/{asset.symbol}"
@@ -593,25 +594,25 @@ class SchwabData(DataSource):
             else:
                 # For stocks, ETFs, etc. use the symbol directly
                 symbol = asset.symbol
-            
+
             # Get quotes from Schwab API
             response = self.client.get_quotes([symbol])
-            
+
             # Check for valid response
             if not hasattr(response, 'status_code'):
                 logger.error(colored(f"Unexpected response type from get_quotes: {type(response)}", "red"))
                 return None
-                
+
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching quote for {symbol}: {response.status_code}, {response.text}", "red"))
                 return None
-            
+
             # Parse response JSON
             quote_data = response.json()
-            
+
             # Get quote for our symbol
             asset_quote = quote_data.get(symbol)
-            
+
             if not asset_quote:
                 # Try case-insensitive match
                 for key in quote_data:
@@ -619,30 +620,30 @@ class SchwabData(DataSource):
                         asset_quote = quote_data[key]
                         symbol = key  # Update symbol to the matched key
                         break
-            
+
             if not asset_quote:
                 logger.warning(colored(f"No quote data found for {symbol}", "yellow"))
                 return None
-            
+
             # Extract quote information
             quote_info = asset_quote.get('quote', {})
-            
+
             # Get timestamps as datetime objects
             quote_time = self.convert_epoch_ms_to_datetime(quote_info.get('quoteTime'))
             bid_time = self.convert_epoch_ms_to_datetime(quote_info.get('bidTime'))
             ask_time = self.convert_epoch_ms_to_datetime(quote_info.get('askTime'))
-            
+
             # Use most recent timestamp as the main quote timestamp
             timestamp = quote_time
             if bid_time and (not timestamp or bid_time > timestamp):
                 timestamp = bid_time
             if ask_time and (not timestamp or ask_time > timestamp):
                 timestamp = ask_time
-            
+
             # If we still don't have a timestamp, use current time
             if not timestamp:
                 timestamp = datetime.datetime.now(datetime.timezone.utc)
-            
+
             # Extract additional useful fields that might be available
             bid_size = quote_info.get('bidSize')
             ask_size = quote_info.get('askSize')
@@ -652,7 +653,7 @@ class SchwabData(DataSource):
             volume = quote_info.get('totalVolume')
             change = quote_info.get('netChange')
             percent_change = quote_info.get('netPercentChangeInDouble')
-            
+
             # Create and return Quote object
             return Quote(
                 asset=asset,
@@ -671,7 +672,7 @@ class SchwabData(DataSource):
                 raw_data=asset_quote,
                 symbol_used=symbol
             )
-            
+
         except Exception as e:
             logger.error(colored(f"Error in get_quote for {asset.symbol}: {str(e)}", "red"))
             return None

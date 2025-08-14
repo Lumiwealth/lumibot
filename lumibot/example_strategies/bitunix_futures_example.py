@@ -1,10 +1,10 @@
 import time
-import logging
 
-from lumibot.entities import Asset, Order, Position
-from lumibot.strategies.strategy import Strategy
 from lumibot.brokers import Bitunix
 from lumibot.credentials import BITUNIX_CONFIG  # Assuming Bitunix config is in credentials
+from lumibot.entities import Asset, Order
+from lumibot.strategies.strategy import Strategy
+
 
 class BitunixFuturesExample(Strategy):
     # =====Overloading lifecycle methods=============

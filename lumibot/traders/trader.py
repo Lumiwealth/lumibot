@@ -1,7 +1,5 @@
 import logging  # Needed for logging infrastructure setup
-import os
 import signal
-import sys
 from pathlib import Path
 
 from lumibot.tools.lumibot_logger import get_logger

@@ -1,7 +1,9 @@
 import datetime
+
 from lumibot.entities import Asset
 
-class Quote: 
+
+class Quote:
     """
     Quote entity class.
 
@@ -36,10 +38,10 @@ class Quote:
     raw_data : dict
         The raw data from the data source.
     """
-    def __init__(self, asset: Asset, price: float = None, bid: float = None, ask: float = None, 
-                 volume: float = None, timestamp: datetime.datetime = None, bid_size: float = None, 
+    def __init__(self, asset: Asset, price: float = None, bid: float = None, ask: float = None,
+                 volume: float = None, timestamp: datetime.datetime = None, bid_size: float = None,
                  ask_size: float = None, change: float = None, percent_change: float = None,
-                 quote_time: datetime.datetime = None, bid_time: datetime.datetime = None, 
+                 quote_time: datetime.datetime = None, bid_time: datetime.datetime = None,
                  ask_time: datetime.datetime = None, raw_data: dict = None, **kwargs):
         self.asset = asset
         self.price = price
@@ -55,7 +57,7 @@ class Quote:
         self.bid_time = bid_time
         self.ask_time = ask_time
         self.raw_data = raw_data
-        
+
         # Store any additional attributes passed in kwargs
         for key, value in kwargs.items():
             setattr(self, key, value)

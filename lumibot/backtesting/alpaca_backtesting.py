@@ -1,30 +1,26 @@
 import os
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Optional
 
-import pytz
-from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_EVEN
-
 import pandas as pd
-from alpaca.data.historical import CryptoHistoricalDataClient
-from alpaca.data.historical import StockHistoricalDataClient
+import pytz
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+from alpaca.data.timeframe import TimeFrame
 
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.data_sources import DataSourceBacktesting, AlpacaData
+from lumibot.constants import LUMIBOT_CACHE_FOLDER
+from lumibot.data_sources import AlpacaData, DataSourceBacktesting
 from lumibot.entities import Asset, Bars
-from lumibot import (
-    LUMIBOT_CACHE_FOLDER,
-)
 from lumibot.tools.helpers import (
     date_n_trading_days_from_date,
+    get_decimals,
+    get_timezone_from_datetime,
     get_trading_days,
     get_trading_times,
-    get_timezone_from_datetime,
-    get_decimals,
     quantize_to_num_decimals,
 )
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -262,6 +258,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote: Asset | None = None,
             exchange: str | None = None,
             include_after_hours: bool = True,
+            return_polars: bool = False,
             remove_incomplete_current_bar: Optional[bool] = None,
     ) -> Bars | None:
         """
@@ -370,7 +367,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
 
-        return Bars(result_df, self.SOURCE, asset=asset, quote=quote)
+        return Bars(result_df, self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
 
     def get_chains(self, asset, quote=None):
         """Mock implementation for getting option chains"""

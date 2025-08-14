@@ -1,8 +1,7 @@
 from decimal import Decimal
 
 from lumibot.components.drift_rebalancer_logic import DriftType
-from lumibot.entities import Order, Asset
-
+from lumibot.entities import Asset, Order
 
 parameters = {
     "market": "NYSE",

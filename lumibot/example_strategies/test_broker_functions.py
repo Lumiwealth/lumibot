@@ -1,7 +1,8 @@
 import logging
+from datetime import timedelta
+
 from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
-from datetime import timedelta
 
 # from lumiwealth_tradier import Tradier as _Tradier
 
@@ -98,7 +99,7 @@ class BrokerTest(Strategy):
 
             # Submit one of the orders
             # result = self.submit_order(order_5)
-            
+
             # Submit all of the orders as a multileg order
             result = self.submit_orders([order_1, order_4], is_multileg=True, price=2)
             logging.info(result)

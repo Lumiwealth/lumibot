@@ -1,4 +1,5 @@
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 
 class Chains(dict):
     """Dictionary-like container for option chains.
@@ -51,4 +52,4 @@ class Chains(dict):
         return (
             f"<Chains exchange={self.exchange} multiplier={self.multiplier} "
             f"expirations={expiry_cnt} calls={call_cnt} puts={put_cnt}>"
-        ) 
+        )

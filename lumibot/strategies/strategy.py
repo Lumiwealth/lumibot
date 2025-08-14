@@ -2,23 +2,22 @@ import datetime
 import logging
 import os
 import time
-from decimal import Decimal
 import uuid
-from typing import Union, List, Type, Callable
+from decimal import Decimal
+from typing import Callable, List, Type, Union
 
 import jsonpickle
 import matplotlib
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
-from termcolor import colored
 from apscheduler.triggers.cron import CronTrigger
+from termcolor import colored
 
-from ..entities import Asset, Order, Position, Data, TradingFee, Quote
+from ..data_sources import DataSource
+from ..entities import Asset, Data, Order, Position, Quote, TradingFee
 from ..tools import get_risk_free_rate
 from ..traders import Trader
-from ..data_sources import DataSource
-
 from ._strategy import _Strategy
 
 matplotlib.use("Agg")
@@ -985,7 +984,7 @@ class Strategy(_Strategy):
             from termcolor import colored
             error_msg = colored(
                 "No broker is set. Cannot set market. Please set a broker using environment variables, "
-                "secrets or by passing it as an argument to the strategy constructor.", 
+                "secrets or by passing it as an argument to the strategy constructor.",
                 "red"
             )
             self.logger.error(error_msg)
@@ -3070,6 +3069,7 @@ class Strategy(_Strategy):
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
+        return_polars: bool = False,
     ):
         """Get historical pricing data for a given symbol or asset.
 
@@ -3101,6 +3101,9 @@ class Strategy(_Strategy):
             The exchange to pull the historical data from. Default is None (decided based on the broker)
         include_after_hours : bool
             Whether to include after hours data. Default is True. Currently only works with Interactive Brokers.
+        return_polars : bool
+            If True, return Bars with Polars DataFrame for better performance. Default is False (returns pandas).
+            When False and data is in Polars format, a warning will be issued about the conversion.
 
         Returns
         -------
@@ -3158,7 +3161,7 @@ class Strategy(_Strategy):
         if not isinstance(length, int):
             try:
                 length = int(length)
-            except Exception as e:
+            except Exception:
                 raise ValueError(
                     f"Invalid length parameter in get_historical_prices() method. Length must be an int but instead got {length}, "
                     f"which is a type {type(length)}."
@@ -3187,6 +3190,7 @@ class Strategy(_Strategy):
                 exchange=exchange,
                 include_after_hours=include_after_hours,
                 quote=quote,
+                return_polars=return_polars,
             )
         else:
             return self.broker.data_source.get_historical_prices(
@@ -3197,6 +3201,7 @@ class Strategy(_Strategy):
                 exchange=exchange,
                 include_after_hours=include_after_hours,
                 quote=quote,
+                return_polars=return_polars,
             )
 
     def get_symbol_bars(

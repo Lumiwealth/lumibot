@@ -1,6 +1,8 @@
-from datetime import timedelta, date, datetime
-from typing import Optional, List, Dict, Union, Tuple
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Union
+
 from lumibot.entities import Asset, Order
+
 
 class OptionsHelper:
     """
@@ -65,7 +67,7 @@ class OptionsHelper:
         loop_counter = 0
         while True:
             for record in self.non_existing_expiry_dates:
-                if (record["underlying_asset_symbol"] == underlying_asset.symbol and 
+                if (record["underlying_asset_symbol"] == underlying_asset.symbol and
                     record["expiry"] == expiry):
                     self.strategy.log_message(f"Expiry {expiry} previously invalid for {underlying_asset.symbol}; trying next day.", color="yellow")
                     expiry += timedelta(days=1)
@@ -395,7 +397,7 @@ class OptionsHelper:
         }
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
-    
+
     def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> date:
         """
         Get the expiration date that is on or after a given date.
@@ -1189,7 +1191,7 @@ class OptionsHelper:
                 self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
                 return None
             multiplier = -1 if order.side.lower() == "buy" else 1
-            current_value += price * order.quantity * contract_multiplier 
+            current_value += price * order.quantity * contract_multiplier
         profit_pct = ((current_value - initial_cost) / initial_cost) * 100
         self.strategy.log_message(f"Spread profit percentage: {profit_pct:.2f}%", color="blue")
         return profit_pct

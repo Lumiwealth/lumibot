@@ -50,19 +50,39 @@ class BacktestingBroker(Broker):
         self.prefetcher = None
         self.hybrid_prefetcher = None
         self._last_cache_clear = None
-
-
+        # Market open lookup cache (populated when calendars are initialized)
+        self._market_open_cache = {}
+    def initialize_market_calendars(self, trading_days_df):
+        """Initialize trading calendar and eagerly build caches for backtesting."""
+        super().initialize_market_calendars(trading_days_df)
+        # Prepare caches when calendar is set
+        self._market_open_cache = {}
+        self._daily_sessions = {}
+        self._sessions_built = False
+        if self._trading_days is None or len(self._trading_days) == 0:
+            return
+        self._market_open_cache = self._trading_days['market_open'].to_dict()
+        for close_time in self._trading_days.index:
+            open_time = self._market_open_cache[close_time]
+            for dt in (open_time, close_time):
+                day = dt.date()
+                sess = (open_time, close_time)
+                self._daily_sessions.setdefault(day, [])
+                if sess not in self._daily_sessions[day]:
+                    self._daily_sessions[day].append(sess)
+        self._sessions_built = True
 
     def _build_daily_sessions(self):
         """Build day-based session dict for fast O(1) day lookup."""
-        if (not hasattr(self, '_trading_days') or
+        if (
             self._trading_days is None or
             len(self._trading_days) == 0 or
-            self._sessions_built):
+            self._sessions_built
+        ):
             return
 
-        # Optimize: Convert market_open column to dict once to avoid 550k .at calls
-        if not hasattr(self, '_market_open_cache'):
+        # Optimize: Convert market_open column to dict once to avoid many .at calls
+        if not self._market_open_cache:
             self._market_open_cache = self._trading_days['market_open'].to_dict()
 
         # Group sessions by day for fast lookup
@@ -221,9 +241,10 @@ class BacktestingBroker(Broker):
 
         # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
-        # Use cached dict instead of .at for performance
-        if not hasattr(self, '_market_open_cache'):
-            self._market_open_cache = self._trading_days['market_open'].to_dict()
+        # Use cached dict instead of .at for performance; cache should be ready from initialization
+        if not self._market_open_cache:
+            # Safety: rebuild via centralized path rather than inline logic
+            self.initialize_market_calendars(self._trading_days.reset_index())
         market_open = self._market_open_cache[market_close_time]
         market_close = market_close_time  # Assuming this is a scalar value directly from the index
 

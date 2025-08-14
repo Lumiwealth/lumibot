@@ -42,6 +42,9 @@ class YahooData(DataSourceBacktesting):
         self.name = "yahoo"
         self.auto_adjust = auto_adjust
         self._data_store = {}
+        # Initialize last-price cache here to avoid per-call hasattr checks
+        self._last_price_cache = {}
+        self._last_price_cache_datetime = None
 
     def _append_data(self, asset, data):
         """
@@ -369,10 +372,6 @@ class YahooData(DataSourceBacktesting):
         # OPTIMIZATION: Cache last price lookups to avoid redundant get_historical_prices calls
         current_datetime = self._datetime
         cache_key = (asset, timestep, quote, exchange, current_datetime)
-
-        if not hasattr(self, '_last_price_cache'):
-            self._last_price_cache = {}
-            self._last_price_cache_datetime = None
 
         # Clear cache if datetime changed
         if self._last_price_cache_datetime != current_datetime:

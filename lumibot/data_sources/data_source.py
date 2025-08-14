@@ -68,6 +68,9 @@ class DataSource(ABC):
             tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
         self.tzinfo = tzinfo
 
+        # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
+        self._greeks_cache = {}
+
     # ========Required Implementations ======================
     @abstractmethod
     def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
@@ -555,9 +558,6 @@ class DataSource(ABC):
         )
 
         # Check cache
-        if not hasattr(self, '_greeks_cache'):
-            self._greeks_cache = {}
-
         if cache_key in self._greeks_cache:
             return self._greeks_cache[cache_key]
 

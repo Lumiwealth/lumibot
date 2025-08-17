@@ -247,7 +247,11 @@ class CcxtBacktestingData(DataSourceBacktesting):
         elif bars is None or bars.df.empty:
             return None
 
-        close_ = bars.df.iloc[0].close
+        df_local = bars.df
+        if hasattr(df_local, "iloc"):
+            close_ = df_local["close"].iat[0]
+        else:
+            close_ = df_local["close"][0]
         if isinstance(close_, np.int64):
             close_ = Decimal(close_.item())
         return close_

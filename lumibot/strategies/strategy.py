@@ -3191,28 +3191,43 @@ class Strategy(_Strategy):
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not timestep:
             timestep = self.broker.data_source.get_timestep()
+        # Call through to the appropriate data source. Only pass `return_polars` if supported
+        # to maintain compatibility with live data sources that don't yet accept it.
+        import inspect
+
+        def _call_get_hist(ds):
+            fn = ds.get_historical_prices
+            params = inspect.signature(fn).parameters
+            supports_return_polars = (
+                "return_polars" in params
+                or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+            )
+
+            common_kwargs = dict(
+                timestep=timestep,
+                timeshift=timeshift,
+                exchange=exchange,
+                include_after_hours=include_after_hours,
+                quote=quote,
+            )
+            if supports_return_polars:
+                return fn(
+                    asset,
+                    length,
+                    return_polars=return_polars,
+                    **common_kwargs,
+                )
+            else:
+                return fn(
+                    asset,
+                    length,
+                    **common_kwargs,
+                )
+
         if self.broker.option_source and asset.asset_type == "option":
-            return self.broker.option_source.get_historical_prices(
-                asset,
-                length,
-                timestep=timestep,
-                timeshift=timeshift,
-                exchange=exchange,
-                include_after_hours=include_after_hours,
-                quote=quote,
-                return_polars=return_polars,
-            )
+            return _call_get_hist(self.broker.option_source)
         else:
-            return self.broker.data_source.get_historical_prices(
-                asset,
-                length,
-                timestep=timestep,
-                timeshift=timeshift,
-                exchange=exchange,
-                include_after_hours=include_after_hours,
-                quote=quote,
-                return_polars=return_polars,
-            )
+            return _call_get_hist(self.broker.data_source)
 
     def get_symbol_bars(
         self,

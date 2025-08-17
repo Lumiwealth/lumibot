@@ -189,6 +189,8 @@ class Bars:
         self.quote = quote
         self._raw = raw
         self._return_polars = return_polars
+        # Cache for on-demand conversions to avoid repeated expensive copies
+        self._polars_cache = None
         
         # Check if empty
         if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
@@ -245,6 +247,8 @@ class Bars:
     def df(self, value):
         """Allow setting the DataFrame"""
         self._df = value
+        # Invalidate cached converted forms when df changes
+        self._polars_cache = None
     
     @property
     def polars_df(self):
@@ -252,11 +256,14 @@ class Bars:
         if isinstance(self._df, pl.DataFrame):
             return self._df
         else:
-            # Convert pandas to polars if requested
-            if hasattr(self._df, 'index') and self._df.index.name:
-                return pl.from_pandas(self._df.reset_index())
+            # Convert pandas to polars once and cache
+            if self._polars_cache is not None:
+                return self._polars_cache
+            if hasattr(self._df, 'index') and getattr(self._df.index, 'name', None):
+                self._polars_cache = pl.from_pandas(self._df.reset_index())
             else:
-                return pl.from_pandas(self._df)
+                self._polars_cache = pl.from_pandas(self._df)
+            return self._polars_cache
 
     def __repr__(self):
         return repr(self.df)

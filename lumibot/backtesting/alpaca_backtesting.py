@@ -245,7 +245,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # as the last price). This approach works for daily and minute bars. For daily bars, this returns the open
         # price, even if now is 9:30 and the daily bar was indexed at 00:00. Thats the only weird thing. But it makes
         # sense. The open of the daily bar for stocks was not at 00:00. It was at 9:30 anyway.
-        price = bars.df.iloc[0].open
+        # Support both pandas and polars-backed Bars without exceptions
+        df_local = bars.df
+        if hasattr(df_local, "iloc"):
+            # pandas: scalar-fast path
+            price = df_local["open"].iat[0]
+        else:
+            # polars
+            price = df_local["open"][0]
         num_decimals = get_decimals(price)
         return quantize_to_num_decimals(price, num_decimals)
 

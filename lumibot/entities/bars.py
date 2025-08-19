@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+import re
 from decimal import Decimal
 from typing import Union, Set
 import warnings
@@ -63,19 +64,22 @@ class PolarsConversionTracker:
             assets_str = ", ".join(assets_list)
             if unique_assets > 5:
                 assets_str += f", ... ({unique_assets - 5} more)"
-            
-            logger.warning(
-                f"\n" + "="*70 + "\n"
-                f"BACKTEST PERFORMANCE SUMMARY\n" + 
-                "="*70 + "\n"
-                f"Total DataFrame conversions: {self._total_conversions}\n"
-                f"Unique assets affected: {unique_assets} [{assets_str}]\n"
-                f"\n"
-                f"Estimated performance impact: ~{self._total_conversions * 10}-{self._total_conversions * 50}ms added overhead\n"
-                f"\n"
-                f"To speed up your backtest, add return_polars=True to get_historical_prices()\n" +
-                "="*70
-            )
+            try:
+                logger.warning(
+                    f"\n" + "="*70 + "\n"
+                    f"BACKTEST PERFORMANCE SUMMARY\n" + 
+                    "="*70 + "\n"
+                    f"Total DataFrame conversions: {self._total_conversions}\n"
+                    f"Unique assets affected: {unique_assets} [{assets_str}]\n"
+                    f"\n"
+                    f"Estimated performance impact: ~{self._total_conversions * 10}-{self._total_conversions * 50}ms added overhead\n"
+                    f"\n"
+                    f"To speed up your backtest, add return_polars=True to get_historical_prices()\n" +
+                    "="*70
+                )
+            except Exception:
+                # Ignore logging errors (e.g., during interpreter shutdown or closed handlers in tests)
+                pass
     
     @classmethod
     def reset(cls):
@@ -470,57 +474,94 @@ class Bars:
         return volume
 
     def aggregate_bars(self, frequency, **grouper_kwargs):
+        """Aggregate to a new timeframe.
+
+        Accepts flexible minute/hour/day aliases (e.g. '5min', '5MINUTE', '5 m', '5   Minutes').
+        Ensures the datetime column is a proper polars Datetime, coercing from integer epoch seconds
+        (or milliseconds) and common string formats.
         """
-        Will convert a set of bars to a different timeframe (eg. 1 min to 15 min)
-        frequency (string): The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
-        Returns a new bars object.
-
-        Parameters
-        ----------
-        frequency : str
-            The new timeframe that the bars should be in, eg. "15Min", "1H", or "1D"
-
-        Returns
-        -------
-        Bars object
-
-        Examples
-        --------
-        >>> # Get the 15 minute bars for the last hour
-        >>> bars = self.get_historical_prices("AAPL", 60, "minute")
-        >>> bars_agg = bars.aggregate_bars("15Min")
-        """
-        # Get polars DataFrame
         underlying_df = self.polars_df
-        # Find datetime column
+
+        # Identify datetime column
         dt_col = None
-        for col in underlying_df.columns:
-            if underlying_df[col].dtype in [pl.Datetime, pl.Date]:
-                dt_col = col
+        for c in underlying_df.columns:
+            if underlying_df[c].dtype in (pl.Datetime, pl.Date):
+                dt_col = c
                 break
-
         if dt_col is None:
-            # Try common datetime column names
-            for col in ['datetime', 'date', 'timestamp']:
-                if col in underlying_df.columns:
-                    dt_col = col
+            for c in ["datetime", "date", "timestamp"]:
+                if c in underlying_df.columns:
+                    dt_col = c
                     break
-
         if dt_col is None:
             raise ValueError("No datetime column found in DataFrame")
 
-        # Convert frequency string to polars duration
+        # Early coercion: integer epoch seconds/milliseconds or string -> Datetime
+        INTEGER_DTYPES = {pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64}
+        early_dtype = underlying_df[dt_col].dtype
+        if early_dtype in INTEGER_DTYPES:
+            sample = underlying_df[dt_col].head(1).to_list()
+            expr = pl.col(dt_col)
+            if sample and sample[0] > 10**12:  # treat as ms
+                expr = (pl.col(dt_col) // 1000).cast(pl.Int64)
+            tmp_name = f"__tmp_epoch_{dt_col}"
+            underlying_df = (
+                underlying_df
+                .with_columns(pl.from_epoch(expr, time_unit="s").alias(tmp_name))
+                .drop(dt_col)
+                .rename({tmp_name: dt_col})
+            )
+            if isinstance(self._df, pl.DataFrame):
+                self._df = underlying_df
+        elif early_dtype == pl.Utf8:
+            underlying_df = underlying_df.with_columns(
+                pl.col(dt_col).str.strptime(pl.Datetime, strict=False, format=None).alias(dt_col)
+            )
+            if isinstance(self._df, pl.DataFrame):
+                self._df = underlying_df
+
+        # Frequency normalization
+        original_frequency = frequency
+        if not isinstance(frequency, str):
+            raise ValueError(f"frequency must be a string, got {type(frequency)}")
+        f_lower = frequency.strip().lower()
+
         freq_map = {
-            "15Min": "15m", "15m": "15m", "15T": "15m",
-            "1H": "1h", "1h": "1h", "H": "1h",
-            "1D": "1d", "1d": "1d", "D": "1d",
-            "5Min": "5m", "5m": "5m", "5T": "5m",
-            "30Min": "30m", "30m": "30m", "30T": "30m",
+            "1min": "1m", "1m": "1m", "1t": "1m", "minute": "1m", "1minute": "1m",
+            "5min": "5m", "5m": "5m", "5t": "5m", "5minute": "5m", "5minutes": "5m",
+            "15min": "15m", "15m": "15m", "15t": "15m", "15minute": "15m", "15minutes": "15m",
+            "30min": "30m", "30m": "30m", "30t": "30m", "30minute": "30m", "30minutes": "30m",
+            "1h": "1h", "1hr": "1h", "1hour": "1h", "1hours": "1h",
+            "1d": "1d", "1day": "1d", "1days": "1d",
         }
+        polars_freq = freq_map.get(f_lower)
+        if polars_freq is None:
+            m = re.match(r"^(\d+)\s*([a-zA-Z]+)$", f_lower)
+            if m:
+                num, unit = m.groups()
+                unit_map = {
+                    's': 's', 'sec': 's', 'secs': 's', 'second': 's', 'seconds': 's',
+                    'm': 'm', 'min': 'm', 'mins': 'm', 'minute': 'm', 'minutes': 'm', 't': 'm',
+                    'h': 'h', 'hr': 'h', 'hrs': 'h', 'hour': 'h', 'hours': 'h',
+                    'd': 'd', 'day': 'd', 'days': 'd'
+                }
+                if unit in unit_map:
+                    polars_freq = f"{int(num)}{unit_map[unit]}"
+        if polars_freq is None:
+            polars_freq = f_lower
+        if not re.match(r"^\d+[smhd]$", polars_freq):
+            raise ValueError(
+                f"Unsupported frequency '{original_frequency}'. After normalization got '{polars_freq}'. "
+                "Accepted examples: 5m, 15m, 1h, 2h, 1d (also accepts 5min, 5MINUTE, 5minutes)."
+            )
+        # Ensure datetime dtype (early coercion should have handled; add safety check)
+        if underlying_df[dt_col].dtype not in (pl.Datetime, pl.Date):
+            raise ValueError(
+                f"Cannot aggregate: datetime column '{dt_col}' has unsupported dtype {underlying_df[dt_col].dtype}. "
+                "Provide a DataFrame with a proper datetime column or integer epoch seconds."
+            )
 
-        polars_freq = freq_map.get(frequency, frequency)
-
-        # Group by time intervals and aggregate
+        # Perform aggregation
         new_df = (
             underlying_df
             .sort(dt_col)
@@ -538,19 +579,6 @@ class Bars:
                 pl.col("volume").sum().alias("volume"),
             ])
         )
-
-        # Drop null rows
         new_df = new_df.drop_nulls()
-
-        new_bars = Bars(new_df, self.source, self.asset)
-
-        return new_bars
-
-
-class NoBarDataFound(Exception):
-    def __init__(self, source, asset):
-        message = (
-            f"{source} did not return data for symbol {asset}. "
-            f"Make sure there is no symbol typo or use another data source"
-        )
-        super(NoBarDataFound, self).__init__(message)
+        # Preserve caller's return_polars preference
+        return Bars(new_df, self.source, self.asset, return_polars=self._return_polars)

@@ -402,9 +402,15 @@ class BotspotErrorHandler(logging.Handler):
         """
         filename = os.path.basename(record.pathname) if hasattr(record, 'pathname') else '<unknown>'
         func = getattr(record, 'funcName', '<unknown>')
-        raw_msg = record.getMessage().strip() if hasattr(record, 'getMessage') else str(getattr(record, 'msg', ''))
-        # Normalize whitespace and truncate to avoid huge keys
-        msg_sig = re.sub(r"\s+", " ", raw_msg)[:120]
+        try:
+            raw_msg = record.getMessage().strip() if hasattr(record, 'getMessage') else str(getattr(record, 'msg', ''))
+        except Exception:
+            raw_msg = str(getattr(record, 'msg', ''))
+        # Use only portion before first pipe as message signature for dedupe (treat differing details as same base error)
+        base_part = raw_msg.split('|', 1)[0].strip()
+        if not base_part:
+            base_part = raw_msg[:120]
+        msg_sig = re.sub(r"\s+", " ", base_part)[:120]
         return (error_code, filename, func, msg_sig)
 
     def _should_send_now(self, fp_state: Dict[str, object], now: float) -> bool:

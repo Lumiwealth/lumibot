@@ -238,67 +238,62 @@ class TestBotspotErrorHandler:
             # Should not call report method
             handler._report_to_botspot.assert_not_called()
     
-    def test_error_counting(self):
-        """Test that duplicate errors are counted but rate limited."""
+    def test_duplicate_aggregation(self):
+        """Duplicates within window suppressed; aggregated count sent after window."""
         with patch.dict(os.environ, {
-            'LUMIWEALTH_API_KEY': 'test-api-key'
+            'LUMIWEALTH_API_KEY': 'test-api-key',
+            'BOTSPOT_RATE_LIMIT_WINDOW': '1'
         }):
             with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
                 handler = BotspotErrorHandler()
                 handler._report_to_botspot = MagicMock(return_value=True)
-            
-            # Create identical log records
+
             record = logging.LogRecord(
                 name="test", level=logging.ERROR, pathname="test.py",
                 lineno=10, msg="Duplicate error", args=(), exc_info=None,
                 func="test_func"
             )
-            
-            # Emit the same error three times
+
+            # First occurrence -> send immediately (count=1)
+            handler.emit(record)
+            # Two more inside window -> suppressed
             handler.emit(record)
             handler.emit(record)
+            assert handler._report_to_botspot.call_count == 1
+            first_args = handler._report_to_botspot.call_args_list[0][0]
+            assert first_args[4] == 1
+
+            # After window expires, next emit should send aggregated count (suppressed 2 + current 1 = 3)
+            time.sleep(1.1)
             handler.emit(record)
-            
-            # Only one call should be made due to rate limiting
-            calls = handler._report_to_botspot.call_args_list
-            assert len(calls) == 1
-            assert calls[0][0][4] == 1  # First call has count=1
-            
-            # Verify that the error count was tracked internally
-            error_key = ('TEST_ERROR', 'Duplicate error', 'File: test.py:10, Function: test_func')
-            assert handler._error_counts[error_key] == 3
+            assert handler._report_to_botspot.call_count == 2
+            second_args = handler._report_to_botspot.call_args_list[1][0]
+            assert second_args[4] == 3
     
     def test_rate_limit_window(self):
-        """Test that same errors are rate limited within the time window."""
+        """Second window send includes suppressed count."""
         with patch.dict(os.environ, {
             'LUMIWEALTH_API_KEY': 'test-api-key',
-            'BOTSPOT_RATE_LIMIT_WINDOW': '2'  # 2 second window
+            'BOTSPOT_RATE_LIMIT_WINDOW': '2'
         }):
             with patch('lumibot.tools.lumibot_logger.LUMIWEALTH_API_KEY', None):
                 handler = BotspotErrorHandler()
                 handler._report_to_botspot = MagicMock(return_value=True)
-            
-            # Create identical log records
+
             record = logging.LogRecord(
                 name="test", level=logging.ERROR, pathname="test.py",
                 lineno=10, msg="Rate limited error", args=(), exc_info=None,
                 func="test_func"
             )
-            
-            # First emit should go through
-            handler.emit(record)
+
+            handler.emit(record)  # immediate send
+            handler.emit(record)  # suppressed
             assert handler._report_to_botspot.call_count == 1
-            
-            # Second emit within window should be rate limited
-            handler.emit(record)
-            assert handler._report_to_botspot.call_count == 1  # No new call
-            
-            # Wait for window to expire
             time.sleep(2.1)
-            
-            # Third emit after window should go through
-            handler.emit(record)
+            handler.emit(record)  # aggregated send (count=2)
             assert handler._report_to_botspot.call_count == 2
+            second_args = handler._report_to_botspot.call_args_list[1][0]
+            assert second_args[4] == 2
     
     def test_max_errors_per_minute(self):
         """Test that total errors per minute are limited."""

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="3.18.2",
+    version="4.0.0",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -17,7 +17,7 @@ setuptools.setup(
     include_package_data=True, 
     install_requires=[
         "polygon-api-client>=1.13.3",
-        "alpaca-py>=0.28.1",
+        "alpaca-py>=0.42.0",
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.2.61",
@@ -26,6 +26,7 @@ setuptools.setup(
         # NumPy 1.20.0+ supports modern features, 2.0+ adds compatibility for latest ecosystem
         "numpy>=1.20.0",
         "pandas>=2.2.0",
+        "polars>=1.32.3",
         "pandas_market_calendars>=5.1.0",
         "pandas_ta>=0.3.14b",
         "plotly>=5.18.0",

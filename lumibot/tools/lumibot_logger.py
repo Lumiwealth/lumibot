@@ -250,16 +250,19 @@ class BotspotErrorHandler(logging.Handler):
         self.base_url = "https://api.botspot.trade/bots/report-bot-error"
         # Use LUMIWEALTH_API_KEY from credentials or environment
         self.api_key = LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY")
-        self._error_counts: Dict[Tuple[str, str, str], int] = {}
-        self._last_sent_times: Dict[Tuple[str, str, str], float] = {}
+
+        # Fingerprint state keyed by simplified fingerprint to reduce API spam while preserving full details payloads.
+        # fingerprint -> dict(last_sent: float|None, suppressed_count: int, total_count: int, last_details: str, last_message: str)
+        self._fingerprints: Dict[Tuple[str, str, str], Dict[str, object]] = {}
+
         self._total_errors_sent = 0
         self._minute_start_time = time.time()
         self._lock = threading.Lock()
-        
+
         # Rate limiting configuration
         self.rate_limit_window = int(os.environ.get("BOTSPOT_RATE_LIMIT_WINDOW", "60"))
         self.max_errors_per_minute = int(os.environ.get("BOTSPOT_MAX_ERRORS_PER_MINUTE", "100"))
-        
+
         # Only import requests if we need it
         if self.api_key:
             try:
@@ -381,69 +384,96 @@ class BotspotErrorHandler(logging.Handler):
             logger.debug(f"Botspot API exception: {e}")
             return False
     
-    def _check_rate_limits(self, error_key: Tuple[str, str, str]) -> bool:
-        """
-        Check if we should send this error based on rate limits.
-        
-        Returns True if the error should be sent, False if rate limited.
-        """
+    def _check_global_rate_limit(self) -> bool:
+        """Check global per-minute rate cap only (fingerprint logic handled separately)."""
         current_time = time.time()
-        
-        # Reset minute counter if a minute has passed
         if current_time - self._minute_start_time >= 60:
             self._total_errors_sent = 0
             self._minute_start_time = current_time
-        
-        # Check global rate limit (max errors per minute)
         if self._total_errors_sent >= self.max_errors_per_minute:
             return False
-        
-        # Check per-error rate limit (deduplication window)
-        if error_key in self._last_sent_times:
-            time_since_last_sent = current_time - self._last_sent_times[error_key]
-            if time_since_last_sent < self.rate_limit_window:
-                return False
-        
         return True
+
+    def _make_fingerprint(self, error_code: str, record: logging.LogRecord) -> Tuple[str, str, str]:
+        """Create a coarse fingerprint: (error_code, filename, function). Keep line numbers & details in payload only."""
+        filename = os.path.basename(record.pathname) if hasattr(record, 'pathname') else '<unknown>'
+        func = getattr(record, 'funcName', '<unknown>')
+        return (error_code, filename, func)
+
+    def _should_send_now(self, fp_state: Dict[str, object], now: float) -> bool:
+        last_sent = fp_state.get('last_sent')  # may be None
+        if last_sent is None:
+            return True  # first occurrence -> send immediately
+        return (now - float(last_sent)) >= self.rate_limit_window
     
     def emit(self, record):
-        """Handle a log record by reporting to Botspot API."""
-        if not self.api_key:
+        """Report to Botspot with simplified fingerprint dedupe while preserving full detail payloads."""
+        if not self.api_key or record.levelno < logging.WARNING:
             return
-        if record.levelno < logging.WARNING:
-            return
-        
         try:
             with self._lock:
+                now = time.time()
                 severity = self._map_log_level_to_severity(record.levelno)
                 error_code, message, details = self._extract_error_info(record)
-                
-                # Create a key for deduplication
-                error_key = (error_code, message, details)
-                
-                # Update count
-                if error_key in self._error_counts:
-                    self._error_counts[error_key] += 1
-                else:
-                    self._error_counts[error_key] = 1
-                
-                # Check rate limits
-                if not self._check_rate_limits(error_key):
-                    # Rate limited - don't send
+                fp = self._make_fingerprint(error_code, record)
+
+                fp_state = self._fingerprints.get(fp)
+                if fp_state is None:
+                    fp_state = {
+                        'last_sent': None,
+                        'suppressed_count': 0,
+                        'total_count': 0,
+                        'last_details': details,
+                        'last_message': message,
+                    }
+                    self._fingerprints[fp] = fp_state
+
+                # always keep latest details/message so we don't lose most recent stack/uuid
+                fp_state['last_details'] = details
+                fp_state['last_message'] = message
+                fp_state['total_count'] = int(fp_state['total_count']) + 1
+
+                send_now = self._should_send_now(fp_state, now)
+
+                if not send_now:
+                    # inside window -> just accumulate
+                    fp_state['suppressed_count'] = int(fp_state['suppressed_count']) + 1
                     return
-                
-                # Update tracking for rate limiting
-                current_time = time.time()
-                self._last_sent_times[error_key] = current_time
-                self._total_errors_sent += 1
-                
-                count = self._error_counts[error_key]
-                
-                # Report to Botspot
-                self._report_to_botspot(severity, error_code, message, details, count)
-                
-        except Exception as e:
-            # Don't let Botspot errors break the main application
+
+                # Outside window OR first occurrence -> check global cap
+                if not self._check_global_rate_limit():
+                    # global cap reached; skip sending but still accumulate suppressed
+                    fp_state['suppressed_count'] = int(fp_state['suppressed_count']) + 1
+                    return
+
+                # Prepare counts
+                suppressed = int(fp_state['suppressed_count'])
+                count_for_payload = 1 + suppressed  # current event + suppressed during window
+
+                # Send with latest details/message and aggregated count
+                success = self._report_to_botspot(
+                    severity,
+                    error_code,
+                    fp_state['last_message'],
+                    fp_state['last_details'],
+                    count_for_payload,
+                )
+                if success:
+                    self._total_errors_sent += 1
+                    fp_state['last_sent'] = now
+                    fp_state['suppressed_count'] = 0
+
+                # Opportunistic pruning: drop stale fingerprints occasionally
+                if len(self._fingerprints) > 500:  # arbitrary soft cap
+                    to_delete = []
+                    for k, v in self._fingerprints.items():
+                        last_sent = v.get('last_sent') or 0
+                        if now - float(last_sent) > 3600 and v.get('suppressed_count', 0) == 0:  # 1h inactivity
+                            to_delete.append(k)
+                    for k in to_delete:
+                        del self._fingerprints[k]
+        except Exception:
+            # Swallow all exceptions to avoid interfering with main execution
             pass
 
 

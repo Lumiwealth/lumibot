@@ -315,6 +315,22 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
             raise Exception("Error getting data from Polygon") from e
 
         if (df is None) or len(df) == 0:
+            # Add diagnostic logging to help debug missing data scenarios (e.g., crypto day bars)
+            try:
+                from lumibot.tools.polygon_helper import get_polygon_symbol as _sym_fn
+                dbg_symbol = _sym_fn(asset_separated, self.polygon_client, quote_asset)
+            except Exception:
+                dbg_symbol = f"<symbol-error {asset_separated.symbol}>"
+            logger.warning(
+                "Polygon returned no data: asset=%s resolved_symbol=%s quote=%s ts_unit=%s start=%s end=%s (len=%s)",
+                getattr(asset_separated, 'symbol', asset_separated),
+                dbg_symbol,
+                getattr(quote_asset, 'symbol', quote_asset),
+                ts_unit,
+                start_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                self.datetime_end.strftime('%Y-%m-%d %H:%M:%S'),
+                0,
+            )
             return
 
         # Store data

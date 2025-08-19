@@ -159,7 +159,8 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         timeshift: timedelta = None,
         quote: Asset = None,
         exchange: str = None,
-        include_after_hours: bool = True
+        include_after_hours: bool = True,
+        return_polars: bool = False,
     ) -> Bars:
         """
         Get historical price data for an asset using optimized polars operations
@@ -207,7 +208,8 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                     df=result_df,
                     source=self.SOURCE,
                     asset=asset,
-                    quote=quote
+                    quote=quote,
+                    return_polars=return_polars,
                 )
 
         # Calculate the date range for data retrieval
@@ -295,7 +297,8 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 df=df_result,
                 source=self.SOURCE,
                 asset=asset,
-                quote=quote
+                quote=quote,
+                return_polars=return_polars,
             )
 
             logger.debug(f"Retrieved {len(df_result)} bars for {asset.symbol}")
@@ -408,7 +411,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         """
         return self.get_last_price(asset, quote=quote)
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, return_polars: bool = False):
         """
         Parse source data for a single asset into Bars format
         
@@ -443,7 +446,9 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 return None
 
             # Use mixin's parse method
-            return self._parse_source_symbol_bars_polars(df, asset, self.SOURCE, quote)
+            return self._parse_source_symbol_bars_polars(
+                df, asset, self.SOURCE, quote, return_polars=return_polars
+            )
 
         except Exception as e:
             logger.error(f"Error parsing DataBento data for {asset.symbol}: {e}")

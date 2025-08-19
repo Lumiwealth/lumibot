@@ -1152,16 +1152,22 @@ class StrategyExecutor(Thread):
 
     def _setup_live_trading_scheduler(self):
         """Set up the APScheduler for live trading sessions"""
-        # Safety check: ensure scheduler exists and is not None
-        if hasattr(self, 'scheduler') and self.scheduler is not None and not self.scheduler.running:
+        # Ensure a scheduler exists (it may have been set to None during a previous graceful_exit)
+        if not hasattr(self, 'scheduler') or self.scheduler is None:
+            job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
+            self.scheduler = BackgroundScheduler(jobstores=job_stores)
+
+        # Start scheduler and ensure the OTIM job is present
+        if not self.scheduler.running:
             self.scheduler.start()
 
-            # Choose the cron trigger for the strategy based on the desired sleep time.
-            chosen_trigger = self.calculate_strategy_trigger(
-                force_start_immediately=self.strategy.force_start_immediately
-            )
+        # Choose the cron trigger for the strategy based on the desired sleep time.
+        chosen_trigger = self.calculate_strategy_trigger(
+            force_start_immediately=self.strategy.force_start_immediately
+        )
 
-            # Add the on_trading_iteration method to the scheduler with the chosen trigger.
+        # Add the on_trading_iteration job if it's not already scheduled
+        if self.scheduler.get_job("OTIM") is None:
             self.scheduler.add_job(
                 self._on_trading_iteration,
                 chosen_trigger,
@@ -1170,9 +1176,9 @@ class StrategyExecutor(Thread):
                 jobstore="On_Trading_Iteration",
             )
 
-            # Set the cron count to the cron count target so that the on_trading_iteration method will be executed
-            # the first time the scheduler runs.
-            self.cron_count = self.cron_count_target
+        # Set the cron count to the cron count target so that the on_trading_iteration method will be executed
+        # the first time the scheduler runs.
+        self.cron_count = self.cron_count_target
 
     def _calculate_should_we_stop(self):
         """Calculate if we should stop based on time to close and minutes before closing"""
@@ -1314,8 +1320,12 @@ class StrategyExecutor(Thread):
 
             # Loop until the strategy should stop.
             while True:
-                # Get the current jobs from the scheduler.
-                jobs = self.scheduler.get_jobs()
+                # Get the current jobs from the scheduler (may be None if gracefully exited previously)
+                if self.scheduler is None:
+                    # Attempt to re-create and start the scheduler
+                    self._setup_live_trading_scheduler()
+
+                jobs = self.scheduler.get_jobs() if self.scheduler is not None else []
 
                 # Check if we should continue trading loop
                 if not self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop):

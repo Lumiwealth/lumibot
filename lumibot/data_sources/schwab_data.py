@@ -298,7 +298,7 @@ class SchwabData(DataSource):
             return timedelta(days=qty), "day"
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
     ) -> Bars:
         """
         Get historical price data for an asset from Schwab API.

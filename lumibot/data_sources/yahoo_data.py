@@ -390,7 +390,11 @@ class YahooData(DataSourceBacktesting):
         elif bars is None:
             return None
 
-        open_ = bars.df.iloc[0].open
+        df_local = bars.df
+        if hasattr(df_local, "iloc"):
+            open_ = df_local["open"].iat[0]
+        else:
+            open_ = df_local["open"][0]
         if isinstance(open_, numpy.int64):
             open_ = Decimal(open_.item())
         return open_

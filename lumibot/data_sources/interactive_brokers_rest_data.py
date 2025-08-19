@@ -826,6 +826,7 @@ class InteractiveBrokersRESTData(DataSource):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        return_polars: bool = False,
     ) -> Bars:
         """
         Get bars for a given asset

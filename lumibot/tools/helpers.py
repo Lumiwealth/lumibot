@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import re
 import sys
@@ -536,4 +537,3 @@ def get_timezone_from_datetime(dtm: dt.datetime) -> pytz.timezone:
         return pytz.timezone(timezone_name)
     except (AttributeError, pytz.exceptions.UnknownTimeZoneError):
         return LUMIBOT_DEFAULT_PYTZ
-

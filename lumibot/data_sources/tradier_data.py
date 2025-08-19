@@ -198,7 +198,7 @@ class TradierData(DataSource):
         return df
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
     ):
         """
         Get bars for a given asset

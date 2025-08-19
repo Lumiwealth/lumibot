@@ -539,7 +539,8 @@ class AlpacaData(DataSource):
             timeshift: Optional[dt.timedelta] = None,
             quote: Optional[Asset] = None,
             exchange: Optional[str] = None,
-            include_after_hours: bool = True
+            include_after_hours: bool = True,
+            return_polars: bool = False,
     ) -> Optional[Bars]:
 
         """Get bars for a given asset"""

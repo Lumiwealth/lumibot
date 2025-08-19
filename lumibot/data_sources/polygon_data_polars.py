@@ -418,14 +418,17 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         response: pl.DataFrame,
         asset: Asset,
         quote: Optional[Asset] = None,
-        length: Optional[int] = None
+        length: Optional[int] = None,
+        return_polars: bool = False,
     ) -> Bars:
         """Parse bars from polars DataFrame."""
         if quote is not None:
             logger.warning(f"quote is not implemented for PolygonData, but {quote} was passed as the quote")
 
         # Use mixin's parse method
-        return self._parse_source_symbol_bars_polars(response, asset, self.SOURCE, quote, length)
+        return self._parse_source_symbol_bars_polars(
+            response, asset, self.SOURCE, quote, length, return_polars=return_polars
+        )
 
     def get_last_price(
         self,
@@ -492,7 +495,8 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         timeshift: Optional[timedelta] = None,
         quote: Optional[Asset] = None,
         exchange: Optional[str] = None,
-        include_after_hours: bool = False
+        include_after_hours: bool = False,
+        return_polars: bool = False,
     ) -> Optional[Bars]:
         """Get historical prices using polars."""
         logger.debug(f"get_historical_prices called for {asset.symbol}")
@@ -513,7 +517,9 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
             return None
 
         # Create and return Bars object
-        return self._parse_source_symbol_bars(bars_data, asset, quote=quote, length=length)
+        return self._parse_source_symbol_bars(
+            bars_data, asset, quote=quote, length=length, return_polars=return_polars
+        )
 
     def get_historical_prices_between_dates(
         self,

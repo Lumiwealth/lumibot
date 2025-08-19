@@ -526,33 +526,31 @@ class Bars:
             raise ValueError(f"frequency must be a string, got {type(frequency)}")
         f_lower = frequency.strip().lower()
 
-        freq_map = {
-            "1min": "1m", "1m": "1m", "1t": "1m", "minute": "1m", "1minute": "1m",
-            "5min": "5m", "5m": "5m", "5t": "5m", "5minute": "5m", "5minutes": "5m",
-            "15min": "15m", "15m": "15m", "15t": "15m", "15minute": "15m", "15minutes": "15m",
-            "30min": "30m", "30m": "30m", "30t": "30m", "30minute": "30m", "30minutes": "30m",
-            "1h": "1h", "1hr": "1h", "1hour": "1h", "1hours": "1h",
-            "1d": "1d", "1day": "1d", "1days": "1d",
+        # Flexible frequency parsing: allow any integer + unit alias.
+        # Examples accepted: 2m, 2min, 2 minutes, 3h, 90 s, 1D, 5 t
+        unit_aliases = {
+            's': 's', 'sec': 's', 'secs': 's', 'second': 's', 'seconds': 's',
+            't': 'm', 'm': 'm', 'min': 'm', 'mins': 'm', 'minute': 'm', 'minutes': 'm',
+            'h': 'h', 'hr': 'h', 'hrs': 'h', 'hour': 'h', 'hours': 'h',
+            'd': 'd', 'day': 'd', 'days': 'd'
         }
-        polars_freq = freq_map.get(f_lower)
-        if polars_freq is None:
+
+        polars_freq = None
+        # Direct simple form like 5m / 2h / 1d
+        if re.match(r"^\d+[smhd]$", f_lower):
+            polars_freq = f_lower
+        else:
             m = re.match(r"^(\d+)\s*([a-zA-Z]+)$", f_lower)
             if m:
                 num, unit = m.groups()
-                unit_map = {
-                    's': 's', 'sec': 's', 'secs': 's', 'second': 's', 'seconds': 's',
-                    'm': 'm', 'min': 'm', 'mins': 'm', 'minute': 'm', 'minutes': 'm', 't': 'm',
-                    'h': 'h', 'hr': 'h', 'hrs': 'h', 'hour': 'h', 'hours': 'h',
-                    'd': 'd', 'day': 'd', 'days': 'd'
-                }
-                if unit in unit_map:
-                    polars_freq = f"{int(num)}{unit_map[unit]}"
+                unit = unit_aliases.get(unit, None)
+                if unit:
+                    polars_freq = f"{int(num)}{unit}"
+
         if polars_freq is None:
-            polars_freq = f_lower
-        if not re.match(r"^\d+[smhd]$", polars_freq):
             raise ValueError(
-                f"Unsupported frequency '{original_frequency}'. After normalization got '{polars_freq}'. "
-                "Accepted examples: 5m, 15m, 1h, 2h, 1d (also accepts 5min, 5MINUTE, 5minutes)."
+                f"Unsupported frequency '{original_frequency}'. Normalization failed. "
+                "Examples: 2m, 5min, 15 minutes, 1h, 4 hours, 1d."
             )
         # Ensure datetime dtype (early coercion should have handled; add safety check)
         if underlying_df[dt_col].dtype not in (pl.Datetime, pl.Date):

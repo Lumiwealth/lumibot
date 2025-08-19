@@ -250,10 +250,10 @@ class BotspotErrorHandler(logging.Handler):
         self.base_url = "https://api.botspot.trade/bots/report-bot-error"
         # Use LUMIWEALTH_API_KEY from credentials or environment
         self.api_key = LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY")
-
-        # Fingerprint state keyed by simplified fingerprint to reduce API spam while preserving full details payloads.
+        # Fingerprint state keyed by simplified fingerprint (error_code, filename, function, message_signature)
+        # to reduce API spam while preserving differentiation between distinct error messages sharing same location.
         # fingerprint -> dict(last_sent: float|None, suppressed_count: int, total_count: int, last_details: str, last_message: str)
-        self._fingerprints: Dict[Tuple[str, str, str], Dict[str, object]] = {}
+        self._fingerprints: Dict[Tuple[str, str, str, str], Dict[str, object]] = {}
 
         self._total_errors_sent = 0
         self._minute_start_time = time.time()
@@ -394,11 +394,18 @@ class BotspotErrorHandler(logging.Handler):
             return False
         return True
 
-    def _make_fingerprint(self, error_code: str, record: logging.LogRecord) -> Tuple[str, str, str]:
-        """Create a coarse fingerprint: (error_code, filename, function). Keep line numbers & details in payload only."""
+    def _make_fingerprint(self, error_code: str, record: logging.LogRecord) -> Tuple[str, str, str, str]:
+        """Create a fingerprint including message signature so distinct messages aren't incorrectly coalesced.
+
+        We intentionally exclude line numbers (they can fluctuate) but include a truncated, normalized message to ensure
+        tests expecting multiple distinct errors (different messages) see multiple sends.
+        """
         filename = os.path.basename(record.pathname) if hasattr(record, 'pathname') else '<unknown>'
         func = getattr(record, 'funcName', '<unknown>')
-        return (error_code, filename, func)
+        raw_msg = record.getMessage().strip() if hasattr(record, 'getMessage') else str(getattr(record, 'msg', ''))
+        # Normalize whitespace and truncate to avoid huge keys
+        msg_sig = re.sub(r"\s+", " ", raw_msg)[:120]
+        return (error_code, filename, func, msg_sig)
 
     def _should_send_now(self, fp_state: Dict[str, object], now: float) -> bool:
         last_sent = fp_state.get('last_sent')  # may be None

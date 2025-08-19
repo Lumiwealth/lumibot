@@ -1,5 +1,5 @@
 polygon-api-client>=1.13.3
-alpaca-py>=0.28.1
+alpaca-py>=0.42.0
 alpha_vantage
 ibapi==9.81.1.post1
 yfinance>=0.2.61
@@ -7,7 +7,7 @@ matplotlib>=3.3.3
 quandl
 numpy>=1.20.0
 pandas>=2.2.0
-polars>=0.20.0
+polars>=1.32.3
 pandas_market_calendars>=5.1.0
 pandas_ta>=0.3.14b
 plotly>=5.18.0
@@ -39,4 +39,3 @@ schwab-py>=1.5.0
 Flask>=2.3
 free-proxy
 requests-oauthlib
-polars

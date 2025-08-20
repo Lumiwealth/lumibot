@@ -127,6 +127,12 @@ class Trader:
                 )
 
         strat = self._strategies[0]
+<<<<<<< Updated upstream
+=======
+    # NOTE: Market auto-detection now happens inside Broker.__init__.
+    # This previous redundancy has been removed to ensure a single
+    # source of truth for market inference (futures / crypto / 24-7).
+>>>>>>> Stashed changes
         if self.is_backtest_broker:
             strat.verify_backtest_inputs(strat.backtesting_start, strat.backtesting_end)
             logger.info("Backtesting starting...")

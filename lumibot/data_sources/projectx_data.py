@@ -200,6 +200,7 @@ class ProjectXData(DataSource):
             if len(df) > length:
                 df = df.tail(length)
 
+<<<<<<< Updated upstream
             # Create Bars object
             bars = Bars(
                 df=df,
@@ -211,6 +212,60 @@ class ProjectXData(DataSource):
             self.logger.debug(f"Retrieved {len(df)} bars for {asset.symbol}")
             return bars
 
+=======
+            # Debug & normalize datetime columns
+            try:
+                dt_cols = [c for c in df.columns if any(k in c.lower() for k in ["date", "time", "dt"]) ]
+                # Synthesize a single datetime column if one not already present
+                has_datetime = any(c.lower() in ("datetime", "date_time") for c in df.columns)
+                if not has_datetime:
+                    date_col = next((c for c in df.columns if c.lower() == "date"), None)
+                    time_col = next((c for c in df.columns if c.lower() == "time"), None)
+                    if date_col and time_col:
+                        try:
+                            combined = df[date_col].astype(str) + " " + df[time_col].astype(str)
+                            df["datetime"] = pd.to_datetime(combined, errors="coerce", utc=True)
+                            # Drop rows where parse failed
+                            before = len(df)
+                            df = df[df["datetime"].notna()]
+                            after = len(df)
+                            if before != after:
+                                self.logger.debug(f"Dropped {before-after} rows with invalid datetime parse for {asset.symbol}")
+                        except Exception as e_inner:
+                            self.logger.debug(f"Failed to synthesize datetime column for {asset.symbol}: {e_inner}")
+                # Standardize index: if we now have a datetime column and the current index is RangeIndex / non-datetime, set it.
+                try:
+                    if "datetime" in df.columns:
+                        if not isinstance(df.index, pd.DatetimeIndex) or df.index.name != "datetime":
+                            dt_series = pd.to_datetime(df["datetime"], errors="coerce", utc=True)
+                            # If conversion created NaT values, drop them to maintain integrity
+                            valid_mask = dt_series.notna()
+                            if not valid_mask.all():
+                                dropped = (~valid_mask).sum()
+                                self.logger.debug(f"Dropping {dropped} rows with invalid datetime during index set for {asset.symbol}")
+                                df = df.loc[valid_mask]
+                                dt_series = dt_series.loc[valid_mask]
+                            df = df.set_index(dt_series)
+                            df.index.name = "datetime"
+                            # Convert to local timezone similar to other sources (Bars keeps tz-aware). Use UTC to be consistent.
+                            if df.index.tz is None:
+                                df.index = df.index.tz_localize('UTC')
+                            else:
+                                # Ensure UTC for internal consistency; strategies can localize later.
+                                df.index = df.index.tz_convert('UTC')
+                except Exception as idx_exc:
+                    self.logger.debug(f"Failed to standardize datetime index for {asset.symbol}: {idx_exc}")
+                sample_head = df.head(3)[dt_cols].to_dict(orient="list") if dt_cols else {}
+                debug_msg = (
+                    f"Retrieved {len(df)} bars for {asset.symbol}; datetime-related cols={dt_cols}; has_datetime={'datetime' in df.columns}; sample={sample_head}"
+                )
+                self.logger.debug(debug_msg)
+                # Also emit on module logger for tests capturing module-level logs
+                logger.debug(debug_msg)
+            except Exception as log_exc:
+                self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
+            return Bars(df=df, source="projectx", asset=asset, raw=df.to_dict())
+>>>>>>> Stashed changes
         except Exception as e:
             self.logger.error(f"Error getting bars for {asset.symbol}: {e}")
             return None

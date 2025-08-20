@@ -6,6 +6,7 @@ Supports historical data retrieval for futures contracts.
 """
 
 from datetime import datetime, timedelta
+import pandas as pd
 from typing import Dict, List
 
 from lumibot.data_sources.data_source import DataSource
@@ -86,6 +87,8 @@ class ProjectXData(DataSource):
         super().__init__(**kwargs)
 
         self.logger.info(f"ProjectX data source initialized for firm: {self.firm}")
+        # Futures-only broker: set default market to US futures for downstream strategies
+    # No implicit default_market attribute; strategies should call set_market('us_futures').
 
     # ========== Required DataSource Methods ==========
 
@@ -104,12 +107,7 @@ class ProjectXData(DataSource):
         """
         try:
             # Get recent bars to extract last price
-            bars = self.get_bars(
-                asset=asset,
-                length=1,
-                timespan="minute",
-                timeshift=0
-            )
+            bars = self._fetch_bars(asset=asset, length=1, timestep="minute", timeshift=0)
 
             if bars is not None and not bars.df.empty:
                 return float(bars.df['close'].iloc[-1])
@@ -120,99 +118,96 @@ class ProjectXData(DataSource):
             self.logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
 
-    def get_bars(self, asset: Asset, length: int, timespan: str = "minute",
-                timeshift: int = None, chunk_size: int = None,
-                max_workers: int = None) -> Bars:
-        """
-        Get historical bars for an asset.
-
-        Args:
-            asset: Asset to get bars for
-            length: Number of bars to retrieve
-            timespan: Time span for bars (minute, hour, day, week, month)
-            timeshift: Number of bars to shift back in time
-            chunk_size: Not used (for compatibility)
-            max_workers: Not used (for compatibility)
-
-        Returns:
-            Bars object containing the historical data
-        """
+    # Internal single-asset fetcher to align with base class multi-asset logic
+    def _fetch_bars(self, asset: Asset, length: int, timestep: str = "minute", timeshift: int = None) -> Bars | None:
         try:
-            # Get contract ID for the asset
             contract_id = self._get_contract_id_from_asset(asset)
             if not contract_id:
                 self.logger.error(f"Contract not found for asset: {asset.symbol}")
                 return None
 
-            # Parse timespan
-            unit, unit_number = self._parse_timespan(timespan)
+            unit, unit_number = self._parse_timespan(timestep)
             if unit is None:
-                self.logger.error(f"Unsupported timespan: {timespan}")
+                self.logger.error(f"Unsupported timespan: {timestep}")
                 return None
 
-            # Calculate date range
             end_datetime = datetime.now()
             if timeshift:
-                # Shift back by specified number of periods
-                if timespan == "minute":
+                if timestep == "minute":
                     end_datetime -= timedelta(minutes=timeshift)
-                elif timespan == "hour":
+                elif timestep == "hour":
                     end_datetime -= timedelta(hours=timeshift)
-                elif timespan == "day":
+                elif timestep == "day":
                     end_datetime -= timedelta(days=timeshift)
-                elif timespan == "week":
+                elif timestep == "week":
                     end_datetime -= timedelta(weeks=timeshift)
-                elif timespan == "month":
+                elif timestep == "month":
                     end_datetime -= timedelta(days=timeshift * 30)
 
-            # Calculate start datetime based on length and timespan
-            if timespan == "minute":
+            if timestep == "minute":
                 start_datetime = end_datetime - timedelta(minutes=length * unit_number)
-            elif timespan == "hour":
+            elif timestep == "hour":
                 start_datetime = end_datetime - timedelta(hours=length * unit_number)
-            elif timespan == "day":
+            elif timestep == "day":
                 start_datetime = end_datetime - timedelta(days=length * unit_number)
-            elif timespan == "week":
+            elif timestep == "week":
                 start_datetime = end_datetime - timedelta(weeks=length * unit_number)
-            elif timespan == "month":
+            elif timestep == "month":
                 start_datetime = end_datetime - timedelta(days=length * unit_number * 30)
             else:
                 start_datetime = end_datetime - timedelta(days=length)
 
-            # Retrieve bars from ProjectX
             df = self.client.history_retrieve_bars(
                 contract_id=contract_id,
                 start_datetime=start_datetime.isoformat(),
                 end_datetime=end_datetime.isoformat(),
                 unit=unit,
                 unit_number=unit_number,
-                limit=length + 100,  # Add buffer for filtering
+                limit=length + 100,
                 include_partial_bar=True,
                 live=False,
-                is_est=True
+                is_est=True,
             )
 
             if df.empty:
                 self.logger.warning(f"No data returned for {asset.symbol}")
                 return None
 
-            # Ensure we have the right number of bars
             if len(df) > length:
                 df = df.tail(length)
 
-            # Create Bars object
-            bars = Bars(
-                df=df,
-                source="projectx",
-                asset=asset,
-                raw=df.to_dict()
-            )
-
-            self.logger.debug(f"Retrieved {len(df)} bars for {asset.symbol}")
-            return bars
-
+            # Debug & normalize datetime columns
+            try:
+                dt_cols = [c for c in df.columns if any(k in c.lower() for k in ["date", "time", "dt"]) ]
+                # Synthesize a single datetime column if one not already present
+                has_datetime = any(c.lower() in ("datetime", "date_time") for c in df.columns)
+                if not has_datetime:
+                    date_col = next((c for c in df.columns if c.lower() == "date"), None)
+                    time_col = next((c for c in df.columns if c.lower() == "time"), None)
+                    if date_col and time_col:
+                        try:
+                            combined = df[date_col].astype(str) + " " + df[time_col].astype(str)
+                            df["datetime"] = pd.to_datetime(combined, errors="coerce", utc=True)
+                            # Drop rows where parse failed
+                            before = len(df)
+                            df = df[df["datetime"].notna()]
+                            after = len(df)
+                            if before != after:
+                                self.logger.debug(f"Dropped {before-after} rows with invalid datetime parse for {asset.symbol}")
+                        except Exception as e_inner:
+                            self.logger.debug(f"Failed to synthesize datetime column for {asset.symbol}: {e_inner}")
+                sample_head = df.head(3)[dt_cols].to_dict(orient="list") if dt_cols else {}
+                debug_msg = (
+                    f"Retrieved {len(df)} bars for {asset.symbol}; datetime-related cols={dt_cols}; has_datetime={'datetime' in df.columns}; sample={sample_head}"
+                )
+                self.logger.debug(debug_msg)
+                # Also emit on module logger for tests capturing module-level logs
+                logger.debug(debug_msg)
+            except Exception as log_exc:
+                self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
+            return Bars(df=df, source="projectx", asset=asset, raw=df.to_dict())
         except Exception as e:
-            self.logger.error(f"Error getting bars for {asset.symbol}: {e}")
+            self.logger.error(f"Error fetching bars for {getattr(asset, 'symbol', asset)}: {e}")
             return None
 
     def get_yesterday_dividend(self, asset: Asset) -> float:
@@ -242,12 +237,7 @@ class ProjectXData(DataSource):
             Bars object containing historical data
         """
         try:
-            bars = self.get_bars(
-                asset=asset,
-                length=length,
-                timespan=timestep,
-                timeshift=timeshift
-            )
+            bars = self._fetch_bars(asset=asset, length=length, timestep=timestep, timeshift=timeshift)
 
             return bars
 

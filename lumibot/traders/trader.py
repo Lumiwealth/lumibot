@@ -127,6 +127,19 @@ class Trader:
                 )
 
         strat = self._strategies[0]
+        # Auto-set market for specific data sources if not already set
+        try:
+            if getattr(strat.broker, 'market', None) in (None, ''):
+                ds = getattr(strat.broker, 'data_source', None)
+                ds_cls = ds.__class__.__name__ if ds else ''
+                if ds_cls in ('ProjectXData', 'TradovateData'):
+                    strat.set_market('us_futures')
+                    logger.debug(f"Auto-set market to 'us_futures' for data source {ds_cls}")
+                elif ds_cls == 'CCXTData':
+                    strat.set_market('24/7')
+                    logger.debug("Auto-set market to '24/7' for CCXT data source")
+        except Exception as _auto_mkt_exc:
+            logger.debug(f"Auto market set skipped: {_auto_mkt_exc}")
         if self.is_backtest_broker:
             strat.verify_backtest_inputs(strat.backtesting_start, strat.backtesting_end)
             logger.info("Backtesting starting...")

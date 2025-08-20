@@ -6,6 +6,7 @@ Supports historical data retrieval for futures contracts.
 """
 
 from datetime import datetime, timedelta
+import pandas as pd
 from typing import Dict, List
 
 from lumibot.data_sources.data_source import DataSource
@@ -200,19 +201,7 @@ class ProjectXData(DataSource):
             if len(df) > length:
                 df = df.tail(length)
 
-<<<<<<< Updated upstream
-            # Create Bars object
-            bars = Bars(
-                df=df,
-                source="projectx",
-                asset=asset,
-                raw=df.to_dict()
-            )
-
-            self.logger.debug(f"Retrieved {len(df)} bars for {asset.symbol}")
-            return bars
-
-=======
+            # Enhanced datetime normalization & logging
             # Debug & normalize datetime columns
             try:
                 dt_cols = [c for c in df.columns if any(k in c.lower() for k in ["date", "time", "dt"]) ]
@@ -265,7 +254,6 @@ class ProjectXData(DataSource):
             except Exception as log_exc:
                 self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
             return Bars(df=df, source="projectx", asset=asset, raw=df.to_dict())
->>>>>>> Stashed changes
         except Exception as e:
             self.logger.error(f"Error getting bars for {asset.symbol}: {e}")
             return None

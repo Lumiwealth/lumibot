@@ -7,7 +7,7 @@ from lumibot.entities import Asset, Order
 from lumibot.brokers.projectx import ProjectX
 from lumibot.data_sources.projectx_data import ProjectXData
 
-pytestmark = pytest.mark.projectx
+pytestmark = [pytest.mark.projectx]
 
 FIRM_ENV = "PROJECTX_FIRM"
 REQUIRED_VARS = [

@@ -391,10 +391,7 @@ class Alpaca(Broker):
             )
 
         elif position.asset_class == "option":
-            asset = Asset(
-                symbol=position.symbol,
-                asset_type=Asset.AssetType.OPTION,
-            )
+            asset = Asset.symbol2asset(position.symbol)
         else:
             asset = Asset(
                 symbol=position.symbol,

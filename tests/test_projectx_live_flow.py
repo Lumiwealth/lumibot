@@ -3,6 +3,18 @@ import time
 import pytest
 from unittest.mock import MagicMock
 
+# This test module exercises a semi-integration flow that requires real ProjectX
+# credentials. To ensure CI (which lacks secrets) remains green, we skip the
+# whole module when env vars are absent. If you wish to run locally, export
+# the required PROJECTX_* variables and run pytest with -m "not skip_no_creds".
+REQUIRED_VARS = [
+    "PROJECTX_TOPONE_API_KEY",
+    "PROJECTX_TOPONE_USERNAME",
+    "PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME",
+]
+if any(os.environ.get(v) is None for v in REQUIRED_VARS):  # pragma: no cover
+    pytest.skip("Skipping ProjectX live flow tests (missing credentials)", allow_module_level=True)
+
 from lumibot.entities import Asset, Order
 from lumibot.brokers.projectx import ProjectX
 from lumibot.data_sources.projectx_data import ProjectXData
@@ -10,16 +22,7 @@ from lumibot.data_sources.projectx_data import ProjectXData
 pytestmark = [pytest.mark.projectx]
 
 FIRM_ENV = "PROJECTX_FIRM"
-REQUIRED_VARS = [
-    "PROJECTX_TOPONE_API_KEY",
-    "PROJECTX_TOPONE_USERNAME",
-    "PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME",
-]
 
-skip_reason = "Missing ProjectX TOPONE credential env vars; set them in .env to enable live-ish integration test"
-needs_creds = any(os.environ.get(v) is None for v in REQUIRED_VARS)
-
-@pytest.mark.skipif(needs_creds, reason=skip_reason)
 def test_projectx_order_lifecycle_smoke(caplog):
     """Smoke test: place a tiny limit order then cancel.
     This does not assert fill (requires market conditions) but validates:

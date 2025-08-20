@@ -77,17 +77,19 @@ class TestProjectXDataSource:
 
         # Test various timespan formats
         test_cases = [
-            ("minute", 1, 1),    # Fixed: returns (unit_id, unit_number)
-            ("1minute", 1, 1),
-            ("5minute", 1, 5),
-            ("15minute", 1, 15),
-            ("hour", 2, 1),      # Fixed: returns (unit_id, unit_number)
-            ("1hour", 2, 1),
-            ("4hour", 2, 4),
-            ("day", 3, 1),       # Fixed: returns (unit_id, unit_number)
-            ("1day", 3, 1),
-            ("week", 4, 1),      # Fixed: returns (unit_id, unit_number)
-            ("month", 5, 1),     # Fixed: returns (unit_id, unit_number)
+            ("second", 1, 1),
+            ("1second", 1, 1),
+            ("minute", 2, 1),
+            ("1minute", 2, 1),
+            ("5minute", 2, 5),
+            ("15minute", 2, 15),
+            ("hour", 3, 1),
+            ("1hour", 3, 1),
+            ("4hour", 3, 4),
+            ("day", 4, 1),
+            ("1day", 4, 1),
+            ("week", 5, 1),
+            ("month", 6, 1),
         ]
 
         for timespan, expected_unit, expected_number in test_cases:
@@ -100,12 +102,12 @@ class TestProjectXDataSource:
 
         # Test unit name to ProjectX unit mapping - using correct attribute name
         unit_mappings = projectx_data_source.TIME_UNIT_MAPPING
-
-        assert unit_mappings["minute"] == 1
-        assert unit_mappings["hour"] == 2
-        assert unit_mappings["day"] == 3
-        assert unit_mappings["week"] == 4
-        assert unit_mappings["month"] == 5
+        assert unit_mappings["second"] == 1
+        assert unit_mappings["minute"] == 2
+        assert unit_mappings["hour"] == 3
+        assert unit_mappings["day"] == 4
+        assert unit_mappings["week"] == 5
+        assert unit_mappings["month"] == 6
 
     def test_get_historical_prices_bars_conversion(self, projectx_data_source):
         """Test historical price retrieval and bars conversion"""

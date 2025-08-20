@@ -40,11 +40,12 @@ class ProjectXData(DataSource):
 
     # ProjectX time unit mappings
     TIME_UNIT_MAPPING = {
-        "minute": 1,    # Minute bars
-        "hour": 2,      # Hourly bars
-        "day": 3,       # Daily bars
-        "week": 4,      # Weekly bars
-        "month": 5,     # Monthly bars
+        "second": 1,    # Second bars
+        "minute": 2,    # Minute bars
+        "hour": 3,      # Hourly bars
+        "day": 4,       # Daily bars
+        "week": 5,      # Weekly bars
+        "month": 6,     # Monthly bars
     }
 
     def __init__(self, config: dict = None, **kwargs):

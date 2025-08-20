@@ -323,10 +323,12 @@ class ProjectX(Broker):
                 stop_price = self.client.round_to_tick_size(order.stop_price, tick_size)
 
             # Submit order
+            # NOTE: ProjectXClient.order_place expects parameter name 'type', not 'order_type'
+            # Passing 'order_type' caused: unexpected keyword argument 'order_type'
             response = self.client.order_place(
                 account_id=self.account_id,
                 contract_id=contract_id,
-                order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
+                type=order_type,
                 side=order_side,
                 size=order.quantity,
                 limit_price=limit_price,

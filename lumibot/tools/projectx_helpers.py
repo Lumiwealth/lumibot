@@ -628,28 +628,36 @@ class ProjectXClient:
             raise Exception(f"Failed to retrieve accounts: {response}")
     
     def get_preferred_account_id(self) -> int:
-        """Get preferred account ID"""
+        """Get preferred account ID - use configured preferred account or highest balance"""
         accounts = self.get_accounts()
         
-        # Filter for practice accounts
-        practice_accounts = [
-            account for account in accounts
-            if account.get("name", "").lower().startswith(("prac", "tof-px"))
-        ]
+        if not accounts:
+            raise Exception("No accounts found")
         
-        if not practice_accounts:
-            raise Exception("No practice accounts found")
+        self.logger.debug(f"Found {len(accounts)} accounts: {[acc.get('name', 'Unknown') for acc in accounts]}")
         
-        # Use preferred account if specified
+        # First priority: Use specifically configured preferred account name
         preferred_name = self.config.get("preferred_account_name")
         if preferred_name:
-            for account in practice_accounts:
+            self.logger.info(f"Looking for preferred account: {preferred_name}")
+            for account in accounts:
                 if account.get('name') == preferred_name:
-                    return account.get('id')
+                    account_id = account.get('id')
+                    account_balance = account.get('balance', 0)
+                    self.logger.info(f"✅ Using preferred account: {preferred_name} (ID: {account_id}, Balance: ${account_balance:,.2f})")
+                    return account_id
+            
+            # If preferred account not found, log warning but continue
+            self.logger.warning(f"⚠️ Preferred account '{preferred_name}' not found, using highest balance account")
         
-        # Fallback to highest balance account
-        selected_account = max(practice_accounts, key=lambda x: x.get('balance', 0))
-        return selected_account.get('id')
+        # Fallback: Select account with highest balance
+        selected_account = max(accounts, key=lambda x: x.get('balance', 0))
+        account_id = selected_account.get('id')
+        account_name = selected_account.get('name', 'Unknown')
+        account_balance = selected_account.get('balance', 0)
+        
+        self.logger.info(f"✅ Selected highest balance account: {account_name} (ID: {account_id}, Balance: ${account_balance:,.2f})")
+        return account_id
     
     def get_account_balance(self, account_id: int) -> Dict:
         """Get account balance and details"""

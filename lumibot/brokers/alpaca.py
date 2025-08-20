@@ -389,7 +389,6 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type=Asset.AssetType.CRYPTO,
             )
-
         elif position.asset_class == "option":
             asset = Asset.symbol2asset(position.symbol)
         else:

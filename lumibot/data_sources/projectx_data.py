@@ -122,7 +122,7 @@ class ProjectXData(DataSource):
 
     def get_bars(self, asset: Asset, length: int, timespan: str = "minute",
                 timeshift: int = None, chunk_size: int = None,
-                max_workers: int = None) -> Bars:
+                max_workers: int = None, timestep: str = None, **kwargs) -> Bars:
         """
         Get historical bars for an asset.
 
@@ -138,6 +138,10 @@ class ProjectXData(DataSource):
             Bars object containing the historical data
         """
         try:
+            # Support alias parameter name 'timestep' used by generic DataSource helpers
+            if timestep and not timespan:
+                timespan = timestep
+
             # Get contract ID for the asset
             contract_id = self._get_contract_id_from_asset(asset)
             if not contract_id:

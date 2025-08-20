@@ -394,40 +394,89 @@ class ProjectX:
         """Place an order for a contract"""
         url = f"{self.base_url}api/order/place"
         
-        payload = {
+        # --- Sanitize & normalize inputs ---
+        try:
+            size_int = int(size)
+        except (TypeError, ValueError):
+            self.logger.warning(f"⚠️ Invalid size '{size}' - defaulting to 1")
+            size_int = 1
+
+        # Remove None values to avoid API model binding issues
+        def _clean(d: dict) -> dict:
+            return {k: v for k, v in d.items() if v is not None}
+
+        base_payload = _clean({
             "accountId": account_id,
             "contractId": contract_id,
             "type": type,
             "side": side,
-            "size": size,
+            "size": size_int,
             "limitPrice": limit_price,
             "stopPrice": stop_price,
             "trailPrice": trail_price,
             "customTag": custom_tag,
             "linkedOrderId": linked_order_id,
-        }
-        
+        })
+
+        # Log the outgoing request (compact)
+        self.logger.debug(f"ProjectX.order_place payload: {base_payload}")
+
+        def _post(json_payload):
+            return requests.post(url, headers=self.headers, json=json_payload, timeout=10)
+
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
-            return response.json()
+            response = _post(base_payload)
+            try:
+                data = response.json()
+            except ValueError:
+                data = {"success": False, "error": f"Non-JSON response {response.status_code}"}
+
+            # Fast path success
+            if response.status_code == 200 and data.get("success"):
+                return data
+
+            # Detect validation pattern requiring wrapper {"request": {...}}
+            errors = (data or {}).get("errors") or {}
+            needs_wrapper = False
+            if isinstance(errors, dict):
+                if "request" in errors or any("The request field is required" in err for err_list in errors.values() for err in (err_list if isinstance(err_list, list) else [err_list])):
+                    needs_wrapper = True
+            # Also if size conversion failed, we retry after forcing int already and potentially wrapping
+            size_error = any("$.size" in err for err_list in errors.values() for err in (err_list if isinstance(err_list, list) else [err_list])) if errors else False
+            
+            if needs_wrapper or size_error:
+                wrapped_payload = {"request": base_payload}
+                self.logger.info("Retrying order_place with wrapped 'request' payload structure")
+                retry_resp = _post(wrapped_payload)
+                try:
+                    retry_data = retry_resp.json()
+                except ValueError:
+                    retry_data = {"success": False, "error": f"Non-JSON response {retry_resp.status_code}"}
+                if retry_resp.status_code == 200 and retry_data.get("success"):
+                    return retry_data
+                # Merge error context
+                return {"success": False, "error": retry_data.get("error") or retry_data, "first_attempt": data}
+
+            # If no specific wrapper need detected just return original data
+            return data if data else {"success": False, "error": f"HTTP {response.status_code}"}
+
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error: {e}")
+            self.logger.error(f"Error placing order: {e}")
             return {"success": False, "error": str(e)}
     
     def order_cancel(self, account_id: int, order_id: int) -> dict:
         """Cancel an order"""
         url = f"{self.base_url}api/order/cancel"
-        
-        payload = {
-            "accountId": account_id,
-            "orderId": order_id,
-        }
-        
+        payload = {"accountId": account_id, "orderId": order_id}
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
-            return response.json()
+            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            try:
+                data = response.json()
+            except ValueError:
+                data = {"success": False, "error": f"Non-JSON response {response.status_code}"}
+            return data
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error: {e}")
+            self.logger.error(f"Error cancelling order: {e}")
             return {"success": False, "error": str(e)}
     
     def contract_search(self, search_text: str, live: bool = False) -> dict:
@@ -959,9 +1008,9 @@ class ProjectXClient:
                 self.logger.error(f"❌ API search failed: {search_e}")
             
             # If all else fails, return the hardcoded mapping anyway (might work for orders)
-            if symbol_upper in common_futures:
-                fallback_contract = common_futures[symbol_upper]
-                self.logger.info(f"🔄 Fallback to hardcoded mapping: {fallback_contract}")
+            if symbol_upper in common_futures_fallback:
+                fallback_contract = common_futures_fallback[symbol_upper]
+                self.logger.info(f"🔄 Fallback to hardcoded mapping (last resort): {fallback_contract}")
                 return fallback_contract
             
             self.logger.error(f"❌ No contract found for symbol: {symbol}")
@@ -1004,6 +1053,13 @@ class ProjectXClient:
         return round(price / tick_size) * tick_size
     
     def order_cancel(self, account_id: int, order_id: int) -> dict:
-        """Cancel an order"""
-        response = self.api.order_cancel(account_id, order_id)
-        return response and response.get("success", False) 
+        """Cancel an order via high-level client; always return dict."""
+        try:
+            response = self.api.order_cancel(account_id, order_id)
+            # Underlying api.order_cancel returns dict (or False); normalize
+            if isinstance(response, dict):
+                return response
+            return {"success": bool(response)}
+        except Exception as e:
+            self.logger.error(f"Error in order_cancel wrapper: {e}")
+            return {"success": False, "error": str(e)}

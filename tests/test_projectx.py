@@ -1,4 +1,5 @@
 import datetime as dt
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 import numpy as np
@@ -6,6 +7,13 @@ import pandas as pd
 
 from lumibot.entities import Asset, Order, Position
 from lumibot.brokers.projectx import ProjectX
+needs_creds = any(os.environ.get(v) is None for v in [
+    "PROJECTX_TOPONE_API_KEY",
+    "PROJECTX_TOPONE_USERNAME",
+    "PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME",
+])
+skip_reason = "Missing ProjectX TOPONE credential env vars; set them to run ProjectX broker tests"
+
 from lumibot.data_sources.projectx_data import ProjectXData
 
 
@@ -193,6 +201,7 @@ class TestProjectXBroker:
             mock_contracts.assert_called_once()
             assert contract_id  # Should return a valid contract ID
 
+    @pytest.mark.skipif(needs_creds, reason=skip_reason)
     def test_order_tracking_sync_functionality(self, projectx_broker):
         """
         Test order tracking and sync functionality that was broken.
@@ -355,6 +364,7 @@ class TestProjectXBrokerIntegration:
     These still use mocks but test larger workflows.
     """
 
+    @pytest.mark.skipif(needs_creds, reason=skip_reason)
     def test_full_order_sync_workflow(self, projectx_broker):
         """Test the complete order sync workflow that was broken"""
         

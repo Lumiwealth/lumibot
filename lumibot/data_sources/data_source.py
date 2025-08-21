@@ -352,6 +352,7 @@ class DataSource(ABC):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        sleep_time=0.1,
     ):
         """Get bars for the list of assets"""
         if not isinstance(assets, list):
@@ -378,7 +379,7 @@ class DataSource(ABC):
                     )
 
                     # Sleep to prevent rate limiting
-                    time.sleep(0.1)
+                    time.sleep(sleep_time)
                 except Exception as e:
                     # Log once per asset to avoid spamming with a huge traceback
                     logger.warning(f"Error retrieving data for {base_asset.symbol}: {e}")

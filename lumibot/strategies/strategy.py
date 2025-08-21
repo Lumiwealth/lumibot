@@ -3266,6 +3266,7 @@ class Strategy(_Strategy):
         max_workers: int = 200,
         exchange: str = None,
         include_after_hours: bool = True,
+        sleep_time: float = 0.1
     ):
         """Get historical pricing data for the list of assets.
 
@@ -3340,6 +3341,7 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
             exchange=exchange,
+            sleep_time=sleep_time
         )
 
     def get_bars(
@@ -3351,6 +3353,7 @@ class Strategy(_Strategy):
         chunk_size: int = 100,
         max_workers: int = 200,
         exchange: str = None,
+        sleep_time: float = 0.1
     ):
         """
         This method is deprecated and will be removed in a future version.
@@ -3368,6 +3371,7 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
             exchange=exchange,
+            sleep_time=sleep_time
         )
 
     def start_realtime_bars(self, asset: Asset, keep_bars: int = 30):

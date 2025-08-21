@@ -124,7 +124,19 @@ class ProjectXData(DataSource):
             self.logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
 
-    def get_bars(self, assets, length, timestep="minute", timeshift=None, chunk_size=2, max_workers=2, quote=None, exchange=None, include_after_hours=True):
+    def get_bars(
+            self, 
+            assets, 
+            length, 
+            timestep="minute", 
+            timeshift=None, 
+            chunk_size=2, 
+            max_workers=2, 
+            quote=None, 
+            exchange=None, 
+            include_after_hours=True,
+            sleep_time=0.1
+            ):
         """Override: return Bars directly only for continuous futures (CONT_FUTURE) single asset; else parent dict.
         This satisfies unit tests expecting Bars for continuous futures while keeping alias test expecting dict."""
         from lumibot.entities import Asset as LBAsset
@@ -135,7 +147,7 @@ class ProjectXData(DataSource):
                     return self._fetch_bars(asset=asset, length=length, timestep=timestep, timeshift=timeshift or 0)
             except Exception:
                 pass
-        return super().get_bars(assets, length, timestep=timestep, timeshift=timeshift, chunk_size=chunk_size, max_workers=max_workers, quote=quote, exchange=exchange, include_after_hours=include_after_hours)
+        return super().get_bars(assets, length, timestep=timestep, timeshift=timeshift, chunk_size=chunk_size, max_workers=max_workers, quote=quote, exchange=exchange, include_after_hours=include_after_hours, sleep_time=sleep_time)
 
     # Internal single-asset fetcher to align with base class multi-asset logic
     def _fetch_bars(self, asset: Asset, length: int, timestep: str = "minute", timeshift: int = None) -> Bars | None:

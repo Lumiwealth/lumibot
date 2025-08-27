@@ -929,28 +929,34 @@ class ProjectX(Broker):
     def _handle_order_update(self, data):
         """Handle order update from streaming."""
         try:
-            order = self._convert_broker_order_to_lumibot_order(data)
-            if order is not None:
-                self._orders_cache[order.id] = order
-                # No adapter-level lifecycle processing; cache update only
-                self.logger.debug(f"Order update cached: {order.id} -> {order.status}")
+            # Stream can deliver a single dict or a list of dicts
+            payloads = data if isinstance(data, list) else [data]
+            for item in payloads:
+                order = self._convert_broker_order_to_lumibot_order(item)
+                if order is not None:
+                    self._orders_cache[order.id] = order
+                    # No adapter-level lifecycle processing; cache update only
+                    self.logger.debug(f"Order update cached: {order.id} -> {order.status}")
         except Exception as e:
             self.logger.error(f"Error handling order update: {e}")
 
     def _handle_position_update(self, data):
         """Handle position update from streaming."""
         try:
-            position = self._convert_broker_position_to_lumibot_position(data)
-            if position is not None:
-                self._positions_cache[position.asset.symbol] = position
-                self.logger.debug(f"Position update received: {position.asset.symbol}")
+            payloads = data if isinstance(data, list) else [data]
+            for item in payloads:
+                position = self._convert_broker_position_to_lumibot_position(item)
+                if position is not None:
+                    self._positions_cache[position.asset.symbol] = position
+                    self.logger.debug(f"Position update received: {position.asset.symbol}")
         except Exception as e:
             self.logger.error(f"Error handling position update: {e}")
 
     def _handle_trade_update(self, data):
         """Handle trade update from streaming."""
         try:
-            self.logger.debug(f"Trade update received: {data}")
+            # Trade updates could be single or batch; log type only to avoid noise
+            self.logger.debug("Trade update received")
             # Trade updates can trigger order and position cache updates
             self._update_orders_cache()
             self._update_positions_cache()
@@ -960,8 +966,14 @@ class ProjectX(Broker):
     def _handle_account_update(self, data):
         """Handle account update from streaming."""
         try:
-            self.logger.debug(f"Account update received: {data}")
-            self.account_info = data
+            # Account updates may be dict or list; keep last dict seen
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        self.account_info = item
+            elif isinstance(data, dict):
+                self.account_info = data
+            self.logger.debug("Account update received")
         except Exception as e:
             self.logger.error(f"Error handling account update: {e}")
 

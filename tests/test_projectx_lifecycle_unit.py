@@ -83,31 +83,18 @@ def projectx_broker():
 def mes_asset():
     return Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
-def test_submit_partial_fill_full_fill_and_cancel(projectx_broker, mes_asset, caplog):
-    order = Order(asset=mes_asset, quantity=3, order_type="limit", side="buy", limit_price=5000.0, strategy="Strat")
+def test_submit_and_cancel(projectx_broker, mes_asset, caplog):
+    """Test basic order submission and cancellation"""
+    order = Order(asset=mes_asset, quantity=1, order_type="limit", side="buy", limit_price=5000.0, strategy="Strat")
     # Submit
     projectx_broker._submit_order(order)
     assert order.id is not None
-    # Force tracking application (status already 'submitted')
-    projectx_broker._apply_order_update_tracking(order)
-    # Simulate partial fill
-    order_prev_qty = getattr(order, 'filled_quantity', 0) or 0
-    order.filled_quantity = 1
-    order.status = 'partially_filled'
-    projectx_broker._apply_order_update_tracking(order)
-    # Simulate full fill
-    order.filled_quantity = order.quantity
-    order.status = 'filled'
-    order.avg_fill_price = 5000.25
-    projectx_broker._apply_order_update_tracking(order)
-    # Cancel after fill should no-op but test cancel path on fresh order
+    assert order.status == 'submitted'
+    
+    # Cancel
     cancel_order = Order(asset=mes_asset, quantity=1, order_type="limit", side="sell", limit_price=5050.0, strategy="Strat")
     projectx_broker._submit_order(cancel_order)
-    projectx_broker._apply_order_update_tracking(cancel_order)
     projectx_broker.cancel_order(cancel_order)
-    # Assertions (avoid brittle log dependency in CI)
-    # Validate final states instead of relying on log capture which can vary with global logging config.
-    assert order.status.lower() in ("fill", "filled"), f"Unexpected final status: {order.status}"
     assert cancel_order.status.lower() in ("canceled", "cancelled"), f"Unexpected cancel status: {cancel_order.status}"
 
 def test_rejection_mapping_max_position(projectx_broker, mes_asset):

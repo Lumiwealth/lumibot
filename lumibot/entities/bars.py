@@ -64,22 +64,6 @@ class PolarsConversionTracker:
             assets_str = ", ".join(assets_list)
             if unique_assets > 5:
                 assets_str += f", ... ({unique_assets - 5} more)"
-            try:
-                logger.warning(
-                    f"\n" + "="*70 + "\n"
-                    f"BACKTEST PERFORMANCE SUMMARY\n" + 
-                    "="*70 + "\n"
-                    f"Total DataFrame conversions: {self._total_conversions}\n"
-                    f"Unique assets affected: {unique_assets} [{assets_str}]\n"
-                    f"\n"
-                    f"Estimated performance impact: ~{self._total_conversions * 10}-{self._total_conversions * 50}ms added overhead\n"
-                    f"\n"
-                    f"To speed up your backtest, add return_polars=True to get_historical_prices()\n" +
-                    "="*70
-                )
-            except Exception:
-                # Ignore logging errors (e.g., during interpreter shutdown or closed handlers in tests)
-                pass
     
     @classmethod
     def reset(cls):

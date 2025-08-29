@@ -35,9 +35,9 @@ class TestProjectXURLMappings:
         assert "api.toponefutures.projectx.com" in PROJECTX_BASE_URLS["topone"]
         assert "projectx.com" in PROJECTX_BASE_URLS["topone"]
         
-        # Streaming URLs still use gateway-rtc pattern
-        assert "gateway-rtc-" in PROJECTX_STREAMING_URLS["topone"]
-        assert "s2f.projectx.com" in PROJECTX_STREAMING_URLS["topone"]
+        # Streaming URLs now use rtc.*.projectx.com pattern (except demo)
+        assert "rtc.toponefutures.projectx.com" in PROJECTX_STREAMING_URLS["topone"]
+        assert "projectx.com" in PROJECTX_STREAMING_URLS["topone"]
     
     def test_get_config_with_builtin_urls(self):
         """Test configuration using built-in URLs"""
@@ -189,7 +189,7 @@ class TestProjectXBrokerValidation:
             assert config['username'] == 'test_topone_user'
             assert config['preferred_account_name'] == 'test_account'
             assert config['base_url'] == 'https://api.toponefutures.projectx.com/'
-            assert config['streaming_base_url'] == 'https://gateway-rtc-demo.s2f.projectx.com/'
+            assert config['streaming_base_url'] == 'https://rtc.toponefutures.projectx.com/'
     
     def test_no_legacy_firm_names_in_mappings(self):
         """Test that legacy firm names like 'toponefutures' are not in the URL mappings"""
@@ -209,8 +209,15 @@ class TestProjectXBrokerValidation:
                 assert 'api.' in url and 'projectx.com' in url
         
         for firm, url in PROJECTX_STREAMING_URLS.items():
-            if firm != 'topstepx':  # topstepx has different URL pattern  
-                assert 'gateway-rtc-' in url or 's2f.projectx.com' in url
+            if firm == 'demo':
+                # Demo still uses old gateway-rtc pattern
+                assert 'gateway-rtc-' in url and 's2f.projectx.com' in url
+            elif firm == 'topstepx':
+                # TopStepX uses its own domain
+                assert 'rtc.topstepx.com' in url
+            else:
+                # All other firms use rtc.*.projectx.com pattern
+                assert 'rtc.' in url and 'projectx.com' in url
 
 
 if __name__ == "__main__":

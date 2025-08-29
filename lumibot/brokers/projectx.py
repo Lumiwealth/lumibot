@@ -924,36 +924,6 @@ class ProjectX(Broker):
         except Exception as e:
             self.logger.error(f"Error updating positions cache: {e}")
 
-    # ========== Order Tracking Methods ==========
-    
-    def _apply_order_update_tracking(self, order):
-        """Apply order update and track in appropriate list based on status.
-        
-        This method is used by tests to verify order lifecycle management.
-        """
-        # Remove from all lists first to avoid duplicates
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        self._filled_orders.remove(order.identifier, key="identifier")
-        self._canceled_orders.remove(order.identifier, key="identifier")
-        self._error_orders.remove(order.identifier, key="identifier")
-        
-        # Add to appropriate list based on status
-        status_lower = order.status.lower() if order.status else ""
-        if status_lower in ["new", "submitted", "pending", "open"]:
-            self._new_orders.append(order)
-        elif "partial" in status_lower or status_lower in ["partially_filled", "partialfill", "partial"]:
-            self._partially_filled_orders.append(order)
-        elif status_lower in ["filled", "fill", "complete", "completed"]:
-            self._filled_orders.append(order)
-        elif status_lower in ["canceled", "cancelled", "cancel"]:
-            self._canceled_orders.append(order)
-        elif status_lower in ["error", "rejected", "failed"]:
-            self._error_orders.append(order)
-        else:
-            # Default to new orders for unknown status
-            self._new_orders.append(order)
-
     # ========== Streaming Event Handlers ==========
 
     def _handle_order_update(self, data):

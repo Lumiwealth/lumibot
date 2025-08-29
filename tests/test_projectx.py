@@ -204,8 +204,8 @@ class TestProjectXBroker:
     @pytest.mark.skipif(needs_creds, reason=skip_reason)
     def test_order_tracking_sync_functionality(self, projectx_broker):
         """
-        Test order tracking and sync functionality that was broken.
-        Orders were being synced but then auto-canceled during validation.
+        Test order tracking and sync functionality.
+        Verify that orders can be retrieved from broker correctly.
         """
         # Mock existing orders at broker
         existing_broker_orders = [
@@ -226,14 +226,12 @@ class TestProjectXBroker:
             return_value=Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
         )
 
-        # Mock the sync method
-        projectx_broker._sync_existing_orders_to_tracking = MagicMock()
-        
-        # Test that sync is called during order retrieval
+        # Test order retrieval
         orders = projectx_broker._get_orders_at_broker()
         
-        # Should have synced existing orders
-        projectx_broker._sync_existing_orders_to_tracking.assert_called_once()
+        # Should have retrieved and converted orders
+        assert len(orders) == 1
+        assert orders[0].asset.symbol == "MES"
 
     def test_order_sync_prevents_auto_cancellation(self, projectx_broker):
         """

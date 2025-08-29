@@ -19,10 +19,12 @@ logger = get_logger(__name__)
 # DataBento imports (will be installed as dependency)
 try:
     import databento as db
-    from databento import Historical
+    from databento import Historical, Live
     DATABENTO_AVAILABLE = True
+    DATABENTO_LIVE_AVAILABLE = True
 except ImportError:
     DATABENTO_AVAILABLE = False
+    DATABENTO_LIVE_AVAILABLE = False
     logger.warning("DataBento package not available. Please install with: pip install databento")
 
 # Cache settings
@@ -40,7 +42,7 @@ if not os.path.exists(LUMIBOT_DATABENTO_CACHE_FOLDER):
 
 
 class DataBentoClientPolars:
-    """Optimized DataBento client using polars for data handling"""
+    """Optimized DataBento client using polars for data handling with Live/Historical hybrid support"""
 
     def __init__(self, api_key: str, timeout: int = 30, max_retries: int = 3):
         if not DATABENTO_AVAILABLE:
@@ -49,24 +51,261 @@ class DataBentoClientPolars:
         self.api_key = api_key
         self.timeout = timeout
         self.max_retries = max_retries
-        self._client = None
+        self._historical_client = None
+        self._live_client = None
 
     @property
     def client(self):
-        """Lazy initialization of DataBento client"""
-        if self._client is None:
+        """Lazy initialization of DataBento Historical client (for backward compatibility)"""
+        return self.historical_client
+
+    @property
+    def historical_client(self):
+        """Lazy initialization of DataBento Historical client"""
+        if self._historical_client is None:
             if not DATABENTO_AVAILABLE:
                 raise ImportError("DataBento package not available")
-            self._client = Historical(key=self.api_key)
-        return self._client
+            self._historical_client = Historical(key=self.api_key)
+        return self._historical_client
+
+    @property
+    def live_client(self):
+        """Lazy initialization of DataBento Live client"""
+        if self._live_client is None:
+            if not DATABENTO_LIVE_AVAILABLE:
+                logger.warning("DataBento Live API not available, falling back to Historical API")
+                return None
+            self._live_client = Live(key=self.api_key)
+        return self._live_client
 
     def get_available_range(self, dataset: str) -> Dict[str, str]:
         """Get the available date range for a dataset"""
         try:
-            return self.client.metadata.get_dataset_range(dataset=dataset)
+            return self.historical_client.metadata.get_dataset_range(dataset=dataset)
         except Exception as e:
             logger.warning(f"Could not get dataset range for {dataset}: {e}")
             return {}
+
+    def should_use_live_api(self, start: datetime, end: datetime) -> bool:
+        """
+        Determine whether to use Live API based on requested time range
+        Live API is used for data within the last 24 hours for better freshness
+        """
+        if not DATABENTO_LIVE_AVAILABLE or self.live_client is None:
+            return False
+            
+        current_time = datetime.now(timezone.utc)
+        # Use Live API if any part of the requested range is within last 24 hours
+        live_cutoff = current_time - timedelta(hours=24)
+        
+        # Convert to timezone-aware for comparison if needed
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        
+        use_live = end > live_cutoff
+        logger.debug(f"Live API decision: end={end}, cutoff={live_cutoff}, use_live={use_live}")
+        return use_live
+
+    def get_hybrid_historical_data(
+        self,
+        dataset: str,
+        symbols: Union[str, List[str]],
+        schema: str,
+        start: Union[str, datetime, date],
+        end: Union[str, datetime, date],
+        venue: Optional[str] = None,
+        **kwargs
+    ) -> pl.DataFrame:
+        """
+        Get historical data using hybrid Live/Historical API approach
+        Automatically routes requests to the most appropriate API
+        """
+        # Convert dates to datetime objects
+        if isinstance(start, str):
+            start = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        elif isinstance(start, date) and not isinstance(start, datetime):
+            start = datetime.combine(start, datetime.min.time())
+            
+        if isinstance(end, str):
+            end = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        elif isinstance(end, date) and not isinstance(end, datetime):
+            end = datetime.combine(end, datetime.max.time())
+
+        # Decide which API to use
+        use_live_api = self.should_use_live_api(start, end)
+        
+        if use_live_api:
+            logger.info(f"Using Live API for recent data: {start} to {end}")
+            try:
+                return self._get_live_data(dataset, symbols, schema, start, end, venue, **kwargs)
+            except Exception as e:
+                logger.warning(f"Live API failed ({e}), falling back to Historical API")
+                # Fall back to Historical API
+                return self._get_historical_data(dataset, symbols, schema, start, end, venue, **kwargs)
+        else:
+            logger.info(f"Using Historical API for older data: {start} to {end}")
+            return self._get_historical_data(dataset, symbols, schema, start, end, venue, **kwargs)
+
+    def _get_live_data(
+        self,
+        dataset: str,
+        symbols: Union[str, List[str]],
+        schema: str,
+        start: datetime,
+        end: datetime,
+        venue: Optional[str] = None,
+        **kwargs
+    ) -> pl.DataFrame:
+        """Get data using Live API (for recent data)"""
+        live_client = self.live_client
+        if live_client is None:
+            raise Exception("Live API client not available")
+            
+        try:
+            # DataBento Live API is designed for streaming/real-time data
+            # For historical lookbacks within the Live API's range, we need to use
+            # the Live client's historical methods if available
+            
+            # Check if Live client has timeseries access
+            if hasattr(live_client, 'timeseries') and hasattr(live_client.timeseries, 'get_range'):
+                logger.info("Using Live API timeseries.get_range for recent historical data")
+                data = live_client.timeseries.get_range(
+                    dataset=dataset,
+                    symbols=symbols,
+                    schema=schema,
+                    start=start,
+                    end=end,
+                    **kwargs
+                )
+            else:
+                # Live API may not have historical lookup - fall back to Historical with recent cutoff
+                logger.info("Live API doesn't support historical lookups, using Historical API with reduced lag tolerance")
+                # Use a more aggressive approach with Historical API - allow shorter lag for recent data
+                return self._get_historical_data_with_reduced_lag(dataset, symbols, schema, start, end, venue, **kwargs)
+
+            # Process the data same way as Historical API
+            if hasattr(data, 'to_df'):
+                pandas_df = data.to_df()
+                logger.debug(f"[Live API] Raw pandas df columns: {pandas_df.columns.tolist()}")
+
+                if pandas_df.index.name:
+                    index_name = pandas_df.index.name
+                    pandas_df = pandas_df.reset_index()
+                    if index_name in pandas_df.columns:
+                        pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
+                        
+                df = pl.from_pandas(pandas_df)
+                if 'datetime' in df.columns:
+                    df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
+            else:
+                df = pl.DataFrame(data)
+
+            logger.debug(f"Successfully retrieved {len(df)} rows from Live API")
+            return df
+
+        except Exception as e:
+            logger.warning(f"Live API error: {e}")
+            # Fall back to Historical API
+            raise
+
+    def _get_historical_data_with_reduced_lag(
+        self,
+        dataset: str,
+        symbols: Union[str, List[str]],
+        schema: str,
+        start: datetime,
+        end: datetime,
+        venue: Optional[str] = None,
+        **kwargs
+    ) -> pl.DataFrame:
+        """
+        Get data using Historical API but with reduced lag tolerance for recent data requests
+        """
+        logger.info("Using Historical API with reduced lag tolerance for Live-range data")
+        
+        # Use Historical API but with more aggressive retry logic for recent data
+        try:
+            data = self.historical_client.timeseries.get_range(
+                dataset=dataset,
+                symbols=symbols,
+                schema=schema,
+                start=start,
+                end=end,
+                **kwargs
+            )
+            
+            # Process data same as normal historical
+            if hasattr(data, 'to_df'):
+                pandas_df = data.to_df()
+                if pandas_df.index.name:
+                    index_name = pandas_df.index.name
+                    pandas_df = pandas_df.reset_index()
+                    if index_name in pandas_df.columns:
+                        pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
+                df = pl.from_pandas(pandas_df)
+                if 'datetime' in df.columns:
+                    df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
+            else:
+                df = pl.DataFrame(data)
+
+            return df
+            
+        except Exception as e:
+            error_str = str(e)
+            # For recent data requests, be more aggressive about retrying with earlier end times
+            if "data_end_after_available_end" in error_str:
+                # For Live-range requests, try with more recent fallbacks
+                import re
+                match = re.search(r"data available up to '([^']+)'", error_str)
+                if match:
+                    available_end_str = match.group(1)
+                    available_end = datetime.fromisoformat(available_end_str.replace('+00:00', '+00:00'))
+                    
+                    # For recent data, accept smaller lag (2 minutes instead of 10)
+                    current_time = datetime.now(timezone.utc)
+                    lag = current_time - available_end
+                    
+                    if lag > timedelta(minutes=2):
+                        logger.warning(f"Live-range data is {lag.total_seconds()/60:.1f} minutes behind (using reduced tolerance)")
+                    
+                    logger.info(f"Retrying Live-range request with available end: {available_end}")
+                    data = self.historical_client.timeseries.get_range(
+                        dataset=dataset,
+                        symbols=symbols,
+                        schema=schema,
+                        start=start,
+                        end=available_end,
+                        **kwargs
+                    )
+                    
+                    if hasattr(data, 'to_df'):
+                        pandas_df = data.to_df()
+                        if pandas_df.index.name:
+                            index_name = pandas_df.index.name
+                            pandas_df = pandas_df.reset_index()
+                            if index_name in pandas_df.columns:
+                                pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
+                        df = pl.from_pandas(pandas_df)
+                        if 'datetime' in df.columns:
+                            df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
+                        return df
+            
+            raise
+
+    def _get_historical_data(
+        self,
+        dataset: str,
+        symbols: Union[str, List[str]],
+        schema: str,
+        start: datetime,
+        end: datetime,
+        venue: Optional[str] = None,
+        **kwargs
+    ) -> pl.DataFrame:
+        """Get data using Historical API (existing implementation)"""
+        return self.get_historical_data(dataset, symbols, schema, start, end, venue, **kwargs)
 
     def get_historical_data(
         self,
@@ -103,28 +342,38 @@ class DataBentoClientPolars:
         pl.DataFrame
             Historical data from DataBento as polars DataFrame
         """
-        # Get available range to clamp end date
-        available_range = self.get_available_range(dataset)
-        if available_range and 'end' in available_range:
-            import pandas as pd
-            available_end = pd.to_datetime(available_range['end'])
-            request_end = pd.to_datetime(end)
+        # Skip clamping for intraday data (minute/hour) in live trading
+        # The metadata endpoint lags behind real-time data
+        is_intraday = schema in ['ohlcv-1m', 'ohlcv-1h', 'bbo-1s', 'bbo-1m', 'ohlcv-1s']
+        logger.info(f"DB_HELPER[check]: schema={schema}, is_intraday={is_intraday}, type(schema)={type(schema)}")
+        
+        if not is_intraday:
+            # Get available range to clamp end date (only for daily data)
+            available_range = self.get_available_range(dataset)
+            if available_range and 'end' in available_range:
+                import pandas as pd
+                available_end = pd.to_datetime(available_range['end'])
+                request_end = pd.to_datetime(end)
 
-            # Ensure both dates are timezone-naive for comparison
-            if available_end.tzinfo is not None:
-                available_end = available_end.replace(tzinfo=None)
-            if request_end.tzinfo is not None:
-                request_end = request_end.replace(tzinfo=None)
+                # Ensure both dates are timezone-naive for comparison
+                if available_end.tzinfo is not None:
+                    logger.debug(f"DB_HELPER[range]: available_end tz-aware -> making naive: {available_end}")
+                    available_end = available_end.replace(tzinfo=None)
+                if request_end.tzinfo is not None:
+                    logger.debug(f"DB_HELPER[range]: request_end tz-aware -> making naive: {request_end}")
+                    request_end = request_end.replace(tzinfo=None)
 
-            # Clamp end date to available range
-            if request_end > available_end:
-                logger.debug(f"Clamping end date from {end} to available end: {available_end}")
-                end = available_end
+                # Clamp end date to available range
+                if request_end > available_end:
+                    logger.info(f"DB_HELPER[range]: clamp end from {request_end} to {available_end}")
+                    end = available_end
+        else:
+            logger.info(f"DB_HELPER[skip_clamp]: Skipping metadata clamp for intraday schema={schema}")
 
-        logger.debug(f"Requesting DataBento data: {symbols} from {start} to {end}")
+        logger.info(f"DB_HELPER[request]: dataset={dataset} symbols={symbols} schema={schema} start={start} end={end}")
 
         try:
-            data = self.client.timeseries.get_range(
+            data = self.historical_client.timeseries.get_range(
                 dataset=dataset,
                 symbols=symbols,
                 schema=schema,
@@ -164,6 +413,77 @@ class DataBentoClientPolars:
             return df
 
         except Exception as e:
+            # Try to get the error message from various sources
+            error_str = str(e)
+            if hasattr(e, 'message'):
+                error_str = e.message
+            elif hasattr(e, 'json_body') and e.json_body:
+                error_str = str(e.json_body)
+            
+            logger.info(f"DB_HELPER[error]: Got exception type={type(e).__name__}, msg={error_str[:500]}")
+            logger.info(f"DB_HELPER[request_details]: Requested end={end}, dataset={dataset}, schema={schema}")
+            
+            # Handle data_end_after_available_end error by retrying with earlier end date
+            if "data_end_after_available_end" in error_str:
+                import re
+                # Extract available end time from error message
+                match = re.search(r"data available up to '([^']+)'", error_str)
+                if match:
+                    available_end_str = match.group(1)
+                    
+                    # Parse the available end time
+                    from datetime import datetime, timezone, timedelta
+                    available_end = datetime.fromisoformat(available_end_str.replace('+00:00', '+00:00'))
+                    
+                    # Check how far behind the data is
+                    if hasattr(end, 'replace'):
+                        # If end is a datetime, make it timezone-aware for comparison
+                        end_dt = end if end.tzinfo else end.replace(tzinfo=timezone.utc)
+                    else:
+                        end_dt = datetime.fromisoformat(str(end)).replace(tzinfo=timezone.utc)
+                    
+                    available_end_utc = available_end if available_end.tzinfo else available_end.replace(tzinfo=timezone.utc)
+                    lag = end_dt - available_end_utc
+                    
+                    # If data is more than 10 minutes behind, this is suspicious
+                    if lag > timedelta(minutes=10):
+                        logger.error(f"DataBento data is {lag.total_seconds()/60:.1f} minutes behind! Available: {available_end_str}, Requested: {end}")
+                        # Don't retry with such old data - just fail
+                        raise Exception(f"DataBento data is too stale ({lag.total_seconds()/60:.1f} minutes behind)")
+                    
+                    logger.warning(f"DataBento data only available up to {available_end_str} ({lag.total_seconds()/60:.1f} min behind), retrying")
+                    
+                    # Retry the request with the available end time
+                    logger.info(f"DB_HELPER[retry]: Retrying with end={available_end}")
+                    try:
+                        data = self.historical_client.timeseries.get_range(
+                            dataset=dataset,
+                            symbols=symbols,
+                            schema=schema,
+                            start=start,
+                            end=available_end,  # Use the available end time
+                            **kwargs  # Pass through any additional kwargs
+                        )
+                        
+                        if hasattr(data, 'to_df'):
+                            pandas_df = data.to_df()
+                            if pandas_df.index.name:
+                                index_name = pandas_df.index.name
+                                pandas_df = pandas_df.reset_index()
+                                if index_name in pandas_df.columns:
+                                    pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
+                            df = pl.from_pandas(pandas_df)
+                            if 'datetime' in df.columns:
+                                df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
+                        else:
+                            df = pl.DataFrame(data)
+                        
+                        logger.debug(f"Successfully retrieved {len(df)} rows after retry")
+                        return df
+                    except Exception as retry_e:
+                        logger.error(f"DataBento retry also failed: {retry_e}")
+                        raise retry_e
+            
             logger.error(f"DataBento API error: {e}")
             raise e
 
@@ -276,16 +596,32 @@ def _determine_databento_schema(timestep: str) -> str:
 
 
 def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep: str) -> Path:
-    """Build a cache filename for the given parameters"""
+    """Build a cache filename for the given parameters.
+
+    For intraday (minute/hour) data, include time in the filename so fresh data
+    isn't shadowed by an earlier same-day cache. For daily, keep date-only.
+    """
     symbol = asset.symbol
     if asset.expiration:
         symbol += f"_{asset.expiration.strftime('%Y%m%d')}"
 
-    start_str = start.strftime('%Y%m%d')
-    end_str = end.strftime('%Y%m%d')
-    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
+    # Ensure we have datetime objects
+    start_dt = start if isinstance(start, datetime) else datetime.combine(start, datetime.min.time())
+    end_dt = end if isinstance(end, datetime) else datetime.combine(end, datetime.min.time())
 
-    return Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
+    if (timestep or '').lower() in ('minute', '1m', 'hour', '1h'):
+        # Include hour/minute for intraday caching
+        start_str = start_dt.strftime('%Y%m%d%H%M')
+        end_str = end_dt.strftime('%Y%m%d%H%M')
+    else:
+        # Date-only for daily
+        start_str = start_dt.strftime('%Y%m%d')
+        end_str = end_dt.strftime('%Y%m%d')
+
+    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
+    path = Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
+    logger.info(f"DB_HELPER[cache]: file={path.name} symbol={asset.symbol} step={timestep} start={start_dt} end={end_dt}")
+    return path
 
 
 def _load_cache(cache_file: Path) -> Optional[pl.LazyFrame]:
@@ -476,7 +812,8 @@ def get_price_data_from_databento_polars(
                 logger.debug(f"[get_price_data_from_databento_polars] Using DataBento symbol: {symbol_to_use}, dataset={dataset}, schema={schema}")
                 logger.debug(f"[get_price_data_from_databento_polars] Date range: {start_naive} to {end_naive}")
 
-                df = client.get_historical_data(
+                # Use hybrid API approach for better data freshness
+                df = client.get_hybrid_historical_data(
                     dataset=dataset,
                     symbols=symbol_to_use,
                     schema=schema,
@@ -569,17 +906,33 @@ def get_last_price_from_databento_polars(
         try:
             range_result = client.metadata.get_dataset_range(dataset=dataset)
             if hasattr(range_result, 'end') and range_result.end:
-                if hasattr(range_result.end, 'tz_localize'):
-                    available_end = range_result.end if range_result.end.tz else range_result.end.tz_localize('UTC')
+                # Handle both timezone-aware and naive timestamps properly
+                if hasattr(range_result.end, 'tz'):
+                    # If it has a tz attribute, check if it's already timezone-aware
+                    if range_result.end.tz:
+                        available_end = range_result.end.tz_convert('UTC')
+                    else:
+                        available_end = range_result.end.tz_localize('UTC')
                 else:
-                    available_end = pd.to_datetime(range_result.end).tz_localize('UTC')
+                    # Convert to pandas timestamp and handle timezone
+                    pd_timestamp = pd.to_datetime(range_result.end)
+                    if pd_timestamp.tz:
+                        available_end = pd_timestamp.tz_convert('UTC')
+                    else:
+                        available_end = pd_timestamp.tz_localize('UTC')
             elif isinstance(range_result, dict) and 'end' in range_result:
-                available_end = pd.to_datetime(range_result['end']).tz_localize('UTC')
+                pd_timestamp = pd.to_datetime(range_result['end'])
+                if pd_timestamp.tz:
+                    available_end = pd_timestamp.tz_convert('UTC')
+                else:
+                    available_end = pd_timestamp.tz_localize('UTC')
             else:
-                available_end = datetime.now(tz=timezone.utc) - timedelta(days=1)
+                # Default to 5 minutes ago, not 1 day ago!
+                available_end = datetime.now(tz=timezone.utc) - timedelta(minutes=5)
         except Exception as e:
             logger.warning(f"Could not get dataset range for {dataset}: {e}")
-            available_end = datetime.now(tz=timezone.utc) - timedelta(days=1)
+            # Default to 5 minutes ago for last price, not 1 day ago!
+            available_end = datetime.now(tz=timezone.utc) - timedelta(minutes=5)
 
         # Request the most recent available data
         end_date = available_end

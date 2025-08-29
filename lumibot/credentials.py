@@ -507,7 +507,19 @@ if not is_backtesting or is_backtesting.lower() == "false":
         elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
             broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
         elif TRADOVATE_CONFIG["USERNAME"]:
-            broker = Tradovate(TRADOVATE_CONFIG)
+            try:
+                broker = Tradovate(TRADOVATE_CONFIG)
+            except Exception as e:
+                # Handle rate limiting and other connection errors gracefully
+                error_str = str(e)
+                if "rate limited" in error_str.lower() or "429" in error_str:
+                    logger.warning(
+                        "Tradovate connection blocked due to rate limiting. "
+                        "Too many requests were made. Wait 5-10 minutes and try again."
+                    )
+                else:
+                    logger.warning(f"Could not initialize Tradovate broker: {e}")
+                broker = None
         # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
         elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
             broker = Schwab(SCHWAB_CONFIG)

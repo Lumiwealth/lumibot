@@ -858,11 +858,15 @@ class Broker(ABC):
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
+            if position is None:
+                # Order is invalid, skip processing
+                logger.error(f"Skipping filled order processing - could not create position from order {order.identifier}")
+                return
         else:
             # Add the order to the already existing position
             position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
-        if order.asset.asset_type == "crypto":
+        if order.asset and order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
 
         return position

@@ -77,17 +77,17 @@ class TestProjectXDataSource:
 
         # Test various timespan formats
         test_cases = [
-            ("minute", 1, 1),    # Fixed: returns (unit_id, unit_number)
-            ("1minute", 1, 1),
-            ("5minute", 1, 5),
-            ("15minute", 1, 15),
-            ("hour", 2, 1),      # Fixed: returns (unit_id, unit_number)
-            ("1hour", 2, 1),
-            ("4hour", 2, 4),
-            ("day", 3, 1),       # Fixed: returns (unit_id, unit_number)
-            ("1day", 3, 1),
-            ("week", 4, 1),      # Fixed: returns (unit_id, unit_number)
-            ("month", 5, 1),     # Fixed: returns (unit_id, unit_number)
+            ("minute", 2, 1),    # Fixed: returns (unit_id, unit_number)
+            ("1minute", 2, 1),
+            ("5minute", 2, 5),
+            ("15minute", 2, 15),
+            ("hour", 3, 1),      # Fixed: returns (unit_id, unit_number)
+            ("1hour", 3, 1),
+            ("4hour", 3, 4),
+            ("day", 4, 1),       # Fixed: returns (unit_id, unit_number)
+            ("1day", 4, 1),
+            ("week", 5, 1),      # Fixed: returns (unit_id, unit_number)
+            ("month", 6, 1),     # Fixed: returns (unit_id, unit_number)
         ]
 
         for timespan, expected_unit, expected_number in test_cases:
@@ -101,11 +101,11 @@ class TestProjectXDataSource:
         # Test unit name to ProjectX unit mapping - using correct attribute name
         unit_mappings = projectx_data_source.TIME_UNIT_MAPPING
 
-        assert unit_mappings["minute"] == 1
-        assert unit_mappings["hour"] == 2
-        assert unit_mappings["day"] == 3
-        assert unit_mappings["week"] == 4
-        assert unit_mappings["month"] == 5
+        assert unit_mappings["minute"] == 2
+        assert unit_mappings["hour"] == 3
+        assert unit_mappings["day"] == 4
+        assert unit_mappings["week"] == 5
+        assert unit_mappings["month"] == 6
 
     def test_get_historical_prices_bars_conversion(self, projectx_data_source):
         """Test historical price retrieval and bars conversion"""
@@ -132,13 +132,13 @@ class TestProjectXDataSource:
         })
         mock_bars = MagicMock()
         mock_bars.df = mock_df
-        projectx_data_source.get_bars = MagicMock(return_value=mock_bars)
+        projectx_data_source._fetch_bars = MagicMock(return_value=mock_bars)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
         price = projectx_data_source.get_last_price(asset)
 
         assert price == 5150.25
-        projectx_data_source.get_bars.assert_called_once()
+        projectx_data_source._fetch_bars.assert_called_once()
 
     def test_dividends_not_supported(self, projectx_data_source):
         """Test that dividends return 0 for futures broker"""
@@ -173,7 +173,7 @@ class TestProjectXDataSource:
         projectx_data_source.client.history_retrieve_bars = MagicMock(return_value=mock_df)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        bars = projectx_data_source.get_bars(asset, 2, "minute")
+        bars = projectx_data_source._fetch_bars(asset, 2, "minute")
 
         # Should return Bars object
         assert isinstance(bars, Bars)

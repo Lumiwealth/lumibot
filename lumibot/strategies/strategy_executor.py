@@ -382,8 +382,8 @@ class StrategyExecutor(Thread):
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.
         if self.strategy._first_iteration or self.broker._first_iteration:
-            # Log that we are skipping the event.
-            self.strategy.logger.info(f"Skipping event {event} because it is the first iteration. Payload: {payload}")
+            # Reduce noise on startup: log at debug instead of info
+            self.strategy.logger.debug(f"Skipping event {event} because it is the first iteration. Payload: {payload}")
 
             return
 

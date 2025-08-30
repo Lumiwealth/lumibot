@@ -246,7 +246,8 @@ class BotspotErrorHandler(logging.Handler):
     """
     
     def __init__(self):
-        super().__init__(level=logging.WARNING)
+        # Only handle ERROR and CRITICAL messages for external reporting
+        super().__init__(level=logging.ERROR)
         self.base_url = "https://api.botspot.trade/bots/report-bot-error"
         # Use LUMIWEALTH_API_KEY from credentials or environment
         self.api_key = LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY")
@@ -421,7 +422,8 @@ class BotspotErrorHandler(logging.Handler):
     
     def emit(self, record):
         """Report to Botspot with simplified fingerprint dedupe while preserving full detail payloads."""
-        if not self.api_key or record.levelno < logging.WARNING:
+        # Only send ERROR and CRITICAL to external service
+        if not self.api_key or record.levelno < logging.ERROR:
             return
         try:
             with self._lock:

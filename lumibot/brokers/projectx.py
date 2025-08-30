@@ -15,6 +15,9 @@ from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.tools.projectx_helpers import ProjectXClient
+from termcolor import colored
+# PollingStream usage was removed to align with centralized lifecycle in core Broker
+import traceback
 
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
@@ -131,7 +134,7 @@ class ProjectX(Broker):
         self.connect_stream = connect_stream
         self.streaming_client = None
 
-        # Order tracking
+        # Order/position caches
         self._orders_cache = {}  # Store orders by their IDs
         self._positions_cache = {}  # Store positions
 
@@ -177,8 +180,7 @@ class ProjectX(Broker):
                 self.logger.debug("Setting up streaming connection")
                 self._setup_streaming()
 
-            # Sync existing orders into tracking system for strategy compatibility
-            self._sync_existing_orders_to_tracking()
+            # No adapter-level sync; rely on core Broker's first-iteration handling
 
             self.logger.debug("ProjectX broker connection complete")
             return True
@@ -227,14 +229,27 @@ class ProjectX(Broker):
                 return False
 
             response = self.client.order_cancel(self.account_id, int(order.id))
+            success = False
+            if isinstance(response, dict):
+                success = response.get("success") is True
+            elif isinstance(response, bool):
+                success = response
 
-            if response and response.get("success"):
+            if success:
                 # Update order status
                 order.status = "cancelled"
-                self.logger.info(f"Order {order.id} cancelled successfully")
+                # Ensure identifier present; lifecycle routing handled centrally
+                if not getattr(order, "identifier", None):
+                    order.identifier = order.id
+                # Downgrade adapter-level logs; centralized system handles lifecycle
+                self.logger.debug(f"Order {order.id} cancelled successfully")
                 return True
             else:
-                error_msg = response.get("errorMessage", "Unknown error") if response else "No response"
+                error_msg = None
+                if isinstance(response, dict):
+                    error_msg = response.get("error") or response.get("errorMessage")
+                if not error_msg:
+                    error_msg = "Unknown cancel failure"
                 self.logger.error(f"Failed to cancel order {order.id}: {error_msg}")
                 return False
 
@@ -276,7 +291,8 @@ class ProjectX(Broker):
                 if stop_price is not None:
                     order.stop_price = stop_price
 
-                self.logger.info(f"Order {order.id} modified successfully")
+                # Adapter should not emit high-level lifecycle logs
+                self.logger.debug(f"Order {order.id} modified successfully")
                 return True
             else:
                 error_msg = response.get("errorMessage", "Unknown error") if response else "No response"
@@ -323,10 +339,33 @@ class ProjectX(Broker):
                 stop_price = self.client.round_to_tick_size(order.stop_price, tick_size)
 
             # Submit order
+            # NOTE: ProjectXClient.order_place expects parameter name 'type', not 'order_type'
+            # Passing 'order_type' caused: unexpected keyword argument 'order_type'
+            # Ensure we supply a UNIQUE custom tag (ProjectX requires uniqueness per account)
+            try:
+                import time, random
+                if not getattr(order, 'tag', None):
+                    # Build a compact unique tag: STRATNAME (sanitized) + millis + 2 random chars
+                    strat_part = ''
+                    try:
+                        if hasattr(order, 'strategy') and order.strategy:
+                            strat_name = order.strategy if isinstance(order.strategy, str) else getattr(order.strategy, 'name', '')
+                            strat_part = (strat_name or 'LB')[:8].upper()
+                    except Exception:
+                        strat_part = 'LB'
+                    unique_suffix = f"{int(time.time()*1000)%100000000:08d}{random.randint(10,99)}"
+                    order.tag = f"{strat_part}-{unique_suffix}"
+                else:
+                    # If tag exists but is whitespace, normalize to generated unique tag
+                    if not order.tag.strip():
+                        order.tag = f"LB-{int(time.time()*1000)}"
+            except Exception as tag_e:
+                self.logger.debug(f"Failed to auto-generate tag (non-fatal): {tag_e}")
+
             response = self.client.order_place(
                 account_id=self.account_id,
                 contract_id=contract_id,
-                order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
+                type=order_type,
                 side=order_side,
                 size=order.quantity,
                 limit_price=limit_price,
@@ -337,25 +376,44 @@ class ProjectX(Broker):
             if response and response.get("success"):
                 # Update order with response data
                 order.id = str(response.get("orderId"))
-                order.status = "submitted"
+                # Ensure identifier is set for tracking consistency
+                try:
+                    if not getattr(order, "identifier", None):
+                        order.identifier = order.id
+                except Exception:
+                    order.identifier = order.id
                 order.limit_price = limit_price
                 order.stop_price = stop_price
 
-                # Cache the order
+                # Cache the order for quick lookups; lifecycle handled centrally
                 self._orders_cache[order.id] = order
-
-                self.logger.info(f"Order submitted successfully with ID: {order.id}")
+                order.status = "submitted"
+                # Adapter-level success logging reduced to debug; lifecycle logs are centralized
+                self.logger.debug(f"Order submitted successfully with ID: {order.id}")
             else:
                 error_msg = response.get("errorMessage", "Unknown error") if response else "No response"
-                order.status = "rejected"
-                order.error = error_msg
-                self.logger.error(f"Failed to submit order: {error_msg}")
+                # Map specific broker error codes/messages to standardized handling
+                lowered = error_msg.lower()
+                if "maximum position exceeded" in lowered:
+                    # Treat as risk/size violation rather than generic reject, so strategy can downsize
+                    order.status = "rejected"
+                    order.error = "max_position_exceeded"
+                    self.logger.warning(
+                        f"ProjectX risk check: maximum position would be exceeded by this order (qty={order.quantity}). "
+                        f"Broker message: {error_msg}"
+                    )
+                else:
+                    order.status = "rejected"
+                    order.error = error_msg
+                    # Keep error log for submit failures
+                    self.logger.error(f"Failed to submit order: {error_msg}")
 
             return order
 
         except Exception as e:
             order.status = "rejected"
             order.error = str(e)
+            # Keep error log for visibility
             self.logger.error(f"Error submitting order: {e}")
             return order
 
@@ -430,6 +488,10 @@ class ProjectX(Broker):
             for broker_order in orders_data[:50]:
                 conversion_attempts += 1
                 try:
+                    # Guard against unexpected payload shapes (e.g., list)
+                    if not isinstance(broker_order, dict):
+                        self.logger.debug(f"Skipping non-dict order payload: {type(broker_order)}")
+                        continue
                     order_id = broker_order.get('id', 'unknown')
                     status = broker_order.get('status', 'unknown')
                     order_type = broker_order.get('type', 'unknown')
@@ -445,7 +507,9 @@ class ProjectX(Broker):
                         self.logger.debug(f"❌ Order {order_id} conversion returned None")
 
                 except Exception as e:
-                    self.logger.error(f"❌ Failed to convert order {broker_order.get('id', 'unknown')}: {e}")
+                    # Guard against non-dict in error path
+                    order_id = broker_order.get('id', 'unknown') if isinstance(broker_order, dict) else 'unknown'
+                    self.logger.error(f"❌ Failed to convert order {order_id}: {e}")
                     import traceback
                     self.logger.error(f"Full traceback: {traceback.format_exc()}")
                     continue
@@ -454,7 +518,6 @@ class ProjectX(Broker):
 
             # Final safety check - filter out any None orders that might have slipped through
             orders = [order for order in recent_orders if order is not None]
-
             self.logger.debug(f"✅ Processed {len(orders)} recent/active orders from {len(orders_data)} total")
             return orders
 
@@ -480,16 +543,20 @@ class ProjectX(Broker):
 
             for broker_position in positions_data:
                 try:
+                    if not isinstance(broker_position, dict):
+                        self.logger.debug(f"Skipping non-dict position payload: {type(broker_position)}")
+                        continue
                     position = self._convert_broker_position_to_lumibot_position(broker_position)
                     if position is not None:
                         positions.append(position)
                         # Update cache
                         self._positions_cache[position.asset.symbol] = position
                     else:
-                        contract_id = broker_position.get('contractId', 'unknown')
-                        self.logger.warning(f"❌ Position {contract_id} conversion returned None")
+                        contract_id = broker_position.get('contractId', 'unknown') if isinstance(broker_position, dict) else 'unknown'
+                        self.logger.debug(f"Position {contract_id} conversion returned None")
                 except Exception as e:
-                    self.logger.error(f"❌ Failed to convert position {broker_position.get('contractId', 'unknown')}: {e}")
+                    contract_id = broker_position.get('contractId', 'unknown') if isinstance(broker_position, dict) else 'unknown'
+                    self.logger.error(f"❌ Failed to convert position {contract_id}: {e}")
                     continue
 
             # Final safety check - filter out any None positions
@@ -500,7 +567,8 @@ class ProjectX(Broker):
                 position_summary = ", ".join([f"{pos.quantity} {pos.asset.symbol}" for pos in positions])
                 self.logger.debug(f"Converted {len(positions)} positions: {position_summary}")
             else:
-                self.logger.info("✅ No positions found")
+                # Downgraded to debug to avoid repetitive noise
+                self.logger.debug("No positions found")
 
             return positions
 
@@ -529,9 +597,8 @@ class ProjectX(Broker):
         return self.streaming_client
 
     def _register_stream_events(self):
-        """Register the function on_trade_event to be executed on each trade_update event."""
-        # Events are already registered in _setup_streaming()
-        pass
+        """No-op: adapter doesn't emit lifecycle; core Broker manages routing."""
+        return
 
     def _run_stream(self):
         """Run the stream."""
@@ -580,7 +647,7 @@ class ProjectX(Broker):
             # order_search returns a list directly, not a dict with orders key
             if isinstance(orders, list):
                 return orders
-            elif isinstance(orders, dict) and orders.get("success"):
+            if isinstance(orders, dict) and orders.get("success"):
                 return orders.get("orders", [])
 
             return []
@@ -588,8 +655,6 @@ class ProjectX(Broker):
         except Exception as e:
             self.logger.error(f"Error getting all orders: {e}")
             return []
-
-    # ========== Helper Methods ==========
 
     def _get_contract_id_from_asset(self, asset: Asset) -> str:
         """Get ProjectX contract ID from Lumibot asset."""
@@ -645,6 +710,9 @@ class ProjectX(Broker):
     def _convert_broker_order_to_lumibot_order(self, broker_order: dict) -> Order:
         """Convert ProjectX order to Lumibot Order object."""
         try:
+            # Ignore unexpected payloads
+            if not isinstance(broker_order, dict):
+                return None
             # Get asset from contract - use efficient lookup
             contract_id = broker_order.get("contractId")
             asset = self._get_asset_from_contract_id_cached(contract_id)
@@ -666,7 +734,8 @@ class ProjectX(Broker):
             status = self.ORDER_STATUS_MAPPING.get(status_id, f"unknown_status_{status_id}")
 
             if status.startswith("unknown_status_"):
-                self.logger.warning(f"Unknown order status ID: {status_id} for order {broker_order.get('id')}")
+                # Downgrade to debug to avoid adapter-level noise
+                self.logger.debug(f"Unknown order status ID: {status_id} for order {broker_order.get('id')}")
 
             # Create Order object
             order = Order(
@@ -679,6 +748,13 @@ class ProjectX(Broker):
 
             # Set additional properties
             order.id = str(broker_order.get("id"))
+            # Lumibot core tracking relies on 'identifier'. Set it to broker id for parity.
+            try:
+                if not getattr(order, "identifier", None):
+                    order.identifier = order.id
+            except Exception:
+                # Fallback – shouldn't happen, but avoid breaking conversion
+                order.identifier = order.id
             order.status = status
             order.limit_price = broker_order.get("limitPrice")
             order.stop_price = broker_order.get("stopPrice")
@@ -695,12 +771,19 @@ class ProjectX(Broker):
             return order
 
         except Exception as e:
+            # Keep error log; avoid crashing conversion loop
             self.logger.error(f"Error converting broker order: {e}")
             return None
+
+    # ================= Lifecycle Processing Helpers ==================
+    # Adapter-level lifecycle routing removed; rely on core Broker's centralized processors
 
     def _convert_broker_position_to_lumibot_position(self, broker_position: dict) -> Position:
         """Convert ProjectX position to Lumibot Position object."""
         try:
+            # Ignore unexpected payloads
+            if not isinstance(broker_position, dict):
+                return None
             # Get asset from contract - use efficient cached lookup
             contract_id = broker_position.get("contractId")
             asset = self._get_asset_from_contract_id_cached(contract_id)
@@ -727,6 +810,7 @@ class ProjectX(Broker):
             return position
 
         except Exception as e:
+            # Keep error for debugging; no adapter-level lifecycle logs
             self.logger.error(f"Error converting broker position: {e}")
             return None
 
@@ -845,27 +929,34 @@ class ProjectX(Broker):
     def _handle_order_update(self, data):
         """Handle order update from streaming."""
         try:
-            order = self._convert_broker_order_to_lumibot_order(data)
-            if order is not None:
-                self._orders_cache[order.id] = order
-                self.logger.debug(f"Order update received: {order.id} - {order.status}")
+            # Stream can deliver a single dict or a list of dicts
+            payloads = data if isinstance(data, list) else [data]
+            for item in payloads:
+                order = self._convert_broker_order_to_lumibot_order(item)
+                if order is not None:
+                    self._orders_cache[order.id] = order
+                    # No adapter-level lifecycle processing; cache update only
+                    self.logger.debug(f"Order update cached: {order.id} -> {order.status}")
         except Exception as e:
             self.logger.error(f"Error handling order update: {e}")
 
     def _handle_position_update(self, data):
         """Handle position update from streaming."""
         try:
-            position = self._convert_broker_position_to_lumibot_position(data)
-            if position is not None:
-                self._positions_cache[position.asset.symbol] = position
-                self.logger.debug(f"Position update received: {position.asset.symbol}")
+            payloads = data if isinstance(data, list) else [data]
+            for item in payloads:
+                position = self._convert_broker_position_to_lumibot_position(item)
+                if position is not None:
+                    self._positions_cache[position.asset.symbol] = position
+                    self.logger.debug(f"Position update received: {position.asset.symbol}")
         except Exception as e:
             self.logger.error(f"Error handling position update: {e}")
 
     def _handle_trade_update(self, data):
         """Handle trade update from streaming."""
         try:
-            self.logger.debug(f"Trade update received: {data}")
+            # Trade updates could be single or batch; log type only to avoid noise
+            self.logger.debug("Trade update received")
             # Trade updates can trigger order and position cache updates
             self._update_orders_cache()
             self._update_positions_cache()
@@ -875,96 +966,18 @@ class ProjectX(Broker):
     def _handle_account_update(self, data):
         """Handle account update from streaming."""
         try:
-            self.logger.debug(f"Account update received: {data}")
-            self.account_info = data
+            # Account updates may be dict or list; keep last dict seen
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        self.account_info = item
+            elif isinstance(data, dict):
+                self.account_info = data
+            self.logger.debug("Account update received")
         except Exception as e:
             self.logger.error(f"Error handling account update: {e}")
-
-    def _sync_existing_orders_to_tracking(self):
-        """Sync existing ACTIVE orders from broker into the tracking system for strategy compatibility."""
-        try:
-            self.logger.debug("Syncing active orders into tracking system")
-
-            # CRITICAL: Clear old orders from tracking system to prevent mixing with fresh data
-            # This prevents old canceled orders from previous sessions showing up
-            strategy_name = None
-            if self._subscribers:
-                strategy_name = self._subscribers[0].name
-                self.logger.debug(f"Clearing old orders for strategy: {strategy_name}")
-
-                # Remove old orders for this strategy from all tracking lists
-                old_count = 0
-                for order_list in [self._new_orders, self._partially_filled_orders, self._filled_orders,
-                                 self._canceled_orders, self._error_orders, self._unprocessed_orders]:
-                    orders_to_remove = [order for order in order_list.get_list() if order.strategy == strategy_name]
-                    for order in orders_to_remove:
-                        order_list.remove(order.id, key="id")
-                        old_count += 1
-
-                self.logger.debug(f"Cleared {old_count} old orders from tracking system")
-
-            # Get existing orders from broker
-            all_orders = self._get_orders_at_broker()
-
-            # Filter to only ACTIVE orders to prevent spam from old canceled orders
-            active_orders = [
-                order for order in all_orders
-                if order.status in ["new", "submitted", "open", "partially_filled", "partial_filled"]
-            ]
-
-            self.logger.debug(f"Found {len(active_orders)} active orders to sync (filtered from {len(all_orders)} total)")
-
-            # Only sync if we have active orders - skip if all are canceled/filled
-            if not active_orders:
-                self.logger.debug("No active orders to sync - all orders are completed/canceled")
-                return
-
-            self.logger.debug(f"Assigning active orders to strategy: {strategy_name}")
-
-            synced_count = 0
-            for order in active_orders:
-                try:
-                    # Assign strategy name if available and not already set
-                    if strategy_name:
-                        order.strategy = strategy_name
-                        self.logger.debug(f"Assigned strategy '{strategy_name}' to order {order.id}")
-
-                    # Mark as synced from broker to prevent auto-cancellation during validation
-                    order._synced_from_broker = True
-
-                    # Add orders to appropriate tracking lists based on status
-                    if order.status in ["new", "submitted", "open"]:
-                        self._new_orders.append(order)
-                        synced_count += 1
-                    elif order.status in ["partially_filled", "partial_filled"]:
-                        self._partially_filled_orders.append(order)
-                        synced_count += 1
-
-                except Exception as e:
-                    self.logger.error(f"Failed to sync order {order.id}: {e}")
-                    continue
-
-            self.logger.debug(f"Successfully synced {synced_count} active orders into tracking system")
-
-            # Log summary instead of individual orders
-            if synced_count > 0:
-                status_summary = {}
-                for order in active_orders:
-                    status_summary[order.status] = status_summary.get(order.status, 0) + 1
-                status_text = ", ".join([f"{count} {status}" for status, count in status_summary.items()])
-                self.logger.debug(f"Order status breakdown: {status_text}")
-
-        except Exception as e:
-            self.logger.error(f"❌ Failed to sync existing orders: {e}")
-            # Continue without failing - this is not critical for basic functionality
 
     def _add_subscriber(self, subscriber):
         """Override to sync orders when a strategy is added."""
         super()._add_subscriber(subscriber)
-
-        # Sync existing orders to this strategy
-        try:
-            self.logger.debug(f"Strategy '{subscriber.name}' added - syncing existing orders")
-            self._sync_existing_orders_to_tracking()
-        except Exception as e:
-            self.logger.error(f"Failed to sync orders for new strategy {subscriber.name}: {e}")
+    # No adapter-level sync; core Broker handles first-iteration lifecycle

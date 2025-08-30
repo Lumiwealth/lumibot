@@ -318,25 +318,25 @@ PROJECTX_BASE_URLS = {
 
 # ProjectX SignalR streaming URL mappings
 PROJECTX_STREAMING_URLS = {
-    "topstepx": "https://gateway-rtc-topstepx.s2f.projectx.com/",
-    "topone": "https://gateway-rtc-demo.s2f.projectx.com/",  # Top One Futures
-    "tickticktrader": "https://gateway-rtc-tickticktrader.s2f.projectx.com/",
-    "alphaticks": "https://gateway-rtc-alphaticks.s2f.projectx.com/",
-    "aquafutures": "https://gateway-rtc-aquafutures.s2f.projectx.com/",
-    "blueguardianfutures": "https://gateway-rtc-blueguardianfutures.s2f.projectx.com/",
-    "blusky": "https://gateway-rtc-blusky.s2f.projectx.com/",
-    "bulenox": "https://gateway-rtc-bulenox.s2f.projectx.com/",
-    "e8x": "https://gateway-rtc-e8x.s2f.projectx.com/",
-    "fundingfutures": "https://gateway-rtc-fundingfutures.s2f.projectx.com/",
-    "thefuturesdesk": "https://gateway-rtc-thefuturesdesk.s2f.projectx.com/",
-    "futureselite": "https://gateway-rtc-futureselite.s2f.projectx.com/",
-    "fxifyfutures": "https://gateway-rtc-fxifyfutures.s2f.projectx.com/",
-    "goatfundedfutures": "https://gateway-rtc-goatfundedfutures.s2f.projectx.com/",
-    "holaprime": "https://gateway-rtc-holaprime.s2f.projectx.com/",
-    "nexgen": "https://gateway-rtc-nexgen.s2f.projectx.com/",
-    "tx3funding": "https://gateway-rtc-tx3funding.s2f.projectx.com/",
+    "topstepx": "https://rtc.topstepx.com/",
+    "topone": "https://rtc.toponefutures.projectx.com/",  # Top One Futures
+    "tickticktrader": "https://rtc.tickticktrader.projectx.com/",
+    "alphaticks": "https://rtc.alphaticks.projectx.com/",
+    "aquafutures": "https://rtc.aquafutures.projectx.com/",
+    "blueguardianfutures": "https://rtc.blueguardianfutures.projectx.com/",
+    "blusky": "https://rtc.blusky.projectx.com/",
+    "bulenox": "https://rtc.bulenox.projectx.com/",
+    "e8x": "https://rtc.e8.projectx.com/",
+    "fundingfutures": "https://rtc.fundingfutures.projectx.com/",
+    "thefuturesdesk": "https://rtc.thefuturesdesk.projectx.com/",
+    "futureselite": "https://rtc.futureselite.projectx.com/",
+    "fxifyfutures": "https://rtc.fxifyfutures.projectx.com/",
+    "goatfundedfutures": "https://rtc.goatfundedfutures.projectx.com/",
+    "holaprime": "https://rtc.holaprime.projectx.com/",
+    "nexgen": "https://rtc.nexgen.projectx.com/",
+    "tx3funding": "https://rtc.tx3funding.projectx.com/",
     "demo": "https://gateway-rtc-demo.s2f.projectx.com/",
-    "daytraders": "https://gateway-rtc-daytraders.s2f.projectx.com/",
+    "daytraders": "https://rtc.daytraders.projectx.com/",
 }
 
 # ProjectX Configuration - Multi-firm support
@@ -507,7 +507,19 @@ if not is_backtesting or is_backtesting.lower() == "false":
         elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
             broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
         elif TRADOVATE_CONFIG["USERNAME"]:
-            broker = Tradovate(TRADOVATE_CONFIG)
+            try:
+                broker = Tradovate(TRADOVATE_CONFIG)
+            except Exception as e:
+                # Handle rate limiting and other connection errors gracefully
+                error_str = str(e)
+                if "rate limited" in error_str.lower() or "429" in error_str:
+                    logger.warning(
+                        "Tradovate connection blocked due to rate limiting. "
+                        "Too many requests were made. Wait 5-10 minutes and try again."
+                    )
+                else:
+                    logger.warning(f"Could not initialize Tradovate broker: {e}")
+                broker = None
         # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
         elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
             broker = Schwab(SCHWAB_CONFIG)

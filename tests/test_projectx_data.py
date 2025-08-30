@@ -77,17 +77,20 @@ class TestProjectXDataSource:
 
         # Test various timespan formats
         test_cases = [
-            ("minute", 2, 1),    # Fixed: returns (unit_id, unit_number)
+
+            ("second", 1, 1),
+            ("1second", 1, 1),
+            ("minute", 2, 1),
             ("1minute", 2, 1),
             ("5minute", 2, 5),
             ("15minute", 2, 15),
-            ("hour", 3, 1),      # Fixed: returns (unit_id, unit_number)
+            ("hour", 3, 1),
             ("1hour", 3, 1),
             ("4hour", 3, 4),
-            ("day", 4, 1),       # Fixed: returns (unit_id, unit_number)
+            ("day", 4, 1),
             ("1day", 4, 1),
-            ("week", 5, 1),      # Fixed: returns (unit_id, unit_number)
-            ("month", 6, 1),     # Fixed: returns (unit_id, unit_number)
+            ("week", 5, 1),
+            ("month", 6, 1),
         ]
 
         for timespan, expected_unit, expected_number in test_cases:
@@ -101,6 +104,7 @@ class TestProjectXDataSource:
         # Test unit name to ProjectX unit mapping - using correct attribute name
         unit_mappings = projectx_data_source.TIME_UNIT_MAPPING
 
+        assert unit_mappings["second"] == 1
         assert unit_mappings["minute"] == 2
         assert unit_mappings["hour"] == 3
         assert unit_mappings["day"] == 4

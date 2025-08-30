@@ -74,7 +74,8 @@ class Tradovate(Broker):
             logger.info(colored(f"User ID: {self.user_id}", "green"))
 
         except TradovateAPIError as e:
-            logger.error(colored(f"Failed to connect to Tradovate: {e}", "red"))
+            logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
+            logger.warning(colored("Broker initialization failed due to rate limiting. The script will exit cleanly.", "yellow"))
             raise e
 
     def _get_headers(self, with_auth=True, with_content_type=False):
@@ -158,44 +159,87 @@ class Tradovate(Broker):
 
     def _get_account_info(self, trading_token):
         """
-        Retrieve account information from Tradovate.
+        Retrieve account information from Tradovate with retry logic for rate limiting.
         """
         url = f"{self.trading_api_url}/account/list"
         headers = self._get_headers()
-        try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            accounts = response.json()
-            if isinstance(accounts, list) and accounts:
-                account = accounts[0]
-                return {"accountSpec": account.get("name"), "accountId": account.get("id")}
-            else:
-                raise TradovateAPIError("No accounts found in the account list response.")
-        except requests.exceptions.RequestException as e:
-            raise TradovateAPIError("Failed to retrieve account list",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+        
+        max_retries = 5
+        retry_delay = 10  # Start with 10 seconds
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, headers=headers)
+                
+                # Handle rate limiting with exponential backoff
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Rate limited on account list. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Account list still rate limited after {max_retries} attempts")
+                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
+                                                status_code=429,
+                                                response_text=response.text)
+                
+                response.raise_for_status()
+                accounts = response.json()
+                if isinstance(accounts, list) and accounts:
+                    account = accounts[0]
+                    return {"accountSpec": account.get("name"), "accountId": account.get("id")}
+                else:
+                    logger.error(f"No accounts found. Response: {accounts}")
+                    raise TradovateAPIError("No accounts found in the account list response.")
+            except requests.exceptions.RequestException as e:
+                if getattr(e.response, 'status_code', None) != 429:  # Don't log 429s as errors since we handle them
+                    logger.error(f"Account list request failed: Status={getattr(e.response, 'status_code', None)}, Response={getattr(e.response, 'text', None)}")
+                raise TradovateAPIError("Failed to retrieve account list",
+                                         status_code=getattr(e.response, 'status_code', None),
+                                         response_text=getattr(e.response, 'text', None),
+                                         original_exception=e)
 
     def _get_user_info(self, trading_token):
         """
-        Retrieve user information from Tradovate.
+        Retrieve user information from Tradovate with retry logic for rate limiting.
         """
         url = f"{self.trading_api_url}/user/list"
         headers = self._get_headers()
-        try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            users = response.json()
-            if isinstance(users, list) and users:
-                user = users[0]
-                return user.get("id")
-            else:
-                raise TradovateAPIError("No users found in the user list response.")
-        except requests.exceptions.RequestException as e:
-            raise TradovateAPIError("Failed to retrieve user list",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
+        
+        max_retries = 5
+        retry_delay = 10  # Start with 10 seconds
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, headers=headers)
+                
+                # Handle rate limiting with exponential backoff
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Rate limited on user list. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"User list still rate limited after {max_retries} attempts")
+                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
+                                                status_code=429,
+                                                response_text=response.text)
+                
+                response.raise_for_status()
+                users = response.json()
+                if isinstance(users, list) and users:
+                    user = users[0]
+                    return user.get("id")
+                else:
+                    raise TradovateAPIError("No users found in the user list response.")
+            except requests.exceptions.RequestException as e:
+                if getattr(e.response, 'status_code', None) != 429:  # Don't log 429s as errors since we handle them
+                    logger.error(f"User list request failed: Status={getattr(e.response, 'status_code', None)}, Response={getattr(e.response, 'text', None)}")
+                raise TradovateAPIError("Failed to retrieve user list",
+                                         status_code=getattr(e.response, 'status_code', None),
+                                         response_text=getattr(e.response, 'text', None),
                                      original_exception=e)
 
     def _check_and_renew_token(self):
@@ -326,21 +370,38 @@ class Tradovate(Broker):
             response.raise_for_status()
             return response
 
-        try:
-            response = self._handle_api_request(_make_request)
-            data = response.json()
-            cash_balance = data.get("totalCashValue")
-            net_liq = data.get("netLiq")
-            if cash_balance is None or net_liq is None:
-                raise TradovateAPIError("Missing totalCashValue or netLiq in account financials response.")
-            positions_value = net_liq - cash_balance
-            portfolio_value = net_liq
-            return cash_balance, positions_value, portfolio_value
-        except requests.exceptions.RequestException as e:
-            raise TradovateAPIError("Failed to retrieve account financials",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+        max_retries = 5
+        retry_delay = 10  # Start with 10 seconds
+        
+        for attempt in range(max_retries):
+            try:
+                response = self._handle_api_request(_make_request)
+                data = response.json()
+                cash_balance = data.get("totalCashValue")
+                net_liq = data.get("netLiq")
+                if cash_balance is None or net_liq is None:
+                    raise TradovateAPIError("Missing totalCashValue or netLiq in account financials response.")
+                positions_value = net_liq - cash_balance
+                portfolio_value = net_liq
+                return cash_balance, positions_value, portfolio_value
+            except (requests.exceptions.RequestException, TradovateAPIError) as e:
+                status_code = getattr(e.response if hasattr(e, 'response') else None, 'status_code', None)
+                
+                # Handle rate limiting with exponential backoff
+                if status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Rate limited on balance retrieval. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Balance retrieval still rate limited after {max_retries} attempts")
+                
+                # For non-rate-limiting errors or final attempt, raise the error
+                raise TradovateAPIError("Failed to retrieve account financials",
+                                         status_code=status_code,
+                                         response_text=getattr(e.response if hasattr(e, 'response') else None, 'text', None),
+                                         original_exception=e)
 
     def _get_stream_object(self):
         logger.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
@@ -382,7 +443,8 @@ class Tradovate(Broker):
                     symbol = contract_details.get("name", "")
                     asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE)
                 except TradovateAPIError as e:
-                    logger.error(colored(f"Failed to retrieve contract details for order {order_id}: {e}", "red"))
+                    # Log as debug instead of error - this is a common occurrence that doesn't need error-level logging
+                    logger.debug(f"Could not retrieve contract details for order {order_id}: {e}")
 
             quantity = response.get("orderQty", 0)
             action = response.get("action", "").lower()
@@ -603,16 +665,6 @@ class Tradovate(Broker):
         url = f"{self.trading_api_url}/order/placeorder"
         headers = self._get_headers(with_content_type=True)
 
-        # Log the request details for debugging (mask sensitive auth data)
-        logger.info("Submitting order to Tradovate:")
-        logger.info(f"  URL: {url}")
-        logger.info(f"  Payload: {payload}")
-
-        # Log headers but mask the authorization token for security
-        safe_headers = headers.copy()
-        if 'Authorization' in safe_headers:
-            safe_headers['Authorization'] = 'Bearer ***MASKED***'
-        logger.info(f"  Headers: {safe_headers}")
 
         try:
             response = requests.post(url, json=payload, headers=headers)
@@ -636,7 +688,6 @@ class Tradovate(Broker):
                 return order
             else:
                 # Order was successful
-                logger.info(f"Order successfully submitted: {data}")
                 order.status = Order.OrderStatus.SUBMITTED
                 order.update_raw(data)
                 return order

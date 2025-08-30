@@ -1,7 +1,11 @@
 import datetime as dt
 import os
 from decimal import Decimal
-from typing import Optional, Union
+from typing import Optional, Union, List, Dict
+import os
+import datetime as dt
+import pandas as pd
+import pytz
 
 import pandas as pd
 import pytz
@@ -530,6 +534,246 @@ class AlpacaData(DataSource):
         elif quote_data and hasattr(quote_data, 'ask') and quote_data.ask:
             return quote_data.ask
         return None
+
+    # ----------------------------------------------------------------------
+    # Efficient Multi-Symbol Bars Fetch Override
+    # ----------------------------------------------------------------------
+    def get_bars(
+        self,
+        assets: List[Asset | str | tuple],
+        length: int,
+        timestep: str = "minute",
+        timeshift: Optional[dt.timedelta] = None,
+        chunk_size: int = 1000,
+        max_workers: int = 1,  # kept for interface compatibility, unused here
+        quote: Optional[Asset] = None,
+        exchange: Optional[str] = None,
+        include_after_hours: bool = True,
+        sleep_time: float = 0.0,
+    ) -> Dict[Asset, Bars]:
+        """Fetch historical bars for multiple assets using Alpaca's multi-symbol API.
+
+        This override batches symbols per asset class (stocks, options, crypto) and performs
+        one request per class (with chunking if needed), dramatically reducing HTTP overhead
+        compared to the threaded single-symbol approach in the base DataSource.
+
+        Parameters mirror the base class; unsupported parameters are accepted for compatibility.
+        Returns a dict mapping the original Asset objects to Bars objects.
+        """
+        if not assets:
+            return {}
+
+        # Normalize assets list to Asset objects
+        norm_assets: List[Asset] = []
+        for a in assets:
+            if isinstance(a, Asset):
+                norm_assets.append(a)
+            elif isinstance(a, str):
+                norm_assets.append(Asset(a))
+            elif isinstance(a, tuple) and len(a) == 2 and all(isinstance(x, Asset) for x in a):
+                # crypto pair tuple (base, quote)
+                norm_assets.append(a[0])
+            else:
+                logger.warning(f"Unsupported asset entry {a}, skipping")
+
+        # Determine timeframe
+        timeframe = self._parse_source_timestep(timestep, reverse=True)
+        now = dt.datetime.now(self.tzinfo)
+
+        # Handle delay for non-crypto if delay set
+        if any(a.asset_type != Asset.AssetType.CRYPTO for a in norm_assets) and isinstance(self._delay, dt.timedelta):
+            end_dt = now - self._delay
+        else:
+            end_dt = now
+        if timeshift is not None:
+            if not isinstance(timeshift, dt.timedelta):
+                raise TypeError("timeshift must be a datetime.timedelta")
+            end_dt -= timeshift
+
+        # Compute start date (rough heuristic using trading days for minute bars)
+        if timestep == "day":
+            days_needed = length
+        else:
+            minutes_per_day = 390
+            days_needed = (length // minutes_per_day) + 2  # + buffer
+        start_date = date_n_trading_days_from_date(
+            n_days=days_needed,
+            start_datetime=end_dt,
+            market="NYSE",
+        )
+        start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
+
+        # Organize symbols by asset class
+        stock_assets: List[Asset] = []
+        option_assets: List[Asset] = []
+        crypto_assets: List[Asset] = []
+        for a in norm_assets:
+            if a.asset_type == Asset.AssetType.OPTION:
+                option_assets.append(a)
+            elif a.asset_type == Asset.AssetType.CRYPTO:
+                crypto_assets.append(a)
+            else:
+                stock_assets.append(a)
+
+        result: Dict[Asset, Bars] = {}
+
+        def _clean_df(df: pd.DataFrame, symbol: str) -> Optional[pd.DataFrame]:
+            if df is None or df.empty:
+                logger.warning(f"No pricing data available from Alpaca for {symbol}")
+                return None
+            # Timezone normalization
+            if hasattr(df.index, "tz") and df.index.tz is not None:
+                df.index = df.index.tz_convert(self.tzinfo)
+            elif df.index.tz is None:
+                df.index = df.index.tz_localize(self.tzinfo)
+            df = df[~df.index.duplicated(keep="first")].sort_index()
+            if "close" in df.columns:
+                df = df[df.close > 0]
+            if not include_after_hours and timestep == "minute" and self.tzinfo == pytz.timezone("America/New_York"):
+                df = df[(df.index.hour > 9) | ((df.index.hour == 9) and (df.index.minute >= 30))]
+                df = df[df.index.hour < 16]
+            if self._remove_incomplete_current_bar:
+                if timestep == "minute":
+                    current_minute = now.replace(second=0, microsecond=0)
+                    df = df[df.index < current_minute]
+                else:
+                    current_date = now.date()
+                    df = df[df.index.date < current_date]
+            if len(df) > length:
+                df = df.iloc[-length:]
+            return df
+
+        # Helper to construct option symbol per Alpaca spec
+        def _option_symbol(a: Asset) -> str:
+            strike_formatted = f"{a.strike:08.3f}".replace('.', '').rjust(8, '0')
+            date = a.expiration.strftime("%y%m%d")
+            return f"{a.symbol}{date}{a.right[0]}{strike_formatted}"
+
+        # Chunking utility
+        def _chunks(lst, size):
+            for i in range(0, len(lst), size):
+                yield lst[i : i + size]
+
+        # Adjustment setting
+        adjustment = Adjustment.ALL if getattr(self, "_auto_adjust", True) else Adjustment.RAW
+
+        # Stocks batching
+        if stock_assets:
+            client = self._get_stock_client()
+            for chunk in _chunks(stock_assets, chunk_size):
+                syms = [a.symbol for a in chunk]
+                params = StockBarsRequest(
+                    symbol_or_symbols=syms,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                    adjustment=adjustment,
+                )
+                try:
+                    barset = client.get_stock_bars(params)
+                    df_multi = getattr(barset, 'df', None)
+                    if df_multi is None:
+                        continue
+                    if isinstance(df_multi.index, pd.MultiIndex):
+                        for sym in syms:
+                            if sym in df_multi.index.get_level_values(0):
+                                try:
+                                    df_sym = df_multi.xs(sym, level=0, drop_level=True)
+                                except KeyError:
+                                    continue
+                                cleaned = _clean_df(df_sym, sym)
+                                if cleaned is not None:
+                                    asset_obj = next(a for a in chunk if a.symbol == sym)
+                                    result[asset_obj] = Bars(cleaned, self.SOURCE, asset_obj, raw=cleaned)
+                    else:  # Single symbol fallback
+                        sym = syms[0]
+                        cleaned = _clean_df(df_multi, sym)
+                        if cleaned is not None:
+                            asset_obj = chunk[0]
+                            result[asset_obj] = Bars(cleaned, self.SOURCE, asset_obj, raw=cleaned)
+                except Exception as e:
+                    logger.error(f"Could not get stock pricing data from Alpaca for batch ({len(syms)} symbols): {e}")
+
+        # Options batching
+        if option_assets:
+            client = self._get_option_client()
+            for chunk in _chunks(option_assets, chunk_size):
+                syms = [_option_symbol(a) for a in chunk]
+                params = OptionBarsRequest(
+                    symbol_or_symbols=syms,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                try:
+                    barset = client.get_option_bars(params)
+                    df_multi = getattr(barset, 'df', None)
+                    if df_multi is None:
+                        continue
+                    if isinstance(df_multi.index, pd.MultiIndex):
+                        for sym, a in zip(syms, chunk):
+                            if sym not in df_multi.index.get_level_values(0):
+                                continue
+                            try:
+                                df_sym = df_multi.xs(sym, level=0, drop_level=True)
+                            except KeyError:
+                                continue
+                            cleaned = _clean_df(df_sym, sym)
+                            if cleaned is not None:
+                                result[a] = Bars(cleaned, self.SOURCE, a, raw=cleaned)
+                    else:  # Single symbol fallback
+                        sym = syms[0]
+                        cleaned = _clean_df(df_multi, sym)
+                        if cleaned is not None:
+                            result[chunk[0]] = Bars(cleaned, self.SOURCE, chunk[0], raw=cleaned)
+                except Exception as e:
+                    logger.error(f"Could not get option pricing data from Alpaca batch ({len(syms)} symbols): {e}")
+
+        # Crypto batching (requires quote asset formatting BASE/QUOTE)
+        if crypto_assets:
+            client = self._get_crypto_client()
+            for chunk in _chunks(crypto_assets, chunk_size):
+                syms = []
+                asset_map = {}
+                for a in chunk:
+                    # Attempt to sanitize base/quote using helper (falls back to provided quote parameter)
+                    base_asset, quote_asset = a, quote if quote else self.LUMIBOT_DEFAULT_QUOTE_ASSET
+                    symbol_fmt = f"{base_asset.symbol}/{quote_asset.symbol}"
+                    syms.append(symbol_fmt)
+                    asset_map[symbol_fmt] = a
+                params = CryptoBarsRequest(
+                    symbol_or_symbols=syms,
+                    timeframe=timeframe,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                try:
+                    barset = client.get_crypto_bars(params)
+                    df_multi = getattr(barset, 'df', None)
+                    if df_multi is None:
+                        continue
+                    if isinstance(df_multi.index, pd.MultiIndex):
+                        for sym in syms:
+                            if sym not in df_multi.index.get_level_values(0):
+                                continue
+                            try:
+                                df_sym = df_multi.xs(sym, level=0, drop_level=True)
+                            except KeyError:
+                                continue
+                            cleaned = _clean_df(df_sym, sym)
+                            if cleaned is not None:
+                                a = asset_map[sym]
+                                result[a] = Bars(cleaned, self.SOURCE, a, raw=cleaned)
+                    else:
+                        sym = syms[0]
+                        cleaned = _clean_df(df_multi, sym)
+                        if cleaned is not None:
+                            a = asset_map[sym]
+                            result[a] = Bars(cleaned, self.SOURCE, a, raw=cleaned)
+                except Exception as e:
+                    logger.error(f"Could not get crypto pricing data from Alpaca batch ({len(syms)} symbols): {e}")
+
+        return result
 
     def get_historical_prices(
             self,

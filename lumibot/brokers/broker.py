@@ -114,6 +114,18 @@ class Broker(ABC):
         # 24/7 or should follow an exchange calendar.  Derive it from config or
         # env, else default to "NASDAQ" which is compatible with pandas-market-calendars.
         self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NASDAQ"
+        # Auto-adjust market for certain known non-equity data sources when still at generic default.
+        try:
+            if self.market in ("NASDAQ", "NYSE", "stock") and self.data_source is not None:
+                ds_name = self.data_source.__class__.__name__
+                if ds_name in ("ProjectXData", "TradovateData"):
+                    self.market = "us_futures"
+                    logger.debug(f"Auto-set broker.market to 'us_futures' for data source {ds_name}")
+                elif ds_name in ("CcxtData", "CcxtBacktestingData", "CCXTData"):
+                    self.market = "24/7"
+                    logger.debug(f"Auto-set broker.market to '24/7' for data source {ds_name}")
+        except Exception as _auto_mkt_exc:
+            logger.debug(f"Auto market inference skipped: {_auto_mkt_exc}")
 
         if self.data_source is None:
             raise ValueError("Broker must have a data source")
@@ -846,11 +858,15 @@ class Broker(ABC):
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
+            if position is None:
+                # Order is invalid, skip processing
+                logger.error(f"Skipping filled order processing - could not create position from order {order.identifier}")
+                return
         else:
             # Add the order to the already existing position
             position.add_order(order)  # Don't update quantity here, it's handled by querying broker
 
-        if order.asset.asset_type == "crypto":
+        if order.asset and order.asset.asset_type == "crypto":
             self._process_crypto_quote(order, quantity, price)
 
         return position

@@ -9,6 +9,8 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 import signal
+import sys
+import pytest
 
 from lumibot.strategies.session_manager import SessionManager, BacktestingSession, LiveTradingSession
 
@@ -35,7 +37,8 @@ class TestSessionManager(unittest.TestCase):
         self.mock_executor.datetime = datetime(2024, 1, 1, 9, 30)
         self.mock_executor.is_backtesting_finished.return_value = False
         self.mock_executor.is_alive.return_value = True
-        
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="SIGALRM not available on Windows")
     def test_backtesting_session_guarantees_time_progression(self):
         """Test that BacktestingSession guarantees forward time progression."""
         print("\n=== Testing BacktestingSession Time Progression ===")
@@ -84,7 +87,8 @@ class TestSessionManager(unittest.TestCase):
             
         except TimeoutError:
             self.fail("BacktestingSession timed out - time progression not guaranteed")
-            
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="SIGALRM not available on Windows")     
     def test_backtesting_session_prevents_infinite_restart(self):
         """Test that BacktestingSession prevents the infinite restart bug."""
         print("\n=== Testing Infinite Restart Prevention ===")
@@ -132,7 +136,8 @@ class TestSessionManager(unittest.TestCase):
             
         except TimeoutError:
             self.fail("BacktestingSession still has infinite restart bug")
-            
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="SIGALRM not available on Windows")    
     def test_live_trading_session_time_management(self):
         """Test that LiveTradingSession handles time correctly."""
         print("\n=== Testing LiveTradingSession Time Management ===")

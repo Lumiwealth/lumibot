@@ -82,6 +82,13 @@ def test_file_handler_uses_lumibot_formatter():
         # Force flush all handlers
         for handler in logging.getLogger("lumibot").handlers:
             handler.flush()
+
+        # Remove and close all handlers that use the temp file before reading/deleting
+        logger_obj = logging.getLogger("lumibot")
+        for handler in logger_obj.handlers[:]:
+            if hasattr(handler, "baseFilename") and handler.baseFilename == tmp_name:
+                handler.close()
+                logger_obj.removeHandler(handler)
         
         # Read the file contents
         with open(tmp_name, 'r') as f:

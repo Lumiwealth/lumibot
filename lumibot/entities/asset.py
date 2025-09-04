@@ -681,13 +681,17 @@ class Asset:
             contract1 = f"{self.symbol}{month_code}{year_code:02d}"
             potential_contracts.append(contract1)
 
-            # Format 2: With dot separator (MES.Z25) - some platforms use this
-            contract2 = f"{self.symbol}.{month_code}{year_code:02d}"
+            # Format 2: Single-digit year format (MESZ5) - Tradovate style
+            contract2 = f"{self.symbol}{month_code}{year_code % 10}"
             potential_contracts.append(contract2)
 
-            # Format 3: Full year format (MESZ2025) - some platforms use this
-            contract3 = f"{self.symbol}{month_code}{year}"
+            # Format 3: With dot separator (MES.Z25) - some platforms use this
+            contract3 = f"{self.symbol}.{month_code}{year_code:02d}"
             potential_contracts.append(contract3)
+
+            # Format 4: Full year format (MESZ2025) - some platforms use this
+            contract4 = f"{self.symbol}{month_code}{year}"
+            potential_contracts.append(contract4)
 
         # Also add some monthly contracts as backup
         for month_offset in range(1, 4):  # Next 3 months
@@ -702,9 +706,15 @@ class Asset:
             month_code = month_codes.get(target_month, 'H')
             year_code = target_year % 100
 
+            # Standard format
             contract = f"{self.symbol}{month_code}{year_code:02d}"
             if contract not in potential_contracts:  # Avoid duplicates
                 potential_contracts.append(contract)
+            
+            # Single-digit year format
+            contract_1d = f"{self.symbol}{month_code}{year_code % 10}"
+            if contract_1d not in potential_contracts:  # Avoid duplicates
+                potential_contracts.append(contract_1d)
 
         # Remove duplicates while preserving order
         seen = set()

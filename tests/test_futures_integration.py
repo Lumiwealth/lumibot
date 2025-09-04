@@ -54,6 +54,30 @@ class TestFuturesCycleAlgoIntegration:
         # Strategy __init__ will add to this set; ensure it exists
         self.mock_broker.quote_assets = set()
 
+        # Provide minimal data_source expected by backtesting path
+        class _DS:
+            SOURCE = "MEMORY"
+            datetime_start = None
+            datetime_end = None
+            _data_store = {}
+        self.mock_broker.data_source = _DS()
+
+        # Provide minimal filled positions container used by _set_cash_position
+        class _FilledPositions:
+            def __init__(self):
+                self._list = []
+            def get_list(self):
+                return self._list
+            def __len__(self):
+                return len(self._list)
+            def __getitem__(self, idx):
+                return self._list[idx]
+            def __setitem__(self, idx, val):
+                self._list[idx] = val
+            def append(self, val):
+                self._list.append(val)
+        self.mock_broker._filled_positions = _FilledPositions()
+
         # Initialize strategy with the mock broker so __init__ doesn't raise
         self.strategy = MockFuturesCycleAlgo(broker=self.mock_broker)
         self.strategy._name = "FuturesCycleAlgo"

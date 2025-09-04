@@ -7,29 +7,42 @@ def staticdecorator(func):
     return func.__get__("")
 
 
+import sys
+import inspect
+from functools import wraps
+
+
 def call_function_get_frame(func, *args, **kwargs):
     """
-    Calls the function *func* with the specified arguments and keyword
-    arguments and snatches its local frame before it actually executes.
+    Calls func and returns its local frame and result,
+    much faster than using sys.settrace.
     """
 
-    frame = None
     trace = sys.gettrace()
-
-    def snatch_locals(_frame, name, arg):
-        nonlocal frame
-        if frame is None and name == "call":
-            frame = _frame
-        return trace
+    frame = None
 
     if trace is None:
+        # No debugger attached → use inspect for speed
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            nonlocal frame
+            frame = inspect.currentframe()
+            return func(*args, **kwargs)
+
+        result = wrapper(*args, **kwargs)
+    else:
+        # Debugger attached → fallback to old method
+        def snatch_locals(_frame, name, arg):
+            nonlocal frame
+            if frame is None and name == "call":
+                frame = _frame
+            return trace
+
         sys.settrace(snatch_locals)
         try:
             result = func(*args, **kwargs)
         finally:
             sys.settrace(trace)
-    else:
-        result = func(*args, **kwargs)
 
     return frame, result
 

@@ -40,7 +40,9 @@ class TestEnvironmentVariableHandling:
         """Test that the environment variables work as documented in the logger docstring."""
         # Test default values when no env vars are set
         clean_env = {k: v for k, v in os.environ.items() 
-                    if not k.startswith(('LUMIBOT_', 'LOG_', 'BACKTESTING_', 'DISABLE_'))}
+                      if not k.startswith(('LUMIBOT_', 'LOG_', 'BACKTESTING_', 'DISABLE_'))}
+        # Also ensure backtesting flag is cleared to avoid ERROR default in console/file split logic
+        clean_env.pop('IS_BACKTESTING', None)
         
         with patch.dict(os.environ, clean_env, clear=True):
             # Reset handlers to pick up environment changes

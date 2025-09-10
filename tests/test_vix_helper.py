@@ -32,15 +32,11 @@ class TestVixHelperImport(unittest.TestCase):
     
     
     def test_pandas_ta_import_with_numpy_2(self):
-        """Test that pandas_ta can be imported with NumPy 2.0+ after our patch"""
-        # Now try to import pandas_ta (if available)
-        try:
-            import pandas_ta as ta
-            # If import succeeds, verify it's working
-            self.assertIsNotNone(ta)
-        except ImportError:
-            # pandas_ta might not be installed, which is ok
-            pass
+        """Test that pandas_ta_classic can be imported with NumPy 2.0+ after our patch"""
+        # Import pandas-ta-classic
+        import pandas_ta_classic as ta
+        # Verify it's working
+        self.assertIsNotNone(ta)
         
         # Import vix_helper to ensure it works
         from lumibot.components.vix_helper import VixHelper

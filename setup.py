@@ -28,7 +28,7 @@ setuptools.setup(
         "pandas>=2.2.0",
         "polars>=1.32.3",
         "pandas_market_calendars>=5.1.0",
-        "pandas_ta>=0.3.14b",
+        "pandas-ta-classic>=0.3.14b0",
         "plotly>=5.18.0",
         "sqlalchemy",
         "bcrypt",

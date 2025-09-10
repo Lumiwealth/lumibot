@@ -3,7 +3,6 @@ import traceback
 from datetime import timedelta
 
 import pandas as pd
-import pandas_ta as ta
 import yfinance as yf
 from scipy import stats
 import traceback
@@ -17,7 +16,8 @@ import numpy as np
 if not hasattr(np, 'NaN'):
     np.NaN = np.nan
 
-import pandas_ta as ta
+# Import pandas-ta-classic
+import pandas_ta_classic as ta
 
 """ 
     Description

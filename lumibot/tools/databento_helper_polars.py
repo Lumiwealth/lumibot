@@ -620,7 +620,7 @@ def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep
 
     filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
     path = Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
-    logger.info(f"DB_HELPER[cache]: file={path.name} symbol={asset.symbol} step={timestep} start={start_dt} end={end_dt}")
+    logger.debug(f"DB_HELPER[cache]: file={path.name} symbol={asset.symbol} step={timestep} start={start_dt} end={end_dt}")
     return path
 
 

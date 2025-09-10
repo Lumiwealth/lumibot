@@ -107,7 +107,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             self._finalizer_thread = threading.Thread(target=self._finalizer_loop, daemon=True)
             self._finalizer_thread.start()
             
-            logger.info("[DATABENTO][LIVE] Live streaming threads initialized")
+            logger.debug("[DATABENTO][LIVE] Live streaming threads initialized")
             
         except Exception as e:
             logger.error(f"[DATABENTO][LIVE] Failed to initialize Live streaming: {e}", exc_info=True)
@@ -115,7 +115,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
     
     def _live_stream_worker(self, symbol: str, start_time: datetime):
         """Producer thread that subscribes and iterates in the same context"""
-        logger.info(f"[DATABENTO][PRODUCER] Starting for {symbol}")
+        logger.debug(f"[DATABENTO][PRODUCER] Starting for {symbol}")
         reconnect_attempts = 0
         max_reconnect_attempts = 5
         backoff_seconds = 1
@@ -230,7 +230,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
     
     def _consumer_loop(self):
         """Consumer thread that processes records from the queue"""
-        logger.info("[DATABENTO][CONSUMER] Started")
+        logger.debug("[DATABENTO][CONSUMER] Started")
         trade_count = 0
         
         while not self._stop_streaming:
@@ -280,7 +280,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
     
     def _finalizer_loop(self):
         """Finalizer thread that marks old bars as complete"""
-        logger.info("[DATABENTO][FINALIZER] Started")
+        logger.debug("[DATABENTO][FINALIZER] Started")
         
         while not self._stop_streaming:
             try:
@@ -392,7 +392,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             return None
         
         df = pl.DataFrame(tail_bars).sort('datetime')
-        logger.info(f"[DATABENTO][LIVE] Collected {len(df)} tail bars after {after_dt}")
+        logger.debug(f"[DATABENTO][LIVE] Collected {len(df)} tail bars after {after_dt}")
         return df
     
     def _resolve_futures_symbol(self, asset: Asset, reference_date: datetime = None) -> str:
@@ -478,7 +478,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             time.sleep(0.5)
         
         # Get historical data
-        logger.info(f"[DATABENTO][HIST] Fetching {symbol} from {start_time} to {current_time}")
+        logger.debug(f"[DATABENTO][HIST] Fetching {symbol} from {start_time} to {current_time}")
         
         df = databento_helper_polars.get_price_data_from_databento_polars(
             api_key=self._api_key,
@@ -566,7 +566,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                             # Continue with historical data only
                     else:
                         lag = (current_time - hist_last).total_seconds()
-                        logger.info(f"[DATABENTO][MERGE] No live tail bars (lag={lag:.0f}s)")
+                        logger.debug(f"[DATABENTO][MERGE] No live tail bars (lag={lag:.0f}s)")
                         
                 except Exception as e:
                     logger.warning(f"[DATABENTO][MERGE] Failed to merge live tail: {e}")

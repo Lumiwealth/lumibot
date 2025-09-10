@@ -12,6 +12,7 @@ Tests:
 
 import os
 import time
+import pytest
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
@@ -19,6 +20,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_symbol_resolution():
     """Test that symbols are properly resolved to contract codes"""
     from lumibot.entities import Asset
@@ -51,6 +56,10 @@ def test_symbol_resolution():
     return True
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_live_api_connection():
     """Test Live API connectivity and subscription"""
     import databento as db
@@ -81,6 +90,10 @@ def test_live_api_connection():
         return False
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_minute_bar_aggregation():
     """Test minute bar aggregation with <1 minute lag"""
     from lumibot.entities import Asset
@@ -156,6 +169,10 @@ def test_minute_bar_aggregation():
         return False
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_api_routing():
     """Test that correct API is used based on time range"""
     from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
@@ -195,13 +212,122 @@ def test_api_routing():
     return True
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
+def test_long_time_periods():
+    """Test different time periods including long periods (500+ bars)"""
+    from lumibot.entities import Asset
+    from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
+    
+    print("\n" + "="*60)
+    print("TEST 5: Long Time Period Handling (500+ bars)")
+    print("="*60)
+    
+    data_source = DataBentoDataPolars(
+        api_key=os.getenv('DATABENTO_API_KEY'),
+        has_paid_subscription=True,
+        enable_live_stream=True
+    )
+    
+    # Test different time periods
+    test_cases = [
+        (10, "Short period (10 bars)"),
+        (100, "Medium period (100 bars)"),
+        (500, "Long period (500 bars) - THE CRITICAL TEST"),
+    ]
+    
+    asset = Asset('MNQ', asset_type='CONT_FUTURE')
+    results = []
+    
+    for length, description in test_cases:
+        print(f"\n{description}:")
+        current_time = datetime.now(timezone.utc)
+        
+        # Get bars
+        bars = data_source.get_historical_prices(
+            asset=asset,
+            length=length,
+            timestep='minute'
+        )
+        
+        if bars and len(bars) > 0:
+            df = bars.df
+            print(f"  ✓ Got {len(df)} bars")
+            
+            # Check data freshness
+            if 'datetime' in df.columns:
+                latest_time = df['datetime'].max()
+            elif 'time' in df.columns:
+                latest_time = df['time'].max()
+            else:
+                latest_time = df.index.max() if hasattr(df, 'index') else None
+            
+            if latest_time:
+                # Ensure both times are timezone-aware for comparison
+                if hasattr(latest_time, 'tzinfo') and latest_time.tzinfo is None:
+                    latest_time = latest_time.replace(tzinfo=timezone.utc)
+                
+                lag_seconds = (current_time - latest_time).total_seconds()
+                lag_minutes = lag_seconds / 60
+                print(f"  Latest bar: {latest_time}")
+                print(f"  Data lag: {lag_minutes:.2f} minutes ({lag_seconds:.0f} seconds)")
+                
+                # STRICT Success criteria - must be under 90 seconds
+                if lag_minutes <= 1.5:  # 90 seconds
+                    print("  ✅ SUCCESS - Data is fresh (<90 seconds)!")
+                    results.append(True)
+                else:
+                    print(f"  ❌ FAILED - {lag_minutes:.2f} minute lag is too high (must be <1.5 min)")
+                    results.append(False)
+                    
+                    # Debug info when failing
+                    print(f"    Current time: {current_time}")
+                    print(f"    Latest bar time: {latest_time}")
+                    print(f"    This is the ACTUAL problem the bot sees!")
+            else:
+                print("  ❌ No time data found")
+                results.append(False)
+        else:
+            print("  ❌ No bars received")
+            results.append(False)
+        
+        # Wait between tests
+        if length < 500:
+            time.sleep(2)
+    
+    # Summary
+    print(f"\n{'='*50}")
+    print("LONG TIME PERIOD TEST RESULTS:")
+    print("="*50)
+    
+    for i, (length, description) in enumerate(test_cases):
+        status = "✅ PASSED" if results[i] else "❌ FAILED"
+        print(f"{description}: {status}")
+    
+    # The critical test is 500 bars
+    critical_test_passed = results[2] if len(results) > 2 else False
+    
+    if critical_test_passed:
+        print("\n🎉 CRITICAL TEST PASSED! 500 bars work with live streaming! 🎉")
+        return True
+    else:
+        print("\n❌ CRITICAL TEST FAILED! 500 bars still have high latency.")
+        return False
+
+
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_continuous_latency_monitoring():
     """Run continuous tests to verify consistent <1 minute lag"""
     from lumibot.entities import Asset
     from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
     
     print("\n" + "="*60)
-    print("TEST 5: Continuous Latency Monitoring")
+    print("TEST 6: Continuous Latency Monitoring")
     print("="*60)
     print("Running 5 consecutive tests to verify consistent low latency...")
     
@@ -292,6 +418,7 @@ def run_all_tests():
         ("Live API Connection", test_live_api_connection),
         ("Minute Bar Aggregation", test_minute_bar_aggregation),
         ("API Routing", test_api_routing),
+        ("Long Time Periods", test_long_time_periods),
         ("Continuous Latency", test_continuous_latency_monitoring)
     ]
     

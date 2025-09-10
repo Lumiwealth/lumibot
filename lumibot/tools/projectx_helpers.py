@@ -193,23 +193,28 @@ class ProjectXStreaming:
         """Handle user hub connection error"""
         self.logger.error(f"User hub error: {data}")
     
-    def _handle_account_update(self, data):
-        """Handle account update event"""
+    def _handle_account_update(self, *args):
+        """Handle account update event - SignalR might pass multiple args"""
+        data = args[0] if args else None
         if self.on_account_update:
             self.on_account_update(data)
     
-    def _handle_order_update(self, data):
-        """Handle order update event"""
+    def _handle_order_update(self, *args):
+        """Handle order update event - SignalR might pass multiple args"""
+        # SignalR can pass data as multiple arguments
+        data = args[0] if args else None
         if self.on_order_update:
             self.on_order_update(data)
     
-    def _handle_position_update(self, data):
-        """Handle position update event"""
+    def _handle_position_update(self, *args):
+        """Handle position update event - SignalR might pass multiple args"""
+        data = args[0] if args else None
         if self.on_position_update:
             self.on_position_update(data)
     
-    def _handle_trade_update(self, data):
-        """Handle trade update event"""
+    def _handle_trade_update(self, *args):
+        """Handle trade update event - SignalR might pass multiple args"""
+        data = args[0] if args else None
         if self.on_trade_update:
             self.on_trade_update(data)
     
@@ -375,6 +380,47 @@ class ProjectX:
                 # Don't log huge order lists in detail 
                 order_count = len(result.get("orders", [])) if result.get("success") else 0
                 self.logger.debug(f"Retrieved {order_count} orders")
+                return result
+            elif response.status_code == 429:
+                self.logger.warning(f"Rate limited, retrying in 1 second...")
+                time.sleep(1)  # Wait 1 second for rate limit
+                return {"success": False, "error": "Rate limited"}
+            else:
+                self.logger.error(f"API request failed: {response.status_code} {response.reason}")
+                return {"success": False, "error": f"HTTP {response.status_code}"}
+                
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def trade_search(self, account_id: int, start_timestamp: str, end_timestamp: str = None) -> dict:
+        """Search for trades in an account - trades are ground truth for fills"""
+        url = f"{self.base_url}api/trade/search"
+        
+        payload = {
+            "accountId": account_id,
+            "startTimestamp": start_timestamp,
+        }
+        if end_timestamp:
+            payload["endTimestamp"] = end_timestamp
+        
+        try:
+            # Light rate limiting
+            import time
+            time.sleep(0.05)  # 50ms delay between requests
+            
+            self.logger.debug(f"API Request: POST {url}")
+            self.logger.debug(f"Request Data: {payload}")
+            
+            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            
+            self.logger.debug(f"Response Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                # Don't log huge trade lists in detail 
+                trade_count = len(result.get("trades", [])) if result.get("success") else 0
+                self.logger.debug(f"Retrieved {trade_count} trades")
                 return result
             elif response.status_code == 429:
                 self.logger.warning(f"Rate limited, retrying in 1 second...")

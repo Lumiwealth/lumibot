@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="4.0.6",
+    version="4.0.8",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -28,7 +28,7 @@ setuptools.setup(
         "pandas>=2.2.0",
         "polars>=1.32.3",
         "pandas_market_calendars>=5.1.0",
-        "pandas_ta>=0.3.14b",
+        "pandas-ta-classic>=0.3.14b0",
         "plotly>=5.18.0",
         "sqlalchemy",
         "bcrypt",

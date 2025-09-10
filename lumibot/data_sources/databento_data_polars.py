@@ -555,7 +555,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                                 merged_df = merged_df.join(df_extra, on='datetime', how='left')
                             
                             df = merged_df
-                            logger.info(f"[DATABENTO][MERGE] Successfully appended {len(tail_df)} live bars")
+                            logger.debug(f"[DATABENTO][MERGE] Successfully appended {len(tail_df)} live bars")
                         
                         except Exception as merge_e:
                             logger.error(f"[DATABENTO][MERGE] All merge attempts failed: {merge_e}")

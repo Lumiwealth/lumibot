@@ -336,6 +336,26 @@ class StrategyExecutor(Thread):
                         continue
 
                     if order_lumi.is_active():
+                        # Add grace period for newly submitted orders (especially market orders)
+                        # Market orders might fill instantly and not appear in order search
+                        from datetime import datetime, timedelta
+                        if hasattr(order_lumi, 'created_at') and order_lumi.created_at:
+                            age = datetime.now() - order_lumi.created_at.replace(tzinfo=None)
+                            if age < timedelta(seconds=10):
+                                self.strategy.logger.debug(
+                                    f"Order {order_lumi} (id={order_lumi.identifier}) is only {age.seconds}s old, "
+                                    f"skipping auto-cancel (might be filling)"
+                                )
+                                continue
+                        
+                        # Check if it's a market order that might have filled instantly
+                        if order_lumi.order_type and order_lumi.order_type.lower() == "market":
+                            self.strategy.logger.info(
+                                f"Market order {order_lumi} (id={order_lumi.identifier}) not found in broker, "
+                                f"likely filled instantly - skipping cancel"
+                            )
+                            continue
+                        
                         self.strategy.logger.info(
                             f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
                             f"(bkr cnt={len(orders_broker)}), canceling."

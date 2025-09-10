@@ -192,6 +192,7 @@ class ProjectX(Broker):
     def _setup_streaming(self):
         """Set up streaming data connection."""
         try:
+            self.logger.debug(f"Setting up streaming for account ID: {self.account_id}")
             self.streaming_client = self.client.get_streaming_client(self.account_id)
 
             # Set up event handlers
@@ -203,7 +204,7 @@ class ProjectX(Broker):
             # Start streaming connection
             if self.streaming_client.start_user_hub():
                 self.streaming_client.subscribe_all(self.account_id)
-                self.logger.debug("Streaming connection established")
+                self.logger.debug(f"Subscribed to all streams for account {self.account_id}")
                 # KEY FIX: Complete stream handshake for Lumibot integration
                 self._stream_established()
             else:
@@ -315,6 +316,10 @@ class ProjectX(Broker):
                 order.error = f"Could not find contract for {order.asset.symbol}"
                 return order
 
+            # Log order submission details
+            self.logger.debug(f"Submitting order: {order.asset.symbol}, qty={order.quantity}, "
+                            f"side={order.side}, type={order.order_type}")
+
             # Get contract tick size for price rounding
             tick_size = self.client.get_contract_tick_size(contract_id)
 
@@ -375,10 +380,16 @@ class ProjectX(Broker):
                 custom_tag=order.tag
             )
 
+            # Log response details
+            self.logger.debug(f"Order response: success={response.get('success') if response else 'None'}, "
+                            f"orderId={response.get('orderId') if response else 'None'}")
+            
             if response and response.get("success"):
                 # Step 1: Update order with broker's ID (matching Alpaca/Tradier pattern)
                 order.id = str(response.get("orderId"))
                 order.identifier = order.id  # Critical: Update identifier BEFORE tracking
+                
+                self.logger.debug(f"Order submitted: id={order.id}, status=submitted")
                 
                 # Step 2: Set initial status and prices
                 order.status = "submitted"
@@ -642,28 +653,94 @@ class ProjectX(Broker):
         return None
 
     def _pull_broker_all_orders(self) -> List[dict]:
-        """Get the broker open orders."""
+        """Get all orders from broker, including recently filled ones via trades."""
         try:
-            # Get orders from last 30 days
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
+            # Use a tighter time window around "now" as recommended by the other AI
+            # This helps catch recently placed orders and avoids missing them
+            end_date = datetime.now() + timedelta(seconds=30)  # Look slightly ahead for clock skew
+            start_date = datetime.now() - timedelta(minutes=5)  # Look back 5 minutes for recent orders
+            
+            self.logger.debug(f"Searching orders: account={self.account_id}, "
+                            f"start={start_date.isoformat()}, end={end_date.isoformat()}")
 
+            # Search for orders
             orders = self.client.order_search(
                 account_id=self.account_id,
                 start_datetime=start_date.isoformat(),
                 end_datetime=end_date.isoformat()
             )
 
-            # order_search returns a list directly, not a dict with orders key
+            # Process order search results
+            order_list = []
             if isinstance(orders, list):
-                return orders
-            if isinstance(orders, dict) and orders.get("success"):
-                return orders.get("orders", [])
-
-            return []
+                order_list = orders
+                self.logger.debug(f"API returned {len(orders)} orders")
+            elif isinstance(orders, dict) and orders.get("success"):
+                order_list = orders.get("orders", [])
+                self.logger.debug(f"API returned {len(order_list)} orders")
+            
+            # Also search for recent trades to catch filled market orders
+            # Trades are the ground truth for fills according to the other AI
+            try:
+                trades = self._search_recent_trades(start_date, end_date)
+                self.logger.debug(f"Found {len(trades)} recent trades")
+                
+                # For each trade, ensure we have the corresponding order
+                for trade in trades:
+                    order_id = str(trade.get('orderId'))
+                    # Check if we already have this order
+                    found = False
+                    for order in order_list:
+                        if str(order.get('id')) == order_id:
+                            found = True
+                            # Update order with fill info from trade
+                            if trade.get('price'):
+                                order['filledPrice'] = trade.get('price')
+                            if trade.get('size'):
+                                order['fillVolume'] = trade.get('size')
+                            break
+                    
+                    if not found:
+                        # Create a synthetic order record from trade data
+                        # This helps catch market orders that filled instantly
+                        synthetic_order = {
+                            'id': order_id,
+                            'accountId': trade.get('accountId'),
+                            'contractId': trade.get('contractId'),
+                            'status': 2,  # Filled
+                            'fillVolume': trade.get('size'),
+                            'filledPrice': trade.get('price'),
+                            'side': trade.get('side'),
+                            # We don't know the original order type, assume market for instant fills
+                            'type': 2  # Market
+                        }
+                        order_list.append(synthetic_order)
+                        self.logger.debug(f"Added synthetic order from trade: {order_id}")
+            except Exception as trade_e:
+                self.logger.debug(f"Could not search trades: {trade_e}")
+            
+            return order_list
 
         except Exception as e:
             self.logger.error(f"Error getting all orders: {e}")
+            return []
+    
+    def _search_recent_trades(self, start_date, end_date) -> List[dict]:
+        """Search for recent trades to identify filled orders."""
+        try:
+            # Use the ProjectX trade search API
+            response = self.client.api.trade_search(
+                account_id=self.account_id,
+                start_timestamp=start_date.isoformat(),
+                end_timestamp=end_date.isoformat()
+            )
+            
+            if response and response.get("success"):
+                trades = response.get("trades", [])
+                return trades
+            return []
+        except Exception as e:
+            self.logger.debug(f"Error searching trades: {e}")
             return []
 
     def _get_contract_id_from_asset(self, asset: Asset) -> str:
@@ -1041,10 +1118,23 @@ class ProjectX(Broker):
     def _handle_order_update(self, data):
         """Handle order update from streaming."""
         try:
+            # Process streaming order updates
+            
             # Stream can deliver a single dict or a list of dicts
             payloads = data if isinstance(data, list) else [data]
             for item in payloads:
-                order = self._convert_broker_order_to_lumibot_order(item)
+                # Check if item is actually a dict
+                if not isinstance(item, dict):
+                    self.logger.debug(f"Unexpected order item type: {type(item)}")
+                    continue
+                
+                # Extract the actual order data from the wrapper
+                # Format is {'action': 1, 'data': {...actual order data...}}
+                order_data = item.get('data', item)  # Use item itself if no 'data' key
+                    
+                # Process order data from streaming
+                
+                order = self._convert_broker_order_to_lumibot_order(order_data)
                 if order is not None:
                     # KEY FIX: Detect status changes and dispatch lifecycle events
                     self._detect_and_dispatch_order_changes(order)
@@ -1053,7 +1143,7 @@ class ProjectX(Broker):
                     self._orders_cache[order.id] = order
                     self.logger.debug(f"Order update processed: {order.id} -> {order.status}")
         except Exception as e:
-            self.logger.error(f"Error handling order update: {e}")
+            self.logger.error(f"Error handling order update: {e}", exc_info=True)
 
     def _handle_position_update(self, data):
         """Handle position update from streaming."""
@@ -1068,29 +1158,53 @@ class ProjectX(Broker):
             self.logger.error(f"Error handling position update: {e}")
 
     def _handle_trade_update(self, data):
-        """Handle trade update from streaming."""
+        """Handle trade update from streaming - trades are ground truth for fills."""
         try:
-            # Trade updates could be single or batch; log type only to avoid noise  
-            self.logger.debug("Trade update received")
+            # Process streaming trade updates
             
-            # Check if trade update contains order information that we should process
+            # Process trade events to detect fills
             payloads = data if isinstance(data, list) else [data]
             for item in payloads:
-                if isinstance(item, dict) and item.get('orderId'):
-                    # This trade update contains order information - try to process it
-                    try:
-                        order = self._convert_broker_order_to_lumibot_order(item)
-                        if order is not None:
-                            self._detect_and_dispatch_order_changes(order)
-                            self._orders_cache[order.id] = order
-                    except Exception as order_e:
-                        self.logger.debug(f"Could not process trade update as order: {order_e}")
+                # Check if item is actually a dict
+                if not isinstance(item, dict):
+                    self.logger.debug(f"Unexpected trade item type: {type(item)}")
+                    continue
+                
+                # Extract the actual trade data from the wrapper
+                # Format is {'action': 0, 'data': {...actual trade data...}}
+                trade_data = item.get('data', item)  # Use item itself if no 'data' key
+                    
+                # Process trade data from streaming
+                
+                # Extract order ID from trade - trades use 'orderId' to reference the order
+                order_id = str(trade_data.get("orderId")) if trade_data.get("orderId") else None
+                
+                if order_id and order_id in self._orders_cache:
+                    order = self._orders_cache[order_id]
+                    
+                    # Update order with fill information from trade
+                    fill_price = trade_data.get("price")
+                    fill_size = trade_data.get("size")
+                    
+                    if fill_price and fill_size:
+                        # Mark order as filled based on trade data
+                        order.status = "filled"
+                        order.filled_quantity = fill_size
+                        order.avg_fill_price = fill_price
+                        
+                        # Dispatch fill event - pass same order twice since it's the updated version
+                        self._dispatch_status_change(order, order)
+                        
+                        self.logger.debug(f"Trade fill processed for order {order_id}: "
+                                        f"{fill_size} @ {fill_price}")
+                elif order_id:
+                    self.logger.debug(f"Trade for unknown order {order_id} - might be pre-existing")
             
             # Trade updates can trigger order and position cache updates
             self._update_orders_cache()
             self._update_positions_cache()
         except Exception as e:
-            self.logger.error(f"Error handling trade update: {e}")
+            self.logger.error(f"Error handling trade update: {e}", exc_info=True)
 
     def _handle_account_update(self, data):
         """Handle account update from streaming."""

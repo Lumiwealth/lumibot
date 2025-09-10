@@ -317,6 +317,47 @@ def test_streaming_order_update_triggers_events(projectx_broker, mes_asset):
     event_type, payload = mock_subscriber.events[0]
     assert event_type == "fill"
 
+def test_streaming_trade_update_triggers_fill(projectx_broker, mes_asset):
+    """Test that streaming trade updates trigger fill events"""
+    # Create mock subscriber
+    mock_subscriber = MockSubscriber("test_strategy")
+    while len(projectx_broker._subscribers) > 0:
+        projectx_broker._subscribers.pop()
+    projectx_broker._subscribers.append(mock_subscriber)
+    
+    # Add initial order to cache (market order that should fill instantly)
+    order = Order(asset=mes_asset, quantity=1, order_type="market", side="buy", limit_price=None, strategy="test_strategy")
+    order.id = "12349"
+    order.identifier = "12349"
+    order.status = "new"
+    projectx_broker._orders_cache[order.id] = order
+    
+    # Clear initial events
+    mock_subscriber.events.clear()
+    
+    # Simulate streaming trade update (trades are ground truth for fills)
+    trade_data = {
+        "id": 98765,  # Trade ID
+        "orderId": "12349",  # Links to our order
+        "accountId": 1,
+        "contractId": "CON.F.US.MES.Z25",
+        "price": 5001.25,
+        "size": 1,
+        "side": 0,  # buy
+        "creationTimestamp": "2025-01-01T12:00:00Z",
+        "voided": False
+    }
+    
+    # Trigger trade update
+    projectx_broker._handle_trade_update(trade_data)
+    
+    # Verify FILLED_ORDER event was dispatched from trade
+    assert len(mock_subscriber.events) == 1
+    event_type, payload = mock_subscriber.events[0]
+    assert event_type == "fill"
+    assert payload["price"] == 5001.25
+    assert payload["quantity"] == 1
+
 def test_pre_existing_filled_order_handling(projectx_broker, mes_asset):
     """Test handling of orders that were filled before strategy started"""
     # Set first iteration flag

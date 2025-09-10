@@ -12,6 +12,7 @@ Tests:
 
 import os
 import time
+import pytest
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
@@ -19,6 +20,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_symbol_resolution():
     """Test that symbols are properly resolved to contract codes"""
     from lumibot.entities import Asset
@@ -51,6 +56,10 @@ def test_symbol_resolution():
     return True
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_live_api_connection():
     """Test Live API connectivity and subscription"""
     import databento as db
@@ -81,6 +90,10 @@ def test_live_api_connection():
         return False
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_minute_bar_aggregation():
     """Test minute bar aggregation with <1 minute lag"""
     from lumibot.entities import Asset
@@ -156,6 +169,10 @@ def test_minute_bar_aggregation():
         return False
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_api_routing():
     """Test that correct API is used based on time range"""
     from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
@@ -195,6 +212,10 @@ def test_api_routing():
     return True
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_long_time_periods():
     """Test different time periods including long periods (500+ bars)"""
     from lumibot.entities import Asset
@@ -296,6 +317,10 @@ def test_long_time_periods():
         return False
 
 
+@pytest.mark.skipif(
+    not os.environ.get('DATABENTO_API_KEY'),
+    reason="DATABENTO_API_KEY environment variable not set"
+)
 def test_continuous_latency_monitoring():
     """Run continuous tests to verify consistent <1 minute lag"""
     from lumibot.entities import Asset

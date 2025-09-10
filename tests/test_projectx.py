@@ -60,20 +60,23 @@ class TestProjectXBroker:
 
     def test_order_status_mapping_corrected(self, projectx_broker):
         """
-        Test that order status mapping is corrected.
-        Previously status=3 was mapped to 'partially_filled' which was impossible 
-        for 1-share orders. Now it should be 'open'.
+        Test that order status mapping is corrected based on actual ProjectX API.
+        Based on ProjectX API documentation:
+        1=Open, 2=Filled, 3=Cancelled, 4=Expired, 5=Rejected, 6=Pending
         """
-        # Test the corrected status mappings
+        # Test the corrected status mappings from actual ProjectX API
         status_mappings = projectx_broker.ORDER_STATUS_MAPPING
         
-        # These were the problematic mappings that we fixed
-        assert status_mappings[1] == "new"           # Pending/New
-        assert status_mappings[2] == "submitted"     # Submitted  
-        assert status_mappings[3] == "open"          # Open/Active on exchange (was "partially_filled")
-        assert status_mappings[4] == "filled"        # Filled/Completed
-        assert status_mappings[5] == "cancelled"     # Canceled/Rejected
-        assert status_mappings[11] == "partially_filled"  # Partially filled (for multi-share orders)
+        # These are the correct mappings from ProjectX API documentation
+        assert status_mappings[1] == "open"          # Open (active order on exchange)
+        assert status_mappings[2] == "filled"        # Filled (completely executed)
+        assert status_mappings[3] == "cancelled"     # Cancelled
+        assert status_mappings[4] == "expired"       # Expired (mapped to cancelled)
+        assert status_mappings[5] == "rejected"      # Rejected
+        assert status_mappings[6] == "new"           # Pending (new order, not yet on exchange)
+        # Extended statuses if they exist
+        if 7 in status_mappings:
+            assert status_mappings[7] == "partially_filled"  # Partially filled (for multi-share orders)
 
     def test_position_conversion_field_mapping(self, projectx_broker):
         """
@@ -158,7 +161,7 @@ class TestProjectXBroker:
         assert order.asset.symbol == "MES"
         assert order.quantity == 1
         assert order.side == "buy"
-        assert order.status == "submitted"  # Status 2 maps to "submitted"
+        assert order.status == "fill"  # Status 2 maps to "filled" which becomes "fill" via STATUS_ALIAS_MAP
         assert order.order_type == "market"
 
     def test_order_status_mapping_edge_cases(self, projectx_broker):
@@ -181,8 +184,8 @@ class TestProjectXBroker:
 
         order = projectx_broker._convert_broker_order_to_lumibot_order(broker_order)
         
-        # Should be "open" not "partially_filled" 
-        assert order.status == "open"
+        # Status 3 is "cancelled" in the correct ProjectX API mapping
+        assert order.status == "canceled"  # "cancelled" becomes "canceled" via STATUS_ALIAS_MAP
 
     def test_asset_resolution_no_hardcoded_mappings(self, projectx_broker):
         """
@@ -328,12 +331,13 @@ class TestProjectXBroker:
         
         test_cases = [
             # (status_id, expected_lumibot_status, description)
-            (1, "new", "Pending/New order"),
-            (2, "submitted", "Submitted to exchange"),
-            (3, "open", "Open/Active (was incorrectly partial_filled)"),
-            (4, "fill", "Completely filled"),
-            (5, "canceled", "Canceled or rejected"),
-            (11, "partial_filled", "Actually partially filled"),
+            (1, "open", "Open order on exchange"),
+            (2, "fill", "Completely filled"),
+            (3, "canceled", "Cancelled order"),
+            (4, "canceled", "Expired (mapped to canceled)"),
+            (5, "error", "Rejected (mapped to error)"),
+            (6, "new", "Pending/New order"),
+            (7, "partial_filled", "Partially filled"),
         ]
 
         mock_asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -370,7 +374,7 @@ class TestProjectXBrokerIntegration:
         broker_orders = [
             {
                 "id": 111,
-                "status": 3,  # Open
+                "status": 1,  # Open (correct status for open orders)
                 "symbol": "MES",
                 "contractId": "CON.F.US.MES.U25", 
                 "size": 1,
@@ -379,7 +383,7 @@ class TestProjectXBrokerIntegration:
             },
             {
                 "id": 222, 
-                "status": 4,  # Filled
+                "status": 2,  # Filled (correct status for filled orders)
                 "symbol": "NQ",
                 "contractId": "CON.F.US.NQ.U25",
                 "size": 2,

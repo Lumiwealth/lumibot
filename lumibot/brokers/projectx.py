@@ -14,7 +14,19 @@ from lumibot.brokers.broker import Broker
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.projectx_helpers import ProjectXClient
+from lumibot.tools.projectx_helpers import (
+    ProjectXClient,
+    create_bracket_meta,
+    normalize_bracket_entry_tag,
+    build_unique_order_tag,
+    select_effective_prices,
+    bracket_child_tag,
+    derive_base_tag,
+    early_store_bracket_meta,
+    restore_bracket_meta_if_needed,
+    should_spawn_bracket_children,
+    build_bracket_child_spec,
+)
 from termcolor import colored
 # PollingStream usage was removed to align with centralized lifecycle in core Broker
 import traceback
@@ -102,7 +114,6 @@ class ProjectX(Broker):
         # Validate required configuration
         required_fields = ["api_key", "username", "base_url"]
         missing_fields = [field for field in required_fields if not config.get(field)]
-
         if missing_fields:
             firm_name = config.get("firm", "unknown")
             raise ValueError(
@@ -119,7 +130,7 @@ class ProjectX(Broker):
                 f"No preferred account name set for {firm_name}. "
                 f"Consider setting PROJECTX_{firm_name}_PREFERRED_ACCOUNT_NAME for better account selection."
             )
-
+			
         self.config = config
         self.firm = config.get("firm")
 
@@ -137,6 +148,9 @@ class ProjectX(Broker):
         # Order/position caches
         self._orders_cache = {}  # Store orders by their IDs
         self._positions_cache = {}  # Store positions
+        # Bracket tracking maps (synthetic implementation)
+        self._bracket_parent_by_child_id = {}
+        self._bracket_meta = {}  # parent_id -> meta dict (persistent across conversions)
 
         # Thread management
         self.max_workers = max_workers
@@ -159,6 +173,8 @@ class ProjectX(Broker):
         # Check if we should auto-connect
         if not self.account_id:
             self.logger.debug("Account ID not set, will connect when needed")
+
+    # (dedupe set will be lazily created in _on_new_order override)
 
     def connect(self):
         """Connect to ProjectX broker and set up account."""
@@ -221,6 +237,24 @@ class ProjectX(Broker):
             self.logger.info("Disconnected from ProjectX broker")
         except Exception as e:
             self.logger.error(f"Error disconnecting: {e}")
+
+    # --- Logging dedupe override ---
+    def _on_new_order(self, order):  # override to suppress duplicates
+        if not hasattr(self, '_creation_log_ids'):
+            self._creation_log_ids = set()
+        oid = getattr(order, 'identifier', None) or getattr(order, 'id', None) or id(order)
+        if oid not in self._creation_log_ids:
+            self._creation_log_ids.add(oid)
+            # replicate original log format
+            self.logger.info(colored(f"New order was created: {order}", color="green"))
+        else:
+            # silent or debug-level suppression; keep a trace
+            self.logger.debug(f"[dedupe] suppressed duplicate creation log for order {oid}")
+        # Continue normal event dispatch via base behavior (manual copy since not calling super())
+        payload = dict(order=order)
+        subscriber = self._get_subscriber(order.strategy)
+        if subscriber:
+            subscriber.add_event(subscriber.NEW_ORDER, payload)
 
     # ========== Required Broker Methods ==========
 
@@ -336,38 +370,55 @@ class ProjectX(Broker):
                 order.error = f"Unsupported order side: {order.side}"
                 return order
 
-            # Round prices to tick size
-            limit_price = None
-            stop_price = None
+            # Detect synthetic bracket parent (do NOT apply secondary prices to entry)
+            is_bracket_parent = (
+                getattr(order, 'order_class', None) == getattr(Order.OrderClass, 'BRACKET', None)
+                and not getattr(order, '_is_bracket_child', False)
+            )
 
-            if order.limit_price is not None:
-                limit_price = self.client.round_to_tick_size(order.limit_price, tick_size)
-            if order.stop_price is not None:
-                stop_price = self.client.round_to_tick_size(order.stop_price, tick_size)
+            if is_bracket_parent:
+                self.logger.debug(
+                    f"[BRACKET DETECT] parent candidate id(temp)={getattr(order,'id',None)} tag={getattr(order,'tag',None)} "
+                    f"order_class={getattr(order,'order_class',None)} sec_limit={getattr(order,'secondary_limit_price',None)} "
+                    f"sec_stop={getattr(order,'secondary_stop_price',None)} limit={getattr(order,'limit_price',None)} stop={getattr(order,'stop_price',None)}"
+                )
+                # Capture intended TP/SL from secondary_* without sending them in parent
+                tp_price = getattr(order, 'secondary_limit_price', None)
+                sl_price = getattr(order, 'secondary_stop_price', None)
+                # Use helper to build synthetic bracket metadata (pure, low-risk extraction)
+                order._synthetic_bracket = create_bracket_meta(tp_price, sl_price)
+                order._is_bracket_parent = True
+                # Early store meta with a temporary key (will update key once broker id returned)
+                # Early provisional meta store under temp key
+                temp_key = getattr(order, 'id', None) or f"temp_{id(order)}"
+                if not hasattr(self, '_bracket_meta'):
+                    self._bracket_meta = {}
+                early_store_bracket_meta(self._bracket_meta, temp_key, order._synthetic_bracket, self.logger)
+                # Entry prices: only use primary limit/stop (rare) else None
+                limit_price = self.client.round_to_tick_size(order.limit_price, tick_size) if getattr(order, 'limit_price', None) is not None else None
+                stop_price = self.client.round_to_tick_size(order.stop_price, tick_size) if getattr(order, 'stop_price', None) is not None else None
+            else:
+                # Use extracted pure helper for non-bracket price selection
+                limit_price, stop_price = select_effective_prices(order, self.client, tick_size)
 
             # Submit order
             # NOTE: ProjectXClient.order_place expects parameter name 'type', not 'order_type'
             # Passing 'order_type' caused: unexpected keyword argument 'order_type'
             # Ensure we supply a UNIQUE custom tag (ProjectX requires uniqueness per account)
-            try:
-                import time, random
-                if not getattr(order, 'tag', None):
-                    # Build a compact unique tag: STRATNAME (sanitized) + millis + 2 random chars
-                    strat_part = ''
-                    try:
-                        if hasattr(order, 'strategy') and order.strategy:
-                            strat_name = order.strategy if isinstance(order.strategy, str) else getattr(order.strategy, 'name', '')
-                            strat_part = (strat_name or 'LB')[:8].upper()
-                    except Exception:
-                        strat_part = 'LB'
-                    unique_suffix = f"{int(time.time()*1000)%100000000:08d}{random.randint(10,99)}"
-                    order.tag = f"{strat_part}-{unique_suffix}"
-                else:
-                    # If tag exists but is whitespace, normalize to generated unique tag
-                    if not order.tag.strip():
-                        order.tag = f"LB-{int(time.time()*1000)}"
-            except Exception as tag_e:
-                self.logger.debug(f"Failed to auto-generate tag (non-fatal): {tag_e}")
+            # Unique tag generation via helper (mirrors prior logic)
+            previous_tag = getattr(order, 'tag', None)
+            build_unique_order_tag(order)
+            if previous_tag != getattr(order, 'tag', None):
+                self.logger.debug(f"Auto-assigned order tag {order.tag}")
+
+            # Apply bracket parent tag normalization AFTER tag generation
+            if is_bracket_parent:
+                # Normalize entry tag using helper (pure, preserves prior behavior)
+                normalized_tag, base_tag = normalize_bracket_entry_tag(order.tag)
+                if normalized_tag:
+                    order.tag = normalized_tag
+                if base_tag and hasattr(order, '_synthetic_bracket'):
+                    order._synthetic_bracket['base_tag'] = base_tag
 
             response = self.client.order_place(
                 account_id=self.account_id,
@@ -388,6 +439,40 @@ class ProjectX(Broker):
                 # Step 1: Update order with broker's ID (matching Alpaca/Tradier pattern)
                 order.id = str(response.get("orderId"))
                 order.identifier = order.id  # Critical: Update identifier BEFORE tracking
+                if is_bracket_parent and hasattr(order, '_synthetic_bracket'):
+                    # If we previously stored under a temp key, migrate
+                    try:
+                        # Remove any temp_* entries that match tp/sl pair to prevent duplicate meta
+                        for k in list(self._bracket_meta.keys()):
+                            if k.startswith('temp_'):
+                                temp_meta = self._bracket_meta.get(k)
+                                if temp_meta and temp_meta.get('tp_price') == order._synthetic_bracket.get('tp_price') and temp_meta.get('sl_price') == order._synthetic_bracket.get('sl_price'):
+                                    self._bracket_meta.pop(k, None)
+                    except Exception:
+                        pass
+                    order._synthetic_bracket['parent_id'] = order.id
+                    # Persist meta map for conversions
+                    try:
+                        self._bracket_meta[order.id] = dict(order._synthetic_bracket)
+                        self.logger.debug(
+                            f"[BRACKET META STORE] parent_id={order.id} tp={order._synthetic_bracket.get('tp_price')} "
+                            f"sl={order._synthetic_bracket.get('sl_price')} tag={order.tag}"
+                        )
+                        # Ultra-fast fill race: fill events may have arrived before meta store; attempt spawn now if children not yet submitted.
+                        try:
+                            if not order._synthetic_bracket.get('children_submitted'):
+                                # Ensure cache copy gets meta for subsequent events
+                                cached = self._orders_cache.get(order.id)
+                                if cached and not hasattr(cached, '_synthetic_bracket'):
+                                    cached._synthetic_bracket = order._synthetic_bracket
+                                    cached._is_bracket_parent = True
+                                self.logger.debug(f"[BRACKET SPAWN IMMEDIATE] parent_id={order.id} status={order.status}")
+                                self._maybe_spawn_bracket_children(order)
+                        except Exception as ie:
+                            self.logger.error(f"[BRACKET SPAWN IMMEDIATE ERROR] parent_id={order.id} err={ie}")
+                    except Exception:
+                        pass
+                    self.logger.debug(f"[BRACKET DETECT CONFIRMED] parent_id={order.id} tp={order._synthetic_bracket.get('tp_price')} sl={order._synthetic_bracket.get('sl_price')}")
                 
                 self.logger.debug(f"Order submitted: id={order.id}, status=submitted")
                 
@@ -411,6 +496,8 @@ class ProjectX(Broker):
                     self.logger.error(f"Error dispatching NEW_ORDER event for {order.id}: {e}")
                     # Continue even if event dispatch fails
                     self.logger.debug(f"Order submitted successfully with ID: {order.id} (event dispatch failed)")
+
+                # Note: children will be spawned upon fill event
             else:
                 error_msg = response.get("errorMessage", "Unknown error") if response else "No response"
                 # Map specific broker error codes/messages to standardized handling
@@ -826,7 +913,16 @@ class ProjectX(Broker):
 
             # Get the broker's order ID
             broker_order_id = str(broker_order.get("id"))
-            
+            # If we have a cached order, reuse critical lifecycle info & prevent status downgrade
+            cached_order = self._orders_cache.get(broker_order_id) if hasattr(self, '_orders_cache') else None
+            if cached_order:
+                # Prevent status regression (e.g., filled -> new) from out-of-order stream messages
+                terminal_statuses = {"fill", "filled", "canceled", "cancelled", "error"}
+                if cached_order.status and cached_order.status.lower() in terminal_statuses:
+                    # If incoming status is earlier lifecycle, keep terminal info
+                    if status in ("new", "open"):
+                        return cached_order  # Keep existing terminal order unchanged
+
             # Create Order object with broker's ID as identifier from the start
             order = Order(
                 strategy="",  # Will be set by strategy when needed
@@ -842,15 +938,74 @@ class ProjectX(Broker):
             order.status = status
             order.limit_price = broker_order.get("limitPrice")
             order.stop_price = broker_order.get("stopPrice")
-            order.filled_quantity = broker_order.get("filledSize", 0)
-            order.avg_fill_price = broker_order.get("avgFillPrice")
+            # Quantity & fill info
+            order.filled_quantity = broker_order.get("filledSize", broker_order.get("filledQty", 0))
+            # Robust fill price extraction across possible field names
+            for price_key in ("avgFillPrice", "averagePrice", "avgPrice", "fillPrice", "price", "lastFillPrice"):
+                if broker_order.get(price_key) is not None:
+                    order.avg_fill_price = broker_order.get(price_key)
+                    break
             order.tag = broker_order.get("customTag")
+
+            # If cached order exists, inherit strategy & any previously known fill data
+            if cached_order:
+                if getattr(cached_order, 'strategy', None):
+                    order.strategy = cached_order.strategy
+                # Propagate synthetic bracket metadata & flags
+                restore_bracket_meta_if_needed(order, {broker_order_id: cached_order} if cached_order else {}, getattr(self, '_bracket_meta', {}), self.logger)
+                if getattr(cached_order, '_is_bracket_parent', False):
+                    order._is_bracket_parent = True
+                if getattr(cached_order, '_bracket_children_submitted', False):
+                    order._bracket_children_submitted = True
+                if getattr(cached_order, '_is_bracket_child', False):
+                    order._is_bracket_child = True
+                if hasattr(cached_order, '_bracket_parent_id') and not hasattr(order, '_bracket_parent_id'):
+                    order._bracket_parent_id = getattr(cached_order, '_bracket_parent_id')
+                # Fallback fill price if still missing
+                if not getattr(order, 'avg_fill_price', None) and getattr(cached_order, 'avg_fill_price', None):
+                    order.avg_fill_price = cached_order.avg_fill_price
+                # Fallback filled quantity
+                if (getattr(order, 'filled_quantity', None) in (None, 0)) and getattr(cached_order, 'filled_quantity', None):
+                    order.filled_quantity = cached_order.filled_quantity
+                # Preserve previously known fill info if new payload omits it
+                prev_avg = getattr(cached_order, 'avg_fill_price', None)
+                if prev_avg is not None and not order.avg_fill_price:
+                    order.avg_fill_price = prev_avg
+                prev_filled_qty = getattr(cached_order, 'filled_quantity', None)
+                if prev_filled_qty is not None and not order.filled_quantity:
+                    order.filled_quantity = prev_filled_qty
+
+            # Attempt to resolve strategy when missing (prevents 'Subscriber  not found')
+            if not getattr(order, 'strategy', None):
+                # 1. Tag prefix heuristic (tag generated like STRATNAME-XXXXXXXX)
+                if order.tag and hasattr(self, '_subscribers') and self._subscribers:
+                    tag_prefix = order.tag.split('-')[0].upper()
+                    try:
+                        for sub in self._subscribers:
+                            sub_name = getattr(sub, 'name', '') or str(sub)
+                            if sub_name.upper().startswith(tag_prefix):
+                                order.strategy = sub_name
+                                break
+                    except Exception:
+                        pass
+                # 2. Single subscriber shortcut
+                if not getattr(order, 'strategy', None) and hasattr(self, '_subscribers') and len(self._subscribers) == 1:
+                    only_sub = self._subscribers[0]
+                    order.strategy = getattr(only_sub, 'name', '') or str(only_sub)
+                # 3. Fallback to cached order even if strategy empty string above
+                if (not getattr(order, 'strategy', None)) and cached_order and getattr(cached_order, 'strategy', None):
+                    order.strategy = cached_order.strategy
 
             # Set timestamps
             if broker_order.get("createdDateTime"):
                 order.created_at = pd.to_datetime(broker_order["createdDateTime"])
             if broker_order.get("updatedDateTime"):
                 order.updated_at = pd.to_datetime(broker_order["updatedDateTime"])
+
+            # Restore bracket meta from persistent map if not already attached
+            if restore_bracket_meta_if_needed(order, self._orders_cache if hasattr(self, '_orders_cache') else {}, getattr(self, '_bracket_meta', {}), self.logger):
+                if getattr(order, '_synthetic_bracket', None):
+                    order._is_bracket_parent = True
 
             return order
 
@@ -1044,21 +1199,56 @@ class ProjectX(Broker):
             if status == "new" or status == "open":
                 # New or Open orders trigger NEW_ORDER event
                 self._process_trade_event(new_order, self.NEW_ORDER)
-            elif status == "fill":
+            elif status in ("fill", "filled"):
                 # Filled orders (status=2 becomes "filled" then aliased to "fill")
-                price = getattr(new_order, 'avg_fill_price', None) or getattr(new_order, 'limit_price', None)
-                quantity = getattr(new_order, 'filled_quantity', None) or getattr(new_order, 'quantity', None)
+                # Ensure bracket metadata is preserved
+                if getattr(cached_order, '_is_bracket_parent', False) and not getattr(new_order, '_is_bracket_parent', False):
+                    new_order._is_bracket_parent = True
+                restore_bracket_meta_if_needed(new_order, {getattr(cached_order,'id',None): cached_order} if cached_order else {}, getattr(self, '_bracket_meta', {}), self.logger)
+                if getattr(cached_order, '_is_bracket_child', False) and not getattr(new_order, '_is_bracket_child', False):
+                    new_order._is_bracket_child = True
+                    if hasattr(cached_order, '_bracket_parent_id'):
+                        new_order._bracket_parent_id = getattr(cached_order, '_bracket_parent_id')
+
+                price = getattr(new_order, 'avg_fill_price', None)
+                if price is None:
+                    price = getattr(cached_order, 'avg_fill_price', None)
+                if price is None:
+                    price = getattr(new_order, 'limit_price', None) or getattr(new_order, 'stop_price', None)
+                if price is None:
+                    price = getattr(cached_order, 'limit_price', None) or getattr(cached_order, 'stop_price', None)
+                quantity = getattr(new_order, 'filled_quantity', None)
+                if (quantity is None or quantity == 0):
+                    quantity = getattr(cached_order, 'filled_quantity', None)
+                if (quantity is None or quantity == 0):
+                    quantity = getattr(new_order, 'quantity', None) or getattr(cached_order, 'quantity', None)
                 
-                if price is not None and quantity is not None:
-                    self._process_trade_event(
-                        new_order, 
-                        self.FILLED_ORDER, 
-                        price=price, 
-                        filled_quantity=quantity,
-                        multiplier=new_order.asset.multiplier if new_order.asset else 1
-                    )
-                else:
-                    self.logger.warning(f"Fill event missing price ({price}) or quantity ({quantity}) data for order {new_order.id}")
+                if price is None:
+                    self.logger.debug(f"[FILL PRICE MISSING] Using 0.0 placeholder for order {new_order.id}")
+                    price = 0.0
+                if quantity is None:
+                    quantity = getattr(new_order, 'quantity', None) or getattr(cached_order, 'quantity', 0)
+                self._process_trade_event(
+                    new_order, 
+                    self.FILLED_ORDER, 
+                    price=price, 
+                    filled_quantity=quantity,
+                    multiplier=new_order.asset.multiplier if new_order.asset else 1
+                )
+                # Bracket parent: spawn children after processing fill event (even if price fallback)
+                # Use helper _is_bracket_parent to fall back on stored meta map if attribute missing
+                if self._is_bracket_parent(new_order) and not getattr(new_order, '_bracket_children_submitted', False):
+                    self.logger.debug(f"[BRACKET SPAWN CHECK] parent_id={new_order.id} has_meta={hasattr(new_order,'_synthetic_bracket')} meta={getattr(new_order,'_synthetic_bracket',None)}")
+                    try:
+                        self._maybe_spawn_bracket_children(new_order)
+                    except Exception as be:
+                        self.logger.error(f"Bracket child spawn failed for parent {new_order.id}: {be}")
+                # Bracket child: handle sibling cancellation
+                if getattr(new_order, '_is_bracket_child', False):
+                    try:
+                        self._handle_bracket_child_fill(new_order)
+                    except Exception as ce:
+                        self.logger.error(f"Error handling bracket child fill {new_order.id}: {ce}")
             elif status == "canceled":
                 # Cancelled orders (status=3 becomes "cancelled" then aliased to "canceled")
                 # Also handles expired (status=4 becomes "expired" then aliased to "canceled")
@@ -1066,6 +1256,12 @@ class ProjectX(Broker):
             elif status == "error":
                 # Rejected orders (status=5 becomes "rejected" then aliased to "error")
                 self._process_trade_event(new_order, self.ERROR_ORDER)
+                # If bracket child errors, deactivate bracket
+                if getattr(new_order, '_is_bracket_child', False):
+                    parent_id = self._bracket_parent_by_child_id.get(new_order.id)
+                    parent = self._orders_cache.get(parent_id) if parent_id else None
+                    if parent and getattr(parent, '_synthetic_bracket', None):
+                        parent._synthetic_bracket['active'] = False
             elif status == "partial_fill":
                 # Partially filled orders (status=7 if supported)
                 price = getattr(new_order, 'avg_fill_price', None) or getattr(new_order, 'limit_price', None)
@@ -1086,6 +1282,145 @@ class ProjectX(Broker):
                 
         except Exception as e:
             self.logger.error(f"Error dispatching status change for order {new_order.id}: {e}")
+
+    # ======== Synthetic Bracket Helpers =========
+    # A BRACKET parent order (order_class=BRACKET) carries only the entry details; TP/SL are
+    # supplied via secondary_limit_price / secondary_stop_price and captured into synthetic
+    # metadata (no native broker OCO linkage). On parent submission we:
+    #   1. Build meta (tp/sl/base_tag/children flags) and early-store under temp key.
+    #   2. After broker assigns real order id, meta is migrated & children may spawn immediately
+    #      (handles ultra-fast fills racing earlier implementations).
+    #   3. On fill/status events, _maybe_spawn_bracket_children re-validates meta & spawns
+    #      one limit (TP) and/or one stop (SL) child, tagging them BRK_TP_/BRK_STOP_ + base.
+    #   4. Child fills invoke sibling cancellation for synthetic OCO behavior.
+    # Resilience:
+    #   - Meta restoration helper reattaches state if cache entries lost or events reorder.
+    #   - Spawn predicate centralizes gate conditions; reasons logged at DEBUG for diagnostics.
+    # Helpers live in projectx_helpers.py to keep this broker lean and testable.
+    def _is_bracket_parent(self, order: Order) -> bool:
+        if getattr(order, '_is_bracket_parent', False):
+            return True
+        return bool(getattr(self, '_bracket_meta', {}).get(getattr(order, 'id', None)))
+
+    def _is_bracket_child(self, order: Order) -> bool:
+        return getattr(order, '_is_bracket_child', False)
+
+    def _maybe_spawn_bracket_children(self, parent: Order):
+        """Spawn TP/SL child orders for a filled bracket parent."""
+        try:
+            self.logger.debug(f"[BRACKET SPAWN ENTER] parent={getattr(parent,'id',None)} is_parent={self._is_bracket_parent(parent)} meta_attached={hasattr(parent,'_synthetic_bracket')}")
+            if not self._is_bracket_parent(parent):
+                if parent.id not in self._bracket_meta:
+                    self.logger.debug(f"[BRACKET SPAWN ABORT] not parent and no meta parent={getattr(parent,'id',None)}")
+                    return
+            meta = getattr(parent, '_synthetic_bracket', None)
+            if not meta:
+                meta = self._bracket_meta.get(parent.id)
+                if not meta:
+                    self.logger.debug(f"[BRACKET SPAWN ABORT] no meta found parent={parent.id}")
+                    return
+                else:
+                    self.logger.debug(f"[BRACKET SPAWN META RESTORE] parent={parent.id} restored_from_map=True")
+                parent._synthetic_bracket = meta
+            eligible, reason = should_spawn_bracket_children(meta, parent)
+            if not eligible:
+                self.logger.debug(f"[BRACKET SPAWN ABORT] parent={parent.id} reason={reason}")
+                return
+            tp_price = meta.get('tp_price')
+            sl_price = meta.get('sl_price')
+            meta['children_submitted'] = True
+            parent._bracket_children_submitted = True
+            base_tag = meta.get('base_tag') or derive_base_tag(parent.tag or '')
+            if tp_price is not None:
+                try:
+                    self.logger.debug(f"[BRACKET SPAWN] creating TP child parent={parent.id} price={tp_price}")
+                    tp_child = self._create_bracket_child(parent, kind='tp', price=tp_price, base_tag=base_tag)
+                    if tp_child and tp_child.id:
+                        meta['children']['tp'] = tp_child.id
+                        self._bracket_parent_by_child_id[tp_child.id] = parent.id
+                except Exception as e:
+                    self.logger.error(f"Failed to submit TP child for parent {parent.id}: {e}")
+            if sl_price is not None:
+                try:
+                    self.logger.debug(f"[BRACKET SPAWN] creating SL child parent={parent.id} price={sl_price}")
+                    sl_child = self._create_bracket_child(parent, kind='sl', price=sl_price, base_tag=base_tag)
+                    if sl_child and sl_child.id:
+                        meta['children']['sl'] = sl_child.id
+                        self._bracket_parent_by_child_id[sl_child.id] = parent.id
+                except Exception as e:
+                    self.logger.error(f"Failed to submit SL child for parent {parent.id}: {e}")
+            self.logger.debug(f"[BRACKET SPAWN COMPLETE] parent={parent.id} tp_child={meta.get('children',{}).get('tp')} sl_child={meta.get('children',{}).get('sl')}")
+        except Exception as e:
+            self.logger.error(f"[BRACKET SPAWN ERROR] parent={getattr(parent,'id',None)} error={e}")
+
+    def _create_bracket_child(self, parent: Order, kind: str, price: float, base_tag: str) -> Order:
+        """Create and submit a single bracket child (tp or sl)."""
+        spec = build_bracket_child_spec(parent, kind, price, base_tag)
+        child = Order(
+            strategy=parent.strategy,
+            asset=parent.asset,
+            quantity=parent.quantity,
+            side=spec['side'],
+            order_type=spec['order_type'],
+            identifier=None
+        )
+        # Mark as child to bypass bracket detection
+        child._is_bracket_child = True
+        child._bracket_parent_id = parent.id
+        try:
+            from datetime import datetime
+            child.created_at = datetime.now()
+        except Exception:
+            pass
+        child.tag = spec['tag']
+        # Attach lightweight meta pointer for diagnostics (not full meta copy to avoid divergence)
+        try:
+            child._synthetic_bracket_child = True
+        except Exception:
+            pass
+        # Assign prices
+        if spec['price_key'] == 'limit_price':
+            child.limit_price = spec['price_value']
+        else:
+            child.stop_price = spec['price_value']
+        # Submit
+        submitted = self._submit_order(child)
+        if not submitted or not getattr(submitted, 'id', None):
+            self.logger.error(f"Bracket child submission failed (kind={kind}) for parent {parent.id}")
+        else:
+            self.logger.debug(f"Bracket child submitted: parent={parent.id} kind={kind} id={submitted.id} price={price}")
+        return submitted
+
+    def _handle_bracket_child_fill(self, child: Order):
+        """Cancel sibling when one bracket child fills."""
+        parent_id = self._bracket_parent_by_child_id.get(child.id)
+        if not parent_id:
+            return
+        parent = self._orders_cache.get(parent_id)
+        if not parent or not getattr(parent, '_synthetic_bracket', None):
+            return
+        meta = parent._synthetic_bracket
+        if not meta.get('active', False):
+            return
+        # Determine sibling
+        siblings = meta.get('children', {})
+        sibling_id = None
+        for k, v in siblings.items():
+            if v != child.id:
+                sibling_id = v
+                break
+        if sibling_id and sibling_id in self._orders_cache:
+            sibling_order = self._orders_cache[sibling_id]
+            # Cancel only if not terminal already
+            sibling_status = (getattr(sibling_order, 'status', '') or '').lower()
+            if sibling_status not in {"fill", "filled", "canceled", "cancelled", "error"}:
+                try:
+                    self.cancel_order(sibling_order)
+                    self.logger.debug(f"[BRACKET SIBLING CANCEL] canceled sibling={sibling_id} after child_fill={child.id}")
+                except Exception as e:
+                    self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {e}")
+        # Deactivate bracket
+        meta['active'] = False
             
     def _handle_pre_existing_order(self, order):
         """Handle orders that existed before strategy started."""

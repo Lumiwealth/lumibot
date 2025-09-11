@@ -1109,3 +1109,254 @@ class ProjectXClient:
         except Exception as e:
             self.logger.error(f"Error in order_cancel wrapper: {e}")
             return {"success": False, "error": str(e)}
+
+# ================= Bracket Helpers Overview =================
+# The bracket-related helpers below encapsulate pure or minimally stateful logic
+# originally embedded in the ProjectX broker. Goals:
+#   - Reduce branching/noise inside broker methods
+#   - Make race handling (early meta store / restoration) explicit
+#   - Centralize naming/tagging conventions for bracket parent & children
+#   - Enable future unit tests without broker wiring
+# Helper Groups:
+#   Creation/meta: create_bracket_meta, early_store_bracket_meta, restore_bracket_meta_if_needed
+#   Tagging: normalize_bracket_entry_tag, derive_base_tag, bracket_child_tag, build_unique_order_tag
+#   Pricing: select_effective_prices
+#   Spawn flow: should_spawn_bracket_children, build_bracket_child_spec
+# All helpers are defensive (swallow exceptions) to preserve original broker robustness.
+# ===========================================================
+# Core metadata factory
+def create_bracket_meta(tp_price, sl_price):
+    """Return the synthetic bracket metadata dict (pure function).
+
+    Shape identical to inline version used in ProjectX broker so spawning/restoration logic stays unchanged.
+    """
+    return {
+        'tp_price': tp_price,
+        'sl_price': sl_price,
+        'children': {},
+        'active': True,
+        'base_tag': None,
+    }
+
+
+def normalize_bracket_entry_tag(tag: str):
+    """Normalize tag to BRK_ENTRY_<base>; return (normalized_tag, base_tag).
+
+    If tag already has one of the bracket prefixes it is rewritten to entry form.
+    Pure; no logging.
+    """
+    if not tag:
+        return tag, None
+    base = tag
+    for prefix in ("BRK_ENTRY_", "BRK_TP_", "BRK_STOP_"):
+        if base.startswith(prefix):
+            base = base[len(prefix):]
+            break
+    return f"BRK_ENTRY_{base}", base
+
+# ================= Additional Low-Risk Helpers =================
+def build_unique_order_tag(order):
+    """Generate (or normalize) a unique order tag.
+
+    Mirrors existing inline logic in ProjectX broker: if tag absent or blank create
+    STRAT-<millis><rand2>. Keeps existing tag if non-empty. Returns tag string.
+    Pure with respect to broker state (only uses order + time/random).
+    """
+    try:
+        import time, random
+        if not getattr(order, 'tag', None):
+            strat_part = ''
+            try:
+                if hasattr(order, 'strategy') and order.strategy:
+                    strat_name = order.strategy if isinstance(order.strategy, str) else getattr(order.strategy, 'name', '')
+                    strat_part = (strat_name or 'LB')[:8].upper()
+            except Exception:
+                strat_part = 'LB'
+            unique_suffix = f"{int(time.time()*1000)%100000000:08d}{random.randint(10,99)}"
+            order.tag = f"{strat_part}-{unique_suffix}"
+        else:
+            if not str(order.tag).strip():
+                order.tag = f"LB-{int(time.time()*1000)}"
+    except Exception:
+        # Silent; caller already logs on failure in original logic
+        pass
+    return order.tag
+
+
+def select_effective_prices(order, client, tick_size):
+    """Return (limit_price, stop_price) applying secondary_* precedence.
+
+    Logic copied from inline broker section (non-bracket path):
+    - Warn if deprecated take_profit_price / stop_loss_price present & not None.
+    - secondary_limit_price supersedes order.limit_price (rounded)
+    - secondary_stop_price supersedes order.stop_price (rounded)
+    """
+    limit_price = None
+    stop_price = None
+
+    # Deprecated warnings handled here so caller stays compact
+    if hasattr(order, 'take_profit_price') and getattr(order, 'take_profit_price') is not None:
+        try:
+            # Expect caller's logger warning; if unavailable, ignore
+            if hasattr(order, 'strategy') and hasattr(order.strategy, 'logger'):
+                order.strategy.logger.warning("Order has deprecated attribute 'take_profit_price'. Set 'secondary_limit_price' instead.")
+        except Exception:
+            pass
+    if hasattr(order, 'stop_loss_price') and getattr(order, 'stop_loss_price') is not None:
+        try:
+            if hasattr(order, 'strategy') and hasattr(order.strategy, 'logger'):
+                order.strategy.logger.warning("Order has deprecated attribute 'stop_loss_price'. Set 'secondary_stop_price' instead.")
+        except Exception:
+            pass
+
+    # Limit price precedence
+    if hasattr(order, 'secondary_limit_price') and getattr(order, 'secondary_limit_price') is not None:
+        try:
+            limit_price = client.round_to_tick_size(getattr(order, 'secondary_limit_price'), tick_size)
+        except Exception:
+            if getattr(order, 'limit_price', None) is not None:
+                try:
+                    limit_price = client.round_to_tick_size(order.limit_price, tick_size)
+                except Exception:
+                    pass
+    elif getattr(order, 'limit_price', None) is not None:
+        try:
+            limit_price = client.round_to_tick_size(order.limit_price, tick_size)
+        except Exception:
+            pass
+
+    # Stop price precedence
+    if hasattr(order, 'secondary_stop_price') and getattr(order, 'secondary_stop_price') is not None:
+        try:
+            stop_price = client.round_to_tick_size(getattr(order, 'secondary_stop_price'), tick_size)
+        except Exception:
+            if getattr(order, 'stop_price', None) is not None:
+                try:
+                    stop_price = client.round_to_tick_size(order.stop_price, tick_size)
+                except Exception:
+                    pass
+    elif getattr(order, 'stop_price', None) is not None:
+        try:
+            stop_price = client.round_to_tick_size(order.stop_price, tick_size)
+        except Exception:
+            pass
+
+    return limit_price, stop_price
+
+
+def bracket_child_tag(kind: str, base_tag: str) -> str:
+    """Return standardized child tag for bracket order.
+
+    kind: 'tp' or 'sl'. Mirrors existing naming scheme.
+    """
+    if kind == 'tp':
+        return f"BRK_TP_{base_tag}"
+    if kind == 'sl':
+        return f"BRK_STOP_{base_tag}"
+    raise ValueError(f"Unsupported bracket child kind: {kind}")
+
+
+def derive_base_tag(tag: str) -> str:
+    """Derive the base tag (without BRK_*_ prefix). Safe if tag empty.
+
+    Used when restoring meta or spawning children if base_tag missing.
+    """
+    if not tag:
+        return tag
+    base = tag
+    for prefix in ("BRK_ENTRY_", "BRK_TP_", "BRK_STOP_"):
+        if base.startswith(prefix):
+            base = base[len(prefix):]
+            break
+    return base
+
+
+def early_store_bracket_meta(store: dict, temp_key: str, meta: dict, logger=None):
+    """Early store bracket meta under a provisional key if not already present.
+
+    Mirrors inline try/except logic; silent on failure except optional debug logging.
+    """
+    try:
+        if store is None:
+            return
+        if temp_key not in store:
+            store[temp_key] = dict(meta)
+            if logger:
+                logger.debug(f"[BRACKET META EARLY] stored temp_key={temp_key} tp={meta.get('tp_price')} sl={meta.get('sl_price')}")
+    except Exception:
+        pass
+
+
+def restore_bracket_meta_if_needed(order, cache, meta_map, logger=None):
+    """Ensure order._synthetic_bracket is attached if present in cache or meta_map.
+
+    Returns True if restoration / attachment happened, else False.
+    """
+    restored = False
+    try:
+        if hasattr(order, '_synthetic_bracket'):
+            return False
+        broker_id = getattr(order, 'id', None)
+        # Check cached order first
+        if cache and broker_id in cache:
+            cached = cache.get(broker_id)
+            if cached and hasattr(cached, '_synthetic_bracket'):
+                order._synthetic_bracket = dict(getattr(cached, '_synthetic_bracket'))
+                restored = True
+        # Fallback to meta_map
+        if not restored and meta_map and broker_id in meta_map:
+            meta = meta_map.get(broker_id)
+            if meta:
+                order._synthetic_bracket = dict(meta)
+                restored = True
+        if restored and logger:
+            logger.debug(f"[BRACKET META RESTORE] order_id={broker_id} restored={restored}")
+    except Exception:
+        pass
+    return restored
+
+
+def should_spawn_bracket_children(meta: dict, parent) -> tuple:
+    """Determine if bracket children should be spawned.
+
+    Returns (eligible: bool, reason: str). Mutates meta for the 'no tp/sl' case to mirror current logic.
+    This contains only decision logic; side effects like logging remain in caller.
+    """
+    if meta is None:
+        return False, 'no_meta'
+    if meta.get('children') is None:
+        return False, 'children_missing'
+    if meta.get('children_submitted') or getattr(parent, '_bracket_children_submitted', False):
+        return False, 'already_submitted'
+    tp_price = meta.get('tp_price')
+    sl_price = meta.get('sl_price')
+    if tp_price is None and sl_price is None:
+        meta['children_submitted'] = True
+        meta['active'] = False
+        return False, 'no_tp_sl'
+    return True, 'ok'
+
+
+def build_bracket_child_spec(parent, kind: str, price: float, base_tag: str) -> dict:
+    """Return a pure spec dict for a bracket child before creating Order.
+
+    Fields: side, order_type, tag, price_key, price_value.
+    price_key is 'limit_price' for tp and 'stop_price' for sl.
+    """
+    side = 'sell' if parent.side.lower() == 'buy' else 'buy'
+    if kind == 'tp':
+        order_type = 'limit'
+        price_key = 'limit_price'
+    elif kind == 'sl':
+        order_type = 'stop'
+        price_key = 'stop_price'
+    else:
+        raise ValueError(f"Unknown bracket child kind: {kind}")
+    tag = bracket_child_tag(kind, base_tag)
+    return {
+        'side': side,
+        'order_type': order_type,
+        'tag': tag,
+        'price_key': price_key,
+        'price_value': price,
+    }

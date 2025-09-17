@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import polars as pl
+from polars.datatypes import Datetime as PlDatetime
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
@@ -197,10 +198,10 @@ class DataBentoClientPolars:
                         pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
                         
                 df = pl.from_pandas(pandas_df)
-                if 'datetime' in df.columns:
-                    df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
             else:
                 df = pl.DataFrame(data)
+
+            df = _ensure_polars_datetime_timezone(df)
 
             logger.debug(f"Successfully retrieved {len(df)} rows from Live API")
             return df
@@ -245,12 +246,10 @@ class DataBentoClientPolars:
                     if index_name in pandas_df.columns:
                         pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
                 df = pl.from_pandas(pandas_df)
-                if 'datetime' in df.columns:
-                    df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
             else:
                 df = pl.DataFrame(data)
 
-            return df
+            return _ensure_polars_datetime_timezone(df)
             
         except Exception as e:
             error_str = str(e)
@@ -288,9 +287,9 @@ class DataBentoClientPolars:
                             if index_name in pandas_df.columns:
                                 pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
                         df = pl.from_pandas(pandas_df)
-                        if 'datetime' in df.columns:
-                            df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
-                        return df
+                    else:
+                        df = pl.DataFrame(data)
+                    return _ensure_polars_datetime_timezone(df)
             
             raise
 
@@ -648,7 +647,8 @@ def _save_cache(df: pl.DataFrame, cache_file: Path) -> None:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Save as parquet with compression for better storage efficiency
-        df.write_parquet(
+        df_to_save = _ensure_polars_datetime_timezone(df)
+        df_to_save.write_parquet(
             cache_file,
             compression='snappy',  # Fast compression
             statistics=True,       # Enable statistics for faster queries
@@ -724,8 +724,9 @@ def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
         if col in df_norm.columns:
             df_norm = df_norm.with_columns(pl.col(col).cast(pl.Float64))
 
-    # Sort by datetime if exists
+    # Normalize timezone and sort by datetime if the column exists
     if 'datetime' in df_norm.columns:
+        df_norm = _ensure_polars_datetime_timezone(df_norm)
         df_norm = df_norm.sort('datetime')
 
     return df_norm
@@ -784,7 +785,7 @@ def get_price_data_from_databento_polars(
             if not cached_data.is_empty():
                 logger.debug(f"[get_price_data_from_databento_polars] Loaded from cache: {cache_file}")
                 logger.debug(f"[get_price_data_from_databento_polars] Cached data columns: {cached_data.columns}")
-                return cached_data
+                return _ensure_polars_datetime_timezone(cached_data)
 
     # Initialize DataBento client
     try:
@@ -833,7 +834,7 @@ def get_price_data_from_databento_polars(
                     # Cache the data
                     _save_cache(df_normalized, cache_file)
 
-                    return df_normalized
+                    return _ensure_polars_datetime_timezone(df_normalized)
                 else:
                     logger.warning(f"[get_price_data_from_databento_polars] No data returned for symbol: {symbol_to_use}")
 
@@ -1005,3 +1006,28 @@ def _generate_databento_symbol_alternatives(base_symbol: str, resolved_contract:
     else:
         logger.warning(f"Unexpected contract format: {resolved_contract}, using as-is")
         return [resolved_contract]
+def _ensure_polars_datetime_timezone(df: pl.DataFrame, column: str = "datetime", tz: str = "UTC") -> pl.DataFrame:
+    """Ensure the specified datetime column is timezone-aware in the given timezone."""
+    if column not in df.columns:
+        return df
+
+    dtype = df.schema.get(column)
+    target_type = pl.Datetime(time_unit="ns", time_zone=tz)
+    expr = pl.col(column)
+
+    if isinstance(dtype, PlDatetime):
+        if dtype.time_zone is None:
+            if dtype.time_unit != "ns":
+                expr = expr.cast(pl.Datetime(time_unit="ns"))
+            expr = expr.dt.replace_time_zone(tz)
+        else:
+            if dtype.time_unit != "ns":
+                expr = expr.cast(pl.Datetime(time_unit="ns", time_zone=dtype.time_zone))
+            if dtype.time_zone != tz:
+                expr = expr.dt.convert_time_zone(tz)
+    else:
+        expr = expr.cast(pl.Datetime(time_unit="ns"))
+        expr = expr.dt.replace_time_zone(tz)
+
+    expr = expr.cast(target_type).alias(column)
+    return df.with_columns(expr)

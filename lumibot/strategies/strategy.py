@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
 from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored
+from termcolor import colored, COLORS
 
 from ..data_sources import DataSource
 from ..entities import Asset, Data, Order, Position, Quote, TradingFee
@@ -381,8 +381,12 @@ class Strategy(_Strategy):
             return
 
         if color:
-            colored_message = colored(message, color)
-            self.logger.info(colored_message)
+            if color in COLORS:
+                colored_message = colored(message, color)
+                self.logger.info(colored_message)
+            else:
+                self.logger.warning(f"Unsupported log color '{color}' for message: {message}")
+                self.logger.info(message)
         else:
             self.logger.info(message)
 

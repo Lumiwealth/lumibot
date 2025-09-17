@@ -3,9 +3,14 @@ from decimal import Decimal
 from typing import Union
 
 from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools import databento_helper
 from lumibot.tools.lumibot_logger import get_logger
+
+try:
+    from .databento_data_polars import DataBentoDataPolars
+except Exception:  # pragma: no cover - optional dependency path
+    DataBentoDataPolars = None
 
 logger = get_logger(__name__)
 
@@ -55,6 +60,7 @@ class DataBentoData(DataSource):
         self._timeout = timeout
         self._max_retries = max_retries
         self._data_store = {}
+        self._live_delegate = None
 
         # For live trading, this is a live data source
         self.is_backtesting_mode = False
@@ -249,6 +255,13 @@ class DataBentoData(DataSource):
         """
         logger.info(f"Getting last price for {asset.symbol}")
 
+        # Prefer live delegate when available
+        delegate = self._ensure_live_delegate()
+        if delegate:
+            price = delegate.get_last_price(asset, quote=quote, exchange=exchange)
+            if price is not None:
+                return price
+
         try:
             last_price = databento_helper.get_last_price_from_databento(
                 api_key=self._api_key,
@@ -308,7 +321,33 @@ class DataBentoData(DataSource):
         float, Decimal, or None
             Current quote/last price of the asset
         """
-        return self.get_last_price(asset, quote=quote)
+        delegate = self._ensure_live_delegate()
+        if delegate:
+            quote_obj = delegate.get_quote(asset, quote=quote, exchange=None)
+            if quote_obj:
+                return quote_obj
+
+        price = self.get_last_price(asset, quote=quote)
+        return Quote(asset=asset, price=price)
+
+    def _ensure_live_delegate(self) -> Optional['DataBentoDataPolars']:
+        if DataBentoDataPolars is None or self.is_backtesting_mode:
+            return None
+
+        if self._live_delegate is None:
+            try:
+                self._live_delegate = DataBentoDataPolars(
+                    api_key=self._api_key,
+                    has_paid_subscription=True,
+                    enable_cache=False,
+                    cache_duration_minutes=0,
+                    enable_live_stream=True,
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize live DataBento delegate: {e}")
+                self._live_delegate = None
+
+        return self._live_delegate
 
     def _parse_source_symbol_bars(self, response, asset, quote=None):
         """

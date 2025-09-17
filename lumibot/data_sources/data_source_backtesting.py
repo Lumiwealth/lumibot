@@ -2,6 +2,7 @@ import csv
 import datetime as dt
 import os
 from abc import ABC
+from collections import deque
 from datetime import datetime, timedelta
 
 from lumibot.data_sources import DataSource
@@ -55,6 +56,10 @@ class DataSourceBacktesting(DataSource, ABC):
         self.backtesting_started = _backtesting_started
         self.log_backtest_progress_to_file = log_backtest_progress_to_file
         self.tzinfo = get_timezone_from_datetime(self.datetime_start)
+        self._eta_history = deque()
+        self._eta_window_seconds = 30
+        self._eta_calibration_seconds = 25
+        self._eta_calibration_progress = 4  # percent
 
         # Subtract one minute from the datetime_end so that the strategy stops right before the datetime_end
         self.datetime_end -= timedelta(minutes=1)
@@ -108,6 +113,32 @@ class DataSourceBacktesting(DataSource, ABC):
     def _update_datetime(self, new_datetime, cash=None, portfolio_value=None):
         self._datetime = new_datetime
 
+        total_seconds = max((self.datetime_end - self.datetime_start).total_seconds(), 1)
+        current_seconds = max((new_datetime - self.datetime_start).total_seconds(), 0)
+        percent = min((current_seconds / total_seconds) * 100, 100)
+        now_wall = dt.datetime.now()
+        eta_override = None
+
+        if percent > 0:
+            self._eta_history.append((now_wall, percent))
+            while self._eta_history and (now_wall - self._eta_history[0][0]).total_seconds() > self._eta_window_seconds:
+                self._eta_history.popleft()
+
+            elapsed_seconds = (now_wall - self.backtesting_started).total_seconds()
+            if (
+                elapsed_seconds >= self._eta_calibration_seconds
+                or percent >= self._eta_calibration_progress
+            ) and len(self._eta_history) >= 2:
+                earliest_time, earliest_percent = self._eta_history[0]
+                delta_percent = percent - earliest_percent
+                delta_time = (now_wall - earliest_time).total_seconds()
+                if delta_percent > 0 and delta_time > 0:
+                    speed = delta_percent / delta_time  # percent per second
+                    remaining_percent = max(0.0, 100 - percent)
+                    eta_seconds = remaining_percent / speed
+                    if eta_seconds >= 0:
+                        eta_override = timedelta(seconds=eta_seconds)
+
         if self._show_progress_bar:
             print_progress_bar(
                 new_datetime,
@@ -116,6 +147,7 @@ class DataSourceBacktesting(DataSource, ABC):
                 self.backtesting_started,
                 cash=cash,
                 portfolio_value=portfolio_value,
+                eta_override=eta_override,
             )
 
         if self.log_backtest_progress_to_file:
@@ -125,21 +157,15 @@ class DataSourceBacktesting(DataSource, ABC):
             else:
                 self._portfolio_value = portfolio_value
 
-            now_wall = dt.datetime.now()
             if (self._last_logging_time is None) or ((now_wall - self._last_logging_time).total_seconds() >= 2):
                 self._last_logging_time = now_wall
-                total_seconds = (self.datetime_end - self.datetime_start).total_seconds()
-                current_seconds = (new_datetime - self.datetime_start).total_seconds()
-                percent = min((current_seconds / total_seconds) * 100, 100)
                 elapsed = now_wall - self.backtesting_started
-                eta = (elapsed * (100 / percent)) - elapsed if percent > 0 else None
-                log_eta = eta if eta is not None else None
+                log_eta = eta_override
                 if portfolio_value is not None:
                     if isinstance(portfolio_value, (int, float)):
                         log_portfolio_value = f'{portfolio_value:,.2f}'
                     else:
                         try:
-                            # Try to convert string to float for formatting
                             log_portfolio_value = f'{float(portfolio_value):,.2f}'
                         except (ValueError, TypeError):
                             log_portfolio_value = str(portfolio_value)
@@ -171,4 +197,3 @@ class DataSourceBacktesting(DataSource, ABC):
             writer = csv.writer(csvfile)
             writer.writerow(["timestamp", "percent", "elapsed", "eta", "portfolio_value"])
             writer.writerow(row)
-

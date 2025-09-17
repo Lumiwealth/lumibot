@@ -490,13 +490,19 @@ class TestTradovateAPIPayload:
         from lumibot.brokers.tradovate import Tradovate
         from lumibot.entities import Asset, Order
         from unittest.mock import MagicMock, patch
-        
+        from collections import deque
+
         # Mock the broker initialization
         broker = Tradovate.__new__(Tradovate)
         broker.account_spec = "TEST_ACCOUNT"
         broker.account_id = 12345
         broker.trading_token = "fake_token"
         broker.trading_api_url = "https://demo.tradovateapi.com/v1"
+        broker._rate_limit_per_minute = 60
+        broker._rate_limit_window = 60.0
+        broker._request_times = deque()
+        import threading
+        broker._request_lock = threading.Lock()
         
         # Create test order
         asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -542,13 +548,19 @@ class TestTradovateAPIPayload:
         from lumibot.brokers.tradovate import Tradovate
         from lumibot.entities import Asset, Order
         from unittest.mock import MagicMock, patch
-        
+        from collections import deque
+
         # Mock the broker initialization
         broker = Tradovate.__new__(Tradovate)
         broker.account_spec = "TEST_ACCOUNT"
         broker.account_id = 12345
         broker.trading_token = "fake_token"
         broker.trading_api_url = "https://demo.tradovateapi.com/v1"
+        broker._rate_limit_per_minute = 60
+        broker._rate_limit_window = 60.0
+        broker._request_times = deque()
+        import threading
+        broker._request_lock = threading.Lock()
         
         # Create test order
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)

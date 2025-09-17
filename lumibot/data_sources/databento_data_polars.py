@@ -101,7 +101,28 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
 
         if self.enable_live_stream:
             self._init_live_streaming()
-    
+
+    def _to_utc(self, dt_obj: Optional[datetime]) -> Optional[datetime]:
+        if dt_obj is None:
+            return None
+        if dt_obj.tzinfo is None:
+            return dt_obj.replace(tzinfo=timezone.utc)
+        return dt_obj.astimezone(timezone.utc)
+
+    def _should_use_live_api(self, start: datetime, end: datetime) -> bool:
+        """Determine whether the Live API should handle this request."""
+        if not self.enable_live_stream:
+            return False
+
+        start_utc = self._to_utc(start)
+        end_utc = self._to_utc(end)
+
+        if start_utc is None or end_utc is None:
+            return False
+
+        recent_threshold = datetime.now(timezone.utc) - timedelta(hours=6)
+        return end_utc >= recent_threshold
+
     def _init_live_streaming(self):
         """Initialize DataBento Live API client for real-time data"""
         try:

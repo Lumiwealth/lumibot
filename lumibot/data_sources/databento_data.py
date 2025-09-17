@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Union
+from typing import Union, Optional
 
 from lumibot.data_sources import DataSource
 from lumibot.entities import Asset, Bars, Quote

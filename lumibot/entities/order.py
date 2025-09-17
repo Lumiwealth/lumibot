@@ -1108,7 +1108,7 @@ class Order:
         if self.asset is None:
             logger.error(f"Cannot create position from order {self.identifier} - asset is None")
             return None
-            
+
         position_qty = quantity
         if self.side == SELL:
             position_qty = -quantity

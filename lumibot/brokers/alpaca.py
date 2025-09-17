@@ -190,7 +190,7 @@ class Alpaca(Broker):
         temp_api_key = ""
         temp_api_secret = ""
         temp_oauth_token = ""
-        
+
         # Extract all credential values
         for key in value_dict:
             if key == "OAUTH_TOKEN":
@@ -207,7 +207,7 @@ class Alpaca(Broker):
                 attr = key.lower()
                 if hasattr(self, attr):
                     setattr(self, attr, config[key])
-        
+
         # Apply precedence logic: API key/secret takes precedence over OAuth token
         if temp_api_key and temp_api_secret:
             self.api_key = temp_api_key
@@ -694,14 +694,14 @@ class Alpaca(Broker):
                 qty = str(int(qty) // leg_gcd)
         # For multi-leg orders, we need to set the primary asset info from the first leg
         first_order = orders[0]
-        
+
         # Map extended side values to simple buy/sell for Alpaca API
         side = first_order.side
         if side in ("buy_to_open", "buy_to_close"):
             side = "buy"
         elif side in ("sell_to_open", "sell_to_close"):
             side = "sell"
-        
+
         # Compose order payload
         kwargs = {
             "symbol": symbol,  # Required: Primary symbol

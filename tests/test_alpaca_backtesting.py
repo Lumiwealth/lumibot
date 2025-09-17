@@ -65,7 +65,7 @@ class TestAlpacaBacktesting:
         quote_asset = Asset("USD", asset_type='forex')
         market = "24/7"
         timestep = "day"
-        
+
         data_source = self._create_data_source(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
@@ -1408,28 +1408,28 @@ class TestAlpacaBacktesting:
         assert not strategy._benchmark_returns_df.empty
 
     # ============= OAuth Tests for AlpacaBacktesting =============
-    
+
     def test_oauth_config_backtesting(self):
         """Test that AlpacaBacktesting works with OAuth configuration."""
         oauth_config = {
             "OAUTH_TOKEN": "test_oauth_backtesting_token",
             "PAPER": True
         }
-        
+
         datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York"))
         datetime_end = datetime(2025, 1, 31, tzinfo=pytz.timezone("America/New_York"))
-        
+
         data_source = AlpacaBacktesting(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             config=oauth_config,
             timestep="day"
         )
-        
+
         # Verify the OAuth token is properly set in the underlying AlpacaData instance
         assert hasattr(data_source, '_alpaca_data')
         assert data_source._alpaca_data.oauth_token == "test_oauth_backtesting_token"
-        
+
     def test_oauth_mixed_config_backtesting(self):
         """Test backtesting with mixed OAuth and API key config (API keys take precedence)."""
         mixed_config = {
@@ -1438,22 +1438,22 @@ class TestAlpacaBacktesting:
             "API_SECRET": "test_secret_backtesting_mixed",
             "PAPER": True
         }
-        
+
         datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York"))
         datetime_end = datetime(2025, 1, 31, tzinfo=pytz.timezone("America/New_York"))
-        
+
         data_source = AlpacaBacktesting(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             config=mixed_config,
             timestep="day"
         )
-        
+
         # Verify API keys are used over OAuth token
         assert data_source._alpaca_data.api_key == "test_api_backtesting_mixed"
         assert data_source._alpaca_data.api_secret == "test_secret_backtesting_mixed"
         assert data_source._alpaca_data.oauth_token is None
-        
+
     def test_oauth_fallback_backtesting(self):
         """Test backtesting fallback when OAuth token is empty."""
         fallback_config = {
@@ -1462,17 +1462,17 @@ class TestAlpacaBacktesting:
             "API_SECRET": "fallback_test_secret",
             "PAPER": True
         }
-        
+
         datetime_start = datetime(2025, 1, 1, tzinfo=pytz.timezone("America/New_York"))
         datetime_end = datetime(2025, 1, 31, tzinfo=pytz.timezone("America/New_York"))
-        
+
         data_source = AlpacaBacktesting(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
             config=fallback_config,
             timestep="day"
         )
-        
+
         # Verify fallback to API key/secret
         assert data_source._alpaca_data.oauth_token is None
         assert data_source._alpaca_data.api_key == "fallback_test_key"

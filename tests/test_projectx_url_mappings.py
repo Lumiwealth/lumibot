@@ -11,46 +11,46 @@ from lumibot.credentials import get_projectx_config, PROJECTX_BASE_URLS, PROJECT
 
 class TestProjectXURLMappings:
     """Test ProjectX URL mapping functionality"""
-    
+
     def test_url_mappings_loaded(self):
         """Test that URL mappings are loaded correctly"""
         assert len(PROJECTX_BASE_URLS) > 0
         assert len(PROJECTX_STREAMING_URLS) > 0
-        
+
         # Test specific firms
         assert "topstepx" in PROJECTX_BASE_URLS
         assert "topone" in PROJECTX_BASE_URLS
         assert "tickticktrader" in PROJECTX_BASE_URLS
-        
+
         assert "topstepx" in PROJECTX_STREAMING_URLS
         assert "topone" in PROJECTX_STREAMING_URLS
         assert "tickticktrader" in PROJECTX_STREAMING_URLS
-    
+
     def test_url_patterns(self):
         """Test that URLs follow expected patterns"""
         # TopStepX uses different pattern
         assert PROJECTX_BASE_URLS["topstepx"] == "https://api.topstepx.com/"
-        
+
         # Other firms use new api.*.projectx.com pattern
         assert "api.toponefutures.projectx.com" in PROJECTX_BASE_URLS["topone"]
         assert "projectx.com" in PROJECTX_BASE_URLS["topone"]
-        
+
         # Streaming URLs now use rtc.*.projectx.com pattern (except demo)
         assert "rtc.toponefutures.projectx.com" in PROJECTX_STREAMING_URLS["topone"]
         assert "projectx.com" in PROJECTX_STREAMING_URLS["topone"]
-    
+
     def test_get_config_with_builtin_urls(self):
         """Test configuration using built-in URLs"""
         with patch.dict(os.environ, {}, clear=True):
             # Clear environment, should get built-in URLs
             config = get_projectx_config("topone")
-            
+
             assert config["base_url"] == PROJECTX_BASE_URLS["topone"]
             assert config["streaming_base_url"] == PROJECTX_STREAMING_URLS["topone"]
             assert config["firm"] == "TOPONE"
             assert config["api_key"] is None  # No env var set
             assert config["username"] is None  # No env var set
-    
+
     def test_get_config_with_env_override(self):
         """Test configuration with environment variable overrides"""
         test_env = {
@@ -60,17 +60,17 @@ class TestProjectXURLMappings:
             "PROJECTX_TOPONE_STREAMING_BASE_URL": "https://custom-stream.example.com/",
             "PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME": "test_account"
         }
-        
+
         with patch.dict(os.environ, test_env, clear=True):
             config = get_projectx_config("topone")
-            
+
             # Should use environment overrides
             assert config["base_url"] == "https://custom.example.com/"
             assert config["streaming_base_url"] == "https://custom-stream.example.com/"
             assert config["api_key"] == "test_key"
             assert config["username"] == "test_user"
             assert config["preferred_account_name"] == "test_account"
-    
+
     def test_get_config_partial_env_override(self):
         """Test configuration with partial environment variable overrides"""
         test_env = {
@@ -79,47 +79,47 @@ class TestProjectXURLMappings:
             "PROJECTX_TOPONE_BASE_URL": "https://custom.example.com/",
             # No streaming URL override - should use built-in
         }
-        
+
         with patch.dict(os.environ, test_env, clear=True):
             config = get_projectx_config("topone")
-            
+
             # Should use environment override for base URL
             assert config["base_url"] == "https://custom.example.com/"
             # Should use built-in for streaming URL
             assert config["streaming_base_url"] == PROJECTX_STREAMING_URLS["topone"]
             assert config["api_key"] == "test_key"
             assert config["username"] == "test_user"
-    
+
     def test_get_config_topstepx_special_case(self):
         """Test configuration for TopStepX (uses different URL pattern)"""
         with patch.dict(os.environ, {}, clear=True):
             config = get_projectx_config("topstepx")
-            
+
             assert config["base_url"] == "https://api.topstepx.com/"
             assert config["streaming_base_url"] == PROJECTX_STREAMING_URLS["topstepx"]
             assert config["firm"] == "TOPSTEPX"
-    
+
     def test_get_config_unknown_firm(self):
         """Test configuration for unknown firm"""
         with patch.dict(os.environ, {}, clear=True):
             config = get_projectx_config("unknownfirm")
-            
+
             # Should return config with None URLs for unknown firm
             assert config["base_url"] is None
             assert config["streaming_base_url"] is None
             assert config["firm"] == "UNKNOWNFIRM"
-    
+
     def test_auto_detection_with_multiple_firms(self):
         """Test auto-detection when multiple firms are configured"""
         test_env = {
             "PROJECTX_TOPONE_API_KEY": "test_key1",
             "PROJECTX_TOPSTEPX_API_KEY": "test_key2",
         }
-        
+
         with patch.dict(os.environ, test_env, clear=True):
             # Should auto-detect first available firm
             config = get_projectx_config()
-            
+
             # Should pick one of the configured firms
             assert config["firm"] in ["TOPONE", "TOPSTEPX"]
             assert config["base_url"] is not None
@@ -149,20 +149,20 @@ class TestProjectXBrokerValidation:
                     broker = ProjectX(config=config, data_source=mock_data_instance)
                     assert broker is not None
                 assert broker.firm == "TOPONE"
-    
+
     def test_broker_validation_missing_fields(self):
         """Test broker validation with missing required fields"""
         from lumibot.brokers.projectx import ProjectX
-        
+
         config = {
             "firm": "TOPONE",
             "api_key": "test_key",
             # Missing username and base_url
         }
-        
+
         with pytest.raises(ValueError) as excinfo:
             ProjectX(config=config)
-        
+
         assert "Missing required ProjectX configuration" in str(excinfo.value)
         assert "username" in str(excinfo.value)
         assert "base_url" in str(excinfo.value)
@@ -170,18 +170,18 @@ class TestProjectXBrokerValidation:
     def test_short_firm_name_env_vars_only(self):
         """Test that only short firm names are required for environment variables (no legacy names)"""
         from lumibot.credentials import get_projectx_config, get_available_projectx_firms
-        
+
         # Test that PROJECTX_TOPONE_* env vars work (not PROJECTX_TOPONEFUTURES_*)
         with patch.dict(os.environ, {
             'PROJECTX_TOPONE_API_KEY': 'test_topone_key',
             'PROJECTX_TOPONE_USERNAME': 'test_topone_user',
             'PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME': 'test_account'
         }, clear=False):
-            
+
             # Should auto-detect the TOPONE firm
             available_firms = get_available_projectx_firms()
             assert 'TOPONE' in available_firms
-            
+
             # Should get correct config for 'topone' (case insensitive)
             config = get_projectx_config('topone')
             assert config['firm'] == 'TOPONE'
@@ -190,24 +190,24 @@ class TestProjectXBrokerValidation:
             assert config['preferred_account_name'] == 'test_account'
             assert config['base_url'] == 'https://api.toponefutures.projectx.com/'
             assert config['streaming_base_url'] == 'https://rtc.toponefutures.projectx.com/'
-    
+
     def test_no_legacy_firm_names_in_mappings(self):
         """Test that legacy firm names like 'toponefutures' are not in the URL mappings"""
         from lumibot.credentials import PROJECTX_BASE_URLS, PROJECTX_STREAMING_URLS
-        
+
         # Ensure no legacy firm names exist in mappings
         assert 'toponefutures' not in PROJECTX_BASE_URLS
         assert 'toponefutures' not in PROJECTX_STREAMING_URLS
-        
+
         # Ensure short firm name exists
         assert 'topone' in PROJECTX_BASE_URLS
         assert 'topone' in PROJECTX_STREAMING_URLS
-        
+
         # Ensure all mappings use the new api.*.projectx.com pattern (except demo)
         for firm, url in PROJECTX_BASE_URLS.items():
             if firm not in ['topstepx', 'demo']:  # topstepx and demo have different URL patterns
                 assert 'api.' in url and 'projectx.com' in url
-        
+
         for firm, url in PROJECTX_STREAMING_URLS.items():
             if firm == 'demo':
                 # Demo still uses old gateway-rtc pattern

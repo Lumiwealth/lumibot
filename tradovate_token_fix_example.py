@@ -21,13 +21,13 @@ class TokenRenewalExample(Strategy):
     parameters = {
         "token_check_interval": 3600,  # Check token every 60 minutes (tokens expire at 80 mins)
     }
-    
+
     def initialize(self):
         self.asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
         self.sleeptime = "1M"
         self.set_market("us_futures")
         self.last_token_check = time.time()
-        
+
     def on_trading_iteration(self):
         # Proactive token renewal check
         current_time = time.time()
@@ -36,10 +36,10 @@ class TokenRenewalExample(Strategy):
             if hasattr(self.broker, 'check_token_expiry'):
                 self.broker.check_token_expiry()
             self.last_token_check = current_time
-        
+
         # Your normal trading logic here
         self.log_message(f"Trading iteration at {self.get_datetime()}")
-        
+
         # This will automatically handle token renewal on 401 errors
         try:
             cash, positions_value, portfolio_value = self.get_cash()

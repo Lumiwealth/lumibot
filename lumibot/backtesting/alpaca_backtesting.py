@@ -123,7 +123,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
-        
+
         if oauth_token:
             self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
             self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)

@@ -177,7 +177,7 @@ class TestMomentum:
 
         # Add print statements for the comparison_df
         print(f"\n{comparison_df}")
-        
+
         # Calculate and print difference
         diff_series = (comparison_df["actual_momo"] - comparison_df["expected_momo"]).abs()
         print(f"\nDifference Series (test_momo_yahoo_lookback_2):\n{diff_series.dropna().head()}")

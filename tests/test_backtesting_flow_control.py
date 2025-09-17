@@ -135,7 +135,7 @@ class TestBacktestingFlowControl(unittest.TestCase):
         mock_data = pd.DataFrame(index=dates, data={'AAPL': [100, 101]})
         data_source = MockDataSource(mock_data)
         backtester = MockBacktester(MockStrategy, data_source=data_source)
-        
+
         # Patch the instance method after it's created instead of the class method
         backtester.strategy.on_trading_iteration.side_effect = ValueError("Simulated strategy error")
 

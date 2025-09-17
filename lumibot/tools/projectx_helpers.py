@@ -35,16 +35,16 @@ except ImportError:
 
 class ProjectXAuth:
     """ProjectX Authentication module using Lumibot config pattern"""
-    
+
     @staticmethod
     def get_auth_token(config: dict) -> str:
         """Get authentication token using configuration dict from Lumibot"""
         auth_url = "api/auth/loginkey"
-        
+
         username = config.get("username")
         api_key = config.get("api_key")
         base_url = config.get("base_url")
-        
+
         # Validate required credentials are present
         missing_vars = []
         if not username:
@@ -53,82 +53,82 @@ class ProjectXAuth:
             missing_vars.append("api_key")
         if not base_url:
             missing_vars.append("base_url")
-        
+
         if missing_vars:
             raise ValueError(f"Missing required configuration: {', '.join(missing_vars)}")
-        
+
         payload = {
             "userName": username,
             "apiKey": api_key,
         }
-        
+
         try:
             full_url = f"{base_url}{auth_url}"
             response = requests.post(full_url, json=payload)
             auth_resp = response.json()
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error: {e}")
             return None
         except ValueError as e:
             logger.error(f"JSON decode error: {e}")
             return None
-        
+
         # Return None if authentication failed
         if not auth_resp.get("success"):
             error_code = auth_resp.get("errorCode")
             error_message = auth_resp.get("errorMessage", "No error message provided")
             logger.error(f"Authentication failed - Error Code: {error_code}, Message: {error_message}")
             return None
-        
+
         return auth_resp.get("token")
 
 
 class ProjectXStreaming:
     """ProjectX SignalR Streaming Client"""
-    
+
     def __init__(self, config: dict, token: str, account_id: int = None):
         if not SIGNALR_AVAILABLE:
             raise ImportError("signalrcore library is required for streaming functionality")
-        
+
         self.firm = config.get("firm")
         self.token = token
         self.account_id = account_id
-        
+
         # Get base URL from config
         streaming_base_url = config.get("streaming_base_url")
         if streaming_base_url:
             self.base_url = streaming_base_url
         else:
             self.base_url = config.get("base_url")
-        
+
         if self.base_url.endswith('/'):
             self.base_url = self.base_url[:-1]
-        
+
         # SignalR connection URLs
         self.user_hub_url = f"{self.base_url}/hubs/user"
-        
+
         # Connection objects
         self.user_connection = None
         self.is_user_connected = False
-        
+
         # Event handlers
         self.on_account_update: Optional[Callable] = None
         self.on_order_update: Optional[Callable] = None
         self.on_position_update: Optional[Callable] = None
         self.on_trade_update: Optional[Callable] = None
-        
+
         # Setup logging
         self.logger = get_logger(f"ProjectXStreaming_{self.firm}")
-    
+
     def start_user_hub(self) -> bool:
         """Start the user hub connection"""
         try:
             import time
             self.logger.info(f"Connecting to user hub: {self.user_hub_url}")
-            
+
             hub_url_with_auth = f"{self.user_hub_url}?access_token={self.token}"
-            
+
             self.user_connection = HubConnectionBuilder() \
                 .with_url(hub_url_with_auth) \
                 .with_automatic_reconnect({
@@ -138,25 +138,25 @@ class ProjectXStreaming:
                     "max_attempts": 5
                 }) \
                 .build()
-            
+
             # Setup event handlers
             self.user_connection.on_open(lambda: self._on_user_hub_open())
             self.user_connection.on_close(lambda: self._on_user_hub_close())
             self.user_connection.on_error(lambda data: self._on_user_hub_error(data))
-            
+
             # Setup message handlers
             self.user_connection.on("GatewayUserAccount", self._handle_account_update)
             self.user_connection.on("GatewayUserOrder", self._handle_order_update)
             self.user_connection.on("GatewayUserPosition", self._handle_position_update)
             self.user_connection.on("GatewayUserTrade", self._handle_trade_update)
-            
+
             # Start connection
             self.user_connection.start()
-            
+
             # Wait for connection
             connection_timeout = 10
             start_time = time.time()
-            
+
             while time.time() - start_time < connection_timeout:
                 if hasattr(self.user_connection, 'transport') and self.user_connection.transport:
                     if hasattr(self.user_connection.transport, 'state') and self.user_connection.transport.state == "connected":
@@ -164,7 +164,7 @@ class ProjectXStreaming:
                         self.logger.info("User hub connected successfully")
                         return True
                 time.sleep(0.1)
-            
+
             # Try a test message
             try:
                 self.user_connection.send('SubscribeAccounts', [])
@@ -176,63 +176,63 @@ class ProjectXStreaming:
                 self.is_user_connected = True
                 self.logger.info("User hub connected successfully (assumed)")
                 return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to connect to user hub: {e}")
             return False
-    
+
     def _on_user_hub_open(self):
         """Handle user hub connection open"""
         self.logger.info("User hub connection opened")
-    
+
     def _on_user_hub_close(self):
         """Handle user hub connection close"""
         self.logger.info("User hub connection closed")
-    
+
     def _on_user_hub_error(self, data):
         """Handle user hub connection error"""
         self.logger.error(f"User hub error: {data}")
-    
+
     def _handle_account_update(self, *args):
         """Handle account update event - SignalR might pass multiple args"""
         data = args[0] if args else None
         if self.on_account_update:
             self.on_account_update(data)
-    
+
     def _handle_order_update(self, *args):
         """Handle order update event - SignalR might pass multiple args"""
         # SignalR can pass data as multiple arguments
         data = args[0] if args else None
         if self.on_order_update:
             self.on_order_update(data)
-    
+
     def _handle_position_update(self, *args):
         """Handle position update event - SignalR might pass multiple args"""
         data = args[0] if args else None
         if self.on_position_update:
             self.on_position_update(data)
-    
+
     def _handle_trade_update(self, *args):
         """Handle trade update event - SignalR might pass multiple args"""
         data = args[0] if args else None
         if self.on_trade_update:
             self.on_trade_update(data)
-    
+
     def subscribe_all(self, account_id: int = None) -> bool:
         """Subscribe to all data streams for the account"""
         try:
             if not self.is_user_connected:
                 self.logger.warning("User hub not connected, cannot subscribe")
                 return False
-            
+
             if not self.user_connection:
                 self.logger.warning("No user connection available for subscription")
                 return False
-            
+
             # Add a small delay to ensure connection is fully established
             import time
             time.sleep(0.5)
-            
+
             # Check if connection is ready for messages
             try:
                 # Subscribe to all available streams
@@ -241,15 +241,15 @@ class ProjectXStreaming:
                     self.user_connection.send('SubscribeOrders', [account_id])
                     self.user_connection.send('SubscribePositions', [account_id])
                     self.user_connection.send('SubscribeTrades', [account_id])
-                
+
                 self.logger.info("Subscribed to all data streams")
                 return True
-                
+
             except Exception as send_error:
                 # Don't fail completely if streaming subscription fails
                 self.logger.warning(f"Could not subscribe to streams (non-critical): {send_error}")
                 return False
-            
+
         except Exception as e:
             self.logger.error(f"Failed to subscribe to streams: {e}")
             return False
@@ -262,46 +262,46 @@ class ProjectXStreaming:
 
 class ProjectX:
     """Main ProjectX API Client - Direct port of working Project X library"""
-    
+
     def __init__(self, config: dict, token: str):
         self.config = config
         self.firm = config.get("firm")
         self.token = token
         self.base_url = config.get("base_url")
-        
+
         if not self.base_url:
             raise ValueError(f"Base URL not found in config")
-        
+
         if not self.base_url.endswith('/'):
             self.base_url += '/'
-            
+
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
-        
+
         self.logger = get_logger(f"ProjectXClient_{self.firm}")
-    
+
     def get_streaming_client(self, account_id: int = None) -> ProjectXStreaming:
         """Get streaming client instance"""
         return ProjectXStreaming(self.config, self.token, account_id)
-    
+
     def account_search(self, only_active_accounts: bool = True) -> dict:
         """Returns a list of accounts for the user"""
         url = f"{self.base_url}api/account/search"
-        
+
         payload = {
             "onlyActiveAccounts": only_active_accounts,
         }
-        
+
         try:
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
-            
+
             response = requests.post(url, headers=self.headers, json=payload)
-            
+
             self.logger.debug(f"Response Status: {response.status_code}")
-            
+
             if response.status_code == 200:
                 result = response.json()
                 self.logger.debug(f"Response Body: {result}")
@@ -310,31 +310,31 @@ class ProjectX:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 self.logger.debug(f"Error Response Text: {response.text}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
-                
+
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def position_search_open(self, account_id: int) -> dict:
         """Search for open positions in an account"""
         url = f"{self.base_url}api/position/searchopen"
-        
+
         payload = {
             "accountId": account_id,
         }
-        
+
         try:
             # Light rate limiting
             import time
             time.sleep(0.05)  # 50ms delay between requests
-            
+
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
-            
+
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-            
+
             self.logger.debug(f"Response Status: {response.status_code}")
-            
+
             if response.status_code == 200:
                 result = response.json()
                 position_count = len(result.get("positions", [])) if result.get("success") else 0
@@ -347,34 +347,34 @@ class ProjectX:
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
-                
+
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def order_search(self, account_id: int, start_datetime: str, end_datetime: str = None) -> dict:
         """Search for orders in an account"""
         url = f"{self.base_url}api/order/search"
-        
+
         payload = {
             "accountId": account_id,
             "startTimeStamp": start_datetime,
         }
         if end_datetime:
             payload["endTimeStamp"] = end_datetime
-        
+
         try:
             # Light rate limiting
             import time
             time.sleep(0.05)  # 50ms delay between requests
-            
+
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
-            
+
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-            
+
             self.logger.debug(f"Response Status: {response.status_code}")
-            
+
             if response.status_code == 200:
                 result = response.json()
                 # Don't log huge order lists in detail 
@@ -388,34 +388,34 @@ class ProjectX:
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
-                
+
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def trade_search(self, account_id: int, start_timestamp: str, end_timestamp: str = None) -> dict:
         """Search for trades in an account - trades are ground truth for fills"""
         url = f"{self.base_url}api/trade/search"
-        
+
         payload = {
             "accountId": account_id,
             "startTimestamp": start_timestamp,
         }
         if end_timestamp:
             payload["endTimestamp"] = end_timestamp
-        
+
         try:
             # Light rate limiting
             import time
             time.sleep(0.05)  # 50ms delay between requests
-            
+
             self.logger.debug(f"API Request: POST {url}")
             self.logger.debug(f"Request Data: {payload}")
-            
+
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-            
+
             self.logger.debug(f"Response Status: {response.status_code}")
-            
+
             if response.status_code == 200:
                 result = response.json()
                 # Don't log huge trade lists in detail 
@@ -429,17 +429,17 @@ class ProjectX:
             else:
                 self.logger.error(f"API request failed: {response.status_code} {response.reason}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
-                
+
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Request error: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def order_place(self, account_id: int, contract_id: str, type: int, side: int, size: int,
                    limit_price: float = None, stop_price: float = None, trail_price: float = None,
                    custom_tag: str = None, linked_order_id: int = None) -> dict:
         """Place an order for a contract"""
         url = f"{self.base_url}api/order/place"
-        
+
         # --- Sanitize & normalize inputs ---
         try:
             size_int = int(size)
@@ -489,7 +489,7 @@ class ProjectX:
                     needs_wrapper = True
             # Also if size conversion failed, we retry after forcing int already and potentially wrapping
             size_error = any("$.size" in err for err_list in errors.values() for err in (err_list if isinstance(err_list, list) else [err_list])) if errors else False
-            
+
             if needs_wrapper or size_error:
                 wrapped_payload = {"request": base_payload}
                 self.logger.info("Retrying order_place with wrapped 'request' payload structure")
@@ -509,7 +509,7 @@ class ProjectX:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error placing order: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def order_cancel(self, account_id: int, order_id: int) -> dict:
         """Cancel an order"""
         url = f"{self.base_url}api/order/cancel"
@@ -524,38 +524,38 @@ class ProjectX:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error cancelling order: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def contract_search(self, search_text: str, live: bool = False) -> dict:
         """Search for contracts by name"""
         url = f"{self.base_url}api/contract/search"
-        
+
         payload = {
             "searchText": search_text,
             "live": live,
         }
-        
+
         try:
             response = requests.post(url, headers=self.headers, json=payload)
             return response.json()
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def contract_search_id(self, contract_id: str) -> dict:
         """Get contract details by ID"""
         url = f"{self.base_url}api/contract/searchbyid"
-        
+
         payload = {
             "contractId": contract_id,
         }
-        
+
         try:
             # Light rate limiting
             import time
             time.sleep(0.05)  # 50ms delay between requests
-            
+
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-            
+
             if response.status_code == 200:
                 try:
                     result = response.json()
@@ -571,18 +571,18 @@ class ProjectX:
             else:
                 self.logger.error(f"Contract lookup failed: {response.status_code} {response.reason}")
                 return {"success": False, "error": f"HTTP {response.status_code}"}
-                
+
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error getting contract details: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def history_retrieve_bars(self, contract_id: str, start_datetime: str, end_datetime: str,
                              unit: int, unit_number: int, limit: int = 1000,
                              include_partial_bar: bool = True, live: bool = False,
                              is_est: bool = True) -> pd.DataFrame:
         """Retrieve historical bars for a contract"""
         url = f"{self.base_url}api/history/retrievebars"
-        
+
         # Convert timezone if needed
         if is_est:
             est = pytz.timezone("America/New_York")
@@ -596,7 +596,7 @@ class ProjectX:
                 .astimezone(pytz.utc)
                 .isoformat()
             )
-        
+
         payload = {
             "contractId": contract_id,
             "startTime": start_datetime,
@@ -607,34 +607,34 @@ class ProjectX:
             "includePartialBar": include_partial_bar,
             "live": live,
         }
-        
+
         try:
             response = requests.post(url, headers=self.headers, json=payload)
             result = response.json()
-            
+
             if not result.get("success"):
                 self.logger.error(f"Historical data request failed: {result}")
                 return pd.DataFrame()
-            
+
             # Convert to DataFrame
             df = pd.DataFrame(result.get("bars"), index=None)
-            
+
             if df.empty:
                 return df
-            
+
             # Convert timestamps
             df["t"] = pd.to_datetime(df["t"], utc=True).dt.tz_convert("America/New_York")
-            
+
             # Filter by date range
             df = df[
                 (df["t"] >= pd.to_datetime(start_datetime))
                 & (df["t"] <= pd.to_datetime(end_datetime))
             ]
-            
+
             # Add date and time columns
             df["date"] = df["t"].dt.date
             df["time"] = df["t"].dt.time
-            
+
             # Map ProjectX column names to standard OHLCV format
             column_mapping = {
                 'o': 'open',
@@ -643,25 +643,25 @@ class ProjectX:
                 'c': 'close',
                 'v': 'volume'
             }
-            
+
             # Rename columns to standard format
             df.rename(columns=column_mapping, inplace=True)
-            
+
             # Reorder columns to standard format
             standard_columns = ["date", "time", "open", "high", "low", "close", "volume"]
             available_columns = [col for col in standard_columns if col in df.columns]
             extra_columns = [col for col in df.columns if col not in standard_columns]
             df = df[available_columns + extra_columns]
-            
+
             # Drop timestamp column
             df.drop(columns=["t"], inplace=True)
-            
+
             # Sort and reset index
             df.sort_values(by=["date", "time"], inplace=True)
             df.reset_index(drop=True, inplace=True)
-            
+
             return df
-            
+
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error: {e}")
             return pd.DataFrame()
@@ -673,29 +673,29 @@ class ProjectXClient:
     
     This is the main interface that Lumibot brokers will use.
     """
-    
+
     def __init__(self, config: dict):
         """Initialize ProjectX client with broker configuration"""
         self.config = config
         self.firm = config.get("firm")
-        
+
         # Setup logging
         self.logger = get_logger(f"ProjectXClient_{self.firm}")
-        
+
         # Get authentication token
         self.token = ProjectXAuth.get_auth_token(config)
         if not self.token:
             raise Exception(f"Failed to authenticate with {self.firm}")
-        
+
         # Initialize ProjectX API client
         self.api = ProjectX(config, self.token)
-        
+
         # Streaming client
         self.streaming = None
-        
+
         # Cache for contract details to reduce API calls
         self._contract_cache = {}
-        
+
         # Enhanced caching
         self._account_cache = None
         self._account_cache_time = 0
@@ -704,7 +704,7 @@ class ProjectXClient:
         self._orders_cache = None
         self._orders_cache_time = 0
         self._cache_ttl = 30  # 30 seconds cache
-    
+
     def get_accounts(self) -> List[Dict]:
         """Get list of available accounts"""
         # Use cached data if available and fresh
@@ -712,7 +712,7 @@ class ProjectXClient:
             time.time() - self._account_cache_time < self._cache_ttl):
             self.logger.debug(f"🚀 Using cached account data")
             return self._account_cache
-        
+
         response = self.api.account_search()
         if response and response.get("success"):
             accounts = response.get("accounts", [])
@@ -721,16 +721,16 @@ class ProjectXClient:
             return accounts
         else:
             raise Exception(f"Failed to retrieve accounts: {response}")
-    
+
     def get_preferred_account_id(self) -> int:
         """Get preferred account ID - use configured preferred account or highest balance"""
         accounts = self.get_accounts()
-        
+
         if not accounts:
             raise Exception("No accounts found")
-        
+
         self.logger.debug(f"Found {len(accounts)} accounts: {[acc.get('name', 'Unknown') for acc in accounts]}")
-        
+
         # First priority: Use specifically configured preferred account name
         preferred_name = self.config.get("preferred_account_name")
         if preferred_name:
@@ -741,19 +741,19 @@ class ProjectXClient:
                     account_balance = account.get('balance', 0)
                     self.logger.info(f"✅ Using preferred account: {preferred_name} (ID: {account_id}, Balance: ${account_balance:,.2f})")
                     return account_id
-            
+
             # If preferred account not found, log warning but continue
             self.logger.warning(f"⚠️ Preferred account '{preferred_name}' not found, using highest balance account")
-        
+
         # Fallback: Select account with highest balance
         selected_account = max(accounts, key=lambda x: x.get('balance', 0))
         account_id = selected_account.get('id')
         account_name = selected_account.get('name', 'Unknown')
         account_balance = selected_account.get('balance', 0)
-        
+
         self.logger.info(f"✅ Selected highest balance account: {account_name} (ID: {account_id}, Balance: ${account_balance:,.2f})")
         return account_id
-    
+
     def get_account_balance(self, account_id: int) -> Dict:
         """Get account balance and details"""
         accounts = self.get_accounts()
@@ -767,7 +767,7 @@ class ProjectXClient:
                     'account_value': balance
                 }
         raise Exception(f"Account {account_id} not found")
-    
+
     def get_positions(self, account_id: int) -> List[Dict]:
         """Get open positions with caching"""
         # Use cached data if available and fresh
@@ -775,7 +775,7 @@ class ProjectXClient:
             time.time() - self._positions_cache_time < self._cache_ttl):
             self.logger.debug(f"🚀 Using cached positions data")
             return self._positions_cache
-        
+
         response = self.api.position_search_open(account_id)
         if response and response.get("success"):
             positions = response.get("positions", [])
@@ -788,20 +788,20 @@ class ProjectXClient:
             return self._positions_cache if self._positions_cache is not None else []
         else:
             raise Exception(f"Failed to retrieve positions: {response}")
-    
+
     def get_orders(self, account_id: int, start_date: str = None, end_date: str = None) -> List[Dict]:
         """Get orders within date range with caching"""
         if not start_date:
             # Default to last 30 days
             from datetime import datetime, timedelta
             start_date = (datetime.now() - timedelta(days=30)).isoformat()
-        
+
         # Use cached data if available and fresh
         if (self._orders_cache is not None and 
             time.time() - self._orders_cache_time < self._cache_ttl):
             self.logger.debug(f"🚀 Using cached orders data")
             return self._orders_cache
-        
+
         response = self.api.order_search(account_id, start_date, end_date)
         if response and response.get("success"):
             orders = response.get("orders", [])
@@ -814,7 +814,7 @@ class ProjectXClient:
             return self._orders_cache if self._orders_cache is not None else []
         else:
             raise Exception(f"Failed to retrieve orders: {response}")
-    
+
     def place_order(self, account_id: int, contract_id: str, side: str, quantity: int, 
                    order_type: int, price: float = None) -> Dict:
         """Place a trading order"""
@@ -823,7 +823,7 @@ class ProjectXClient:
         side_int = side_map.get(side.upper())
         if side_int is None:
             raise ValueError(f"Invalid side: {side}")
-        
+
         response = self.api.order_place(
             account_id=account_id,
             contract_id=contract_id,
@@ -832,23 +832,23 @@ class ProjectXClient:
             size=quantity,
             limit_price=price if order_type == 1 else None  # Only set price for limit orders
         )
-        
+
         if response and response.get("success"):
             return response
         else:
             raise Exception(f"Failed to place order: {response}")
-    
+
     def cancel_order(self, account_id: int, order_id: str) -> bool:
         """Cancel an order"""
         response = self.api.order_cancel(account_id, int(order_id))
         return response and response.get("success", False)
-    
+
     def order_modify(self, account_id: int, order_id: int, size: int = None, 
                     limit_price: float = None, stop_price: float = None, trail_price: float = None) -> Dict:
         """Modify an existing order - Not supported by ProjectX API"""
         # ProjectX doesn't support order modification - need to cancel and re-place
         return {"success": False, "error": "Order modification not supported by ProjectX API"}
-    
+
     def get_historical_data(self, contract_id: str, start_time: str, end_time: str,
                            timeframe: str = "1minute") -> pd.DataFrame:
         """Get historical price data"""
@@ -863,7 +863,7 @@ class ProjectXClient:
             unit, unit_number = 4, 1
         else:
             unit, unit_number = 2, 1  # Default to 1 minute
-        
+
         df = self.api.history_retrieve_bars(
             contract_id=contract_id,
             start_datetime=start_time,
@@ -871,9 +871,9 @@ class ProjectXClient:
             unit=unit,
             unit_number=unit_number
         )
-        
+
         return df
-    
+
     def history_retrieve_bars(self, contract_id: str, start_datetime: str, end_datetime: str,
                              unit: int, unit_number: int, limit: int = 1000,
                              include_partial_bar: bool = True, live: bool = False,
@@ -890,7 +890,7 @@ class ProjectXClient:
             live=live,
             is_est=is_est
         )
-    
+
     def search_contracts(self, search_text: str) -> List[Dict]:
         """Search for contracts"""
         response = self.api.contract_search(search_text)
@@ -898,11 +898,11 @@ class ProjectXClient:
             return response.get("contracts", [])
         else:
             raise Exception(f"Failed to search contracts: {response}")
-    
+
     def contract_search(self, search_text: str) -> List[Dict]:
         """Search for contracts - alias for search_contracts"""
         return self.search_contracts(search_text)
-    
+
     def order_search(self, account_id: int, start_date: str = None, end_date: str = None, 
                     start_datetime: str = None, end_datetime: str = None) -> List[Dict]:
         """Search for orders - alias for get_orders with flexible parameter names"""
@@ -910,7 +910,7 @@ class ProjectXClient:
         start = start_datetime or start_date
         end = end_datetime or end_date
         return self.get_orders(account_id, start, end)
-    
+
     def order_place(self, account_id: int, contract_id: str, type: int, side: int, size: int,
                    limit_price: float = None, stop_price: float = None, trail_price: float = None,
                    custom_tag: str = None, linked_order_id: int = None) -> dict:
@@ -927,26 +927,26 @@ class ProjectXClient:
             custom_tag=custom_tag,
             linked_order_id=linked_order_id
         )
-        
+
         if response and response.get("success"):
             return response
         else:
             raise Exception(f"Failed to place order: {response}")
-    
+
     def contract_search(self, search_text: str) -> dict:
         """Search for contracts - direct API wrapper"""
         return self.api.contract_search(search_text, live=False)
-    
+
     def contract_search_id(self, contract_id: str) -> dict:
         """Get contract by ID - direct API wrapper"""
         return self.api.contract_search_id(contract_id)
-    
+
     def get_contract_details(self, contract_id: str) -> Dict:
         """Get contract details by contract ID"""
         # Check cache first
         if contract_id in self._contract_cache:
             return self._contract_cache[contract_id]
-        
+
         response = self.api.contract_search_id(contract_id)
         if response and response.get("success"):
             contracts = response.get("contracts", [])
@@ -964,25 +964,25 @@ class ProjectXClient:
         else:
             # For other errors, return empty dict instead of raising exception
             return {}
-    
+
     def find_contract_by_symbol(self, symbol: str) -> str:
         """Find contract ID by searching for symbol using Asset class continuous futures logic"""
         try:
             from lumibot.entities import Asset
-            
+
             symbol_upper = symbol.upper()
             self.logger.info(f"🔍 Searching for contract: {symbol} -> {symbol_upper}")
-            
+
             # Use Asset class logic for continuous futures resolution
             try:
                 # Create continuous futures asset
                 asset = Asset(symbol_upper, asset_type=Asset.AssetType.CONT_FUTURE)
-                
+
                 # Get potential contracts using Asset class logic
                 potential_contracts = asset.get_potential_futures_contracts()
-                
+
                 self.logger.debug(f"📋 Asset class generated {len(potential_contracts)} potential contracts")
-                
+
                 # Try each potential contract to find one that works
                 for contract_symbol in potential_contracts:
                     # Convert to ProjectX format: CON.F.US.SYMBOL.EXPIRY
@@ -1001,15 +1001,15 @@ class ProjectXClient:
                             contract_id = f"CON.F.US.{symbol_upper}.U25"  # Fallback
                     else:
                         contract_id = contract_symbol
-                    
+
                     # Cache and return the first valid contract
                     self._contract_cache[contract_id] = {"id": contract_id, "symbol": symbol_upper}
                     self.logger.info(f"✅ Using Asset class contract: {contract_id}")
                     return contract_id
-                
+
             except Exception as asset_error:
                 self.logger.warning(f"⚠️ Asset class method failed: {asset_error}, falling back to API search")
-            
+
             # Fallback: Use hardcoded mapping for immediate compatibility
             common_futures_fallback = {
                 'MES': 'CON.F.US.MES.U25',
@@ -1018,20 +1018,20 @@ class ProjectXClient:
                 'YM': 'CON.F.US.YM.U25',    
                 'RTY': 'CON.F.US.RTY.U25',  
             }
-            
+
             if symbol_upper in common_futures_fallback:
                 contract_id = common_futures_fallback[symbol_upper]
                 self.logger.debug(f"📋 Using fallback mapping: {contract_id}")
                 self._contract_cache[contract_id] = {"id": contract_id, "symbol": symbol_upper}
                 return contract_id
-            
+
             # Search using the contract search API
             self.logger.info(f"🔍 Searching via API for: {symbol}")
             try:
                 contracts = self.search_contracts(symbol)
                 if contracts:
                     self.logger.info(f"📋 Found {len(contracts)} contracts via search")
-                    
+
                     # Find the most recent/active contract (usually sorted by expiry)  
                     active_contracts = [c for c in contracts if c.get('active', True)]
                     if active_contracts:
@@ -1052,20 +1052,20 @@ class ProjectXClient:
                     self.logger.warning(f"⚠️ No contracts found via API search")
             except Exception as search_e:
                 self.logger.error(f"❌ API search failed: {search_e}")
-            
+
             # If all else fails, return the hardcoded mapping anyway (might work for orders)
             if symbol_upper in common_futures_fallback:
                 fallback_contract = common_futures_fallback[symbol_upper]
                 self.logger.info(f"🔄 Fallback to hardcoded mapping (last resort): {fallback_contract}")
                 return fallback_contract
-            
+
             self.logger.error(f"❌ No contract found for symbol: {symbol}")
             return ''
-            
+
         except Exception as e:
             self.logger.error(f"Error finding contract for symbol {symbol}: {e}")
             return ''
-    
+
     def get_contract_tick_size(self, contract_id: str) -> float:
         """Get tick size for a contract"""
         try:
@@ -1075,7 +1075,7 @@ class ProjectXClient:
         except Exception as e:
             self.logger.warning(f"Could not get tick size for {contract_id}, using default 0.25: {e}")
             return 0.25
-    
+
     def round_to_tick_size(self, price: float, tick_size: float) -> float:
         """Round price to the nearest tick size"""
         try:
@@ -1085,19 +1085,19 @@ class ProjectXClient:
         except Exception as e:
             self.logger.warning(f"Error rounding price {price} to tick size {tick_size}: {e}")
             return price
-    
+
     def get_streaming_client(self, account_id: int = None) -> ProjectXStreaming:
         """Get streaming client for real-time data"""
         if not self.streaming:
             self.streaming = ProjectXStreaming(self.config, self.token, account_id)
         return self.streaming
-    
+
     def round_to_tick_size(self, price: float, tick_size: float) -> float:
         """Round price to the nearest tick size increment"""
         if price is None or tick_size is None:
             return None
         return round(price / tick_size) * tick_size
-    
+
     def order_cancel(self, account_id: int, order_id: int) -> dict:
         """Cancel an order via high-level client; always return dict."""
         try:

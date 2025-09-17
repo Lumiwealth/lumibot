@@ -47,7 +47,7 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     # Act
     df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan, dt=dt)
     df.index = pd.to_datetime(df.index)
-    
+
     # Assert
     assert mock_load_cache.called
     assert df is not None
@@ -73,7 +73,7 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
         "price": [100, 101, 102, 103, 104]
     })
     mock_update_df.return_value = mock_get_historical_data.return_value
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = datetime.datetime(2023, 7, 1)
     end = datetime.datetime(2023, 7, 2)
@@ -114,7 +114,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     })
     updated_data = pd.concat([cached_data, mock_get_historical_data.return_value])
     mock_update_df.return_value = updated_data
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = datetime.datetime(2023, 7, 1)
     end = datetime.datetime(2023, 7, 2)
@@ -143,7 +143,7 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_historical_data.return_value = pd.DataFrame()
     mock_get_missing_dates.return_value = [datetime.datetime(2023, 7, 1)]
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = datetime.datetime(2023, 7, 1)
     end = datetime.datetime(2023, 7, 2)
@@ -306,7 +306,7 @@ def test_missing_dates():
     [
         # case 1
         (pd.DataFrame(), 
-         
+
          pd.DataFrame(
             {
                 "close": [2, 3, 4, 5, 6],
@@ -320,11 +320,11 @@ def test_missing_dates():
                 ],
             }
         ), 
-        
+
         'ohlc'),
         # case 2
         (pd.DataFrame(), 
-         
+
          pd.DataFrame(
             {
                 "ask": [2, 3, 4, 5, 6],
@@ -344,7 +344,7 @@ def test_missing_dates():
 def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
     mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
     cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
-    
+
     # Empty DataFrame of df_all, don't write cache file
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
     assert not cache_file.exists()
@@ -377,9 +377,9 @@ def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
                 ],
             }
         ), 
-        
+
         'ohlc'),
-        
+
         # case 2
         (pd.DataFrame(
             {
@@ -416,7 +416,7 @@ def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
         assert df_loaded["close"].iloc[0] == 2
     elif datastyle == 'quote':
         assert df_loaded["bid"].iloc[0] == 1
-        
+
 
 def test_update_df_with_empty_result():
     df_all = pd.DataFrame(
@@ -472,14 +472,14 @@ def test_update_df_empty_df_all_with_new_data():
                 ],
             }
         )
-    
+
     result["datetime"] = pd.to_datetime(result["datetime"])
     df_all = None
     df_new = thetadata_helper.update_df(df_all, result)
-    
+
     assert len(df_new) == 5
     assert df_new["close"].iloc[0] == 2
-    
+
     # updated_df will update NewYork time to UTC time, and minus 1 min to match with polygon data
     assert df_new.index[0] == pd.DatetimeIndex(["2023-07-01 13:29:00-00:00"])[0]
 
@@ -492,7 +492,7 @@ def test_update_df_existing_df_all_with_new_data():
     ]
     for r in initial_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
-    
+
     df_all = pd.DataFrame(initial_data).set_index("datetime")
 
     new_data = [
@@ -501,7 +501,7 @@ def test_update_df_existing_df_all_with_new_data():
     ]
     for r in new_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
-    
+
     new_data = pd.DataFrame(new_data)
     df_new = thetadata_helper.update_df(df_all, new_data)
 
@@ -521,7 +521,7 @@ def test_update_df_with_overlapping_data():
     ]
     for r in initial_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
-    
+
     df_all = pd.DataFrame(initial_data).set_index("datetime")
 
     overlapping_data = [
@@ -553,7 +553,7 @@ def test_update_df_with_timezone_awareness():
 
     df_all = None
     df_new = thetadata_helper.update_df(df_all, result)
-    
+
     assert df_new.index.tzinfo is not None
     assert df_new.index.tzinfo.zone == 'UTC'
 
@@ -605,7 +605,7 @@ def test_check_connection_with_exception(mock_sleep, mock_get, mock_start_client
     # Arrange
     mock_start_client.return_value = MagicMock()
     mock_get.side_effect = [requests.exceptions.RequestException]  # Simulate a request exception
-    
+
     # Act
     client, connected = thetadata_helper.check_connection("test_user", "test_password")
 
@@ -630,7 +630,7 @@ def test_get_request_successful(mock_get, mock_check_connection):
         "data": "some_data"
     }
     mock_get.return_value = mock_response
-    
+
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
     querystring = {"param1": "value1"}
@@ -651,7 +651,7 @@ def test_get_request_non_200_status_code(mock_get, mock_check_connection):
     mock_response.status_code = 500
     mock_response.json.return_value = None
     mock_get.return_value = mock_response
-    
+
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
     querystring = {"param1": "value1"}
@@ -662,12 +662,12 @@ def test_get_request_non_200_status_code(mock_get, mock_check_connection):
         json_resp = thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
     expected_call = ((url,), {'headers': headers, 'params': querystring})
-    
+
     # Assert
     assert mock_get.call_count == 2
     assert mock_get.mock_calls[0] == expected_call
     assert mock_get.mock_calls[1] == expected_call
-    
+
     # json_resp should never be defined, so it should raise UnboundLocalError: 
     # local variable 'json_resp' referenced before assignment
     with pytest.raises(UnboundLocalError):
@@ -688,7 +688,7 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
         }
     }
     mock_get.return_value = mock_response
-    
+
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
     querystring = {"param1": "value1"}
@@ -733,7 +733,7 @@ def test_get_historical_data_stock(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     #asset = MockAsset(asset_type="stock", symbol="AAPL")
     asset = Asset("AAPL")
     start_dt = datetime.datetime(2023, 7, 1)
@@ -764,7 +764,7 @@ def test_get_historical_data_option(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     asset = Asset(
         asset_type="option", symbol="AAPL", expiration=datetime.datetime(2023, 9, 30), strike=140, right="CALL"
     )
@@ -787,7 +787,7 @@ def test_get_historical_data_option(mock_get_request):
 def test_get_historical_data_empty_response(mock_get_request):
     # Arrange
     mock_get_request.return_value = None
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start_dt = datetime.datetime(2023, 7, 1)
     end_dt = datetime.datetime(2023, 7, 2)
@@ -809,7 +809,7 @@ def test_get_historical_data_quote_style(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start_dt = datetime.datetime(2023, 7, 1)
     end_dt = datetime.datetime(2023, 7, 2)
@@ -832,7 +832,7 @@ def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start_dt = datetime.datetime(2023, 7, 1)
     end_dt = datetime.datetime(2023, 7, 2)
@@ -857,7 +857,7 @@ def test_get_expirations_normal_operation(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     username = "test_user"
     password = "test_password"
     ticker = "AAPL"
@@ -878,7 +878,7 @@ def test_get_expirations_empty_response(mock_get_request):
         "response": []
     }
     mock_get_request.return_value = mock_json_response
-    
+
     username = "test_user"
     password = "test_password"
     ticker = "AAPL"
@@ -901,7 +901,7 @@ def test_get_expirations_dates_before_after_date(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     username = "test_user"
     password = "test_password"
     ticker = "AAPL"
@@ -927,7 +927,7 @@ def test_get_strikes_normal_operation(mock_get_request):
         ]
     }
     mock_get_request.return_value = mock_json_response
-    
+
     username = "test_user"
     password = "test_password"
     ticker = "AAPL"
@@ -948,7 +948,7 @@ def test_get_strikes_empty_response(mock_get_request):
         "response": []
     }
     mock_get_request.return_value = mock_json_response
-    
+
     username = "test_user"
     password = "test_password"
     ticker = "AAPL"

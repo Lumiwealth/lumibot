@@ -109,20 +109,57 @@ class ProjectXData(DataSource):
             Last price as float, or None if not available
         """
         try:
-            # Use public get_bars so tests can mock it; handle dict or Bars result
-            result = self.get_bars(asset, 1, timestep="minute")
-            bars = None
-            if isinstance(result, dict):
-                # Single asset dict {asset: Bars}
-                bars = next(iter(result.values())) if result else None
-            else:
-                bars = result
-            if bars is not None and getattr(bars, 'df', None) is not None and not bars.df.empty:
-                return float(bars.df['close'].iloc[-1])
+            contract_id = self._get_contract_id_from_asset(asset)
+            if not contract_id:
+                return None
+
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(minutes=1)
+            df = self.client.history_retrieve_bars(
+                contract_id=contract_id,
+                start_datetime=start_dt.isoformat(),
+                end_datetime=end_dt.isoformat(),
+                unit=self.TIME_UNIT_MAPPING["minute"],
+                unit_number=1,
+                limit=1,
+                include_partial_bar=True,
+                live=True,
+                is_est=True,
+            )
+
+            if df is None or df.empty:
+                return None
+
+            latest = df.iloc[-1]
+            if 'close' in latest:
+                return float(latest['close'])
             return None
         except Exception as e:
             self.logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
+
+    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
+        price = self.get_last_price(asset, quote=quote, exchange=exchange)
+        timestamp = datetime.now()
+
+        if price is None:
+            return Quote(asset=asset, price=None, raw_data={"source": "projectx_rest", "live": False})
+
+        # ProjectX does not currently expose top-of-book via REST for this integration.
+        # Approximate bid/ask around last trade with a minimal spread (one tick).
+        tick = 0.25
+        bid = price - tick / 2
+        ask = price + tick / 2
+
+        return Quote(
+            asset=asset,
+            price=price,
+            bid=bid,
+            ask=ask,
+            timestamp=timestamp,
+            quote_time=timestamp,
+            raw_data={"source": "projectx_live_rest", "live": True}
+        )
 
     def get_bars(
             self, 

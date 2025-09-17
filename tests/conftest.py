@@ -14,7 +14,7 @@ def cleanup_all_schedulers():
     try:
         # Force garbage collection to trigger __del__ methods
         gc.collect()
-        
+
         # Try to find and shutdown any remaining APScheduler instances
         for obj in gc.get_objects():
             if hasattr(obj, '__class__') and 'scheduler' in str(obj.__class__).lower():
@@ -36,7 +36,7 @@ def cleanup_all_threads():
         # Get all active threads
         active_threads = threading.enumerate()
         main_thread = threading.main_thread()
-        
+
         for thread in active_threads:
             if thread != main_thread and thread.is_alive():
                 # Try to stop threads that have a stop method or event
@@ -57,17 +57,17 @@ def cleanup_all_threads():
 @pytest.fixture(scope="session", autouse=True)
 def global_cleanup():
     """Global cleanup fixture that runs at session start and end"""
-    
+
     # Cleanup before tests start
     cleanup_all_schedulers()
     cleanup_all_threads()
-    
+
     yield
-    
+
     # Cleanup after all tests complete
     cleanup_all_schedulers()
     cleanup_all_threads()
-    
+
     # Force final garbage collection
     gc.collect()
 
@@ -76,7 +76,7 @@ def global_cleanup():
 def test_cleanup():
     """Per-test cleanup to prevent scheduler leaks between tests"""
     yield
-    
+
     # Minimal cleanup to avoid CI deadlocks
     # Only force gc collection, don't do aggressive scheduler cleanup per-test
     gc.collect()

@@ -710,7 +710,7 @@ class Asset:
             contract = f"{self.symbol}{month_code}{year_code:02d}"
             if contract not in potential_contracts:  # Avoid duplicates
                 potential_contracts.append(contract)
-            
+
             # Single-digit year format
             contract_1d = f"{self.symbol}{month_code}{year_code % 10}"
             if contract_1d not in potential_contracts:  # Avoid duplicates

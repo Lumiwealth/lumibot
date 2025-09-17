@@ -552,7 +552,7 @@ def plot_returns(
         if 'time' in processed_trades_for_merge.columns:
             processed_trades_for_merge['time'] = pd.to_datetime(processed_trades_for_merge['time'])
             processed_trades_for_merge = processed_trades_for_merge.set_index('time')
-            
+
             # Ensure all standard columns (excluding 'time') are present, filling missing ones with NA
             _columns_to_ensure_in_merge = [col for col in standard_trade_columns if col != "time"]
             for col in _columns_to_ensure_in_merge:
@@ -895,7 +895,7 @@ def create_tearsheet(
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
-    
+
     '''
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:

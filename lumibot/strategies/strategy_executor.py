@@ -188,7 +188,32 @@ class StrategyExecutor(Thread):
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
             self.strategy
-            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
+            except Exception as balance_exc:
+                # Gracefully handle rate-limit style failures by falling back to cached values when available
+                status_code = getattr(balance_exc, "status_code", None)
+                message = str(balance_exc)
+                cached_balances = getattr(self.broker, "_cached_balances", None)
+
+                if status_code == 429 or "rate limit" in message.lower():
+                    if cached_balances is not None:
+                        self.strategy.logger.warning(
+                            "Broker balance refresh hit rate limit; using cached values and continuing"
+                        )
+                        broker_balances = cached_balances
+                    else:
+                        self.strategy.logger.warning(
+                            "Broker balance refresh hit rate limit and no cached value is available; retrying"
+                        )
+                        broker_balances = None
+                else:
+                    # Unexpected failure follows legacy retry path
+                    self.strategy.logger.warning(
+                        f"Broker balance refresh failed with {balance_exc}; retrying"
+                    )
+                    broker_balances = None
+
             if broker_balances is None:
                 if cash_broker_retries < cash_broker_max_retries:
                     self.strategy.logger.info("Unable to get cash from broker, trying again.")
@@ -347,7 +372,7 @@ class StrategyExecutor(Thread):
                                     f"skipping auto-cancel (might be filling)"
                                 )
                                 continue
-                        
+
                         # Check if it's a market order that might have filled instantly
                         if order_lumi.order_type and order_lumi.order_type.lower() == "market":
                             self.strategy.logger.info(
@@ -355,7 +380,7 @@ class StrategyExecutor(Thread):
                                 f"likely filled instantly - skipping cancel"
                             )
                             continue
-                        
+
                         self.strategy.logger.info(
                             f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
                             f"(bkr cnt={len(orders_broker)}), canceling."
@@ -732,7 +757,7 @@ class StrategyExecutor(Thread):
                 print(f"Warning: Error shutting down scheduler: {e}")
                 # Force set to None even if shutdown failed
                 self.scheduler = None
-        
+
         if self.broker.IS_BACKTESTING_BROKER:
             self.strategy._dump_stats()
 
@@ -1323,10 +1348,10 @@ class StrategyExecutor(Thread):
                 if self.check_queue_thread.is_alive():
                     self.check_queue_stop_event.set()
                     self.check_queue_thread.join(timeout=5.0)
-            
+
             # Reset the stop event for the new thread
             self.check_queue_stop_event.clear()
-            
+
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.
             self.check_queue_thread = Thread(target=self.check_queue)

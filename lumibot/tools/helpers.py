@@ -332,6 +332,7 @@ def print_progress_bar(
     fill=chr(9608),
     cash=None,
     portfolio_value=None,
+    eta_override=None,
 ):
     # Progress bar should ALWAYS show, even with quiet logs
     # This is the ONLY output users want to see during quiet backtesting
@@ -345,7 +346,10 @@ def print_progress_bar(
     elapsed = now - backtesting_started
 
     if percent > 0:
-        eta = (elapsed * (100 / percent)) - elapsed
+        if eta_override is not None:
+            eta = eta_override
+        else:
+            eta = (elapsed * (100 / percent)) - elapsed
         eta_str = f"[Elapsed: {str(elapsed).split('.')[0]} ETA: {str(eta).split('.')[0]}]"
     else:
         eta_str = ""
@@ -402,7 +406,7 @@ def parse_symbol(symbol):
     # Check that the symbol is a string
     if not isinstance(symbol, str):
         return {"type": None}
-    
+
     # Pattern to match the option symbol format
     option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
 

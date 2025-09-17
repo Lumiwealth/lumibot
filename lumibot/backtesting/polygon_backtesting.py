@@ -36,7 +36,7 @@ class PolygonDataBacktesting(PandasData):
 
         # Memory limit, off by default
         self.MAX_STORAGE_BYTES = max_memory
-        
+
         # Store errors CSV path for use in data retrieval
 
         # RESTClient API for Polygon.io polygon-api-client

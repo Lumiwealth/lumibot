@@ -14,16 +14,16 @@ databento = pytest.importorskip("databento", reason="databento not available")
 
 class TestMESSymbols:
     """Test MES symbol resolution in DataBento."""
-    
+
     @pytest.fixture(scope="class")
     def databento_client(self):
         """Create DataBento client if API key is available."""
         api_key = os.environ.get('DATABENTO_API_KEY')
         if not api_key:
             pytest.skip("DATABENTO_API_KEY environment variable not set")
-        
+
         return databento.Historical(api_key)
-    
+
     @pytest.mark.skipif(
         not os.environ.get('DATABENTO_API_KEY'),
         reason="DATABENTO_API_KEY environment variable not set"
@@ -33,7 +33,7 @@ class TestMESSymbols:
         # Test date range - last few days
         end_date = datetime.now()
         start_date = end_date - timedelta(days=3)
-        
+
         # Try different MES symbol formats that might work
         symbols_to_test = [
             'MES',        # Base symbol
@@ -46,9 +46,9 @@ class TestMESSymbols:
             'MESH5',      # Mar 2025
             'MES.H5',     # Mar 2025 with dot
         ]
-        
+
         successful_symbols = []
-        
+
         # Test each symbol
         for symbol in symbols_to_test:
             try:
@@ -61,21 +61,21 @@ class TestMESSymbols:
                     end=end_date.strftime('%Y-%m-%d'),
                     limit=1
                 )
-                
+
                 if data and hasattr(data, 'to_df'):
                     df = data.to_df()
                     if not df.empty:
                         successful_symbols.append(symbol)
-                        
+
             except Exception as e:
                 # Expected for invalid symbols
                 pass
-        
+
         # This is an integration test that requires valid API access and data availability
         # If no symbols work, it's likely an API/data issue, not a code issue
         if len(successful_symbols) == 0:
             pytest.skip(f"No MES symbols available in DataBento (API or data issue). Tested: {symbols_to_test}")
-        
+
         print(f"Working MES symbols: {successful_symbols}")
 
 if __name__ == "__main__":

@@ -406,7 +406,7 @@ def parse_symbol(symbol):
     # Check that the symbol is a string
     if not isinstance(symbol, str):
         return {"type": None}
-    
+
     # Pattern to match the option symbol format
     option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
 

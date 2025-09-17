@@ -15,7 +15,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
         self.api_key = "test_api_key"
         self.start_date = datetime(2025, 1, 1)
         self.end_date = datetime(2025, 1, 31)
-        
+
         self.test_asset = Asset(
             symbol="ES",
             asset_type="future",
@@ -30,7 +30,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         self.assertEqual(backtester._api_key, self.api_key)
         # Note: Parent class converts datetime to timezone-aware, so check date portion
         self.assertEqual(backtester.datetime_start.date(), self.start_date.date())
@@ -65,19 +65,19 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             '2025-01-01 09:31:00',
             '2025-01-01 09:32:00'
         ])
-        
+
         mock_get_data.return_value = test_df
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Mock the get_start_datetime_and_ts_unit method
         with patch.object(backtester, 'get_start_datetime_and_ts_unit') as mock_get_start:
             mock_get_start.return_value = (self.start_date, "minute")
-            
+
             # Call update method
             backtester._update_pandas_data(
                 asset=self.test_asset,
@@ -85,11 +85,11 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
                 length=10,
                 timestep="minute"
             )
-            
+
             # Verify data was stored
             search_asset = (self.test_asset, Asset("USD", "forex"))
             self.assertIn(search_asset, backtester.pandas_data)
-            
+
             stored_data = backtester.pandas_data[search_asset]
             self.assertIsInstance(stored_data, Data)
             self.assertEqual(len(stored_data.df), 3)
@@ -99,23 +99,23 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
     def test_update_pandas_data_no_data(self, mock_get_data):
         """Test pandas data update with no data returned"""
         mock_get_data.return_value = None
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         with patch.object(backtester, 'get_start_datetime_and_ts_unit') as mock_get_start:
             mock_get_start.return_value = (self.start_date, "minute")
-            
+
             backtester._update_pandas_data(
                 asset=self.test_asset,
                 quote=None,
                 length=10,
                 timestep="minute"
             )
-            
+
             # When DataBento returns None, the implementation fails during Data object creation
             # due to timezone handling, so no data gets stored
             search_asset = (self.test_asset, Asset("USD", "forex"))
@@ -137,13 +137,13 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             '2024-12-01 09:30:00',  # Much earlier date
             '2024-12-01 09:31:00'
         ])
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Pre-populate with existing data
         search_asset = (self.test_asset, Asset("USD", "forex"))
         existing_data = Data(
@@ -153,17 +153,17 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             quote=Asset("USD", "forex")
         )
         backtester.pandas_data[search_asset] = existing_data
-        
+
         with patch.object(backtester, 'get_start_datetime_and_ts_unit') as mock_get_start:
             mock_get_start.return_value = (self.start_date, "minute")
-            
+
             backtester._update_pandas_data(
                 asset=self.test_asset,
                 quote=None,
                 length=10,
                 timestep="minute"
             )
-            
+
             # Should have called DataBento API since existing data is too old
             mock_get_data.assert_called()
 
@@ -183,16 +183,16 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             '2025-01-01 09:31:00',
             '2025-01-01 09:32:00'
         ])
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Set current datetime
         backtester._datetime = datetime(2025, 1, 1, 9, 32, 0)
-        
+
         # Pre-populate with data
         search_asset = (self.test_asset, Asset("USD", "forex"))
         data = Data(
@@ -202,9 +202,9 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             quote=Asset("USD", "forex")
         )
         backtester.pandas_data[search_asset] = data
-        
+
         result = backtester.get_last_price(asset=self.test_asset)
-        
+
         self.assertEqual(result, 103.0)  # Last close price
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
@@ -212,15 +212,15 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
     def test_get_last_price_no_cached_data(self, mock_get_last_price):
         """Test getting last price when no cached data available"""
         mock_get_last_price.return_value = 4250.75
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         result = backtester.get_last_price(asset=self.test_asset)
-        
+
         self.assertEqual(result, 4250.75)
         mock_get_last_price.assert_called_once()
 
@@ -232,9 +232,9 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         result = backtester.get_chains(asset=self.test_asset)
-        
+
         self.assertEqual(result, {})
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
@@ -253,16 +253,16 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             '2025-01-01 09:31:00',
             '2025-01-01 09:32:00'
         ])
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Set current datetime
         backtester._datetime = datetime(2025, 1, 1, 10, 0, 0)
-        
+
         # Pre-populate with data
         search_asset = (self.test_asset, Asset("USD", "forex"))
         data = Data(
@@ -272,7 +272,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             quote=Asset("USD", "forex")
         )
         backtester.pandas_data[search_asset] = data
-        
+
         # Mock _update_pandas_data to prevent API calls
         with patch.object(backtester, '_update_pandas_data'):
             result = backtester._get_bars_dict(
@@ -280,7 +280,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
                 length=2,
                 timestep="minute"
             )
-            
+
             self.assertIsInstance(result, dict)
             self.assertIn(self.test_asset, result)
             self.assertIsNotNone(result[self.test_asset])
@@ -303,16 +303,16 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             '2025-01-01 09:32:00',
             '2025-01-01 09:33:00'
         ])
-        
+
         backtester = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Set current datetime
         backtester._datetime = datetime(2025, 1, 1, 9, 33, 0)
-        
+
         # Pre-populate with data
         search_asset = (self.test_asset, Asset("USD", "forex"))
         data = Data(
@@ -322,7 +322,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             quote=Asset("USD", "forex")
         )
         backtester.pandas_data[search_asset] = data
-        
+
         # Mock _update_pandas_data to prevent API calls
         with patch.object(backtester, '_update_pandas_data'):
             # Apply 1-minute timeshift
@@ -332,10 +332,10 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
                 timestep="minute",
                 timeshift=timedelta(minutes=1)
             )
-            
+
             self.assertIsInstance(result, dict)
             self.assertIn(self.test_asset, result)
-            
+
             # With 1-minute timeshift, we should get data up to 09:32:00
             result_df = result[self.test_asset]
             self.assertEqual(len(result_df), 2)
@@ -350,7 +350,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Mock _update_pandas_data to do nothing
         with patch.object(backtester, '_update_pandas_data'):
             result = backtester._get_bars_dict(
@@ -358,7 +358,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
                 length=2,
                 timestep="minute"
             )
-            
+
             self.assertIsInstance(result, dict)
             self.assertIn(self.test_asset, result)
             self.assertIsNone(result[self.test_asset])
@@ -375,25 +375,25 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             'close': [100.5, 101.5, 102.5],
             'volume': [1000, 1100, 1200]
         }, index=pd.date_range('2023-01-01', periods=3, freq='1min'))
-        
+
         mock_get_data.return_value = mock_df
-        
+
         # Create DataBento backtesting instance
         data_source = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Test prefetch
         test_asset = Asset("ESH23", "future")
         data_source.prefetch_data([test_asset], timestep="minute")
-        
+
         # Verify data was fetched and cached
         search_key = (test_asset, Asset("USD", "forex"))
         self.assertIn(search_key, data_source.pandas_data)
         self.assertIn(search_key, data_source._prefetched_assets)
-        
+
         # Verify get_price_data_from_databento was called
         mock_get_data.assert_called_once()
 
@@ -409,29 +409,29 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             'close': [100.5, 101.5],
             'volume': [1000, 1100]
         }, index=pd.date_range('2023-01-01', periods=2, freq='1min'))
-        
+
         mock_get_data.return_value = mock_df
-        
+
         # Create DataBento backtesting instance
         data_source = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Test prefetch multiple assets
         test_assets = [
             Asset("ESH23", "future"),
             Asset("NQH23", "future")
         ]
         data_source.prefetch_data(test_assets, timestep="minute")
-        
+
         # Verify both assets were prefetched
         for asset in test_assets:
             search_key = (asset, Asset("USD", "forex"))
             self.assertIn(search_key, data_source.pandas_data)
             self.assertIn(search_key, data_source._prefetched_assets)
-        
+
         # Verify get_price_data_from_databento was called twice
         self.assertEqual(mock_get_data.call_count, 2)
 
@@ -447,21 +447,21 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
             'close': [100.5],
             'volume': [1000]
         }, index=pd.date_range('2023-01-01', periods=1, freq='1min'))
-        
+
         mock_get_data.return_value = mock_df
-        
+
         # Create DataBento backtesting instance
         data_source = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Prefetch same asset twice
         test_asset = Asset("ESH23", "future")
         data_source.prefetch_data([test_asset], timestep="minute")
         data_source.prefetch_data([test_asset], timestep="minute")
-        
+
         # Verify get_price_data_from_databento was called only once
         mock_get_data.assert_called_once()
 
@@ -471,23 +471,23 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
         """Test prefetch handling when no data is returned"""
         # Mock DataBento to return None (no data)
         mock_get_data.return_value = None
-        
+
         # Create DataBento backtesting instance
         data_source = DataBentoDataBacktesting(
             datetime_start=self.start_date,
             datetime_end=self.end_date,
             api_key=self.api_key
         )
-        
+
         # Test prefetch
         test_asset = Asset("ESH23", "future")
         data_source.prefetch_data([test_asset], timestep="minute")
-        
+
         # When DataBento returns None, the implementation fails during Data object creation
         # due to timezone handling, so the asset won't be marked as prefetched
         search_key = (test_asset, Asset("USD", "forex"))
         self.assertNotIn(search_key, data_source._prefetched_assets)
-        
+
         # No data should be stored
         self.assertNotIn(search_key, data_source.pandas_data)
 

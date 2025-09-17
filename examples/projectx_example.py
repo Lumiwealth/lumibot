@@ -39,7 +39,7 @@ class ProjectXFuturesStrategy(Strategy):
     - Managing positions
     - Getting market data
     """
-    
+
     # Strategy parameters
     parameters = {
         "symbol": "ES",  # E-mini S&P 500 futures
@@ -48,24 +48,24 @@ class ProjectXFuturesStrategy(Strategy):
         "stop_loss_percent": 0.01,    # 1% stop loss
         "lookback_period": 20,        # Lookback period for moving average
     }
-    
+
     def initialize(self):
         """Initialize the strategy."""
         # Set trading frequency
         self.sleeptime = "1M"  # Check every minute
-        
+
         # Create the futures asset
         self.asset = Asset(self.parameters["symbol"], asset_type="future")
-        
+
         # Track our position
         self.position_size = 0
         self.entry_price = None
-        
+
         # Track moving average for trend
         self.price_history = []
-        
+
         logging.info(f"Initialized ProjectX strategy for {self.parameters['symbol']}")
-    
+
     def on_trading_iteration(self):
         """Main trading logic executed each iteration."""
         try:
@@ -74,22 +74,22 @@ class ProjectXFuturesStrategy(Strategy):
             if current_price is None:
                 self.log_message("Could not get current price, skipping iteration")
                 return
-            
+
             # Update price history for moving average calculation
             self.price_history.append(current_price)
             if len(self.price_history) > self.parameters["lookback_period"]:
                 self.price_history.pop(0)
-            
+
             # Calculate moving average if we have enough data
             if len(self.price_history) >= self.parameters["lookback_period"]:
                 moving_average = sum(self.price_history) / len(self.price_history)
-                
+
                 # Get current position
                 position = self.get_position(self.asset)
                 current_quantity = int(position.quantity) if position else 0
-                
+
                 self.log_message(f"Current price: {current_price:.2f}, MA: {moving_average:.2f}, Position: {current_quantity}")
-                
+
                 # Trading logic
                 if current_quantity == 0:
                     # No position - look for entry signals
@@ -101,12 +101,12 @@ class ProjectXFuturesStrategy(Strategy):
                         # Price below MA - go short
                         self.log_message(f"Price below MA, going short {self.parameters['quantity']} contracts")
                         self._enter_short_position(current_price)
-                
+
                 elif current_quantity > 0:
                     # Long position - check exit conditions
                     if self.entry_price:
                         profit_pct = (current_price - self.entry_price) / self.entry_price
-                        
+
                         if profit_pct >= self.parameters["take_profit_percent"]:
                             self.log_message(f"Take profit triggered: {profit_pct:.2%}")
                             self._close_position()
@@ -116,12 +116,12 @@ class ProjectXFuturesStrategy(Strategy):
                         elif current_price < moving_average:
                             self.log_message("Price below MA, closing long position")
                             self._close_position()
-                
+
                 elif current_quantity < 0:
                     # Short position - check exit conditions
                     if self.entry_price:
                         profit_pct = (self.entry_price - current_price) / self.entry_price
-                        
+
                         if profit_pct >= self.parameters["take_profit_percent"]:
                             self.log_message(f"Take profit triggered: {profit_pct:.2%}")
                             self._close_position()
@@ -131,13 +131,13 @@ class ProjectXFuturesStrategy(Strategy):
                         elif current_price > moving_average:
                             self.log_message("Price above MA, closing short position")
                             self._close_position()
-            
+
             else:
                 self.log_message(f"Building price history: {len(self.price_history)}/{self.parameters['lookback_period']}")
-        
+
         except Exception as e:
             self.log_message(f"Error in trading iteration: {e}")
-    
+
     def _enter_long_position(self, current_price):
         """Enter a long position."""
         order = self.create_order(
@@ -148,7 +148,7 @@ class ProjectXFuturesStrategy(Strategy):
         )
         self.submit_order(order)
         self.entry_price = current_price
-    
+
     def _enter_short_position(self, current_price):
         """Enter a short position."""
         order = self.create_order(
@@ -159,7 +159,7 @@ class ProjectXFuturesStrategy(Strategy):
         )
         self.submit_order(order)
         self.entry_price = current_price
-    
+
     def _close_position(self):
         """Close the current position."""
         position = self.get_position(self.asset)
@@ -167,7 +167,7 @@ class ProjectXFuturesStrategy(Strategy):
             # Determine the side to close the position
             side = "sell" if position.quantity > 0 else "buy"
             quantity = abs(int(position.quantity))
-            
+
             order = self.create_order(
                 asset=self.asset,
                 quantity=quantity,
@@ -176,7 +176,7 @@ class ProjectXFuturesStrategy(Strategy):
             )
             self.submit_order(order)
             self.entry_price = None
-    
+
     def on_abrupt_closing(self):
         """Handle strategy shutdown."""
         self.log_message("Strategy shutting down, closing any open positions")
@@ -196,16 +196,16 @@ def main():
     """
     # Create ProjectX data source first
     data_source = ProjectXData()
-    
+
     # Create ProjectX broker with data source
     broker = ProjectX(data_source=data_source)
-    
+
     # Create and run the strategy
     strategy = ProjectXFuturesStrategy(
         broker=broker,
         data_source=data_source
     )
-    
+
     # Run the strategy
     strategy.run_backtest(
         show_plot=True,
@@ -220,5 +220,5 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     main() 

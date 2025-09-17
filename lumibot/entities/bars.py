@@ -22,18 +22,18 @@ class PolarsConversionTracker:
     _warned_assets: Set[str] = set()
     _total_conversions: int = 0
     _first_warning_shown: bool = False
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             # Register cleanup function to show summary
             atexit.register(cls._instance.show_summary)
         return cls._instance
-    
+
     def track_conversion(self, asset_symbol: str):
         """Track a conversion and show warning if needed."""
         self._total_conversions += 1
-        
+
         # Show warning on first encounter
         if not self._first_warning_shown:
             logger.warning(
@@ -51,11 +51,11 @@ class PolarsConversionTracker:
                 "="*70
             )
             self._first_warning_shown = True
-        
+
         # Track which assets have been converted
         if asset_symbol not in self._warned_assets:
             self._warned_assets.add(asset_symbol)
-    
+
     def show_summary(self):
         """Show summary at the end if there were conversions."""
         if self._total_conversions > 0:
@@ -64,7 +64,7 @@ class PolarsConversionTracker:
             assets_str = ", ".join(assets_list)
             if unique_assets > 5:
                 assets_str += f", ... ({unique_assets - 5} more)"
-    
+
     @classmethod
     def reset(cls):
         """Reset the tracker (useful for testing)."""
@@ -179,16 +179,16 @@ class Bars:
         self._return_polars = return_polars
         # Cache for on-demand conversions to avoid repeated expensive copies
         self._polars_cache = None
-        
+
         # Check if empty
         if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
            (isinstance(df, pd.DataFrame) and df.shape[0] == 0):
             logger.warning(f"Unable to get bar data for {asset} {source}")
-        
+
         if isinstance(df, pl.DataFrame):
             # Already polars, process it
             columns = df.columns
-            
+
             # Calculate derived columns using polars
             if "dividend" in columns:
                 df = df.with_columns([
@@ -200,7 +200,7 @@ class Bars:
                 df = df.with_columns([
                     pl.col("close").pct_change().alias("return")
                 ])
-            
+
             if return_polars:
                 # Keep as polars
                 self._df = df
@@ -208,7 +208,7 @@ class Bars:
                 # Convert to pandas and track the conversion
                 tracker = PolarsConversionTracker()
                 tracker.track_conversion(asset.symbol if hasattr(asset, 'symbol') else str(asset))
-                
+
                 self._df = df.to_pandas()
                 # Set datetime index if exists
                 for col_name in ['datetime', 'timestamp', 'date', 'time']:
@@ -237,7 +237,7 @@ class Bars:
         self._df = value
         # Invalidate cached converted forms when df changes
         self._polars_cache = None
-    
+
     @property
     def polars_df(self):
         """Return as Polars DataFrame if needed"""

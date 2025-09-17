@@ -147,7 +147,7 @@ for mod_name in autodoc_mock_imports:
             _stats_mock.__spec__ = MagicMock(name=stats_mod_name)
             setattr(mock_obj, "stats", _stats_mock)
             sys.modules[stats_mod_name] = _stats_mock
-        
+
         elif mod_name == "sqlalchemy":
             mock_obj.__path__ = [mod_name.replace('.', '/')] 
             exc_mod_name = "sqlalchemy.exc"
@@ -217,7 +217,7 @@ for mod_name in autodoc_mock_imports:
             setattr(_contract_mock, "SetOfFloat", MagicMock(name="SetOfFloat", __module__=contract_mod_name))
             setattr(mock_obj, "contract", _contract_mock)
             sys.modules[contract_mod_name] = _contract_mock
-        
+
         elif mod_name == "lumiwealth_tradier":
             mock_obj.__path__ = [mod_name.replace('.', '/')] # Mark as package
             base_mod_name = "lumiwealth_tradier.base"
@@ -226,7 +226,7 @@ for mod_name in autodoc_mock_imports:
             _base_mock.__spec__ = MagicMock(name=base_mod_name)
             setattr(mock_obj, "base", _base_mock)
             sys.modules[base_mod_name] = _base_mock
-        
+
         elif mod_name == "schwab_py":
             sys.modules['schwab'] = mock_obj 
             mock_obj.__path__ = [mod_name.replace('.', '/')] 
@@ -249,7 +249,7 @@ for mod_name in autodoc_mock_imports:
             _streaming_mock_schwab.__spec__ = MagicMock(name=streaming_mod_name_schwab)
             setattr(mock_obj, "streaming", _streaming_mock_schwab) 
             sys.modules[streaming_mod_name_schwab] = _streaming_mock_schwab
-        
+
         elif mod_name == "polygon":
             mock_obj.__path__ = [mod_name.replace('.', '/')] # Mark as package
             exceptions_mod_name = "polygon.exceptions"

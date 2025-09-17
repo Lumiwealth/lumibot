@@ -116,7 +116,7 @@ class AlpacaData(DataSource):
             "invalid api key" in error_message or
             "invalid token" in error_message
         )
-        
+
         if is_auth_error:
             auth_method = "OAuth token" if self.oauth_token else "API key/secret"
             error_msg = (
@@ -492,10 +492,10 @@ class AlpacaData(DataSource):
             logger.error(f"Error retrieving option chains for {asset.symbol}: {e}")
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Full error details: {str(e)}")
-            
+
             # Check if this is specifically an authentication error
             error_message = str(e).lower()
-            
+
             # Be more specific about what constitutes an auth error
             # Don't treat every 401 as an auth error - could be data permissions, rate limits, etc.
             is_likely_auth_error = (
@@ -511,7 +511,7 @@ class AlpacaData(DataSource):
                 "invalid token" in error_message or
                 "invalid credentials" in error_message
             )
-            
+
             if is_likely_auth_error:
                 logger.error("This appears to be an authentication error - handling as auth failure")
                 # Handle authentication errors which will set _auth_failed flag

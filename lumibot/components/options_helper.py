@@ -222,38 +222,38 @@ class OptionsHelper:
             f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})", 
             color="blue"
         )
-        
+
         # Validate input parameters
         if underlying_price <= 0:
             self.strategy.log_message(f"❌ ERROR: Invalid underlying price {underlying_price}", color="red")
             return None
-            
+
         if target_delta is None:
             self.strategy.log_message(f"❌ ERROR: target_delta is None", color="red")
             return None
-            
+
         if abs(target_delta) > 1:
             self.strategy.log_message(f"❌ ERROR: Invalid target delta {target_delta} (should be between -1 and 1)", color="red")
             return None
-        
+
         low_strike = int(underlying_price - 20)
         high_strike = int(underlying_price + 30)
-        
+
         # Ensure strikes are positive
         low_strike = max(1, low_strike)
-        
+
         self.strategy.log_message(
             f"🔍 Search range: strikes {low_strike} to {high_strike} (underlying=${underlying_price})", 
             color="blue"
         )
-        
+
         closest_strike: Optional[float] = None
         closest_delta: Optional[float] = None
 
         while low_strike <= high_strike:
             mid_strike = (low_strike + high_strike) // 2
             self.strategy.log_message(f"🔎 Trying strike {mid_strike} (range: {low_strike}-{high_strike})", color="blue")
-            
+
             mid_delta = self.get_delta_for_strike(underlying_asset, underlying_price, mid_strike, expiry, right)
             if mid_delta is None:
                 self.strategy.log_message(f"⚠️  Mid delta at strike {mid_strike} is None; adjusting search.", color="yellow")
@@ -282,7 +282,7 @@ class OptionsHelper:
                 f"(target was {target_delta})", 
                 color="green"
             )
-            
+
             # Sanity check the result
             if underlying_price > 50 and closest_strike < 10:
                 self.strategy.log_message(
@@ -292,7 +292,7 @@ class OptionsHelper:
                 )
         else:
             self.strategy.log_message(f"❌ No valid strike found for target delta {target_delta}", color="red")
-            
+
         return closest_strike
 
     def calculate_multileg_limit_price(self, orders: List[Order], limit_type: str) -> Optional[float]:
@@ -416,14 +416,14 @@ class OptionsHelper:
         date
             The adjusted expiration date.
         """
-        
+
         # Handle both datetime.datetime and datetime.date objects
         from datetime import datetime, date
         if isinstance(dt, datetime):
             dt = dt.date()  # Convert datetime to date
         elif not isinstance(dt, date):
             raise TypeError(f"dt must be a datetime.date or datetime.datetime object, got {type(dt)}")
-        
+
         # Make it all caps and get the specific chain.
         call_or_put_caps = call_or_put.upper()
         specific_chain = chains["Chains"][call_or_put_caps]
@@ -825,7 +825,7 @@ class OptionsHelper:
         if limit_price is None:
             self.strategy.log_message("Warning: limit_price is None, defaulting to 'even' order type", color="yellow")
             return "even"
-            
+
         if limit_price > 0:
             return "debit"
         elif limit_price < 0:

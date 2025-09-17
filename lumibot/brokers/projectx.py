@@ -130,7 +130,7 @@ class ProjectX(Broker):
                 f"No preferred account name set for {firm_name}. "
                 f"Consider setting PROJECTX_{firm_name}_PREFERRED_ACCOUNT_NAME for better account selection."
             )
-			
+
         self.config = config
         self.firm = config.get("firm")
 
@@ -434,7 +434,7 @@ class ProjectX(Broker):
             # Log response details
             self.logger.debug(f"Order response: success={response.get('success') if response else 'None'}, "
                             f"orderId={response.get('orderId') if response else 'None'}")
-            
+
             if response and response.get("success"):
                 # Step 1: Update order with broker's ID (matching Alpaca/Tradier pattern)
                 order.id = str(response.get("orderId"))
@@ -473,21 +473,21 @@ class ProjectX(Broker):
                     except Exception:
                         pass
                     self.logger.debug(f"[BRACKET DETECT CONFIRMED] parent_id={order.id} tp={order._synthetic_bracket.get('tp_price')} sl={order._synthetic_bracket.get('sl_price')}")
-                
+
                 self.logger.debug(f"Order submitted: id={order.id}, status=submitted")
-                
+
                 # Step 2: Set initial status and prices
                 order.status = "submitted"
                 order.limit_price = limit_price
                 order.stop_price = stop_price
-                
+
                 # Step 3: Add to _unprocessed_orders FIRST (following gold standard pattern)
                 # This is CRITICAL - must happen before _process_trade_event
                 self._unprocessed_orders.append(order)
-                
+
                 # Step 4: Cache for quick lookups (optional optimization)
                 self._orders_cache[order.id] = order
-                
+
                 # Step 5: Process the NEW_ORDER event (moves from unprocessed to new)
                 try:
                     self._process_trade_event(order, self.NEW_ORDER)
@@ -746,7 +746,7 @@ class ProjectX(Broker):
             # This helps catch recently placed orders and avoids missing them
             end_date = datetime.now() + timedelta(seconds=30)  # Look slightly ahead for clock skew
             start_date = datetime.now() - timedelta(minutes=5)  # Look back 5 minutes for recent orders
-            
+
             self.logger.debug(f"Searching orders: account={self.account_id}, "
                             f"start={start_date.isoformat()}, end={end_date.isoformat()}")
 
@@ -765,13 +765,13 @@ class ProjectX(Broker):
             elif isinstance(orders, dict) and orders.get("success"):
                 order_list = orders.get("orders", [])
                 self.logger.debug(f"API returned {len(order_list)} orders")
-            
+
             # Also search for recent trades to catch filled market orders
             # Trades are the ground truth for fills according to the other AI
             try:
                 trades = self._search_recent_trades(start_date, end_date)
                 self.logger.debug(f"Found {len(trades)} recent trades")
-                
+
                 # For each trade, ensure we have the corresponding order
                 for trade in trades:
                     order_id = str(trade.get('orderId'))
@@ -786,7 +786,7 @@ class ProjectX(Broker):
                             if trade.get('size'):
                                 order['fillVolume'] = trade.get('size')
                             break
-                    
+
                     if not found:
                         # Create a synthetic order record from trade data
                         # This helps catch market orders that filled instantly
@@ -805,13 +805,13 @@ class ProjectX(Broker):
                         self.logger.debug(f"Added synthetic order from trade: {order_id}")
             except Exception as trade_e:
                 self.logger.debug(f"Could not search trades: {trade_e}")
-            
+
             return order_list
 
         except Exception as e:
             self.logger.error(f"Error getting all orders: {e}")
             return []
-    
+
     def _search_recent_trades(self, start_date, end_date) -> List[dict]:
         """Search for recent trades to identify filled orders."""
         try:
@@ -821,7 +821,7 @@ class ProjectX(Broker):
                 start_timestamp=start_date.isoformat(),
                 end_timestamp=end_date.isoformat()
             )
-            
+
             if response and response.get("success"):
                 trades = response.get("trades", [])
                 return trades
@@ -1170,11 +1170,11 @@ class ProjectX(Broker):
         try:
             if new_order.id in self._orders_cache:
                 cached_order = self._orders_cache[new_order.id]
-                
+
                 # Preserve strategy name from cached order
                 if not new_order.strategy and cached_order.strategy:
                     new_order.strategy = cached_order.strategy
-                    
+
                 if cached_order.status != new_order.status:
                     self.logger.debug(f"Order status change detected: {new_order.id} {cached_order.status} -> {new_order.status}")
                     self._dispatch_status_change(cached_order, new_order)
@@ -1193,7 +1193,7 @@ class ProjectX(Broker):
         """Dispatch appropriate event based on status change."""
         try:
             status = new_order.status.lower()
-            
+
             # Map Project X statuses to Lumibot events - After STATUS_ALIAS_MAP normalization
             # Note: statuses have already been normalized through STATUS_ALIAS_MAP in Order class
             if status == "new" or status == "open":
@@ -1222,7 +1222,7 @@ class ProjectX(Broker):
                     quantity = getattr(cached_order, 'filled_quantity', None)
                 if (quantity is None or quantity == 0):
                     quantity = getattr(new_order, 'quantity', None) or getattr(cached_order, 'quantity', None)
-                
+
                 if price is None:
                     self.logger.debug(f"[FILL PRICE MISSING] Using 0.0 placeholder for order {new_order.id}")
                     price = 0.0
@@ -1266,7 +1266,7 @@ class ProjectX(Broker):
                 # Partially filled orders (status=7 if supported)
                 price = getattr(new_order, 'avg_fill_price', None) or getattr(new_order, 'limit_price', None)
                 quantity = getattr(new_order, 'filled_quantity', None) or getattr(new_order, 'quantity', None)
-                
+
                 if price is not None and quantity is not None:
                     self._process_trade_event(
                         new_order,
@@ -1279,7 +1279,7 @@ class ProjectX(Broker):
                     self.logger.warning(f"Partial fill event missing price ({price}) or quantity ({quantity}) data for order {new_order.id}")
             else:
                 self.logger.debug(f"Unknown or unhandled order status for event dispatch: {status}")
-                
+
         except Exception as e:
             self.logger.error(f"Error dispatching status change for order {new_order.id}: {e}")
 
@@ -1421,7 +1421,7 @@ class ProjectX(Broker):
                     self.logger.error(f"Failed cancel sibling {sibling_id} for parent {parent_id}: {e}")
         # Deactivate bracket
         meta['active'] = False
-            
+
     def _handle_pre_existing_order(self, order):
         """Handle orders that existed before strategy started."""
         try:
@@ -1454,7 +1454,7 @@ class ProjectX(Broker):
         """Handle order update from streaming."""
         try:
             # Process streaming order updates
-            
+
             # Stream can deliver a single dict or a list of dicts
             payloads = data if isinstance(data, list) else [data]
             for item in payloads:
@@ -1462,18 +1462,18 @@ class ProjectX(Broker):
                 if not isinstance(item, dict):
                     self.logger.debug(f"Unexpected order item type: {type(item)}")
                     continue
-                
+
                 # Extract the actual order data from the wrapper
                 # Format is {'action': 1, 'data': {...actual order data...}}
                 order_data = item.get('data', item)  # Use item itself if no 'data' key
-                    
+
                 # Process order data from streaming
-                
+
                 order = self._convert_broker_order_to_lumibot_order(order_data)
                 if order is not None:
                     # KEY FIX: Detect status changes and dispatch lifecycle events
                     self._detect_and_dispatch_order_changes(order)
-                    
+
                     # Update cache after processing events
                     self._orders_cache[order.id] = order
                     self.logger.debug(f"Order update processed: {order.id} -> {order.status}")
@@ -1496,7 +1496,7 @@ class ProjectX(Broker):
         """Handle trade update from streaming - trades are ground truth for fills."""
         try:
             # Process streaming trade updates
-            
+
             # Process trade events to detect fills
             payloads = data if isinstance(data, list) else [data]
             for item in payloads:
@@ -1504,37 +1504,37 @@ class ProjectX(Broker):
                 if not isinstance(item, dict):
                     self.logger.debug(f"Unexpected trade item type: {type(item)}")
                     continue
-                
+
                 # Extract the actual trade data from the wrapper
                 # Format is {'action': 0, 'data': {...actual trade data...}}
                 trade_data = item.get('data', item)  # Use item itself if no 'data' key
-                    
+
                 # Process trade data from streaming
-                
+
                 # Extract order ID from trade - trades use 'orderId' to reference the order
                 order_id = str(trade_data.get("orderId")) if trade_data.get("orderId") else None
-                
+
                 if order_id and order_id in self._orders_cache:
                     order = self._orders_cache[order_id]
-                    
+
                     # Update order with fill information from trade
                     fill_price = trade_data.get("price")
                     fill_size = trade_data.get("size")
-                    
+
                     if fill_price and fill_size:
                         # Mark order as filled based on trade data
                         order.status = "filled"
                         order.filled_quantity = fill_size
                         order.avg_fill_price = fill_price
-                        
+
                         # Dispatch fill event - pass same order twice since it's the updated version
                         self._dispatch_status_change(order, order)
-                        
+
                         self.logger.debug(f"Trade fill processed for order {order_id}: "
                                         f"{fill_size} @ {fill_price}")
                 elif order_id:
                     self.logger.debug(f"Trade for unknown order {order_id} - might be pre-existing")
-            
+
             # Trade updates can trigger order and position cache updates
             self._update_orders_cache()
             self._update_positions_cache()

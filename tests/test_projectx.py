@@ -66,7 +66,7 @@ class TestProjectXBroker:
         """
         # Test the corrected status mappings from actual ProjectX API
         status_mappings = projectx_broker.ORDER_STATUS_MAPPING
-        
+
         # These are the correct mappings from ProjectX API documentation
         assert status_mappings[1] == "open"          # Open (active order on exchange)
         assert status_mappings[2] == "filled"        # Filled (completely executed)
@@ -166,7 +166,7 @@ class TestProjectXBroker:
 
     def test_order_status_mapping_edge_cases(self, projectx_broker):
         """Test order status mapping for edge cases that caused issues"""
-        
+
         # Test status=3 with 1-share order (was incorrectly "partially_filled")
         broker_order = {
             "id": 123,
@@ -183,7 +183,7 @@ class TestProjectXBroker:
         projectx_broker._get_asset_from_contract_id_cached = MagicMock(return_value=mock_asset)
 
         order = projectx_broker._convert_broker_order_to_lumibot_order(broker_order)
-        
+
         # Status 3 is "cancelled" in the correct ProjectX API mapping
         assert order.status == "canceled"  # "cancelled" becomes "canceled" via STATUS_ALIAS_MAP
 
@@ -195,11 +195,11 @@ class TestProjectXBroker:
         # Mock the Asset class method
         with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
             mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
-            
+
             # Test contract ID generation
             asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
             contract_id = projectx_broker._get_contract_id_from_asset(asset)
-            
+
             # Should use Asset class logic, not hardcoded mappings
             mock_contracts.assert_called_once()
             assert contract_id  # Should return a valid contract ID
@@ -231,7 +231,7 @@ class TestProjectXBroker:
 
         # Test order retrieval
         orders = projectx_broker._get_orders_at_broker()
-        
+
         # Should have retrieved and converted orders
         assert len(orders) == 1
         assert orders[0].asset.symbol == "MES"
@@ -285,12 +285,12 @@ class TestProjectXBroker:
             "contractSize": 50,
             "tickSize": 0.25
         }
-        
+
         projectx_broker.client.get_contract_details = MagicMock(return_value=mock_contract_details)
-        
+
         # Test asset creation from contract ID
         asset = projectx_broker._get_asset_from_contract_id("CON.F.US.MES.U25")
-        
+
         assert asset.symbol == "MES"
         assert asset.asset_type == Asset.AssetType.CONT_FUTURE
 
@@ -319,7 +319,7 @@ class TestProjectXBroker:
         projectx_broker._get_asset_from_contract_id_cached = MagicMock(return_value=mock_asset)
 
         position = projectx_broker._convert_broker_position_to_lumibot_position(broker_position)
-        
+
         # Should display cleanly
         assert position.asset.symbol == "MES"
         assert position.quantity == 13
@@ -328,7 +328,7 @@ class TestProjectXBroker:
 
     def test_multiple_order_status_scenarios(self, projectx_broker):
         """Test various order status scenarios that were problematic"""
-        
+
         test_cases = [
             # (status_id, expected_lumibot_status, description)
             (1, "open", "Open order on exchange"),
@@ -369,7 +369,7 @@ class TestProjectXBrokerIntegration:
     @pytest.mark.skipif(needs_creds, reason=skip_reason)
     def test_full_order_sync_workflow(self, projectx_broker):
         """Test the complete order sync workflow that was broken"""
-        
+
         # Mock broker orders
         broker_orders = [
             {
@@ -412,7 +412,7 @@ class TestProjectXBrokerIntegration:
 
     def test_position_sync_workflow(self, projectx_broker):
         """Test the complete position sync workflow"""
-        
+
         # Mock broker positions
         broker_positions = [
             {

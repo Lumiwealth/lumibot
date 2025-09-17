@@ -35,7 +35,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
     Uses Live API for real-time trade streaming to achieve <1 minute lag.
     Falls back to Historical API for older data.
     """
-    
+
     SOURCE = "DATABENTO"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = {
@@ -93,7 +93,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         self._latest_quotes: Dict[str, dict] = {}
         self._max_live_age = timedelta(seconds=2)
         self._stale_warning_issued: Dict[str, bool] = {}
-        
+
         # Configuration
         self._finalize_grace_seconds = 3  # Wait 3 seconds after minute ends to finalize
         self._prune_older_minutes = 720  # Remove bars older than 12 hours
@@ -127,35 +127,35 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         """Initialize DataBento Live API client for real-time data"""
         try:
             self._stop_streaming = False
-            
+
             # Start consumer thread to process records from queue
             self._consumer_thread = threading.Thread(target=self._consumer_loop, daemon=True)
             self._consumer_thread.start()
-            
+
             # Start finalizer thread to mark old bars as complete
             self._finalizer_thread = threading.Thread(target=self._finalizer_loop, daemon=True)
             self._finalizer_thread.start()
-            
+
             logger.debug("[DATABENTO][LIVE] Live streaming threads initialized")
-            
+
         except Exception as e:
             logger.error(f"[DATABENTO][LIVE] Failed to initialize Live streaming: {e}", exc_info=True)
             self.enable_live_stream = False
-    
+
     def _live_stream_worker(self, symbol: str, start_time: datetime):
         """Producer thread that subscribes and iterates in the same context"""
         logger.debug(f"[DATABENTO][PRODUCER] Starting for {symbol}")
         reconnect_attempts = 0
         max_reconnect_attempts = 5
         backoff_seconds = 1
-        
+
         while not self._stop_streaming and reconnect_attempts < max_reconnect_attempts:
             try:
                 # Create a new client for this producer
                 client = db.Live(key=self._api_key)
-                
+
                 logger.debug(f"[DATABENTO][PRODUCER] Subscribing to {symbol} from {start_time.isoformat()}")
-                
+
                 # Subscribe - must happen in same context as iteration
                 client.subscribe(
                     dataset="GLBX.MDP3",
@@ -176,17 +176,17 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                     )
                 except Exception as quote_sub_err:
                     logger.debug(f"[DATABENTO][PRODUCER] Quote subscription not available for {symbol}: {quote_sub_err}")
-                
+
                 # Immediately iterate in the SAME context
                 record_count = 0
                 error_count = 0
-                
+
                 for record in client:
                     if self._stop_streaming:
                         break
-                    
+
                     record_count += 1
-                    
+
                     # Handle ErrorMsg records
                     if hasattr(record, '__class__') and record.__class__.__name__ == 'ErrorMsg':
                         error_count += 1
@@ -196,38 +196,38 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                             logger.error(f"[DATABENTO][PRODUCER] Too many errors, will reconnect")
                             break
                         continue
-                    
+
                     # Reset error count on successful records
                     error_count = 0
-                    
+
                     # Put record in queue for consumer
                     try:
                         self._record_queue.put((symbol, record), timeout=0.1)
-                        
+
                         # Track last event timestamp for reconnection
                         if hasattr(record, 'ts_event'):
                             self._last_ts_event[symbol] = getattr(record, 'ts_event')
-                        
+
                         # Log progress (only first few)
                         if record_count <= 3:
                             logger.debug(f"[DATABENTO][PRODUCER] {symbol} record #{record_count}: {record.__class__.__name__}")
-                    
+
                     except queue.Full:
                         logger.warning(f"[DATABENTO][PRODUCER] Queue full, dropping record")
-                
+
                 # Clean exit
                 logger.info(f"[DATABENTO][PRODUCER] {symbol} stopped after {record_count} records")
                 break  # Successful completion
-                
+
             except Exception as e:
                 logger.error(f"[DATABENTO][PRODUCER] {symbol} error: {e}")
                 reconnect_attempts += 1
-                
+
                 if reconnect_attempts < max_reconnect_attempts:
                     sleep_time = backoff_seconds * (2 ** reconnect_attempts)
                     logger.info(f"[DATABENTO][PRODUCER] Reconnecting {symbol} in {sleep_time}s (attempt {reconnect_attempts})")
                     time.sleep(sleep_time)
-                    
+
                     # Update start time for reconnection to avoid duplicate data
                     if symbol in self._last_ts_event:
                         # Start from last received timestamp (databento timestamps are in nanoseconds)
@@ -237,22 +237,22 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                         logger.info(f"[DATABENTO][PRODUCER] Resuming from last event: {start_time.isoformat()}")
                 else:
                     logger.error(f"[DATABENTO][PRODUCER] {symbol} max reconnection attempts reached")
-    
+
     def _subscribe_to_symbol(self, symbol: str, start_time: datetime = None, min_bars: int = 10):
         """Start a producer thread for a symbol"""
         if symbol in self._subscribed_symbols:
             logger.debug(f"[DATABENTO][LIVE] {symbol} already subscribed")
             return
-        
+
         try:
             # Calculate start time for replay
             if start_time is None:
                 # Request enough history to build minute bars
                 start_time = datetime.now(timezone.utc) - timedelta(minutes=max(30, min_bars * 2))
-            
+
             logger.debug(f"[DATABENTO][LIVE] Starting producer for {symbol}")
             logger.debug(f"[DATABENTO][LIVE]   Replay from: {start_time.isoformat()}")
-            
+
             # Start producer thread for this symbol
             producer_thread = threading.Thread(
                 target=self._live_stream_worker,
@@ -261,24 +261,24 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 name=f"databento-producer-{symbol}"
             )
             producer_thread.start()
-            
+
             self._subscribed_symbols.add(symbol)
             self._producer_threads[symbol] = producer_thread
             logger.debug(f"[DATABENTO][LIVE] Producer started for {symbol}")
-            
+
         except Exception as e:
             logger.error(f"[DATABENTO][LIVE] Failed to start producer for {symbol}: {e}", exc_info=True)
-    
+
     def _consumer_loop(self):
         """Consumer thread that processes records from the queue"""
         logger.debug("[DATABENTO][CONSUMER] Started")
         trade_count = 0
-        
+
         while not self._stop_streaming:
             try:
                 # Get record from queue with timeout
                 symbol, record = self._record_queue.get(timeout=1.0)
-                
+
                 # Handle symbol mappings
                 if hasattr(record, '__class__') and record.__class__.__name__ == 'SymbolMappingMsg':
                     instrument_id = getattr(record, 'instrument_id', None)
@@ -289,19 +289,19 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                                 self._symbol_mapping[instrument_id] = mapped_symbol
                                 logger.debug(f"[DATABENTO][CONSUMER] Symbol mapping: {instrument_id} -> {mapped_symbol}")
                                 break
-                
+
                 # Process trade messages
                 elif hasattr(record, '__class__') and record.__class__.__name__ == 'TradeMsg':
                     instrument_id = getattr(record, 'instrument_id', None)
-                    
+
                     # Try to get symbol from mapping or use provided symbol
                     actual_symbol = self._symbol_mapping.get(instrument_id, symbol)
-                    
+
                     # Process the trade
                     if actual_symbol:
                         self._last_trade_time[actual_symbol] = datetime.now(timezone.utc)
                         trade_count += 1
-                        
+
                         # Log only first few trades for verification
                         raw_price = getattr(record, 'price', 0)
                         price = raw_price / 1e9 if raw_price > 1e10 else raw_price
@@ -311,7 +311,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
 
                         if trade_count <= 3:
                             logger.debug(f"[DATABENTO][CONSUMER] Trade #{trade_count} {actual_symbol} @ {price:.2f} size={size}")
-                        
+
                         # Update live trade cache
                         self._record_live_trade(actual_symbol, price, size, trade_dt)
 
@@ -345,21 +345,21 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 continue
             except Exception as e:
                 logger.error(f"[DATABENTO][CONSUMER] Error processing record: {e}")
-        
+
         logger.info(f"[DATABENTO][CONSUMER] Stopped after {trade_count} trades")
-    
+
     def _finalizer_loop(self):
         """Finalizer thread that marks old bars as complete"""
         logger.debug("[DATABENTO][FINALIZER] Started")
-        
+
         while not self._stop_streaming:
             try:
                 time.sleep(5)  # Check every 5 seconds
-                
+
                 current_time = datetime.now(timezone.utc)
                 cutoff_time = current_time - timedelta(seconds=self._finalize_grace_seconds)
                 cutoff_minute = cutoff_time.replace(second=0, microsecond=0)
-                
+
                 with self._bars_lock:
                     for symbol in list(self._minute_bars.keys()):
                         # Finalize minutes that are complete
@@ -368,22 +368,22 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                                 self._finalized_minutes[symbol].add(minute_dt)
                                 bar = self._minute_bars[symbol][minute_dt]
                                 logger.debug(f"[DATABENTO][FINALIZER] Finalized {symbol} bar at {minute_dt}: OHLC={bar['open']:.2f}/{bar['high']:.2f}/{bar['low']:.2f}/{bar['close']:.2f} vol={bar['volume']}")
-                        
+
                         # Prune old bars to prevent unlimited memory growth
                         prune_before = current_time - timedelta(minutes=self._prune_older_minutes)
                         old_minutes = [dt for dt in self._minute_bars[symbol].keys() if dt < prune_before]
                         for old_dt in old_minutes:
                             del self._minute_bars[symbol][old_dt]
                             self._finalized_minutes[symbol].discard(old_dt)
-                        
+
                         if old_minutes:
                             logger.debug(f"[DATABENTO][FINALIZER] Pruned {len(old_minutes)} old bars for {symbol}")
-                
+
             except Exception as e:
                 logger.error(f"[DATABENTO][FINALIZER] Error: {e}")
-        
+
         logger.info("[DATABENTO][FINALIZER] Stopped")
-    
+
     def _aggregate_trade(self, symbol: str, price: float, size: float, trade_time: datetime):
         """Aggregate a trade into minute bars"""
         minute = trade_time.replace(second=0, microsecond=0)
@@ -391,15 +391,15 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         # Skip if already finalized
         if minute in self._finalized_minutes[symbol]:
             return
-        
+
         # Get current time to check if bar should be finalized
         current_time = datetime.now(timezone.utc)
         current_minute = current_time.replace(second=0, microsecond=0)
-        
+
         # Initialize symbol's bar dict if needed
         if symbol not in self._minute_bars:
             self._minute_bars[symbol] = {}
-        
+
         # Create or update the minute bar
         if minute not in self._minute_bars[symbol]:
             # New minute bar
@@ -419,7 +419,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             bar['low'] = min(bar['low'], price)
             bar['close'] = price
             bar['volume'] += size
-        
+
         # Finalize old bars (anything older than current minute)
         for bar_minute in list(self._minute_bars[symbol].keys()):
             if bar_minute < current_minute and bar_minute not in self._finalized_minutes[symbol]:
@@ -430,9 +430,9 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         """Get finalized live bars newer than after_dt"""
         if symbol not in self._minute_bars or not self._minute_bars[symbol]:
             return None
-        
+
         current_minute = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-        
+
         # Get finalized bars newer than after_dt
         tail_bars = []
         for minute, bar_data in sorted(self._minute_bars[symbol].items()):
@@ -447,10 +447,10 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                     'volume': bar_data['volume']
                 }
                 tail_bars.append(simple_bar)
-        
+
         if not tail_bars:
             return None
-        
+
         df = pl.DataFrame(tail_bars).sort('datetime')
         df = _ensure_polars_tz(df)
         logger.debug(f"[DATABENTO][LIVE] Collected {len(df)} tail bars after {after_dt}")
@@ -507,7 +507,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         if not self._stale_warning_issued.get(symbol):
             logger.warning(f"[DATABENTO][LIVE] Falling back to historical data for {symbol} ({context})")
             self._stale_warning_issued[symbol] = True
-    
+
     def _resolve_futures_symbol(self, asset: Asset, reference_date: datetime = None) -> str:
         """Resolve asset to specific futures contract symbol"""
         if asset.asset_type in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
@@ -520,12 +520,12 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                         # Convert to single digit year (e.g., 25 -> 5)
                         return resolved[:-2] + resolved[-1]
                     return resolved
-            
+
             # Manual resolution for common futures
             symbol = asset.symbol.upper()
             month = reference_date.month if reference_date else datetime.now().month
             year = reference_date.year if reference_date else datetime.now().year
-            
+
             # Quarterly contracts
             if month <= 3:
                 month_code = 'H'
@@ -535,16 +535,16 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 month_code = 'U'
             else:
                 month_code = 'Z'
-            
+
             year_digit = year % 10
-            
+
             if symbol in ["ES", "NQ", "RTY", "YM", "MES", "MNQ", "MYM", "M2K", "CL", "GC", "SI"]:
                 return f"{symbol}{month_code}{year_digit}"
-            
+
             return asset.symbol
-        
+
         return asset.symbol
-    
+
     def get_historical_prices(
         self,
         asset: Asset,
@@ -557,17 +557,17 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         return_polars: bool = False
     ) -> Optional[Bars]:
         """Get historical prices with live tail merge"""
-        
+
         # Validate asset type
         if asset.asset_type not in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
             logger.error(f"DataBento only supports futures. Got: {asset.asset_type}")
             return None
-        
+
         # Calculate time range
         current_time = datetime.now(timezone.utc)
         if timeshift:
             current_time = current_time - timeshift
-        
+
         # Determine time range
         if timestep == "minute":
             time_needed = timedelta(minutes=max(length * 3, 30))
@@ -575,13 +575,13 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             time_needed = timedelta(hours=max(length * 2, 12))
         else:
             time_needed = timedelta(days=max(length * 2, 10))
-        
+
         start_time = current_time - time_needed
-        
+
         # Resolve to specific contract
         symbol = self._resolve_futures_symbol(asset, current_time)
         logger.debug(f"Resolved {asset.symbol} to {symbol}")
-        
+
         # Subscribe to live stream if enabled (only for recent data gap)
         if self.enable_live_stream and symbol not in self._subscribed_symbols:
             # Live API can only replay recent data (last ~30 minutes)
@@ -589,10 +589,10 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             self._subscribe_to_symbol(symbol, live_start_time, min_bars=30)
             # Give it a moment to start receiving data
             time.sleep(0.5)
-        
+
         # Get historical data
         logger.debug(f"[DATABENTO][HIST] Fetching {symbol} from {start_time} to {current_time}")
-        
+
         df = databento_helper_polars.get_price_data_from_databento_polars(
             api_key=self._api_key,
             asset=asset,
@@ -602,7 +602,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             venue=exchange,
             force_cache_update=False
         )
-        
+
         if df is not None and not df.is_empty():
             # Try to append live tail if available
             if self.enable_live_stream and 'datetime' in df.columns:
@@ -613,7 +613,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                         from datetime import timezone as tz
                         hist_last = hist_last.replace(tzinfo=tz.utc)
                     tail_df = self._get_live_tail(symbol, hist_last)
-                    
+
                     # Debug: check live bar status
                     if symbol in self._minute_bars:
                         live_bar_count = len(self._minute_bars[symbol])
@@ -621,16 +621,16 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                         logger.debug(f"[DATABENTO][DEBUG] {symbol} has {live_bar_count} total bars, {finalized_count} finalized")
                     else:
                         logger.debug(f"[DATABENTO][DEBUG] No live bars for {symbol}")
-                    
+
                     if tail_df is not None and not tail_df.is_empty():
                         # Make sure both dataframes have the same columns and types
                         try:
                             # Ensure timezone compatibility
                             hist_tz_info = df['datetime'].dtype
                             tail_tz_info = tail_df['datetime'].dtype
-                            
+
                             logger.debug(f"[DATABENTO][MERGE] Historical datetime: {hist_tz_info}, Live datetime: {tail_tz_info}")
-                            
+
                             df = _ensure_polars_tz(df)
                             tail_df = _ensure_polars_tz(tail_df)
 
@@ -638,32 +638,32 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                             common_columns = [col for col in df.columns if col in tail_df.columns]
                             df_subset = df.select(common_columns)
                             tail_subset = tail_df.select(common_columns)
-                            
+
                             # Ensure numeric columns have compatible types
                             for col in common_columns:
                                 if col != 'datetime':  # Don't modify datetime
                                     df_dtype = df_subset[col].dtype
                                     tail_dtype = tail_subset[col].dtype
-                                    
+
                                     # Convert both to Float64 for compatibility
                                     if df_dtype != tail_dtype:
                                         logger.debug(f"[DATABENTO][MERGE] Converting {col}: {df_dtype} vs {tail_dtype} -> Float64")
                                         df_subset = df_subset.with_columns(pl.col(col).cast(pl.Float64))
                                         tail_subset = tail_subset.with_columns(pl.col(col).cast(pl.Float64))
-                            
+
                             # Merge the data and drop duplicate minutes (keep latest)
                             merged_df = pl.concat([df_subset, tail_subset]).sort('datetime')
                             merged_df = merged_df.unique(subset=['datetime'], keep='last').sort('datetime')
-                            
+
                             # If original df had more columns, merge them back
                             if len(df.columns) > len(common_columns):
                                 extra_cols = [col for col in df.columns if col not in common_columns]
                                 df_extra = df.select(['datetime'] + extra_cols)
                                 merged_df = merged_df.join(df_extra, on='datetime', how='left')
-                            
+
                             df = merged_df
                             logger.debug(f"[DATABENTO][MERGE] Successfully appended {len(tail_df)} live bars")
-                        
+
                         except Exception as merge_e:
                             logger.error(f"[DATABENTO][MERGE] All merge attempts failed: {merge_e}")
                             # Last resort - just log what we have
@@ -674,17 +674,17 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                     else:
                         lag = (current_time - hist_last).total_seconds()
                         logger.debug(f"[DATABENTO][MERGE] No live tail bars (lag={lag:.0f}s)")
-                        
+
                 except Exception as e:
                     logger.warning(f"[DATABENTO][MERGE] Failed to merge live tail: {e}")
-            
+
             # Trim to requested length
             df = df.tail(length)
             df = _ensure_polars_tz(df)
             return Bars(df=df, source=self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
-        
+
         return None
-    
+
     def get_last_price(self, asset: Asset, quote: Optional[Asset] = None, exchange: Optional[str] = None) -> Optional[float]:
         """Get the last price for an asset"""
         symbol = self._resolve_futures_symbol(asset)
@@ -766,27 +766,27 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 "age_ms": age_ms,
             }
         )
-    
+
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None) -> dict:
         """Get option chains - not supported for futures"""
         logger.warning("DataBento does not support option chains")
         return {"Chains": {}, "Multiplier": 1, "Exchange": exchange or ""}
-    
+
     def __del__(self):
         """Cleanup on deletion"""
         if hasattr(self, '_stop_streaming'):
             self._stop_streaming = True
-        
+
         # Stop all producer threads
         if hasattr(self, '_producer_threads'):
             for symbol, thread in self._producer_threads.items():
                 if thread and thread.is_alive():
                     thread.join(timeout=1)
-        
+
         # Stop consumer thread
         if hasattr(self, '_consumer_thread') and self._consumer_thread:
             self._consumer_thread.join(timeout=1)
-        
+
         # Stop finalizer thread
         if hasattr(self, '_finalizer_thread') and self._finalizer_thread:
             self._finalizer_thread.join(timeout=1)

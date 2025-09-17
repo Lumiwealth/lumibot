@@ -94,17 +94,17 @@ class DataBentoClientPolars:
         """
         if not DATABENTO_LIVE_AVAILABLE or self.live_client is None:
             return False
-            
+
         current_time = datetime.now(timezone.utc)
         # Use Live API if any part of the requested range is within last 24 hours
         live_cutoff = current_time - timedelta(hours=24)
-        
+
         # Convert to timezone-aware for comparison if needed
         if end.tzinfo is None:
             end = end.replace(tzinfo=timezone.utc)
         if start.tzinfo is None:
             start = start.replace(tzinfo=timezone.utc)
-        
+
         use_live = end > live_cutoff
         logger.debug(f"Live API decision: end={end}, cutoff={live_cutoff}, use_live={use_live}")
         return use_live
@@ -128,7 +128,7 @@ class DataBentoClientPolars:
             start = datetime.fromisoformat(start.replace('Z', '+00:00'))
         elif isinstance(start, date) and not isinstance(start, datetime):
             start = datetime.combine(start, datetime.min.time())
-            
+
         if isinstance(end, str):
             end = datetime.fromisoformat(end.replace('Z', '+00:00'))
         elif isinstance(end, date) and not isinstance(end, datetime):
@@ -136,7 +136,7 @@ class DataBentoClientPolars:
 
         # Decide which API to use
         use_live_api = self.should_use_live_api(start, end)
-        
+
         if use_live_api:
             logger.info(f"Using Live API for recent data: {start} to {end}")
             try:
@@ -163,12 +163,12 @@ class DataBentoClientPolars:
         live_client = self.live_client
         if live_client is None:
             raise Exception("Live API client not available")
-            
+
         try:
             # DataBento Live API is designed for streaming/real-time data
             # For historical lookbacks within the Live API's range, we need to use
             # the Live client's historical methods if available
-            
+
             # Check if Live client has timeseries access
             if hasattr(live_client, 'timeseries') and hasattr(live_client.timeseries, 'get_range'):
                 logger.info("Using Live API timeseries.get_range for recent historical data")
@@ -196,7 +196,7 @@ class DataBentoClientPolars:
                     pandas_df = pandas_df.reset_index()
                     if index_name in pandas_df.columns:
                         pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
-                        
+
                 df = pl.from_pandas(pandas_df)
             else:
                 df = pl.DataFrame(data)
@@ -225,7 +225,7 @@ class DataBentoClientPolars:
         Get data using Historical API but with reduced lag tolerance for recent data requests
         """
         logger.info("Using Historical API with reduced lag tolerance for Live-range data")
-        
+
         # Use Historical API but with more aggressive retry logic for recent data
         try:
             data = self.historical_client.timeseries.get_range(
@@ -236,7 +236,7 @@ class DataBentoClientPolars:
                 end=end,
                 **kwargs
             )
-            
+
             # Process data same as normal historical
             if hasattr(data, 'to_df'):
                 pandas_df = data.to_df()
@@ -250,7 +250,7 @@ class DataBentoClientPolars:
                 df = pl.DataFrame(data)
 
             return _ensure_polars_datetime_timezone(df)
-            
+
         except Exception as e:
             error_str = str(e)
             # For recent data requests, be more aggressive about retrying with earlier end times
@@ -261,14 +261,14 @@ class DataBentoClientPolars:
                 if match:
                     available_end_str = match.group(1)
                     available_end = datetime.fromisoformat(available_end_str.replace('+00:00', '+00:00'))
-                    
+
                     # For recent data, accept smaller lag (2 minutes instead of 10)
                     current_time = datetime.now(timezone.utc)
                     lag = current_time - available_end
-                    
+
                     if lag > timedelta(minutes=2):
                         logger.warning(f"Live-range data is {lag.total_seconds()/60:.1f} minutes behind (using reduced tolerance)")
-                    
+
                     logger.info(f"Retrying Live-range request with available end: {available_end}")
                     data = self.historical_client.timeseries.get_range(
                         dataset=dataset,
@@ -278,7 +278,7 @@ class DataBentoClientPolars:
                         end=available_end,
                         **kwargs
                     )
-                    
+
                     if hasattr(data, 'to_df'):
                         pandas_df = data.to_df()
                         if pandas_df.index.name:
@@ -290,7 +290,7 @@ class DataBentoClientPolars:
                     else:
                         df = pl.DataFrame(data)
                     return _ensure_polars_datetime_timezone(df)
-            
+
             raise
 
     def _get_historical_data(
@@ -345,7 +345,7 @@ class DataBentoClientPolars:
         # The metadata endpoint lags behind real-time data
         is_intraday = schema in ['ohlcv-1m', 'ohlcv-1h', 'bbo-1s', 'bbo-1m', 'ohlcv-1s']
         logger.info(f"DB_HELPER[check]: schema={schema}, is_intraday={is_intraday}, type(schema)={type(schema)}")
-        
+
         if not is_intraday:
             # Get available range to clamp end date (only for daily data)
             available_range = self.get_available_range(dataset)
@@ -418,10 +418,10 @@ class DataBentoClientPolars:
                 error_str = e.message
             elif hasattr(e, 'json_body') and e.json_body:
                 error_str = str(e.json_body)
-            
+
             logger.info(f"DB_HELPER[error]: Got exception type={type(e).__name__}, msg={error_str[:500]}")
             logger.info(f"DB_HELPER[request_details]: Requested end={end}, dataset={dataset}, schema={schema}")
-            
+
             # Handle data_end_after_available_end error by retrying with earlier end date
             if "data_end_after_available_end" in error_str:
                 import re
@@ -429,29 +429,29 @@ class DataBentoClientPolars:
                 match = re.search(r"data available up to '([^']+)'", error_str)
                 if match:
                     available_end_str = match.group(1)
-                    
+
                     # Parse the available end time
                     from datetime import datetime, timezone, timedelta
                     available_end = datetime.fromisoformat(available_end_str.replace('+00:00', '+00:00'))
-                    
+
                     # Check how far behind the data is
                     if hasattr(end, 'replace'):
                         # If end is a datetime, make it timezone-aware for comparison
                         end_dt = end if end.tzinfo else end.replace(tzinfo=timezone.utc)
                     else:
                         end_dt = datetime.fromisoformat(str(end)).replace(tzinfo=timezone.utc)
-                    
+
                     available_end_utc = available_end if available_end.tzinfo else available_end.replace(tzinfo=timezone.utc)
                     lag = end_dt - available_end_utc
-                    
+
                     # If data is more than 10 minutes behind, this is suspicious
                     if lag > timedelta(minutes=10):
                         logger.error(f"DataBento data is {lag.total_seconds()/60:.1f} minutes behind! Available: {available_end_str}, Requested: {end}")
                         # Don't retry with such old data - just fail
                         raise Exception(f"DataBento data is too stale ({lag.total_seconds()/60:.1f} minutes behind)")
-                    
+
                     logger.warning(f"DataBento data only available up to {available_end_str} ({lag.total_seconds()/60:.1f} min behind), retrying")
-                    
+
                     # Retry the request with the available end time
                     logger.info(f"DB_HELPER[retry]: Retrying with end={available_end}")
                     try:
@@ -463,7 +463,7 @@ class DataBentoClientPolars:
                             end=available_end,  # Use the available end time
                             **kwargs  # Pass through any additional kwargs
                         )
-                        
+
                         if hasattr(data, 'to_df'):
                             pandas_df = data.to_df()
                             if pandas_df.index.name:
@@ -476,13 +476,13 @@ class DataBentoClientPolars:
                                 df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
                         else:
                             df = pl.DataFrame(data)
-                        
+
                         logger.debug(f"Successfully retrieved {len(df)} rows after retry")
                         return df
                     except Exception as retry_e:
                         logger.error(f"DataBento retry also failed: {retry_e}")
                         raise retry_e
-            
+
             logger.error(f"DataBento API error: {e}")
             raise e
 

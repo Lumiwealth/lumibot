@@ -86,12 +86,12 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         """Test that error handling is consistent across components."""
         # Test with non-continuous futures asset
         stock_asset = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
-        
+
         # Asset class should raise ValueError
         with self.assertRaises(ValueError) as context:
             stock_asset.resolve_continuous_futures_contract()
         self.assertIn("can only be called on CONT_FUTURE assets", str(context.exception))
-        
+
         with self.assertRaises(ValueError) as context:
             stock_asset.get_potential_futures_contracts()
         self.assertIn("can only be called on CONT_FUTURE assets", str(context.exception))
@@ -134,23 +134,23 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         # This test ensures that there's no hardcoded continuous futures logic
         # outside of the Asset class by checking that all integrations delegate
         # to Asset class methods.
-        
+
         # Create continuous futures asset
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         # Test that all public continuous futures functionality goes through Asset class
         self.assertTrue(hasattr(asset, 'resolve_continuous_futures_contract'))
         self.assertTrue(hasattr(asset, 'get_potential_futures_contracts'))
         self.assertTrue(callable(asset.resolve_continuous_futures_contract))
         self.assertTrue(callable(asset.get_potential_futures_contracts))
-        
+
         # Test that DataBento helper doesn't have its own continuous futures logic
         # by verifying it uses Asset class methods
         with patch.object(Asset, 'resolve_continuous_futures_contract', 
                          return_value='MOCKED_CONTRACT') as mock_method:
-            
+
             result = _format_futures_symbol_for_databento(asset)
-            
+
             # Should use the centralized method
             mock_method.assert_called_once()
             # DataBento helper should apply its own formatting to the centralized result
@@ -186,23 +186,23 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         # This test ensures that there's no hardcoded continuous futures logic
         # outside of the Asset class by checking that all integrations delegate
         # to Asset class methods.
-        
+
         # Create continuous futures asset
         asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         # Test that all public continuous futures functionality goes through Asset class
         self.assertTrue(hasattr(asset, 'resolve_continuous_futures_contract'))
         self.assertTrue(hasattr(asset, 'get_potential_futures_contracts'))
         self.assertTrue(callable(asset.resolve_continuous_futures_contract))
         self.assertTrue(callable(asset.get_potential_futures_contracts))
-        
+
         # Test that DataBento helper doesn't have its own continuous futures logic
         # by verifying it uses Asset class methods
         with patch.object(Asset, 'resolve_continuous_futures_contract', 
                          return_value='CENTRALIZED_RESULT') as mock_method:
-            
+
             result = _format_futures_symbol_for_databento(asset)
-            
+
             # Should use the centralized method
             mock_method.assert_called_once()
             # DataBento helper should apply its own formatting to the centralized result

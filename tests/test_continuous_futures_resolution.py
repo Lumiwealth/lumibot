@@ -40,7 +40,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         with patch('lumibot.entities.asset.datetime', new=frozen_cls), \
              patch('datetime.datetime', new=frozen_cls):
             yield frozen_cls
-        
+
     def test_generate_current_futures_contract_july(self):
         """Test contract generation for July 2025."""
         with self._patch_asset_datetime(self.test_date):
@@ -49,43 +49,43 @@ class TestContinuousFuturesResolution(unittest.TestCase):
 
             asset_es = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
             self.assertEqual(asset_es.resolve_continuous_futures_contract(), 'ESU25')
-    
+
     def test_generate_potential_contracts_july(self):
         """Test potential contracts generation for July 2025."""
         with self._patch_asset_datetime(self.test_date):
             asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
             contracts = asset.get_potential_futures_contracts()
-        
+
         # Should prioritize September 2025, then December 2025, then March 2026
         self.assertIn('MESU25', contracts)  # September 2025
         self.assertIn('MESZ25', contracts)  # December 2025
         self.assertIn('MESH26', contracts)  # March 2026
-        
+
         # September should come before December
         sep_index = contracts.index('MESU25')
         dec_index = contracts.index('MESZ25')
         self.assertLess(sep_index, dec_index)
-    
+
     def test_format_continuous_futures_symbol(self):
         """Test formatting of continuous futures symbols."""
         # Create continuous futures asset
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         with self._patch_asset_datetime(self.test_date), \
              patch('lumibot.tools.databento_helper.datetime', new=self._frozen_datetime_cls(self.test_date)):
             resolved = _format_futures_symbol_for_databento(asset)
             self.assertEqual(resolved, 'MESU5')
-    
+
     def test_format_specific_futures_symbol(self):
         """Test formatting of specific futures contracts."""
         # Create specific futures asset with expiration
         expiration_date = date(2025, 12, 19)  # December 2025
         asset = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=expiration_date)
-        
+
         # Should format to MESZ25 (December 2025)
         resolved = _format_futures_symbol_for_databento(asset)
         self.assertEqual(resolved, 'MESZ25')
-    
+
     @patch('datetime.datetime')
     def test_contract_ordering_priority(self, mock_datetime):
         """Test that contracts are ordered by trading priority."""
@@ -94,15 +94,15 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         with self._patch_asset_datetime(self.test_date):
             asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
             contracts = asset.get_potential_futures_contracts()
-        
+
         # First few contracts should be the most liquid quarterly months
         # For July, September should be first (closest quarter)
         self.assertEqual(contracts[0], 'MESU25')  # Sep 2025 standard format
-        
+
         # Should include multiple formats
         formats = [c for c in contracts if 'MESU25' in c or 'MES.U25' in c]
         self.assertGreater(len(formats), 1)  # Should have multiple format variations
-    
+
     def test_month_code_mapping(self):
         """Test that month codes are correctly mapped."""
         test_cases = [
@@ -125,13 +125,13 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             stock_asset.resolve_continuous_futures_contract()
         self.assertIn("can only be called on CONT_FUTURE assets", str(context.exception))
-        
+
         # Test with option
         option_asset = Asset("AAPL", asset_type=Asset.AssetType.OPTION)
         with self.assertRaises(ValueError) as context:
             option_asset.resolve_continuous_futures_contract()
         self.assertIn("can only be called on CONT_FUTURE assets", str(context.exception))
-        
+
         # Test get_potential_futures_contracts with non-continuous asset
         with self.assertRaises(ValueError) as context:
             stock_asset.get_potential_futures_contracts()
@@ -154,14 +154,14 @@ class TestContinuousFuturesResolution(unittest.TestCase):
     def test_different_symbol_formats(self, mock_datetime):
         """Test continuous futures resolution with different symbol formats."""
         mock_datetime.now.return_value = self.test_date
-        
+
         # Test various symbol formats
         test_symbols = ["MES", "ES", "NQ", "RTY", "CL", "GC", "SI"]
-        
+
         for symbol in test_symbols:
             asset = Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
             contract = asset.resolve_continuous_futures_contract()
-            
+
             # Should start with the symbol
             self.assertTrue(contract.startswith(symbol))
             # Should have month code and year
@@ -171,18 +171,18 @@ class TestContinuousFuturesResolution(unittest.TestCase):
     def test_potential_contracts_uniqueness(self, mock_datetime):
         """Test that potential contracts list contains no duplicates."""
         mock_datetime.now.return_value = self.test_date
-        
+
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
         contracts = asset.get_potential_futures_contracts()
-        
+
         # Check for uniqueness
         self.assertEqual(len(contracts), len(set(contracts)))
-        
+
         # Should contain multiple format variations
         standard_formats = [c for c in contracts if '.' not in c and len(c.split(asset.symbol)[1]) == 3]
         dot_formats = [c for c in contracts if '.' in c]
         full_year_formats = [c for c in contracts if '.' not in c and len(c.split(asset.symbol)[1]) > 3]
-        
+
         self.assertGreater(len(standard_formats), 0)
         self.assertGreater(len(dot_formats), 0) 
         self.assertGreater(len(full_year_formats), 0)
@@ -191,24 +191,24 @@ class TestContinuousFuturesResolution(unittest.TestCase):
     def test_quarterly_contract_preference(self, mock_datetime):
         """Test that quarterly contracts (Mar, Jun, Sep, Dec) are preferred."""
         mock_datetime.now.return_value = self.test_date
-        
+
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
         contracts = asset.get_potential_futures_contracts()
-        
+
         # Extract month codes from contracts
         quarterly_months = {'H', 'M', 'U', 'Z'}  # Mar, Jun, Sep, Dec
-        
+
         # First several contracts should be quarterly
         first_few_contracts = contracts[:6]  # Check first 6 contracts
         quarterly_count = 0
-        
+
         for contract in first_few_contracts:
             # Extract month code (last 3 characters: month + 2-digit year)
             if len(contract) >= 3:
                 month_code = contract[-3]
                 if month_code in quarterly_months:
                     quarterly_count += 1
-        
+
         # At least half should be quarterly contracts
         self.assertGreaterEqual(quarterly_count, 3)
 
@@ -216,7 +216,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
     def test_month_progression_logic(self, mock_datetime):
         """Test that month selection follows proper logic with expiration-aware rollover."""
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         # Test each month and verify the logic accounts for 3rd Friday expiration
         # Rollover happens on 15th of expiry month to avoid expired contracts
         test_cases = [
@@ -234,7 +234,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
             (11, 'Z'),  # Nov -> Dec (Z) - before rollover
             (12, 'H'),  # Dec 15 -> Mar next year (H) - after rollover (Dec expires ~19th)
         ]
-        
+
         for month, expected_month_code in test_cases:
             mock_datetime.now.return_value = datetime(2025, month, 15)
             contract = asset.resolve_continuous_futures_contract()
@@ -246,16 +246,16 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         """Test that generated contracts follow proper format conventions."""
         with patch('datetime.datetime') as mock_datetime:
             mock_datetime.now.return_value = self.test_date
-            
+
             asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-            
+
             # Test single contract format
             contract = asset.resolve_continuous_futures_contract()
             self.assertRegex(contract, r'^[A-Z]+[A-Z]\d{2}$')  # Format: SYMBOLMONTHYY
-            
+
             # Test potential contracts formats
             contracts = asset.get_potential_futures_contracts()
-            
+
             for contract in contracts:
                 # Should match one of the expected formats
                 is_valid_format = (
@@ -279,7 +279,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         # This should use Asset.resolve_continuous_futures_contract()
         resolved_symbol = _format_futures_symbol_for_databento(continuous_asset)
         expected_symbol = continuous_asset.resolve_continuous_futures_contract(reference_date=self.test_date)
-        
+
         # Asset class returns full format, DataBento helper applies its formatting
         self.assertEqual(expected_symbol, "MESU25")  # Asset class format
         self.assertEqual(resolved_symbol, "MESU5")   # DataBento format
@@ -292,7 +292,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         we don't use expired contracts in live trading.
         """
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         # Test that contract resolution properly accounts for 3rd Friday expiration
         # Rollover happens on 15th of expiry month to avoid expired contracts
         quarterly_tests = [
@@ -317,7 +317,7 @@ class TestContinuousFuturesResolution(unittest.TestCase):
             (datetime(2024, 12, 14), 'Z24'),  # Before rollover
             (datetime(2024, 12, 15), 'H25'),  # After rollover (Dec expires ~19th)
         ]
-        
+
         for test_date, expected_suffix in quarterly_tests:
             mock_datetime.now.return_value = test_date
             contract = asset.resolve_continuous_futures_contract()

@@ -368,11 +368,11 @@ class TestTradierBroker:
         strategy = "strat_unittest"
         sleep_amt = 1.0  # Increased for CI stability
         broker._strategy_name = strategy
-        
+
         # Mock the stream object since connect_stream=False
         mock_stream = mocker.MagicMock()
         broker.stream = mock_stream
-        
+
         mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}
         mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)

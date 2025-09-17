@@ -372,7 +372,7 @@ class StrategyExecutor(Thread):
                                     f"skipping auto-cancel (might be filling)"
                                 )
                                 continue
-                        
+
                         # Check if it's a market order that might have filled instantly
                         if order_lumi.order_type and order_lumi.order_type.lower() == "market":
                             self.strategy.logger.info(
@@ -380,7 +380,7 @@ class StrategyExecutor(Thread):
                                 f"likely filled instantly - skipping cancel"
                             )
                             continue
-                        
+
                         self.strategy.logger.info(
                             f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
                             f"(bkr cnt={len(orders_broker)}), canceling."
@@ -757,7 +757,7 @@ class StrategyExecutor(Thread):
                 print(f"Warning: Error shutting down scheduler: {e}")
                 # Force set to None even if shutdown failed
                 self.scheduler = None
-        
+
         if self.broker.IS_BACKTESTING_BROKER:
             self.strategy._dump_stats()
 
@@ -1348,10 +1348,10 @@ class StrategyExecutor(Thread):
                 if self.check_queue_thread.is_alive():
                     self.check_queue_stop_event.set()
                     self.check_queue_thread.join(timeout=5.0)
-            
+
             # Reset the stop event for the new thread
             self.check_queue_stop_event.clear()
-            
+
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.
             self.check_queue_thread = Thread(target=self.check_queue)

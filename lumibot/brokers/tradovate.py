@@ -94,7 +94,10 @@ class Tradovate(Broker):
 
         except TradovateAPIError as e:
             logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
-            logger.warning(colored("Broker initialization failed due to rate limiting. The script will exit cleanly.", "yellow"))
+            logger.warning(colored(
+                "Broker initialization failed due to rate limiting. The script will exit cleanly.",
+                "yellow"
+            ))
             raise e
 
     # ------------------------------------------------------------------
@@ -220,14 +223,14 @@ class Tradovate(Broker):
         """
         url = f"{self.trading_api_url}/account/list"
         headers = self._get_headers()
-        
+
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+
         for attempt in range(max_retries):
             try:
                 response = self._request("GET", url, headers=headers)
-                
+
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
@@ -240,7 +243,7 @@ class Tradovate(Broker):
                         raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
                                                 status_code=429,
                                                 response_text=response.text)
-                
+
                 response.raise_for_status()
                 accounts = response.json()
                 if isinstance(accounts, list) and accounts:
@@ -263,14 +266,14 @@ class Tradovate(Broker):
         """
         url = f"{self.trading_api_url}/user/list"
         headers = self._get_headers()
-        
+
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+
         for attempt in range(max_retries):
             try:
                 response = self._request("GET", url, headers=headers)
-                
+
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
@@ -283,7 +286,7 @@ class Tradovate(Broker):
                         raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
                                                 status_code=429,
                                                 response_text=response.text)
-                
+
                 response.raise_for_status()
                 users = response.json()
                 if isinstance(users, list) and users:
@@ -486,7 +489,7 @@ class Tradovate(Broker):
                 status_code = getattr(e.response if hasattr(e, 'response') else None, 'status_code', None)
                 last_status_code = status_code
                 final_exception = e
-                
+
                 # Handle rate limiting with exponential backoff
                 if status_code == 429:
                     if attempt < max_retries - 1:
@@ -497,7 +500,7 @@ class Tradovate(Broker):
                     else:
                         logger.error(f"Balance retrieval still rate limited after {max_retries} attempts")
                         break
-                
+
                 # For non-rate-limiting errors or final attempt, raise the error
                 raise TradovateAPIError("Failed to retrieve account financials",
                                          status_code=status_code,

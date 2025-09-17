@@ -1114,11 +1114,11 @@ class Strategy(_Strategy):
             return None
 
         asset = self._sanitize_user_asset(asset)
-        
+
         # For non-continuous futures, use existing exact matching
         if asset.asset_type != Asset.AssetType.CONT_FUTURE:
             return self.broker.get_tracked_position(self.name, asset)
-        
+
         # For continuous futures, implement smart matching
         return self._get_continuous_future_position(asset)
 
@@ -1141,28 +1141,28 @@ class Strategy(_Strategy):
             get_contract_priority_key,
             build_ib_contract_variants
         )
-        
+
         # First try exact match (ProjectX may store as CONT_FUTURE)
         exact_position = self.broker.get_tracked_position(self.name, asset)
         if exact_position is not None:
             return exact_position
-        
+
         # Get all positions for this strategy
         all_positions = self.broker.get_tracked_positions(self.name)
         if not all_positions:
             return None
-        
+
         # Find positions that match this root symbol
         matching_positions = []
         root_symbol = asset.symbol
-        
+
         for position in all_positions:
             pos_asset = position.asset
-            
+
             # Skip non-futures positions
             if pos_asset.asset_type not in {Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE, Asset.AssetType.CONT_FUTURE}:
                 continue
-            
+
             # Check for root symbol match
             if symbol_matches_root(pos_asset.symbol, root_symbol):
                 matching_positions.append(position)
@@ -1171,21 +1171,21 @@ class Strategy(_Strategy):
                   pos_asset.asset_type == Asset.AssetType.FUTURE):
                 # IB-style: same root symbol with expiration
                 matching_positions.append(position)
-        
+
         if not matching_positions:
             return None
-        
+
         if len(matching_positions) == 1:
             return matching_positions[0]
-        
+
         # Multiple matches - rank by priority and log
         priority_list = asset.get_potential_futures_contracts()
-        
+
         # Score each position by priority
         scored_positions = []
         for position in matching_positions:
             pos_asset = position.asset
-            
+
             # For IB-style positions, generate contract variants
             if (pos_asset.symbol == root_symbol and 
                 pos_asset.expiration is not None and
@@ -1199,13 +1199,13 @@ class Strategy(_Strategy):
             else:
                 # Direct symbol priority lookup
                 best_priority = get_contract_priority_key(pos_asset.symbol, priority_list)
-            
+
             scored_positions.append((best_priority, position))
-        
+
         # Sort by priority (lower number = higher priority)
         scored_positions.sort(key=lambda x: x[0])
         best_position = scored_positions[0][1]
-        
+
         # Log ambiguity warning
         contract_symbols = [pos.asset.symbol for pos in matching_positions]
         self.log_message(
@@ -1213,7 +1213,7 @@ class Strategy(_Strategy):
             f"Selected {best_position.asset.symbol} (front-month priority).",
             color="yellow"
         )
-        
+
         return best_position
 
     def get_tracked_positions(self):

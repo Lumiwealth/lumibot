@@ -247,7 +247,9 @@ class ThetaDataBacktesting(PandasData):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote)
         return bars
 
-    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self, asset, timestep="minute", quote=None, exchange=None, **kwargs
+    ) -> Union[float, Decimal, None]:
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)

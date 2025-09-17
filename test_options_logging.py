@@ -22,14 +22,14 @@ except ImportError as e:
 
 def test_strike_calculation_logging():
     """Test that the enhanced logging works correctly"""
-    
+
     # Create a mock strategy
     mock_strategy = Mock()
     mock_strategy.log_message = Mock()
-    
+
     # Mock get_last_price to return valid prices
     mock_strategy.get_last_price = Mock(return_value=5.0)
-    
+
     # Mock get_greeks to return reasonable deltas
     def mock_get_greeks(option, underlying_price=None):
         strike = option.strike
@@ -45,24 +45,24 @@ def test_strike_calculation_logging():
                 return {"delta": 0.7}  # ITM call
             else:
                 return {"delta": 0.3}  # OTM call
-    
+
     mock_strategy.get_greeks = Mock(side_effect=mock_get_greeks)
-    
+
     # Create the options helper
     options_helper = OptionsHelper(mock_strategy)
-    
+
     # Create test parameters
     underlying_asset = Asset("TEST", asset_type="stock")
     underlying_price = 200.0
     target_delta = -0.3
     expiry = date.today() + timedelta(days=30)
     right = "put"
-    
+
     print(f"\n🧪 Testing strike calculation with enhanced logging...")
     print(f"   Underlying: {underlying_asset.symbol} @ ${underlying_price}")
     print(f"   Target delta: {target_delta}")
     print(f"   Option type: {right}")
-    
+
     # Call the function
     result = options_helper.find_strike_for_delta(
         underlying_asset=underlying_asset,
@@ -71,26 +71,26 @@ def test_strike_calculation_logging():
         expiry=expiry,
         right=right
     )
-    
+
     print(f"\n📊 Result: Strike = {result}")
-    
+
     # Check that logging was called
     assert mock_strategy.log_message.called, "log_message should have been called"
-    
+
     # Print all the log messages
     print(f"\n📝 Log messages generated:")
     for call in mock_strategy.log_message.call_args_list:
         args, kwargs = call
         color = kwargs.get('color', 'none')
         print(f"   [{color}] {args[0]}")
-    
+
     # Verify the result makes sense
     if result is not None:
         if 150 <= result <= 250:
             print(f"✅ Strike {result} is reasonable for ${underlying_price} stock")
         else:
             print(f"⚠️  Strike {result} seems unusual for ${underlying_price} stock")
-            
+
         # Check for our warning message
         warning_found = any("WARNING" in str(call[0][0]) for call in mock_strategy.log_message.call_args_list)
         if result < 50 and underlying_price > 100:

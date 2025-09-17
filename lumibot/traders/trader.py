@@ -173,7 +173,7 @@ class Trader:
         """Setting Logging to both console and a file if logfile is specified"""
         # Import here to avoid circular imports
         from lumibot.tools.lumibot_logger import set_log_level, set_console_log_level, add_file_handler
-        
+
         # Set external library log levels to reduce noise
         # NOTE: lumilogger.get_logger doesn't work with non-lumibot loggers, so we use logging.getLogger directly
         logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -217,7 +217,7 @@ class Trader:
     def _join_pool(self):
         for strategy_thread in self._pool:
             strategy_thread.join()
-            
+
         # For backtesting, check if any strategy failed and raise exception
         if self.is_backtest_broker:
             for strategy_thread in self._pool:

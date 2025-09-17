@@ -215,12 +215,6 @@ class Bars:
                     if col_name in self._df.columns:
                         self._df = self._df.set_index(col_name)
                         break
-
-                if isinstance(self._df.index, pd.DatetimeIndex):
-                    if self._df.index.tz is None:
-                        self._df.index = self._df.index.tz_localize("UTC")
-                    else:
-                        self._df.index = self._df.index.tz_convert("UTC")
         else:
             # Already pandas, keep it as is
             self._df = df
@@ -231,12 +225,6 @@ class Bars:
                 self._df["return"] = self._df["dividend_yield"] + self._df["price_change"]
             else:
                 self._df["return"] = df["close"].pct_change()
-
-            if isinstance(self._df.index, pd.DatetimeIndex):
-                if self._df.index.tz is None:
-                    self._df.index = self._df.index.tz_localize("UTC")
-                else:
-                    self._df.index = self._df.index.tz_convert("UTC")
 
     @property
     def df(self):

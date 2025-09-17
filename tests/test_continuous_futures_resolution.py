@@ -265,17 +265,17 @@ class TestContinuousFuturesResolution(unittest.TestCase):
                 )
                 self.assertTrue(is_valid_format, f"Invalid contract format: {contract}")
 
-    @patch('datetime.datetime')
-    def test_integration_with_databento_helper(self, mock_datetime):
+    @patch('lumibot.tools.databento_helper.datetime')
+    def test_integration_with_databento_helper(self, mock_helper_datetime):
         """Test integration between Asset class and DataBento helper."""
-        mock_datetime.now.return_value = self.test_date
-        
+        mock_helper_datetime.now.return_value = self.test_date
+
         # Test that DataBento helper uses Asset class methods
         continuous_asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         # This should use Asset.resolve_continuous_futures_contract()
         resolved_symbol = _format_futures_symbol_for_databento(continuous_asset)
-        expected_symbol = continuous_asset.resolve_continuous_futures_contract()
+        expected_symbol = continuous_asset.resolve_continuous_futures_contract(reference_date=self.test_date)
         
         # Asset class returns full format, DataBento helper applies its formatting
         self.assertEqual(expected_symbol, "MESU25")  # Asset class format

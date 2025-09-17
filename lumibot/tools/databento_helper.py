@@ -254,11 +254,13 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
         logger.info(f"Resolving continuous futures symbol: {symbol}")
         
-        # Use Asset class method for contract resolution
-        resolved_symbol = asset.resolve_continuous_futures_contract(reference_date)
-        
+        # Use Asset class method for contract resolution; when no reference_date is provided,
+        # fall back to the current datetime from this module (allows tests to patch datetime)
+        resolve_reference = reference_date or datetime.now()
+        resolved_symbol = asset.resolve_continuous_futures_contract(resolve_reference)
+
         logger.info(f"Resolved continuous future {symbol} -> {resolved_symbol}")
-        
+
         # Return format based on whether reference_date was provided
         if reference_date is not None:
             # When reference_date is provided, return full format (for DataBento helper tests)

@@ -18,8 +18,10 @@ making them suitable for CI/CD environments like GitHub Actions.
 
 import pytest
 import os
+from collections import deque
 from unittest.mock import patch, MagicMock, Mock
 import logging
+import threading
 import time
 import requests
 
@@ -497,7 +499,11 @@ class TestTradovateAPIPayload:
         broker.account_id = 12345
         broker.trading_token = "fake_token"
         broker.trading_api_url = "https://demo.tradovateapi.com/v1"
-        
+        broker._rate_limit_per_minute = 60
+        broker._rate_limit_window = 60.0
+        broker._request_times = deque()
+        broker._request_lock = threading.Lock()
+
         # Create test order
         asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
         mock_strategy = MagicMock()
@@ -513,20 +519,20 @@ class TestTradovateAPIPayload:
         # Mock the symbol resolution
         with patch.object(broker, '_resolve_tradovate_futures_symbol', return_value='MNQU5'):
             with patch.object(broker, '_get_headers') as mock_headers:
-                with patch('lumibot.brokers.tradovate.requests.post') as mock_post:
+                with patch.object(broker, '_request') as mock_request:
                     # Mock successful response
                     mock_response = MagicMock()
                     mock_response.status_code = 200
                     mock_response.json.return_value = {"orderId": 123456}
-                    mock_post.return_value = mock_response
-                    
+                    mock_request.return_value = mock_response
+
                     # Submit the order
                     result = broker._submit_order(order)
-                    
+
                     # Check that the request was made with correct payload
-                    assert mock_post.called
-                    call_args = mock_post.call_args
-                    payload = call_args[1]['json']  # Get the JSON payload
+                    assert mock_request.called
+                    call_args = mock_request.call_args
+                    payload = call_args.kwargs['json']  # Get the JSON payload
                     
                     # Verify correct field names per Tradovate API
                     assert 'price' in payload, "Limit orders should use 'price' field"
@@ -549,6 +555,10 @@ class TestTradovateAPIPayload:
         broker.account_id = 12345
         broker.trading_token = "fake_token"
         broker.trading_api_url = "https://demo.tradovateapi.com/v1"
+        broker._rate_limit_per_minute = 60
+        broker._rate_limit_window = 60.0
+        broker._request_times = deque()
+        broker._request_lock = threading.Lock()
         
         # Create test order
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -565,19 +575,19 @@ class TestTradovateAPIPayload:
         # Mock the symbol resolution and submission
         with patch.object(broker, '_resolve_tradovate_futures_symbol', return_value='MESU5'):
             with patch.object(broker, '_get_headers') as mock_headers:
-                with patch('lumibot.brokers.tradovate.requests.post') as mock_post:
+                with patch.object(broker, '_request') as mock_request:
                     # Mock successful response
                     mock_response = MagicMock()
                     mock_response.status_code = 200
                     mock_response.json.return_value = {"orderId": 123457}
-                    mock_post.return_value = mock_response
-                    
+                    mock_request.return_value = mock_response
+
                     # Submit the order
                     result = broker._submit_order(order)
-                    
+
                     # Check payload
-                    call_args = mock_post.call_args
-                    payload = call_args[1]['json']
+                    call_args = mock_request.call_args
+                    payload = call_args.kwargs['json']
                     
                     # Verify stop price field
                     assert 'stopPrice' in payload
@@ -792,7 +802,7 @@ class TestTradovateTokenRenewal:
                 'hasMarketData': True
             }
             
-            with patch('requests.post', side_effect=mock_post):
+            with patch.object(broker, '_request', side_effect=mock_post):
                 # Call get_balances
                 quote_asset = Asset("USD", asset_type=Asset.AssetType.FOREX)
                 cash, positions_value, portfolio_value = broker._get_balances_at_broker(quote_asset, None)

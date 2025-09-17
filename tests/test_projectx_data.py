@@ -128,19 +128,21 @@ class TestProjectXDataSource:
     def test_get_last_price(self, projectx_data_source):
         """Test last price retrieval"""
 
-        # Mock get_bars to return bars with price data
-        mock_df = pd.DataFrame({
-            'close': [5150.25]
-        })
-        mock_bars = MagicMock()
-        mock_bars.df = mock_df
-        projectx_data_source.get_bars = MagicMock(return_value=mock_bars)
+        # Mock contract lookup and direct REST response used by get_last_price
+        projectx_data_source._get_contract_id_from_asset = MagicMock(return_value="CON.F.US.MES.U25")
+        mock_df = pd.DataFrame(
+            {
+                'close': [5150.25],
+            },
+            index=pd.to_datetime(['2025-01-01 09:30:00'])
+        )
+        projectx_data_source.client.history_retrieve_bars = MagicMock(return_value=mock_df)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
         price = projectx_data_source.get_last_price(asset)
 
         assert price == 5150.25
-        projectx_data_source.get_bars.assert_called_once()
+        projectx_data_source.client.history_retrieve_bars.assert_called_once()
 
     def test_dividends_not_supported(self, projectx_data_source):
         """Test that dividends return 0 for futures broker"""

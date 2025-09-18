@@ -1032,7 +1032,7 @@ class AlpacaData(DataSource):
                 ask=getattr(t, "ask_price", None),
                 bid_size=getattr(t, "bid_size", None),
                 ask_size=getattr(t, "ask_size", None),
-                volume=getattr(t, "size", None),
+                volume=None, #not in data from alpaca
                 timestamp=getattr(t, "timestamp", None),
                 raw_data={
                     "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange

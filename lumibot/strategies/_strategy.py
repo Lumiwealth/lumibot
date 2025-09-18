@@ -1549,7 +1549,7 @@ class _Strategy:
             return
 
         # Log that we're starting to send data
-        self.logger.info(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
+        self.logger.debug(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
 
         # Get the current portfolio value
         try:
@@ -1605,7 +1605,7 @@ class _Strategy:
             "broker_name": self.broker.name,
         }
 
-        self.logger.info(f"Preparing to send portfolio update: value={portfolio_value}, cash={cash}, positions={len(positions)}, orders={len(orders)}")
+        self.logger.debug(f"Preparing to send portfolio update: value={portfolio_value}, cash={cash}, positions={len(positions)}, orders={len(orders)}")
 
         # Helper function to recursively replace NaN in dictionaries
         def replace_nan(value):
@@ -1625,12 +1625,12 @@ class _Strategy:
             # Send the data to the cloud
             json_data = json.dumps(data, default=str)
             data_size_kb = len(json_data.encode('utf-8')) / 1024
-            self.logger.info(f"Sending {data_size_kb:.2f} KB of data to {LUMIWEALTH_URL}")
+            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {LUMIWEALTH_URL}")
             self.logger.debug(f"Request headers: {headers}")
 
             response = requests.post(LUMIWEALTH_URL, headers=headers, data=json_data)
 
-            self.logger.info(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
+            self.logger.debug(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
 
         except requests.exceptions.ConnectionError as e:
             self.logger.error(f"Connection error when sending to cloud: {e}")
@@ -1651,7 +1651,7 @@ class _Strategy:
 
         # Check if the message was sent successfully
         if response.status_code == 200:
-            self.logger.info(f"✅ Portfolio update sent successfully to cloud for strategy '{self._name}'")
+            self.logger.debug(f"Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
         elif response.status_code == 401:
             self.logger.error(f"❌ Authentication failed - Invalid API key: {self.lumiwealth_api_key[:10]}...")

@@ -1370,13 +1370,13 @@ class StrategyExecutor(Thread):
 
                 # Log every 60 iterations (roughly every minute) to track loop activity
                 if loop_count % 60 == 1:
-                    self.strategy.log_message(f"🔄 Main loop iteration #{loop_count} - Market closed status check", color="cyan")
+                    self.strategy.logger.debug(f"Main loop iteration #{loop_count} - Market closed status check")
 
                 # Send data to cloud every minute FIRST - regardless of market status
                 should_send_cloud_update = (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1))
                 if should_send_cloud_update:
                     time_since_last = "never" if not hasattr(self, '_last_updated_cloud') else str(datetime.now() - self._last_updated_cloud)
-                    self.strategy.log_message(f"☁️ Sending cloud update (last update: {time_since_last} ago)", color="green")
+                    self.strategy.logger.debug(f"Sending cloud update (last update: {time_since_last} ago)")
                     self.strategy.send_update_to_cloud()
                     self._last_updated_cloud = datetime.now()
 
@@ -1390,12 +1390,12 @@ class StrategyExecutor(Thread):
 
                 # Log scheduler status every minute
                 if loop_count % 60 == 1:
-                    self.strategy.log_message(f"📅 Scheduler jobs: {len(jobs)} active", color="blue")
+                    self.strategy.logger.debug(f"Scheduler jobs: {len(jobs)} active")
 
                 # Check if we should continue trading loop
                 should_continue = self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop)
                 if not should_continue:
-                    self.strategy.log_message(f"🛑 Trading loop should stop: jobs={len(jobs)}, continuous={is_continuous_market}, should_stop={should_we_stop}", color="red")
+                    self.strategy.logger.debug(f"Trading loop should stop: jobs={len(jobs)}, continuous={is_continuous_market}, should_stop={should_we_stop}")
                     break
 
                 # Handle LifeCycle methods

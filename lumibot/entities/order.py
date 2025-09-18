@@ -1212,6 +1212,10 @@ class Order:
             else:
                 order_dict[key] = value
 
+        # Add essential properties that might be stored with underscores
+        order_dict['quantity'] = float(self.quantity) if isinstance(self.quantity, Decimal) else self.quantity
+        order_dict['status'] = self.status
+
         return order_dict
 
     @classmethod

@@ -180,15 +180,41 @@ class Position:
 
     # ========= Serialization methods ===========
     def to_dict(self):
-        return {
+        """
+        Convert position to dictionary for serialization.
+
+        NOTE: We explicitly exclude internal Python fields and large data fields
+        that can cause DynamoDB 400KB limit errors:
+        - _bars: Historical bar data (can be 1.8MB+)
+        - _raw: Raw broker response data (can be 22KB+)
+        - _asset: Duplicate asset data (5KB+)
+        - Any field starting with underscore (Python internals)
+
+        We ONLY return the essential fields needed for portfolio tracking.
+        """
+        # Only return the essential fields - no dynamic attributes
+        # This is a WHITELIST approach - only include what we explicitly want
+        result = {
             "strategy": self.strategy,
-            "asset": self.asset.to_dict(),
+            "asset": self.asset.to_dict() if self.asset else None,
             "quantity": float(self.quantity),
-            "orders": [order.to_dict() for order in self.orders],
+            "orders": [],  # We'll handle orders specially below
             "hold": self.hold,
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
+
+        # Handle orders carefully - ensure to_dict() is called properly
+        if self.orders:
+            result["orders"] = [order.to_dict() for order in self.orders]
+
+        # DEFENSIVE: Double-check we're not including any underscore fields
+        # This shouldn't be necessary with the whitelist approach, but being safe
+        keys_to_remove = [k for k in result.keys() if k.startswith('_')]
+        for key in keys_to_remove:
+            del result[key]
+
+        return result
 
     @classmethod
     def from_dict(cls, data):

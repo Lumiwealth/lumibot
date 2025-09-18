@@ -410,7 +410,8 @@ def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
                 datetime_cols = df.select_dtypes(include=['datetime64']).columns
                 if len(datetime_cols) > 0:
                     df.set_index(datetime_cols[0], inplace=True)
-            
+
+            df = _ensure_datetime_index_utc(df)
             return df
     except Exception as e:
         logger.warning(f"Error loading cache file {cache_file}: {e}")
@@ -419,8 +420,20 @@ def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
             cache_file.unlink()
         except:
             pass
-    
+
     return None
+
+
+def _ensure_datetime_index_utc(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure the DataFrame index is a UTC-aware DatetimeIndex."""
+    if isinstance(df.index, pd.DatetimeIndex):
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("UTC")
+        else:
+            df.index = df.index.tz_convert("UTC")
+        if df.index.name is None:
+            df.index.name = "datetime"
+    return df
 
 
 def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
@@ -430,7 +443,7 @@ def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         
         # Reset index if needed to ensure it's saved properly
-        df_to_save = df.copy()
+        df_to_save = _ensure_datetime_index_utc(df.copy())
         if isinstance(df_to_save.index, pd.DatetimeIndex):
             df_to_save.reset_index(inplace=True)
         
@@ -473,9 +486,11 @@ def _normalize_databento_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         # Convert to datetime if not already
         if not pd.api.types.is_datetime64_any_dtype(df_norm[timestamp_col]):
             df_norm[timestamp_col] = pd.to_datetime(df_norm[timestamp_col])
-        
+
         # Set as index
         df_norm.set_index(timestamp_col, inplace=True)
+
+    df_norm = _ensure_datetime_index_utc(df_norm)
     
     # Standardize column names to Lumibot format
     column_mapping = {
@@ -565,7 +580,7 @@ def get_price_data_from_databento(
         cached_data = _load_cache(cache_file)
         if cached_data is not None and not cached_data.empty:
             logger.debug(f"Loaded DataBento data from cache: {cache_file}")
-            return cached_data
+            return _ensure_datetime_index_utc(cached_data)
     
     # Initialize DataBento client
     try:

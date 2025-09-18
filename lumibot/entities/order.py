@@ -1170,15 +1170,26 @@ class Order:
         # Initialize an empty dictionary for serializable attributes
         order_dict = {}
 
-        # List of non-serializable keys (thread locks, events, etc.)
+        # List of non-serializable keys (thread locks, events, internal data, etc.)
+        # EXPANDED to exclude problematic fields that cause DynamoDB 400KB errors
         non_serializable_keys = [
-            "_new_event", "_canceled_event", "_partial_filled_event", "_filled_event", "_closed_event"
+            "_new_event", "_canceled_event", "_partial_filled_event", "_filled_event", "_closed_event",
+            "_bars",        # Historical bar data (can be 1.8MB+)
+            "_raw",         # Raw broker response (can be 22KB+)
+            "_transmitted", # Internal state
+            "_error",       # Internal error tracking
+            "_broker",      # Broker reference
+            "transactions", # Can be large transaction history
         ]
 
         # Iterate through all attributes in the object's __dict__
         for key, value in self.__dict__.items():
             # Skip known non-serializable attributes by name
             if key in non_serializable_keys:
+                continue
+
+            # Skip ALL fields starting with underscore (Python internals)
+            if key.startswith('_'):
                 continue
 
             # Convert datetime objects to ISO format for JSON serialization
@@ -1200,6 +1211,10 @@ class Order:
             # Add serializable attributes directly
             else:
                 order_dict[key] = value
+
+        # Add essential properties that might be stored with underscores
+        order_dict['quantity'] = float(self.quantity) if isinstance(self.quantity, Decimal) else self.quantity
+        order_dict['status'] = self.status
 
         return order_dict
 

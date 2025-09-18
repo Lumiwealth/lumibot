@@ -1,6 +1,9 @@
+import random
+import threading
 import time
+from collections import deque
 from datetime import datetime
-from typing import Union
+from typing import Optional, Union
 
 import requests
 from termcolor import colored
@@ -42,6 +45,22 @@ class Tradovate(Broker):
         self.cid = config.get("CID")
         self.sec = config.get("SECRET")
 
+        # Configure lightweight in-process rate limiter for REST calls
+        self._rate_limit_per_minute = max(int(config.get("RATE_LIMIT_PER_MINUTE", 60)), 1)
+        self._rate_limit_window = 60.0
+        self._request_times = deque()
+        self._request_lock = threading.Lock()
+
+        # Cache for contract lookups to avoid redundant requests
+        self._contract_cache: dict[int, dict] = {}
+
+        # Balance sync throttling state
+        self._last_balance_sync: Optional[float] = None
+        self._cached_balances: Optional[tuple[float, float, float]] = None
+        self._balance_cooldown_seconds = max(int(config.get("BALANCE_SYNC_COOLDOWN", 30)), 1)
+        self._balance_retry_cooldown = max(int(config.get("BALANCE_RETRY_COOLDOWN", 300)), 30)
+        self._balance_backoff_until: Optional[float] = None
+
         # Authenticate and get tokens before creating data_source
         try:
             tokens = self._get_tokens()
@@ -77,6 +96,44 @@ class Tradovate(Broker):
             logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
             logger.warning(colored("Broker initialization failed due to rate limiting. The script will exit cleanly.", "yellow"))
             raise e
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _throttle_rest(self):
+        """Ensure REST calls respect a soft per-minute cap."""
+        if self._rate_limit_per_minute <= 0:
+            return
+
+        with self._request_lock:
+            now = time.time()
+            window_start = now - self._rate_limit_window
+
+            # Drop timestamps outside of window
+            while self._request_times and self._request_times[0] < window_start:
+                self._request_times.popleft()
+
+            if len(self._request_times) >= self._rate_limit_per_minute:
+                wait_for = self._rate_limit_window - (now - self._request_times[0])
+                wait_for = max(wait_for, 0) + random.uniform(0.05, 0.25)
+                logger.debug(
+                    "Tradovate REST throttle triggered; sleeping %.2fs to stay under limit",
+                    wait_for,
+                )
+                time.sleep(wait_for)
+
+                # Recalculate after sleeping
+                now = time.time()
+                window_start = now - self._rate_limit_window
+                while self._request_times and self._request_times[0] < window_start:
+                    self._request_times.popleft()
+
+            self._request_times.append(now)
+
+    def _request(self, method: str, url: str, **kwargs):
+        """Wrapper around requests.request with throttling."""
+        self._throttle_rest()
+        return requests.request(method=method, url=url, **kwargs)
 
     def _get_headers(self, with_auth=True, with_content_type=False):
         """
@@ -117,7 +174,7 @@ class Tradovate(Broker):
         }
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            response = self._request("POST", url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
 
@@ -169,7 +226,7 @@ class Tradovate(Broker):
         
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, headers=headers)
+                response = self._request("GET", url, headers=headers)
                 
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
@@ -212,7 +269,7 @@ class Tradovate(Broker):
         
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, headers=headers)
+                response = self._request("GET", url, headers=headers)
                 
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
@@ -342,13 +399,19 @@ class Tradovate(Broker):
         Endpoint: GET /contract/item?id=<contract_id>
         Response Schema: { "id": int, "name": string, "contractMaturityId": int }
         """
+        if contract_id in self._contract_cache:
+            return self._contract_cache[contract_id]
+
         url = f"{self.trading_api_url}/contract/item"
         params = {"id": contract_id}
         headers = self._get_headers()
         try:
-            response = requests.get(url, params=params, headers=headers)
+            response = self._request("GET", url, params=params, headers=headers)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            if data:
+                self._contract_cache[contract_id] = data
+            return data
         except requests.exceptions.RequestException as e:
             raise TradovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
                                      status_code=getattr(e.response, 'status_code', None),
@@ -362,17 +425,48 @@ class Tradovate(Broker):
           - Positions value (netLiq - totalCashValue)
           - Portfolio value (netLiq)
         """
+        now = time.time()
+
+        # Respect cooldown between successful refreshes
+        if (
+            self._last_balance_sync is not None
+            and now - self._last_balance_sync < self._balance_cooldown_seconds
+            and self._cached_balances is not None
+        ):
+            logger.debug(
+                "Skipping Tradovate balance sync; last refresh %.1fs ago < cooldown",
+                now - self._last_balance_sync,
+            )
+            return self._cached_balances
+
+        # Honor temporary backoff window triggered by repeated 429s
+        if self._balance_backoff_until and now < self._balance_backoff_until:
+            remaining = self._balance_backoff_until - now
+            if self._cached_balances is not None:
+                logger.warning(
+                    "Tradovate balance sync in cooldown for another %.0fs; using cached snapshot",
+                    remaining,
+                )
+                return self._cached_balances
+            logger.warning(
+                "Tradovate balance sync in cooldown for another %.0fs but no cached value found",
+                remaining,
+            )
+            # fall through to attempt a fetch so we don't return None
+
         def _make_request():
             url = f"{self.trading_api_url}/cashBalance/getcashbalancesnapshot"
             headers = self._get_headers(with_content_type=True)
             payload = {"accountId": self.account_id}
-            response = requests.post(url, json=payload, headers=headers)
+            response = self._request("POST", url, json=payload, headers=headers)
             response.raise_for_status()
             return response
 
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+        last_status_code: Optional[int] = None
+        final_exception: Optional[Exception] = None
+
         for attempt in range(max_retries):
             try:
                 response = self._handle_api_request(_make_request)
@@ -383,9 +477,15 @@ class Tradovate(Broker):
                     raise TradovateAPIError("Missing totalCashValue or netLiq in account financials response.")
                 positions_value = net_liq - cash_balance
                 portfolio_value = net_liq
+                self._cached_balances = (cash_balance, positions_value, portfolio_value)
+                self._last_balance_sync = time.time()
+                # Successful call clears backoff gate
+                self._balance_backoff_until = None
                 return cash_balance, positions_value, portfolio_value
             except (requests.exceptions.RequestException, TradovateAPIError) as e:
                 status_code = getattr(e.response if hasattr(e, 'response') else None, 'status_code', None)
+                last_status_code = status_code
+                final_exception = e
                 
                 # Handle rate limiting with exponential backoff
                 if status_code == 429:
@@ -396,6 +496,7 @@ class Tradovate(Broker):
                         continue
                     else:
                         logger.error(f"Balance retrieval still rate limited after {max_retries} attempts")
+                        break
                 
                 # For non-rate-limiting errors or final attempt, raise the error
                 raise TradovateAPIError("Failed to retrieve account financials",
@@ -403,6 +504,23 @@ class Tradovate(Broker):
                                          response_text=getattr(e.response if hasattr(e, 'response') else None, 'text', None),
                                          original_exception=e)
 
+        # Only reached when retries exhausted (likely due to rate limiting)
+        if last_status_code == 429:
+            self._balance_backoff_until = time.time() + self._balance_retry_cooldown
+            if self._cached_balances is not None:
+                logger.warning(
+                    "Returning cached Tradovate balances after repeated 429 responses; next live fetch after cooldown"
+                )
+                return self._cached_balances
+
+        # No cached value to fall back on: re-raise original exception for visibility
+        if final_exception:
+            raise TradovateAPIError("Failed to retrieve account financials",
+                                     status_code=last_status_code,
+                                     response_text=getattr(final_exception.response if hasattr(final_exception, 'response') else None, 'text', None),
+                                     original_exception=final_exception)
+
+        raise TradovateAPIError("Failed to retrieve account financials")
     def _get_stream_object(self):
         logger.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
         return None  # Return None as a placeholder
@@ -501,7 +619,7 @@ class Tradovate(Broker):
         url = f"{self.trading_api_url}/order/list"
         headers = self._get_headers()
         try:
-            response = requests.get(url, headers=headers)
+            response = self._request("GET", url, headers=headers)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -518,7 +636,7 @@ class Tradovate(Broker):
         params = {"id": identifier}
         headers = self._get_headers()
         try:
-            response = requests.get(url, params=params, headers=headers)
+            response = self._request("GET", url, params=params, headers=headers)
             response.raise_for_status()
             order_data = response.json()
             order_obj = self._parse_broker_order(order_data, strategy_name="")  # set strategy as needed
@@ -546,7 +664,7 @@ class Tradovate(Broker):
         url = f"{self.trading_api_url}/position/list"
         headers = self._get_headers()
         try:
-            response = requests.get(url, headers=headers)
+            response = self._request("GET", url, headers=headers)
             response.raise_for_status()
             positions_data = response.json()
             positions = []
@@ -667,7 +785,7 @@ class Tradovate(Broker):
 
 
         try:
-            response = requests.post(url, json=payload, headers=headers)
+            response = self._request("POST", url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
 

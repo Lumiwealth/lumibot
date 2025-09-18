@@ -56,10 +56,12 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         """Test formatting of continuous futures symbols."""
         # Create continuous futures asset
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
-        with patch('lumibot.tools.databento_helper.datetime') as mock_datetime:
+
+        # Patch datetime.datetime.now globally since it's imported locally in the function
+        with patch('datetime.datetime') as mock_datetime:
             mock_datetime.now.return_value = self.test_date
-            
+            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
             # Should resolve to a specific contract with DataBento formatting
             resolved = _format_futures_symbol_for_databento(asset)
             # DataBento helper applies its own formatting: MESU25 -> MESU5

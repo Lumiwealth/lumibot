@@ -188,7 +188,32 @@ class StrategyExecutor(Thread):
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
             self.strategy
-            broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
+            try:
+                broker_balances = self.broker._get_balances_at_broker(self.strategy.quote_asset, self.strategy)
+            except Exception as balance_exc:
+                # Gracefully handle rate-limit style failures by falling back to cached values when available
+                status_code = getattr(balance_exc, "status_code", None)
+                message = str(balance_exc)
+                cached_balances = getattr(self.broker, "_cached_balances", None)
+
+                if status_code == 429 or "rate limit" in message.lower():
+                    if cached_balances is not None:
+                        self.strategy.logger.warning(
+                            "Broker balance refresh hit rate limit; using cached values and continuing"
+                        )
+                        broker_balances = cached_balances
+                    else:
+                        self.strategy.logger.warning(
+                            "Broker balance refresh hit rate limit and no cached value is available; retrying"
+                        )
+                        broker_balances = None
+                else:
+                    # Unexpected failure follows legacy retry path
+                    self.strategy.logger.warning(
+                        f"Broker balance refresh failed with {balance_exc}; retrying"
+                    )
+                    broker_balances = None
+
             if broker_balances is None:
                 if cash_broker_retries < cash_broker_max_retries:
                     self.strategy.logger.info("Unable to get cash from broker, trying again.")
@@ -1339,22 +1364,39 @@ class StrategyExecutor(Thread):
                 self.strategy.log_message(f"Strategy will check in again at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.
+            loop_count = 0
             while True:
+                loop_count += 1
+
+                # Log every 60 iterations (roughly every minute) to track loop activity
+                if loop_count % 60 == 1:
+                    self.strategy.log_message(f"🔄 Main loop iteration #{loop_count} - Market closed status check", color="cyan")
+
+                # Send data to cloud every minute FIRST - regardless of market status
+                should_send_cloud_update = (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1))
+                if should_send_cloud_update:
+                    time_since_last = "never" if not hasattr(self, '_last_updated_cloud') else str(datetime.now() - self._last_updated_cloud)
+                    self.strategy.log_message(f"☁️ Sending cloud update (last update: {time_since_last} ago)", color="green")
+                    self.strategy.send_update_to_cloud()
+                    self._last_updated_cloud = datetime.now()
+
                 # Get the current jobs from the scheduler (may be None if gracefully exited previously)
                 if self.scheduler is None:
+                    self.strategy.log_message("⚠️ Scheduler is None, attempting to recreate", color="yellow")
                     # Attempt to re-create and start the scheduler
                     self._setup_live_trading_scheduler()
 
                 jobs = self.scheduler.get_jobs() if self.scheduler is not None else []
 
-                # Check if we should continue trading loop
-                if not self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop):
-                    break
+                # Log scheduler status every minute
+                if loop_count % 60 == 1:
+                    self.strategy.log_message(f"📅 Scheduler jobs: {len(jobs)} active", color="blue")
 
-                # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
-                if (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1)):
-                    self.strategy.send_update_to_cloud()
-                    self._last_updated_cloud = datetime.now()
+                # Check if we should continue trading loop
+                should_continue = self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop)
+                if not should_continue:
+                    self.strategy.log_message(f"🛑 Trading loop should stop: jobs={len(jobs)}, continuous={is_continuous_market}, should_stop={should_we_stop}", color="red")
+                    break
 
                 # Handle LifeCycle methods
                 self._handle_lifecycle_methods()

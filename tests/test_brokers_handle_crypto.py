@@ -65,10 +65,6 @@ class TestBrokerHandlesCrypto:
         POLYGON_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires a Polygon.io API key"
     )
-    @pytest.mark.skipif(
-        not POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
-        reason="This test requires a paid Polygon.io API key"
-    )
     def test_polygon_backtesting_with_base_and_quote(self):
         # Expensive polygon subscriptions required if we go back to 2019. Just use recent dates.
         start = datetime.now() - timedelta(days=4)

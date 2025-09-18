@@ -1534,32 +1534,58 @@ class _Strategy:
     def send_update_to_cloud(self):
         """
         Sends an update to the LumiWealth cloud server with the current portfolio value, cash, positions, and any outstanding orders.
-        There is an API Key that is required to send the update to the cloud. 
+        There is an API Key that is required to send the update to the cloud.
         The API Key is stored in the environment variable LUMIWEALTH_API_KEY.
         """
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
+            self.logger.debug("Skipping cloud update - in backtesting mode")
             return
 
         # Check if self.lumiwealth_api_key has been set, if not, return
         if not hasattr(self, "lumiwealth_api_key") or self.lumiwealth_api_key is None or self.lumiwealth_api_key == "":
-
-            # TODO: Set this to a warning once the API is ready
             # Log that we are not sending the update to the cloud
-            self.logger.debug("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on our website, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
+            self.logger.warning("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on our website, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
             return
 
+        # Log that we're starting to send data
+        self.logger.info(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
+
         # Get the current portfolio value
-        portfolio_value = self.get_portfolio_value()
+        try:
+            portfolio_value = self.get_portfolio_value()
+            self.logger.debug(f"Portfolio value: {portfolio_value}")
+        except Exception as e:
+            self.logger.error(f"Failed to get portfolio value: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
 
         # Get the current cash
-        cash = self.get_cash()
+        try:
+            cash = self.get_cash()
+            self.logger.debug(f"Cash: {cash}")
+        except Exception as e:
+            self.logger.error(f"Failed to get cash: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
 
         # Get the current positions
-        positions = self.get_positions()
+        try:
+            positions = self.get_positions()
+            self.logger.debug(f"Number of positions: {len(positions)}")
+        except Exception as e:
+            self.logger.error(f"Failed to get positions: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
 
         # Get the current orders
-        orders = self.get_orders()
+        try:
+            orders = self.get_orders()
+            self.logger.debug(f"Number of orders: {len(orders)}")
+        except Exception as e:
+            self.logger.error(f"Failed to get orders: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
 
         LUMIWEALTH_URL = "https://listener.lumiwealth.com/portfolio_events"
 
@@ -1579,6 +1605,8 @@ class _Strategy:
             "broker_name": self.broker.name,
         }
 
+        self.logger.info(f"Preparing to send portfolio update: value={portfolio_value}, cash={cash}, positions={len(positions)}, orders={len(orders)}")
+
         # Helper function to recursively replace NaN in dictionaries
         def replace_nan(value):
             if isinstance(value, float) and math.isnan(value):
@@ -1596,20 +1624,50 @@ class _Strategy:
         try:
             # Send the data to the cloud
             json_data = json.dumps(data, default=str)
+            data_size_kb = len(json_data.encode('utf-8')) / 1024
+            self.logger.info(f"Sending {data_size_kb:.2f} KB of data to {LUMIWEALTH_URL}")
+            self.logger.debug(f"Request headers: {headers}")
+
             response = requests.post(LUMIWEALTH_URL, headers=headers, data=json_data)
+
+            self.logger.info(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
+
+        except requests.exceptions.ConnectionError as e:
+            self.logger.error(f"Connection error when sending to cloud: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
+        except requests.exceptions.Timeout as e:
+            self.logger.error(f"Timeout error when sending to cloud: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request error when sending to cloud: {e}")
+            self.logger.error(traceback.format_exc())
+            return False
         except Exception as e:
-            self.logger.error(f"Failed to send update to the cloud because of lumibot error. Error: {e}")
-            # Add the traceback to the log
+            self.logger.error(f"Unexpected error when sending to cloud: {e}")
             self.logger.error(traceback.format_exc())
             return False
 
         # Check if the message was sent successfully
         if response.status_code == 200:
-            self.logger.debug("Update sent to the cloud successfully")
+            self.logger.info(f"✅ Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
+        elif response.status_code == 401:
+            self.logger.error(f"❌ Authentication failed - Invalid API key: {self.lumiwealth_api_key[:10]}...")
+            self.logger.error(f"Response: {response.text}")
+            return False
+        elif response.status_code == 400:
+            self.logger.error(f"❌ Bad request - Invalid data format")
+            self.logger.error(f"Response: {response.text}")
+            return False
+        elif response.status_code == 413:
+            self.logger.error(f"❌ Payload too large ({data_size_kb:.2f} KB)")
+            self.logger.error(f"Response: {response.text}")
+            return False
         else:
             self.logger.error(
-                f"Failed to send update to the cloud because of cloud error. Status code: {response.status_code}, message: {response.text}"
+                f"❌ Failed to send update to cloud. Status: {response.status_code}, Response: {response.text}"
             )
             return False
 

@@ -180,7 +180,20 @@ class Position:
 
     # ========= Serialization methods ===========
     def to_dict(self):
-        return {
+        """
+        Convert position to dictionary for serialization.
+
+        NOTE: We explicitly exclude internal Python fields and large data fields
+        that can cause DynamoDB 400KB limit errors:
+        - _bars: Historical bar data (can be 1.8MB+)
+        - _raw: Raw broker response data (can be 22KB+)
+        - _asset: Duplicate asset data (5KB+)
+        - Any field starting with underscore (Python internals)
+
+        We ONLY return the essential fields needed for portfolio tracking.
+        """
+        # Only return the essential fields - no dynamic attributes
+        result = {
             "strategy": self.strategy,
             "asset": self.asset.to_dict(),
             "quantity": float(self.quantity),
@@ -189,6 +202,14 @@ class Position:
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
+
+        # Note: We're intentionally NOT including:
+        # - self._raw (internal broker data)
+        # - self._bars (historical price data)
+        # - self._asset (duplicate asset data)
+        # - Any other dynamic attributes that might have been added to the instance
+
+        return result
 
     @classmethod
     def from_dict(cls, data):

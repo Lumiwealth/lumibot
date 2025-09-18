@@ -120,11 +120,7 @@ class TestBacktestingDataSources:
         self.check_dividends_and_adjusted_returns(bars)
 
     @pytest.mark.skipif(
-        not POLYGON_CONFIG["API_KEY"],
-        reason="This test requires a Polygon.io API key"
-    )
-    @pytest.mark.skipif(
-        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        not POLYGON_CONFIG['API_KEY'] or POLYGON_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires a Polygon.io API key"
     )
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker(self):
@@ -156,11 +152,7 @@ class TestBacktestingDataSources:
         assert bars.df is not None and not bars.df.empty
 
     @pytest.mark.skipif(
-        not POLYGON_CONFIG["API_KEY"],
-        reason="This test requires a Polygon.io API key"
-    )
-    @pytest.mark.skipif(
-        POLYGON_CONFIG['API_KEY'] == '<your key here>',
+        not POLYGON_CONFIG['API_KEY'] or POLYGON_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires a Polygon.io API key"
     )
     def test_polygon_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend(self):

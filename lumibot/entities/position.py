@@ -193,21 +193,26 @@ class Position:
         We ONLY return the essential fields needed for portfolio tracking.
         """
         # Only return the essential fields - no dynamic attributes
+        # This is a WHITELIST approach - only include what we explicitly want
         result = {
             "strategy": self.strategy,
-            "asset": self.asset.to_dict(),
+            "asset": self.asset.to_dict() if self.asset else None,
             "quantity": float(self.quantity),
-            "orders": [order.to_dict() for order in self.orders],
+            "orders": [],  # We'll handle orders specially below
             "hold": self.hold,
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
 
-        # Note: We're intentionally NOT including:
-        # - self._raw (internal broker data)
-        # - self._bars (historical price data)
-        # - self._asset (duplicate asset data)
-        # - Any other dynamic attributes that might have been added to the instance
+        # Handle orders carefully - ensure to_dict() is called properly
+        if self.orders:
+            result["orders"] = [order.to_dict() for order in self.orders]
+
+        # DEFENSIVE: Double-check we're not including any underscore fields
+        # This shouldn't be necessary with the whitelist approach, but being safe
+        keys_to_remove = [k for k in result.keys() if k.startswith('_')]
+        for key in keys_to_remove:
+            del result[key]
 
         return result
 

@@ -497,7 +497,7 @@ class TestPolygonDataSource:
         # Open: $129.11, Close: $128.85 at 10am Eastern -- Looked up on TradingView (DavidM)
         assert 128.80 < last_price < 129.20, f"Expected AMZN price between 128 and 130 on 2023-08-02, got {last_price}"
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.skipif(not POLYGON_API_KEY or POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_historical_prices_unchanged_for_amzn(self):
         """
         Additional test to ensure get_historical_prices() is unaffected by code changes.

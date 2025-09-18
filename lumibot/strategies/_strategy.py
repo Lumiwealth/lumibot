@@ -1601,11 +1601,13 @@ class _Strategy:
         }
 
         # Create the data to send to the cloud
+        positions_data = [position.to_dict() for position in positions]
+
         data = {
             "data_type": "portfolio_event",
             "portfolio_value": portfolio_value,
             "cash": cash,
-            "positions": [position.to_dict() for position in positions],
+            "positions": positions_data,
             "orders": [order.to_dict() for order in orders],
             "strategy_name": self._name,
             "broker_name": self.broker.name,

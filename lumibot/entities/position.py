@@ -192,17 +192,6 @@ class Position:
 
         We ONLY return the essential fields needed for portfolio tracking.
         """
-        # DEBUG: Log all attributes to understand what's available
-        import logging
-        logger = logging.getLogger(__name__)
-        all_attrs = {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
-        logger.warning(f"[DEBUG] Position attributes for {self.symbol}: {list(all_attrs.keys())}")
-
-        # Check for dynamically added price/value fields
-        has_current_price = hasattr(self, 'current_price')
-        has_market_value = hasattr(self, 'market_value')
-        has_pnl = hasattr(self, 'pnl')
-        logger.warning(f"[DEBUG] Dynamic fields - current_price: {has_current_price}, market_value: {has_market_value}, pnl: {has_pnl}")
 
         # Only return the essential fields - no dynamic attributes
         # This is a WHITELIST approach - only include what we explicitly want

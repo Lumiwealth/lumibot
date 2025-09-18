@@ -1365,6 +1365,11 @@ class StrategyExecutor(Thread):
 
             # Loop until the strategy should stop.
             while True:
+                # Send data to cloud every minute FIRST - regardless of market status
+                if (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1)):
+                    self.strategy.send_update_to_cloud()
+                    self._last_updated_cloud = datetime.now()
+
                 # Get the current jobs from the scheduler (may be None if gracefully exited previously)
                 if self.scheduler is None:
                     # Attempt to re-create and start the scheduler
@@ -1375,11 +1380,6 @@ class StrategyExecutor(Thread):
                 # Check if we should continue trading loop
                 if not self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop):
                     break
-
-                # Send data to cloud every minute. Ensure not being in a trading iteration currently as it can cause an incomplete data sync
-                if (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1)):
-                    self.strategy.send_update_to_cloud()
-                    self._last_updated_cloud = datetime.now()
 
                 # Handle LifeCycle methods
                 self._handle_lifecycle_methods()

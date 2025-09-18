@@ -3181,6 +3181,74 @@ class Strategy(_Strategy):
             json = jsonpickle.encode(settings)
             outfile.write(json)
 
+    def _parse_timestep(self, timestep: str) -> tuple:
+        """Parse various timestep formats into (multiplier, base_unit).
+
+        Examples:
+            "5min", "5m", "5 minutes" -> (5, "minute")
+            "1h", "1hour" -> (60, "minute")
+            "2d", "2 days" -> (2, "day")
+            "minute" -> (1, "minute")
+            "day" -> (1, "day")
+
+        Returns None if unparseable.
+        """
+        if not timestep:
+            return None
+
+        # Normalize: lowercase, strip whitespace
+        timestep = str(timestep).lower().strip()
+
+        # Handle standard formats first
+        if timestep in ["minute", "minutes", "min", "m"]:
+            return (1, "minute")
+        if timestep in ["day", "days", "d"]:
+            return (1, "day")
+
+        # Try to extract number and unit
+        import re
+
+        # Match patterns like "5min", "5 min", "5 minutes", "5m"
+        pattern = r'^(\d+)\s*([a-z]+)$'
+        match = re.match(pattern, timestep)
+
+        if not match:
+            # Try without number (e.g., "hour" -> 1 hour)
+            pattern = r'^([a-z]+)$'
+            match = re.match(pattern, timestep)
+            if match:
+                unit = match.group(1)
+                multiplier = 1
+            else:
+                return None
+        else:
+            multiplier = int(match.group(1))
+            unit = match.group(2)
+
+        # Map unit aliases to base units
+        minute_aliases = ["m", "min", "mins", "minute", "minutes"]
+        hour_aliases = ["h", "hr", "hrs", "hour", "hours"]
+        day_aliases = ["d", "day", "days"]
+        week_aliases = ["w", "wk", "week", "weeks"]
+        month_aliases = ["mo", "month", "months"]
+
+        if unit in minute_aliases:
+            return (multiplier, "minute")
+        elif unit in hour_aliases:
+            # Convert hours to minutes
+            return (multiplier * 60, "minute")
+        elif unit in day_aliases:
+            return (multiplier, "day")
+        elif unit in week_aliases:
+            # Convert weeks to days
+            return (multiplier * 7, "day")
+        elif unit in month_aliases:
+            # Approximate months as 30 days
+            return (multiplier * 30, "day")
+
+        # If we can't parse it, return None
+        return None
+
     def get_historical_prices(
         self,
         asset: Union[Asset, str],
@@ -3291,17 +3359,43 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
+        # Parse timestep to check if we need to aggregate
+        original_timestep = timestep
+        parsed = self._parse_timestep(timestep) if timestep else None
+
+        # Determine the actual timestep to use for data fetching
+        if parsed and parsed[0] > 1:
+            # Multi-timeframe request detected
+            multiplier, base_unit = parsed
+            actual_timestep = base_unit
+            actual_length = length * multiplier
+            needs_resampling = True
+        elif parsed:
+            # Standard format (1 minute or 1 day)
+            multiplier, base_unit = parsed
+            actual_timestep = base_unit
+            actual_length = length
+            needs_resampling = False
+        else:
+            # Use original timestep if parsing failed or empty
+            actual_timestep = timestep if timestep else None
+            actual_length = length
+            needs_resampling = False
+
         # Only log once per asset to reduce noise
-        asset_key = f"{asset}_{length}_{timestep}"
+        asset_key = f"{asset}_{length}_{original_timestep}"
         if asset_key not in self._logged_get_historical_prices_assets:
-            self.logger.info(f"Getting historical prices for {asset}, {length} bars, {timestep}")
+            if needs_resampling:
+                self.logger.info(f"Getting historical prices for {asset}, {length} bars of {original_timestep} (fetching {actual_length} {actual_timestep} bars)")
+            else:
+                self.logger.info(f"Getting historical prices for {asset}, {length} bars, {original_timestep}")
             self._logged_get_historical_prices_assets.add(asset_key)
 
         asset = self._sanitize_user_asset(asset)
 
         asset = self.crypto_assets_to_tuple(asset, quote)
-        if not timestep:
-            timestep = self.broker.data_source.get_timestep()
+        if not actual_timestep:
+            actual_timestep = self.broker.data_source.get_timestep()
         # Call through to the appropriate data source. Only pass `return_polars` if supported
         # to maintain compatibility with live data sources that don't yet accept it.
         import inspect
@@ -3315,7 +3409,7 @@ class Strategy(_Strategy):
             )
 
             common_kwargs = dict(
-                timestep=timestep,
+                timestep=actual_timestep,  # Use the actual timestep for fetching
                 timeshift=timeshift,
                 exchange=exchange,
                 include_after_hours=include_after_hours,
@@ -3324,21 +3418,69 @@ class Strategy(_Strategy):
             if supports_return_polars:
                 return fn(
                     asset,
-                    length,
+                    actual_length,  # Use the actual length for fetching
                     return_polars=return_polars,
                     **common_kwargs,
                 )
             else:
                 return fn(
                     asset,
-                    length,
+                    actual_length,  # Use the actual length for fetching
                     **common_kwargs,
                 )
 
+        # Get the raw data
         if self.broker.option_source and asset.asset_type == "option":
-            return _call_get_hist(self.broker.option_source)
+            bars = _call_get_hist(self.broker.option_source)
         else:
-            return _call_get_hist(self.broker.data_source)
+            bars = _call_get_hist(self.broker.data_source)
+
+        # If we need to resample the data
+        if needs_resampling and bars and bars.df is not None and not bars.df.empty:
+            try:
+                # Import pandas for resampling
+                import pandas as pd
+                from lumibot.entities import Bars
+
+                # Get the dataframe
+                df = bars.df.copy()
+
+                # Ensure datetime index
+                if not isinstance(df.index, pd.DatetimeIndex):
+                    # Try to convert the index to datetime
+                    df.index = pd.to_datetime(df.index)
+
+                # Determine resampling rule
+                if base_unit == "minute":
+                    resample_rule = f'{multiplier}T'  # T for minutes
+                elif base_unit == "day":
+                    resample_rule = f'{multiplier}D'  # D for days
+                else:
+                    # Fallback to original if we can't determine the rule
+                    return bars
+
+                # Perform resampling with proper aggregation
+                resampled = df.resample(resample_rule, label='left', closed='left').agg({
+                    'open': 'first',
+                    'high': 'max',
+                    'low': 'min',
+                    'close': 'last',
+                    'volume': 'sum'
+                }).dropna()
+
+                # Limit to requested length
+                if len(resampled) > length:
+                    resampled = resampled.iloc[-length:]
+
+                # Create new Bars object with resampled data
+                bars.df = resampled
+                bars.raw_data = resampled  # Update raw_data as well if it exists
+
+            except Exception as e:
+                # If resampling fails, log warning and return original data
+                self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
+
+        return bars
 
     def get_symbol_bars(
         self,

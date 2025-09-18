@@ -157,12 +157,8 @@ else:
 POLYGON_MAX_MEMORY_BYTES = os.environ.get("POLYGON_MAX_MEMORY_BYTES")
 
 POLYGON_CONFIG = {
-    # Add POLYGON_API_KEY and POLYGON_IS_PAID_SUBSCRIPTION to your .env file or set them as secrets
+    # Add POLYGON_API_KEY to your .env file or set it as secrets
     "API_KEY": os.environ.get("POLYGON_API_KEY"),
-    "IS_PAID_SUBSCRIPTION": os.environ.get("POLYGON_IS_PAID_SUBSCRIPTION").lower()
-    == "true"
-    if os.environ.get("POLYGON_IS_PAID_SUBSCRIPTION")
-    else False,
 }
 
 # Polygon API Key

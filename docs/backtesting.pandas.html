@@ -5,11 +5,11 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Polygon.io Backtesting" href="backtesting.polygon.html" /><link rel="prev" title="Yahoo" href="backtesting.yahoo.html" />
 
-    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
         <title>Pandas (CSV or other data) - Lumibot Documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=3791830b" />
     <link rel="stylesheet" type="text/css" href="_static/bootstrap/css/bootstrap.css?v=7edfbd0b" />
     
@@ -70,7 +70,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -85,63 +85,22 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
-    <title>Auto light/dark, in light mode</title>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
-      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
-      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
-      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
-      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
-      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
-      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
-      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
-      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
-      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
-      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
-      <circle cx="14.5" cy="9.55" r="3.6"/>
-    </svg>
-  </symbol>
-  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
-    <title>Auto light/dark, in dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
-      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
-      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
-      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
-      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
-      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
-      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
-      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
-      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
-      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
-      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
-      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
-    </svg>
-  </symbol>
-  <symbol id="svg-pencil" viewBox="0 0 24 24">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
-      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
-      <path d="M13.5 6.5l4 4" />
-      <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" />
-    </svg>
-  </symbol>
-  <symbol id="svg-eye" viewBox="0 0 24 24">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
-      <path
-        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
-      <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" />
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
     </svg>
   </symbol>
 </svg>
@@ -154,8 +113,6 @@
 <label class="overlay toc-overlay" for="__toc">
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
-
-<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
 
 <div class="announcement">
   <aside class="announcement-content">
@@ -183,8 +140,7 @@
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
-          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -325,7 +281,6 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
-<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -334,6 +289,7 @@
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
 <li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
@@ -403,17 +359,11 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          <div class="view-this-page">
-  <a class="muted-link" href="_sources/backtesting.pandas.rst.txt" title="View this page">
-    <svg><use href="#svg-eye"></use></svg>
-    <span class="visually-hidden">View this page</span>
-  </a>
-</div>
+          
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
-              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -423,9 +373,9 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main" id="furo-main-content">
+        <article role="main">
           <section id="pandas-csv-or-other-data">
-<h1>Pandas (CSV or other data)<a class="headerlink" href="#pandas-csv-or-other-data" title="Link to this heading">¶</a></h1>
+<h1>Pandas (CSV or other data)<a class="headerlink" href="#pandas-csv-or-other-data" title="Link to this heading">#</a></h1>
 <p><strong>NOTE: Please ensure you have installed the latest lumibot version using ``pip install lumibot –upgrade`` before proceeding as there have been some major changes to the backtesting module in the latest version.</strong></p>
 <p><strong>For most situations, you will want to use the Polygon backtester or the Yahoo backtester instead, they are much easier to use and get started with. The Pandas backtester is intended for advanced users who have their own data and want to use it with Lumibot.</strong></p>
 <p>Pandas backtester is named after the python dataframe library because the user must provide a strictly formatted dataframe. You can use any csv, parquet, database data, etc that you wish, but Lumibot will only accept one format of dataframe.</p>
@@ -433,14 +383,14 @@
 <p>Additionally, with Pandas backtester, it is possible to backtest stocks, stock-like securities, futures contracts, crypto and FOREX.</p>
 <p>Pandas backtester is the most flexible backtester in Lumibot, but it is also the most difficult to use. It is intended for advanced users who have their own data and want to use it with Lumibot.</p>
 <p>Start by importing the Pandas backtester as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.backtesting</span><span class="w"> </span><span class="kn">import</span> <span class="n">PandasDataBacktesting</span><span class="p">,</span> <span class="n">BacktestingBroker</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">PandasDataBacktesting</span><span class="p">,</span> <span class="n">BacktestingBroker</span>
 </pre></div>
 </div>
 <p>Next, create your Strategy class as you normally would. You can use any of the built-in indicators or create your own. You can also use any of the built-in order types or create your own.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
 
-<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># Do something here</span>
 </pre></div>
 </div>
@@ -458,7 +408,7 @@
 <p>Your dataframe should look like this:</p>
 <div class="table-wrapper docutils container" id="id1">
 <table class="docutils align-default" id="id1">
-<caption><span class="caption-text">Example Dataframe</span><a class="headerlink" href="#id1" title="Link to this table">¶</a></caption>
+<caption><span class="caption-text">Example Dataframe</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
 <thead>
 <tr class="row-odd"><th class="head"><p>datetime</p></th>
 <th class="head"><p>open</p></th>
@@ -523,7 +473,7 @@
 </div>
 <p>Other formats for dataframes will not work.</p>
 <p>You can download an example CSV using the yfinance library as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">yfinance</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">yf</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">yfinance</span> <span class="k">as</span> <span class="nn">yf</span>
 
 <span class="c1"># Download minute data for the last 5 days for AAPL</span>
 <span class="n">data</span> <span class="o">=</span> <span class="n">yf</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="s2">&quot;5d&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s2">&quot;1m&quot;</span><span class="p">)</span>
@@ -535,7 +485,7 @@
 <p>The data objects will be collected in a dictionary called <code class="docutils literal notranslate"><span class="pre">pandas_data</span></code> using the asset as key and the data object as value. Subsequent assets + data can be added and then the dictionary can be passed into Lumibot for backtesting.</p>
 <p>One of the important differences when using Pandas backtester is that you must use an <code class="docutils literal notranslate"><span class="pre">Asset</span></code> object for each data csv file loaded. You may not use a <code class="docutils literal notranslate"><span class="pre">symbol</span></code> as you might in Yahoo backtester.</p>
 <p>For example, if you have a CSV file for AAPL, you must create an <code class="docutils literal notranslate"><span class="pre">Asset</span></code> object for AAPL and then pass that into the <code class="docutils literal notranslate"><span class="pre">Data</span></code> object.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
 
 <span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
     <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
@@ -544,7 +494,7 @@
 </pre></div>
 </div>
 <p>Next step will be to load the dataframe from csv.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 
 <span class="c1"># The names of the columns are important. Also important that all dates in the</span>
 <span class="c1"># dataframe are time aware before going into lumibot.</span>
@@ -552,7 +502,7 @@
 </pre></div>
 </div>
 <p>Third we make a data object for the asset. The data object must have at least the asset object, the dataframe, and the timestep. The timestep can be either <code class="docutils literal notranslate"><span class="pre">minute</span></code> or <code class="docutils literal notranslate"><span class="pre">day</span></code>. If you are using minute data, you must have a <code class="docutils literal notranslate"><span class="pre">minute</span></code> timestep. If you are using daily data, you must have a <code class="docutils literal notranslate"><span class="pre">day</span></code> timestep.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Data</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Data</span>
 
 <span class="n">data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span>
     <span class="n">asset</span><span class="p">,</span>
@@ -585,10 +535,10 @@
 </pre></div>
 </div>
 <section id="in-summary">
-<h2>In Summary<a class="headerlink" href="#in-summary" title="Link to this heading">¶</a></h2>
+<h2>In Summary<a class="headerlink" href="#in-summary" title="Link to this heading">#</a></h2>
 <p>Putting all of this together, and adding in budget and strategy information, the code would look like the following:</p>
 <p>Getting the data would look something like this (using yfinance to download, but you can use any data source you wish):</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">yfinance</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">yf</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">yfinance</span> <span class="k">as</span> <span class="nn">yf</span>
 
 <span class="c1"># Download minute data for the last 5 days for AAPL</span>
 <span class="n">data</span> <span class="o">=</span> <span class="n">yf</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="s2">&quot;5d&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s2">&quot;1m&quot;</span><span class="p">)</span>
@@ -598,14 +548,14 @@
 </pre></div>
 </div>
 <p>Then, the strategy and backtesting code might look like this:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.backtesting</span><span class="w"> </span><span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">PandasDataBacktesting</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Data</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">PandasDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Data</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
 
 <span class="c1"># A simple strategy that buys AAPL on the first day</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
             <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
@@ -633,7 +583,7 @@
 </div>
 </section>
 <section id="optional-environment-variables">
-<h2>Optional: Environment Variables<a class="headerlink" href="#optional-environment-variables" title="Link to this heading">¶</a></h2>
+<h2>Optional: Environment Variables<a class="headerlink" href="#optional-environment-variables" title="Link to this heading">#</a></h2>
 <p>If you prefer not to specify <cite>backtesting_start</cite> and <cite>backtesting_end</cite> in code, you can set the following environment variables, and LumiBot will automatically detect them:</p>
 <div class="table-wrapper colwidths-given docutils container">
 <table class="docutils align-default">
@@ -665,13 +615,13 @@
 </table>
 </div>
 <p>Below is <strong>the full code</strong> that relies <em>entirely on environment variables</em>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.backtesting</span><span class="w"> </span><span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">PandasDataBacktesting</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Data</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">lumibot.backtesting</span> <span class="kn">import</span> <span class="n">BacktestingBroker</span><span class="p">,</span> <span class="n">PandasDataBacktesting</span>
+<span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span><span class="p">,</span> <span class="n">Data</span>
+<span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
 
-<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
             <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
@@ -764,8 +714,8 @@
     </aside>
   </div>
 </div><script src="_static/documentation_options.js?v=5929fcd5"></script>
-    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
     </body>
 </html>

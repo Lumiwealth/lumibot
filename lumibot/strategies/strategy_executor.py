@@ -1364,21 +1364,38 @@ class StrategyExecutor(Thread):
                 self.strategy.log_message(f"Strategy will check in again at: {dt_str}", color="blue")
 
             # Loop until the strategy should stop.
+            loop_count = 0
             while True:
+                loop_count += 1
+
+                # Log every 60 iterations (roughly every minute) to track loop activity
+                if loop_count % 60 == 1:
+                    self.strategy.log_message(f"🔄 Main loop iteration #{loop_count} - Market closed status check", color="cyan")
+
                 # Send data to cloud every minute FIRST - regardless of market status
-                if (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1)):
+                should_send_cloud_update = (not hasattr(self, '_last_updated_cloud')) or ((datetime.now() - self._last_updated_cloud) >= timedelta(minutes=1))
+                if should_send_cloud_update:
+                    time_since_last = "never" if not hasattr(self, '_last_updated_cloud') else str(datetime.now() - self._last_updated_cloud)
+                    self.strategy.log_message(f"☁️ Sending cloud update (last update: {time_since_last} ago)", color="green")
                     self.strategy.send_update_to_cloud()
                     self._last_updated_cloud = datetime.now()
 
                 # Get the current jobs from the scheduler (may be None if gracefully exited previously)
                 if self.scheduler is None:
+                    self.strategy.log_message("⚠️ Scheduler is None, attempting to recreate", color="yellow")
                     # Attempt to re-create and start the scheduler
                     self._setup_live_trading_scheduler()
 
                 jobs = self.scheduler.get_jobs() if self.scheduler is not None else []
 
+                # Log scheduler status every minute
+                if loop_count % 60 == 1:
+                    self.strategy.log_message(f"📅 Scheduler jobs: {len(jobs)} active", color="blue")
+
                 # Check if we should continue trading loop
-                if not self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop):
+                should_continue = self._should_continue_trading_loop(jobs, is_continuous_market, should_we_stop)
+                if not should_continue:
+                    self.strategy.log_message(f"🛑 Trading loop should stop: jobs={len(jobs)}, continuous={is_continuous_market}, should_stop={should_we_stop}", color="red")
                     break
 
                 # Handle LifeCycle methods

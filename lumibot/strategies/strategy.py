@@ -3452,7 +3452,7 @@ class Strategy(_Strategy):
 
                 # Determine resampling rule
                 if base_unit == "minute":
-                    resample_rule = f'{multiplier}T'  # T for minutes
+                    resample_rule = f'{multiplier}min'  # 'min' for minutes (pandas 2.0+ compatible)
                 elif base_unit == "day":
                     resample_rule = f'{multiplier}D'  # D for days
                 else:

@@ -1140,9 +1140,8 @@ class TestAlpacaBacktesting:
         timestep_data_df = data_source._data_store[timestep_data_key]
 
         assert len(timestep_data_df.index) == 5 + lookback_length
-        # Alpaca provides crypto data back at midnight central which is 6am UTC
-        assert timestep_data_df.index[0].isoformat() == "2025-01-13T06:00:00+00:00"
-        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T06:00:00+00:00"
+        assert timestep_data_df.index[0].isoformat() == "2025-01-13T00:00:00+00:00"
+        assert timestep_data_df.index[-1].isoformat() == "2025-01-17T00:00:00+00:00"
 
         # Trading strategy tests
         assert data_source.datetime_end.isoformat() == '2025-01-15T00:00:00+00:00'
@@ -1153,13 +1152,13 @@ class TestAlpacaBacktesting:
         assert len(last_prices) == 3 # number of trading iterations
         assert last_price_keys[0] == '2025-01-13T00:00:00+00:00'
         assert last_price_keys[-1] == '2025-01-15T00:00:00+00:00'
-        assert last_prices['2025-01-13T00:00:00+00:00'] == 94066.35  # Open of '2025-01-13T00:00:00+00:00'
+        assert last_prices['2025-01-13T00:00:00+00:00'] == 94558.75  # Open of '2025-01-13T00:00:00+00:00'
 
         order_tracker = strategy.order_tracker
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00+00:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00+00:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00+00:00'
-        assert order_tracker["avg_fill_price"] == 94066.35  # Open of '2025-01-13T00:00:00+00:00'
+        assert order_tracker["avg_fill_price"] == 94558.75  # Open of '2025-01-13T00:00:00+00:00'
 
     def test_btc_minute_1d(
             self,

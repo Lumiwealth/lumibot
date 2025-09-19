@@ -1009,6 +1009,7 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("10")
         assert strategy.orders[0].order_type == Order.OrderType.LIMIT
+        assert strategy.orders[0].custom_params == {"arrival_price": Decimal("100.0")}
 
     def test_selling_everything_with_market_orders(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1032,6 +1033,7 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].side == "sell"
         assert strategy.orders[0].quantity == Decimal("10")
         assert strategy.orders[0].order_type == Order.OrderType.MARKET
+        assert strategy.orders[0].custom_params == {"arrival_price": Decimal("100.0")}
 
     def test_selling_part_of_a_holding_with_limit_order(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1236,6 +1238,7 @@ class TestDriftOrderLogic:
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("9")
+        assert strategy.orders[0].custom_params == {"arrival_price": Decimal("100.0")}
 
     def test_limit_buy_when_we_dont_have_enough_money_for_everything(self):
         strategy = MockStrategyWithOrderLogic(
@@ -1282,6 +1285,7 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].side == "buy"
         assert strategy.orders[0].quantity == Decimal("4")
         assert strategy.orders[0].order_type == Order.OrderType.MARKET
+        assert strategy.orders[0].custom_params == {"arrival_price": Decimal("100.0")}
 
     def test_attempting_to_buy_when_we_dont_have_enough_money_for_even_one_share(self):
         strategy = MockStrategyWithOrderLogic(

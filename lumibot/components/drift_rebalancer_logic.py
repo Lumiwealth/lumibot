@@ -402,7 +402,8 @@ class DriftOrderLogic:
                         base_asset=base_asset,
                         quantity=quantity,
                         limit_price=limit_price,
-                        side="sell"
+                        side="sell",
+                        arrival_price=last_price,
                     )
                     sell_orders.append(order)
 
@@ -437,7 +438,8 @@ class DriftOrderLogic:
                         base_asset=base_asset,
                         quantity=quantity,
                         limit_price=limit_price,
-                        side="sell"
+                        side="sell",
+                        arrival_price=last_price,
                     )
                     sell_orders.append(order)
 
@@ -460,7 +462,8 @@ class DriftOrderLogic:
                     base_asset=base_asset,
                     quantity=quantity,
                     limit_price=limit_price,
-                    side="buy"
+                    side="buy",
+                    arrival_price=last_price,
                 )
                 buy_orders.append(order)
                 cash_position -= quantity * limit_price
@@ -517,7 +520,8 @@ class DriftOrderLogic:
                         base_asset=base_asset,
                         quantity=quantity,
                         limit_price=limit_price,
-                        side="buy"
+                        side="buy",
+                        arrival_price=last_price,
                     )
                     buy_orders.append(order)
                     
@@ -563,7 +567,8 @@ class DriftOrderLogic:
             base_asset: Asset,
             quantity: Decimal,
             limit_price: Decimal,
-            side: str
+            side: str,
+            arrival_price: Decimal,
     ) -> Order:
         quote_asset = self.strategy.quote_asset or Asset(symbol="USD", asset_type="forex")
         # If orders don't fill at the end of the day, and there is a split the next day,
@@ -577,7 +582,8 @@ class DriftOrderLogic:
                 side=side,
                 limit_price=float(limit_price),
                 quote=quote_asset,
-                time_in_force=time_in_force
+                time_in_force=time_in_force,
+                custom_params={"arrival_price": arrival_price},
             )
         else:
             order = self.strategy.create_order(
@@ -585,7 +591,8 @@ class DriftOrderLogic:
                 quantity=quantity,
                 side=side,
                 quote=quote_asset,
-                time_in_force=time_in_force
+                time_in_force=time_in_force,
+                custom_params={"arrival_price": arrival_price},
             )
 
         self.strategy.logger.info(f"Submitting order: {order}")

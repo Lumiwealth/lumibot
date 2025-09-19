@@ -3275,10 +3275,20 @@ class Strategy(_Strategy):
         length : int
             The number of rows (number of timesteps)
         timestep : str
-            Either ``"minute"`` for minutes data or ``"day"``
-            for days data default value depends on the data_source (minute
-            for alpaca, day for yahoo, ...).  If you need, you can specify the width of the bars by adding a number
-            before the timestep (e.g. "5 minutes", "15 minutes", "1 day", "2 weeks", "1month", ...)
+            Time interval for each bar. Supports multiple formats:
+
+            **Basic formats:**
+                - ``"minute"`` or ``"day"`` - Single minute or day bars
+
+            **Multi-timeframe formats (automatically aggregated):**
+                - Minutes: ``"5min"``, ``"5m"``, ``"5 minutes"``, ``"15min"``, ``"30m"``, etc.
+                - Hours: ``"1h"``, ``"1hour"``, ``"2h"``, ``"4 hours"``, etc. (converted to minutes)
+                - Days: ``"2d"``, ``"2 days"``, ``"1 week"``, ``"1w"``, etc.
+                - Flexible formatting: Case-insensitive, with/without spaces
+
+            When using multi-timeframe formats, the method automatically fetches the
+            underlying minute or day data and resamples it to your desired timeframe.
+            Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
         timeshift : timedelta
             ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing
@@ -3322,7 +3332,19 @@ class Strategy(_Strategy):
         >>> # Then, to get the DataFrame of SPY data
         >>> df = bars.df
         >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
-        >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
+        >>> self.log_message(f"Last price of AAPL: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
+
+        >>> # Get 5-minute bars for the last 10 5-minute periods (using new multi-timeframe support)
+        >>> bars = self.get_historical_prices("SPY", 10, "5min")
+        >>> df = bars.df  # DataFrame with 10 rows of 5-minute OHLCV data
+        >>>
+        >>> # Get hourly bars for the last 24 hours
+        >>> bars = self.get_historical_prices("AAPL", 24, "1h")
+        >>>
+        >>> # Get 15-minute bars (multiple format options work)
+        >>> bars = self.get_historical_prices("TSLA", 20, "15m")       # Short format
+        >>> bars = self.get_historical_prices("TSLA", 20, "15min")     # Alternative
+        >>> bars = self.get_historical_prices("TSLA", 20, "15 minutes") # With space
 
         >>> # Get the historical data for an AAPL option for the last 30 minutes
         >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call")

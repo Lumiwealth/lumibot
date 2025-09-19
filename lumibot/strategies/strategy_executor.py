@@ -1499,8 +1499,19 @@ class StrategyExecutor(Thread):
             return True
 
         except Exception as e:
-            # Store the exception so the main thread can check it
-            self.exception = e
-            self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
-            # Don't re-raise - let the main thread handle it
+            # Log and surface any exceptions that occur before/around initialize so they are never silent
+            try:
+                self.strategy.logger.error(e)
+                self.strategy.logger.error(traceback.format_exc())
+                # Attempt to notify the strategy via on_bot_crash hook
+                try:
+                    self._on_bot_crash(e)
+                except Exception as e1:
+                    self.strategy.logger.error(e1)
+                    self.strategy.logger.error(traceback.format_exc())
+            finally:
+                # Store the exception so the main thread can check it
+                self.exception = e
+                self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
+            # Don't re-raise here; main thread (Trader) will handle raising/logging
             return False

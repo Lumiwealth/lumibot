@@ -886,9 +886,9 @@ class PolygonClient(RESTClient):
                         or "plan doesn\u2019t include this data timeframe" in error_str.lower()
                     ):
                         # Non-fatal: user plan doesn't cover requested timeframe
-                        logger.warning(
-                            f"POLYGON_PLAN_LIMIT: Subscription does not include requested timeframe | URL: {url}, Error: {error_str}"
-                        )
+                        logger.error(f"Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. URL: {url}, Error: {error_str}")
+                        # Return None instead of raising to allow caller to skip this chunk
+                        return None
                     else:
                         # True authorization/entitlement failure remains critical
                         logger.critical(
@@ -899,7 +899,7 @@ class PolygonClient(RESTClient):
                     logger.error(f"POLYGON_BAD_REQUEST: Polygon bad request error | URL: {url}, Operation: HTTP GET request, Error: {error_str}")
 
                 # Log to console as well
-                message = f"Polygon BadResponse error: {type(e).__name__}"
+                message = f"Polygon BadResponse error: {error_str}"
                 colored_message = colored(message, "red")
                 logger.error(colored_message)
                 logger.debug(f"Full error details: {e}")

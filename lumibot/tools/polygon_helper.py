@@ -857,12 +857,12 @@ class PolygonClient(RESTClient):
                         "it helps support this project.\n"
                         "You can use the coupon code 'LUMI10' for 10% off."
                     )
-                    colored_message = colored(message, "red")
-                    logger.error(colored_message)
+                    colored_message = colored(message, "yellow")
+                    logger.warning(colored_message)
                     logger.debug(f"Error: {e}")
 
                     # Log to CSV using standard logger (will auto-capture to CSV if enabled)
-                    logger.error(f"POLYGON_RATE_LIMIT_EXCEEDED: Polygon rate limit reached | URL: {str(url)}, Wait time: {PolygonClient.WAIT_SECONDS_RETRY}s, Error: {str(e)}")
+                    logger.warning(f"POLYGON_RATE_LIMIT_EXCEEDED: Polygon rate limit reached | URL: {str(url)}, Wait time: {PolygonClient.WAIT_SECONDS_RETRY}s, Error: {str(e)}")
 
                     # Update our last log time
                     self._last_rate_limit_log_time = now

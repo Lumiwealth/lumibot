@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 from ..data_sources import DataSource
 from ..entities import Asset, Order, Position, Quote
+from ..entities.chains import normalize_option_chains
 from ..trading_builtins import SafeList
 
 DEFAULT_CLEANUP_CONFIG = {
@@ -599,7 +600,18 @@ class Broker(ABC):
                            chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
                          Expiration Date Format: 2023-07-31
         """
-        return self.data_source.get_chains(asset)
+        raw_chains = self.data_source.get_chains(asset)
+        normalized_chains = normalize_option_chains(raw_chains)
+
+        if not normalized_chains:
+            logger.warning(
+                colored(
+                    f"Option chains unavailable for {getattr(asset, 'symbol', asset)}; continuing without options data.",
+                    "yellow",
+                )
+            )
+
+        return normalized_chains
 
     def get_chain(self, chains, exchange="SMART") -> dict:
         """Returns option chain for a particular exchange.

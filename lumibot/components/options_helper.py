@@ -398,7 +398,7 @@ class OptionsHelper:
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
 
-    def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> date:
+    def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> Optional[date]:
         """
         Get the expiration date that is on or after a given date.
 
@@ -426,7 +426,23 @@ class OptionsHelper:
         
         # Make it all caps and get the specific chain.
         call_or_put_caps = call_or_put.upper()
-        specific_chain = chains["Chains"][call_or_put_caps]
+
+        chains_map = chains if isinstance(chains, dict) else {}
+        options_map = chains_map.get("Chains") if isinstance(chains_map.get("Chains"), dict) else None
+        if options_map is None:
+            self.strategy.log_message(
+                f"Option chains unavailable for {call_or_put_caps}; skipping option selection.",
+                color="yellow",
+            )
+            return None
+
+        specific_chain = options_map.get(call_or_put_caps)
+        if not isinstance(specific_chain, dict) or not specific_chain:
+            self.strategy.log_message(
+                f"Option chains lack data for {call_or_put_caps}; skipping option selection.",
+                color="yellow",
+            )
+            return None
 
         # Get the list of expiration dates as strings.
         expiration_dates = list(specific_chain.keys())

@@ -645,60 +645,51 @@ class Asset:
         m = now.month
         d = now.day
 
-        # Identify the current quarterly anchor (3/6/9/12). If we're in a
-        # quarterly month and past mid-month, roll anchor to the next quarter.
-        def next_quarter(month, year):
-            if month == 3:
-                return 6, year
-            if month == 6:
-                return 9, year
-            if month == 9:
-                return 12, year
-            if month == 12:
-                return 3, year + 1
-            # If non-quarterly, snap to the next upcoming quarterly month
-            if month < 3:
-                return 3, year
-            if month < 6:
-                return 6, year
-            if month < 9:
-                return 9, year
-            if month < 12:
-                return 12, year
-            return 3, year + 1
+        # Compute quarterly anchors (Mar, Jun, Sep, Dec) succinctly
+        quarter_months = [3, 6, 9, 12]
 
-        # Start from the current quarter
-        if m in (3, 6, 9, 12) and d >= 15:
-            # After mid-month of a quarterly expiry, the next quarter is front
-            q1_month, q1_year = next_quarter(m, y)
-        else:
-            # Otherwise, snap m to the current/next quarterly month without rolling year
-            if m <= 3:
-                q1_month, q1_year = 3, y
-            elif m <= 6:
-                q1_month, q1_year = 6, y
-            elif m <= 9:
-                q1_month, q1_year = 9, y
-            elif m <= 12:
-                q1_month, q1_year = 12, y
+        # Find the index of the first quarterly month >= current month; if none, wrap to next year
+        idx = next((i for i, qm in enumerate(quarter_months) if qm >= m), None)
+        if idx is None:
+            idx = 0
+            y += 1
 
-        # Compute the following two quarters uniformly
-        q2_month, q2_year = next_quarter(q1_month, q1_year)
-        q3_month, q3_year = next_quarter(q2_month, q2_year)
+        # Mid-month roll rule: if we're in a quarterly month and past mid-month (>=15), advance to next quarter
+        if m in quarter_months and d >= 15:
+            idx = (idx + 1) % 4
+            if idx == 0:
+                y += 1
+
+        q1_month, q1_year = quarter_months[idx], y
+
+        # Helper to advance N quarters ahead
+        def advance_quarter(month: int, year: int, steps: int = 1):
+            i = quarter_months.index(month)
+            new_i = i + steps
+            return quarter_months[new_i % 4], year + (new_i // 4)
+
+        # Next two quarters
+        q2_month, q2_year = advance_quarter(q1_month, q1_year, 1)
+        q3_month, q3_year = advance_quarter(q2_month, q2_year, 1)
         target_quarters = [(q1_month, q1_year), (q2_month, q2_year), (q3_month, q3_year)]
 
         potential_contracts = []
 
+        # Local helper to generate all standard variants for a given month code/year
+        def _contract_variants(root: str, month_code: str, year_full: int):
+            y2 = year_full % 100
+            y1 = y2 % 10
+            return [
+                f"{root}{month_code}{y2:02d}",   # Standard 2-digit year (e.g., MESZ25)
+                f"{root}{month_code}{y1}",       # Single-digit year (e.g., MESZ5)
+                f"{root}.{month_code}{y2:02d}",  # Dot notation (e.g., MES.Z25)
+                f"{root}{month_code}{year_full}",# Full year (e.g., MESZ2025)
+            ]
+
         # Add quarterly contracts in multiple formats
         for month, year in target_quarters:
             mc = month_codes.get(month, 'Z')
-            yc2 = year % 100
-            # Format 1: Standard futures format (e.g., MESZ25)
-            potential_contracts.append(f"{self.symbol}{mc}{yc2:02d}")
-            # Format 2: With dot separator (e.g., MES.Z25)
-            potential_contracts.append(f"{self.symbol}.{mc}{yc2:02d}")
-            # Format 3: Full year (e.g., MESZ2025)
-            potential_contracts.append(f"{self.symbol}{mc}{year}")
+            potential_contracts.extend(_contract_variants(self.symbol, mc, year))
 
         # Monthly backups: next 3 months from now
         for moff in range(1, 4):

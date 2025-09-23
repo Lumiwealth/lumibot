@@ -60,17 +60,20 @@ class TestProjectXDataSource:
             assert contract_id  # Should return a valid contract ID
 
     def test_contract_id_generation_dynamic(self, projectx_data_source):
-        """Test dynamic contract ID generation using Asset class"""
+        """Test dynamic contract ID generation using Asset class.
 
-        # Mock client to return a contract ID
-        projectx_data_source.client.find_contract_by_symbol = MagicMock(return_value="CON.F.US.MES.U25")
+        Make it deterministic by mocking the Asset generator so the first
+        candidate is MESU25, ensuring we don't depend on current calendar/roll date.
+        """
 
-        # Test with continuous futures asset
-        asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
+        # Even if the client fallback is present, the Asset path is preferred
+        projectx_data_source.client.find_contract_by_symbol = MagicMock(return_value="CON.F.US.MES.Z25")
 
-        # Should use dynamic search, not hardcoded mappings
-        contract_id = projectx_data_source._get_contract_id_from_asset(asset)
-        assert contract_id == "CON.F.US.MES.U25"  # Should pick appropriate contract
+        with patch.object(Asset, 'get_potential_futures_contracts', return_value=['MESU25', 'MES.U25', 'MESU2025']):
+            asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
+            contract_id = projectx_data_source._get_contract_id_from_asset(asset)
+            # Should use the first Asset-provided contract (MESU25)
+            assert contract_id == "CON.F.US.MES.U25"
 
     def test_timespan_parsing(self, projectx_data_source):
         """Test timespan parsing for ProjectX unit conversion"""

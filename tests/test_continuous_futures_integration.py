@@ -7,8 +7,8 @@ and that there's no duplicate or inconsistent logic.
 """
 
 import unittest
-from unittest.mock import patch, MagicMock
 from datetime import datetime, date
+from unittest.mock import patch
 
 from lumibot.entities import Asset
 from lumibot.tools.databento_helper import _format_futures_symbol_for_databento
@@ -21,11 +21,8 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         """Set up test fixtures."""
         self.test_date = datetime(2025, 7, 15)  # July 15, 2025
         
-    @patch('datetime.datetime')
-    def test_asset_class_consistency(self, mock_datetime):
+    def test_asset_class_consistency(self):
         """Test that Asset class methods provide consistent results."""
-        mock_datetime.now.return_value = self.test_date
-        
         # Test multiple symbols
         test_symbols = ["ES", "MES", "NQ", "MNQ", "RTY", "CL", "GC"]
         
@@ -34,8 +31,12 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
                 asset = Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
                 
                 # Get primary contract and potential contracts
-                primary_contract = asset.resolve_continuous_futures_contract()
-                potential_contracts = asset.get_potential_futures_contracts()
+                primary_contract = asset.resolve_continuous_futures_contract(
+                    reference_date=self.test_date
+                )
+                potential_contracts = asset.get_potential_futures_contracts(
+                    reference_date=self.test_date
+                )
                 
                 # Primary contract should be in the potential contracts list
                 self.assertIn(primary_contract, potential_contracts)
@@ -47,19 +48,20 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
                 for contract in potential_contracts:
                     self.assertTrue(contract.startswith(symbol))
 
-    @patch('datetime.datetime')
-    def test_databento_integration_consistency(self, mock_datetime):
+    def test_databento_integration_consistency(self):
         """Test that DataBento helper uses Asset class methods consistently."""
-        mock_datetime.now.return_value = self.test_date
-        
         # Test continuous futures
         continuous_asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
         
         # Get result from DataBento helper
-        databento_result = _format_futures_symbol_for_databento(continuous_asset)
+        databento_result = _format_futures_symbol_for_databento(
+            continuous_asset, reference_date=self.test_date
+        )
         
         # Get result from Asset class directly
-        asset_result = continuous_asset.resolve_continuous_futures_contract()
+        asset_result = continuous_asset.resolve_continuous_futures_contract(
+            reference_date=self.test_date
+        )
         
         # DataBento helper should use Asset class method and then apply DataBento formatting
         # Asset returns MESU25, DataBento formats it to MESU5 (removes one digit from year)
@@ -86,19 +88,22 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
             stock_asset.get_potential_futures_contracts()
         self.assertIn("can only be called on CONT_FUTURE assets", str(context.exception))
 
-    @patch('datetime.datetime')
-    def test_multi_component_consistency(self, mock_datetime):
+    def test_multi_component_consistency(self):
         """Test that multiple components produce consistent results."""
-        mock_datetime.now.return_value = self.test_date
-        
         # Create the same continuous futures asset
         symbol = "ES"
         asset = Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
         
         # Get results from different sources
-        asset_primary = asset.resolve_continuous_futures_contract()
-        asset_potential = asset.get_potential_futures_contracts()
-        databento_result = _format_futures_symbol_for_databento(asset)
+        asset_primary = asset.resolve_continuous_futures_contract(
+            reference_date=self.test_date
+        )
+        asset_potential = asset.get_potential_futures_contracts(
+            reference_date=self.test_date
+        )
+        databento_result = _format_futures_symbol_for_databento(
+            asset, reference_date=self.test_date
+        )
         
         # Asset class should return full format
         self.assertEqual(asset_primary, "ESU25")
@@ -107,11 +112,8 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         # DataBento helper should apply its specific formatting
         self.assertEqual(databento_result, "ESU5")  # DataBento format
 
-    @patch('datetime.datetime')
-    def test_contract_format_standardization(self, mock_datetime):
+    def test_contract_format_standardization(self):
         """Test that all components follow the same contract format standards."""
-        mock_datetime.now.return_value = self.test_date
-        
         test_cases = [
             ("ES", r"^ES[A-Z]\d{2}$", r"^ES[A-Z]\d$"),      # Asset format vs DataBento format
             ("MES", r"^MES[A-Z]\d{2}$", r"^MES[A-Z]\d$"),   # Asset format vs DataBento format  
@@ -123,11 +125,15 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
                 asset = Asset(symbol, asset_type=Asset.AssetType.CONT_FUTURE)
                 
                 # Test Asset class returns full format
-                asset_result = asset.resolve_continuous_futures_contract()
+                asset_result = asset.resolve_continuous_futures_contract(
+                    reference_date=self.test_date
+                )
                 self.assertRegex(asset_result, asset_pattern)
                 
                 # Test DataBento integration returns DataBento format
-                databento_result = _format_futures_symbol_for_databento(asset)
+                databento_result = _format_futures_symbol_for_databento(
+                    asset, reference_date=self.test_date
+                )
                 self.assertRegex(databento_result, databento_pattern)
 
     def test_no_duplicate_logic_verification(self):
@@ -159,8 +165,7 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
             # MES + K (from 'MOCKED_CONTRACT'[6]) + T (from 'MOCKED_CONTRACT'[-1]) = 'MESKT'
             self.assertEqual(result, 'MESKT')
 
-    @patch('datetime.datetime')
-    def test_quarterly_preference_consistency(self, mock_datetime):
+    def test_quarterly_preference_consistency(self):
         """Test that quarterly contract preference is consistent across components."""
         # Test different months throughout the year
         quarterly_test_cases = [
@@ -172,16 +177,18 @@ class TestContinuousFuturesIntegration(unittest.TestCase):
         
         for test_date, expected_asset_month, expected_databento_month in quarterly_test_cases:
             with self.subTest(date=test_date):
-                mock_datetime.now.return_value = test_date
-                
                 asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
                 
                 # Test Asset class
-                asset_result = asset.resolve_continuous_futures_contract()
+                asset_result = asset.resolve_continuous_futures_contract(
+                    reference_date=test_date
+                )
                 asset_month_code = asset_result[-3]  # Third from end
                 
                 # Test DataBento integration
-                databento_result = _format_futures_symbol_for_databento(asset)
+                databento_result = _format_futures_symbol_for_databento(
+                    asset, reference_date=test_date
+                )
                 databento_month_code = databento_result[-2]  # Second from end (DataBento format)
                 
                 # Both should produce the same month code

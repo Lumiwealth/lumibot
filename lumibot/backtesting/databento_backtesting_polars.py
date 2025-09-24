@@ -489,9 +489,12 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                 self._store_data(asset, df)
 
             # Filter data to current backtesting time
+            include_current = getattr(self, "_include_current_bar_for_orders", False)
+
             if 'datetime' in df.columns:
                 df = self._ensure_strategy_timezone(df)
-                df_filtered = df.filter(pl.col('datetime') <= current_dt)
+                comparator = pl.col('datetime') <= current_dt if include_current else pl.col('datetime') < current_dt
+                df_filtered = df.filter(comparator)
             else:
                 df_filtered = df
 

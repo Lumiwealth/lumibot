@@ -374,7 +374,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
 
-        return Bars(result_df, self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
+        return Bars(
+            result_df,
+            self.SOURCE,
+            asset=asset,
+            quote=quote,
+            return_polars=return_polars,
+            tzinfo=self.tzinfo,
+        )
 
     def get_chains(self, asset, quote=None):
         """Mock implementation for getting option chains"""

@@ -923,12 +923,22 @@ class BacktestingBroker(Broker):
                         days=-1
                     )
 
-                ohlc = self.data_source.get_historical_prices(
-                    asset=asset,
-                    length=1,
-                    quote=order.quote,
-                    timeshift=timeshift,
-                )
+                include_attr = "_include_current_bar_for_orders"
+                restore_flag = None
+                if hasattr(self.data_source, include_attr):
+                    restore_flag = getattr(self.data_source, include_attr)
+                    setattr(self.data_source, include_attr, True)
+
+                try:
+                    ohlc = self.data_source.get_historical_prices(
+                        asset=asset,
+                        length=1,
+                        quote=order.quote,
+                        timeshift=timeshift,
+                    )
+                finally:
+                    if hasattr(self.data_source, include_attr):
+                        setattr(self.data_source, include_attr, restore_flag)
 
                 # Handle both pandas and polars DataFrames
                 if hasattr(ohlc.df, 'index'):  # pandas

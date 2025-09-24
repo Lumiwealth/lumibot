@@ -330,8 +330,10 @@ class DataBentoDataBacktesting(PandasData):
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
                         
-                        # Filter to data up to current backtest time
-                        filtered_df = df[df.index <= current_dt_aware]
+                        # Filter to data up to current backtest time (exclude current bar unless broker overrides)
+                        include_current = getattr(self, "_include_current_bar_for_orders", False)
+                        mask = df.index <= current_dt_aware if include_current else df.index < current_dt_aware
+                        filtered_df = df[mask]
                         
                         if not filtered_df.empty:
                             last_price = filtered_df['close'].iloc[-1]
@@ -416,8 +418,10 @@ class DataBentoDataBacktesting(PandasData):
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
                         
-                        # Filter data up to current backtest time
-                        filtered_df = df[df.index <= current_dt_aware]
+                        # Filter data up to current backtest time (exclude current bar unless broker overrides)
+                        include_current = getattr(self, "_include_current_bar_for_orders", False)
+                        mask = df.index <= current_dt_aware if include_current else df.index < current_dt_aware
+                        filtered_df = df[mask]
                         
                         # Take the last 'length' bars
                         result_df = filtered_df.tail(length)
@@ -486,8 +490,10 @@ class DataBentoDataBacktesting(PandasData):
                 # Ensure current_dt is timezone-aware for comparison
                 current_dt_aware = to_datetime_aware(current_dt)
                 
-                # Filter data up to current backtest time
-                filtered_df = df[df.index <= current_dt_aware]
+                # Filter data up to current backtest time (exclude current bar unless broker overrides)
+                include_current = getattr(self, "_include_current_bar_for_orders", False)
+                mask = df.index <= current_dt_aware if include_current else df.index < current_dt_aware
+                filtered_df = df[mask]
                 
                 # Take the last 'length' bars
                 result_df = filtered_df.tail(length)

@@ -277,9 +277,12 @@ class TestProjectXClient:
         assert details["TickSize"] == 0.25
 
     def test_find_contract_by_symbol(self, mock_client):
-        """Test finding contract by symbol"""
-        
-        # Mock contract search response
+        """Test finding contract by symbol.
+
+        To avoid coupling to real-time rollover dates, mock the Asset generator
+        so the first candidate is MESU25 and verify we convert to ProjectX ID.
+        """
+
         mock_contracts = [
             {
                 "ContractId": "CON.F.US.MES.U25",
@@ -287,10 +290,10 @@ class TestProjectXClient:
             }
         ]
         mock_client.api.contract_search = MagicMock(return_value={"success": True, "contracts": mock_contracts})
-        
-        contract_id = mock_client.find_contract_by_symbol("MES")
-        
-        assert contract_id == "CON.F.US.MES.U25"
+
+        with patch.object(Asset, 'get_potential_futures_contracts', return_value=['MESU25', 'MES.U25', 'MESU2025']):
+            contract_id = mock_client.find_contract_by_symbol("MES")
+            assert contract_id == "CON.F.US.MES.U25"
 
     def test_contract_id_conversion_no_hardcoded_mappings(self, mock_client):
         """

@@ -123,7 +123,7 @@ class ProjectXData(DataSource):
                 unit_number=1,
                 limit=1,
                 include_partial_bar=True,
-                live=True,
+                live=False,
                 is_est=True,
             )
 

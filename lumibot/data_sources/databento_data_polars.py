@@ -493,12 +493,10 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             # For continuous futures, resolve to specific contract
             if asset.asset_type == Asset.AssetType.CONT_FUTURE:
                 if hasattr(asset, 'resolve_continuous_futures_contract'):
-                    resolved = asset.resolve_continuous_futures_contract(reference_date)
-                    # DataBento uses single digit year for CME futures (ESZ5 not ESZ25)
-                    if len(resolved) >= 5 and resolved[-2:].isdigit() and int(resolved[-2:]) >= 20:
-                        # Convert to single digit year (e.g., 25 -> 5)
-                        return resolved[:-2] + resolved[-1]
-                    return resolved
+                    return asset.resolve_continuous_futures_contract(
+                        reference_date=reference_date,
+                        year_digits=1,
+                    )
             
             # Manual resolution for common futures
             symbol = asset.symbol.upper()
@@ -660,7 +658,14 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             # Trim to requested length
             df = df.tail(length)
             df = _ensure_polars_tz(df)
-            return Bars(df=df, source=self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
+            return Bars(
+                df=df,
+                source=self.SOURCE,
+                asset=asset,
+                quote=quote,
+                return_polars=return_polars,
+                tzinfo=self.tzinfo,
+            )
         
         return None
     

@@ -524,22 +524,19 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
     """
     symbol = asset.symbol
 
-    # For continuous contracts, resolve to active contract for the reference date
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
         logger.debug(f"Resolving continuous futures symbol: {symbol}")
-
-        # Use Asset class method for contract resolution
-        resolved_symbol = asset.resolve_continuous_futures_contract(reference_date)
-
+        resolved_symbol = asset.resolve_continuous_futures_contract(
+            reference_date=reference_date,
+            year_digits=1,
+        )
         logger.debug(f"Resolved continuous future {symbol} -> {resolved_symbol}")
 
-        # Return format based on whether reference_date was provided
         if reference_date is not None:
             return resolved_symbol
-        else:
-            # Convert to DataBento format
-            databento_symbols = _generate_databento_symbol_alternatives(symbol, resolved_symbol)
-            return databento_symbols[0] if databento_symbols else resolved_symbol
+
+        databento_symbols = _generate_databento_symbol_alternatives(symbol, resolved_symbol)
+        return databento_symbols[0] if databento_symbols else resolved_symbol
 
     # For specific futures contracts, format with expiration if provided
     if asset.asset_type == Asset.AssetType.FUTURE and asset.expiration:
@@ -555,6 +552,8 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
         logger.debug(f"Formatted specific futures symbol: {asset.symbol} -> {formatted_symbol}")
 
         return formatted_symbol
+
+    return symbol
 
     return symbol
 
@@ -893,7 +892,7 @@ def get_last_price_from_databento_polars(
 
         # For continuous futures, resolve to the current active contract
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-            resolved_symbol = asset.resolve_continuous_futures_contract()
+            resolved_symbol = asset.resolve_continuous_futures_contract(year_digits=1)
             if resolved_symbol is None:
                 logger.error(f"Could not resolve continuous futures contract for {asset.symbol}")
                 return None
@@ -996,7 +995,7 @@ def _generate_databento_symbol_alternatives(base_symbol: str, resolved_contract:
             return [f"{base_symbol}KT"]
 
     # Extract month and year from resolved contract
-    if len(resolved_contract) >= len(base_symbol) + 3:
+    if len(resolved_contract) >= len(base_symbol) + 2:
         month_char = resolved_contract[len(base_symbol)]
         year_digits = resolved_contract[len(base_symbol) + 1:]
         year_char = year_digits[-1]

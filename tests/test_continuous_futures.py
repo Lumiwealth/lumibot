@@ -102,10 +102,27 @@ class TestAssetPotentialContracts:
     def test_includes_single_digit_variants(self):
         asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
         contracts = asset.get_potential_futures_contracts()
-        single_digit_found = any("U5" in contract for contract in contracts)
-        double_digit_found = any("U25" in contract for contract in contracts)
-        assert single_digit_found, f"Single-digit variants not found in: {contracts}"
-        assert double_digit_found, f"Double-digit variants not found in: {contracts}"
+        # Find the first quarterly contract (H, M, U, Z) with a two-digit year, e.g., MNQZ25
+        quarterly_codes = ["H", "M", "U", "Z"]
+        first_quarterly = None
+        for c in contracts:
+            for q in quarterly_codes:
+                # Two-digit year variant pattern, e.g., MNQZ25 or MNQ.Z25
+                if f"{q}25" in c:
+                    first_quarterly = (q, "25")
+                    break
+            if first_quarterly:
+                break
+
+        assert first_quarterly is not None, f"No quarterly 2-digit variant found in: {contracts}"
+
+        q_code, y2 = first_quarterly
+        y1 = y2[-1]
+        # Check that the corresponding single-digit variant exists for the same quarter
+        single_digit_found = any(f"{q_code}{y1}" in c for c in contracts)
+        double_digit_found = any(f"{q_code}{y2}" in c for c in contracts)
+        assert single_digit_found, f"Single-digit variant {q_code}{y1} not found in: {contracts}"
+        assert double_digit_found, f"Double-digit variant {q_code}{y2} not found in: {contracts}"
 
     def test_preserves_existing_order(self):
         asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)

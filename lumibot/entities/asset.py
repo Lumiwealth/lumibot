@@ -641,91 +641,77 @@ class Asset:
         }
 
         now = datetime.now()
-        current_year = now.year
-        current_month = now.month
+        y = now.year
+        m = now.month
+        d = now.day
+
+        # Compute quarterly anchors (Mar, Jun, Sep, Dec) succinctly
+        quarter_months = [3, 6, 9, 12]
+
+        # Find the index of the first quarterly month >= current month; if none, wrap to next year
+        idx = next((i for i, qm in enumerate(quarter_months) if qm >= m), None)
+        if idx is None:
+            idx = 0
+            y += 1
+
+        # Mid-month roll rule: if we're in a quarterly month and past mid-month (>=15), advance to next quarter
+        if m in quarter_months and d >= 15:
+            idx = (idx + 1) % 4
+            if idx == 0:
+                y += 1
+
+        q1_month, q1_year = quarter_months[idx], y
+
+        # Helper to advance N quarters ahead
+        def advance_quarter(month: int, year: int, steps: int = 1):
+            i = quarter_months.index(month)
+            new_i = i + steps
+            return quarter_months[new_i % 4], year + (new_i // 4)
+
+        # Next two quarters
+        q2_month, q2_year = advance_quarter(q1_month, q1_year, 1)
+        q3_month, q3_year = advance_quarter(q2_month, q2_year, 1)
+        target_quarters = [(q1_month, q1_year), (q2_month, q2_year), (q3_month, q3_year)]
 
         potential_contracts = []
 
-        # Generate quarterly contracts based on current month
-        if current_month >= 10:  # October onwards, use Dec, then Mar
-            target_quarters = [
-                (12, current_year),     # December this year
-                (3, current_year + 1),  # March next year
-                (6, current_year + 1),  # June next year
-            ]
-        elif current_month >= 7:  # July-September, use Sep, then Dec
-            target_quarters = [
-                (9, current_year),      # September this year
-                (12, current_year),     # December this year
-                (3, current_year + 1),  # March next year
-            ]
-        elif current_month >= 4:  # April-June - use Sep, then Dec
-            target_quarters = [
-                (9, current_year),      # September this year
-                (12, current_year),     # December this year
-                (3, current_year + 1),  # March next year
-            ]
-        else:  # Jan-March - use Jun, then Sep
-            target_quarters = [
-                (6, current_year),      # June this year
-                (9, current_year),      # September this year
-                (12, current_year),     # December this year
+        # Local helper to generate all standard variants for a given month code/year
+        def _contract_variants(root: str, month_code: str, year_full: int):
+            y2 = year_full % 100
+            y1 = y2 % 10
+            return [
+                f"{root}{month_code}{y2:02d}",   # Standard 2-digit year (e.g., MESZ25)
+                f"{root}{month_code}{y1}",       # Single-digit year (e.g., MESZ5)
+                f"{root}.{month_code}{y2:02d}",  # Dot notation (e.g., MES.Z25)
+                f"{root}{month_code}{year_full}",# Full year (e.g., MESZ2025)
             ]
 
-        # Generate quarterly contract symbols in multiple formats
+        # Add quarterly contracts in multiple formats
         for month, year in target_quarters:
-            month_code = month_codes.get(month, 'Z')
-            year_code = year % 100
+            mc = month_codes.get(month, 'Z')
+            potential_contracts.extend(_contract_variants(self.symbol, mc, year))
 
-            # Format 1: Standard futures format (MESZ25)
-            contract1 = f"{self.symbol}{month_code}{year_code:02d}"
-            potential_contracts.append(contract1)
-
-            # Format 2: Single-digit year format (MESZ5) - Tradovate style
-            contract2 = f"{self.symbol}{month_code}{year_code % 10}"
-            potential_contracts.append(contract2)
-
-            # Format 3: With dot separator (MES.Z25) - some platforms use this
-            contract3 = f"{self.symbol}.{month_code}{year_code:02d}"
-            potential_contracts.append(contract3)
-
-            # Format 4: Full year format (MESZ2025) - some platforms use this
-            contract4 = f"{self.symbol}{month_code}{year}"
-            potential_contracts.append(contract4)
-
-        # Also add some monthly contracts as backup
-        for month_offset in range(1, 4):  # Next 3 months
-            target_month = current_month + month_offset
-            target_year = current_year
-
-            # Handle year rollover
-            while target_month > 12:
-                target_month -= 12
-                target_year += 1
-
-            month_code = month_codes.get(target_month, 'H')
-            year_code = target_year % 100
-
-            # Standard format
-            contract = f"{self.symbol}{month_code}{year_code:02d}"
-            if contract not in potential_contracts:  # Avoid duplicates
+        # Monthly backups: next 3 months from now
+        for moff in range(1, 4):
+            tm = m + moff
+            ty = y
+            while tm > 12:
+                tm -= 12
+                ty += 1
+            mc = month_codes.get(tm, 'H')
+            yc2 = ty % 100
+            contract = f"{self.symbol}{mc}{yc2:02d}"
+            if contract not in potential_contracts:
                 potential_contracts.append(contract)
-            
-            # Single-digit year format
-            contract_1d = f"{self.symbol}{month_code}{year_code % 10}"
-            if contract_1d not in potential_contracts:  # Avoid duplicates
-                potential_contracts.append(contract_1d)
 
-        # Remove duplicates while preserving order
+        # De-duplicate preserving order
         seen = set()
-        unique_contracts = []
-        for contract in potential_contracts:
-            if contract not in seen:
-                seen.add(contract)
-                unique_contracts.append(contract)
-
-        return unique_contracts
-
+        unique = []
+        for c in potential_contracts:
+            if c not in seen:
+                seen.add(c)
+                unique.append(c)
+        return unique
 
 class AssetsMapping(UserDict):
     def __init__(self, mapping):

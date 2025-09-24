@@ -1,5 +1,8 @@
 import logging
 from datetime import datetime as DateTime
+from unittest.mock import MagicMock
+
+import pandas as pd
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
@@ -203,3 +206,34 @@ class TestIndicators:
         assert result is not None
 
 
+def test_plot_indicators_handles_nan_marker_size(tmp_path, monkeypatch):
+    from lumibot.tools.indicators import plot_indicators
+
+    # Build a marker DataFrame with NaN sizes to mirror the failing scenario
+    marker_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-01 09:30", "2024-01-01 10:30"]),
+            "value": [100, 101],
+            "plot_name": ["default_plot", "default_plot"],
+            "name": ["Test Marker", "Test Marker"],
+            "symbol": ["circle", "circle"],
+            "size": [float("nan"), float("nan")],
+            "color": [None, None],
+            "detail_text": [None, None],
+        }
+    )
+
+    # Avoid opening the browser or writing actual files
+    mock_write = MagicMock()
+    monkeypatch.setattr("plotly.graph_objects.Figure.write_html", mock_write)
+
+    # Should not raise even when marker size column is NaN-only
+    plot_indicators(
+        plot_file_html=str(tmp_path / "plot.html"),
+        chart_markers_df=marker_df,
+        chart_lines_df=None,
+        strategy_name="Test",
+        show_indicators=True,
+    )
+
+    mock_write.assert_called_once()

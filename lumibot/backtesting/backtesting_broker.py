@@ -912,33 +912,18 @@ class BacktestingBroker(Broker):
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
             if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO"]:
-                if data_source_name in ["CCXT", "ALPACA", "DATABENTO"]:
-                    # If we're using the CCXT, Alpaca, or DataBento data source, we don't need to timeshift the data.
-                    # We fill at the open price of the current bar.
-                    timeshift = None
-                else:
-                    # Yahoo requires a negative timedelta so that we get today
-                    # (normally would get yesterday's data to prevent lookahead bias)
-                    timeshift = timedelta(
-                        days=-1
-                    )
+                # Default to backing up one minute so fills use the next bar, consistent with other sources.
+                timeshift = timedelta(minutes=-1)
+                if data_source_name == "YAHOO":
+                    # Yahoo uses day bars; shift one day instead to mirror legacy behavior.
+                    timeshift = timedelta(days=-1)
 
-                include_attr = "_include_current_bar_for_orders"
-                restore_flag = None
-                if hasattr(self.data_source, include_attr):
-                    restore_flag = getattr(self.data_source, include_attr)
-                    setattr(self.data_source, include_attr, True)
-
-                try:
-                    ohlc = self.data_source.get_historical_prices(
-                        asset=asset,
-                        length=1,
-                        quote=order.quote,
-                        timeshift=timeshift,
-                    )
-                finally:
-                    if hasattr(self.data_source, include_attr):
-                        setattr(self.data_source, include_attr, restore_flag)
+                ohlc = self.data_source.get_historical_prices(
+                    asset=asset,
+                    length=1,
+                    quote=order.quote,
+                    timeshift=timeshift,
+                )
 
                 # Handle both pandas and polars DataFrames
                 if hasattr(ohlc.df, 'index'):  # pandas

@@ -79,13 +79,6 @@ class DataSourceBacktesting(DataSource, ABC):
         self._last_logging_time = None
         self._portfolio_value = None
 
-        # Flag used by certain data sources (e.g. DataBento) to control
-        # whether the bar at the current backtest timestamp should be
-        # exposed. By default strategies only see data strictly before the
-        # current clock; the broker can temporarily override this when it
-        # needs to price freshly-submitted orders.
-        self._include_current_bar_for_orders = False
-
     def get_datetime(self, adjust_for_delay=False):
         """
         Get the current datetime of the backtest.

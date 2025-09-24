@@ -269,10 +269,25 @@ class CcxtCacheDB:
         cache_file = self.get_cache_file_name(symbol, timeframe)
         if not os.path.exists(cache_file):
             return [(start, end)],[],(start, end)
-        if os.path.exists(cache_file):
-            # get cache data ranges (id, start_dt, end_dt)
-            with duckdb.connect(cache_file) as con:
+
+        df = pd.DataFrame(columns=["id", "start_dt", "end_dt"])
+        # get cache data ranges (id, start_dt, end_dt)
+        with duckdb.connect(cache_file) as con:
+            try:
                 df = con.execute("""select * from cache_dt_ranges""").fetch_df()
+            except ValueError as exc:
+                # DuckDB can surface "resize only works on single-segment arrays" when
+                # the underlying cache file is truncated or created by an older version.
+                # Treat this as a corrupted cache and fall back to redownloading.
+                if "resize only works on single-segment arrays" in str(exc):
+                    self.logger.warning(
+                        "DuckDB cache metadata is unreadable for %s %s; treating as empty cache.",
+                        symbol,
+                        timeframe,
+                    )
+                    return [(start, end)], [], (start, end)
+                raise
+
         if len(df) > 0:
             return self._find_non_overlapping_range(df,start, end)
         else:

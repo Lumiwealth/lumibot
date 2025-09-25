@@ -329,9 +329,18 @@ class DataBentoDataBacktesting(PandasData):
                 if not df.empty and 'close' in df.columns:
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
-                        
+
+                        # Step back one bar so only fully closed bars are visible
+                        bar_delta = timedelta(minutes=1)
+                        if asset_data.timestep == "hour":
+                            bar_delta = timedelta(hours=1)
+                        elif asset_data.timestep == "day":
+                            bar_delta = timedelta(days=1)
+
+                        cutoff_dt = current_dt_aware - bar_delta
+
                         # Filter to data up to current backtest time (exclude current bar unless broker overrides)
-                        filtered_df = df[df.index < current_dt_aware]
+                        filtered_df = df[df.index <= cutoff_dt]
                         
                         if not filtered_df.empty:
                             last_price = filtered_df['close'].iloc[-1]
@@ -501,8 +510,17 @@ class DataBentoDataBacktesting(PandasData):
                 # Ensure current_dt is timezone-aware for comparison
                 current_dt_aware = to_datetime_aware(current_dt)
                 
+                # Step back one bar to avoid exposing the in-progress bar
+                bar_delta = timedelta(minutes=1)
+                if asset_data.timestep == "hour":
+                    bar_delta = timedelta(hours=1)
+                elif asset_data.timestep == "day":
+                    bar_delta = timedelta(days=1)
+
+                cutoff_dt = current_dt_aware - bar_delta
+
                 # Filter data up to current backtest time (exclude current bar unless broker overrides)
-                filtered_df = df[df.index <= current_dt_aware] if shift_seconds > 0 else df[df.index < current_dt_aware]
+                filtered_df = df[df.index <= cutoff_dt] if shift_seconds > 0 else df[df.index < current_dt_aware]
                 
                 # Take the last 'length' bars
                 result_df = filtered_df.tail(length)

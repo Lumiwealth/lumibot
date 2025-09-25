@@ -101,6 +101,23 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
 
         if self.enable_live_stream:
             self._init_live_streaming()
+
+    def _should_use_live_api(self, start_dt: datetime, end_dt: datetime) -> bool:
+        """Return True when the requested window should use the live API."""
+        if not self.enable_live_stream:
+            return False
+        if start_dt is None or end_dt is None:
+            return False
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        if end_dt < start_dt:
+            start_dt, end_dt = end_dt, start_dt
+        now = datetime.now(timezone.utc)
+        live_window = timedelta(hours=24)
+        return end_dt >= now - live_window
+
     
     def _init_live_streaming(self):
         """Initialize DataBento Live API client for real-time data"""

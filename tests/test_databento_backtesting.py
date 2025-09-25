@@ -205,7 +205,7 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
         
         result = backtester.get_last_price(asset=self.test_asset)
         
-        self.assertEqual(result, 103.0)  # Last close price
+        self.assertEqual(result, 102.0)  # Last fully closed bar (avoid lookahead)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     @patch('lumibot.tools.databento_helper.get_last_price_from_databento')

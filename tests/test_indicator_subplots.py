@@ -261,10 +261,20 @@ class TestAddMarkerAndLineGuards:
 
     def test_add_marker_defaults_color(self, caplog):
         strat = _make_strategy_stub()
+        caplog.clear()
         with caplog.at_level(logging.WARNING):
-            strat.add_marker("bad_color", 10.0, color="magenta")
-        assert strat._chart_markers_list[0]["color"] == "white"
+            strat.add_marker("bad_color", 10.0, color="not-a-real-color")
+        assert strat._chart_markers_list[0]["color"] == "blue"
         assert "Unsupported marker color" in caplog.text
+        assert "defaulting to blue" in caplog.text
+
+    def test_add_marker_accepts_css_color(self, caplog):
+        strat = _make_strategy_stub()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            strat.add_marker("css_color", 10.0, color="magenta")
+        assert strat._chart_markers_list[0]["color"] == "magenta"
+        assert "Unsupported marker color" not in caplog.text
 
     def test_add_line_rejects_nan(self, caplog):
         strat = _make_strategy_stub()
@@ -273,6 +283,14 @@ class TestAddMarkerAndLineGuards:
         assert result is None
         assert strat._chart_lines_list == []
         assert "Skipping line" in caplog.text
+
+    def test_add_line_defaults_color(self, caplog):
+        strat = _make_strategy_stub()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            strat.add_line("bad_color", 10.0, color="not-a-real-color")
+        assert strat._chart_lines_list[0]["color"] == "blue"
+        assert "Unsupported line color" in caplog.text
 
     def test_add_line_defaults_style(self, caplog):
         strat = _make_strategy_stub()

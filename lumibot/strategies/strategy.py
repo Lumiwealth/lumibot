@@ -5,10 +5,11 @@ import os
 import time
 import uuid
 from decimal import Decimal
-from typing import Callable, List, Type, Union
+from typing import Callable, List, Type, Union, Optional
 
 import jsonpickle
 import matplotlib
+from matplotlib.colors import is_color_like
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -2900,6 +2901,31 @@ class Strategy(_Strategy):
             multiplier=multiplier,
         )
 
+    def _normalize_plot_color(self, color: Optional[str], *, default: Optional[str], context: str):
+        """Normalize user-supplied chart colors while falling back gracefully."""
+        if color is None:
+            return default
+
+        normalized = color.strip()
+        if not normalized:
+            fallback = default if default is not None else "auto-color selection"
+            self.logger.warning(f"Unsupported {context} color '{color}', defaulting to {fallback}.")
+            return default
+
+        try:
+            valid = is_color_like(normalized)
+        except Exception:
+            valid = False
+
+        if valid:
+            if normalized.startswith('#'):
+                return normalized.lower()
+            return normalized.lower()
+
+        fallback = default if default is not None else "auto-color selection"
+        self.logger.warning(f"Unsupported {context} color '{color}', defaulting to {fallback}.")
+        return default
+
     def add_marker(
             self,
             name: str,
@@ -2922,7 +2948,7 @@ class Strategy(_Strategy):
         value : float or int
             The value of the marker. Default is the current portfolio value.
         color : str
-            The color of the marker. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", and "white".
+            The color of the marker. Use any Matplotlib/Plotly compatible color name (e.g. "red", "magenta", "lightblue") or a hex string like "#ff0000".
         size : int
             The size of the marker.
         detail_text : str
@@ -2931,6 +2957,10 @@ class Strategy(_Strategy):
             The datetime of the marker. Default is the current datetime.
         plot_name : str
             The name of the subplot to add the marker to. If "default_plot" (the default value) or None, the marker will be added to the main plot.
+
+        Note
+        ----
+        Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.
 
         Example
         -------
@@ -2982,18 +3012,7 @@ class Strategy(_Strategy):
                 f"which is a type {type(dt)}."
             )
 
-        allowed_colors = {
-            "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray"
-        }
-        if color is not None:
-            color_lower = color.lower()
-            if color_lower not in allowed_colors:
-                self.logger.warning(f"Unsupported marker color '{color}', defaulting to white.")
-                color = "white"
-            else:
-                color = color_lower
-        else:
-            color = "blue"
+        color = self._normalize_plot_color(color, default="blue", context="marker")
 
         def _coerce_finite(label: str, number):
             if number is None:
@@ -3085,7 +3104,7 @@ class Strategy(_Strategy):
         value : float or int
             The value of the line.
         color : str
-            The color of the line. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray", "lightgray", "darkgray", "lightblue", "darkblue", "lightgreen", "darkgreen", "lightred", "darkred" and any hex color code.
+            The color of the line. Use any Matplotlib/Plotly compatible color name (e.g. "red", "magenta", "lightblue") or a hex string like "#ff0000".
         style : str
             The style of the line. Possible values are "solid", "dotted", and "dashed".
         width : int
@@ -3096,6 +3115,10 @@ class Strategy(_Strategy):
             The datetime of the line. Default is the current datetime.
         plot_name : str
             The name of the subplot to add the line to. If "default_plot" (the default value) or None, the line will be added to the main plot.
+
+        Note
+        ----
+        Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.
 
         Example
         -------
@@ -3146,19 +3169,8 @@ class Strategy(_Strategy):
                 f"which is a type {type(dt)}."
             )
 
-        allowed_colors = {
-            "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray",
-            "lightgray", "darkgray", "lightblue", "darkblue", "lightgreen", "darkgreen", "lightred", "darkred"
-        }
         if color is not None:
-            color_lower = color.lower()
-            if color_lower in allowed_colors:
-                color = color_lower
-            elif color.startswith('#'):
-                color = color
-            else:
-                self.logger.warning(f"Unsupported line color '{color}', defaulting to blue.")
-                color = "blue"
+            color = self._normalize_plot_color(color, default="blue", context="line")
 
         if style not in {"solid", "dotted", "dashed"}:
             self.logger.warning(f"Unsupported line style '{style}', defaulting to solid.")

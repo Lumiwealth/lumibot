@@ -290,12 +290,30 @@ def plot_indicators(
         for plot_name, plot_df in chart_markers_df.groupby("plot_name"):
             # Loop over the marker names for this plot_name
             for marker_name, group_df in plot_df.groupby("name"):
+                group_df = group_df.copy()
                 # Get the marker symbol
                 marker_symbol = group_df["symbol"].iloc[0]
 
-                # Get the marker size
-                marker_size = group_df["size"].iloc[0]
-                marker_size = marker_size if marker_size else 25
+                # Determine marker size(s), falling back to sensible defaults when unspecified
+                default_marker_size = 25
+                raw_sizes = group_df.get("size")
+                marker_size = default_marker_size
+
+                if raw_sizes is not None:
+                    marker_sizes = pd.to_numeric(raw_sizes, errors="coerce")
+
+                    if isinstance(marker_sizes, pd.Series):
+                        marker_sizes = marker_sizes.fillna(default_marker_size).clip(lower=1)
+                        unique_sizes = marker_sizes.unique()
+                        if len(unique_sizes) == 1:
+                            marker_size = float(unique_sizes[0])
+                        else:
+                            marker_size = marker_sizes.tolist()
+                    else:
+                        if pd.isna(marker_sizes) or marker_sizes <= 0:
+                            marker_size = default_marker_size
+                        else:
+                            marker_size = float(marker_sizes)
 
                 # If color is not set, set it to white
                 group_df.loc[:, "color"] = group_df["color"].fillna("white")

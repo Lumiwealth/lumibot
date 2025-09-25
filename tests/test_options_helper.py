@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""
-Unit test for options_helper strike calculation enhancements.
-Run this test to ensure the logging and validation improvements work correctly.
-"""
+"""Tests covering OptionsHelper behaviours and chain normalization."""
 
 import unittest
 from unittest.mock import Mock, MagicMock
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import sys
 import os
 
@@ -15,8 +12,64 @@ sys.path.insert(0, '/Users/robertgrzesik/Documents/Development/lumivest_bot_serv
 
 from lumibot.components.options_helper import OptionsHelper
 from lumibot.entities import Asset
+from lumibot.entities.chains import normalize_option_chains
+from lumibot.brokers.broker import Broker
 
-class TestOptionsHelperEnhancements(unittest.TestCase):
+
+class _StubDataSource:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def get_chains(self, asset):
+        return self.payload
+
+
+class _StubBroker(Broker):
+    IS_BACKTESTING_BROKER = True
+
+    def __init__(self, data_source):
+        super().__init__(data_source=data_source)
+
+    def _get_stream_object(self):
+        return None
+
+    def _register_stream_events(self):
+        return None
+
+    def _run_stream(self):
+        return None
+
+    def cancel_order(self, order):
+        return None
+
+    def _modify_order(self, order, limit_price=None, stop_price=None):
+        return None
+
+    def _submit_order(self, order):
+        return None
+
+    def _get_balances_at_broker(self, quote_asset, strategy):
+        return 0, 0, 0
+
+    def get_historical_account_value(self):
+        return {}
+
+    def _pull_positions(self, strategy):
+        return []
+
+    def _pull_position(self, strategy, asset):
+        return None
+
+    def _parse_broker_order(self, response, strategy_name, strategy_object=None):
+        return None
+
+    def _pull_broker_order(self, identifier):
+        return None
+
+    def _pull_broker_all_orders(self):
+        return []
+
+class TestOptionsHelper(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures"""
@@ -175,6 +228,42 @@ class TestOptionsHelperEnhancements(unittest.TestCase):
         
         # Should show individual strike attempts
         self.assertTrue(any("Trying strike" in msg for msg in log_calls))
+
+    def test_missing_chains_returns_none(self):
+        """Ensure missing option-chain structures do not crash and return None."""
+        target_dt = datetime(2024, 1, 2)
+
+        result = self.options_helper.get_expiration_on_or_after_date(target_dt, {}, "call")
+
+        self.assertIsNone(result)
+        log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
+        self.assertTrue(any("option chains" in msg.lower() for msg in log_calls))
+
+    def test_normalize_option_chains_adds_missing_keys(self):
+        normalized_empty = normalize_option_chains({})
+        self.assertIn("Chains", normalized_empty)
+        self.assertEqual(normalized_empty["Chains"]["CALL"], {})
+        self.assertFalse(normalized_empty)
+
+        normalized_partial = normalize_option_chains({"Chains": {"CALL": {"2024-01-02": [100.0, 101.0]}}})
+        self.assertIn("PUT", normalized_partial["Chains"])
+        self.assertTrue(normalized_partial)
+
+    def test_broker_get_chains_handles_missing_payload(self):
+        asset = Asset("TEST", asset_type=Asset.AssetType.STOCK)
+
+        broker_empty = _StubBroker(data_source=_StubDataSource({}))
+        chains_empty = broker_empty.get_chains(asset)
+        self.assertFalse(chains_empty)
+        self.assertIn("CALL", chains_empty["Chains"])
+        self.assertIn("PUT", chains_empty["Chains"])
+
+        payload_partial = {"Chains": {"CALL": {"2024-01-02": [100.0]}}}
+        broker_partial = _StubBroker(data_source=_StubDataSource(payload_partial))
+        chains_partial = broker_partial.get_chains(asset)
+        self.assertTrue(chains_partial)
+        self.assertEqual(chains_partial["Chains"]["CALL"]["2024-01-02"], [100.0])
+        self.assertIn("PUT", chains_partial["Chains"])
 
 if __name__ == "__main__":
     print("🧪 Running enhanced options helper tests...")

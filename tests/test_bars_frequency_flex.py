@@ -1,9 +1,11 @@
 import polars as pl
+import pandas as pd
 import pytest
 from datetime import datetime, timedelta, timezone
 
 from lumibot.entities.bars import Bars
 from lumibot.entities.asset import Asset
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
 
 def _make_minute_df(start_epoch: int, minutes: int = 12):
@@ -63,3 +65,30 @@ def test_invalid_frequency_raises():
     bars = Bars(df, source='test', asset=Asset(symbol='TEST4', asset_type='stock'), return_polars=True)
     with pytest.raises(ValueError):
         bars.aggregate_bars('every 5 mins')  # unsupported phrase
+
+
+def test_bars_datetime_index_normalized_to_default_timezone():
+    asset = Asset(symbol='MNQ', asset_type=Asset.AssetType.CONT_FUTURE)
+    timestamps = pl.datetime_range(
+        start=datetime(2025, 9, 24, 1, 0),
+        end=datetime(2025, 9, 24, 1, 9),
+        interval='1m',
+        time_zone='UTC',
+        eager=True,
+    )
+
+    df = pl.DataFrame({
+        'datetime': timestamps,
+        'open': [1.0] * len(timestamps),
+        'high': [1.0] * len(timestamps),
+        'low': [1.0] * len(timestamps),
+        'close': [1.0] * len(timestamps),
+        'volume': [100] * len(timestamps),
+    })
+
+    bars = Bars(df, source='test', asset=asset)
+    index = bars.df.index
+
+    assert isinstance(index, pd.DatetimeIndex)
+    assert index.tz is not None
+    assert index.tz.zone == LUMIBOT_DEFAULT_PYTZ.zone

@@ -8,7 +8,9 @@ import atexit
 import numpy as np
 import pandas as pd
 import polars as pl
+import pytz
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 
 from .bar import Bar
@@ -162,7 +164,7 @@ class Bars:
     >>> self.log_message(df["close"][-1])
     """
 
-    def __init__(self, df, source, asset, quote=None, raw=None, return_polars=False):
+    def __init__(self, df, source, asset, quote=None, raw=None, return_polars=False, tzinfo=None):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
         datetime column for polars DataFrames
@@ -179,6 +181,7 @@ class Bars:
         self._return_polars = return_polars
         # Cache for on-demand conversions to avoid repeated expensive copies
         self._polars_cache = None
+        self._tzinfo = self._normalize_tzinfo(tzinfo)
         
         # Check if empty
         if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
@@ -215,6 +218,7 @@ class Bars:
                     if col_name in self._df.columns:
                         self._df = self._df.set_index(col_name)
                         break
+                self._apply_timezone()
         else:
             # Already pandas, keep it as is
             self._df = df
@@ -225,6 +229,8 @@ class Bars:
                 self._df["return"] = self._df["dividend_yield"] + self._df["price_change"]
             else:
                 self._df["return"] = df["close"].pct_change()
+
+            self._apply_timezone()
 
     @property
     def df(self):
@@ -237,7 +243,8 @@ class Bars:
         self._df = value
         # Invalidate cached converted forms when df changes
         self._polars_cache = None
-    
+        self._apply_timezone()
+
     @property
     def polars_df(self):
         """Return as Polars DataFrame if needed"""
@@ -270,6 +277,32 @@ class Bars:
             return self._df.is_empty()
         else:
             return self._df.empty
+
+    def _normalize_tzinfo(self, tzinfo):
+        if tzinfo is None:
+            return LUMIBOT_DEFAULT_PYTZ
+        if isinstance(tzinfo, str):
+            return pytz.timezone(tzinfo)
+        return tzinfo
+
+    def _apply_timezone(self):
+        if not isinstance(self._df, pd.DataFrame):
+            return
+        if not isinstance(self._df.index, pd.DatetimeIndex):
+            return
+
+        tz = self._tzinfo or LUMIBOT_DEFAULT_PYTZ
+        if isinstance(tz, str):
+            tz = pytz.timezone(tz)
+
+        try:
+            if self._df.index.tz is None:
+                self._df.index = self._df.index.tz_localize(tz)
+            else:
+                self._df.index = self._df.index.tz_convert(tz)
+            self._tzinfo = tz
+        except Exception:
+            pass
 
     @classmethod
     def parse_bar_list(cls, bar_list, source, asset):

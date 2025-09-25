@@ -88,9 +88,9 @@ class TestAlpacaMultiLegOrders:
                 call_args = mock_api.submit_order.call_args
                 order_data = call_args[1]['order_data'] if 'order_data' in call_args[1] else call_args[0][0]
                 
-                # The key fix: order_class should be "multileg", not "mleg"
+                # Alpaca expects the short code "mleg" for multi-leg orders
                 assert hasattr(order_data, 'order_class'), "OrderData should have order_class attribute"
-                assert order_data.order_class == "multileg", f"Expected order_class 'multileg', got '{order_data.order_class}'"
+                assert order_data.order_class == "mleg", f"Expected order_class 'mleg', got '{order_data.order_class}'"
     
     @patch('lumibot.brokers.alpaca.TradingClient')
     def test_multileg_order_has_required_fields(self, mock_trading_client):
@@ -131,7 +131,7 @@ class TestAlpacaMultiLegOrders:
             "qty": "1",
             "side": side,
             "type": "limit",
-            "order_class": "multileg",
+            "order_class": "mleg",
             "time_in_force": "day",
             "legs": [],  # Would be populated in real scenario
             "limit_price": "1.00"
@@ -143,7 +143,7 @@ class TestAlpacaMultiLegOrders:
             assert field in kwargs, f"Missing required field: {field}"
         
         # Test that order_class is the correct value
-        assert kwargs["order_class"] == "multileg", "order_class must be 'multileg' for multi-leg orders"
+        assert kwargs["order_class"] == "mleg", "order_class must be 'mleg' for multi-leg orders"
         
         # Test that symbol is present (fixes missing asset info)
         assert kwargs["symbol"] == "SPY", "symbol field is required for multi-leg orders"

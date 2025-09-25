@@ -684,13 +684,25 @@ class AlpacaData(DataSource):
                                 cleaned = _clean_df(df_sym, sym)
                                 if cleaned is not None:
                                     asset_obj = next(a for a in chunk if a.symbol == sym)
-                                    result[asset_obj] = Bars(cleaned, self.SOURCE, asset_obj, raw=cleaned)
+                                    result[asset_obj] = Bars(
+                                        cleaned,
+                                        self.SOURCE,
+                                        asset_obj,
+                                        raw=cleaned,
+                                        tzinfo=self.tzinfo,
+                                    )
                     else:  # Single symbol fallback
                         sym = syms[0]
                         cleaned = _clean_df(df_multi, sym)
                         if cleaned is not None:
                             asset_obj = chunk[0]
-                            result[asset_obj] = Bars(cleaned, self.SOURCE, asset_obj, raw=cleaned)
+                            result[asset_obj] = Bars(
+                                cleaned,
+                                self.SOURCE,
+                                asset_obj,
+                                raw=cleaned,
+                                tzinfo=self.tzinfo,
+                            )
                 except Exception as e:
                     logger.error(f"Could not get stock pricing data from Alpaca for batch ({len(syms)} symbols): {e}")
 
@@ -720,12 +732,24 @@ class AlpacaData(DataSource):
                                 continue
                             cleaned = _clean_df(df_sym, sym)
                             if cleaned is not None:
-                                result[a] = Bars(cleaned, self.SOURCE, a, raw=cleaned)
+                                result[a] = Bars(
+                                    cleaned,
+                                    self.SOURCE,
+                                    a,
+                                    raw=cleaned,
+                                    tzinfo=self.tzinfo,
+                                )
                     else:  # Single symbol fallback
                         sym = syms[0]
                         cleaned = _clean_df(df_multi, sym)
                         if cleaned is not None:
-                            result[chunk[0]] = Bars(cleaned, self.SOURCE, chunk[0], raw=cleaned)
+                            result[chunk[0]] = Bars(
+                                cleaned,
+                                self.SOURCE,
+                                chunk[0],
+                                raw=cleaned,
+                                tzinfo=self.tzinfo,
+                            )
                 except Exception as e:
                     logger.error(f"Could not get option pricing data from Alpaca batch ({len(syms)} symbols): {e}")
 
@@ -763,13 +787,25 @@ class AlpacaData(DataSource):
                             cleaned = _clean_df(df_sym, sym)
                             if cleaned is not None:
                                 a = asset_map[sym]
-                                result[a] = Bars(cleaned, self.SOURCE, a, raw=cleaned)
+                                result[a] = Bars(
+                                    cleaned,
+                                    self.SOURCE,
+                                    a,
+                                    raw=cleaned,
+                                    tzinfo=self.tzinfo,
+                                )
                     else:
                         sym = syms[0]
                         cleaned = _clean_df(df_multi, sym)
                         if cleaned is not None:
                             a = asset_map[sym]
-                            result[a] = Bars(cleaned, self.SOURCE, a, raw=cleaned)
+                            result[a] = Bars(
+                                cleaned,
+                                self.SOURCE,
+                                a,
+                                raw=cleaned,
+                                tzinfo=self.tzinfo,
+                            )
                 except Exception as e:
                     logger.error(f"Could not get crypto pricing data from Alpaca batch ({len(syms)} symbols): {e}")
 
@@ -949,7 +985,14 @@ class AlpacaData(DataSource):
         return df
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
+        bars = Bars(
+            response,
+            self.SOURCE,
+            asset,
+            raw=response,
+            quote=quote,
+            tzinfo=self.tzinfo,
+        )
         return bars
 
     def get_quote(self, asset: Asset, quote: Asset = None, exchange=None) -> Quote:

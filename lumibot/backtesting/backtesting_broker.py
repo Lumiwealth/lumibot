@@ -904,6 +904,9 @@ class BacktestingBroker(Broker):
 
             price = None
             filled_quantity = order.quantity
+            timeshift = None
+            dt = None
+            open = high = low = close = volume = None
 
             #############################
             # Get OHLCV data for the asset
@@ -912,16 +915,17 @@ class BacktestingBroker(Broker):
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
             if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO"]:
-                if data_source_name in ["CCXT", "ALPACA", "DATABENTO"]:
-                    # If we're using the CCXT, Alpaca, or DataBento data source, we don't need to timeshift the data.
-                    # We fill at the open price of the current bar.
+                # Default to backing up one minute so fills use the next bar, consistent with other sources.
+                timeshift = timedelta(minutes=-1)
+                if data_source_name == "DATABENTO":
+                    # DataBento mimics Polygon by requesting two bars to guard against gaps.
+                    timeshift = timedelta(minutes=-2)
+                elif data_source_name == "YAHOO":
+                    # Yahoo uses day bars; shift one day instead to mirror legacy behavior.
+                    timeshift = timedelta(days=-1)
+                elif data_source_name == "ALPACA":
+                    # Alpaca minute bars are aligned to the current iteration already.
                     timeshift = None
-                else:
-                    # Yahoo requires a negative timedelta so that we get today
-                    # (normally would get yesterday's data to prevent lookahead bias)
-                    timeshift = timedelta(
-                        days=-1
-                    )
 
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,

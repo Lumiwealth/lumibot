@@ -1,13 +1,15 @@
 import datetime
 import logging
+import math
 import os
 import time
 import uuid
 from decimal import Decimal
-from typing import Callable, List, Type, Union
+from typing import Callable, List, Type, Union, Optional
 
 import jsonpickle
 import matplotlib
+from matplotlib.colors import is_color_like
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -2899,6 +2901,31 @@ class Strategy(_Strategy):
             multiplier=multiplier,
         )
 
+    def _normalize_plot_color(self, color: Optional[str], *, default: Optional[str], context: str):
+        """Normalize user-supplied chart colors while falling back gracefully."""
+        if color is None:
+            return default
+
+        normalized = color.strip()
+        if not normalized:
+            fallback = default if default is not None else "auto-color selection"
+            self.logger.warning(f"Unsupported {context} color '{color}', defaulting to {fallback}.")
+            return default
+
+        try:
+            valid = is_color_like(normalized)
+        except Exception:
+            valid = False
+
+        if valid:
+            if normalized.startswith('#'):
+                return normalized.lower()
+            return normalized.lower()
+
+        fallback = default if default is not None else "auto-color selection"
+        self.logger.warning(f"Unsupported {context} color '{color}', defaulting to {fallback}.")
+        return default
+
     def add_marker(
             self,
             name: str,
@@ -2921,7 +2948,7 @@ class Strategy(_Strategy):
         value : float or int
             The value of the marker. Default is the current portfolio value.
         color : str
-            The color of the marker. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", and "white".
+            The color of the marker. Use any Matplotlib/Plotly compatible color name (e.g. "red", "magenta", "lightblue") or a hex string like "#ff0000".
         size : int
             The size of the marker.
         detail_text : str
@@ -2931,11 +2958,16 @@ class Strategy(_Strategy):
         plot_name : str
             The name of the subplot to add the marker to. If "default_plot" (the default value) or None, the marker will be added to the main plot.
 
+        Note
+        ----
+        Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.
+
         Example
         -------
         >>> # Will add a marker to the chart
         >>> self.add_chart_marker("Overbought", symbol="circle", color="red", size=10)
         """
+
 
         # Check that the parameters are valid
         if not isinstance(name, str):
@@ -2980,13 +3012,36 @@ class Strategy(_Strategy):
                 f"which is a type {type(dt)}."
             )
 
-        # If no datetime is specified, use the current datetime
+        color = self._normalize_plot_color(color, default="blue", context="marker")
+
+        def _coerce_finite(label: str, number):
+            if number is None:
+                return None
+            try:
+                num = float(number)
+            except (TypeError, ValueError):
+                self.logger.warning(f"Skipping {label} marker: value '{number}' is not numeric.")
+                return None
+            if math.isnan(num) or math.isinf(num):
+                self.logger.warning(f"Skipping {label} marker: value '{number}' is not finite.")
+                return None
+            return num
+
         if dt is None:
             dt = self.get_datetime()
 
-        # If no value is specified, use the current portfolio value
         if value is None:
             value = self.portfolio_value
+
+        numeric_value = _coerce_finite(name, value)
+        if numeric_value is None:
+            return None
+
+        if size is not None and size <= 0:
+            self.logger.warning("Marker size must be positive; ignoring the size override.")
+            size = None
+
+        value = numeric_value
 
         # Check for duplicate markers
         if len(self._chart_markers_list) > 0:
@@ -3049,7 +3104,7 @@ class Strategy(_Strategy):
         value : float or int
             The value of the line.
         color : str
-            The color of the line. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray", "lightgray", "darkgray", "lightblue", "darkblue", "lightgreen", "darkgreen", "lightred", "darkred" and any hex color code.
+            The color of the line. Use any Matplotlib/Plotly compatible color name (e.g. "red", "magenta", "lightblue") or a hex string like "#ff0000".
         style : str
             The style of the line. Possible values are "solid", "dotted", and "dashed".
         width : int
@@ -3060,6 +3115,10 @@ class Strategy(_Strategy):
             The datetime of the line. Default is the current datetime.
         plot_name : str
             The name of the subplot to add the line to. If "default_plot" (the default value) or None, the line will be added to the main plot.
+
+        Note
+        ----
+        Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.
 
         Example
         -------
@@ -3109,6 +3168,22 @@ class Strategy(_Strategy):
                 f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, "
                 f"which is a type {type(dt)}."
             )
+
+        if color is not None:
+            color = self._normalize_plot_color(color, default="blue", context="line")
+
+        if style not in {"solid", "dotted", "dashed"}:
+            self.logger.warning(f"Unsupported line style '{style}', defaulting to solid.")
+            style = "solid"
+
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
+            self.logger.warning("Skipping line because value is not finite.")
+            return None
+
+        if width is not None and width <= 0:
+            self.logger.warning("Line width must be positive; ignoring the width override.")
+            width = None
 
         # If no datetime is specified, use the current datetime
         if dt is None:

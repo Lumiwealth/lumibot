@@ -34,12 +34,12 @@ class TestDataBentoHelper(unittest.TestCase):
         # Test with specific reference date (January 1, 2025) - should resolve to March contract
         reference_date = datetime(2025, 1, 1)
         result = databento_helper._format_futures_symbol_for_databento(continuous_asset, reference_date)
-        self.assertIn("ESH25", result)
+        self.assertIn("ESH5", result)
         
         # Test MES continuous futures with same reference date
         mes_continuous = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
         result = databento_helper._format_futures_symbol_for_databento(mes_continuous, reference_date)
-        self.assertIn("MESH25", result)
+        self.assertIn("MESH5", result)
         
         # Test regular future (no expiration) - should return raw symbol
         regular_future = Asset(symbol="ES", asset_type="future")

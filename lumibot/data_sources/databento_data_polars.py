@@ -101,6 +101,23 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
 
         if self.enable_live_stream:
             self._init_live_streaming()
+
+    def _should_use_live_api(self, start_dt: datetime, end_dt: datetime) -> bool:
+        """Return True when the requested window should use the live API."""
+        if not self.enable_live_stream:
+            return False
+        if start_dt is None or end_dt is None:
+            return False
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        if end_dt < start_dt:
+            start_dt, end_dt = end_dt, start_dt
+        now = datetime.now(timezone.utc)
+        live_window = timedelta(hours=24)
+        return end_dt >= now - live_window
+
     
     def _init_live_streaming(self):
         """Initialize DataBento Live API client for real-time data"""
@@ -493,12 +510,10 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             # For continuous futures, resolve to specific contract
             if asset.asset_type == Asset.AssetType.CONT_FUTURE:
                 if hasattr(asset, 'resolve_continuous_futures_contract'):
-                    resolved = asset.resolve_continuous_futures_contract(reference_date)
-                    # DataBento uses single digit year for CME futures (ESZ5 not ESZ25)
-                    if len(resolved) >= 5 and resolved[-2:].isdigit() and int(resolved[-2:]) >= 20:
-                        # Convert to single digit year (e.g., 25 -> 5)
-                        return resolved[:-2] + resolved[-1]
-                    return resolved
+                    return asset.resolve_continuous_futures_contract(
+                        reference_date=reference_date,
+                        year_digits=1,
+                    )
             
             # Manual resolution for common futures
             symbol = asset.symbol.upper()
@@ -660,7 +675,14 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             # Trim to requested length
             df = df.tail(length)
             df = _ensure_polars_tz(df)
-            return Bars(df=df, source=self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
+            return Bars(
+                df=df,
+                source=self.SOURCE,
+                asset=asset,
+                quote=quote,
+                return_polars=return_polars,
+                tzinfo=self.tzinfo,
+            )
         
         return None
     

@@ -109,6 +109,35 @@ def test_resolve_continuous_futures_contract():
     assert isinstance(contract, str)
     assert contract.startswith("MES")
 
+
+def test_resolve_continuous_futures_contract_year_digits():
+    """Continuous futures should support 1-, 2-, and 4-digit year formats."""
+    asset = Asset(symbol="MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
+    reference = datetime.datetime(2025, 9, 16)
+
+    two_digit = asset.resolve_continuous_futures_contract(reference_date=reference, year_digits=2)
+    one_digit = asset.resolve_continuous_futures_contract(reference_date=reference, year_digits=1)
+    four_digit = asset.resolve_continuous_futures_contract(reference_date=reference, year_digits=4)
+
+    assert two_digit == "MNQZ25"
+    assert one_digit == "MNQZ5"
+    assert four_digit == "MNQZ2025"
+
+
+def test_resolve_continuous_futures_contract_rolls_mid_month():
+    """Verify contracts roll to next quarter after mid-month in expiry month."""
+    asset = Asset(symbol="MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    before_roll = datetime.datetime(2025, 9, 10)
+    after_roll = datetime.datetime(2025, 9, 20)
+
+    contract_before = asset.resolve_continuous_futures_contract(reference_date=before_roll)
+    contract_after = asset.resolve_continuous_futures_contract(reference_date=after_roll)
+
+    assert contract_before.startswith("MNQU")
+    assert contract_after.startswith("MNQZ")
+
+
 def test_get_potential_futures_contracts():
     """Test getting potential futures contracts."""
     asset = Asset(symbol="ES", asset_type=Asset.AssetType.CONT_FUTURE)

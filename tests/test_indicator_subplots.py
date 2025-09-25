@@ -237,3 +237,46 @@ def test_plot_indicators_handles_nan_marker_size(tmp_path, monkeypatch):
     )
 
     mock_write.assert_called_once()
+
+
+def _make_strategy_stub():
+    strat = Strategy.__new__(Strategy)
+    strat._chart_markers_list = []
+    strat._chart_lines_list = []
+    strat.logger = logging.getLogger("indicator_tests")
+    strat.portfolio_value = 1_000
+    strat.get_datetime = lambda: DateTime(2024, 1, 1)
+    return strat
+
+
+class TestAddMarkerAndLineGuards:
+
+    def test_add_marker_rejects_nan(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            result = strat.add_marker("nan_marker", float("nan"))
+        assert result is None
+        assert strat._chart_markers_list == []
+        assert "not finite" in caplog.text
+
+    def test_add_marker_defaults_color(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            strat.add_marker("bad_color", 10.0, color="magenta")
+        assert strat._chart_markers_list[0]["color"] == "white"
+        assert "Unsupported marker color" in caplog.text
+
+    def test_add_line_rejects_nan(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            result = strat.add_line("nan_line", float("nan"))
+        assert result is None
+        assert strat._chart_lines_list == []
+        assert "Skipping line" in caplog.text
+
+    def test_add_line_defaults_style(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            strat.add_line("bad_style", 10.0, color="lightblue", style="dot-dot")
+        assert strat._chart_lines_list[0]["style"] == "solid"
+        assert "Unsupported line style" in caplog.text

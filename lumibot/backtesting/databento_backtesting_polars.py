@@ -367,48 +367,22 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                         bar_delta = timedelta(minutes=1)
 
                     effective_dt = current_dt
-                    shift_seconds = 0
                     if timeshift:
                         if isinstance(timeshift, int):
-                            shift_seconds = timeshift * 60
                             effective_dt = effective_dt - timedelta(minutes=timeshift)
                         else:
-                            shift_seconds = timeshift.total_seconds()
                             effective_dt = effective_dt - timeshift
 
-                    if shift_seconds > 0:
-                        cutoff_dt = effective_dt
-                    else:
-                        cutoff_dt = effective_dt - bar_delta
+                    cutoff_dt = effective_dt - bar_delta
 
-                    df_candidates = pl.DataFrame()
-                    if shift_seconds <= 0:
-                        df_candidates = (
-                            cached_df.lazy()
-                            .filter((pl.col('datetime') >= base_dt) & (pl.col('datetime') <= cutoff_dt))
-                            .sort('datetime')
-                            .head(length)
-                            .collect()
-                        )
-
-                    if df_candidates.height >= length:
-                        return Bars(
-                            df=df_candidates,
-                            source=self.SOURCE,
-                            asset=asset,
-                            quote=quote,
-                            return_polars=return_polars
-                        )
-
-                    # Cache is valid, chain operations for single collection (fallback)
                     df_result = (
                         cached_df.lazy()
                         .filter(pl.col('datetime') <= cutoff_dt)
+                        .sort('datetime')
                         .tail(length)
                         .collect()
                     )
 
-                    # Check if we have enough bars
                     if df_result.height >= length:
                         return Bars(
                             df=df_result,
@@ -541,40 +515,21 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                     bar_delta = timedelta(minutes=1)
 
                 effective_dt = current_dt
-                shift_seconds = 0
                 if timeshift:
                     if isinstance(timeshift, int):
-                        shift_seconds = timeshift * 60
                         effective_dt = effective_dt - timedelta(minutes=timeshift)
                     else:
-                        shift_seconds = timeshift.total_seconds()
                         effective_dt = effective_dt - timeshift
 
-                if shift_seconds > 0:
-                    cutoff_dt_api = effective_dt
-                else:
-                    cutoff_dt_api = effective_dt - bar_delta
+                cutoff_dt_api = effective_dt - bar_delta
 
-                if shift_seconds <= 0:
-                    df_candidates = (
-                        df.lazy()
-                        .filter((pl.col('datetime') >= base_dt) & (pl.col('datetime') <= cutoff_dt_api))
-                        .sort('datetime')
-                        .head(length)
-                        .collect()
-                    )
-                else:
-                    df_candidates = pl.DataFrame()
-
-                if df_candidates.height >= length:
-                    df_result = df_candidates
-                else:
-                    df_result = (
-                        df.lazy()
-                        .filter(pl.col('datetime') <= cutoff_dt_api)
-                        .tail(length)
-                        .collect()
-                    )
+                df_result = (
+                    df.lazy()
+                    .filter(pl.col('datetime') <= cutoff_dt_api)
+                    .sort('datetime')
+                    .tail(length)
+                    .collect()
+                )
             else:
                 df_result = df.tail(length)
 
@@ -649,7 +604,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
 
             # Get last price with single lazy operation
             try:
-                cutoff_dt_lp = current_dt_naive
+                cutoff_dt_lp = current_dt_naive - timedelta(minutes=1)
                 last_price = (
                     lazy_df
                     .filter(pl.col('datetime') <= cutoff_dt_lp)
@@ -661,21 +616,21 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                 if last_price is not None:
                     last_price = float(last_price)
                     cache_key = (asset, self.get_datetime())
-                    self._last_price_cache[cache_key] = last_price
+                    self._last_price_cache[asset] = last_price
                     logger.debug(f"Last price from lazy data for {asset.symbol}: {last_price}")
                     return last_price
             except:
                 pass  # Fall back to historical prices
 
         # Fall back to getting historical prices
-        bars = self.get_historical_prices(asset, 1, "minute", timeshift=timedelta(minutes=-1), exchange=exchange)
+        bars = self.get_historical_prices(asset, 1, "minute", exchange=exchange)
         if bars and not bars.empty:
             # Get the last close price - handle both index types
             df = bars.df
             if 'close' in df.columns:
                 last_price = float(df['close'].iloc[-1])
                 cache_key = (asset, self.get_datetime())
-                self._last_price_cache[cache_key] = last_price
+                self._last_price_cache[asset] = last_price
                 logger.debug(f"Last price from historical for {asset.symbol}: {last_price}")
                 return last_price
 

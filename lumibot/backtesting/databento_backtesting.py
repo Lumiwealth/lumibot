@@ -331,7 +331,7 @@ class DataBentoDataBacktesting(PandasData):
                         current_dt_aware = to_datetime_aware(current_dt)
                         
                         # Filter to data up to current backtest time (exclude current bar unless broker overrides)
-                        filtered_df = df[df.index <= current_dt_aware]
+                        filtered_df = df[df.index < current_dt_aware]
                         
                         if not filtered_df.empty:
                             last_price = filtered_df['close'].iloc[-1]

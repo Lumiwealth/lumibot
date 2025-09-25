@@ -1,5 +1,6 @@
 import datetime
 import logging
+import math
 import os
 import time
 import uuid
@@ -2937,6 +2938,7 @@ class Strategy(_Strategy):
         >>> self.add_chart_marker("Overbought", symbol="circle", color="red", size=10)
         """
 
+
         # Check that the parameters are valid
         if not isinstance(name, str):
             raise ValueError(
@@ -2980,13 +2982,47 @@ class Strategy(_Strategy):
                 f"which is a type {type(dt)}."
             )
 
-        # If no datetime is specified, use the current datetime
+        allowed_colors = {
+            "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray"
+        }
+        if color is not None:
+            color_lower = color.lower()
+            if color_lower not in allowed_colors:
+                self.logger.warning(f"Unsupported marker color '{color}', defaulting to white.")
+                color = "white"
+            else:
+                color = color_lower
+        else:
+            color = "blue"
+
+        def _coerce_finite(label: str, number):
+            if number is None:
+                return None
+            try:
+                num = float(number)
+            except (TypeError, ValueError):
+                self.logger.warning(f"Skipping {label} marker: value '{number}' is not numeric.")
+                return None
+            if math.isnan(num) or math.isinf(num):
+                self.logger.warning(f"Skipping {label} marker: value '{number}' is not finite.")
+                return None
+            return num
+
         if dt is None:
             dt = self.get_datetime()
 
-        # If no value is specified, use the current portfolio value
         if value is None:
             value = self.portfolio_value
+
+        numeric_value = _coerce_finite(name, value)
+        if numeric_value is None:
+            return None
+
+        if size is not None and size <= 0:
+            self.logger.warning("Marker size must be positive; ignoring the size override.")
+            size = None
+
+        value = numeric_value
 
         # Check for duplicate markers
         if len(self._chart_markers_list) > 0:
@@ -3109,6 +3145,33 @@ class Strategy(_Strategy):
                 f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, "
                 f"which is a type {type(dt)}."
             )
+
+        allowed_colors = {
+            "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray",
+            "lightgray", "darkgray", "lightblue", "darkblue", "lightgreen", "darkgreen", "lightred", "darkred"
+        }
+        if color is not None:
+            color_lower = color.lower()
+            if color_lower in allowed_colors:
+                color = color_lower
+            elif color.startswith('#'):
+                color = color
+            else:
+                self.logger.warning(f"Unsupported line color '{color}', defaulting to blue.")
+                color = "blue"
+
+        if style not in {"solid", "dotted", "dashed"}:
+            self.logger.warning(f"Unsupported line style '{style}', defaulting to solid.")
+            style = "solid"
+
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
+            self.logger.warning("Skipping line because value is not finite.")
+            return None
+
+        if width is not None and width <= 0:
+            self.logger.warning("Line width must be positive; ignoring the width override.")
+            width = None
 
         # If no datetime is specified, use the current datetime
         if dt is None:

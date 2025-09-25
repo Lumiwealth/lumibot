@@ -331,7 +331,7 @@ class DataBentoDataBacktesting(PandasData):
                         current_dt_aware = to_datetime_aware(current_dt)
                         
                         # Filter to data up to current backtest time (exclude current bar unless broker overrides)
-                        filtered_df = df[df.index < current_dt_aware]
+                        filtered_df = df[df.index <= current_dt_aware]
                         
                         if not filtered_df.empty:
                             last_price = filtered_df['close'].iloc[-1]
@@ -410,15 +410,22 @@ class DataBentoDataBacktesting(PandasData):
                     if not df.empty:
                         # Apply timeshift if specified
                         current_dt = self.get_datetime()
+                        shift_seconds = 0
                         if timeshift:
-                            current_dt = current_dt - timeshift
+                            if isinstance(timeshift, int):
+                                shift_seconds = timeshift * 60
+                                current_dt = current_dt - timedelta(minutes=timeshift)
+                            else:
+                                shift_seconds = timeshift.total_seconds()
+                                current_dt = current_dt - timeshift
                         
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
                         
                         # Filter data up to current backtest time (exclude current bar unless broker overrides)
                         include_current = getattr(self, "_include_current_bar_for_orders", False)
-                        mask = df.index <= current_dt_aware if include_current else df.index < current_dt_aware
+                        allow_current = include_current or shift_seconds > 0
+                        mask = df.index <= current_dt_aware if allow_current else df.index < current_dt_aware
                         filtered_df = df[mask]
                         
                         # Take the last 'length' bars
@@ -482,14 +489,20 @@ class DataBentoDataBacktesting(PandasData):
             if not df.empty:
                 # Apply timeshift if specified
                 current_dt = self.get_datetime()
+                shift_seconds = 0
                 if timeshift:
-                    current_dt = current_dt - timedelta(minutes=timeshift)
+                    if isinstance(timeshift, int):
+                        shift_seconds = timeshift * 60
+                        current_dt = current_dt - timedelta(minutes=timeshift)
+                    else:
+                        shift_seconds = timeshift.total_seconds()
+                        current_dt = current_dt - timeshift
                 
                 # Ensure current_dt is timezone-aware for comparison
                 current_dt_aware = to_datetime_aware(current_dt)
                 
                 # Filter data up to current backtest time (exclude current bar unless broker overrides)
-                filtered_df = df[df.index < current_dt_aware]
+                filtered_df = df[df.index <= current_dt_aware] if shift_seconds > 0 else df[df.index < current_dt_aware]
                 
                 # Take the last 'length' bars
                 result_df = filtered_df.tail(length)

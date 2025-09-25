@@ -923,6 +923,9 @@ class BacktestingBroker(Broker):
                 elif data_source_name == "YAHOO":
                     # Yahoo uses day bars; shift one day instead to mirror legacy behavior.
                     timeshift = timedelta(days=-1)
+                elif data_source_name == "ALPACA":
+                    # Alpaca minute bars are aligned to the current iteration already.
+                    timeshift = None
 
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,

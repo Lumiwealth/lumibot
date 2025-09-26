@@ -374,25 +374,44 @@ class BacktestingBroker(Broker):
             if order.order_class == "" or order.order_class is None:
                 orders.append(order)
                 if order.stop_price:
+                    stop_limit_price = getattr(order, "stop_limit_price", None)
+                    trail_price = getattr(order, "trail_price", None)
+                    trail_percent = getattr(order, "trail_percent", None)
+
+                    if stop_limit_price is not None:
+                        child_order_type = Order.OrderType.STOP_LIMIT
+                    elif trail_price is not None or trail_percent is not None:
+                        child_order_type = Order.OrderType.TRAIL
+                    else:
+                        child_order_type = Order.OrderType.STOP
+
                     stop_loss_order = Order(
                         order.strategy,
                         order.asset,
                         order.quantity,
                         order.side,
                         stop_price=order.stop_price,
+                        stop_limit_price=stop_limit_price,
+                        trail_price=trail_price,
+                        trail_percent=trail_percent,
                         quote=order.quote,
+                        order_type=child_order_type,
                     )
                     stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
                     orders.append(stop_loss_order)
 
             elif order.order_class == Order.OrderClass.OCO:
+                stop_limit_price = getattr(order, "stop_limit_price", None)
+                stop_child_type = Order.OrderType.STOP_LIMIT if stop_limit_price else Order.OrderType.STOP
                 stop_loss_order = Order(
                     order.strategy,
                     order.asset,
                     order.quantity,
                     order.side,
                     stop_price=order.stop_price,
+                    stop_limit_price=stop_limit_price,
                     quote=order.quote,
+                    order_type=stop_child_type,
                 )
                 orders.append(stop_loss_order)
 
@@ -403,6 +422,7 @@ class BacktestingBroker(Broker):
                     order.side,
                     limit_price=order.limit_price,
                     quote=order.quote,
+                    order_type=Order.OrderType.LIMIT,
                 )
                 orders.append(limit_order)
 
@@ -413,16 +433,28 @@ class BacktestingBroker(Broker):
                 side = Order.OrderSide.SELL if order.is_buy_order() else Order.OrderSide.BUY
                 if (order.order_class == Order.OrderClass.BRACKET or
                         (order.order_class == Order.OrderClass.OTO and order.secondary_stop_price)):
+                    secondary_stop_limit_price = getattr(order, "secondary_stop_limit_price", None)
+                    secondary_trail_price = getattr(order, "secondary_trail_price", None)
+                    secondary_trail_percent = getattr(order, "secondary_trail_percent", None)
+
+                    if secondary_stop_limit_price is not None:
+                        child_order_type = Order.OrderType.STOP_LIMIT
+                    elif secondary_trail_price is not None or secondary_trail_percent is not None:
+                        child_order_type = Order.OrderType.TRAIL
+                    else:
+                        child_order_type = Order.OrderType.STOP
+
                     stop_loss_order = Order(
                         order.strategy,
                         order.asset,
                         order.quantity,
                         side,
                         stop_price=order.secondary_stop_price,
-                        stop_limit_price=order.secondary_stop_limit_price,
-                        trail_price=order.secondary_trail_price,
-                        trail_percent=order.secondary_trail_percent,
+                        stop_limit_price=secondary_stop_limit_price,
+                        trail_price=secondary_trail_price,
+                        trail_percent=secondary_trail_percent,
                         quote=order.quote,
+                        order_type=child_order_type,
                     )
                     orders.append(stop_loss_order)
 
@@ -435,6 +467,7 @@ class BacktestingBroker(Broker):
                         side,
                         limit_price=order.secondary_limit_price,
                         quote=order.quote,
+                        order_type=Order.OrderType.LIMIT,
                     )
                     orders.append(limit_order)
 
@@ -746,10 +779,11 @@ class BacktestingBroker(Broker):
         """Calculate the trade cost of an order for a given strategy"""
         trade_cost = 0
         trading_fees = []
-        if order.side == "buy":
-            trading_fees: list[TradingFee] = strategy.buy_trading_fees
-        elif order.side == "sell":
-            trading_fees: list[TradingFee] = strategy.sell_trading_fees
+        side_value = str(order.side).lower() if order.side is not None else ""
+        if side_value in ("buy", "buy_to_open", "buy_to_cover"):
+            trading_fees = strategy.buy_trading_fees
+        elif side_value in ("sell", "sell_to_close", "sell_short", "sell_to_open"):
+            trading_fees = strategy.sell_trading_fees
 
         for trading_fee in trading_fees:
             if trading_fee.taker == True and order.order_type in [
@@ -766,6 +800,7 @@ class BacktestingBroker(Broker):
                 trade_cost += Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
 
         return trade_cost
+        
 
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.

@@ -445,9 +445,6 @@ class StrategyExecutor(Thread):
             self._on_canceled_order(**payload)
 
         elif event == self.FILLED_ORDER:
-            # Log that we are processing a filled order.
-            self.strategy.logger.debug(f"Processing a filled order, payload: {payload}")
-
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
@@ -455,21 +452,52 @@ class StrategyExecutor(Thread):
 
             # Parent orders to not affect cash or trades directly, the individual child_orders will when they
             # are filled. Skip the parent order so as not to double count.
-            if not order.is_parent() and order.asset.asset_type != "crypto":
+            update_cash = True
+            order_class_value = getattr(order, "order_class", None)
+            try:
+                order_class_enum = (
+                    Order.OrderClass(order_class_value)
+                    if order_class_value is not None
+                    else None
+                )
+            except ValueError:
+                order_class_enum = None
+
+            if order.is_parent() and order_class_enum not in (
+                Order.OrderClass.BRACKET,
+                Order.OrderClass.OTO,
+            ):
+                update_cash = False
+
+            if update_cash and quantity is not None and price is not None:
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_filled_order(**payload)
 
         elif event == self.PARTIALLY_FILLED_ORDER:
-            # Log that we are processing a partially filled order.
-            self.strategy.logger.debug(f"Processing a partially filled order, payload: {payload}")
-
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            if order.asset.asset_type != "crypto":
+            update_cash = True
+            order_class_value = getattr(order, "order_class", None)
+            try:
+                order_class_enum = (
+                    Order.OrderClass(order_class_value)
+                    if order_class_value is not None
+                    else None
+                )
+            except ValueError:
+                order_class_enum = None
+
+            if order.is_parent() and order_class_enum not in (
+                Order.OrderClass.BRACKET,
+                Order.OrderClass.OTO,
+            ):
+                update_cash = False
+
+            if update_cash and quantity is not None and price is not None:
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)

@@ -745,8 +745,8 @@ class Broker(ABC):
 
         Returns
         -------
-        list of str
-            Sorted list of dates in the form of `2022-10-13`.
+        list of datetime.date
+            Sorted list of option expiry dates.
         """
         return sorted(set(chains["Chains"]["CALL"].keys()) | set(chains["Chains"]["PUT"].keys()))
 

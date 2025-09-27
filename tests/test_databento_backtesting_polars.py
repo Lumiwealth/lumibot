@@ -94,7 +94,7 @@ class TestDataBentoDataBacktestingPolars(unittest.TestCase):
             captured["start"] = start
             captured["end"] = end
             date_range = pl.datetime_range(
-                start=datetime(2022, 1, 31, 23, 0, tzinfo=self.utc),
+                start=datetime(2022, 1, 31, 22, 0, tzinfo=self.utc),
                 end=datetime(2022, 2, 1, 0, 0, tzinfo=self.utc),
                 interval="1m",
                 eager=True,
@@ -191,7 +191,9 @@ class TestDataBentoDataBacktestingPolars(unittest.TestCase):
         unique_symbols = set(result["symbol"].to_list())
         self.assertEqual(unique_symbols, {"MNQZ4", "MNQH5"})
 
-        post_roll = result.filter(pl.col("datetime") >= datetime(2024, 12, 15, tzinfo=self.utc))
+        # Convert Python datetime to Polars datetime to ensure consistent precision
+        roll_date = pl.lit(datetime(2024, 12, 15, tzinfo=self.utc))
+        post_roll = result.filter(pl.col("datetime") >= roll_date)
         self.assertTrue((post_roll["symbol"] == "MNQH5").all(), "Expected post-roll data to use next quarter contract")
 
 

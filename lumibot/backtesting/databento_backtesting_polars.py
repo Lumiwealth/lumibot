@@ -399,7 +399,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
 
                 df_result = (
                     cached_df.lazy()
-                    .filter(pl.col("datetime") <= cutoff_dt)
+                    .filter(pl.col("datetime") <= pl.lit(cutoff_dt))
                     .sort("datetime")
                     .tail(length)
                     .collect()
@@ -485,7 +485,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
 
             df_result = (
                 df_to_use.lazy()
-                .filter(pl.col("datetime") <= cutoff_dt_api)
+                .filter(pl.col("datetime") <= pl.lit(cutoff_dt_api))
                 .sort("datetime")
                 .tail(length)
                 .collect()
@@ -557,7 +557,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                 cutoff_dt_lp = current_dt_naive - timedelta(minutes=1)
                 last_price = (
                     lazy_df
-                    .filter(pl.col('datetime') <= cutoff_dt_lp)
+                    .filter(pl.col('datetime') <= pl.lit(cutoff_dt_lp))
                     .select(pl.col('close').tail(1))
                     .collect()
                     .item()

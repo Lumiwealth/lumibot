@@ -19,6 +19,9 @@ from lumibot.brokers.broker import Broker
 class _StubDataSource:
     def __init__(self, payload):
         self.payload = payload
+        self.datetime_start = None
+        self.datetime_end = None
+        self.SOURCE = "STUB"
 
     def get_chains(self, asset):
         return self.payload
@@ -259,30 +262,31 @@ class TestOptionsHelper(unittest.TestCase):
         """Test that options_expiry_to_datetime_date accepts various string formats."""
         from lumibot.strategies import Strategy
 
-        # Create a minimal strategy instance for testing
-        test_strategy = Strategy()
+        # Test the method directly without creating a full Strategy instance
+        # This avoids needing broker/data source setup
+        strategy_class = Strategy
 
         # Test YYYY-MM-DD format (Polygon)
-        result = test_strategy.options_expiry_to_datetime_date("2024-01-15")
+        result = strategy_class.options_expiry_to_datetime_date(None, "2024-01-15")
         self.assertEqual(result, date(2024, 1, 15))
 
         # Test YYYYMMDD format (IB legacy)
-        result = test_strategy.options_expiry_to_datetime_date("20240115")
+        result = strategy_class.options_expiry_to_datetime_date(None, "20240115")
         self.assertEqual(result, date(2024, 1, 15))
 
         # Test date object passthrough
         test_date = date(2024, 1, 15)
-        result = test_strategy.options_expiry_to_datetime_date(test_date)
+        result = strategy_class.options_expiry_to_datetime_date(None, test_date)
         self.assertEqual(result, test_date)
 
         # Test datetime object conversion
         test_datetime = datetime(2024, 1, 15, 10, 30)
-        result = test_strategy.options_expiry_to_datetime_date(test_datetime)
+        result = strategy_class.options_expiry_to_datetime_date(None, test_datetime)
         self.assertEqual(result, date(2024, 1, 15))
 
         # Test invalid string format raises error
         with self.assertRaises(ValueError):
-            test_strategy.options_expiry_to_datetime_date("01-15-2024")
+            strategy_class.options_expiry_to_datetime_date(None, "01-15-2024")
 
     def test_get_expiration_on_or_after_date_returns_future(self):
         from datetime import date as _date

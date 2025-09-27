@@ -6,6 +6,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import pytz
+
 import polars as pl
 from polars.datatypes import Datetime as PlDatetime
 
@@ -959,7 +961,19 @@ def get_price_data_from_databento_polars(
     combined = pl.concat(frames, how="vertical", rechunk=True)
     combined = combined.sort("datetime")
     filter_end = end_naive if end_naive > requested_end_naive else requested_end_naive
-    combined = combined.filter((pl.col("datetime") >= start_naive) & (pl.col("datetime") <= filter_end))
+
+    datetime_dtype = combined.schema.get("datetime")
+    if isinstance(datetime_dtype, PlDatetime) and datetime_dtype.time_zone is not None:
+        tz = pytz.timezone(datetime_dtype.time_zone)
+        start_filter = tz.localize(start_naive) if start_naive.tzinfo is None else start_naive.astimezone(tz)
+        end_filter = tz.localize(filter_end) if filter_end.tzinfo is None else filter_end.astimezone(tz)
+        combined = combined.filter(
+            (pl.col("datetime") >= start_filter) & (pl.col("datetime") <= end_filter)
+        )
+    else:
+        combined = combined.filter(
+            (pl.col("datetime") >= start_naive) & (pl.col("datetime") <= filter_end)
+        )
 
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
         combined = _filter_front_month_rows(asset, combined)

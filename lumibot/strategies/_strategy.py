@@ -763,7 +763,10 @@ class _Strategy:
             price_dec = Decimal(str(price))
             multiplier_dec = Decimal(str(multiplier))
 
-            side_value = str(side).lower() if side is not None else ""
+            if isinstance(side, Order.OrderSide):
+                side_value = str(side.value).lower()
+            else:
+                side_value = str(side).lower() if side is not None else ""
             if side_value in ("buy", "buy_to_open", "buy_to_cover"):
                 current_cash -= quantity_dec * price_dec * multiplier_dec
             if side_value in ("sell", "sell_short", "sell_to_close", "sell_to_open"):

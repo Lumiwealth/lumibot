@@ -17,6 +17,7 @@ from termcolor import colored
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
+from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -469,7 +470,14 @@ class StrategyExecutor(Thread):
             ):
                 update_cash = False
 
-            if update_cash and quantity is not None and price is not None:
+            asset_type = getattr(order.asset, "asset_type", None)
+
+            if (
+                update_cash
+                and asset_type != Asset.AssetType.CRYPTO
+                and quantity is not None
+                and price is not None
+            ):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_filled_order(**payload)
@@ -497,7 +505,14 @@ class StrategyExecutor(Thread):
             ):
                 update_cash = False
 
-            if update_cash and quantity is not None and price is not None:
+            asset_type = getattr(order.asset, "asset_type", None)
+
+            if (
+                update_cash
+                and asset_type != Asset.AssetType.CRYPTO
+                and quantity is not None
+                and price is not None
+            ):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)

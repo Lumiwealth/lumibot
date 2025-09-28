@@ -88,14 +88,10 @@ class DataSource(ABC):
 
         Returns
         -------
-        dictionary of dictionary
-            Format:
-            - `Multiplier` (str) eg: `100`
-            - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
-                         expiration date.
-                         Format:
-                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-                         Expiration Date Format: 2023-07-31
+        dict
+            Mapping with keys such as ``Multiplier`` (e.g. ``"100"``) and ``Chains``.
+            ``Chains`` is a nested dictionary where expiration dates map to strike lists,
+            e.g. ``chains['Chains']['CALL']['2023-07-31'] = [strike1, strike2, ...]``.
         """
         pass
 

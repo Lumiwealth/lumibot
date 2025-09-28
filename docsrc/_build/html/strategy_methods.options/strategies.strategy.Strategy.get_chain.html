@@ -145,7 +145,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -368,7 +369,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -377,43 +378,50 @@
           <section id="self-get-chain">
 <h1>self.get_chain<a class="headerlink" href="#self-get-chain" title="Link to this heading">#</a></h1>
 <dl class="py function">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.get_chain">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.get_chain" title="Link to this definition">#</a></dt>
-<dd><p>Returns option chain for a particular exchange.</p>
-<p>Takes in a full set of chains for all the exchanges and returns
-on chain for a given exchange. The full chains are returned
-from <cite>get_chains</cite> method.</p>
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">get_chain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'SMART'</span></span></em><span class="sig-paren">)</span></dt>
+<dd><p>Return the portion of <code class="docutils literal notranslate"><span class="pre">chains</span></code> that corresponds to a single exchange.</p>
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">#</a></h2>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>chains</strong> (<em>dictionary</em><em> of </em><em>dictionaries</em>) – The chains dictionary created by <cite>get_chains</cite> method.</p></li>
-<li><p><strong>exchange</strong> (<em>str optional</em>) – The exchange such as <cite>SMART</cite>, <cite>CBOE</cite>. Default is <cite>SMART</cite></p></li>
-</ul>
+<dt class="field-odd">param chains<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Payload previously produced by <code class="xref py py-meth docutils literal notranslate"><span class="pre">get_chains()</span></code>.</p>
 </dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><p>Format:
-- <cite>Multiplier</cite> (str) eg: <cite>100</cite>
-- ‘Chains’ - paired Expiration/Strke info to guarentee that the stikes are valid for the specific</p>
-<blockquote>
-<div><p>expiration date.
-Format:</p>
-<blockquote>
-<div><p>chains[‘Chains’][‘CALL’][exp_date] = [strike1, strike2, …]</p>
-</div></blockquote>
-<p>Expiration Date Format: 2023-07-31</p>
-</div></blockquote>
-</p>
+<dt class="field-even">type chains<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
 </dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>dictionary of dictionary</p>
+<dt class="field-odd">param exchange<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Exchange identifier (for example <code class="docutils literal notranslate"><span class="pre">&quot;SMART&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;CBOE&quot;</span></code>).</p>
+</dd>
+<dt class="field-even">type exchange<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
 </dd>
 </dl>
-<p class="rubric">Example</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will return the option chains for SPY</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="s2">&quot;SPY&quot;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">chain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_chain</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+</section>
+<section id="returns">
+<h2>Returns<a class="headerlink" href="#returns" title="Link to this heading">#</a></h2>
+<dl class="field-list simple">
+<dt class="field-odd">returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Mapping with the same keys as <code class="docutils literal notranslate"><span class="pre">chains</span></code> but narrowed to the requested
+exchange.</p>
+</dd>
+<dt class="field-even">rtype<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Filter to SMART exchange</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">chains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_chains</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
+<span class="n">smart_only</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_chain</span><span class="p">(</span><span class="n">chains</span><span class="p">,</span> <span class="s2">&quot;SMART&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">smart_only</span><span class="p">[</span><span class="s2">&quot;Exchange&quot;</span><span class="p">])</span>
 </pre></div>
 </div>
+</li>
+</ul>
+</section>
 </dd></dl>
 
 </section>
@@ -443,27 +451,8 @@ Format:</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            On this page
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">self.get_chain</a><ul>
-<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.get_chain"><code class="docutils literal notranslate"><span class="pre">get_chain()</span></code></a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

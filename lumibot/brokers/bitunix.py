@@ -77,27 +77,26 @@ class Bitunix(Broker):
         # Initialize API client and WS attributes BEFORE calling super().__init__
         self.api = BitUnixClient(api_key=api_key, secret_key=api_secret)
         self.api_secret = api_secret  # needed for signing
-        # Private-channel URL per BitUnix docs (kept for reference, but not used for polling)
+        # Private-channel URL per BitUnix docs (used for authenticated account streams)
         self.ws_url = "wss://fapi.bitunix.com/private/"
-        '''
+        """Private websocket endpoint for authenticated Bitunix futures streams."""
+
         # Set default futures position mode to hedge
         try:
             response = self.api.change_position_mode("HEDGE")
-            # Check response code for success
             if response and response.get("code") == 0:
-                logger.info(
-                    f"Default position mode set to {response.get('data', [{}])[0].get('positionMode')}"
-                )
+                mode = response.get('data', [{}])[0].get('positionMode')
+                logger.info("Default position mode set to %s", mode)
             else:
-                # Log specific error if code is not 0
                 logger.warning(
-                    f"Failed to set default position mode to HEDGE. API Response: {response}"
+                    "Failed to set default position mode to HEDGE. API response: %s", response
                 )
-        except Exception as e:
-            # Log exception details
-            logger.warning(f"Failed to set default position mode to HEDGE due to an exception: {e}")
-            logger.debug(traceback.format_exc()) # Add debug level traceback for more detail if needed
-        '''
+        except Exception as exc:
+            logger.warning(
+                "Failed to set default position mode to HEDGE due to an exception: %s", exc
+            )
+            logger.debug(traceback.format_exc())
+
         if not data_source:
             data_source = BitunixData(config, max_workers=max_workers, chunk_size=chunk_size)
             # Share the client instance with the data source if it was just created

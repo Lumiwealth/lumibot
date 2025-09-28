@@ -1,3 +1,5 @@
+.. _backtesting.backtesting_function:
+
 Backtesting Function
 ---------------------------
 

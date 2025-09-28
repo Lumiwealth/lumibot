@@ -1,3 +1,5 @@
+.. _backtesting.tearsheet_html:
+
 Tearsheet HTML
 ==============
 
@@ -17,12 +19,12 @@ These metrics are accompanied by various graphs such as:
 - **Cumulative Returns vs Benchmark:** Shows the strategy's cumulative returns compared to a benchmark.
 - **Cumulative Returns (Log Scaled):** A log-scaled version of cumulative returns for better visualization of exponential growth.
 
-.. figure:: _static/images/tearsheet_condor_martingale.png
+.. figure:: _html/images/tearsheet_condor_martingale.png
    :alt: Tearsheet example 1
    :width: 600px
    :align: center
 
-.. figure:: _static/images/tearsheet_crypto_bbands_v2.png
+.. figure:: _html/images/tearsheet_crypto_bbands_v2.png
    :alt: Tearsheet example 2
    :width: 600px
    :align: center

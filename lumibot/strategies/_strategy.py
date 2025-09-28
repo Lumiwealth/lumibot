@@ -124,6 +124,15 @@ class Vars:
 
 
 class _Strategy:
+    @property
+    def is_backtesting(self) -> bool:
+        """Boolean flag indicating whether the strategy is running in backtesting mode."""
+        return getattr(self, "_is_backtesting", False)
+
+    @is_backtesting.setter
+    def is_backtesting(self, value: bool) -> None:
+        self._is_backtesting = bool(value)
+
     IS_BACKTESTABLE = True
     _trader = None
 

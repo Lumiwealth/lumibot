@@ -133,7 +133,7 @@ Here's an example of a backtest using **Polygon.io**:
         )
 
 Optional: Using Environment Variables for Backtest Dates
------------------------------------
+--------------------------------------------------------
 
 Instead of specifying `backtesting_start` and `backtesting_end` in your code, you can set these environment variables:
 

@@ -1,3 +1,5 @@
+.. _backtesting.indicators_files:
+
 Indicators Files
 ================
 
@@ -10,7 +12,7 @@ These functions help in visualizing how the indicators influenced the strategy's
 
 - **Indicator Values:** The values of each indicator at different points in time.
 
-.. figure:: _static/images/indicators_example.png
+.. figure:: _html/images/indicators_example.png
    :alt: Indicators example
    :width: 600px
    :align: center

@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -380,16 +381,16 @@
 <div class="table-wrapper autosummary longtable docutils container">
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.chart/strategies.strategy.Strategy.add_marker.html#lumibot.strategies.strategy.Strategy.add_marker" title="lumibot.strategies.strategy.Strategy.add_marker"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_marker</span></code></a>(name[, value, color, symbol, ...])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.add_marker</span></code>(name[, value, color, ...])</p></td>
 <td><p>Adds a marker to the indicators plot that loads after a backtest.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.chart/strategies.strategy.Strategy.add_line.html#lumibot.strategies.strategy.Strategy.add_line" title="lumibot.strategies.strategy.Strategy.add_line"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_line</span></code></a>(name, value[, color, style, width, ...])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.add_line</span></code>(name, value[, color, ...])</p></td>
 <td><p>Adds a line data point to the indicator chart.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.chart/strategies.strategy.Strategy.get_markers_df.html#lumibot.strategies.strategy.Strategy.get_markers_df" title="lumibot.strategies.strategy.Strategy.get_markers_df"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_markers_df</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_markers_df</span></code>()</p></td>
 <td><p>Returns the markers on the indicator chart as a pandas DataFrame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.chart/strategies.strategy.Strategy.get_lines_df.html#lumibot.strategies.strategy.Strategy.get_lines_df" title="lumibot.strategies.strategy.Strategy.get_lines_df"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_lines_df</span></code></a>()</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_lines_df</span></code>()</p></td>
 <td><p>Returns a dataframe of the lines on the indicator chart.</p></td>
 </tr>
 </tbody>

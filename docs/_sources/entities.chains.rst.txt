@@ -45,14 +45,20 @@ Design notes
 * All helper methods return lightweight Python types – no Pandas dependency.
 * Attribute summary:
 
-  ========  ===============================================================
-  Property  Description
-  ========  ===============================================================
-  ``calls``          Mapping ``{expiry: [strike, …]}`` for CALLs
-  ``puts``           Mapping ``{expiry: [strike, …]}`` for PUTs
-  ``multiplier``     Contract multiplier (typically 100)
-  ``exchange``       Primary routing exchange returned by the API
-  ========  ===============================================================
+  .. list-table:: Chains attributes
+     :widths: 20 60
+     :header-rows: 1
+
+     * - Property
+       - Description
+     * - ``calls``
+       - Mapping ``{expiry: [strike, …]}`` for call contracts.
+     * - ``puts``
+       - Mapping ``{expiry: [strike, …]}`` for put contracts.
+     * - ``multiplier``
+       - Contract multiplier supplied by the data source (typically 100).
+     * - ``exchange``
+       - Primary routing exchange reported in the option chain payload.
 
 API reference
 -------------

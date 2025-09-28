@@ -145,7 +145,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -368,7 +369,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -377,8 +378,8 @@
           <section id="self-add-marker">
 <h1>self.add_marker<a class="headerlink" href="#self-add-marker" title="Link to this heading">#</a></h1>
 <dl class="py function">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.add_marker">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">add_marker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'circle'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detail_text</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.add_marker" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">add_marker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'blue'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'circle'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detail_text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'default_plot'</span></span></em><span class="sig-paren">)</span></dt>
 <dd><p>Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -386,13 +387,18 @@
 <li><p><strong>name</strong> (<em>str</em>) – The name of the marker. This is used to display the name on the graph. Eg. “Overbought”, “Oversold”, “Stop Loss”, “Take Profit”, …</p></li>
 <li><p><strong>symbol</strong> (<em>str</em>) – The symbol of the marker. Possible values are ‘circle’, ‘circle-open’, ‘circle-dot’, ‘circle-open-dot’, ‘square’, ‘square-open’, ‘square-dot’, ‘square-open-dot’, ‘diamond’, ‘diamond-open’, ‘diamond-dot’, ‘diamond-open-dot’, ‘cross’, ‘cross-open’, ‘cross-dot’, ‘cross-open-dot’, ‘x’, ‘x-open’, ‘x-dot’, ‘x-open-dot’, ‘triangle-up’, ‘triangle-up-open’, ‘triangle-up-dot’, ‘triangle-up-open-dot’, ‘triangle-down’, ‘triangle-down-open’, ‘triangle-down-dot’, ‘triangle-down-open-dot’, ‘triangle-left’, ‘triangle-left-open’, ‘triangle-left-dot’, ‘triangle-left-open-dot’, ‘triangle-right’, ‘triangle-right-open’, ‘triangle-right-dot’, ‘triangle-right-open-dot’, ‘triangle-ne’, ‘triangle-ne-open’, ‘triangle-ne-dot’, ‘triangle-ne-open-dot’, ‘triangle-se’, ‘triangle-se-open’, ‘triangle-se-dot’, ‘triangle-se-open-dot’, ‘triangle-sw’, ‘triangle-sw-open’, ‘triangle-sw-dot’, ‘triangle-sw-open-dot’, ‘triangle-nw’, ‘triangle-nw-open’, ‘triangle-nw-dot’, ‘triangle-nw-open-dot’, ‘pentagon’, ‘pentagon-open’, ‘pentagon-dot’, ‘pentagon-open-dot’, ‘hexagon’, ‘hexagon-open’, ‘hexagon-dot’, ‘hexagon-open-dot’, ‘hexagon2’, ‘hexagon2-open’, ‘hexagon2-dot’, ‘hexagon2-open-dot’, ‘octagon’, ‘octagon-open’, ‘octagon-dot’, ‘octagon-open-dot’, ‘star’, ‘star-open’, ‘star-dot’, ‘star-open-dot’, ‘hexagram’, ‘hexagram-open’, ‘hexagram-dot’, ‘hexagram-open-dot’, ‘star-triangle-up’, ‘star-triangle-up-open’, ‘star-triangle-up-dot’, ‘star-triangle-up-open-dot’, ‘star-triangle-down’, ‘star-triangle-down-open’, ‘star-triangle-down-dot’, ‘star-triangle-down-open-dot’, ‘star-square’, ‘star-square-open’, ‘star-square-dot’, ‘star-square-open-dot’, ‘star-diamond’, ‘star-diamond-open’, ‘star-diamond-dot’, ‘star-diamond-open-dot’, ‘diamond-tall’, ‘diamond-tall-open’, ‘diamond-tall-dot’, ‘diamond-tall-open-dot’, ‘diamond-wide’, ‘diamond-wide-open’, ‘diamond-wide-dot’, ‘diamond-wide-open-dot’, ‘hourglass’, ‘hourglass-open’, ‘bowtie’, ‘bowtie-open’, ‘circle-cross’, ‘circle-cross-open’, ‘circle-x’, ‘circle-x-open’, ‘square-cross’, ‘square-cross-open’, ‘square-x’, ‘square-x-open’, ‘diamond-cross’, ‘diamond-cross-open’, ‘diamond-x’, ‘diamond-x-open’, ‘cross-thin’, ‘cross-thin-open’, ‘x-thin’, ‘x-thin-open’, ‘asterisk’, ‘asterisk-open’, ‘hash’, ‘hash-open’, ‘hash-dot’, ‘hash-open-dot’, ‘y-up’, ‘y-up-open’, ‘y-down’, ‘y-down-open’, ‘y-left’, ‘y-left-open’, ‘y-right’, ‘y-right-open’, ‘line-ew’, ‘line-ew-open’, ‘line-ns’, ‘line-ns-open’, ‘line-ne’, ‘line-ne-open’, ‘line-nw’, ‘line-nw-open’, ‘arrow-up’, ‘arrow-up-open’, ‘arrow-down’, ‘arrow-down-open’, ‘arrow-left’, ‘arrow-left-open’, ‘arrow-right’, ‘arrow-right-open’, ‘arrow-bar-up’, ‘arrow-bar-up-open’, ‘arrow-bar-down’, ‘arrow-bar-down-open’, ‘arrow-bar-left’, ‘arrow-bar-left-open’, ‘arrow-bar-right’, ‘arrow-bar-right-open’, ‘arrow’, ‘arrow-open’, ‘arrow-wide’, ‘arrow-wide-open’</p></li>
 <li><p><strong>value</strong> (<em>float</em><em> or </em><em>int</em>) – The value of the marker. Default is the current portfolio value.</p></li>
-<li><p><strong>color</strong> (<em>str</em>) – The color of the marker. Possible values are “red”, “green”, “blue”, “yellow”, “orange”, “purple”, “pink”, “brown”, “black”, and “white”.</p></li>
+<li><p><strong>color</strong> (<em>str</em>) – The color of the marker. Use any Matplotlib/Plotly compatible color name (e.g. “red”, “magenta”, “lightblue”) or a hex string like “#ff0000”.</p></li>
 <li><p><strong>size</strong> (<em>int</em>) – The size of the marker.</p></li>
 <li><p><strong>detail_text</strong> (<em>str</em>) – The text to display when the marker is hovered over.</p></li>
 <li><p><strong>dt</strong> (<em>datetime.datetime</em><em> or </em><em>pandas.Timestamp</em>) – The datetime of the marker. Default is the current datetime.</p></li>
+<li><p><strong>plot_name</strong> (<em>str</em>) – The name of the subplot to add the marker to. If “default_plot” (the default value) or None, the marker will be added to the main plot.</p></li>
 </ul>
 </dd>
 </dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.</p>
+</div>
 <p class="rubric">Example</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Will add a marker to the chart</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">add_chart_marker</span><span class="p">(</span><span class="s2">&quot;Overbought&quot;</span><span class="p">,</span> <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;circle&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
@@ -445,27 +451,8 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            On this page
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">self.add_marker</a><ul>
-<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.add_marker"><code class="docutils literal notranslate"><span class="pre">add_marker()</span></code></a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

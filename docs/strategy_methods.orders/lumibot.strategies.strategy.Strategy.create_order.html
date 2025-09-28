@@ -145,7 +145,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -368,7 +369,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -377,273 +378,399 @@
           <section id="self-create-order">
 <h1>self.create_order<a class="headerlink" href="#self-create-order" title="Link to this heading">#</a></h1>
 <dl class="py function">
-<dt class="sig sig-object py" id="lumibot.strategies.strategy.Strategy.create_order">
-<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gtc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.strategies.strategy.Strategy.create_order" title="Link to this definition">#</a></dt>
-<dd><p>Creates a new order for this specific strategy. Once created, an order must still be submitted.</p>
-<p>Some notes on Crypto markets:</p>
-<p>Crypto markets require both a base currency and a quote currency to create an order. For example, use the quote parameter.:</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s1">&#39;BTC&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">),</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="mf">.50</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="s1">&#39;buy&#39;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>    <span class="n">quote</span><span class="o">=</span><span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s1">&#39;USDT&#39;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="s1">&#39;crypto&#39;</span><span class="p">),</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Orders for crypto markets are restriced to: <code class="docutils literal notranslate"><span class="pre">market</span></code>, <code class="docutils literal notranslate"><span class="pre">limit</span></code>, <code class="docutils literal notranslate"><span class="pre">stop_limit</span></code>.</p>
-<p>Crypto markets’ orders are simple. There are no compound orders such
-<code class="docutils literal notranslate"><span class="pre">oco</span></code> or <code class="docutils literal notranslate"><span class="pre">bracket</span></code>. Also, duration of orders are all GTC.</p>
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">lumibot.strategies.strategy.Strategy.</span></span><span class="sig-name descname"><span class="pre">create_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quantity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Decimal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trail_percent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_stop_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_stop_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_trail_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_trail_percent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_in_force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'gtc'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">good_till_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">take_profit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_loss_limit_price</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position_filled</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pair</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrderType</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order_class</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrderClass</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OrderType</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span></dt>
+<dd><p>Create a new order for this strategy.</p>
+<section id="notes">
+<h2>Notes<a class="headerlink" href="#notes" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Crypto venues require both a base asset and a quote asset. Supply the
+<code class="docutils literal notranslate"><span class="pre">quote</span></code> parameter when trading pairs such as BTC/USDT.</p></li>
+<li><p>Supported crypto order types are <code class="docutils literal notranslate"><span class="pre">market</span></code>, <code class="docutils literal notranslate"><span class="pre">limit</span></code>, and <code class="docutils literal notranslate"><span class="pre">stop_limit</span></code>;
+compound order classes (<code class="docutils literal notranslate"><span class="pre">oco</span></code>, <code class="docutils literal notranslate"><span class="pre">bracket</span></code>) are generally unavailable and
+orders behave as GTC.</p></li>
+</ul>
+</section>
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">#</a></h2>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>asset</strong> (<em>str</em><em> or </em><em>Asset</em>) – The asset that will be traded. If this is just a stock, then
-<code class="docutils literal notranslate"><span class="pre">str</span></code> is sufficient. However, all assets other than stocks
-must use <code class="docutils literal notranslate"><span class="pre">Asset</span></code>.</p></li>
-<li><p><strong>quantity</strong> (<em>int string Decimal</em><em> (</em><em>float will deprecate</em><em>)</em>) – The number of shares or units to trade. One may enter an
-int, a string number eg: “3.213”, or a Decimal obect,
-eg: Decimal(“3.213”). Internally all will convert to Decimal.</p></li>
-<li><p><strong>side</strong> (<em>str</em>) – Whether the order is <code class="docutils literal notranslate"><span class="pre">buy</span></code> or <code class="docutils literal notranslate"><span class="pre">sell</span></code>.</p></li>
-<li><p><strong>type</strong> (<em>str</em>) – The type of order. Order types include: <code class="docutils literal notranslate"><span class="pre">'market'</span></code>, <code class="docutils literal notranslate"><span class="pre">'limit'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop_limit'</span></code>,
-<code class="docutils literal notranslate"><span class="pre">trailing_stop</span></code>, <code class="docutils literal notranslate"><span class="pre">'oco'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bracket'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oto'</span></code>.
-We will try to determine the order type if you do not specify it. It is mandatory to set the type
-for advanced order types such as <code class="docutils literal notranslate"><span class="pre">'oco'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bracket'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oto'</span></code>.</p></li>
-<li><p><strong>limit_price</strong> (<em>float</em>) – A Limit order is an order to buy or sell at a specified
-price or better. The Limit order ensures that if the
-order fills, it will not fill at a price less favorable
-than your limit price, but it does not guarantee a fill.</p></li>
-<li><p><strong>stop_price</strong> (<em>float</em>) – A Stop order is an instruction to submit a buy or sell
-market order if and when the user-specified stop trigger
-price is attained or penetrated.</p></li>
-<li><p><strong>time_in_force</strong> (<em>str</em>) – <dl class="simple">
-<dt>Amount of time the order is in force. Order types include:</dt><dd><ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">'day'</span></code> Orders valid for the remainder of the day.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'gtc'</span></code> Good until cancelled.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'gtd'</span></code> Good until date.</p></li>
-</ul>
+<dt class="field-odd">param asset<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Asset that will be traded. Stocks may be provided as strings;
+other asset classes must use <code class="xref py py-class docutils literal notranslate"><span class="pre">lumibot.entities.Asset</span></code>.</p>
+</dd>
+<dt class="field-even">type asset<span class="colon">:</span></dt>
+<dd class="field-even"><p>str or lumibot.entities.Asset</p>
+</dd>
+<dt class="field-odd">param quantity<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Number of shares or units to trade. Accepts integers, numeric
+strings, or <code class="xref py py-class docutils literal notranslate"><span class="pre">decimal.Decimal</span></code> values (all normalised to <code class="docutils literal notranslate"><span class="pre">Decimal</span></code>).</p>
+</dd>
+<dt class="field-even">type quantity<span class="colon">:</span></dt>
+<dd class="field-even"><p>int or str or Decimal</p>
+</dd>
+<dt class="field-odd">param side<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Whether the order is <code class="docutils literal notranslate"><span class="pre">&quot;buy&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;sell&quot;</span></code>.</p>
+</dd>
+<dt class="field-even">type side<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+<dt class="field-odd">param order_type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Concrete order flavour (<code class="docutils literal notranslate"><span class="pre">'market'</span></code>, <code class="docutils literal notranslate"><span class="pre">'limit'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'stop'</span></code>, <code class="docutils literal notranslate"><span class="pre">'stop_limit'</span></code>, <code class="docutils literal notranslate"><span class="pre">'trailing_stop'</span></code>). If omitted the broker
+integration infers a sensible default from the supplied prices.</p>
+</dd>
+<dt class="field-even">type order_type<span class="colon">:</span></dt>
+<dd class="field-even"><p>lumibot.entities.Order.OrderType, optional</p>
+</dd>
+<dt class="field-odd">param order_class<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">'simple'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bracket'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oco'</span></code>, <code class="docutils literal notranslate"><span class="pre">'oto'</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">'multileg'</span></code>.</p>
+</dd>
+<dt class="field-even">type order_class<span class="colon">:</span></dt>
+<dd class="field-even"><p>lumibot.entities.Order.OrderClass, optional</p>
+</dd>
+<dt class="field-odd">param limit_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Limit price for entry orders.</p>
+</dd>
+<dt class="field-even">type limit_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param stop_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Trigger price for stop orders.</p>
+</dd>
+<dt class="field-even">type stop_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param stop_limit_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Stop loss with a limit price to control the fill.</p>
+</dd>
+<dt class="field-even">type stop_limit_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param secondary_limit_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Profit-taking leg for advanced order classes such
+as brackets or OTO.</p>
+</dd>
+<dt class="field-even">type secondary_limit_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param secondary_stop_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Protective stop leg for advanced order classes.</p>
+</dd>
+<dt class="field-even">type secondary_stop_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param secondary_stop_limit_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Stop-limit trigger used by child legs in
+advanced orders.</p>
+</dd>
+<dt class="field-even">type secondary_stop_limit_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param trail_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Trailing-stop offset expressed in price units.</p>
+</dd>
+<dt class="field-even">type trail_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param trail_percent<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Trailing-stop offset expressed as a percentage.</p>
+</dd>
+<dt class="field-even">type trail_percent<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param secondary_trail_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Trailing-stop offset for child orders, in price
+units.</p>
+</dd>
+<dt class="field-even">type secondary_trail_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param secondary_trail_percent<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Trailing-stop offset for child orders, as a
+percentage.</p>
+</dd>
+<dt class="field-even">type secondary_trail_percent<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param time_in_force<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Time the order remains active (<code class="docutils literal notranslate"><span class="pre">'day'</span></code>, <code class="docutils literal notranslate"><span class="pre">'gtc'</span></code>, <code class="docutils literal notranslate"><span class="pre">'gtd'</span></code>).</p>
+</dd>
+<dt class="field-even">type time_in_force<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, optional</p>
+</dd>
+<dt class="field-odd">param good_till_date<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Timestamp used when <code class="docutils literal notranslate"><span class="pre">time_in_force</span></code> is <code class="docutils literal notranslate"><span class="pre">'gtd'</span></code>.</p>
+</dd>
+<dt class="field-even">type good_till_date<span class="colon">:</span></dt>
+<dd class="field-even"><p>datetime.datetime, optional</p>
+</dd>
+<dt class="field-odd">param take_profit_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Deprecated alias for <code class="docutils literal notranslate"><span class="pre">secondary_limit_price</span></code>.</p>
+</dd>
+<dt class="field-even">type take_profit_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param stop_loss_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Deprecated alias for <code class="docutils literal notranslate"><span class="pre">secondary_stop_price</span></code>.</p>
+</dd>
+<dt class="field-even">type stop_loss_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param stop_loss_limit_price<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Deprecated alias for <code class="docutils literal notranslate"><span class="pre">secondary_stop_limit_price</span></code>.</p>
+</dd>
+<dt class="field-even">type stop_loss_limit_price<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param position_filled<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Used internally to track partial fills.</p>
+</dd>
+<dt class="field-even">type position_filled<span class="colon">:</span></dt>
+<dd class="field-even"><p>float, optional</p>
+</dd>
+<dt class="field-odd">param exchange<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Exchange routing hint for brokers that support it (defaults to
+<code class="docutils literal notranslate"><span class="pre">'SMART'</span></code>).</p>
+</dd>
+<dt class="field-even">type exchange<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, optional</p>
+</dd>
+<dt class="field-odd">param quote<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Quote asset to pair with the base asset (required for crypto trades).</p>
+</dd>
+<dt class="field-even">type quote<span class="colon">:</span></dt>
+<dd class="field-even"><p>lumibot.entities.Asset, optional</p>
+</dd>
+<dt class="field-odd">param pair<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Explicit trading pair symbol for venues that expect it.</p>
+</dd>
+<dt class="field-even">type pair<span class="colon">:</span></dt>
+<dd class="field-even"><p>str, optional</p>
+</dd>
+<dt class="field-odd">param custom_params<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Broker-specific parameters forwarded untouched (for example
+<code class="docutils literal notranslate"><span class="pre">{&quot;leverage&quot;:</span> <span class="pre">3}</span></code> for Kraken margin trades).</p>
+</dd>
+<dt class="field-even">type custom_params<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict, optional</p>
+</dd>
+<dt class="field-odd">param type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Deprecated synonym for <code class="docutils literal notranslate"><span class="pre">order_type</span></code> maintained for backward
+compatibility.</p>
+</dd>
+<dt class="field-even">type type<span class="colon">:</span></dt>
+<dd class="field-even"><p>lumibot.entities.Order.OrderType or None, optional</p>
 </dd>
 </dl>
-<p>(Default: ‘day’)</p>
-</p></li>
-<li><p><strong>good_till_date</strong> (<em>datetime.datetime</em>) – This is the time order is valid for Good Though Date orders.</p></li>
-<li><p><strong>take_profit_price</strong> (<em>float</em>) – Limit price used for bracket orders and one cancels other
-orders.</p></li>
-<li><p><strong>stop_loss_price</strong> (<em>float</em>) – Stop price used for bracket orders and one cancels other
-orders.</p></li>
-<li><p><strong>stop_loss_limit_price</strong> (<em>float</em>) – Stop loss with limit price used for bracket orders and one
-cancels other orders.</p></li>
-<li><p><strong>trail_price</strong> (<em>float</em>) – Trailing stop orders allow you to continuously and
-automatically keep updating the stop price threshold based
-on the stock price movement. <cite>trail_price</cite> sets the
-trailing price in dollars.</p></li>
-<li><p><strong>trail_percent</strong> (<em>float</em>) – Trailing stop orders allow you to continuously and
-automatically keep updating the stop price threshold based
-on the stock price movement. E.g. 0.05 would be a 5% trailing stop.
-<cite>trail_percent</cite> sets the trailing price in percent.</p></li>
-<li><p><strong>exchange</strong> (<em>str</em>) – The exchange where the order will be placed.
-<code class="docutils literal notranslate"><span class="pre">Default</span> <span class="pre">=</span> <span class="pre">'SMART'</span></code></p></li>
-<li><p><strong>quote</strong> (<em>Asset</em>) – This is the currency that the main coin being bought or sold
-will exchange in. For example, if trading <code class="docutils literal notranslate"><span class="pre">BTC/ETH</span></code> this
-parameter will be ‘ETH’ (as an Asset object).</p></li>
-<li><p><strong>custom_params</strong> (<em>dict</em>) – A dictionary of custom parameters that can be used to pass additional information to the broker. This is useful for passing custom parameters to the broker that are not supported by Lumibot.
-E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</p></li>
-</ul>
+</section>
+<section id="returns">
+<h2>Returns<a class="headerlink" href="#returns" title="Link to this heading">#</a></h2>
+<dl class="field-list simple">
+<dt class="field-odd">returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Order object ready to be submitted for trading.</p>
 </dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Order object ready to be submitted for trading.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Order</p>
+<dt class="field-even">rtype<span class="colon">:</span></dt>
+<dd class="field-even"><p>lumibot.entities.Order</p>
 </dd>
 </dl>
-<p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a market buy order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Market buy order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a limit order where limit price = 100</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">limit_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">limit_order</span><span class="p">)</span>
+</li>
+<li><p>Limit buy order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">limit_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">limit_order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Sell 100 shares of TLT</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;TLT&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Sell 100 shares</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;TLT&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a stop loss order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Stop loss order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a stop limit order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Stop limit order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">stop_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">,</span> <span class="n">stop_limit_price</span><span class="o">=</span><span class="mf">99.95</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a market sell order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Market sell order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a limit sell order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Limit sell order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;sell&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an order with a trailing stop</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">trail_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Order with trailing stop</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">trail_price</span><span class="o">=</span><span class="mf">1.00</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OCO order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;oco&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</li>
+<li><p>OCO order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>              <span class="c1"># exit profit point</span>
+    <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>           <span class="c1"># exit loss point</span>
+    <span class="n">stop_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>  <span class="c1"># optional modifier</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OCO</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a bracket order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;bracket&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</li>
+<li><p>Bracket order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>                 <span class="c1"># entry trigger</span>
+    <span class="n">secondary_limit_price</span><span class="o">=</span><span class="n">sec_limit</span><span class="p">,</span>   <span class="c1"># profit target</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>    <span class="c1"># protective stop</span>
+    <span class="n">secondary_stop_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>  <span class="c1"># optional modifier</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a bracket order with a trailing stop</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_limit_price</span><span class="o">=</span><span class="n">stop_loss_limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;bracket&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</li>
+<li><p>Bracket order with trailing stop</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+    <span class="n">secondary_limit_price</span><span class="o">=</span><span class="n">sec_limit</span><span class="p">,</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+    <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an OTO order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;sell&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">take_profit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_loss_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;oto&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
+</li>
+<li><p>OTO order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="s2">&quot;SPY&quot;</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OTO</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a futures order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FUTURE</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Futures order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FUTURE</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a futures order with a trailing stop</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FUTURE</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Futures order with trailing stop</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;ES&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FUTURE</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="n">asset</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+    <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OTO</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an option order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Option order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For an option order with a trailing stop</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Option order with trailing stop (bracket)</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="n">asset</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+    <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a FOREX order</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>   <span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;CHF&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>   <span class="n">currency</span><span class="o">=</span><span class="s2">&quot;EUR&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>   <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FOREX</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span> <span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Option order with trailing stop (OTO)</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
+    <span class="n">asset</span><span class="p">,</span>
+    <span class="mi">100</span><span class="p">,</span>
+    <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
+    <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
+    <span class="n">secondary_trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">OTO</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a options order with a limit price</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>FOREX order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="s2">&quot;CHF&quot;</span><span class="p">,</span> <span class="n">currency</span><span class="o">=</span><span class="s2">&quot;EUR&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">FOREX</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a options order with a trailing stop</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="s2">&quot;2019-01-01&quot;</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="mf">100.00</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">asset</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="mi">100</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="s2">&quot;buy&quot;</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">trail_percent</span><span class="o">=</span><span class="n">trail_percent</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">limit_price</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stop_price</span><span class="o">=</span><span class="n">stop_loss</span><span class="p">,</span>
-<span class="gp">&gt;&gt;&gt; </span>           <span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Crypto market order</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
+<span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For a cryptocurrency order with a market price</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</li>
+<li><p>Crypto limit order with quote asset</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
+<span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
+<span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mi">41000</span><span class="p">,</span> <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Placing a limit order with a quote asset for cryptocurrencies</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
-<span class="gp">&gt;&gt;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;BTC&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Aset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">quote</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">&quot;USD&quot;</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">CRYPTO</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">&quot;buy&quot;</span><span class="p">,</span> <span class="n">limit_price</span><span class="o">=</span><span class="mi">41000</span><span class="p">,</span>  <span class="n">quote</span><span class="o">=</span><span class="n">quote</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
-</pre></div>
-</div>
+</li>
+</ul>
+</section>
 </dd></dl>
 
 </section>
@@ -691,27 +818,8 @@ E.g. <cite>custom_params={“leverage”: 3}</cite> for Kraken margin trading.</
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            On this page
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">self.create_order</a><ul>
-<li><a class="reference internal" href="#lumibot.strategies.strategy.Strategy.create_order"><code class="docutils literal notranslate"><span class="pre">create_order()</span></code></a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>

@@ -1,7 +1,8 @@
 Data
 ----------------------------
 
-.. automodule:: entities.data
+.. automodule:: lumibot.entities.data
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:

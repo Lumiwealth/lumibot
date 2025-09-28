@@ -53,7 +53,7 @@ Step 2: Import the Following Modules
     from lumibot.brokers import Alpaca
 
 Step 3: Create an Alpaca Paper Trading Account
----------------------------------------------
+----------------------------------------------
 
 Create an Alpaca paper trading account: `https://alpaca.markets/ <https://alpaca.markets/>`_ (you can also use other brokers, but Alpaca is easiest to get started with).
 
@@ -290,6 +290,5 @@ This will open a web browser with a visualization of the profiling results.
 
 .. note::
 
-    **Profiling can be complex**, so it is recommended to read the `yappi documentation <
-
+   **Profiling can be complex**, so it is recommended to read the `yappi documentation <https://yappi.readthedocs.io/en/latest/>`__.
 

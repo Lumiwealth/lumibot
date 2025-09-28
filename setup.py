@@ -21,6 +21,7 @@ setuptools.setup(
         "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.2.61",
+        "PyYAML>=6.0",
         "matplotlib>=3.3.3",
         "quandl",
         # NumPy 1.20.0+ supports modern features, 2.0+ adds compatibility for latest ecosystem

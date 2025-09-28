@@ -3,6 +3,7 @@ alpaca-py>=0.42.0
 alpha_vantage
 ibapi==9.81.1.post1
 yfinance>=0.2.61
+PyYAML>=6.0
 matplotlib>=3.3.3
 quandl
 numpy>=1.20.0

@@ -1,0 +1,6 @@
+# Default tickers tracked by FundamentalValueStrategy.
+# Provide a list of ticker symbols to analyze each iteration.
+tickers:
+  - AAPL
+  - NVDA
+  - MSFT

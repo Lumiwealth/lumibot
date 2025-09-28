@@ -1,1 +1,2 @@
 recursive-include lumibot/resources *
+recursive-include lumibot/example_strategies/config *.yaml

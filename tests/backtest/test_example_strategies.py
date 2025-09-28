@@ -75,6 +75,24 @@ class TestExampleStrategies:
         assert entry_order.get_fill_price() > 1
         assert limit_order.get_fill_price() >= 405
 
+        buy_fill = filled_orders[filled_orders["side"] == "buy"].iloc[0]
+        exit_fill = filled_orders[filled_orders["side"].str.startswith("sell")].iloc[0]
+
+        assert buy_fill["trade_cost"] > 0
+        assert exit_fill["trade_cost"] > 0
+
+        entry_value = float(buy_fill["filled_quantity"]) * float(buy_fill["price"])
+        exit_value = float(exit_fill["filled_quantity"]) * float(exit_fill["price"])
+        expected_cash = (
+            strat_obj.initial_budget
+            - entry_value
+            - float(buy_fill["trade_cost"])
+            + exit_value
+            - float(exit_fill["trade_cost"])
+        )
+
+        assert pytest.approx(strat_obj.cash, rel=1e-9) == expected_cash
+
     @pytest.mark.xfail(reason="yahoo sucks")
     def test_stock_oco(self):
         """

@@ -567,9 +567,11 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         if start_date or end_date:
             filters = []
             if start_date:
-                filters.append(pl.col("datetime") >= start_date)
+                # Use pl.lit() to ensure datetime precision compatibility across Polars versions
+                filters.append(pl.col("datetime") >= pl.lit(start_date))
             if end_date:
-                filters.append(pl.col("datetime") <= end_date)
+                # Use pl.lit() to ensure datetime precision compatibility across Polars versions
+                filters.append(pl.col("datetime") <= pl.lit(end_date))
 
             response = lazy_data.filter(pl.all_horizontal(filters)).collect()
         else:

@@ -41,13 +41,13 @@ class TestDataSource:
         mocker.patch.object(ds, 'get_datetime', return_value=mock_current_time)
 
         asset = Asset("SPY")
-        df_chain = ds.get_chain_full_info(asset, '2023-12-01', underlying_price=102, risk_free_rate=0.01)
+        df_chain = ds.get_chain_full_info(asset, datetime(2023, 12, 1), underlying_price=102, risk_free_rate=0.01)
         assert len(df_chain) == 6
         assert 'last' in df_chain.columns
         assert 'bid' in df_chain.columns
         assert 'greeks.delta' in df_chain.columns
 
         # Test with strike filters
-        df_chain = ds.get_chain_full_info(asset, '2023-12-01', chains=chains, underlying_price=102,
+        df_chain = ds.get_chain_full_info(asset, datetime(2023, 12, 1), chains=chains, underlying_price=102,
                                           risk_free_rate=0.01, strike_min=102, strike_max=102)
         assert len(df_chain) == 2

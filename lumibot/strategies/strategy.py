@@ -2103,26 +2103,51 @@ class Strategy(_Strategy):
             return asset_prices
 
     # ======= Broker Methods  ============
-    def options_expiry_to_datetime_date(self, date: datetime.date):
-        """Converts an IB Options expiry to datetime.date.
+    def options_expiry_to_datetime_date(self, expiry) -> datetime.date:
+        """Convert an options expiry to datetime.date.
 
         Parameters
         ----------
-            date : str
-                String in the format of 'YYYYMMDD'
+        expiry : str | datetime.date | datetime.datetime
+            The expiry to convert. Can be:
+            - String in 'YYYYMMDD' format (legacy IB format)
+            - String in 'YYYY-MM-DD' format (Polygon format)
+            - datetime.date object
+            - datetime.datetime object
 
         Returns
         -------
-            datetime.date
-
-        Example
-        -------
-        >>> # Will return the date for the expiry
-        >>> date = "20200101"
-        >>> expiry_date = self.options_expiry_to_datetime_date(date)
-        >>> self.log_message(f"Expiry date for {date} is {expiry_date}")
+        datetime.date
+            The normalised expiry date.
         """
-        return datetime.datetime.strptime(date, "%Y%m%d").date()
+        if isinstance(expiry, datetime.datetime):
+            return expiry.date()
+        if isinstance(expiry, datetime.date):
+            return expiry
+        if isinstance(expiry, str):
+            # Try different string formats
+            expiry_clean = expiry.strip()
+
+            # Try YYYY-MM-DD format (Polygon)
+            if len(expiry_clean) == 10 and expiry_clean[4] == '-' and expiry_clean[7] == '-':
+                try:
+                    return datetime.datetime.strptime(expiry_clean, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+
+            # Try YYYYMMDD format (IB legacy)
+            expiry_digits = expiry_clean.replace("-", "")
+            if len(expiry_digits) == 8 and expiry_digits.isdigit():
+                try:
+                    return datetime.datetime.strptime(expiry_digits, "%Y%m%d").date()
+                except ValueError:
+                    pass
+
+            raise ValueError(f"Unable to parse expiry string: {expiry}")
+
+        raise TypeError(
+            f"expiry must be a string, datetime.date, or datetime.datetime instance, got {type(expiry)}"
+        )
 
     def get_chains(self, asset: Asset):
         """Returns option chains.

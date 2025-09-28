@@ -17,6 +17,8 @@ class Quote:
         The bid price for the asset.
     ask : float
         The ask price for the asset.
+    mid_price : float
+        The mid price (automatically calculated from bid/ask if not provided).
     volume : float
         The volume of the asset.
     timestamp : datetime.datetime
@@ -42,7 +44,7 @@ class Quote:
                  volume: float = None, timestamp: datetime.datetime = None, bid_size: float = None,
                  ask_size: float = None, change: float = None, percent_change: float = None,
                  quote_time: datetime.datetime = None, bid_time: datetime.datetime = None,
-                 ask_time: datetime.datetime = None, raw_data: dict = None, **kwargs):
+                 ask_time: datetime.datetime = None, raw_data: dict = None, mid_price: float = None, **kwargs):
         self.asset = asset
         self.price = price
         self.bid = bid
@@ -58,6 +60,14 @@ class Quote:
         self.ask_time = ask_time
         self.raw_data = raw_data
 
+        # Calculate mid_price if not provided
+        if mid_price is not None:
+            self._mid_price = mid_price
+        elif self.bid is not None and self.ask is not None:
+            self._mid_price = (self.bid + self.ask) / 2
+        else:
+            self._mid_price = None
+
         # Store any additional attributes passed in kwargs
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -65,6 +75,10 @@ class Quote:
     @property
     def mid_price(self):
         """Calculate the mid price between bid and ask"""
+        # Return cached value if available
+        if hasattr(self, '_mid_price') and self._mid_price is not None:
+            return self._mid_price
+        # Calculate on the fly if bid/ask are available
         if self.bid is not None and self.ask is not None:
             return (self.bid + self.ask) / 2
         return self.price

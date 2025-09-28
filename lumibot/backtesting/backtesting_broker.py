@@ -875,6 +875,10 @@ class BacktestingBroker(Broker):
 
             strategy._set_cash_position(new_cash)
 
+        multiplier = 1
+        if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
+            multiplier = order.asset.multiplier
+
         self.stream.dispatch(
             self.FILLED_ORDER,
             wait_until_complete=True,
@@ -882,6 +886,7 @@ class BacktestingBroker(Broker):
             price=price,
             filled_quantity=filled_quantity,
             quantity=filled_quantity,
+            multiplier=multiplier,
         )
 
         # Only apply trade cost if it's not crypto with forex quote (already handled above)
@@ -1051,12 +1056,17 @@ class BacktestingBroker(Broker):
                     child_prices = [o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
                                     for o in order.child_orders]
                     parent_price = sum(child_prices)
+                    parent_multiplier = 1
+                    if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
+                        parent_multiplier = order.asset.multiplier
+
                     self.stream.dispatch(
                         self.FILLED_ORDER,
                         wait_until_complete=True,
                         order=order,
                         price=parent_price,
                         filled_quantity=parent_qty,
+                        multiplier=parent_multiplier,
                     )
 
                 continue

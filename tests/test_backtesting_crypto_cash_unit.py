@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from datetime import timedelta
+from datetime import timedelta, date
 from decimal import Decimal
 
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
@@ -64,7 +64,7 @@ def _make_ohlcv(
     )
 
 
-def _build_data_source(asset: Asset, quote: Asset, df: pd.DataFrame) -> PandasDataBacktesting:
+def _build_data_source(asset: Asset, quote: Asset | None, df: pd.DataFrame) -> PandasDataBacktesting:
     dt_start = df.index[0]
     dt_end = df.index[-1] + pd.Timedelta(minutes=1)
 
@@ -79,7 +79,13 @@ def _build_data_source(asset: Asset, quote: Asset, df: pd.DataFrame) -> PandasDa
         timestep="minute",
         timezone="America/New_York",
     )
-    pandas_data = {(asset, quote): data}
+
+    if quote is None:
+        pandas_data_key = asset
+    else:
+        pandas_data_key = (asset, quote)
+
+    pandas_data = {pandas_data_key: data}
     data_source = PandasDataBacktesting(
         pandas_data=pandas_data,
         datetime_start=dt_start,
@@ -116,7 +122,7 @@ def _build_strategy(
 def _setup_strategy(
     *,
     asset: Asset,
-    quote: Asset,
+    quote: Asset | None,
     bars,
     budget: float = 100_000.0,
     buy_fee: TradingFee | None = None,
@@ -326,3 +332,60 @@ def test_multiple_orders_same_cycle_keep_cash_consistent():
 
     expected_cash = 100_000.0 - (0.5 * 20_000.0)
     assert strategy.cash == pytest.approx(expected_cash, rel=1e-9)
+
+
+def test_option_round_trip_applies_multiplier():
+    option_asset = Asset(
+        "SPY",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2025, 4, 17),
+        strike=568.0,
+        right=Asset.OptionRight.CALL,
+    )
+
+    bars = [
+        (9.75, 9.90, 9.50, 9.80),
+        (2.09, 2.20, 2.00, 2.10),
+    ]
+
+    strategy, broker = _setup_strategy(
+        asset=option_asset,
+        quote=None,
+        bars=bars,
+    )
+
+    quantity = Decimal("6")
+
+    buy_order = strategy.create_order(
+        option_asset,
+        quantity,
+        Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+    )
+    _submit_and_fill(strategy, broker, buy_order)
+
+    buy_price = bars[0][0]
+    expected_cash_after_buy = 100_000.0 - (float(quantity) * buy_price * option_asset.multiplier)
+    assert strategy.cash == pytest.approx(expected_cash_after_buy, rel=1e-9)
+
+    option_position = broker.get_tracked_position(strategy.name, option_asset)
+    assert option_position is not None
+    assert option_position.quantity == pytest.approx(quantity)
+
+    broker._update_datetime(broker.datetime + timedelta(minutes=1))
+
+    sell_order = strategy.create_order(
+        option_asset,
+        quantity,
+        Order.OrderSide.SELL,
+        order_type=Order.OrderType.MARKET,
+    )
+    _submit_and_fill(strategy, broker, sell_order)
+
+    sell_price = bars[1][0]
+    expected_cash_final = 100_000.0 - (float(quantity) * buy_price * option_asset.multiplier)
+    expected_cash_final += float(quantity) * sell_price * option_asset.multiplier
+    assert strategy.cash == pytest.approx(expected_cash_final, rel=1e-9)
+
+    final_position = broker.get_tracked_position(strategy.name, option_asset)
+    assert final_position is None or final_position.quantity == 0

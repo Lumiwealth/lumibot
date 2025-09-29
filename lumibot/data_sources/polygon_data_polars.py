@@ -45,6 +45,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1m", "1 minute", "minute"]},
         {"timestep": "hour", "representations": ["1h", "1 hour", "hour"]},
     ]
+    option_quote_fallback_allowed = True
 
     def __init__(
         self,

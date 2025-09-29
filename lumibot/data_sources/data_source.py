@@ -27,6 +27,7 @@ class DataSource(ABC):
     TIMESTEP_MAPPING = []
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    option_quote_fallback_allowed = False
 
     def __init__(
             self,
@@ -70,6 +71,10 @@ class DataSource(ABC):
 
         # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
         self._greeks_cache = {}
+
+        # Ensure the instance has an explicit attribute for fallback behaviour
+        if not hasattr(self, "option_quote_fallback_allowed"):
+            self.option_quote_fallback_allowed = False
 
     # ========Required Implementations ======================
     @abstractmethod

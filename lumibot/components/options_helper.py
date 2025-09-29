@@ -1,8 +1,28 @@
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
+import warnings
 
 from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
+
+
+@dataclass
+class OptionMarketEvaluation:
+    """Structured result from evaluate_option_market."""
+
+    bid: Optional[float]
+    ask: Optional[float]
+    last_price: Optional[float]
+    spread_pct: Optional[float]
+    has_bid_ask: bool
+    spread_too_wide: bool
+    missing_bid_ask: bool
+    missing_last_price: bool
+    buy_price: Optional[float]
+    sell_price: Optional[float]
+    used_last_price_fallback: bool
+    max_spread_pct: Optional[float]
 
 
 class OptionsHelper:
@@ -35,6 +55,7 @@ class OptionsHelper:
         self.last_condor_prices: Optional[Dict[Order, float]] = None
         self.last_call_sell_strike: Optional[float] = None
         self.last_put_sell_strike: Optional[float] = None
+        self._liquidity_deprecation_warned = False
         self.strategy.log_message("OptionsHelper initialized.", color="blue")
 
     # ============================================================
@@ -353,6 +374,125 @@ class OptionsHelper:
         self.strategy.log_message(f"Calculated limit price: {limit_price}", color="green")
         return limit_price
 
+    def evaluate_option_market(
+        self,
+        option_asset: Asset,
+        max_spread_pct: Optional[float] = None,
+    ) -> OptionMarketEvaluation:
+        """Evaluate available quote data for an option and produce execution anchors.
+
+        Parameters
+        ----------
+        option_asset : Asset
+            The option to evaluate.
+        max_spread_pct : float, optional
+            Maximum acceptable bid/ask spread as a fraction (e.g. 0.25 for 25%).
+
+        Returns
+        -------
+        OptionMarketEvaluation
+            Dataclass containing quote fields, derived spread information, and
+            suggested buy/sell prices (with automatic fallback when the data
+            source allows it).
+        """
+
+        data_source = getattr(getattr(self.strategy, "broker", None), "data_source", None)
+        allow_fallback = bool(getattr(data_source, "option_quote_fallback_allowed", False))
+
+        bid: Optional[float] = None
+        ask: Optional[float] = None
+        last_price: Optional[float] = None
+        spread_pct: Optional[float] = None
+        has_bid_ask = False
+        spread_too_wide = False
+        missing_bid_ask = False
+        missing_last_price = False
+        used_last_price_fallback = False
+        buy_price: Optional[float] = None
+        sell_price: Optional[float] = None
+
+        # Attempt to get quotes first
+        quote = None
+        try:
+            quote = self.strategy.get_quote(option_asset)
+        except Exception as exc:
+            self.strategy.log_message(
+                f"Error fetching quote for {option_asset}: {exc}",
+                color="red",
+            )
+
+        if quote and quote.bid is not None and quote.ask is not None:
+            try:
+                bid = float(quote.bid)
+                ask = float(quote.ask)
+            except (TypeError, ValueError):
+                bid = quote.bid
+                ask = quote.ask
+            has_bid_ask = bid is not None and ask is not None
+
+        if has_bid_ask and bid is not None and ask is not None:
+            buy_price = ask
+            sell_price = bid
+            mid = (ask + bid) / 2 if (ask is not None and bid is not None) else None
+            if mid and mid > 0:
+                spread_pct = (ask - bid) / mid
+                if max_spread_pct is not None:
+                    spread_too_wide = spread_pct > max_spread_pct
+            else:
+                spread_pct = None
+        else:
+            missing_bid_ask = True
+
+        # Last price as secondary signal / fallback anchor
+        try:
+            last_price = self.strategy.get_last_price(option_asset)
+        except Exception as exc:
+            self.strategy.log_message(
+                f"Error fetching last price for {option_asset}: {exc}",
+                color="red",
+            )
+
+        if last_price is None:
+            missing_last_price = True
+
+        if not has_bid_ask and allow_fallback and last_price is not None:
+            buy_price = last_price
+            sell_price = last_price
+            used_last_price_fallback = True
+
+        # Compose log message
+        spread_str = f"{spread_pct:.2%}" if spread_pct is not None else "None"
+        max_spread_str = f"{max_spread_pct:.2%}" if max_spread_pct is not None else "None"
+        log_color = "red" if spread_too_wide else (
+            "yellow" if (missing_bid_ask or missing_last_price or used_last_price_fallback) else "blue"
+        )
+        self.strategy.log_message(
+            (
+                f"Option market evaluation for {option_asset}: "
+                f"bid={bid}, ask={ask}, last={last_price}, spread={spread_str}, "
+                f"max_spread={max_spread_str}, missing_bid_ask={missing_bid_ask}, "
+                f"missing_last_price={missing_last_price}, spread_too_wide={spread_too_wide}, "
+                f"used_last_price_fallback={used_last_price_fallback}, "
+                f"buy_price={buy_price}, sell_price={sell_price}"
+            ),
+            color=log_color,
+        )
+
+        return OptionMarketEvaluation(
+            bid=bid,
+            ask=ask,
+            last_price=last_price,
+            spread_pct=spread_pct,
+            has_bid_ask=has_bid_ask,
+            spread_too_wide=spread_too_wide,
+            missing_bid_ask=missing_bid_ask,
+            missing_last_price=missing_last_price,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            used_last_price_fallback=used_last_price_fallback,
+            max_spread_pct=max_spread_pct,
+        )
+
     def check_option_liquidity(self, option_asset: Asset, max_spread_pct: float) -> bool:
         """
         Check if an option's bid-ask spread is within an acceptable threshold.
@@ -369,21 +509,21 @@ class OptionsHelper:
         bool
             True if the option is sufficiently liquid; False otherwise.
         """
-        self.strategy.log_message(f"Checking liquidity for {option_asset.symbol}", color="blue")
-        try:
-            quote = self.strategy.get_quote(option_asset)
-        except Exception as e:
-            self.strategy.log_message(f"Error fetching quote for liquidity check on {option_asset.symbol}: {e}", color="red")
-            return False
-        if not quote or quote.bid is None or quote.ask is None:
-            self.strategy.log_message(f"Liquidity check: Missing quote for {option_asset.symbol}", color="red")
-            return False
-        bid = quote.bid
-        ask = quote.ask
-        mid = (bid + ask) / 2
-        spread_pct = (ask - bid) / mid
-        self.strategy.log_message(f"{option_asset.symbol} liquidity spread: {spread_pct:.2%}", color="blue")
-        return spread_pct <= max_spread_pct
+        if not self._liquidity_deprecation_warned:
+            warnings.warn(
+                "OptionsHelper.check_option_liquidity is deprecated. "
+                "Use OptionsHelper.evaluate_option_market instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self._liquidity_deprecation_warned = True
+
+        evaluation = self.evaluate_option_market(
+            option_asset=option_asset,
+            max_spread_pct=max_spread_pct,
+        )
+
+        return evaluation.has_bid_ask and not evaluation.spread_too_wide
 
     def get_order_details(self, order: Order) -> Dict[str, Optional[Union[str, float, date]]]:
         """

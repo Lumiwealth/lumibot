@@ -79,6 +79,12 @@ class TestOptionsHelper(unittest.TestCase):
         self.mock_strategy = Mock()
         self.mock_strategy.log_message = Mock()
         self.mock_strategy.get_last_price = Mock(return_value=5.0)
+        self.mock_strategy.get_quote = Mock(return_value=None)
+        data_source = Mock()
+        data_source.option_quote_fallback_allowed = False
+        broker = Mock()
+        broker.data_source = data_source
+        self.mock_strategy.broker = broker
         
         # Mock get_greeks with realistic delta values
         def mock_get_greeks(option, underlying_price=None):
@@ -480,6 +486,73 @@ class TestOptionsHelper(unittest.TestCase):
 
         # Check it tried to validate options
         self.mock_strategy.get_quote.assert_called()
+
+    def test_evaluate_option_market_with_quotes(self):
+        """evaluate_option_market returns actionable prices when quotes exist."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=1.0, ask=1.2)
+        self.mock_strategy.get_last_price.return_value = 1.1
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.5)
+
+        self.assertTrue(evaluation.has_bid_ask)
+        self.assertFalse(evaluation.spread_too_wide)
+        self.assertEqual(evaluation.buy_price, 1.2)
+        self.assertEqual(evaluation.sell_price, 1.0)
+        self.assertFalse(evaluation.used_last_price_fallback)
+
+    def test_evaluate_option_market_fallback_allowed(self):
+        """Missing quotes use last price when the data source allows fallback."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=None, ask=None)
+        self.mock_strategy.get_last_price.return_value = 2.5
+        self.mock_strategy.broker.data_source.option_quote_fallback_allowed = True
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.25)
+
+        self.assertTrue(evaluation.missing_bid_ask)
+        self.assertTrue(evaluation.used_last_price_fallback)
+        self.assertEqual(evaluation.buy_price, 2.5)
+        self.assertEqual(evaluation.sell_price, 2.5)
+        self.assertFalse(evaluation.spread_too_wide)
+
+    def test_evaluate_option_market_fallback_blocked(self):
+        """If fallback is not allowed missing quotes produce no price anchors."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=None, ask=None)
+        self.mock_strategy.get_last_price.return_value = 3.1
+        self.mock_strategy.broker.data_source.option_quote_fallback_allowed = False
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.25)
+
+        self.assertTrue(evaluation.missing_bid_ask)
+        self.assertIsNone(evaluation.buy_price)
+        self.assertIsNone(evaluation.sell_price)
+        self.assertFalse(evaluation.used_last_price_fallback)
 
 if __name__ == "__main__":
     print("🧪 Running enhanced options helper tests...")

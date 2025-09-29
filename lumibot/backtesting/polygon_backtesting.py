@@ -21,6 +21,8 @@ class PolygonDataBacktesting(PandasData):
     Backtesting implementation of Polygon
     """
 
+    option_quote_fallback_allowed = True
+
     def __init__(
         self,
         datetime_start,

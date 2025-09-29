@@ -1,6 +1,6 @@
 import datetime
 from decimal import Decimal
-from typing import Union
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -469,67 +469,62 @@ class Data:
         -------
         dict
         """
-        # Check if this data object at least has open, high, low, close, and volume columns
-        if not all(
-            [
-                "open" in self.datalines,
-                "high" in self.datalines,
-                "low" in self.datalines,
-                "close" in self.datalines,
-                "volume" in self.datalines,
-            ]
-        ):
-            raise ValueError(
-                f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: open, high, low, close, and volume. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source."
+        required_price_cols = ["open", "high", "low", "close", "volume"]
+        missing_price_cols = [col for col in required_price_cols if col not in self.datalines]
+        if missing_price_cols:
+            logger.warning(
+                "Data object %s is missing price columns %s required for quote retrieval.",
+                self.asset,
+                missing_price_cols,
             )
+            return {}
 
-        # Check if this data object has bid and ask
-        if not all(
-            [
-                "bid" in self.datalines,
-                "ask" in self.datalines,
-                "bid_size" in self.datalines,
-                "bid_condition" in self.datalines,
-                "bid_exchange" in self.datalines,
-                "ask_size" in self.datalines,
-                "ask_condition" in self.datalines,
-                "ask_exchange" in self.datalines,
-            ]
-        ):
-            raise ValueError(
-                f"The data object for {self.asset} does not have the necessary columns to get the quote. Please make sure that the data object has at least the following columns: bid and ask. This could be an issue with the data source or the data itself, consider changing the data source you are using or check that the data you are looking for exists in the data source. For example, Polygon does not provide bid and ask data."
+        quote_fields = {
+            "open": ("open", 2),
+            "high": ("high", 2),
+            "low": ("low", 2),
+            "close": ("close", 2),
+            "volume": ("volume", 0),
+            "bid": ("bid", 2),
+            "ask": ("ask", 2),
+            "bid_size": ("bid_size", 0),
+            "bid_condition": ("bid_condition", 0),
+            "bid_exchange": ("bid_exchange", 0),
+            "ask_size": ("ask_size", 0),
+            "ask_condition": ("ask_condition", 0),
+            "ask_exchange": ("ask_exchange", 0),
+        }
+
+        missing_quote_cols = [
+            col for col in ["bid", "ask", "bid_size", "ask_size", "bid_condition", "ask_condition",
+                            "bid_exchange", "ask_exchange"]
+            if col not in self.datalines
+        ]
+        if missing_quote_cols:
+            logger.warning(
+                "Data object %s is missing quote columns %s; returning None for those values.",
+                self.asset,
+                missing_quote_cols,
             )
 
         iter_count = self.get_iter_count(dt)
-        open = round(self.datalines["open"].dataline[iter_count], 2)
-        high = round(self.datalines["high"].dataline[iter_count], 2)
-        low = round(self.datalines["low"].dataline[iter_count], 2)
-        close = round(self.datalines["close"].dataline[iter_count], 2)
-        bid = round(self.datalines["bid"].dataline[iter_count], 2)
-        ask = round(self.datalines["ask"].dataline[iter_count], 2)
-        volume = round(self.datalines["volume"].dataline[iter_count], 0)
-        bid_size = round(self.datalines["bid_size"].dataline[iter_count], 0)
-        bid_condition = round(self.datalines["bid_condition"].dataline[iter_count], 0)
-        bid_exchange = round(self.datalines["bid_exchange"].dataline[iter_count], 0)
-        ask_size = round(self.datalines["ask_size"].dataline[iter_count], 0)
-        ask_condition = round(self.datalines["ask_condition"].dataline[iter_count], 0)
-        ask_exchange = round(self.datalines["ask_exchange"].dataline[iter_count], 0)
 
-        return {
-            "open": open,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "bid": bid,
-            "ask": ask,
-            "bid_size": bid_size,
-            "bid_condition": bid_condition,
-            "bid_exchange": bid_exchange,
-            "ask_size": ask_size,
-            "ask_condition": ask_condition,
-            "ask_exchange": ask_exchange
+        def _get_value(column: str, round_digits: Optional[int]):
+            if column not in self.datalines:
+                return None
+            value = self.datalines[column].dataline[iter_count]
+            try:
+                if round_digits is None:
+                    return value
+                return round(value, round_digits)
+            except TypeError:
+                return value
+
+        quote_dict = {
+            name: _get_value(column, digits) for name, (column, digits) in quote_fields.items()
         }
+
+        return quote_dict
 
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):

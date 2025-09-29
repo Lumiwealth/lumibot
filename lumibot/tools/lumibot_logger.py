@@ -631,9 +631,11 @@ class StrategyLoggerAdapter(logging.LoggerAdapter):
 def _ensure_handlers_configured():
     """
     Ensure that the root logger has the appropriate handlers configured.
-    This is called once globally to set up consistent formatting.
-    Thread-safe implementation using double-checked locking pattern.
-    
+    This is called once globally to set up consistent formatting, but we also
+    re-apply the environment driven log levels when invoked repeatedly.  This is
+    important for the unit test-suite which toggles environment variables between
+    tests and expects the console handler level to follow suit.
+
     Environment Variables Used:
     - LUMIBOT_LOG_LEVEL: Set global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     - LOG_ERRORS_TO_CSV: Enable CSV error logging (true/false)
@@ -642,85 +644,92 @@ def _ensure_handlers_configured():
     - LUMIWEALTH_API_KEY: API key for Lumiwealth/Botspot error reporting (when set, enables automatic error reporting)
     """
     global _handlers_configured
-    
+
+    # Resolve baseline log level from the environment (default INFO)
+    default_level = os.environ.get('LUMIBOT_LOG_LEVEL', 'INFO').upper()
+    try:
+        log_level = getattr(logging, default_level)
+    except AttributeError:
+        log_level = logging.INFO
+
+    is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
+
+    # Determine the effective file (root) log level and console level
+    if is_backtesting:
+        console_level = logging.ERROR
+        backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
+        if backtesting_quiet is None:
+            backtesting_quiet = "true"
+        effective_log_level = logging.ERROR if backtesting_quiet.lower() == "true" else log_level
+    else:
+        console_level = log_level
+        effective_log_level = log_level
+
+    def _apply_levels(root_logger: logging.Logger):
+        """Ensure root level and console handler levels reflect the desired state."""
+        root_logger.setLevel(effective_log_level)
+
+        console_handlers = [
+            handler for handler in root_logger.handlers if isinstance(handler, logging.StreamHandler)
+        ]
+
+        if not console_handlers:
+            # Guarantee a console handler exists (needed on some CI environments)
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setFormatter(LumibotFormatter())
+            root_logger.addHandler(console_handler)
+            console_handlers = [console_handler]
+
+        for handler in console_handlers:
+            handler.setLevel(console_level)
+            # Normalise formatter – some tests replace handlers without our formatter
+            if handler.formatter is None or not isinstance(handler.formatter, LumibotFormatter):
+                handler.setFormatter(LumibotFormatter())
+
     if _handlers_configured:
+        root_logger = logging.getLogger("lumibot")
+        _apply_levels(root_logger)
         return
 
     with _config_lock:
-        # Double-check pattern to avoid race conditions
         if _handlers_configured:
+            root_logger = logging.getLogger("lumibot")
+            _apply_levels(root_logger)
             return
-        
+
         # Set the logger class to our custom LumibotLogger
         logging.setLoggerClass(LumibotLogger)
-            
-        # Get the root logger directly to avoid circular calls
+
         root_logger = logging.getLogger("lumibot")
-        
+
         # Remove any existing handlers to avoid duplicates
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
-        
-        # Create console handler with our custom formatter
+
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(LumibotFormatter())
+        console_handler.setLevel(console_level)
 
-        # Set default level (can be overridden by environment variable)
-        default_level = os.environ.get('LUMIBOT_LOG_LEVEL', 'INFO').upper()
-        try:
-            log_level = getattr(logging, default_level)
-        except AttributeError:
-            log_level = logging.INFO
-
-        # Handle console output based on mode
-        is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-        
-        if is_backtesting:
-            # During backtesting, console should ALWAYS be quiet (ERROR+ only)
-            # regardless of BACKTESTING_QUIET_LOGS setting
-            # BACKTESTING_QUIET_LOGS only controls file logging
-            console_handler.setLevel(logging.ERROR)
-            
-            # File logging level is controlled by BACKTESTING_QUIET_LOGS
-            backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
-            if backtesting_quiet is None:
-                # Default to quiet logs for backtesting
-                backtesting_quiet = "true"
-            
-            if backtesting_quiet.lower() == "true":
-                # Quiet logs: file logging at ERROR+ level
-                log_level = logging.ERROR
-            else:
-                # Verbose logs: file logging at INFO+ level (but console still ERROR+)
-                pass  # Keep original log_level
-        else:
-            # Live trading: always show console messages at full level
-            console_handler.setLevel(log_level)
-        
-        root_logger.setLevel(log_level)
+        root_logger.setLevel(effective_log_level)
         root_logger.addHandler(console_handler)
-        
+
         # Add CSV error handler if enabled
         log_errors_to_csv = os.environ.get("LOG_ERRORS_TO_CSV")
         if log_errors_to_csv and log_errors_to_csv.lower() in ("true", "1", "yes", "on"):
             csv_path = os.environ.get("LUMIBOT_ERROR_CSV_PATH", "logs/errors.csv")
             csv_handler = CSVErrorHandler(csv_path)
             root_logger.addHandler(csv_handler)
-        
+
         # Add Botspot error handler if API key is available
-        # Check environment variable (this is what tests patch)
         api_key = os.environ.get("LUMIWEALTH_API_KEY")
-        
-        # Fall back to the imported value if not in environment
         if not api_key and LUMIWEALTH_API_KEY:
             api_key = LUMIWEALTH_API_KEY
-        
+
         if api_key:
             botspot_handler = BotspotErrorHandler()
             root_logger.addHandler(botspot_handler)
-        # Keep propagation enabled for proper logging behavior
+
         root_logger.propagate = True
-        
         _handlers_configured = True
 
 

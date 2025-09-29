@@ -670,7 +670,10 @@ def _ensure_handlers_configured():
         root_logger.setLevel(effective_log_level)
 
         console_handlers = [
-            handler for handler in root_logger.handlers if isinstance(handler, logging.StreamHandler)
+            handler
+            for handler in root_logger.handlers
+            if isinstance(handler, logging.StreamHandler)
+            and not isinstance(handler, logging.FileHandler)
         ]
 
         if not console_handlers:

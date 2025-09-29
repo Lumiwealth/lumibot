@@ -459,6 +459,10 @@ class OptionsHelper:
             buy_price = last_price
             sell_price = last_price
             used_last_price_fallback = True
+            self.strategy.log_message(
+                f"Using last-price fallback for {option_asset} due to missing bid/ask quotes.",
+                color="yellow",
+            )
 
         # Compose log message
         spread_str = f"{spread_pct:.2%}" if spread_pct is not None else "None"

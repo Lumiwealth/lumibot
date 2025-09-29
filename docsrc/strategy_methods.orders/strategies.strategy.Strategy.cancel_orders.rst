@@ -1,4 +1,7 @@
-﻿self.cancel\_orders
+:orphan:
+
+self.cancel\_orders
 =================================================================
 
 .. autofunction:: lumibot.strategies.strategy.Strategy.cancel_orders
+   :noindex:

@@ -115,7 +115,9 @@ An easy solution is to stop the API connection before using the website, but thi
 
 1. Log out and log back in using the **new secondary username and password**.
 2. Enter the **confirmation code** received via email.
-  - **Note:** The code expires quickly, so act promptly.
+
+   .. note::
+      The confirmation code expires quickly, so act promptly.
 3. You may be prompted to **change the password** for the secondary user.
 
 **Finalizing the setup:**

@@ -509,13 +509,15 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 # Handle rate limiting and other connection errors gracefully
                 error_str = str(e)
                 if "rate limited" in error_str.lower() or "429" in error_str:
-                    logger.warning(
+                    message = (
                         "Tradovate connection blocked due to rate limiting. "
                         "Too many requests were made. Wait 5-10 minutes and try again."
                     )
+                    logger.error(termcolor.colored(message, "red"))
+                    raise RuntimeError(message) from e
                 else:
-                    logger.warning(f"Could not initialize Tradovate broker: {e}")
-                broker = None
+                    logger.error(termcolor.colored(f"Could not initialize Tradovate broker: {e}", "red"))
+                    raise
         # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
         elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
             broker = Schwab(SCHWAB_CONFIG)

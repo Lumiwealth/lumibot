@@ -205,6 +205,7 @@ class TestBacktestingDataSources:
         bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
         self.check_dividends_and_adjusted_returns(bars)
 
+    @pytest.mark.skip(reason="CCXT Kraken integration test requires stable network connection and external API availability")
     def test_kraken_ccxt_backtesting_data_source_get_historical_prices_daily_bars(
             self
     ):

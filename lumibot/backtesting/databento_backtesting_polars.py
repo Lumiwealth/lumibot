@@ -3,6 +3,8 @@
 from datetime import timedelta
 
 import polars as pl
+from polars.datatypes import Datetime as PlDatetime
+import pytz
 
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars
@@ -125,6 +127,25 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
             return dt.replace(tzinfo=None)
         return dt
 
+    def _ensure_strategy_timezone(self, df: pl.DataFrame, column: str = "datetime") -> pl.DataFrame:
+        """Ensure dataframe datetime column aligns with the strategy timezone."""
+        if df is None or column not in df.columns:
+            return df
+
+        dtype = df.schema.get(column)
+        strategy_tz = self.tzinfo.zone if hasattr(self.tzinfo, "zone") else str(self.tzinfo)
+        expr = pl.col(column)
+
+        if isinstance(dtype, PlDatetime):
+            if dtype.time_zone is None:
+                expr = expr.dt.replace_time_zone(strategy_tz)
+            elif dtype.time_zone != strategy_tz:
+                expr = expr.dt.convert_time_zone(strategy_tz)
+        else:
+            expr = expr.cast(pl.Datetime(time_unit="ns")).dt.replace_time_zone(strategy_tz)
+
+        return df.with_columns(expr.alias(column))
+
     def _store_data(self, asset, data):
         """Store data efficiently using lazy frames."""
         # Standardize column names
@@ -137,6 +158,8 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
         existing_renames = {k: v for k, v in rename_map.items() if k in data.columns}
         if existing_renames:
             data = data.rename(existing_renames)
+
+        data = self._ensure_strategy_timezone(data)
 
         # Use lazy evaluation
         lazy_data = data.lazy()
@@ -245,6 +268,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
             logger.error(f"Error converting to polars DataFrame: {e}")
             return None
 
+
     def get_historical_prices(
         self,
         asset,
@@ -256,247 +280,233 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
         include_after_hours=True,
         return_polars=False,
     ):
-        """
-        Get historical price data for an asset using optimized polars operations
-        
-        Parameters
-        ----------
-        asset : Asset
-            The asset to get historical prices for
-        length : int
-            Number of bars to retrieve
-        timestep : str, optional
-            Timestep for the data ('minute', 'hour', 'day'), default 'minute'
-        timeshift : timedelta, optional
-            Time shift to apply to the data retrieval
-        quote : Asset, optional
-            Quote asset (not used for DataBento)
-        exchange : str, optional
-            Exchange/venue filter
-        include_after_hours : bool, optional
-            Whether to include after-hours data, default True
-            
-        Returns
-        -------
-        Bars
-            Historical price data as Bars object
-        """
-        logger.debug(f"[get_historical_prices] Getting historical prices for {asset.symbol}, length={length}, timestep={timestep}, current_dt={self.get_datetime()}")
+        logger.info(
+            "[get_historical_prices] Getting historical prices for %s, length=%s, timestep=%s, current_dt=%s, datetime_start=%s",
+            asset.symbol,
+            length,
+            timestep,
+            self.get_datetime(),
+            self.datetime_start,
+        )
 
-        # Validate asset type
         supported_asset_types = [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]
         if asset.asset_type not in supported_asset_types:
-            error_msg = f"DataBento only supports futures assets. Received '{asset.asset_type}' for '{asset.symbol}'"
+            error_msg = (
+                f"DataBento only supports futures assets. Received '{asset.asset_type}' for '{asset.symbol}'"
+            )
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Check cached data first
         cache_key = (asset, timestep)
+
         current_dt = self.get_datetime()
-        current_dt_naive = self._to_naive_datetime(current_dt)
+        if current_dt.tzinfo is None:
+            current_dt = self.tzinfo.localize(current_dt)
 
-        if cache_key in self._filtered_data_cache:
-            cached_df = self._filtered_data_cache[cache_key]
-
-            # Quick check if cached data covers the current time range
-            if 'datetime' in cached_df.columns:
-                # Ensure datetime type for fast operations
-                if cached_df['datetime'].dtype != pl.Datetime:
-                    cached_df = cached_df.with_columns(pl.col('datetime').cast(pl.Datetime))
-
-                # Check cache validity using metadata (much faster than collecting)
-                if cache_key in self._cache_metadata:
-                    max_cached_dt = self._cache_metadata[cache_key]['max_dt']
-                else:
-                    # First time - compute and store metadata
-                    max_cached_dt = cached_df.lazy().select(pl.col('datetime').max()).collect().item()
-                    min_cached_dt = cached_df.lazy().select(pl.col('datetime').min()).collect().item()
-                    self._cache_metadata[cache_key] = {
-                        'min_dt': min_cached_dt,
-                        'max_dt': max_cached_dt,
-                        'count': len(cached_df)
-                    }
-
-                # Check if we need more data
-                # Add a small buffer (1 hour) to avoid edge cases
-                if max_cached_dt < current_dt_naive + timedelta(hours=1):
-                    logger.debug(f"Cache miss: current time {current_dt_naive} near end of cached data (max: {max_cached_dt})")
-                    # Don't delete, just skip cache to fetch extended data
-                    pass
-                else:
-                    # Cache is valid, chain operations for single collection
-                    df_result = (
-                        cached_df.lazy()
-                        .filter(pl.col('datetime') <= current_dt_naive)
-                        .tail(length)
-                        .collect()
-                    )
-
-                    # Check if we have enough bars
-                    if len(df_result) >= length:
-
-                        logger.debug(f"Cache hit: Using cached data for {asset.symbol}: {len(df_result)} bars")
-                        return Bars(
-                            df=df_result,
-                            source=self.SOURCE,
-                            asset=asset,
-                            quote=quote,
-                            return_polars=return_polars
-                        )
-
-        # Calculate date range for data retrieval
-        current_dt = self.get_datetime()
-        current_dt = self._to_naive_datetime(current_dt)
-
-        # Apply timeshift if specified
+        effective_dt = current_dt
         if timeshift:
-            current_dt = current_dt - timeshift
+            if isinstance(timeshift, int):
+                effective_dt = effective_dt - timedelta(minutes=timeshift)
+            else:
+                effective_dt = effective_dt - timeshift
 
-        # Calculate start date based on length and timestep
-        # Add larger future buffer for aggressive caching and fewer API calls
+        current_dt_utc = effective_dt.astimezone(pytz.UTC)
+        current_dt_naive_utc = current_dt_utc.replace(tzinfo=None)
+
+        future_end = self.datetime_end
+        if future_end.tzinfo is None:
+            future_end = self.tzinfo.localize(future_end)
+        future_end_naive = future_end.astimezone(pytz.UTC).replace(tzinfo=None)
+
+        earliest_start = self.datetime_start
+        if earliest_start.tzinfo is None:
+            earliest_start = self.tzinfo.localize(earliest_start)
+        earliest_start_naive = earliest_start.astimezone(pytz.UTC).replace(tzinfo=None)
+
         if timestep == "day":
             buffer_days = max(10, length // 2)
-            start_dt = current_dt - timedelta(days=length + buffer_days)
-            # Fetch way ahead for caching (entire backtest period if possible)
-            future_end = self.datetime_end
-            if future_end.tzinfo is not None:
-                future_end = future_end.replace(tzinfo=None)
-            end_dt = min(current_dt + timedelta(days=365), future_end)
+            dynamic_start = current_dt_naive_utc - timedelta(days=length + buffer_days)
+            start_dt = min(dynamic_start, earliest_start_naive - timedelta(days=buffer_days))
+            end_dt = future_end_naive
+            coverage_buffer = timedelta(days=2)
+            bar_delta = timedelta(days=1)
         elif timestep == "hour":
             buffer_hours = max(24, length // 2)
-            start_dt = current_dt - timedelta(hours=length + buffer_hours)
-            # Fetch 30 days ahead for caching
-            future_end = self.datetime_end
-            if future_end.tzinfo is not None:
-                future_end = future_end.replace(tzinfo=None)
-            end_dt = min(current_dt + timedelta(days=30), future_end)
-        else:  # minute
-            buffer_minutes = max(720, length + 100)  # Reduced buffer for speed
-            start_dt = current_dt - timedelta(minutes=buffer_minutes)
-            # Fetch 3 days ahead for minute data caching (balance between cache hits and data size)
-            future_end = self.datetime_end
-            if future_end.tzinfo is not None:
-                future_end = future_end.replace(tzinfo=None)
-            end_dt = min(current_dt + timedelta(days=3), future_end)
+            start_dt = current_dt_naive_utc - timedelta(hours=length + buffer_hours)
+            end_dt = min(current_dt_naive_utc + timedelta(days=30), future_end_naive)
+            coverage_buffer = timedelta(hours=6)
+            bar_delta = timedelta(hours=1)
+        else:
+            buffer_minutes = max(720, length + 100)
+            start_dt = current_dt_naive_utc - timedelta(minutes=buffer_minutes)
+            end_dt = min(current_dt_naive_utc + timedelta(days=3), future_end_naive)
+            coverage_buffer = timedelta(minutes=30)
+            bar_delta = timedelta(minutes=1)
 
-        # Ensure dates are timezone-naive
-        if start_dt.tzinfo is not None:
-            start_dt = start_dt.replace(tzinfo=None)
-        if end_dt.tzinfo is not None:
-            end_dt = end_dt.replace(tzinfo=None)
+        start_dt = self._to_naive_datetime(start_dt)
+        end_dt = self._to_naive_datetime(end_dt)
 
-        # Ensure valid date range
-        if start_dt >= end_dt:
-            if timestep == "day":
-                end_dt = start_dt + timedelta(days=max(1, length))
-            elif timestep == "hour":
-                end_dt = start_dt + timedelta(hours=max(1, length))
+        # Guarantee the requested window spans at least a full bar to avoid inverted ranges
+        min_required_end = start_dt + bar_delta
+        if end_dt <= start_dt:
+            end_dt = min_required_end
+        elif end_dt < min_required_end:
+            end_dt = min_required_end
+
+        cached_df = None
+        coverage_ok = False
+        if cache_key in self._filtered_data_cache:
+            cached_df = self._ensure_strategy_timezone(self._filtered_data_cache[cache_key])
+            self._filtered_data_cache[cache_key] = cached_df
+
+            metadata = self._cache_metadata.get(cache_key)
+            if metadata:
+                cached_min = self._to_naive_datetime(metadata.get("min_dt"))
+                cached_max = self._to_naive_datetime(metadata.get("max_dt"))
             else:
-                end_dt = start_dt + timedelta(minutes=max(1, length))
+                cached_min = cached_df.lazy().select(pl.col("datetime").min()).collect().item()
+                cached_max = cached_df.lazy().select(pl.col("datetime").max()).collect().item()
+                cached_min = self._to_naive_datetime(cached_min)
+                cached_max = self._to_naive_datetime(cached_max)
+                self._cache_metadata[cache_key] = {
+                    "min_dt": cached_min,
+                    "max_dt": cached_max,
+                    "count": cached_df.height,
+                }
 
-        # Get data from DataBento
-        logger.debug(f"[get_historical_prices] Requesting DataBento data for {asset.symbol} from {start_dt} to {end_dt}")
+            if cached_min is not None and cached_max is not None:
+                coverage_ok = cached_min <= start_dt and cached_max >= (end_dt - coverage_buffer)
+
+            logger.debug(
+                "[get_historical_prices] cache window for %s (%s): min=%s max=%s required=[%s, %s] buffer=%s",
+                asset.symbol,
+                timestep,
+                cached_min,
+                cached_max,
+                start_dt,
+                end_dt,
+                coverage_buffer,
+            )
+
+            if coverage_ok:
+                allow_current_bar = getattr(self, "_include_current_bar_for_orders", False)
+                if isinstance(timeshift, int) and timeshift > 0:
+                    allow_current_bar = True
+                elif isinstance(timeshift, timedelta) and timeshift.total_seconds() > 0:
+                    allow_current_bar = True
+
+                cutoff_dt = effective_dt if allow_current_bar else effective_dt - bar_delta
+
+                df_result = (
+                    cached_df.lazy()
+                    .filter(pl.col("datetime") <= pl.lit(cutoff_dt))
+                    .sort("datetime")
+                    .tail(length)
+                    .collect()
+                )
+
+                if df_result.height >= length:
+                    return Bars(
+                        df=df_result,
+                        source=self.SOURCE,
+                        asset=asset,
+                        quote=quote,
+                        return_polars=return_polars,
+                    )
+            else:
+                logger.debug(
+                    "Cache coverage insufficient for %s (%s); requesting additional data.",
+                    asset.symbol,
+                    timestep,
+                )
+
+        logger.debug(
+            "[get_historical_prices] Requesting DataBento data for %s from %s to %s",
+            asset.symbol,
+            start_dt,
+            end_dt,
+        )
 
         try:
-            # Get polars DataFrame directly
-            logger.debug(f"[get_historical_prices] Calling databento_helper_polars with api_key={bool(self._api_key)}, timestep={timestep}")
             df = databento_helper_polars.get_price_data_from_databento_polars(
                 api_key=self._api_key,
                 asset=asset,
                 start=start_dt,
                 end=end_dt,
                 timestep=timestep,
-                venue=exchange
+                venue=exchange,
+                reference_date=effective_dt,
             )
 
             if df is None:
-                logger.error(f"[get_historical_prices] No data returned from DataBento for {asset.symbol} - df is None")
+                logger.error(
+                    "[get_historical_prices] No data returned from DataBento for %s - df is None",
+                    asset.symbol,
+                )
                 return None
-            elif df.is_empty():
-                logger.error(f"[get_historical_prices] No data returned from DataBento for {asset.symbol} - df is empty")
+            if df.is_empty():
+                logger.error(
+                    "[get_historical_prices] No data returned from DataBento for %s - df is empty",
+                    asset.symbol,
+                )
                 return None
-            else:
-                logger.debug(f"[get_historical_prices] Got {len(df)} rows from DataBento for {asset.symbol}")
-                logger.debug(f"[get_historical_prices] DataBento returned columns: {df.columns}")
-                logger.debug(f"[get_historical_prices] Has datetime? {'datetime' in df.columns}")
 
-            # Store in cache - merge with existing if we have it
+            df = self._ensure_strategy_timezone(df)
+
             if self.enable_cache:
-                if cache_key in self._filtered_data_cache:
-                    # Merge new data with existing cache
-                    existing_df = self._filtered_data_cache[cache_key]
-                    # Combine and deduplicate based on datetime
-                    combined_df = pl.concat([existing_df, df]).unique(subset=['datetime']).sort('datetime')
-                    self._filtered_data_cache[cache_key] = combined_df
-
-                    # Update metadata
-                    self._cache_metadata[cache_key] = {
-                        'min_dt': combined_df['datetime'].min(),
-                        'max_dt': combined_df['datetime'].max(),
-                        'count': len(combined_df)
-                    }
-                    logger.debug(f"Merged cache: {len(existing_df)} + {len(df)} -> {len(combined_df)} rows")
+                if cached_df is not None:
+                    combined_df = pl.concat([cached_df, df], how="vertical", rechunk=True)
+                    combined_df = combined_df.unique(subset=["datetime"]).sort("datetime")
                 else:
-                    self._filtered_data_cache[cache_key] = df
-                    # Store initial metadata
-                    self._cache_metadata[cache_key] = {
-                        'min_dt': df['datetime'].min(),
-                        'max_dt': df['datetime'].max(),
-                        'count': len(df)
-                    }
-                    logger.debug(f"New cache entry: {len(df)} rows")
-                self._store_data(asset, df)
+                    combined_df = df
 
-            # Filter data to current backtesting time
-            if 'datetime' in df.columns:
-                if df['datetime'].dtype != pl.Datetime:
-                    df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
+                self._filtered_data_cache[cache_key] = combined_df
 
-                # Ensure both datetimes are timezone-naive for comparison
-                if current_dt.tzinfo is not None:
-                    current_dt_naive = current_dt.replace(tzinfo=None)
-                else:
-                    current_dt_naive = current_dt
-
-                df_filtered = df.filter(pl.col('datetime') <= current_dt_naive)
+                cache_min = combined_df.lazy().select(pl.col("datetime").min()).collect().item()
+                cache_max = combined_df.lazy().select(pl.col("datetime").max()).collect().item()
+                cache_min = self._to_naive_datetime(cache_min)
+                cache_max = self._to_naive_datetime(cache_max)
+                self._cache_metadata[cache_key] = {
+                    "min_dt": cache_min,
+                    "max_dt": cache_max,
+                    "count": combined_df.height,
+                }
+                df_to_use = combined_df
             else:
-                df_filtered = df
+                df_to_use = df
 
-            # Debug - check columns before tail
-            logger.debug(f"[get_historical_prices] df_filtered columns before tail: {df_filtered.columns}")
-            logger.debug(f"[get_historical_prices] df_filtered shape: {df_filtered.shape}")
+            allow_current_bar = getattr(self, "_include_current_bar_for_orders", False)
+            if isinstance(timeshift, int) and timeshift > 0:
+                allow_current_bar = True
+            elif isinstance(timeshift, timedelta) and timeshift.total_seconds() > 0:
+                allow_current_bar = True
 
-            # Take the last 'length' bars
-            df_result = df_filtered.tail(length)
+            cutoff_dt_api = effective_dt if allow_current_bar else effective_dt - bar_delta
 
-            # Debug - check columns after tail
-            logger.debug(f"[get_historical_prices] df_result columns after tail: {df_result.columns}")
-            logger.debug(f"[get_historical_prices] df_result shape: {df_result.shape}")
+            df_result = (
+                df_to_use.lazy()
+                .filter(pl.col("datetime") <= pl.lit(cutoff_dt_api))
+                .sort("datetime")
+                .tail(length)
+                .collect()
+            )
 
             if df_result.is_empty():
-                logger.warning(f"No data available for {asset.symbol} up to {current_dt}")
+                logger.warning(
+                    "No data available for %s up to %s",
+                    asset.symbol,
+                    effective_dt,
+                )
                 return None
 
-            # Ensure datetime column is preserved
-            if 'datetime' not in df_result.columns and 'datetime' in df_filtered.columns:
-                logger.warning("[get_historical_prices] datetime column was dropped by tail()! This is a bug.")
-                # Try to get it back from df_filtered
-                df_result = df_filtered.tail(length).select(df_filtered.columns)
-
-            # Create and return Bars object
-            logger.debug(f"[get_historical_prices] Creating Bars with df_result columns: {df_result.columns}")
-            logger.debug(f"[get_historical_prices] df_result has datetime? {'datetime' in df_result.columns}")
-
-            bars = Bars(
+            return Bars(
                 df=df_result,
                 source=self.SOURCE,
                 asset=asset,
                 quote=quote,
-                return_polars=return_polars
+                return_polars=return_polars,
+                tzinfo=self.tzinfo,
             )
-
-            logger.debug(f"Retrieved {len(df_result)} bars for {asset.symbol}")
-            return bars
 
         except Exception as e:
             logger.error(f"Error getting data from DataBento for {asset.symbol}: {e}")
@@ -544,9 +554,10 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
 
             # Get last price with single lazy operation
             try:
+                cutoff_dt_lp = current_dt_naive - timedelta(minutes=1)
                 last_price = (
                     lazy_df
-                    .filter(pl.col('datetime') <= current_dt_naive)
+                    .filter(pl.col('datetime') <= pl.lit(cutoff_dt_lp))
                     .select(pl.col('close').tail(1))
                     .collect()
                     .item()
@@ -555,7 +566,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
                 if last_price is not None:
                     last_price = float(last_price)
                     cache_key = (asset, self.get_datetime())
-                    self._last_price_cache[cache_key] = last_price
+                    self._last_price_cache[asset] = last_price
                     logger.debug(f"Last price from lazy data for {asset.symbol}: {last_price}")
                     return last_price
             except:
@@ -568,6 +579,7 @@ class DataBentoDataBacktestingPolars(DataSourceBacktesting):
             df = bars.df
             if 'close' in df.columns:
                 last_price = float(df['close'].iloc[-1])
+                cache_key = (asset, self.get_datetime())
                 self._last_price_cache[asset] = last_price
                 logger.debug(f"Last price from historical for {asset.symbol}: {last_price}")
                 return last_price

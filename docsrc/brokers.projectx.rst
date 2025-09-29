@@ -17,6 +17,7 @@ Prerequisites
 
 1. **Account**: Demo or live futures trading account with a supported broker
 2. **API Credentials**: Username and API key from your broker
+
 Supported Brokers
 -----------------
 
@@ -195,14 +196,33 @@ Supported Functionality
 -----------------------
 
 .. list-table:: ProjectX Capabilities
-  :widths: 25 15 60
-  :header-rows: 1
+   :widths: 25 15 60
+   :header-rows: 1
+
+   * - Feature
+     - Support
+     - Notes
+   * - Futures trading
+     - Yes
+     - Supports CME micro and standard contracts through connected prop firms.
+   * - Order types
+     - Market, Limit, Stop
+     - Submit bracket-style risk controls directly from strategies.
+   * - Market data
+     - Real time
+     - Streams price updates when ProjectX is running alongside Lumibot.
+   * - Account detection
+     - Automatic
+     - Reads the configured environment variables to pick the correct broker.
+
 Usage
 -----
 
-1. **Set Environment Variables**: Configure your broker's API credentials
-2. **Create Strategy**: Import Lumibot and create your trading strategy  
-3. **Run**: ProjectX will auto-detect and connect
+1. **Set Environment Variables**: Configure your broker's API credentials.
+
+2. **Create Strategy**: Import Lumibot and create your trading strategy.
+
+3. **Run**: ProjectX will auto-detect and connect.
 
 .. code-block:: python
 

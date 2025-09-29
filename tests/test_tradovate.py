@@ -22,6 +22,7 @@ from unittest.mock import patch, MagicMock, Mock
 import logging
 import time
 import requests
+from datetime import datetime
 
 
 class TestTradovateImports:
@@ -251,9 +252,9 @@ class TestTradovateBroker:
         empty_config = {}
         
         # Mock the requests to avoid actual API calls
-        with patch('requests.post') as mock_post:
+        with patch('requests.request') as mock_request:
             # Mock a failure response that would happen with missing credentials
-            mock_response = mock_post.return_value
+            mock_response = mock_request.return_value
             mock_response.status_code = 400
             mock_response.json.return_value = {"errorText": "Missing credentials"}
             mock_response.raise_for_status.side_effect = Exception("Bad Request")
@@ -400,86 +401,61 @@ class TestTradovateSymbolResolution:
     """Test Tradovate-specific symbol resolution with 1-digit year format."""
     
     def test_tradovate_symbol_format(self):
-        """Test that Tradovate broker generates correct symbol format with 1-digit year."""
+        """Tradovate broker should request 1-digit contracts from Asset resolver."""
         from lumibot.brokers.tradovate import Tradovate
-        from unittest.mock import patch
-        
-        # Mock datetime to control the current date
-        with patch('datetime.datetime') as mock_datetime:
-            # Set current date to July 9, 2025
-            mock_datetime.now.return_value.month = 7
-            mock_datetime.now.return_value.year = 2025
-            
-            # Create a mock Tradovate broker instance
-            broker = Tradovate.__new__(Tradovate)
-            
-            # Create a mock asset
-            from lumibot.entities import Asset
-            asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
-            
-            # Test the Tradovate-specific symbol resolution
-            symbol = broker._resolve_tradovate_futures_symbol(asset)
-            
-            # July should resolve to September (U) with 1-digit year (5 for 2025)
-            expected_symbol = "MNQU5"
-            assert symbol == expected_symbol, f"Expected {expected_symbol}, got {symbol}"
-            
-            print(f"✅ Tradovate symbol format test passed: MNQ -> {symbol}")
-    
-    def test_tradovate_symbol_different_months(self):
-        """Test symbol resolution for different months."""
-        from lumibot.brokers.tradovate import Tradovate
-        from unittest.mock import patch
-        
-        broker = Tradovate.__new__(Tradovate)
         from lumibot.entities import Asset
-        asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
-        test_cases = [
-            (1, 2025, "MESM5"),   # January -> June (M5)
-            (3, 2025, "MESM5"),   # March -> June (M5) 
-            (5, 2025, "MESU5"),   # May -> September (U5)
-            (7, 2025, "MESU5"),   # July -> September (U5)
-            (9, 2025, "MESU5"),   # September -> September (U5)
-            (11, 2025, "MESZ5"),  # November -> December (Z5)
-            (12, 2026, "MESZ6"),  # December 2026 -> December (Z6)
-        ]
-        
-        for month, year, expected in test_cases:
-            with patch('datetime.datetime') as mock_datetime:
-                mock_datetime.now.return_value.month = month
-                mock_datetime.now.return_value.year = year
-                
-                symbol = broker._resolve_tradovate_futures_symbol(asset)
-                assert symbol == expected, f"Month {month}/{year}: Expected {expected}, got {symbol}"
-        
-        print("✅ Tradovate symbol resolution for different months test passed")
-    
+
+        broker = Tradovate.__new__(Tradovate)
+        asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
+
+        with patch.object(
+            asset,
+            "resolve_continuous_futures_contract",
+            return_value="MNQZ5",
+        ) as mock_resolve:
+            symbol = broker._resolve_tradovate_futures_symbol(asset)
+
+        mock_resolve.assert_called_once_with(year_digits=1)
+        assert symbol == "MNQZ5"
+
+    def test_tradovate_converts_specific_contract_to_single_digit(self):
+        """Specific futures contracts should be normalized to single-digit year."""
+        from lumibot.brokers.tradovate import Tradovate
+        from lumibot.entities import Asset
+
+        broker = Tradovate.__new__(Tradovate)
+
+        future_asset = Asset("MESZ25", asset_type=Asset.AssetType.FUTURE)
+        assert broker._resolve_tradovate_futures_symbol(future_asset) == "MESZ5"
+
+        already_single_digit = Asset("MESZ5", asset_type=Asset.AssetType.FUTURE)
+        assert broker._resolve_tradovate_futures_symbol(already_single_digit) == "MESZ5"
+
     def test_tradovate_vs_standard_symbol_difference(self):
         """Test that Tradovate symbols differ from standard 2-digit year format."""
         from lumibot.brokers.tradovate import Tradovate
         from lumibot.entities import Asset
         from unittest.mock import patch
-        
+
         broker = Tradovate.__new__(Tradovate)
         asset = Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
-        
-        with patch('datetime.datetime') as mock_datetime:
-            mock_datetime.now.return_value.month = 7
-            mock_datetime.now.return_value.year = 2025
-            
-            # Get Tradovate-specific symbol (1-digit year)
+        reference_date = datetime(2025, 9, 16)
+
+        standard_symbol = asset.resolve_continuous_futures_contract(
+            reference_date=reference_date, year_digits=2
+        )
+        tradovate_expected = asset.resolve_continuous_futures_contract(
+            reference_date=reference_date, year_digits=1
+        )
+
+        with patch.object(
+            asset, "resolve_continuous_futures_contract", return_value=tradovate_expected
+        ) as mock_resolve:
             tradovate_symbol = broker._resolve_tradovate_futures_symbol(asset)
-            
-            # Get standard symbol (2-digit year)
-            standard_symbol = asset.resolve_continuous_futures_contract()
-            
-            # They should be different
-            assert tradovate_symbol != standard_symbol
-            assert tradovate_symbol == "MNQU5"  # 1-digit year
-            assert standard_symbol == "MNQU25"  # 2-digit year
-            
-        print(f"✅ Symbol format difference test passed: Tradovate={tradovate_symbol}, Standard={standard_symbol}")
+
+        mock_resolve.assert_called_once_with(year_digits=1)
+        assert tradovate_symbol == tradovate_expected
+        assert tradovate_symbol != standard_symbol
 
 
 class TestTradovateAPIPayload:
@@ -517,7 +493,7 @@ class TestTradovateAPIPayload:
         )
         
         # Mock the symbol resolution and _request method to capture the payload
-        with patch.object(broker, '_resolve_tradovate_futures_symbol', return_value='MNQU5'):
+        with patch.object(broker, '_resolve_tradovate_futures_symbol', return_value='MNQZ5'):
             # Mock _request to capture the payload and return a successful response
             with patch.object(broker, '_request') as mock_request:
                 # Mock successful response
@@ -538,7 +514,7 @@ class TestTradovateAPIPayload:
                 assert 'price' in payload, "Limit orders should use 'price' field"
                 assert 'limitPrice' not in payload, "Should not use 'limitPrice' field"
                 assert payload['price'] == 20000.0
-                assert payload['symbol'] == 'MNQU5'
+                assert payload['symbol'] == 'MNQZ5'
                 assert payload['orderType'] == 'Limit'
                     
         print("✅ Limit order payload format test passed")
@@ -772,7 +748,7 @@ class TestTradovateTokenRenewal:
             
             broker = Tradovate(config=config)
             
-            # Mock requests.post to simulate 401 then success
+            # Mock requests.request to simulate 401 then success
             call_count = 0
             def mock_post(*args, **kwargs):
                 nonlocal call_count

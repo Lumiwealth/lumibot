@@ -1,3 +1,5 @@
+:orphan:
+
 Backtesting
 ===========================
 
@@ -16,4 +18,3 @@ Data Source Backtesting
    :members:
    :undoc-members:
    :show-inheritance:
-

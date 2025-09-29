@@ -389,7 +389,7 @@ class Alpaca(Broker):
                 symbol=position.symbol.replace("USD", ""),
                 asset_type=Asset.AssetType.CRYPTO,
             )
-        elif position.asset_class == "option":
+        elif position.asset_class == "option" or position.asset_class == "us_option":
             asset = Asset.symbol2asset(position.symbol)
         else:
             asset = Asset(
@@ -397,7 +397,13 @@ class Alpaca(Broker):
             )
 
         quantity = position.qty
-        position = Position(strategy, asset, quantity, orders=orders)
+
+        try:
+            avg_fill_price = float(position.avg_entry_price) if position.avg_entry_price else None
+        except (ValueError, TypeError):
+            avg_fill_price = None
+
+        position = Position(strategy, asset, quantity, orders=orders, avg_fill_price=avg_fill_price)
         return position
 
     def _pull_broker_position(self, asset):
@@ -702,13 +708,15 @@ class Alpaca(Broker):
         elif side in ("sell_to_open", "sell_to_close"):
             side = "sell"
         
+        # multileg is not a valid order_class for Alpaca. It is mleg now, and cannot be combined with a symbol.
+
         # Compose order payload
         kwargs = {
-            "symbol": symbol,  # Required: Primary symbol
+            # "symbol": symbol,  # Required: Primary symbol.   Not allowed for mleg order
             "qty": qty,        # Required: Total quantity
             "side": side,      # Required: Primary side (buy/sell)
             "type": order_type or "limit",  # Required: Order type
-            "order_class": "multileg",      # Required: Must be "multileg" for multi-leg orders
+            "order_class": "mleg",      # Required: Must be "mleg" for multi-leg orders
             "time_in_force": duration,      # Required: Duration
             "legs": legs,      # Required: Individual legs
         }

@@ -1,7 +1,8 @@
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from lumibot.entities import Asset, Order
+from lumibot.entities.chains import Chains
 
 
 class OptionsHelper:
@@ -81,6 +82,18 @@ class OptionsHelper:
                 right=put_or_call,
                 underlying_asset=underlying_asset,
             )
+
+            # First check if quote data exists (preferred)
+            try:
+                quote = self.strategy.get_quote(option)
+                has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
+                if has_valid_quote:
+                    self.strategy.log_message(f"Found valid quote for option {option.symbol} at expiry {expiry}", color="blue")
+                    return option
+            except Exception as e:
+                self.strategy.log_message(f"Error getting quote for {option.symbol}: {e}", color="yellow")
+
+            # Fallback to checking last price if no quote
             try:
                 price = self.strategy.get_last_price(option)
                 self.strategy.log_message(f"Price for option {option.symbol} at expiry {expiry} is {price}", color="blue")
@@ -398,46 +411,129 @@ class OptionsHelper:
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
 
-    def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> date:
+    def get_expiration_on_or_after_date(self, dt: Union[date, datetime], chains: Union[Dict[str, Any], Chains], call_or_put: str, underlying_asset: Optional[Asset] = None) -> Optional[date]:
         """
-        Get the expiration date that is on or after a given date.
+        Get the expiration date that is on or after a given date, validating that the option has tradeable data.
 
         Parameters
         ----------
         dt : date
             The starting date. Can be a datetime.date or datetime.datetime object.
-        chains : dict
-            A dictionary containing option chains.
+        chains : dict or Chains
+            A dictionary or Chains object containing option chains.
         call_or_put : str
             One of "call" or "put".
+        underlying_asset : Asset, optional
+            The underlying asset to validate option data. If provided, will verify option has tradeable data.
 
         Returns
         -------
         date
-            The adjusted expiration date.
+            The adjusted expiration date with valid tradeable data.
         """
-        
+
         # Handle both datetime.datetime and datetime.date objects
-        from datetime import datetime, date
         if isinstance(dt, datetime):
-            dt = dt.date()  # Convert datetime to date
+            dt = dt.date()
         elif not isinstance(dt, date):
             raise TypeError(f"dt must be a datetime.date or datetime.datetime object, got {type(dt)}")
-        
+
         # Make it all caps and get the specific chain.
         call_or_put_caps = call_or_put.upper()
-        specific_chain = chains["Chains"][call_or_put_caps]
 
-        # Get the list of expiration dates as strings.
-        expiration_dates = list(specific_chain.keys())
+        chains_map = chains if isinstance(chains, dict) else {}
+        options_map = chains_map.get("Chains") if isinstance(chains_map.get("Chains"), dict) else None
+        if options_map is None:
+            self.strategy.log_message(
+                f"Option chains unavailable for {call_or_put_caps}; skipping option selection.",
+                color="yellow",
+            )
+            return None
 
-        # Since dt is a date object and expiration_dates contains strings, dt won't be found.
-        # Find the closest expiration date (as a string) and convert it back to a date.
-        if dt not in expiration_dates:
-            closest_str = min(expiration_dates, key=lambda x: abs(datetime.strptime(x, "%Y-%m-%d").date() - dt))
-            dt = datetime.strptime(closest_str, "%Y-%m-%d").date()
+        specific_chain = options_map.get(call_or_put_caps)
+        if not isinstance(specific_chain, dict) or not specific_chain:
+            self.strategy.log_message(
+                f"Option chains lack data for {call_or_put_caps}; skipping option selection.",
+                color="yellow",
+            )
+            return None
 
-        return dt
+        # Get underlying symbol for validation
+        underlying_symbol = None
+        if underlying_asset:
+            underlying_symbol = underlying_asset.symbol
+        elif hasattr(chains, 'underlying_symbol'):
+            underlying_symbol = chains.underlying_symbol
+        elif 'UnderlyingSymbol' in chains_map:
+            underlying_symbol = chains_map['UnderlyingSymbol']
+
+        # Convert string expiries to dates for comparison
+        expiration_dates: List[Tuple[str, date]] = []
+        for expiry_str in specific_chain.keys():
+            try:
+                from lumibot.entities.chains import _normalise_expiry
+                expiry_date = _normalise_expiry(expiry_str)
+                expiration_dates.append((expiry_str, expiry_date))
+            except:
+                continue
+
+        expiration_dates.sort(key=lambda x: x[1])
+        future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
+
+        # Check each candidate expiry to find one with valid data
+        for exp_str, exp_date in future_candidates:
+            strikes = specific_chain.get(exp_str)
+            if strikes and len(strikes) > 0:
+                # Check if at least one strike has valid data
+                # Pick a strike near the middle (likely to be ATM and have data)
+                test_strike = strikes[len(strikes) // 2] if isinstance(strikes, list) else list(strikes)[len(strikes) // 2]
+
+                # Try to get the underlying symbol from the first available asset
+                if underlying_symbol:
+                    test_option = Asset(
+                        underlying_symbol,
+                        asset_type="option",
+                        expiration=exp_date,
+                        strike=float(test_strike),
+                        right=call_or_put,
+                    )
+
+                    # Check if this option has tradeable data
+                    try:
+                        quote = self.strategy.get_quote(test_option)
+                        has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
+                        if has_valid_quote:
+                            self.strategy.log_message(f"Found valid expiry {exp_date} with quote data for {call_or_put_caps}", color="blue")
+                            return exp_date
+                    except:
+                        pass
+
+                    # Fallback to checking last price
+                    try:
+                        price = self.strategy.get_last_price(test_option)
+                        if price is not None:
+                            self.strategy.log_message(f"Found valid expiry {exp_date} with price data for {call_or_put_caps}", color="blue")
+                            return exp_date
+                    except:
+                        pass
+                else:
+                    # If we can't determine underlying, assume the expiry is valid (backward compatibility)
+                    self.strategy.log_message(f"Cannot validate data without underlying symbol, returning {exp_date}", color="yellow")
+                    return exp_date
+
+        # No future expirations with valid data; log and check last available
+        if expiration_dates:
+            # Check the last available expiry for data
+            for exp_str, exp_date in reversed(expiration_dates):
+                strikes = specific_chain.get(exp_str)
+                if strikes and len(strikes) > 0:
+                    self.strategy.log_message(
+                        f"No valid expirations on or after {dt}; using latest available {exp_date} for {call_or_put_caps}.",
+                        color="yellow",
+                    )
+                    return exp_date
+
+        return None
 
     # ============================================================
     # Order Building Functions (Build orders without submission)

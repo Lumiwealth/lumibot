@@ -255,7 +255,10 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
         logger.info(f"Resolving continuous futures symbol: {symbol}")
         
         # Use Asset class method for contract resolution
-        resolved_symbol = asset.resolve_continuous_futures_contract(reference_date)
+        resolved_symbol = asset.resolve_continuous_futures_contract(
+            reference_date=reference_date,
+            year_digits=1,
+        )
         
         logger.info(f"Resolved continuous future {symbol} -> {resolved_symbol}")
         
@@ -702,7 +705,7 @@ def get_last_price_from_databento(
         # For continuous futures, resolve to the current active contract
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
             # Use Asset class method to resolve continuous futures to actual contract (returns string)
-            resolved_symbol = asset.resolve_continuous_futures_contract()
+            resolved_symbol = asset.resolve_continuous_futures_contract(year_digits=1)
             if resolved_symbol is None:
                 logger.error(f"Could not resolve continuous futures contract for {asset.symbol}")
                 return None

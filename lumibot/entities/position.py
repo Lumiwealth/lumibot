@@ -192,17 +192,45 @@ class Position:
 
         We ONLY return the essential fields needed for portfolio tracking.
         """
+
         # Only return the essential fields - no dynamic attributes
         # This is a WHITELIST approach - only include what we explicitly want
         result = {
             "strategy": self.strategy,
             "asset": self.asset.to_dict() if self.asset else None,
+            "symbol": self.symbol,  # Added symbol field
             "quantity": float(self.quantity),
             "orders": [],  # We'll handle orders specially below
             "hold": self.hold,
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
+
+        # Add dynamically set fields if they exist (from broker)
+        if hasattr(self, 'current_price'):
+            result['current_price'] = float(self.current_price) if self.current_price else None
+        if hasattr(self, 'market_value'):
+            result['market_value'] = float(self.market_value) if self.market_value else None
+        if hasattr(self, 'pnl'):
+            result['pnl'] = float(self.pnl) if self.pnl else None
+        if hasattr(self, 'pnl_percent'):
+            result['pnl_percent'] = float(self.pnl_percent) if self.pnl_percent else None
+        if hasattr(self, 'asset_type'):
+            result['asset_type'] = self.asset_type
+        if hasattr(self, 'exchange'):
+            result['exchange'] = self.exchange
+        if hasattr(self, 'currency'):
+            result['currency'] = self.currency
+        if hasattr(self, 'multiplier'):
+            result['multiplier'] = self.multiplier
+        if hasattr(self, 'expiration'):
+            result['expiration'] = str(self.expiration) if self.expiration else None
+        if hasattr(self, 'strike'):
+            result['strike'] = float(self.strike) if self.strike else None
+        if hasattr(self, 'option_type'):
+            result['option_type'] = self.option_type
+        if hasattr(self, 'underlying_symbol'):
+            result['underlying_symbol'] = self.underlying_symbol
 
         # Handle orders carefully - ensure to_dict() is called properly
         if self.orders:

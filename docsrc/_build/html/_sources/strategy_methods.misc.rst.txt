@@ -3,21 +3,21 @@ Miscellaneous
 
 Miscellaneous methods are the methods that do not fit into other categories. You can use these methods to log messages to your log files, sleep for a few seconds and more. You can see a list of them below:
 
-.. currentmodule:: lumibot.strategies.strategy.Strategy
+.. currentmodule:: lumibot.strategies.strategy
 
 .. autosummary::
     :toctree: strategy_methods.misc
     :template: strategy_methods_template.rst
 
-    log_message
-    sleep
-    set_market
-    update_parameters
-    get_parameters
-    await_market_to_close
-    await_market_to_open
-    wait_for_order_registration
-    wait_for_order_execution
-    wait_for_orders_registration
-    wait_for_orders_execution
-    register_cron_callback
+        Strategy.log_message
+        Strategy.sleep
+        Strategy.set_market
+        Strategy.update_parameters
+        Strategy.get_parameters
+        Strategy.await_market_to_close
+        Strategy.await_market_to_open
+        Strategy.wait_for_order_registration
+        Strategy.wait_for_order_execution
+        Strategy.wait_for_orders_registration
+        Strategy.wait_for_orders_execution
+        Strategy.register_cron_callback

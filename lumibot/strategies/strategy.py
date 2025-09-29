@@ -1,13 +1,15 @@
 import datetime
 import logging
+import math
 import os
 import time
 import uuid
 from decimal import Decimal
-from typing import Callable, List, Type, Union
+from typing import Callable, List, Type, Union, Optional
 
 import jsonpickle
 import matplotlib
+from matplotlib.colors import is_color_like
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -2101,26 +2103,51 @@ class Strategy(_Strategy):
             return asset_prices
 
     # ======= Broker Methods  ============
-    def options_expiry_to_datetime_date(self, date: datetime.date):
-        """Converts an IB Options expiry to datetime.date.
+    def options_expiry_to_datetime_date(self, expiry) -> datetime.date:
+        """Convert an options expiry to datetime.date.
 
         Parameters
         ----------
-            date : str
-                String in the format of 'YYYYMMDD'
+        expiry : str | datetime.date | datetime.datetime
+            The expiry to convert. Can be:
+            - String in 'YYYYMMDD' format (legacy IB format)
+            - String in 'YYYY-MM-DD' format (Polygon format)
+            - datetime.date object
+            - datetime.datetime object
 
         Returns
         -------
-            datetime.date
-
-        Example
-        -------
-        >>> # Will return the date for the expiry
-        >>> date = "20200101"
-        >>> expiry_date = self.options_expiry_to_datetime_date(date)
-        >>> self.log_message(f"Expiry date for {date} is {expiry_date}")
+        datetime.date
+            The normalised expiry date.
         """
-        return datetime.datetime.strptime(date, "%Y%m%d").date()
+        if isinstance(expiry, datetime.datetime):
+            return expiry.date()
+        if isinstance(expiry, datetime.date):
+            return expiry
+        if isinstance(expiry, str):
+            # Try different string formats
+            expiry_clean = expiry.strip()
+
+            # Try YYYY-MM-DD format (Polygon)
+            if len(expiry_clean) == 10 and expiry_clean[4] == '-' and expiry_clean[7] == '-':
+                try:
+                    return datetime.datetime.strptime(expiry_clean, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+
+            # Try YYYYMMDD format (IB legacy)
+            expiry_digits = expiry_clean.replace("-", "")
+            if len(expiry_digits) == 8 and expiry_digits.isdigit():
+                try:
+                    return datetime.datetime.strptime(expiry_digits, "%Y%m%d").date()
+                except ValueError:
+                    pass
+
+            raise ValueError(f"Unable to parse expiry string: {expiry}")
+
+        raise TypeError(
+            f"expiry must be a string, datetime.date, or datetime.datetime instance, got {type(expiry)}"
+        )
 
     def get_chains(self, asset: Asset):
         """Returns option chains.
@@ -2899,6 +2926,31 @@ class Strategy(_Strategy):
             multiplier=multiplier,
         )
 
+    def _normalize_plot_color(self, color: Optional[str], *, default: Optional[str], context: str):
+        """Normalize user-supplied chart colors while falling back gracefully."""
+        if color is None:
+            return default
+
+        normalized = color.strip()
+        if not normalized:
+            fallback = default if default is not None else "auto-color selection"
+            self.logger.warning(f"Unsupported {context} color '{color}', defaulting to {fallback}.")
+            return default
+
+        try:
+            valid = is_color_like(normalized)
+        except Exception:
+            valid = False
+
+        if valid:
+            if normalized.startswith('#'):
+                return normalized.lower()
+            return normalized.lower()
+
+        fallback = default if default is not None else "auto-color selection"
+        self.logger.warning(f"Unsupported {context} color '{color}', defaulting to {fallback}.")
+        return default
+
     def add_marker(
             self,
             name: str,
@@ -2921,7 +2973,7 @@ class Strategy(_Strategy):
         value : float or int
             The value of the marker. Default is the current portfolio value.
         color : str
-            The color of the marker. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", and "white".
+            The color of the marker. Use any Matplotlib/Plotly compatible color name (e.g. "red", "magenta", "lightblue") or a hex string like "#ff0000".
         size : int
             The size of the marker.
         detail_text : str
@@ -2931,11 +2983,16 @@ class Strategy(_Strategy):
         plot_name : str
             The name of the subplot to add the marker to. If "default_plot" (the default value) or None, the marker will be added to the main plot.
 
+        Note
+        ----
+        Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.
+
         Example
         -------
         >>> # Will add a marker to the chart
         >>> self.add_chart_marker("Overbought", symbol="circle", color="red", size=10)
         """
+
 
         # Check that the parameters are valid
         if not isinstance(name, str):
@@ -2980,13 +3037,36 @@ class Strategy(_Strategy):
                 f"which is a type {type(dt)}."
             )
 
-        # If no datetime is specified, use the current datetime
+        color = self._normalize_plot_color(color, default="blue", context="marker")
+
+        def _coerce_finite(label: str, number):
+            if number is None:
+                return None
+            try:
+                num = float(number)
+            except (TypeError, ValueError):
+                self.logger.warning(f"Skipping {label} marker: value '{number}' is not numeric.")
+                return None
+            if math.isnan(num) or math.isinf(num):
+                self.logger.warning(f"Skipping {label} marker: value '{number}' is not finite.")
+                return None
+            return num
+
         if dt is None:
             dt = self.get_datetime()
 
-        # If no value is specified, use the current portfolio value
         if value is None:
             value = self.portfolio_value
+
+        numeric_value = _coerce_finite(name, value)
+        if numeric_value is None:
+            return None
+
+        if size is not None and size <= 0:
+            self.logger.warning("Marker size must be positive; ignoring the size override.")
+            size = None
+
+        value = numeric_value
 
         # Check for duplicate markers
         if len(self._chart_markers_list) > 0:
@@ -3049,7 +3129,7 @@ class Strategy(_Strategy):
         value : float or int
             The value of the line.
         color : str
-            The color of the line. Possible values are "red", "green", "blue", "yellow", "orange", "purple", "pink", "brown", "black", "white", "gray", "lightgray", "darkgray", "lightblue", "darkblue", "lightgreen", "darkgreen", "lightred", "darkred" and any hex color code.
+            The color of the line. Use any Matplotlib/Plotly compatible color name (e.g. "red", "magenta", "lightblue") or a hex string like "#ff0000".
         style : str
             The style of the line. Possible values are "solid", "dotted", and "dashed".
         width : int
@@ -3060,6 +3140,10 @@ class Strategy(_Strategy):
             The datetime of the line. Default is the current datetime.
         plot_name : str
             The name of the subplot to add the line to. If "default_plot" (the default value) or None, the line will be added to the main plot.
+
+        Note
+        ----
+        Colors are validated before plotting; use Matplotlib/Plotly color names or hex codes.
 
         Example
         -------
@@ -3109,6 +3193,22 @@ class Strategy(_Strategy):
                 f"Invalid dt parameter in add_line() method. Dt must be a datetime.datetime but instead got {dt}, "
                 f"which is a type {type(dt)}."
             )
+
+        if color is not None:
+            color = self._normalize_plot_color(color, default="blue", context="line")
+
+        if style not in {"solid", "dotted", "dashed"}:
+            self.logger.warning(f"Unsupported line style '{style}', defaulting to solid.")
+            style = "solid"
+
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
+            self.logger.warning("Skipping line because value is not finite.")
+            return None
+
+        if width is not None and width <= 0:
+            self.logger.warning("Line width must be positive; ignoring the width override.")
+            width = None
 
         # If no datetime is specified, use the current datetime
         if dt is None:
@@ -3275,10 +3375,20 @@ class Strategy(_Strategy):
         length : int
             The number of rows (number of timesteps)
         timestep : str
-            Either ``"minute"`` for minutes data or ``"day"``
-            for days data default value depends on the data_source (minute
-            for alpaca, day for yahoo, ...).  If you need, you can specify the width of the bars by adding a number
-            before the timestep (e.g. "5 minutes", "15 minutes", "1 day", "2 weeks", "1month", ...)
+            Time interval for each bar. Supports multiple formats:
+
+            **Basic formats:**
+                - ``"minute"`` or ``"day"`` - Single minute or day bars
+
+            **Multi-timeframe formats (automatically aggregated):**
+                - Minutes: ``"5min"``, ``"5m"``, ``"5 minutes"``, ``"15min"``, ``"30m"``, etc.
+                - Hours: ``"1h"``, ``"1hour"``, ``"2h"``, ``"4 hours"``, etc. (converted to minutes)
+                - Days: ``"2d"``, ``"2 days"``, ``"1 week"``, ``"1w"``, etc.
+                - Flexible formatting: Case-insensitive, with/without spaces
+
+            When using multi-timeframe formats, the method automatically fetches the
+            underlying minute or day data and resamples it to your desired timeframe.
+            Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
         timeshift : timedelta
             ``None`` by default. If specified indicates the time shift from
             the present. If  backtesting in Pandas, use integer representing
@@ -3322,7 +3432,19 @@ class Strategy(_Strategy):
         >>> # Then, to get the DataFrame of SPY data
         >>> df = bars.df
         >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
-        >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
+        >>> self.log_message(f"Last price of AAPL: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
+
+        >>> # Get 5-minute bars for the last 10 5-minute periods (using new multi-timeframe support)
+        >>> bars = self.get_historical_prices("SPY", 10, "5min")
+        >>> df = bars.df  # DataFrame with 10 rows of 5-minute OHLCV data
+        >>>
+        >>> # Get hourly bars for the last 24 hours
+        >>> bars = self.get_historical_prices("AAPL", 24, "1h")
+        >>>
+        >>> # Get 15-minute bars (multiple format options work)
+        >>> bars = self.get_historical_prices("TSLA", 20, "15m")       # Short format
+        >>> bars = self.get_historical_prices("TSLA", 20, "15min")     # Alternative
+        >>> bars = self.get_historical_prices("TSLA", 20, "15 minutes") # With space
 
         >>> # Get the historical data for an AAPL option for the last 30 minutes
         >>> asset = self.create_asset("AAPL", asset_type="option", expiration=datetime.datetime(2020, 1, 1), strike=100, right="call")

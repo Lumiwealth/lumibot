@@ -131,7 +131,7 @@ Here are some commonly traded futures contracts:
     si_asset = Asset("SI", asset_type=Asset.AssetType.CONT_FUTURE)
 
 Complete Strategy Example
-========================
+=========================
 
 Here's a complete example of a futures trading strategy using continuous futures:
 
@@ -206,7 +206,7 @@ Best Practices
    Futures use leverage, so implement proper risk management with stop losses and position sizing.
 
 Example with Risk Management
-===========================
+============================
 
 .. code-block:: python
 
@@ -236,7 +236,7 @@ Example with Risk Management
             # Your trading logic here...
 
 Common Issues and Solutions
-==========================
+===========================
 
 **Issue: "No data available for futures contract"**
 
@@ -262,7 +262,7 @@ Common Issues and Solutions
 - Consider using more liquid contracts (ES vs RTY)
 
 Data Provider Support
-====================
+=====================
 
 Different data providers have varying levels of futures support:
 

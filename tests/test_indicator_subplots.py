@@ -1,5 +1,8 @@
 import logging
 from datetime import datetime as DateTime
+from unittest.mock import MagicMock
+
+import pandas as pd
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
@@ -203,3 +206,95 @@ class TestIndicators:
         assert result is not None
 
 
+def test_plot_indicators_handles_nan_marker_size(tmp_path, monkeypatch):
+    from lumibot.tools.indicators import plot_indicators
+
+    # Build a marker DataFrame with NaN sizes to mirror the failing scenario
+    marker_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-01 09:30", "2024-01-01 10:30"]),
+            "value": [100, 101],
+            "plot_name": ["default_plot", "default_plot"],
+            "name": ["Test Marker", "Test Marker"],
+            "symbol": ["circle", "circle"],
+            "size": [float("nan"), float("nan")],
+            "color": [None, None],
+            "detail_text": [None, None],
+        }
+    )
+
+    # Avoid opening the browser or writing actual files
+    mock_write = MagicMock()
+    monkeypatch.setattr("plotly.graph_objects.Figure.write_html", mock_write)
+
+    # Should not raise even when marker size column is NaN-only
+    plot_indicators(
+        plot_file_html=str(tmp_path / "plot.html"),
+        chart_markers_df=marker_df,
+        chart_lines_df=None,
+        strategy_name="Test",
+        show_indicators=True,
+    )
+
+    mock_write.assert_called_once()
+
+
+def _make_strategy_stub():
+    strat = Strategy.__new__(Strategy)
+    strat._chart_markers_list = []
+    strat._chart_lines_list = []
+    strat.logger = logging.getLogger("indicator_tests")
+    strat.portfolio_value = 1_000
+    strat.get_datetime = lambda: DateTime(2024, 1, 1)
+    return strat
+
+
+class TestAddMarkerAndLineGuards:
+
+    def test_add_marker_rejects_nan(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            result = strat.add_marker("nan_marker", float("nan"))
+        assert result is None
+        assert strat._chart_markers_list == []
+        assert "not finite" in caplog.text
+
+    def test_add_marker_defaults_color(self, caplog):
+        strat = _make_strategy_stub()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            strat.add_marker("bad_color", 10.0, color="not-a-real-color")
+        assert strat._chart_markers_list[0]["color"] == "blue"
+        assert "Unsupported marker color" in caplog.text
+        assert "defaulting to blue" in caplog.text
+
+    def test_add_marker_accepts_css_color(self, caplog):
+        strat = _make_strategy_stub()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            strat.add_marker("css_color", 10.0, color="magenta")
+        assert strat._chart_markers_list[0]["color"] == "magenta"
+        assert "Unsupported marker color" not in caplog.text
+
+    def test_add_line_rejects_nan(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            result = strat.add_line("nan_line", float("nan"))
+        assert result is None
+        assert strat._chart_lines_list == []
+        assert "Skipping line" in caplog.text
+
+    def test_add_line_defaults_color(self, caplog):
+        strat = _make_strategy_stub()
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            strat.add_line("bad_color", 10.0, color="not-a-real-color")
+        assert strat._chart_lines_list[0]["color"] == "blue"
+        assert "Unsupported line color" in caplog.text
+
+    def test_add_line_defaults_style(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.WARNING):
+            strat.add_line("bad_style", 10.0, color="lightblue", style="dot-dot")
+        assert strat._chart_lines_list[0]["style"] == "solid"
+        assert "Unsupported line style" in caplog.text

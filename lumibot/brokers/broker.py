@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,7 @@ logger = get_logger(__name__)
 from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 from ..data_sources import DataSource
 from ..entities import Asset, Order, Position, Quote
+from ..entities.chains import normalize_option_chains
 from ..trading_builtins import SafeList
 
 DEFAULT_CLEANUP_CONFIG = {
@@ -74,6 +76,7 @@ class Broker(ABC):
         # Shared Variables between threads
         self.name = name
         self._lock = RLock()
+        self._stop_event = threading.Event()  # Add stop event for clean shutdown
         self._unprocessed_orders = SafeList(self._lock)
         self._placeholder_orders = SafeList(self._lock)
         self._new_orders = SafeList(self._lock)
@@ -311,6 +314,44 @@ class Broker(ABC):
             self.logger.info("Manual cleanup completed successfully")
         except Exception as e:
             self.logger.error(f"Manual cleanup failed: {e}")
+
+    def cleanup_streams(self):
+        """Clean up stream threads properly to prevent segmentation faults"""
+        # Set stop event to signal all threads to stop
+        if hasattr(self, '_stop_event'):
+            self._stop_event.set()
+
+        # Stop the stream
+        if hasattr(self, 'stream') and self.stream:
+            try:
+                self.stream.stop()
+            except Exception as e:
+                if hasattr(self, 'logger'):
+                    self.logger.warning(f"Error stopping stream: {e}")
+
+        # Clean up the orders queue
+        if hasattr(self, '_orders_queue'):
+            try:
+                # Clear the queue to unblock any waiting threads
+                while not self._orders_queue.empty():
+                    self._orders_queue.get_nowait()
+                    self._orders_queue.task_done()
+            except:
+                pass
+
+        # Wait for threads to finish
+        if hasattr(self, '_orders_thread') and self._orders_thread:
+            try:
+                self._orders_thread.join(timeout=1)
+            except:
+                pass
+
+    def __del__(self):
+        """Cleanup when broker is destroyed"""
+        try:
+            self.cleanup_streams()
+        except:
+            pass  # Suppress any errors during cleanup
 
     # =================================================================================
     # ================================ Required Implementations========================
@@ -599,7 +640,18 @@ class Broker(ABC):
                            chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
                          Expiration Date Format: 2023-07-31
         """
-        return self.data_source.get_chains(asset)
+        raw_chains = self.data_source.get_chains(asset)
+        normalized_chains = normalize_option_chains(raw_chains)
+
+        if not normalized_chains:
+            logger.warning(
+                colored(
+                    f"Option chains unavailable for {getattr(asset, 'symbol', asset)}; continuing without options data.",
+                    "yellow",
+                )
+            )
+
+        return normalized_chains
 
     def get_chain(self, chains, exchange="SMART") -> dict:
         """Returns option chain for a particular exchange.
@@ -733,8 +785,8 @@ class Broker(ABC):
 
         Returns
         -------
-        list of str
-            Sorted list of dates in the form of `2022-10-13`.
+        list of datetime.date
+            Sorted list of option expiry dates.
         """
         return sorted(set(chains["Chains"]["CALL"].keys()) | set(chains["Chains"]["PUT"].keys()))
 
@@ -759,33 +811,49 @@ class Broker(ABC):
         self._orders_thread.start()
 
     def _wait_for_orders(self):
-        while True:
-            # at first, block maybe a list of orders or just one order
-            block = self._orders_queue.get()
-            if isinstance(block, Order):
-                result = [self._submit_order(block)]
-            else:
-                result = self._submit_orders(block)
+        import queue as queue_module
+        while not self._stop_event.is_set():
+            try:
+                # Use timeout to periodically check stop event
+                block = self._orders_queue.get(timeout=0.1)
+            except queue_module.Empty:
+                continue
+            except Exception as e:
+                if self._stop_event.is_set():
+                    break
+                self.logger.error(f"Error in _wait_for_orders: {e}")
+                continue
 
-            for order in result:
-                if order is None:
-                    continue
+            try:
+                if isinstance(block, Order):
+                    result = [self._submit_order(block)]
+                else:
+                    result = self._submit_orders(block)
 
-                if order.was_transmitted():
-                    flat_orders = self._flatten_order(order)
-                    for flat_order in flat_orders:
-                        self.logger.info(
-                            colored(
-                                f"Order {flat_order} was sent to broker {self.name}",
-                                color="green",
+                for order in result:
+                    if order is None:
+                        continue
+
+                    if order.was_transmitted():
+                        flat_orders = self._flatten_order(order)
+                        for flat_order in flat_orders:
+                            self.logger.info(
+                                colored(
+                                    f"Order {flat_order} was sent to broker {self.name}",
+                                    color="green",
+                                )
                             )
-                        )
-                        self._unprocessed_orders.append(flat_order)
+                            self._unprocessed_orders.append(flat_order)
 
-            # Trigger periodic cleanup after processing orders
-            self._trigger_periodic_cleanup()
+                # Trigger periodic cleanup after processing orders
+                self._trigger_periodic_cleanup()
 
-            self._orders_queue.task_done()
+                self._orders_queue.task_done()
+            except Exception as e:
+                if self._stop_event.is_set():
+                    break
+                self.logger.error(f"Error processing order: {e}")
+                self._orders_queue.task_done()
 
     # =========Internal functions==============
 
@@ -1666,12 +1734,18 @@ class Broker(ABC):
         t.start()
         if not self.IS_BACKTESTING_BROKER:
             self.logger.info(
-                """Waiting for the socket stream connection to be established, 
+                """Waiting for the socket stream connection to be established,
                 method _stream_established must be called"""
             )
-            while True:
+            timeout = 30  # 30 second timeout
+            start_time = time.time()
+            while not self._stop_event.is_set():
                 if self._is_stream_subscribed is True:
                     break
+                if time.time() - start_time > timeout:
+                    self.logger.warning("Timeout waiting for stream to be established")
+                    break
+                time.sleep(0.1)
         return
 
     def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:

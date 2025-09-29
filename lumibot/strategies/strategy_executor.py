@@ -17,6 +17,7 @@ from termcolor import colored
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
+from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -445,9 +446,6 @@ class StrategyExecutor(Thread):
             self._on_canceled_order(**payload)
 
         elif event == self.FILLED_ORDER:
-            # Log that we are processing a filled order.
-            self.strategy.logger.debug(f"Processing a filled order, payload: {payload}")
-
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
@@ -455,21 +453,66 @@ class StrategyExecutor(Thread):
 
             # Parent orders to not affect cash or trades directly, the individual child_orders will when they
             # are filled. Skip the parent order so as not to double count.
-            if not order.is_parent() and order.asset.asset_type != "crypto":
+            update_cash = True
+            order_class_value = getattr(order, "order_class", None)
+            try:
+                order_class_enum = (
+                    Order.OrderClass(order_class_value)
+                    if order_class_value is not None
+                    else None
+                )
+            except ValueError:
+                order_class_enum = None
+
+            if order.is_parent() and order_class_enum not in (
+                Order.OrderClass.BRACKET,
+                Order.OrderClass.OTO,
+            ):
+                update_cash = False
+
+            asset_type = getattr(order.asset, "asset_type", None)
+
+            if (
+                update_cash
+                and asset_type != Asset.AssetType.CRYPTO
+                and quantity is not None
+                and price is not None
+            ):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_filled_order(**payload)
 
         elif event == self.PARTIALLY_FILLED_ORDER:
-            # Log that we are processing a partially filled order.
-            self.strategy.logger.debug(f"Processing a partially filled order, payload: {payload}")
-
             order = payload["order"]
             price = payload["price"]
             quantity = payload["quantity"]
             multiplier = payload["multiplier"]
 
-            if order.asset.asset_type != "crypto":
+            update_cash = True
+            order_class_value = getattr(order, "order_class", None)
+            try:
+                order_class_enum = (
+                    Order.OrderClass(order_class_value)
+                    if order_class_value is not None
+                    else None
+                )
+            except ValueError:
+                order_class_enum = None
+
+            if order.is_parent() and order_class_enum not in (
+                Order.OrderClass.BRACKET,
+                Order.OrderClass.OTO,
+            ):
+                update_cash = False
+
+            asset_type = getattr(order.asset, "asset_type", None)
+
+            if (
+                update_cash
+                and asset_type != Asset.AssetType.CRYPTO
+                and quantity is not None
+                and price is not None
+            ):
                 self.strategy._update_cash(order.side, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)
@@ -1499,8 +1542,19 @@ class StrategyExecutor(Thread):
             return True
 
         except Exception as e:
-            # Store the exception so the main thread can check it
-            self.exception = e
-            self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
-            # Don't re-raise - let the main thread handle it
+            # Log and surface any exceptions that occur before/around initialize so they are never silent
+            try:
+                self.strategy.logger.error(e)
+                self.strategy.logger.error(traceback.format_exc())
+                # Attempt to notify the strategy via on_bot_crash hook
+                try:
+                    self._on_bot_crash(e)
+                except Exception as e1:
+                    self.strategy.logger.error(e1)
+                    self.strategy.logger.error(traceback.format_exc())
+            finally:
+                # Store the exception so the main thread can check it
+                self.exception = e
+                self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
+            # Don't re-raise here; main thread (Trader) will handle raising/logging
             return False

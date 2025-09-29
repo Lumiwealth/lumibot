@@ -124,6 +124,15 @@ class Vars:
 
 
 class _Strategy:
+    @property
+    def is_backtesting(self) -> bool:
+        """Boolean flag indicating whether the strategy is running in backtesting mode."""
+        return getattr(self, "_is_backtesting", False)
+
+    @is_backtesting.setter
+    def is_backtesting(self, value: bool) -> None:
+        self._is_backtesting = bool(value)
+
     IS_BACKTESTABLE = True
     _trader = None
 
@@ -716,26 +725,30 @@ class _Strategy:
 
                 if self.is_backtesting and price is None:
                     if isinstance(asset, Asset):
-                        raise ValueError(
-                            f"A security has returned a price of None while trying "
-                            f"to set the portfolio value. This usually happens when there "
-                            f"is no data data available for the Asset or pair. "
-                            f"Please ensure data exists at "
-                            f"{self.broker.datetime} for the security: \n"
-                            f"symbol: {asset.symbol}, \n"
-                            f"type: {asset.asset_type}, \n"
-                            f"right: {asset.right}, \n"
-                            f"expiration: {asset.expiration}, \n"
-                            f"strike: {asset.strike}.\n"
+                        asset_details = (
+                            f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
+                            f"expiration: {asset.expiration}, strike: {asset.strike}"
+                        )
+                        self.logger.warning(
+                            "Skipping valuation for asset (%s) because no price was available at %s.",
+                            asset_details,
+                            self.broker.datetime,
                         )
                     elif isinstance(asset, tuple):
-                        raise ValueError(
-                            f"A security has returned a price of None while trying "
-                            f"to set the portfolio value. This usually happens when there "
-                            f"is no data data available for the Asset or pair. "
-                            f"Please ensure data exists at "
-                            f"{self.broker.datetime} for the pair: {asset}"
+                        base_asset = asset[0] if asset else None
+                        if isinstance(base_asset, Asset):
+                            asset_details = (
+                                f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
+                                f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
+                            )
+                        else:
+                            asset_details = str(asset)
+                        self.logger.warning(
+                            "Skipping valuation for pair (%s) because no price was available at %s.",
+                            asset_details,
+                            self.broker.datetime,
                         )
+                    continue
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
@@ -759,9 +772,13 @@ class _Strategy:
             price_dec = Decimal(str(price))
             multiplier_dec = Decimal(str(multiplier))
 
-            if side == "buy":
+            if isinstance(side, Order.OrderSide):
+                side_value = str(side.value).lower()
+            else:
+                side_value = str(side).lower() if side is not None else ""
+            if side_value in ("buy", "buy_to_open", "buy_to_cover"):
                 current_cash -= quantity_dec * price_dec * multiplier_dec
-            if side == "sell":
+            if side_value in ("sell", "sell_short", "sell_to_close", "sell_to_open"):
                 current_cash += quantity_dec * price_dec * multiplier_dec
 
             self._set_cash_position(float(current_cash)) # _set_cash_position expects float
@@ -1545,7 +1562,7 @@ class _Strategy:
         # Check if self.lumiwealth_api_key has been set, if not, return
         if not hasattr(self, "lumiwealth_api_key") or self.lumiwealth_api_key is None or self.lumiwealth_api_key == "":
             # Log that we are not sending the update to the cloud
-            self.logger.warning("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on our website, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
+            self.logger.warning("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on www.botspot.trade, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
             return
 
         # Log that we're starting to send data
@@ -1573,6 +1590,12 @@ class _Strategy:
         try:
             positions = self.get_positions()
             self.logger.debug(f"Number of positions: {len(positions)}")
+            # DEBUG: Log position details
+            for pos in positions:
+                self.logger.warning(f"[DEBUG] Position: {pos.symbol}, qty: {pos.quantity}, has_price: {hasattr(pos, 'current_price')}")
+                if hasattr(pos, '__dict__'):
+                    attrs = {k: v for k, v in pos.__dict__.items() if not k.startswith('_')}
+                    self.logger.warning(f"[DEBUG] Position attrs for {pos.symbol}: {list(attrs.keys())}")
         except Exception as e:
             self.logger.error(f"Failed to get positions: {e}")
             self.logger.error(traceback.format_exc())
@@ -1595,11 +1618,13 @@ class _Strategy:
         }
 
         # Create the data to send to the cloud
+        positions_data = [position.to_dict() for position in positions]
+
         data = {
             "data_type": "portfolio_event",
             "portfolio_value": portfolio_value,
             "cash": cash,
-            "positions": [position.to_dict() for position in positions],
+            "positions": positions_data,
             "orders": [order.to_dict() for order in orders],
             "strategy_name": self._name,
             "broker_name": self.broker.name,

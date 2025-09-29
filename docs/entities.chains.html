@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -412,15 +413,98 @@ helpers so you can focus on trading logic instead of dictionary plumbing.</p>
 </section>
 <section id="design-notes">
 <h2>Design notes<a class="headerlink" href="#design-notes" title="Link to this heading">#</a></h2>
-<ul class="simple">
+<ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">Chains</span></code> <strong>inherits from</strong> <code class="docutils literal notranslate"><span class="pre">dict</span></code> so any existing code that used the raw
 mapping (<code class="docutils literal notranslate"><span class="pre">chains[&quot;Chains&quot;][&quot;PUT&quot;]</span></code> …) keeps working.</p></li>
 <li><p>All helper methods return lightweight Python types – no Pandas dependency.</p></li>
-<li><p>Attribute summary:</p></li>
+<li><p>Attribute summary:</p>
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">Chains attributes</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Property</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">calls</span></code></p></td>
+<td><p>Mapping <code class="docutils literal notranslate"><span class="pre">{expiry:</span> <span class="pre">[strike,</span> <span class="pre">…]}</span></code> for call contracts.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">puts</span></code></p></td>
+<td><p>Mapping <code class="docutils literal notranslate"><span class="pre">{expiry:</span> <span class="pre">[strike,</span> <span class="pre">…]}</span></code> for put contracts.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">multiplier</span></code></p></td>
+<td><p>Contract multiplier supplied by the data source (typically 100).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">exchange</span></code></p></td>
+<td><p>Primary routing exchange reported in the option chain payload.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</li>
 </ul>
 </section>
 <section id="api-reference">
 <h2>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.entities.chains.</span></span><span class="sig-name descname"><span class="pre">Chains</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.entities.chains.Chains" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></p>
+<p>Dictionary-like container for option chains.</p>
+<p>Behaves exactly like the raw dict previously returned by <code class="docutils literal notranslate"><span class="pre">get_chains</span></code> but
+also exposes convenience helpers and rich <code class="docutils literal notranslate"><span class="pre">repr</span></code>.  Because it subclasses
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> the old code paths that index into the structure (e.g.
+<code class="docutils literal notranslate"><span class="pre">chains[&quot;Chains&quot;][&quot;PUT&quot;]</span></code> or <code class="docutils literal notranslate"><span class="pre">chains.get(&quot;Chains&quot;)</span></code>) continue to work
+unchanged.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.calls">
+<span class="sig-name descname"><span class="pre">calls</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.calls" title="Link to this definition">#</a></dt>
+<dd><p>Return the CALL side of the chain {expiration (YYYY-MM-DD): [strikes]}</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.expirations">
+<span class="sig-name descname"><span class="pre">expirations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">option_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CALL'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.expirations" title="Link to this definition">#</a></dt>
+<dd><p>List available expiration strings (YYYY-MM-DD) for the specified option type.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.expirations_as_dates">
+<span class="sig-name descname"><span class="pre">expirations_as_dates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">option_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CALL'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">date</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.expirations_as_dates" title="Link to this definition">#</a></dt>
+<dd><p>List expiration dates for internal use.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.get_option_chain_by_date">
+<span class="sig-name descname"><span class="pre">get_option_chain_by_date</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expiry_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">date</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">option_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CALL'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.get_option_chain_by_date" title="Link to this definition">#</a></dt>
+<dd><p>Get strikes for a date object (internal helper).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.puts">
+<span class="sig-name descname"><span class="pre">puts</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.puts" title="Link to this definition">#</a></dt>
+<dd><p>Return the PUT side of the chain {expiration (YYYY-MM-DD): [strikes]}</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.strikes">
+<span class="sig-name descname"><span class="pre">strikes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expiration</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">date</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">datetime</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">option_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CALL'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.strikes" title="Link to this definition">#</a></dt>
+<dd><p>Return the strikes list for a given expiration (accepts string YYYY-MM-DD or date).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lumibot.entities.chains.Chains.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#lumibot.entities.chains.Chains.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>Return a shallow copy of the underlying dict.</p>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 </section>
 
@@ -482,7 +566,19 @@ mapping (<code class="docutils literal notranslate"><span class="pre">chains[&qu
 <li><a class="reference internal" href="#">Chains Entity</a><ul>
 <li><a class="reference internal" href="#at-a-glance">At a glance</a></li>
 <li><a class="reference internal" href="#design-notes">Design notes</a></li>
-<li><a class="reference internal" href="#api-reference">API reference</a></li>
+<li><a class="reference internal" href="#api-reference">API reference</a><ul>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains"><code class="docutils literal notranslate"><span class="pre">Chains</span></code></a><ul>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.calls"><code class="docutils literal notranslate"><span class="pre">Chains.calls()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.expirations"><code class="docutils literal notranslate"><span class="pre">Chains.expirations()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.expirations_as_dates"><code class="docutils literal notranslate"><span class="pre">Chains.expirations_as_dates()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.get_option_chain_by_date"><code class="docutils literal notranslate"><span class="pre">Chains.get_option_chain_by_date()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.puts"><code class="docutils literal notranslate"><span class="pre">Chains.puts()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.strikes"><code class="docutils literal notranslate"><span class="pre">Chains.strikes()</span></code></a></li>
+<li><a class="reference internal" href="#lumibot.entities.chains.Chains.to_dict"><code class="docutils literal notranslate"><span class="pre">Chains.to_dict()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

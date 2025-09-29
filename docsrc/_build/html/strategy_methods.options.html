@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -380,28 +381,28 @@
 <div class="table-wrapper autosummary longtable docutils container">
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chain.html#lumibot.strategies.strategy.Strategy.get_chain" title="lumibot.strategies.strategy.Strategy.get_chain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_chain</span></code></a>(chains[, exchange])</p></td>
-<td><p>Returns option chain for a particular exchange.</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_chain</span></code>(chains[, exchange])</p></td>
+<td><p>Return the portion of <code class="docutils literal notranslate"><span class="pre">chains</span></code> that corresponds to a single exchange.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_chains.html#lumibot.strategies.strategy.Strategy.get_chains" title="lumibot.strategies.strategy.Strategy.get_chains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_chains</span></code></a>(asset)</p></td>
-<td><p>Returns option chains.</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_chains</span></code>(asset)</p></td>
+<td><p>Return the option-chain information for <code class="docutils literal notranslate"><span class="pre">asset</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_greeks.html#lumibot.strategies.strategy.Strategy.get_greeks" title="lumibot.strategies.strategy.Strategy.get_greeks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_greeks</span></code></a>(asset[, asset_price, ...])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_greeks</span></code>(asset[, asset_price, ...])</p></td>
 <td><p>Returns the greeks for the option asset at the current bar.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_strikes.html#lumibot.strategies.strategy.Strategy.get_strikes" title="lumibot.strategies.strategy.Strategy.get_strikes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_strikes</span></code></a>(asset[, chains])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_strikes</span></code>(asset[, chains])</p></td>
 <td><p>Returns a list of strikes for a give underlying asset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_expiration.html#lumibot.strategies.strategy.Strategy.get_expiration" title="lumibot.strategies.strategy.Strategy.get_expiration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_expiration</span></code></a>(chains)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_expiration</span></code>(chains)</p></td>
 <td><p>Returns expiration dates for an option chain for a particular exchange.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html#lumibot.strategies.strategy.Strategy.get_multiplier" title="lumibot.strategies.strategy.Strategy.get_multiplier"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_multiplier</span></code></a>(chains[, exchange])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_multiplier</span></code>(chains[, exchange])</p></td>
 <td><p>Returns option chain for a particular exchange.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html#lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date" title="lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date"><code class="xref py py-obj docutils literal notranslate"><span class="pre">options_expiry_to_datetime_date</span></code></a>(date)</p></td>
-<td><p>Converts an IB Options expiry to datetime.date.</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.options_expiry_to_datetime_date</span></code>(expiry)</p></td>
+<td><p>Convert an options expiry to datetime.date.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_next_trading_day.html#lumibot.strategies.strategy.Strategy.get_next_trading_day" title="lumibot.strategies.strategy.Strategy.get_next_trading_day"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_next_trading_day</span></code></a>(date[, exchange])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_next_trading_day</span></code>(date[, exchange])</p></td>
 <td><p>Finds the next trading day for the given date and exchange.</p></td>
 </tr>
 </tbody>

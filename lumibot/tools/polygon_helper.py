@@ -857,12 +857,12 @@ class PolygonClient(RESTClient):
                         "it helps support this project.\n"
                         "You can use the coupon code 'LUMI10' for 10% off."
                     )
-                    colored_message = colored(message, "red")
-                    logger.error(colored_message)
+                    colored_message = colored(message, "yellow")
+                    logger.warning(colored_message)
                     logger.debug(f"Error: {e}")
 
                     # Log to CSV using standard logger (will auto-capture to CSV if enabled)
-                    logger.error(f"POLYGON_RATE_LIMIT_EXCEEDED: Polygon rate limit reached | URL: {str(url)}, Wait time: {PolygonClient.WAIT_SECONDS_RETRY}s, Error: {str(e)}")
+                    logger.warning(f"POLYGON_RATE_LIMIT_EXCEEDED: Polygon rate limit reached | URL: {str(url)}, Wait time: {PolygonClient.WAIT_SECONDS_RETRY}s, Error: {str(e)}")
 
                     # Update our last log time
                     self._last_rate_limit_log_time = now
@@ -880,14 +880,26 @@ class PolygonClient(RESTClient):
                 # Check if this is an authorization/entitlement error
                 error_str = str(e)
                 if "NOT_AUTHORIZED" in error_str or "not entitled to this data" in error_str.lower():
-                    # Use CRITICAL level for authorization errors to match ErrorLogger behavior
-                    logger.critical(f"POLYGON_NOT_AUTHORIZED: Polygon authorization error - insufficient permissions | URL: {url}, Operation: HTTP GET request, Error: {error_str}")
+                    # Distinguish between true auth failure and plan/timeframe limitation
+                    if (
+                        "plan doesn't include this data timeframe" in error_str.lower()
+                        or "plan doesn\u2019t include this data timeframe" in error_str.lower()
+                    ):
+                        # Non-fatal: user plan doesn't cover requested timeframe
+                        logger.error(f"Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. URL: {url}, Error: {error_str}")
+                        # Return None instead of raising to allow caller to skip this chunk
+                        return None
+                    else:
+                        # True authorization/entitlement failure remains critical
+                        logger.critical(
+                            f"POLYGON_NOT_AUTHORIZED: Polygon authorization error - insufficient permissions | URL: {url}, Operation: HTTP GET request, Error: {error_str}"
+                        )
                 else:
                     # Other BadResponse errors (e.g., invalid parameters, server errors)
                     logger.error(f"POLYGON_BAD_REQUEST: Polygon bad request error | URL: {url}, Operation: HTTP GET request, Error: {error_str}")
 
                 # Log to console as well
-                message = f"Polygon BadResponse error: {type(e).__name__}"
+                message = f"Polygon BadResponse error: {error_str}"
                 colored_message = colored(message, "red")
                 logger.error(colored_message)
                 logger.debug(f"Full error details: {e}")

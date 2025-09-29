@@ -3,7 +3,7 @@ import math
 import os
 import webbrowser
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -290,12 +290,30 @@ def plot_indicators(
         for plot_name, plot_df in chart_markers_df.groupby("plot_name"):
             # Loop over the marker names for this plot_name
             for marker_name, group_df in plot_df.groupby("name"):
+                group_df = group_df.copy()
                 # Get the marker symbol
                 marker_symbol = group_df["symbol"].iloc[0]
 
-                # Get the marker size
-                marker_size = group_df["size"].iloc[0]
-                marker_size = marker_size if marker_size else 25
+                # Determine marker size(s), falling back to sensible defaults when unspecified
+                default_marker_size = 25
+                raw_sizes = group_df.get("size")
+                marker_size = default_marker_size
+
+                if raw_sizes is not None:
+                    marker_sizes = pd.to_numeric(raw_sizes, errors="coerce")
+
+                    if isinstance(marker_sizes, pd.Series):
+                        marker_sizes = marker_sizes.fillna(default_marker_size).clip(lower=1)
+                        unique_sizes = marker_sizes.unique()
+                        if len(unique_sizes) == 1:
+                            marker_size = float(unique_sizes[0])
+                        else:
+                            marker_size = marker_sizes.tolist()
+                    else:
+                        if pd.isna(marker_sizes) or marker_sizes <= 0:
+                            marker_size = default_marker_size
+                        else:
+                            marker_size = float(marker_sizes)
 
                 # If color is not set, set it to white
                 group_df.loc[:, "color"] = group_df["color"].fillna("white")
@@ -650,12 +668,42 @@ def plot_returns(
     buys = buys.loc[df_final["side"] == "buy"]
 
     def generate_buysell_plotly_text(row):
-        if row["status"] != "canceled" and row["status"] != "new":
-            if row["asset.asset_type"] == "option":
+        if row["status"] not in ("fill", "partial_fill"):
+            return None
+
+        for key in ("filled_quantity", "price"):
+            value = row.get(key)
+            if pd.isna(value):
+                return None
+
+        try:
+            filled_quantity_dec = Decimal(str(row["filled_quantity"]))
+            price_dec = Decimal(str(row["price"]))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+        multiplier_value = row.get("asset.multiplier")
+        if pd.isna(multiplier_value) or multiplier_value == "":
+            return None
+        try:
+            multiplier_dec = Decimal(str(multiplier_value))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+        trade_cost_value = row.get("trade_cost")
+        if pd.isna(trade_cost_value) or trade_cost_value == "":
+            return None
+        try:
+            trade_cost_dec = Decimal(str(trade_cost_value))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+        if row["asset.asset_type"] == "option":
+            try:
                 return (
                     row["status"]
                     + "<br>"
-                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
+                    + str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
                     + " "
                     + row["symbol"]
                     + " "
@@ -669,59 +717,61 @@ def plot_returns(
                     + str(row["asset.expiration"])
                     + "<br>"
                     + "Price: "
-                    + str(Decimal(row["price"]).quantize(Decimal("0.0001")).__format__(",f"))
+                    + str(price_dec.quantize(Decimal("0.0001")).__format__(",f"))
                     + "<br>"
                     + "Order Type: "
                     + row["type"]
                     + "<br>"
                     + "Amount Transacted: "
                     + str(
-                        # Round to 2 decimal places and add commas for thousands
                         (
-                            (Decimal(row["price"]) if row["price"] else 0)
-                            * (Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0)
-                            * (Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 0)
+                            price_dec
+                            * filled_quantity_dec
+                            * (multiplier_dec if multiplier_dec != Decimal("0") else Decimal("1"))
                         )
                         .quantize(Decimal("0.01"))
                         .__format__(",f")
                     )
                     + "<br>"
                     + "Trade Cost: "
-                    + str(Decimal(row["trade_cost"]).quantize(Decimal("0.01")).__format__(",f"))
+                    + str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
                     + "<br>"
                 )
-            else:
-                return (
-                    row["status"]
-                    + "<br>"
-                    + str(Decimal(row["filled_quantity"]).quantize(Decimal("0.01")).__format__(",f"))
-                    + " "
-                    + row["symbol"]
-                    + "<br>"
-                    + "Price: "
-                    + str(Decimal(row["price"]).quantize(Decimal("0.0001")).__format__(",f"))
-                    + "<br>"
-                    + "Order Type: "
-                    + row["type"]
-                    + "<br>"
-                    + "Amount Transacted: "
-                    + str(
-                        # Round to 2 decimal places and add commas for thousands
-                        (
-                            (Decimal(row["price"]) if row["price"] else 0)
-                            * (Decimal(row["filled_quantity"]) if row["filled_quantity"] else 0)
-                            * (Decimal(row["asset.multiplier"]) if row["asset.multiplier"] else 0)
-                        )
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
-                    + "<br>"
-                    + "Trade Cost: "
-                    + str(Decimal(row["trade_cost"]).quantize(Decimal("0.01")).__format__(",f"))
-                    + "<br>"
-                )
-        else:
+            except (InvalidOperation, TypeError, ValueError):
+                return None
+
+        if multiplier_dec == Decimal("0"):
             return None
+        try:
+            amount_transacted = (
+                price_dec * filled_quantity_dec * multiplier_dec
+            ).quantize(Decimal("0.01")).__format__(",f")
+            price_text = str(price_dec.quantize(Decimal("0.0001")).__format__(",f"))
+            filled_qty_text = str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
+            trade_cost_text = str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+        return (
+            row["status"]
+            + "<br>"
+            + filled_qty_text
+            + " "
+            + row["symbol"]
+            + "<br>"
+            + "Price: "
+            + price_text
+            + "<br>"
+            + "Order Type: "
+            + row["type"]
+            + "<br>"
+            + "Amount Transacted: "
+            + amount_transacted
+            + "<br>"
+            + "Trade Cost: "
+            + trade_cost_text
+            + "<br>"
+        )
 
     buy_ticks_df = buys.apply(generate_buysell_plotly_text, axis=1)
 

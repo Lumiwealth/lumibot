@@ -1,4 +1,5 @@
 import random
+import re
 import threading
 import time
 from collections import deque
@@ -343,54 +344,52 @@ class Tradovate(Broker):
 
     def _resolve_tradovate_futures_symbol(self, asset) -> str:
         """
-        Resolve continuous futures to Tradovate-specific contract format.
-        Tradovate uses 1-digit years (e.g., MNQU5 not MNQU25).
-        
+        Resolve futures assets to the symbol format expected by Tradovate.
+
+        For continuous contracts this method delegates to
+        ``Asset.resolve_continuous_futures_contract`` using a single-digit
+        year (e.g., ``MNQZ5``). Specific contracts are normalized to the same
+        single-digit year format so that cached data and order routing remain
+        consistent.
+
         Parameters
         ----------
         asset : Asset
-            The continuous futures asset to resolve
-            
+            The futures or continuous futures asset to resolve.
+
         Returns
         -------
         str
-            Tradovate-specific futures contract symbol
+            Tradovate-specific futures contract symbol (single-digit year).
         """
-        from datetime import datetime
+        if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+            contract = asset.resolve_continuous_futures_contract(year_digits=1)
+            return contract
 
-        month_codes = {
-            1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
-            7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
-        }
+        if asset.asset_type == Asset.AssetType.FUTURE:
+            return self._format_tradovate_contract(asset.symbol)
 
-        now = datetime.now()
-        current_month = now.month
-        current_year = now.year
+        return asset.symbol
 
-        # Use quarterly contracts (Mar, Jun, Sep, Dec) which are typically most liquid
-        if current_month >= 10:  # October onwards, use December
-            target_month = 12  # December
-            target_year = current_year
-        elif current_month >= 7:  # July-September, use September
-            target_month = 9  # September
-            target_year = current_year
-        elif current_month >= 4:  # April-June, use September
-            target_month = 9  # September
-            target_year = current_year
-        elif current_month >= 1:  # Jan-March, use June
-            target_month = 6  # June
-            target_year = current_year
-        else:  # December (fallback), use March next year
-            target_month = 3  # March
-            target_year = current_year + 1
+    @staticmethod
+    def _format_tradovate_contract(contract: str) -> str:
+        """Convert a futures contract symbol to Tradovate's single-digit year format."""
+        if not contract:
+            return contract
 
-        month_code = month_codes.get(target_month, 'U')  # Default to September
+        normalized = contract.replace(".", "").upper()
+        match = re.match(r"^([A-Z]+)([FGHJKMNQUVXZ])(\d{1,4})$", normalized)
+        if not match:
+            return normalized
 
-        # Tradovate uses 1-digit year format (e.g., 5 for 2025)
-        year_code = target_year % 10
+        root, month_code, year_part = match.groups()
+        try:
+            year_int = int(year_part)
+        except ValueError:
+            return normalized
 
-        contract = f"{asset.symbol}{month_code}{year_code}"
-        return contract
+        single_digit_year = year_int % 10
+        return f"{root}{month_code}{single_digit_year}"
 
     def _get_contract_details(self, contract_id: int) -> dict:
         """

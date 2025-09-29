@@ -157,6 +157,7 @@ class TestBrokerHandlesCrypto:
         assert order.status == "new"
         broker.cancel_order(order)
 
+    @pytest.mark.skip(reason="CCXT integration test requires stable network connection and external API availability")
     def test_ccxt_backtesting_with_base_and_quote(self):
         start = (datetime.now() - timedelta(days=4)).replace(hour=0, minute=0, second=0, microsecond=0)
         end = (datetime.now() - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)

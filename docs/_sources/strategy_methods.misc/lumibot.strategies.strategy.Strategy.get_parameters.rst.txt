@@ -1,4 +1,5 @@
-﻿self.get\_parameters
+self.get\_parameters
 =================================================================
 
 .. autofunction:: lumibot.strategies.strategy.Strategy.get_parameters
+   :noindex:

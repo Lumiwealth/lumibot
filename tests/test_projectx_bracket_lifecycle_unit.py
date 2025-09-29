@@ -125,6 +125,12 @@ def test_bracket_children_spawn_on_fill_and_tagging(broker, mes):
     # Child price assignment
     assert tp_order.limit_price == 5050.0
     assert getattr(sl_order, 'stop_price', None) == 4975.0
+    assert tp_order.order_type == Order.OrderType.LIMIT
+    assert getattr(sl_order, 'order_type', None) in {
+        Order.OrderType.STOP,
+        Order.OrderType.STOP_LIMIT,
+        Order.OrderType.TRAIL,
+    }
 
 
 def test_bracket_child_fill_cancels_sibling(broker, mes):

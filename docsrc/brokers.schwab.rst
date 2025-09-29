@@ -337,5 +337,5 @@ Support & Contact
 .. important::
    The example above shows what *our strategy* did in a sandbox environment; it is **not** investment advice.
 
-.. disclaimer::
-   This integration is for educational purposes only. Please consult with a financial advisor before using any trading strategy with real funds.
+.. warning::
+   This integration is for educational purposes only. Consult a qualified financial advisor before trading real funds.

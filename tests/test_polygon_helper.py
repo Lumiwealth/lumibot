@@ -7,6 +7,7 @@ import pytest
 import pytz
 
 from lumibot.entities import Asset
+from lumibot.entities.chains import normalize_option_chains
 from lumibot.tools import polygon_helper as ph
 
 
@@ -533,13 +534,15 @@ class TestPolygonPriceData:
             polygon_client=mock_polyclient,
         )
 
+        normalized_first = normalize_option_chains(result_first)
+
         # Basic checks
-        assert result_first["Multiplier"] == 100
-        assert result_first["Exchange"] == "NYSE"
+        assert normalized_first["Multiplier"] == 100
+        assert normalized_first["Exchange"] == "NYSE"
         # The "CALL" side has the 8/15 contract => strike 400
-        assert result_first["Chains"]["CALL"]["2023-08-15"] == [400]
+        assert normalized_first["Chains"]["CALL"]["2023-08-15"] == [400.0]
         # The "PUT" side => strike 395
-        assert result_first["Chains"]["PUT"]["2023-08-15"] == [395]
+        assert normalized_first["Chains"]["PUT"]["2023-08-15"] == [395.0]
 
         # We called list_options_contracts() exactly twice
         assert mock_polyclient.list_options_contracts.call_count == 2
@@ -554,6 +557,6 @@ class TestPolygonPriceData:
             polygon_client=mock_polyclient,
         )
 
-        # Should return identical data
-        assert result_second == result_first
+        # Should return identical data once normalized
+        assert normalize_option_chains(result_second) == normalized_first
         assert mock_polyclient.list_options_contracts.call_count == 0

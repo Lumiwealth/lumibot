@@ -1,4 +1,7 @@
-﻿self.sleeptime
+:orphan:
+
+self.sleeptime
 =========================================================
 
 .. autoproperty:: lumibot.strategies.strategy.Strategy.sleeptime
+   :noindex:

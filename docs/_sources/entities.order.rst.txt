@@ -146,7 +146,8 @@ Interactive Brokers requires the main or parent order to be a limit order. Add l
 Documentation
 """""""""""""""""""
 
-.. automodule:: entities.order
+.. automodule:: lumibot.entities.order
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:

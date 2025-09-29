@@ -19,14 +19,14 @@ Getting Started
 
 1. **Create Alpaca Account**
    
-   Sign up for a free account at `Alpaca Markets <https://app.alpaca.markets/signup>`_
+   Sign up for a free account at `Alpaca Markets <https://app.alpaca.markets/signup>`__
 
 2. **Get Your API Keys**
    
    After creating your account:
    
-   - Log into your `Alpaca Dashboard <https://app.alpaca.markets/paper/dashboard/overview>`_
-   - Go to "API Keys" in the left sidebar (or visit `API Keys page <https://app.alpaca.markets/paper/dashboard/api-keys>`_)
+   - Log into your `Alpaca Dashboard <https://app.alpaca.markets/paper/dashboard/overview>`__
+   - Go to "API Keys" in the left sidebar (or visit `API Keys page <https://app.alpaca.markets/paper/dashboard/api-keys>`__)
    - Click "Create New Key"
    - Give it a name (e.g., "Lumibot Trading")
    - Copy your **API Key** and **Secret Key** - you'll need both
@@ -97,7 +97,7 @@ Then simply create your broker without any configuration:
 OAuth Token (Advanced)
 ~~~~~~~~~~~~~~~~~~~~~~
 
-For OAuth authentication, visit `botspot.trade <https://botspot.trade>`_ to set up OAuth integration. Then set your OAuth token:
+For OAuth authentication, visit `botspot.trade <https://botspot.trade>`__ to set up OAuth integration. Then set your OAuth token:
 
 .. code-block:: bash
 
@@ -110,14 +110,30 @@ Configuration Options
 
 All configuration should be done via environment variables in your `.env` file:
 
-================== =============== =========== =======================================================
-Environment Var    Type            Default     Description
-================== =============== =========== =======================================================
-``ALPACA_API_KEY``        str             None        Your Alpaca API key (get from dashboard)
-``ALPACA_API_SECRET``     str             None        Your Alpaca API secret (get from dashboard)
-``ALPACA_OAUTH_TOKEN``    str             None        OAuth token (get from botspot.trade)
-``ALPACA_IS_PAPER``       bool            true        Whether to use paper trading account
-================== =============== =========== =======================================================
+.. list-table:: Alpaca Environment Variables
+   :widths: 25 10 10 55
+   :header-rows: 1
+
+   * - Environment Var
+     - Type
+     - Default
+     - Description
+   * - ``ALPACA_API_KEY``
+     - str
+     - None
+     - Your Alpaca API key (available from the Alpaca dashboard).
+   * - ``ALPACA_API_SECRET``
+     - str
+     - None
+     - Your Alpaca API secret (download from the dashboard).
+   * - ``ALPACA_OAUTH_TOKEN``
+     - str
+     - None
+     - OAuth token issued via `botspot.trade <https://botspot.trade>`__.
+   * - ``ALPACA_IS_PAPER``
+     - bool
+     - ``true``
+     - Toggle paper trading (``true``) versus live trading (``false``).
 
 Usage Examples
 --------------
@@ -230,7 +246,7 @@ Important Notes
     * Keep your secret key private - treat it like a password
 
 **OAuth Integration**
-    * For OAuth setup, visit `botspot.trade <https://botspot.trade>`_
+    * For OAuth setup, visit `botspot.trade <https://botspot.trade>`__
     * OAuth tokens are managed through botspot.trade platform
     * OAuth provides enhanced security for third-party integrations
 
@@ -300,6 +316,7 @@ API Reference
 -------------
 
 .. automodule:: lumibot.brokers.alpaca
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:
@@ -322,8 +339,8 @@ Market Hours Methods
 Additional Resources
 --------------------
 
-* `Alpaca Markets <https://alpaca.markets>`_ - Main website
-* `Alpaca Dashboard <https://app.alpaca.markets>`_ - Account management
-* `Alpaca API Documentation <https://alpaca.markets/docs/api-documentation/>`_ - Technical details
-* `botspot.trade <https://botspot.trade>`_ - OAuth integration platform
-* `Lumibot Examples <https://github.com/Lumiwealth/lumibot/tree/master/lumibot/example_strategies>`_ - More strategy examples
+* `Alpaca Markets <https://alpaca.markets>`__ - Main website
+* `Alpaca Dashboard <https://app.alpaca.markets>`__ - Account management
+* `Alpaca API Documentation <https://alpaca.markets/docs/api-documentation/>`__ - Technical details
+* `botspot.trade <https://botspot.trade>`__ - OAuth integration platform
+* `Lumibot Examples <https://github.com/Lumiwealth/lumibot/tree/master/lumibot/example_strategies>`__ - More strategy examples

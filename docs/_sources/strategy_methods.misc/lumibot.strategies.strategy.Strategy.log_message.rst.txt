@@ -1,4 +1,5 @@
-﻿self.log\_message
+self.log\_message
 =================================================================
 
 .. autofunction:: lumibot.strategies.strategy.Strategy.log_message
+   :noindex:

@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -413,7 +414,7 @@
 <li><p>Free stock and ETF data for daily trading backtests.</p></li>
 <li><p>Suitable for longer-term strategies but not ideal for intraday backtesting.</p></li>
 </ul>
-<p>For more details, see the <span class="xref std std-ref">Yahoo Backtesting</span> section.</p>
+<p>For more details, see the <a class="reference internal" href="backtesting.yahoo.html#backtesting-yahoo"><span class="std std-ref">Yahoo Backtesting</span></a> section.</p>
 <p><strong>2. Polygon.io</strong></p>
 <ul class="simple">
 <li><p>Offers intraday and end-of-day data for stocks, options, forex, and cryptocurrency.</p></li>
@@ -424,7 +425,7 @@
 <p><strong>Get Your API Key from Polygon.io</strong></p>
 <p>You can get an API key at <a class="reference external" href="https://polygon.io/?utm_source=affiliate&amp;utm_campaign=lumi10">Polygon.io</a>. <strong>Please use the coupon code ‘LUMI10’ for 10% off!</strong></p>
 </div>
-<p>For more details, see the <span class="xref std std-ref">Polygon.io Backtesting</span> section.</p>
+<p>For more details, see the <a class="reference internal" href="backtesting.polygon.html#backtesting-polygon"><span class="std std-ref">Polygon.io Backtesting</span></a> section.</p>
 <p><strong>3. ThetaData</strong></p>
 <ul class="simple">
 <li><p>Designed for users looking to backtest stock and options trading strategies.</p></li>
@@ -435,13 +436,13 @@
 <p><strong>Get Your ThetaData Account</strong></p>
 <p>You can get a username and password at <a class="reference external" href="https://www.thetadata.net/">thetadata.net</a>. <strong>Please use the coupon code ‘LUMI’ for 10% off!</strong></p>
 </div>
-<p>For more details, see the <span class="xref std std-ref">ThetaData Backtesting</span> section.</p>
+<p>For more details, see the <a class="reference internal" href="backtesting.thetadata.html#backtesting-thetadata"><span class="std std-ref">ThetaData Backtesting</span></a> section.</p>
 <p><strong>4. Pandas (CSV or Other Custom Data)</strong></p>
 <ul class="simple">
 <li><p>Allows for full flexibility by using your own custom datasets (e.g., CSV, database exports).</p></li>
 <li><p>Ideal for advanced users but requires more manual configuration.</p></li>
 </ul>
-<p>For more details, see the <span class="xref std std-ref">Pandas Backtesting</span> section.</p>
+<p>For more details, see the <a class="reference internal" href="backtesting.pandas.html#backtesting-pandas"><span class="std std-ref">Pandas Backtesting</span></a> section.</p>
 </section>
 <section id="running-a-backtest-with-polygon-io">
 <h2>Running a Backtest with Polygon.io<a class="headerlink" href="#running-a-backtest-with-polygon-io" title="Link to this heading">#</a></h2>
@@ -559,7 +560,7 @@
     <span class="p">)</span>
 </pre></div>
 </div>
-<p>For more information about running backtests, refer to the <span class="xref std std-ref">Backtesting Function</span> section.</p>
+<p>For more information about running backtests, refer to the <a class="reference internal" href="backtesting.backtesting_function.html#backtesting-backtesting-function"><span class="std std-ref">Backtesting Function</span></a> section.</p>
 </section>
 </section>
 <section id="files-generated-from-backtesting">
@@ -573,7 +574,7 @@
 <li><p>Performance metrics (e.g., Sharpe ratio, drawdown)</p></li>
 <li><p>Benchmark comparisons</p></li>
 </ul>
-<p>For more information, see the <span class="xref std std-ref">Tearsheet HTML</span> section.</p>
+<p>For more information, see the <a class="reference internal" href="backtesting.tearsheet_html.html#backtesting-tearsheet-html"><span class="std std-ref">Tearsheet HTML</span></a> section.</p>
 </section>
 <section id="trades-files">
 <h2>Trades Files<a class="headerlink" href="#trades-files" title="Link to this heading">#</a></h2>
@@ -585,12 +586,12 @@
 <li><p>The timestamp of the trade</p></li>
 </ul>
 <p>This file is essential for reviewing your strategy’s trading behavior and identifying any potential issues or optimizations.</p>
-<p>For more information on how to interpret the <strong>Trades Files</strong>, see the <span class="xref std std-ref">Trades Files</span> section.</p>
+<p>For more information on how to interpret the <strong>Trades Files</strong>, see the <a class="reference internal" href="backtesting.trades_files.html#backtesting-trades-files"><span class="std std-ref">Trades Files</span></a> section.</p>
 </section>
 <section id="indicators-files">
 <h2>Indicators Files<a class="headerlink" href="#indicators-files" title="Link to this heading">#</a></h2>
 <p>The <strong>Indicators File</strong> logs any technical indicators used in your strategy, such as moving averages, RSI, or custom indicators. This file helps you understand how your strategy responded to market conditions based on specific indicators.</p>
-<p>For more information, see the <span class="xref std std-ref">Indicators Files</span> section.</p>
+<p>For more information, see the <a class="reference internal" href="backtesting.indicators_files.html#backtesting-indicators-files"><span class="std std-ref">Indicators Files</span></a> section.</p>
 </section>
 <section id="conclusion">
 <h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading">#</a></h2>

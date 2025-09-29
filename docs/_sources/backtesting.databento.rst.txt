@@ -1,5 +1,5 @@
 DataBento Backtesting
-*******************
+*********************
 
 DataBento is a premium financial data provider that offers high-quality, clean market data for backtesting. Lumibot integrates with DataBento to provide reliable historical data for stocks, futures, options, and other instruments.
 
@@ -142,7 +142,7 @@ DataBento supports multiple timeframes:
                 latest_price = minute_data.df['close'].iloc[-1]
 
 Advanced Configuration
-=====================
+========================
 
 You can configure DataBento backtesting with additional parameters:
 
@@ -166,7 +166,7 @@ You can configure DataBento backtesting with additional parameters:
     )
 
 Data Quality Features
-====================
+========================
 
 DataBento provides several data quality features:
 
@@ -222,7 +222,7 @@ Best Practices
    Always check that data is available before using it in your strategy.
 
 Example: Multi-Asset Strategy
-============================
+==============================
 
 Here's a complete example using multiple assets with DataBento:
 
@@ -301,7 +301,7 @@ Handle common DataBento issues gracefully:
                 return
 
 Performance Optimization
-=======================
+===========================
 
 Tips for optimizing DataBento performance:
 
@@ -322,7 +322,7 @@ Tips for optimizing DataBento performance:
    Process multiple assets efficiently in loops.
 
 Troubleshooting
-==============
+==================
 
 **Common Issues:**
 
@@ -350,7 +350,7 @@ Troubleshooting
    - Retry the request
 
 Cost Considerations
-==================
+=====================
 
 DataBento is a premium service with costs based on:
 

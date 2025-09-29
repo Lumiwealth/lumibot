@@ -1,3 +1,5 @@
+.. _backtesting.thetadata:
+
 ThetaData Backtesting
 ===================================
 

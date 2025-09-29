@@ -1,4 +1,7 @@
-﻿self.create\_order
+:orphan:
+
+self.create\_order
 =================================================================
 
 .. autofunction:: lumibot.strategies.strategy.Strategy.create_order
+   :noindex:

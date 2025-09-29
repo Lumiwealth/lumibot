@@ -36,7 +36,8 @@ When getting historical data from Interactive Brokers, it is important to note t
 Documentation
 """""""""""""""""""
 
-.. automodule:: entities.bars
+.. automodule:: lumibot.entities.bars
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:

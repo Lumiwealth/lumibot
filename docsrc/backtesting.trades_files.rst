@@ -1,3 +1,5 @@
+.. _backtesting.trades_files:
+
 Trades Files
 ============
 
@@ -7,7 +9,7 @@ The **Trades HTML** and **Trades CSV** files provide detailed information about 
 - **Portfolio Value:** The value of the portfolio at each time point.
 - **Cash:** The amount of cash available at each time point.
 
-.. figure:: _static/images/trades_example.png
+.. figure:: _html/images/trades_example.png
    :alt: Trades example
    :width: 600px
    :align: center

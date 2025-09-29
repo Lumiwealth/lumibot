@@ -2,6 +2,7 @@
 
 # Unit Test modules
 pytest
+pytest-cov
 pytest-mock
 coverage
 

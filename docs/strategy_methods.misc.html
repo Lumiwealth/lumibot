@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -380,38 +381,41 @@
 <div class="table-wrapper autosummary longtable docutils container">
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.log_message.html#lumibot.strategies.strategy.Strategy.log_message" title="lumibot.strategies.strategy.Strategy.log_message"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_message</span></code></a>(message[, color, broadcast])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.log_message</span></code>(message[, color, broadcast])</p></td>
 <td><p>Logs an info message prefixed with the strategy name.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.sleep.html#lumibot.strategies.strategy.Strategy.sleep" title="lumibot.strategies.strategy.Strategy.sleep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sleep</span></code></a>(sleeptime)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.sleep</span></code>(sleeptime[, ...])</p></td>
 <td><p>Sleep for sleeptime seconds.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.set_market.html#lumibot.strategies.strategy.Strategy.set_market" title="lumibot.strategies.strategy.Strategy.set_market"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_market</span></code></a>(market)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.set_market</span></code>(market)</p></td>
 <td><p>Set the market for trading hours.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.update_parameters.html#lumibot.strategies.strategy.Strategy.update_parameters" title="lumibot.strategies.strategy.Strategy.update_parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_parameters</span></code></a>(parameters)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.update_parameters</span></code>(parameters)</p></td>
 <td><p>Update the parameters of the strategy.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.get_parameters.html#lumibot.strategies.strategy.Strategy.get_parameters" title="lumibot.strategies.strategy.Strategy.get_parameters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_parameters</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_parameters</span></code>()</p></td>
 <td><p>Get the parameters of the strategy.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_close.html#lumibot.strategies.strategy.Strategy.await_market_to_close" title="lumibot.strategies.strategy.Strategy.await_market_to_close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">await_market_to_close</span></code></a>([timedelta])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.await_market_to_close</span></code>([timedelta])</p></td>
 <td><p>Sleep until market closes.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.await_market_to_open.html#lumibot.strategies.strategy.Strategy.await_market_to_open" title="lumibot.strategies.strategy.Strategy.await_market_to_open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">await_market_to_open</span></code></a>([timedelta])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.await_market_to_open</span></code>([timedelta])</p></td>
 <td><p>Executes infinite loop until market opens</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_registration.html#lumibot.strategies.strategy.Strategy.wait_for_order_registration" title="lumibot.strategies.strategy.Strategy.wait_for_order_registration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_order_registration</span></code></a>(order)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.wait_for_order_registration</span></code>(order)</p></td>
 <td><p>Wait for the order to be registered by the broker</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_order_execution.html#lumibot.strategies.strategy.Strategy.wait_for_order_execution" title="lumibot.strategies.strategy.Strategy.wait_for_order_execution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_order_execution</span></code></a>(order)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.wait_for_order_execution</span></code>(order)</p></td>
 <td><p>Wait for one specific order to be executed or canceled by the broker</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_registration.html#lumibot.strategies.strategy.Strategy.wait_for_orders_registration" title="lumibot.strategies.strategy.Strategy.wait_for_orders_registration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_orders_registration</span></code></a>(orders)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.wait_for_orders_registration</span></code>(orders)</p></td>
 <td><p>Wait for the orders to be registered by the broker</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.misc/strategies.strategy.Strategy.wait_for_orders_execution.html#lumibot.strategies.strategy.Strategy.wait_for_orders_execution" title="lumibot.strategies.strategy.Strategy.wait_for_orders_execution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wait_for_orders_execution</span></code></a>(orders)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.wait_for_orders_execution</span></code>(orders)</p></td>
 <td><p>Wait for a list of orders to be executed or canceled by the broker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.register_cron_callback</span></code>(...)</p></td>
+<td><p>Register a callback function to be executed according to a cron schedule.</p></td>
 </tr>
 </tbody>
 </table>

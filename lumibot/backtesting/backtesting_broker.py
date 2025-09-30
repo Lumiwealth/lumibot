@@ -1,4 +1,5 @@
 import traceback
+import threading
 from collections import OrderedDict
 from datetime import timedelta
 from decimal import Decimal
@@ -477,6 +478,59 @@ class BacktestingBroker(Broker):
 
         return orders
 
+    def _cancel_open_orders_for_asset(self, strategy_name: str, asset: Asset, exclude_identifiers: set | None = None):
+        """Cancel any still-active orders for the given asset in backtesting.
+
+        When a position is force-closed (manual exit or cash settlement) we need to ensure any
+        remaining bracket/OTO child orders do not continue to execute against a zero position.
+        """
+
+        if exclude_identifiers is None:
+            exclude_identifiers = set()
+
+        if strategy_name is None or asset is None:
+            return
+
+        in_stream_thread = threading.current_thread().name.startswith(f"broker_{self.name}")
+
+        # Track which orders have been canceled to avoid duplicate processing
+        canceled_identifiers = set()
+
+        def _cancel_inline(order: Order):
+            if order.identifier in canceled_identifiers:
+                return
+            canceled_identifiers.add(order.identifier)
+            self._process_trade_event(order, self.CANCELED_ORDER)
+            for child in order.child_orders:
+                _cancel_inline(child)
+
+        open_orders = self.get_tracked_orders(strategy=strategy_name)
+
+        # Build a set of all child order identifiers to skip them in the main loop
+        # (they will be handled by their parent orders)
+        child_order_identifiers = set()
+        for tracked_order in open_orders:
+            if tracked_order.child_orders:
+                for child in tracked_order.child_orders:
+                    child_order_identifiers.add(child.identifier)
+
+        for tracked_order in open_orders:
+            if tracked_order.identifier in exclude_identifiers:
+                continue
+            if tracked_order.identifier in canceled_identifiers:
+                continue
+            # Skip child orders - they will be handled by their parent
+            if tracked_order.identifier in child_order_identifiers:
+                continue
+            if tracked_order.asset != asset:
+                continue
+            if not tracked_order.is_active():
+                continue
+            if in_stream_thread:
+                _cancel_inline(tracked_order)
+            else:
+                self.cancel_order(tracked_order)
+
     def _process_filled_order(self, order, price, quantity):
         """
         BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
@@ -510,6 +564,7 @@ class BacktestingBroker(Broker):
             if position.quantity == 0:
                 logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
+                self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
         else:
             self._filled_positions.append(position)  # New position, add it to the tracker
 
@@ -541,6 +596,7 @@ class BacktestingBroker(Broker):
             if existing_position.quantity == 0:
                 logger.info("Position %r liquidated" % existing_position)
                 self._filled_positions.remove(existing_position)
+                self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
 
     def _update_parent_order_status(self, order: Order):
         """Update the status of a parent order based on the status of its child orders."""
@@ -814,7 +870,18 @@ class BacktestingBroker(Broker):
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
+                # Skip if there are still active orders working this asset.
+                active_orders = [
+                    o for o in self.get_tracked_orders(strategy=strategy.name)
+                    if o.asset == position.asset and o.is_active()
+                ]
+                if active_orders:
+                    continue
+
                 logger.info(f"Automatically selling expired contract for asset {position.asset}")
+
+                # Cancel any outstanding orders tied to this asset before forcing settlement.
+                self._cancel_open_orders_for_asset(strategy.name, position.asset, set())
 
                 # Cash settle the options contract
                 self.cash_settle_options_contract(position, strategy)
@@ -948,9 +1015,6 @@ class BacktestingBroker(Broker):
 
         """
 
-        # Process expired contracts.
-        self.process_expired_option_contracts(strategy)
-
         # OPTIMIZATION: Get orders only once per list to minimize lock acquisitions
         # This function is called 179k times
         strategy_name = strategy.name
@@ -1040,6 +1104,8 @@ class BacktestingBroker(Broker):
                 logger.debug(f"Standard prefetching error (non-critical): {e}")
 
         for order in pending_orders:
+            if not order.is_active():
+                continue
             if order.dependent_order_filled:
                 continue
             # No need to check status since we already filtered for pending orders only
@@ -1237,6 +1303,9 @@ class BacktestingBroker(Broker):
                 )
             else:
                 continue
+
+        # After handling all pending orders, cash settle any residual expired contracts.
+        self.process_expired_option_contracts(strategy)
 
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""

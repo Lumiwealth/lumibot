@@ -665,7 +665,8 @@ def plot_returns(
     # Buy ticks
     buys = df_final.copy()
     buys[strategy_name] = buys[strategy_name].bfill()
-    buys = buys.loc[df_final["side"] == "buy"]
+    # Include all buy-type sides: buy, buy_to_open, buy_to_cover, buy_to_close
+    buys = buys.loc[df_final["side"].isin(["buy", "buy_to_open", "buy_to_cover", "buy_to_close"])]
 
     def generate_buysell_plotly_text(row):
         if row["status"] not in ("fill", "partial_fill"):
@@ -809,7 +810,8 @@ def plot_returns(
     # Sell ticks
     sells = df_final.copy()
     sells[strategy_name] = sells[strategy_name].bfill()
-    sells = sells.loc[df_final["side"] == "sell"]
+    # Include all sell-type sides: sell, sell_to_close, sell_short, sell_to_open
+    sells = sells.loc[df_final["side"].isin(["sell", "sell_to_close", "sell_short", "sell_to_open"])]
 
     sells_ticks_df = sells.apply(generate_buysell_plotly_text, axis=1)
 

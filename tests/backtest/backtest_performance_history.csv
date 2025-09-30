@@ -8,3 +8,6 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-09-30T17:47:55.970871,test_yahoo_finance_dividends,unknown,,0.749,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
 2025-09-30T17:47:56.987033,test_polygon_dividends,unknown,,0.934,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
 2025-09-30T17:47:58.659552,test_compare_yahoo_vs_polygon_dividends,unknown,,1.572,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T18:47:49.753308,test_crypto_cash_regression_no_fees[price_map0],unknown,,0.634,f081b99c,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T18:47:49.990680,test_crypto_cash_regression_no_fees[price_map1],unknown,,0.145,f081b99c,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T18:47:50.241149,test_crypto_cash_regression_with_fees,unknown,,0.151,f081b99c,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions

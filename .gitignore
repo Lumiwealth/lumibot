@@ -48,15 +48,3 @@ data/SRNE_Minute.csv
 .env
 token.json
 schwab_token.json
-
-# Profiling and performance analysis files (temporary)
-profile_*.py
-profile_*.prof
-profile_*.log
-results_*.log
-PERFORMANCE_*.txt
-PERFORMANCE_*.md
-COMPREHENSIVE_*.md
-COMPLETE_*.md
-OPTIMIZATION_*.md
-test_continuous_futures.py

@@ -493,14 +493,34 @@ class BacktestingBroker(Broker):
 
         in_stream_thread = threading.current_thread().name.startswith(f"broker_{self.name}")
 
+        # Track which orders have been canceled to avoid duplicate processing
+        canceled_identifiers = set()
+
         def _cancel_inline(order: Order):
+            if order.identifier in canceled_identifiers:
+                return
+            canceled_identifiers.add(order.identifier)
             self._process_trade_event(order, self.CANCELED_ORDER)
             for child in order.child_orders:
                 _cancel_inline(child)
 
         open_orders = self.get_tracked_orders(strategy=strategy_name)
+
+        # Build a set of all child order identifiers to skip them in the main loop
+        # (they will be handled by their parent orders)
+        child_order_identifiers = set()
+        for tracked_order in open_orders:
+            if tracked_order.child_orders:
+                for child in tracked_order.child_orders:
+                    child_order_identifiers.add(child.identifier)
+
         for tracked_order in open_orders:
             if tracked_order.identifier in exclude_identifiers:
+                continue
+            if tracked_order.identifier in canceled_identifiers:
+                continue
+            # Skip child orders - they will be handled by their parent
+            if tracked_order.identifier in child_order_identifiers:
                 continue
             if tracked_order.asset != asset:
                 continue

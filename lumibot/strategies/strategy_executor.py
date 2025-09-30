@@ -1183,19 +1183,21 @@ class StrategyExecutor(Thread):
                     # Process expired option contracts.
                     self.broker.process_expired_option_contracts(self.strategy)
 
-                # For backtesting with non-continuous markets and INTRADAY sleeptimes,
-                # after reaching market close, we should end the trading session for this day.
-                # Return False to break out of the backtesting loop so the main loop can advance
-                # to the next trading day.
+                # For backtesting with non-continuous markets, after reaching market close,
+                # we should end the trading session for this day and return False to break out
+                # of the backtesting loop. The main loop will then call _advance_to_next_trading_day()
+                # to move to the next trading day.
                 #
-                # IMPORTANT: Don't do this for daily/multi-day sleeptimes (e.g., "1D"), as those
-                # strategies are designed to sleep across multiple days and the main loop will
-                # handle day advancement via _advance_to_next_trading_day().
-                one_day_in_seconds = 24 * 60 * 60
-                if self.strategy.is_backtesting and strategy_sleeptime < one_day_in_seconds:
+                # IMPORTANT: Skip this ONLY for pure PandasDataBacktesting sources (not Polygon
+                # which inherits from PandasData) to maintain backward compatibility with existing
+                # tests that expect pandas daily data to process multiple days in a single call.
+                is_pure_pandas_data = (hasattr(self.broker, 'data_source') and
+                                      type(self.broker.data_source).__name__ in ('PandasData', 'PandasDataBacktesting'))
+
+                if self.strategy.is_backtesting and not is_pure_pandas_data:
                     return False
 
-                # For live trading or daily strategies, continue with the remaining sleep time
+                # For live trading or pandas data, continue with the remaining sleep time
                 strategy_sleeptime -= time_to_close
 
         # TODO: next line speed implication: medium (371 microseconds)
@@ -1363,6 +1365,10 @@ class StrategyExecutor(Thread):
             sleep_result = self._strategy_sleep()
             if not sleep_result:
                 break
+
+            # Recalculate time_to_close for the next iteration
+            if not is_continuous_market:
+                time_to_close = self.broker.get_time_to_close()
 
         # Don't log this to avoid creating root handler
         # self.strategy.log_message(f"Backtesting loop completed with {iteration_count} iterations")

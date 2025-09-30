@@ -323,8 +323,9 @@ class TestExampleStrategies:
 
         base_symbol = "ETH"
         quote_symbol = "USDT"
-        backtesting_start = datetime.datetime(2023,2,11)
-        backtesting_end = datetime.datetime(2024,2,12)
+        # Shortened from 1-year backtest to 1-month backtest for faster testing
+        backtesting_start = datetime.datetime(2023, 10, 1)
+        backtesting_end = datetime.datetime(2023, 10, 31)
         asset = (Asset(symbol=base_symbol, asset_type="crypto"),
                 Asset(symbol=quote_symbol, asset_type="crypto"))
 

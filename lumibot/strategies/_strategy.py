@@ -796,6 +796,10 @@ class _Strategy:
                 if position.asset != self._quote_asset:
                     assets.append(position.asset)
 
+            # Early return if no assets - avoid expensive dividend API calls
+            if not assets:
+                return self.cash
+
             dividends_per_share = self.get_yesterday_dividends(assets)
             for position in positions:
                 asset = position.asset

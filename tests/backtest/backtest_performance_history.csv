@@ -1,0 +1,10 @@
+timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,lumibot_version,strategy_name,start_date,end_date,sleeptime,notes
+2025-09-30T17:42:06.280673,test_crypto_cash_regression_no_fees[price_map0],unknown,,0.627,629780ae,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T17:42:07.030469,test_crypto_cash_regression_no_fees[price_map1],unknown,,0.661,629780ae,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T17:42:07.769541,test_crypto_cash_regression_with_fees,unknown,,0.641,629780ae,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T17:42:08.626130,test_yahoo_finance_dividends,unknown,,0.752,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T17:42:09.738822,test_polygon_dividends,unknown,,1.004,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T17:42:11.727341,test_compare_yahoo_vs_polygon_dividends,unknown,,1.852,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T17:47:55.970871,test_yahoo_finance_dividends,unknown,,0.749,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T17:47:56.987033,test_polygon_dividends,unknown,,0.934,629780ae,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T17:47:58.659552,test_compare_yahoo_vs_polygon_dividends,unknown,,1.572,629780ae,4.0.20,,,,,Auto-tracked from test_dividends

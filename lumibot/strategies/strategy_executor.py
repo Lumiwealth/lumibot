@@ -1178,13 +1178,25 @@ class StrategyExecutor(Thread):
                 # Sleep until the market closes.
                 self.safe_sleep(time_to_close)
 
-                # Remove the time to close from the strategy sleep time.
-                strategy_sleeptime -= time_to_close
-
                 # Check if the broker has a function to process expired option contracts.
                 if hasattr(self.broker, "process_expired_option_contracts"):
                     # Process expired option contracts.
                     self.broker.process_expired_option_contracts(self.strategy)
+
+                # For backtesting with non-continuous markets and INTRADAY sleeptimes,
+                # after reaching market close, we should end the trading session for this day.
+                # Return False to break out of the backtesting loop so the main loop can advance
+                # to the next trading day.
+                #
+                # IMPORTANT: Don't do this for daily/multi-day sleeptimes (e.g., "1D"), as those
+                # strategies are designed to sleep across multiple days and the main loop will
+                # handle day advancement via _advance_to_next_trading_day().
+                one_day_in_seconds = 24 * 60 * 60
+                if self.strategy.is_backtesting and strategy_sleeptime < one_day_in_seconds:
+                    return False
+
+                # For live trading or daily strategies, continue with the remaining sleep time
+                strategy_sleeptime -= time_to_close
 
         # TODO: next line speed implication: medium (371 microseconds)
         self.safe_sleep(strategy_sleeptime)

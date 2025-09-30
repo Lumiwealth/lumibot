@@ -21,6 +21,7 @@ from lumibot.credentials import POLYGON_CONFIG
 
 class TestExampleStrategies:
 
+    @pytest.mark.slow
     @pytest.mark.xfail(reason="yahoo sucks")
     def test_stock_bracket(self):
         """
@@ -94,6 +95,7 @@ class TestExampleStrategies:
         assert pytest.approx(strat_obj.cash, rel=1e-9) == expected_cash
 
     @pytest.mark.xfail(reason="yahoo sucks")
+    @pytest.mark.slow
     def test_stock_oco(self):
         """
         Test the example strategy StockOco by running a backtest and checking that the strategy object is returned
@@ -148,6 +150,7 @@ class TestExampleStrategies:
         assert limit_order.get_fill_price() >= 405
 
     @pytest.mark.xfail(reason="yahoo sucks")
+    @pytest.mark.slow
     def test_stock_buy_and_hold(self):
         """
         Test the example strategy BuyAndHold by running a backtest and checking that the strategy object is returned
@@ -178,6 +181,7 @@ class TestExampleStrategies:
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
     @pytest.mark.xfail(reason="yahoo sucks")
+    @pytest.mark.slow
     def test_stock_diversified_leverage(self):
         """
         Test the example strategy DiversifiedLeverage by running a backtest and checking that the strategy object is
@@ -208,6 +212,7 @@ class TestExampleStrategies:
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
     @pytest.mark.xfail(reason="yahoo sucks")
+    @pytest.mark.slow
     def test_limit_and_trailing_stops(self):
         """
         Test the example strategy LimitAndTrailingStop by running a backtest and checking that the strategy object is
@@ -280,6 +285,7 @@ class TestExampleStrategies:
         POLYGON_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires a Polygon.io API key"
     )
+    @pytest.mark.slow
     def test_options_hold_to_expiry(self):
         """
         Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is
@@ -315,6 +321,7 @@ class TestExampleStrategies:
         assert cash_settled_orders.iloc[0]["filled_quantity"] == 10
 
     @pytest.mark.skip()  # Skip this test; it works locally but i can't get it to work on github actions
+    @pytest.mark.slow
     def test_ccxt_backtesting(self):
         """
         Test the example strategy StockBracket by running a backtest and checking that the strategy object is returned

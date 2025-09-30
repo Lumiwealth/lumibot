@@ -206,6 +206,7 @@ class TestPolygonBacktestFull:
         )
         assert "fill" not in poly_strat_obj.order_time_tracker[stoploss_order_id]
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -475,6 +476,7 @@ class TestPolygonDataSource:
         assert call_strikes[-1] == expected_last, f"CALL strikes for {expected_expiry} expected last strike {expected_last}, got {call_strikes[-1]}"
         assert put_strikes[-1] == expected_last, f"PUT strikes for {expected_expiry} expected last strike {expected_last}, got {put_strikes[-1]}"
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(not POLYGON_API_KEY or POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_last_price_unchanged(self):
         """
@@ -497,6 +499,7 @@ class TestPolygonDataSource:
         # Open: $129.11, Close: $128.85 at 10am Eastern -- Looked up on TradingView (DavidM)
         assert 128.80 < last_price < 129.20, f"Expected AMZN price between 128 and 130 on 2023-08-02, got {last_price}"
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(not POLYGON_API_KEY or POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_historical_prices_unchanged_for_amzn(self):
         """

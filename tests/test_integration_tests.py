@@ -16,7 +16,6 @@ class TestIntegrationTests:
     might be counting on whatever it was that changed.
     """
 
-    @pytest.mark.slow
     @pytest.mark.xfail(reason="yahoo sucks")
     def test_yahoo(self):
 

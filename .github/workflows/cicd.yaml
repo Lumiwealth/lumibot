@@ -36,7 +36,7 @@ permissions:
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     environment: unit-tests
 
     env:
@@ -82,16 +82,14 @@ jobs:
           echo "Pytest version: $(python -m pytest --version)"
 
           # Run tests with explicit timeouts and in smaller chunks
-          # Skip slow tests to avoid timeouts (use -m "not apitest and not slow")
-          # Remove -x flag to continue running tests even after failures
-          echo "=== Step 1: Running non-backtest unit tests (excluding slow tests) ==="
-          timeout 600 python -m pytest tests/ -m "not apitest and not slow" --ignore=tests/backtest/ --tb=short --durations=20 || echo "Non-backtest tests completed with status $?"
+          echo "=== Step 1: Running non-backtest unit tests ==="
+          timeout 600 python -m pytest tests/ -m "not apitest" --ignore=tests/backtest/ --tb=short -x --durations=20 || echo "Non-backtest tests completed with status $?"
 
-          echo "=== Step 2: Running backtest tests (excluding slow tests) ==="
-          timeout 600 python -m pytest tests/backtest/ -m "not apitest and not slow" --tb=short --durations=20 || echo "Backtest tests completed with status $?"
+          echo "=== Step 2: Running backtest tests ==="
+          timeout 600 python -m pytest tests/backtest/ -m "not apitest" --tb=short -x --durations=20 || echo "Backtest tests completed with status $?"
 
-          echo "=== Step 3: Final verification run (excluding slow tests) ==="
-          python -m pytest tests/ -m "not apitest and not slow" --tb=no -q --cov=lumibot --cov-report=xml --cov-report=html:Lumibot
+          echo "=== Step 3: Final verification run ==="
+          python -m pytest tests/ -m "not apitest" --tb=no -q --cov=lumibot --cov-report=xml --cov-report=html:Lumibot
 
       # Make the HTML report downloadable from the Actions artefacts tab
       - name: Upload coverage HTML

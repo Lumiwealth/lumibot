@@ -8,9 +8,9 @@ from lumibot.tools import databento_helper
 from lumibot.tools.lumibot_logger import get_logger
 
 try:
-    from .databento_data_polars import DataBentoDataPolars
+    from .databento_data_polars_live import DataBentoDataPolarsLive
 except Exception:  # pragma: no cover - optional dependency path
-    DataBentoDataPolars = None
+    DataBentoDataPolarsLive = None
 
 logger = get_logger(__name__)
 
@@ -330,13 +330,13 @@ class DataBentoData(DataSource):
         price = self.get_last_price(asset, quote=quote)
         return Quote(asset=asset, price=price)
 
-    def _ensure_live_delegate(self) -> Optional['DataBentoDataPolars']:
-        if DataBentoDataPolars is None or self.is_backtesting_mode:
+    def _ensure_live_delegate(self) -> Optional['DataBentoDataPolarsLive']:
+        if DataBentoDataPolarsLive is None or self.is_backtesting_mode:
             return None
 
         if self._live_delegate is None:
             try:
-                self._live_delegate = DataBentoDataPolars(
+                self._live_delegate = DataBentoDataPolarsLive(
                     api_key=self._api_key,
                     has_paid_subscription=True,
                     enable_cache=False,

@@ -3,6 +3,7 @@ import pytest
 import pytz
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktesting
+from lumibot.data_sources import DataBentoDataBacktesting as DataBentoDataBacktestingPolars
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -91,6 +92,58 @@ class TestDatabentoBacktestFull:
         # Verify minute-level cadence (should have many data points over 2 days)
         # With minute data from 9:30 to 16:00 (6.5 hours = 390 minutes per day)
         # Over 2 days we should have roughly 780 minutes of trading
+        assert len(strat_obj.prices) > 100, f"Expected many minute-level data points, got {len(strat_obj.prices)}"
+
+        # Verify all prices are valid numbers
+        for price in strat_obj.prices:
+            assert price is not None and price > 0, f"Expected valid price, got {price}"
+
+    @pytest.mark.apitest
+    @pytest.mark.skipif(
+        not DATABENTO_API_KEY,
+        reason="This test requires a Databento API key"
+    )
+    @pytest.mark.skipif(
+        DATABENTO_API_KEY == '<your key here>',
+        reason="This test requires a Databento API key"
+    )
+    def test_databento_continuous_futures_minute_data_polars(self):
+        """
+        Test Databento with Polars implementation - minute-level data.
+        Should be significantly faster than pandas version.
+        """
+        # Use timezone-aware datetimes for futures trading
+        tzinfo = pytz.timezone("America/New_York")
+        backtesting_start = tzinfo.localize(datetime.datetime(2025, 1, 2, 9, 30))
+        backtesting_end = tzinfo.localize(datetime.datetime(2025, 1, 3, 16, 0))
+
+        data_source = DataBentoDataBacktestingPolars(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            api_key=DATABENTO_API_KEY,
+        )
+
+        broker = BacktestingBroker(data_source=data_source)
+
+        strat_obj = SimpleContinuousFutures(
+            broker=broker,
+        )
+
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(strat_obj)
+        results = trader.run_all(
+            show_plot=False,
+            show_tearsheet=False,
+            show_indicators=False,
+            save_tearsheet=False
+        )
+
+        # Verify results
+        assert results is not None
+        assert len(strat_obj.prices) > 0, "Expected to collect some prices"
+        assert len(strat_obj.times) > 0, "Expected to collect some timestamps"
+
+        # Verify minute-level cadence
         assert len(strat_obj.prices) > 100, f"Expected many minute-level data points, got {len(strat_obj.prices)}"
 
         # Verify all prices are valid numbers

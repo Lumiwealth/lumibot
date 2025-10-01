@@ -447,7 +447,6 @@ class DriftOrderLogic:
                         side="sell",
                         bid=bid,
                         ask=ask,
-                        midpoint_price=midpoint,
                         arrival_price=midpoint,
                     )
                     sell_orders.append(order)
@@ -486,7 +485,6 @@ class DriftOrderLogic:
                         side="sell",
                         bid=bid,
                         ask=ask,
-                        midpoint_price=midpoint,
                         arrival_price=midpoint,
                     )
                     sell_orders.append(order)
@@ -513,7 +511,6 @@ class DriftOrderLogic:
                     side="buy",
                     bid=bid,
                     ask=ask,
-                    midpoint_price=midpoint,
                     arrival_price=midpoint,
                 )
                 buy_orders.append(order)
@@ -574,7 +571,6 @@ class DriftOrderLogic:
                         side="buy",
                         bid=bid,
                         ask=ask,
-                        midpoint_price=midpoint,
                         arrival_price=midpoint,
                     )
                     buy_orders.append(order)
@@ -625,7 +621,6 @@ class DriftOrderLogic:
             *,
             bid: Decimal,
             ask: Decimal,
-            midpoint_price: Decimal,
             arrival_price: Decimal,
     ) -> Order:
         quote_asset = self.strategy.quote_asset or Asset(symbol="USD", asset_type="forex")
@@ -644,7 +639,6 @@ class DriftOrderLogic:
                 "arrival_price": arrival_price,
                 "bid": bid,
                 "ask": ask,
-                "midpoint_price": midpoint_price,
             }
 
         if self.order_type == Order.OrderType.LIMIT:

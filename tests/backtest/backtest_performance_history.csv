@@ -89,3 +89,9 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-09-30T23:17:49.610605,test_bracket_orders_apply_entry_and_exit_fees,unknown,,0.225,caf6a668,4.0.23,,,,,Auto-tracked from test_pandas_backtest
 2025-09-30T23:17:50.572703,test_not_passing_trader_class_into_backtest_creates_generic_trader,unknown,,0.654,caf6a668,4.0.23,,,,,Auto-tracked from test_passing_trader_into_backtest
 2025-09-30T23:17:51.043615,test_passing_trader_class_into_backtest_creates_trader_class,unknown,,0.149,caf6a668,4.0.23,,,,,Auto-tracked from test_passing_trader_into_backtest
+2025-09-30T23:17:51.851065,test_polygon_restclient,Polygon,,0.443,cc1c83c6,4.0.23,,,,,Auto-tracked from test_polygon
+2025-09-30T23:17:53.204482,test_intraday_daterange,Polygon,,1.015,cc1c83c6,4.0.23,,,,,Auto-tracked from test_polygon
+2025-09-30T23:17:54.065796,test_polygon_legacy_backtest,Polygon,,0.456,cc1c83c6,4.0.23,,,,,Auto-tracked from test_polygon
+2025-09-30T23:17:54.829807,test_polygon_legacy_backtest2,Polygon,,0.315,cc1c83c6,4.0.23,,,,,Auto-tracked from test_polygon
+2025-09-30T23:17:56.334001,test_get_historical_prices,Polygon,,0.68,cc1c83c6,4.0.23,,,,,Auto-tracked from test_polygon
+2025-09-30T23:17:57.268488,test_get_last_price_unchanged,Polygon,,0.104,cc1c83c6,4.0.23,,,,,Auto-tracked from test_polygon

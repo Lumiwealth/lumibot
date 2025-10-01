@@ -499,8 +499,16 @@ class BacktestingBroker(Broker):
         def _cancel_inline(order: Order):
             if order.identifier in canceled_identifiers:
                 return
-            canceled_identifiers.add(order.identifier)
-            self._process_trade_event(order, self.CANCELED_ORDER)
+
+            # BUGFIX: Only process CANCELED event if the order is actually active
+            # Don't try to cancel orders that are already filled or canceled
+            if order.is_active():
+                canceled_identifiers.add(order.identifier)
+                self._process_trade_event(order, self.CANCELED_ORDER)
+            else:
+                logger.debug(f"Order {order.identifier} not active (status={order.status}), skipping cancel event")
+                canceled_identifiers.add(order.identifier)
+
             for child in order.child_orders:
                 _cancel_inline(child)
 

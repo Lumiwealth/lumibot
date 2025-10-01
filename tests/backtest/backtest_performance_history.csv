@@ -70,3 +70,4 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-09-30T23:14:27.263952,test_yahoo_finance_dividends,unknown,,0.27,121bef10,4.0.23,,,,,Auto-tracked from test_dividends
 2025-09-30T23:14:27.870245,test_polygon_dividends,unknown,,0.456,121bef10,4.0.23,,,,,Auto-tracked from test_dividends
 2025-09-30T23:14:28.692773,test_compare_yahoo_vs_polygon_dividends,unknown,,0.655,121bef10,4.0.23,,,,,Auto-tracked from test_dividends
+2025-09-30T23:17:13.514822,test_stock_oco,unknown,,0.685,e9f95d96,4.0.23,,,,,Auto-tracked from test_example_strategies

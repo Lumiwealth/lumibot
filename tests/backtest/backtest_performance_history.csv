@@ -18,3 +18,16 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-09-30T20:06:42.811531,test_yahoo_finance_dividends,unknown,,0.264,13d62b07,4.0.20,,,,,Auto-tracked from test_dividends
 2025-09-30T20:06:43.440672,test_polygon_dividends,unknown,,0.445,13d62b07,4.0.20,,,,,Auto-tracked from test_dividends
 2025-09-30T20:06:44.216221,test_compare_yahoo_vs_polygon_dividends,unknown,,0.576,13d62b07,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T21:03:24.837066,test_databento_continuous_futures_minute_data,Databento,,5.436,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:12:38.239215,test_databento_daily_continuous_futures,Databento,,251.182,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:14:01.094476,test_databento_continuous_futures_minute_data,Databento,,3.698,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:14:04.344899,test_databento_daily_continuous_futures,Databento,,3.155,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:18:52.165011,test_databento_continuous_futures_minute_data,Databento,,4.394,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:39:19.767987,test_crypto_cash_regression_no_fees[price_map0],unknown,,0.658,805e7b74,4.0.21,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T21:39:20.037558,test_crypto_cash_regression_no_fees[price_map1],unknown,,0.162,805e7b74,4.0.21,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T21:39:20.311038,test_crypto_cash_regression_with_fees,unknown,,0.161,805e7b74,4.0.21,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T21:39:23.862383,test_databento_continuous_futures_minute_data,Databento,,3.426,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:39:24.248070,test_databento_daily_continuous_futures,Databento,,0.26,805e7b74,4.0.21,,,,,Auto-tracked from test_databento
+2025-09-30T21:39:24.671417,test_yahoo_finance_dividends,unknown,,0.288,805e7b74,4.0.21,,,,,Auto-tracked from test_dividends
+2025-09-30T21:39:25.283797,test_polygon_dividends,unknown,,0.469,805e7b74,4.0.21,,,,,Auto-tracked from test_dividends
+2025-09-30T21:39:26.196633,test_compare_yahoo_vs_polygon_dividends,unknown,,0.749,805e7b74,4.0.21,,,,,Auto-tracked from test_dividends

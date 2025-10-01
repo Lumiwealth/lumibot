@@ -111,8 +111,9 @@ class TestDatabentoBacktestFull:
         Test Databento with continuous futures using daily data over a longer period.
         This is similar to the profiling test but as a permanent test.
         """
-        backtesting_start = datetime.datetime(2025, 1, 2)
-        backtesting_end = datetime.datetime(2025, 3, 31)
+        tzinfo = pytz.timezone("America/New_York")
+        backtesting_start = tzinfo.localize(datetime.datetime(2025, 1, 2))
+        backtesting_end = tzinfo.localize(datetime.datetime(2025, 3, 31))
 
         # Simple daily strategy
         class DailyContinuousFutures(Strategy):

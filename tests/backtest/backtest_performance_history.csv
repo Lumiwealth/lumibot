@@ -11,3 +11,10 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-09-30T18:47:49.753308,test_crypto_cash_regression_no_fees[price_map0],unknown,,0.634,f081b99c,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
 2025-09-30T18:47:49.990680,test_crypto_cash_regression_no_fees[price_map1],unknown,,0.145,f081b99c,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
 2025-09-30T18:47:50.241149,test_crypto_cash_regression_with_fees,unknown,,0.151,f081b99c,4.0.20,,,,,Auto-tracked from test_crypto_cash_regressions
+2025-09-30T20:06:39.229021,test_intraday_daterange,Polygon,,1.199,13d62b07,4.0.20,,,,,Auto-tracked from test_polygon
+2025-09-30T20:06:40.293127,test_polygon_legacy_backtest2,Polygon,,0.288,13d62b07,4.0.20,,,,,Auto-tracked from test_polygon
+2025-09-30T20:06:41.245514,test_get_historical_prices,Polygon,,0.633,13d62b07,4.0.20,,,,,Auto-tracked from test_polygon
+2025-09-30T20:06:42.080847,test_get_historical_prices_unchanged_for_amzn,Polygon,,0.286,13d62b07,4.0.20,,,,,Auto-tracked from test_polygon
+2025-09-30T20:06:42.811531,test_yahoo_finance_dividends,unknown,,0.264,13d62b07,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T20:06:43.440672,test_polygon_dividends,unknown,,0.445,13d62b07,4.0.20,,,,,Auto-tracked from test_dividends
+2025-09-30T20:06:44.216221,test_compare_yahoo_vs_polygon_dividends,unknown,,0.576,13d62b07,4.0.20,,,,,Auto-tracked from test_dividends

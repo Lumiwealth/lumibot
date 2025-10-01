@@ -21,7 +21,7 @@ from tests.fixtures import pandas_data_fixture
 from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Order, Asset, TradingFee
 from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
-from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
+from lumibot.components.drift_rebalancer_logic import get_prices_or_raise
 from lumibot.tools.helpers import quantize_to_num_decimals
 
 
@@ -74,6 +74,8 @@ print_full_pandas_dataframes()
 set_pandas_float_display_precision(precision=5)
 
 
+from lumibot.entities.quote import Quote
+
 class MockStrategyWithDriftCalculationLogic(Strategy):
 
     def __init__(
@@ -98,6 +100,9 @@ class MockStrategyWithDriftCalculationLogic(Strategy):
             order_type=order_type,
             fractional_shares=fractional_shares
         )
+
+    def get_quote(self, asset: Union[Asset, str], quote=None, exchange=None):
+        return Quote(asset=asset if isinstance(asset, Asset) else Asset(str(asset)), bid=99.5, ask=100.5)
 
     def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         return Decimal(100.0)  # Mock price
@@ -967,6 +972,9 @@ class MockStrategyWithOrderLogic(Strategy):
             fractional_shares=fractional_shares
         )
 
+    def get_quote(self, asset: Union[Asset, str], quote=None, exchange=None):
+        return Quote(asset=asset if isinstance(asset, Asset) else Asset(str(asset)), bid=99.5, ask=100.5)
+
     def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         return Decimal(100.0)  # Mock price
 
@@ -1034,8 +1042,6 @@ class TestDriftOrderLogic:
         assert strategy.orders[0].quantity == Decimal("10")
         assert strategy.orders[0].order_type == Order.OrderType.MARKET
         assert strategy.orders[0].custom_params == {"arrival_price": Decimal("100.0")}
-
-    def test_selling_part_of_a_holding_with_limit_order(self):
         strategy = MockStrategyWithOrderLogic(
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
@@ -1348,7 +1354,7 @@ class TestDriftOrderLogic:
             acceptable_slippage=Decimal("0.005")
         )
         strategy.order_logic.rebalance(drift_df=df)
-        limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="sell", asset=asset)
+        limit_price = strategy.order_logic.calculate_limit_price(midpoint_price=Decimal("120.00"), side="sell", asset=asset)
         assert limit_price == Decimal("119.4")
 
     def test_calculate_limit_price_when_buying(self):
@@ -1373,7 +1379,7 @@ class TestDriftOrderLogic:
             acceptable_slippage=Decimal("0.005")
         )
         strategy.order_logic.rebalance(drift_df=df)
-        limit_price = strategy.order_logic.calculate_limit_price(last_price=Decimal("120.00"), side="buy", asset=asset)
+        limit_price = strategy.order_logic.calculate_limit_price(midpoint_price=Decimal("120.00"), side="buy", asset=asset)
         assert limit_price == Decimal("120.6")
 
     def test_buying_whole_shares(self):
@@ -2188,26 +2194,31 @@ class TestDriftRebalancer:
         assert strat_obj.stats['portfolio_value'][-1] == 104767.7476530826
 
     @patch("lumibot.strategies.Strategy")
-    def test_get_last_price_or_raise_returns_decimal(self, MockStrategy):
+    def test_get_prices_or_raise_returns_prices(self, MockStrategy):
         mock_strategy = MockStrategy()
-        mock_strategy.get_last_price.return_value = 123.45
-
+        # Return a Quote with bid/ask
+        from lumibot.entities.quote import Quote
         asset = Asset(symbol="AAPL")
         quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
-        price = get_last_price_or_raise(mock_strategy, asset, quote)
+        mock_strategy.get_quote.return_value = Quote(asset=asset, bid=123.4, ask=123.6)
 
-        assert price == Decimal("123.45")
+        bid, ask, midpoint = get_prices_or_raise(mock_strategy, asset, quote)
+
+        assert bid == Decimal("123.4")
+        assert ask == Decimal("123.6")
+        assert midpoint == Decimal("123.5")
 
     @patch("lumibot.strategies.Strategy")
-    def test_get_last_price_or_raise_raises_value_error_on_none(self, MockStrategy):
+    def test_get_prices_or_raise_raises_value_error_on_none(self, MockStrategy):
         mock_strategy = MockStrategy()
-        mock_strategy.get_last_price.return_value = None
-
+        # Return a Quote without bid/ask to force error
+        from lumibot.entities.quote import Quote
         asset = Asset(symbol="AAPL")
         quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+        mock_strategy.get_quote.return_value = Quote(asset=asset, bid=None, ask=None)
 
-        with pytest.raises(ValueError, match="DriftRebalancer could not get_last_price for AAPL-USD."):
-            get_last_price_or_raise(mock_strategy, asset, quote)
+        with pytest.raises(ValueError, match="DriftRebalancer could not compute midpoint price for AAPL-USD."):
+            get_prices_or_raise(mock_strategy, asset, quote)
 
 
 class TestDriftRebalancerOptions:
@@ -2540,7 +2551,7 @@ class TestDriftRebalancerOptions:
         
         # Test buy limit price (should add slippage)
         buy_limit = strategy.order_logic.calculate_limit_price(
-            last_price=Decimal("25.00"), 
+            midpoint_price=Decimal("25.00"),
             side="buy", 
             asset=option_asset
         )
@@ -2549,7 +2560,7 @@ class TestDriftRebalancerOptions:
         
         # Test sell limit price (should subtract slippage)
         sell_limit = strategy.order_logic.calculate_limit_price(
-            last_price=Decimal("25.00"), 
+            midpoint_price=Decimal("25.00"),
             side="sell", 
             asset=option_asset
         )

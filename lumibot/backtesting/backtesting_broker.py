@@ -17,6 +17,91 @@ from lumibot.trading_builtins import CustomStream
 logger = get_logger(__name__)
 
 
+# Typical initial margin requirements for common futures contracts
+# Used for backtesting to simulate margin deduction/release
+TYPICAL_FUTURES_MARGINS = {
+    # CME Micro E-mini Futures
+    "MES": 1300,      # Micro E-mini S&P 500 (~$1,300)
+    "MNQ": 1700,      # Micro E-mini Nasdaq-100 (~$1,700)
+    "MYM": 1100,      # Micro E-mini Dow (~$1,100)
+    "M2K": 800,       # Micro E-mini Russell 2000 (~$800)
+    "MCL": 1500,      # Micro Crude Oil (~$1,500)
+    "MGC": 1200,      # Micro Gold (~$1,200)
+
+    # CME Standard E-mini Futures
+    "ES": 13000,      # E-mini S&P 500 (~$13,000)
+    "NQ": 17000,      # E-mini Nasdaq-100 (~$17,000)
+    "YM": 11000,      # E-mini Dow (~$11,000)
+    "RTY": 8000,      # E-mini Russell 2000 (~$8,000)
+
+    # CME Full-Size Futures
+    "CL": 8000,       # Crude Oil (~$8,000)
+    "GC": 10000,      # Gold (~$10,000)
+    "SI": 14000,      # Silver (~$14,000)
+    "NG": 3000,       # Natural Gas (~$3,000)
+    "HG": 4000,       # Copper (~$4,000)
+
+    # CME Currency Futures
+    "6E": 2500,       # Euro FX (~$2,500)
+    "6J": 3000,       # Japanese Yen (~$3,000)
+    "6B": 2800,       # British Pound (~$2,800)
+    "6C": 2000,       # Canadian Dollar (~$2,000)
+
+    # CME Interest Rate Futures
+    "ZB": 4000,       # 30-Year T-Bond (~$4,000)
+    "ZN": 2000,       # 10-Year T-Note (~$2,000)
+    "ZF": 1500,       # 5-Year T-Note (~$1,500)
+    "ZT": 800,        # 2-Year T-Note (~$800)
+
+    # CME Agricultural Futures
+    "ZC": 2000,       # Corn (~$2,000)
+    "ZS": 3000,       # Soybeans (~$3,000)
+    "ZW": 2500,       # Wheat (~$2,500)
+    "ZL": 1500,       # Soybean Oil (~$1,500)
+
+    # Default for unknown futures
+    "DEFAULT": 5000,  # Conservative default
+}
+
+
+def get_futures_margin_requirement(asset: Asset) -> float:
+    """
+    Get the initial margin requirement for a futures contract.
+
+    This is used in backtesting to simulate the margin deduction when opening
+    a futures position and margin release when closing.
+
+    Args:
+        asset: The futures Asset object
+
+    Returns:
+        float: Initial margin requirement in dollars
+
+    Note:
+        These are TYPICAL values and may not match current broker requirements.
+        For live trading, brokers handle margin internally.
+    """
+    symbol = asset.symbol.upper()
+
+    # Try exact match first
+    if symbol in TYPICAL_FUTURES_MARGINS:
+        return TYPICAL_FUTURES_MARGINS[symbol]
+
+    # Try base symbol (remove month/year codes like "ESH4" -> "ES")
+    # Most futures symbols are 2-3 characters followed by month/year
+    base_symbol = ''.join(c for c in symbol if c.isalpha())
+    if base_symbol in TYPICAL_FUTURES_MARGINS:
+        return TYPICAL_FUTURES_MARGINS[base_symbol]
+
+    # Unknown contract - use conservative default
+    logger.warning(
+        f"Unknown futures contract '{symbol}'. Using default margin of "
+        f"${TYPICAL_FUTURES_MARGINS['DEFAULT']:.2f}. "
+        f"Consider adding this contract to TYPICAL_FUTURES_MARGINS."
+    )
+    return TYPICAL_FUTURES_MARGINS["DEFAULT"]
+
+
 class BacktestingBroker(Broker):
     # Metainfo
     IS_BACKTESTING_BROKER = True
@@ -928,9 +1013,92 @@ class BacktestingBroker(Broker):
         asset_type = getattr(order.asset, "asset_type", None)
         quote_asset_type = getattr(order.quote, "asset_type", None) if hasattr(order, "quote") and order.quote else None
 
+        # For futures, use margin-based cash management (not full notional value)
+        # Futures don't tie up full contract value - only margin requirement
+        if (
+            not is_multileg_parent
+            and asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+        ):
+            # Reconstruct position state BEFORE this order to determine if opening/closing
+            futures_qty_before = 0
+            futures_entry_price = None
+
+            # Look through filled_orders to find position before this order
+            for filled_order in self._filled_orders.get_list():
+                if (filled_order.asset == order.asset
+                    and filled_order.strategy == order.strategy
+                    and filled_order != order):  # Don't count the current order
+
+                    if filled_order.side in (Order.OrderSide.BUY, "buy", "buy_to_open"):
+                        futures_qty_before += filled_order.quantity
+                        # Track most recent BUY entry price (for long positions)
+                        if filled_order.avg_fill_price:
+                            futures_entry_price = float(filled_order.avg_fill_price)
+                    elif filled_order.side in (Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE, "sell", "sell_to_close"):
+                        futures_qty_before -= filled_order.quantity
+                        # Track most recent SELL entry price (for short positions)
+                        # Note: This gets overwritten by SELL_TO_CLOSE, which is correct
+                        # We want the opening SELL price, not closing prices
+                        if (filled_order.side in (Order.OrderSide.SELL, "sell")  # Opening short
+                            and filled_order.avg_fill_price):
+                            futures_entry_price = float(filled_order.avg_fill_price)
+
+            # Determine if this order is opening or closing a position
+            is_opening = (futures_qty_before == 0)
+            is_closing_long = (
+                futures_qty_before > 0
+                and order.side in (Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE, "sell", "sell_to_close")
+            )
+            is_closing_short = (
+                futures_qty_before < 0
+                and order.side in (Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, "buy", "buy_to_open")
+            )
+            is_closing = is_closing_long or is_closing_short
+
+            # Get margin requirement and multiplier
+            margin_per_contract = get_futures_margin_requirement(order.asset)
+            multiplier = getattr(order.asset, "multiplier", 1)
+            total_margin = margin_per_contract * float(filled_quantity)
+
+            current_cash = strategy.cash
+
+            if is_opening:
+                # ENTRY (long or short): Deduct initial margin from cash
+                new_cash = current_cash - total_margin
+                strategy._set_cash_position(new_cash)
+
+            elif is_closing:
+                # EXIT (close long or cover short): Release margin and apply realized P&L
+                if futures_entry_price:
+                    exit_price = float(price)
+
+                    # For shorts, P&L is inverted: profit when price goes down
+                    if futures_qty_before < 0:
+                        # Closing short: P&L = (entry - exit) × qty × multiplier
+                        realized_pnl = (futures_entry_price - exit_price) * float(filled_quantity) * float(multiplier)
+                    else:
+                        # Closing long: P&L = (exit - entry) × qty × multiplier
+                        realized_pnl = (exit_price - futures_entry_price) * float(filled_quantity) * float(multiplier)
+
+                    # Update cash: release margin + add realized P&L
+                    new_cash = current_cash + total_margin + realized_pnl
+                    strategy._set_cash_position(new_cash)
+                else:
+                    # No entry price found - just release margin (shouldn't happen normally)
+                    logger.warning(
+                        f"No entry price found for futures exit: {order.asset.symbol}. "
+                        f"Only releasing margin, no P&L applied."
+                    )
+                    new_cash = current_cash + total_margin
+                    strategy._set_cash_position(new_cash)
+            else:
+                # Adding to existing position: deduct margin for additional contracts
+                new_cash = current_cash - total_margin
+                strategy._set_cash_position(new_cash)
+
         # For crypto base with forex quote (like BTC/USD where USD is forex), use cash
         # For crypto base with crypto quote (like BTC/USDT where both are crypto), use positions
-        if (
+        elif (
             not is_multileg_parent
             and asset_type == Asset.AssetType.CRYPTO
             and quote_asset_type == Asset.AssetType.FOREX
@@ -972,16 +1140,21 @@ class BacktestingBroker(Broker):
             self._apply_trade_cost(strategy, trade_cost)
 
     def _process_crypto_quote(self, order, quantity, price):
-        """Override to skip crypto quote processing for crypto+forex trades that are handled with direct cash updates."""
-        # Check if this is a crypto+forex trade
+        """Override to skip quote processing for assets that use direct cash updates or margin-based trading."""
+        # Check asset types
         asset_type = getattr(order.asset, "asset_type", None)
         quote_asset_type = getattr(order.quote, "asset_type", None) if hasattr(order, "quote") and order.quote else None
 
-        # For crypto+forex trades, skip position-based quote processing since we handle cash directly
+        # Skip position-based quote processing for:
+        # 1. Crypto+forex trades (handled with direct cash updates)
+        # 2. Futures contracts (use margin, only realize P&L on close, not full notional)
         if asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX:
             return
 
-        # For crypto+crypto trades, use the original position-based processing
+        if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+            return
+
+        # For other asset types (crypto+crypto, stocks, etc.), use the original position-based processing
         super()._process_crypto_quote(order, quantity, price)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):

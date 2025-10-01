@@ -753,7 +753,30 @@ class _Strategy:
                     multiplier = 1
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                portfolio_value += float(quantity) * float(price) * multiplier
+
+                # BACKTESTING ONLY: Special handling for futures portfolio value
+                # In backtesting, cash has margin deducted, so we need to add it back
+                # In live trading, brokers handle this internally
+                if (
+                    self.is_backtesting
+                    and not isinstance(asset, tuple)
+                    and asset.asset_type in ["future", "cont_future"]
+                ):
+                    # Import here to avoid circular dependency
+                    from lumibot.backtesting.backtesting_broker import get_futures_margin_requirement
+
+                    # Add margin tied up in position (was deducted from cash)
+                    margin_per_contract = get_futures_margin_requirement(asset)
+                    total_margin = margin_per_contract * abs(float(quantity))
+                    portfolio_value += total_margin
+
+                    # Add unrealized P&L = (current_price - entry_price) × quantity × multiplier
+                    entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
+                    unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
+                    portfolio_value += unrealized_pnl
+                else:
+                    # All other cases (stocks, options, crypto, live trading)
+                    portfolio_value += float(quantity) * float(price) * multiplier
             self._portfolio_value = portfolio_value
         return portfolio_value
 

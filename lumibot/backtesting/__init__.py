@@ -8,8 +8,5 @@ from .polygon_backtesting import PolygonDataBacktesting
 from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 
-# Import DataBento backtesting - use pandas version (polars version is slow)
-try:
-    from .databento_backtesting import DataBentoDataBacktesting
-except ImportError:
-    from .databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataBacktesting
+# Import optimized Polars-based DataBento backtesting from data_sources
+from lumibot.data_sources import DataBentoDataBacktesting

@@ -1,0 +1,40 @@
+Lumibot version 4.0.22
+2025-10-01 23:59:45,669 | WARNING | credentials.py:<module>:52 | No .env file found. This is ok if you are using environment variables or secrets (like on Replit, AWS, etc), but if you are not, please create a .env file in the root directory of the project.
+
+================================================================================
+PERFORMANCE PROFILING: ThetaData vs Polygon
+================================================================================
+Date range: 2024-08-01 to 2024-08-02 (1 trading day)
+Strategy: Buy & hold 10 shares of AMZN
+================================================================================
+No cache to clear
+
+================================================================================
+PROFILING: ThetaData (NO CACHE)
+Cache: CLEARED
+================================================================================
+
+✗ Backtest failed: Please set `thetadata_username` and `thetadata_password` in the backtest() function if you are using ThetaDataBacktesting. If you don't have one, you can do registeration from https://www.thetadata.net/.
+  Profile saved to: thetadata_nocache.prof
+
+Top 30 time-consuming functions:
+========================================================================================================================
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/backtest/profile_thetadata_vs_polygon.py", line 99, in profile_backtest
+    results, strategy = SimpleBacktestStrategy.run_backtest(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/_strategy.py", line 1320, in run_backtest
+    raise ValueError(
+ValueError: Please set `thetadata_username` and `thetadata_password` in the backtest() function if you are using ThetaDataBacktesting. If you don't have one, you can do registeration from https://www.thetadata.net/.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/backtest/profile_thetadata_vs_polygon.py", line 248, in <module>
+    main()
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/backtest/profile_thetadata_vs_polygon.py", line 174, in main
+    results["thetadata_nocache"] = profile_backtest(
+                                   ^^^^^^^^^^^^^^^^^
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/backtest/profile_thetadata_vs_polygon.py", line 135, in profile_backtest
+    func_stats.print_all(out=None, columns={
+TypeError: YFuncStats.print_all() got an unexpected keyword argument 'limit'

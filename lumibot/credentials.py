@@ -78,6 +78,9 @@ BACKTESTING_END = None
 if backtesting_end:
     BACKTESTING_END = parser.parse(backtesting_end)
 
+# Get the backtesting data source
+BACKTESTING_DATA_SOURCE = os.environ.get("BACKTESTING_DATA_SOURCE", "ThetaData")
+
 # Check if we should hide trades
 hide_trades = os.environ.get("HIDE_TRADES")
 if not hide_trades or hide_trades.lower() == "false":

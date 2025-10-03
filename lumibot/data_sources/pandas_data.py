@@ -290,6 +290,8 @@ class PandasData(DataSourceBacktesting):
                 ask=ohlcv_bid_ask_dict.get('ask'),
                 volume=ohlcv_bid_ask_dict.get('volume'),
                 timestamp=dt,
+                bid_size=ohlcv_bid_ask_dict.get('bid_size'),
+                ask_size=ohlcv_bid_ask_dict.get('ask_size'),
                 raw_data=ohlcv_bid_ask_dict
             )
         else:

@@ -1,0 +1,23 @@
+
+=============================== warnings summary ===============================
+../../../../../../../opt/homebrew/lib/python3.12/site-packages/dateutil/tz/tz.py:37
+  /opt/homebrew/lib/python3.12/site-packages/dateutil/tz/tz.py:37: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    EPOCH = datetime.datetime.utcfromtimestamp(0)
+
+../../../../../../../opt/homebrew/lib/python3.12/site-packages/websockets/legacy/__init__.py:6
+  /opt/homebrew/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+../../../../../../../opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10
+  /opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10: DeprecationWarning: websockets.client.connect is deprecated
+    from websockets.client import connect, WebSocketClientProtocol
+
+../../../../../../../opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10
+  /opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10: DeprecationWarning: websockets.client.WebSocketClientProtocol is deprecated
+    from websockets.client import connect, WebSocketClientProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_databento_backtesting_polars.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+3 skipped, 4 warnings, 1 error in 2.77s

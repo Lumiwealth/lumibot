@@ -753,7 +753,30 @@ class _Strategy:
                     multiplier = 1
                 else:
                     multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                portfolio_value += float(quantity) * float(price) * multiplier
+
+                # BACKTESTING ONLY: Special handling for futures portfolio value
+                # In backtesting, cash has margin deducted, so we need to add it back
+                # In live trading, brokers handle this internally
+                if (
+                    self.is_backtesting
+                    and not isinstance(asset, tuple)
+                    and asset.asset_type in ["future", "cont_future"]
+                ):
+                    # Import here to avoid circular dependency
+                    from lumibot.backtesting.backtesting_broker import get_futures_margin_requirement
+
+                    # Add margin tied up in position (was deducted from cash)
+                    margin_per_contract = get_futures_margin_requirement(asset)
+                    total_margin = margin_per_contract * abs(float(quantity))
+                    portfolio_value += total_margin
+
+                    # Add unrealized P&L = (current_price - entry_price) × quantity × multiplier
+                    entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
+                    unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
+                    portfolio_value += unrealized_pnl
+                else:
+                    # All other cases (stocks, options, crypto, live trading)
+                    portfolio_value += float(quantity) * float(price) * multiplier
             self._portfolio_value = portfolio_value
         return portfolio_value
 
@@ -795,6 +818,10 @@ class _Strategy:
             for position in positions:
                 if position.asset != self._quote_asset:
                     assets.append(position.asset)
+
+            # Early return if no assets - avoid expensive dividend API calls
+            if not assets:
+                return self.cash
 
             dividends_per_share = self.get_yesterday_dividends(assets)
             for position in positions:
@@ -1233,6 +1260,40 @@ class _Strategy:
         # If show_indicators is None, then set it to True
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
+
+        # Auto-select datasource from environment variable if None
+        if datasource_class is None:
+            from lumibot.credentials import BACKTESTING_DATA_SOURCE
+            from lumibot.backtesting import (
+                PolygonDataBacktesting,
+                ThetaDataBacktesting,
+                YahooDataBacktesting,
+                AlpacaBacktesting,
+                CcxtBacktesting,
+                DataBentoDataBacktesting,
+            )
+
+            datasource_map = {
+                "polygon": PolygonDataBacktesting,
+                "thetadata": ThetaDataBacktesting,
+                "yahoo": YahooDataBacktesting,
+                "alpaca": AlpacaBacktesting,
+                "ccxt": CcxtBacktesting,
+                "databento": DataBentoDataBacktesting,
+            }
+
+            datasource_name = BACKTESTING_DATA_SOURCE.lower()
+            if datasource_name not in datasource_map:
+                raise ValueError(
+                    f"Unknown BACKTESTING_DATA_SOURCE: '{BACKTESTING_DATA_SOURCE}'. "
+                    f"Valid options: {list(datasource_map.keys())}"
+                )
+
+            datasource_class = datasource_map[datasource_name]
+            get_logger(__name__).info(colored(
+                f"Auto-selected backtesting data source from BACKTESTING_DATA_SOURCE env var: {BACKTESTING_DATA_SOURCE}",
+                "green"
+            ))
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):

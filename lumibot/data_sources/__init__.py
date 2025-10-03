@@ -20,5 +20,6 @@ from .interactive_brokers_rest_data import InteractiveBrokersRESTData
 from .schwab_data import SchwabData
 from .tradovate_data import TradovateData
 
-from .databento_data_polars import DataBentoDataPolars as DataBentoData
+from .databento_data_polars_live import DataBentoDataPolarsLive as DataBentoData
+from .databento_data_polars_backtesting import DataBentoDataPolarsBacktesting as DataBentoDataBacktesting
 from .projectx_data import ProjectXData

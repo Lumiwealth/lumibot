@@ -1,5 +1,6 @@
 # This file contains helper functions for getting data from Polygon.io
 import time
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import pytz
@@ -155,8 +156,8 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         # Crypto trades every day, 24/7 so we don't need to check the calendar
         return [start.date() + timedelta(days=x) for x in range((end.date() - start.date()).days + 1)]
 
-    # Stock/Option Asset for Backtesting - Assuming NYSE trading days
-    elif asset.asset_type == "stock" or asset.asset_type == "option":
+    # Stock/Option/Index Asset for Backtesting - Assuming NYSE trading days
+    elif asset.asset_type == "stock" or asset.asset_type == "option" or asset.asset_type == "index":
         cal = mcal.get_calendar("NYSE")
 
     # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
@@ -333,23 +334,80 @@ def update_df(df_all, result):
             df_all = pd.concat([df_all, df]).sort_index()
             df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
 
-        # df_all index - 1 min to match with polygon data index
-        df_all.index = df_all.index - pd.Timedelta(minutes=1)
+        # NOTE: Timestamp correction is now done in get_historical_data() at line 569
+        # Do NOT subtract 1 minute here as it would double-correct
+        # df_all.index = df_all.index - pd.Timedelta(minutes=1)
     return df_all
 
 
 def start_theta_data_client(username: str, password: str):
+    import subprocess
+    import shutil
+
     # First try shutting down any existing connection
     try:
         requests.get(f"{BASE_URL}/v2/system/terminal/shutdown")
     except Exception:
         pass
 
-    client = ThetaClient(username=username, passwd=password)
+    # Create creds.txt file to avoid passing password with special characters on command line
+    # This is the official ThetaData method and avoids shell escaping issues
+    # Security note: creds.txt with 0o600 permissions is MORE secure than command-line args
+    # which can be seen in process lists. Similar security profile to .env files.
+    theta_dir = Path.home() / "ThetaData" / "ThetaTerminal"
+    theta_dir.mkdir(parents=True, exist_ok=True)
+    creds_file = theta_dir / "creds.txt"
 
-    time.sleep(1)
+    # Write credentials to creds.txt (format: email on first line, password on second line)
+    with open(creds_file, 'w') as f:
+        f.write(f"{username}\n")
+        f.write(f"{password}\n")
 
-    return client
+    # Set restrictive permissions on creds file (owner read/write only)
+    # This prevents other users on the system from reading the credentials
+    os.chmod(creds_file, 0o600)
+
+    logger.info(f"Created creds.txt file at {creds_file} for user: {username}")
+
+    # Launch ThetaTerminal directly with --creds-file to avoid shell escaping issues
+    # We bypass the thetadata library's launcher which doesn't support this option
+    # and has shell escaping bugs with special characters in passwords
+
+    # Verify Java is available
+    if not shutil.which("java"):
+        raise RuntimeError("Java is not installed. Please install Java 11+ to use ThetaData.")
+
+    # Find ThetaTerminal.jar
+    jar_file = theta_dir / "ThetaTerminal.jar"
+    if not jar_file.exists():
+        # Try to download it using the thetadata library's download mechanism
+        from thetadata.terminal import check_download
+        logger.info("ThetaTerminal.jar not found, attempting to download...")
+        check_download(auto_update=True, stable=True)
+
+    if not jar_file.exists():
+        raise FileNotFoundError(f"ThetaTerminal.jar not found at {jar_file}")
+
+    # Launch ThetaTerminal with --creds-file argument (no credentials on command line)
+    # This avoids all shell escaping issues and is the recommended approach
+    cmd = ["java", "-jar", str(jar_file), "--creds-file", str(creds_file)]
+
+    logger.info(f"Launching ThetaTerminal with creds file: {cmd}")
+
+    # Launch in background
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(theta_dir)
+    )
+
+    # Give it a moment to start
+    time.sleep(2)
+
+    # We don't return a ThetaClient object since we're launching manually
+    # The connection will be established via HTTP/WebSocket to localhost:25510
+    return None
 
 
 def check_connection(username: str, password: str):
@@ -451,7 +509,11 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     end_date = end_dt.strftime("%Y%m%d")
 
     # Create the url based on the asset type
-    url = f"{BASE_URL}/hist/{asset.asset_type}/{datastyle}"
+    # Indexes require v2 API as of ThetaTerminal v1.8.6
+    if asset.asset_type == "index":
+        url = f"{BASE_URL}/v2/hist/{asset.asset_type}/{datastyle}"
+    else:
+        url = f"{BASE_URL}/hist/{asset.asset_type}/{datastyle}"
 
     if asset.asset_type == "option":
         # Convert the expiration date to a string
@@ -470,8 +532,25 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
             "right": "C" if asset.right == "CALL" else "P",
             "rth": "false"
         }
+    elif asset.asset_type == "index":
+        # For indexes (SPX, VIX, etc.), don't use rth parameter
+        # Indexes are calculated values, not traded securities
+        querystring = {
+            "root": asset.symbol,
+            "start_date": start_date,
+            "end_date": end_date,
+            "ivl": ivl
+        }
     else:
-        querystring = {"root": asset.symbol, "start_date": start_date, "end_date": end_date, "ivl": ivl}
+        # For stocks, use Regular Trading Hours (RTH) to match Polygon's behavior
+        # rth=true means 9:30 AM - 4:00 PM ET (regular market hours only)
+        querystring = {
+            "root": asset.symbol,
+            "start_date": start_date,
+            "end_date": end_date,
+            "ivl": ivl,
+            "rth": "true"
+        }
 
     headers = {"Accept": "application/json"}
 
@@ -486,9 +565,11 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
 
     # Remove any rows where count is 0 (no data - the prices will be 0 at these times too)
+    # NOTE: Indexes always have count=0 since they're calculated values, not traded securities
     if "quote" in datastyle.lower():
         df = df[(df["bid_size"] != 0) | (df["ask_size"] != 0)]
-    else:
+    elif asset.asset_type != "index":
+        # Don't filter indexes by count - they're always 0
         df = df[df["count"] != 0]
 
     if df is None or df.empty:
@@ -499,8 +580,9 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
         # Ensure the date is in integer format and then convert to string
         date_str = str(int(row["date"]))
         base_date = datetime.strptime(date_str, "%Y%m%d")
-        # Adding the milliseconds of the day to the base date
-        datetime_value = base_date + timedelta(milliseconds=int(row["ms_of_day"]))
+        # ThetaData timestamps are off by +1 minute (bars labeled 9:31 contain 9:30 data)
+        # Subtract 60000ms (1 minute) to align with correct timestamps
+        datetime_value = base_date + timedelta(milliseconds=int(row["ms_of_day"]) - 60000)
         return datetime_value
 
     # Apply the function to each row to create a new datetime column
@@ -511,11 +593,17 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     # Assign the newly created datetime column
     df = df.assign(datetime=datetime_combined)
 
-    # Convert the datetime column to a datetime
+    # Convert the datetime column to a datetime and localize to Eastern Time
     df["datetime"] = pd.to_datetime(df["datetime"])
 
+    # Localize to Eastern Time (ThetaData returns times in ET)
+    df["datetime"] = df["datetime"].dt.tz_localize("America/New_York")
+
+    # Set datetime as the index
+    df = df.set_index("datetime")
+
     # Drop the ms_of_day and date columns
-    df = df.drop(columns=["ms_of_day", "date"])
+    df = df.drop(columns=["ms_of_day", "date"], errors='ignore')
 
     return df
 

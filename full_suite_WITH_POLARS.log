@@ -1,0 +1,639 @@
+FF.......................................F.FFF.Fatal Python error: Segmentation fault
+
+Current thread 0x0000000337c0f000 (most recent call first):
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/ccxt_data_store.py", line 275 in _calc_download_ranges
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/ccxt_data_store.py", line 170 in download_ohlcv
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/data_sources/ccxt_backtesting_data.py", line 156 in _pull_source_bars
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/data_sources/ccxt_backtesting_data.py", line 107 in _pull_source_symbol_bars
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/data_sources/ccxt_backtesting_data.py", line 178 in get_historical_prices
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/data_sources/ccxt_backtesting_data.py", line 243 in get_last_price
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/brokers/broker.py", line 586 in get_last_price
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy.py", line 2022 in get_last_price
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/example_strategies/ccxt_backtesting_example.py", line 28 in _position_sizing
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/example_strategies/ccxt_backtesting_example.py", line 61 in on_trading_iteration
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/decorators.py", line 30 in wrapper
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/decorators.py", line 32 in call_function_get_frame
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/decorators.py", line 73 in func_output
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 695 in _on_trading_iteration
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 579 in func_output
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 554 in func_output
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 1359 in _run_backtesting_loop
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 1473 in _run_trading_session
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 1524 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000336c03000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000335bf7000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000333bdf000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000334beb000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py", line 90 in _worker
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000331bc7000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000332bd3000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py", line 90 in _worker
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000330bbb000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032fbaf000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032eba3000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032cb8b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032db97000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py", line 90 in _worker
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032bb7f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000329b67000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032ab73000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py", line 90 in _worker
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000328b5b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000327943000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000326937000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032592b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031f16f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000032491f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/selectors.py", line 566 in select
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 1961 in _run_once
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 645 in run_forever
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031e163000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031d157000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031c14b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031b13f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031a133000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000319127000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031811b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000031710f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000316103000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000003150f7000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000003140eb000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000003130df000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000003120d3000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000003110c7000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000003100bb000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030f0af000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030e0a3000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030d097000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030c08b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030b07f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030a073000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000309067000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030805b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030704f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000306043000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000305037000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030402b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000030301f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000302013000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000301007000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017f86b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017e85f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017d853000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017c847000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017b83b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017a82f000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000179823000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x0000000178817000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x000000017780b000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001765cf000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001750d7000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001740cb000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/trading_builtins/custom_stream.py", line 42 in _run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/backtesting_broker.py", line 1617 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001730bf000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py", line 90 in _worker
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001720b3000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/selectors.py", line 566 in select
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 1961 in _run_once
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 645 in run_forever
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 678 in run_until_complete
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 118 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 195 in run
+  File "/opt/homebrew/lib/python3.12/site-packages/alpaca/trading/stream.py", line 210 in run
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/brokers/alpaca.py", line 1330 in _run_stream
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001710a7000 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 359 in wait
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/queue.py", line 180 in get
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/brokers/broker.py", line 818 in _wait_for_orders
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1012 in run
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1075 in _bootstrap_inner
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1032 in _bootstrap
+
+Thread 0x00000001f98e4800 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1169 in _wait_for_tstate_lock
+  File "/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1149 in join
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/strategy_executor.py", line 537 in join
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/traders/trader.py", line 219 in _join_pool
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/traders/trader.py", line 142 in run_all
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/strategies/_strategy.py", line 1443 in run_backtest
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/backtest/test_example_strategies.py", line 347 in test_ccxt_backtesting
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/python.py", line 157 in pytest_pyfunc_call
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/python.py", line 1671 in runtest
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/runner.py", line 178 in pytest_runtest_call
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/runner.py", line 246 in <lambda>
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/runner.py", line 344 in from_call
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/runner.py", line 245 in call_and_report
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/runner.py", line 136 in runtestprotocol
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/runner.py", line 117 in pytest_runtest_protocol
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/main.py", line 367 in pytest_runtestloop
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/main.py", line 343 in _main
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/main.py", line 289 in wrap_session
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/main.py", line 336 in pytest_cmdline_main
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/opt/homebrew/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/config/__init__.py", line 175 in main
+  File "/opt/homebrew/lib/python3.12/site-packages/_pytest/config/__init__.py", line 201 in console_main
+  File "/opt/homebrew/lib/python3.12/site-packages/pytest/__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+Extension modules: _brotli, zstandard.backend_c, charset_normalizer.md, requests.packages.charset_normalizer.md, requests.packages.chardet.md, psutil._psutil_osx, psutil._psutil_posix, numpy._core._multiarray_umath, numpy.linalg._umath_linalg, scipy._lib._ccallback_c, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._mt19937, numpy.random.mtrand, numpy.random._philox, numpy.random._pcg64, numpy.random._sfc64, numpy.random._generator, scipy.sparse._sparsetools, _csparsetools, scipy.sparse._csparsetools, scipy.linalg._fblas, scipy.linalg._flapack, scipy.linalg.cython_lapack, scipy.linalg._cythonized_array_utils, scipy.linalg._solve_toeplitz, scipy.linalg._decomp_lu_cython, scipy.linalg._matfuncs_sqrtm_triu, scipy.linalg._matfuncs_expm, scipy.linalg._linalg_pythran, scipy.linalg.cython_blas, scipy.linalg._decomp_update, scipy.sparse.linalg._dsolve._superlu, scipy.sparse.linalg._eigen.arpack._arpack, scipy.sparse.linalg._propack._spropack, scipy.sparse.linalg._propack._dpropack, scipy.sparse.linalg._propack._cpropack, scipy.sparse.linalg._propack._zpropack, scipy.sparse.csgraph._tools, scipy.sparse.csgraph._shortest_path, scipy.sparse.csgraph._traversal, scipy.sparse.csgraph._min_spanning_tree, scipy.sparse.csgraph._flow, scipy.sparse.csgraph._matching, scipy.sparse.csgraph._reordering, scipy.spatial._ckdtree, scipy._lib.messagestream, scipy.spatial._qhull, scipy.spatial._voronoi, scipy.spatial._distance_wrap, scipy.spatial._hausdorff, scipy.special._ufuncs_cxx, scipy.special._ufuncs, scipy.special._specfun, scipy.special._comb, scipy.special._ellip_harm_2, scipy.spatial.transform._rotation, scipy.optimize._group_columns, scipy.optimize._trlib._trlib, scipy.optimize._lbfgsb, _moduleTNC, scipy.optimize._moduleTNC, scipy.optimize._cobyla, scipy.optimize._slsqp, scipy.optimize._minpack, scipy.optimize._lsq.givens_elimination, scipy.optimize._zeros, scipy.optimize._cython_nnls, scipy._lib._uarray._uarray, scipy.linalg._decomp_interpolative, scipy.optimize._bglu_dense, scipy.optimize._lsap, scipy.optimize._direct, scipy.integrate._odepack, scipy.integrate._quadpack, scipy.integrate._vode, scipy.integrate._dop, scipy.integrate._lsoda, scipy.interpolate._fitpack, scipy.interpolate._dfitpack, scipy.interpolate._dierckx, scipy.interpolate._ppoly, scipy.interpolate._interpnd, scipy.interpolate._rbfinterp_pythran, scipy.interpolate._rgi_cython, scipy.interpolate._bspl, scipy.special.cython_special, scipy.stats._stats, scipy.stats._sobol, scipy.stats._qmc_cy, scipy.stats._biasedurn, scipy.stats._stats_pythran, scipy.stats._levy_stable.levyst, scipy.stats._ansari_swilk_statistics, scipy.stats._mvn, scipy.stats._rcont.rcont, scipy.ndimage._nd_image, scipy.ndimage._rank_filter_1d, _ni_label, scipy.ndimage._ni_label, pyarrow.lib, pandas._libs.tslibs.ccalendar, pandas._libs.tslibs.np_datetime, pandas._libs.tslibs.dtypes, pandas._libs.tslibs.base, pandas._libs.tslibs.nattype, pandas._libs.tslibs.timezones, pandas._libs.tslibs.fields, pandas._libs.tslibs.timedeltas, pandas._libs.tslibs.tzconversion, pandas._libs.tslibs.timestamps, pandas._libs.properties, pandas._libs.tslibs.offsets, pandas._libs.tslibs.strptime, pandas._libs.tslibs.parsing, pandas._libs.tslibs.conversion, pandas._libs.tslibs.period, pandas._libs.tslibs.vectorized, pandas._libs.ops_dispatch, pandas._libs.missing, pandas._libs.hashtable, pandas._libs.algos, pandas._libs.interval, pandas._libs.lib, pyarrow._compute, pandas._libs.ops, pandas._libs.hashing, pandas._libs.arrays, pandas._libs.tslib, pandas._libs.sparse, pandas._libs.internals, pandas._libs.indexing, pandas._libs.index, pandas._libs.writers, pandas._libs.join, pandas._libs.window.aggregations, pandas._libs.window.indexers, pandas._libs.reshape, pandas._libs.groupby, pandas._libs.json, pandas._libs.parsers, pandas._libs.testing, _cffi_backend, lxml._elementpath, lxml.etree, psycopg2._psycopg, websockets.speedups, google._upb._message, matplotlib._c_internal_utils, PIL._imaging, matplotlib._path, kiwisolver._cext, matplotlib._image, scipy.cluster._vq, scipy.cluster._hierarchy, scipy.cluster._optimal_leaf_ordering, multidict._multidict, yarl._quoting_c, aiohttp._helpers, aiohttp._http_writer, aiohttp._http_parser, aiohttp._websocket, frozenlist._frozenlist, pyarrow._parquet, pyarrow._fs, pyarrow._azurefs, pyarrow._hdfs, pyarrow._gcsfs, pyarrow._s3fs, msgpack._cmsgpack, ijson.backends._yajl2, greenlet._greenlet, pyarrow._acero, pyarrow._csv, pyarrow._json, pyarrow._substrait, pyarrow._dataset, pyarrow._dataset_orc, pyarrow._parquet_encryption, pyarrow._dataset_parquet_encryption, pyarrow._dataset_parquet (total: 182)

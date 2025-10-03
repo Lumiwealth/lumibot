@@ -8,8 +8,6 @@ from .polygon_backtesting import PolygonDataBacktesting
 from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 
-# Import DataBento backtesting - use polars by default if available
-try:
-    from .databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataBacktesting
-except ImportError:
-    from .databento_backtesting import DataBentoDataBacktesting
+# Import DataBento backtesting - use Pandas (stable) by default
+# Polars version has data accuracy bugs being fixed
+from .databento_backtesting import DataBentoDataBacktesting

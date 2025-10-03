@@ -66,8 +66,8 @@ class OptionsHelper:
                                  expiry: date, put_or_call: str = "call") -> Optional[Asset]:
         """
         Find a valid option with the given expiry and strike.
-        If no option is available (e.g. due to holidays/weekends), increment the expiry day-by-day
-        (up to 10 times) until a valid option is found.
+        First tries the requested strike, then searches nearby strikes from the option chain.
+        If no strikes work for this expiry, tries the next expiry date.
 
         Parameters
         ----------
@@ -86,55 +86,111 @@ class OptionsHelper:
             The valid option asset or None if not found.
         """
         self.strategy.log_message(f"Finding next valid option for {underlying_asset.symbol} at strike {rounded_underlying_price} and expiry {expiry}", color="blue")
-        loop_counter = 0
-        while True:
+
+        expiry_attempts = 0
+        while expiry_attempts < 10:
+            # Check if this expiry was previously marked as invalid
             for record in self.non_existing_expiry_dates:
                 if (record["underlying_asset_symbol"] == underlying_asset.symbol and
                     record["expiry"] == expiry):
                     self.strategy.log_message(f"Expiry {expiry} previously invalid for {underlying_asset.symbol}; trying next day.", color="yellow")
                     expiry += timedelta(days=1)
+                    expiry_attempts += 1
                     continue
 
-            option = Asset(
-                underlying_asset.symbol,
-                asset_type="option",
-                expiration=expiry,
-                strike=rounded_underlying_price,
-                right=put_or_call,
-                underlying_asset=underlying_asset,
-            )
-
-            # First check if quote data exists (preferred)
+            # Try to get option chain to find available strikes
             try:
-                quote = self.strategy.get_quote(option)
-                has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
-                if has_valid_quote:
-                    self.strategy.log_message(f"Found valid quote for option {option.symbol} at expiry {expiry}", color="blue")
-                    return option
+                chains = self.strategy.get_chains(underlying_asset)
+                self.strategy.log_message(f"Got chains for {underlying_asset.symbol}: {bool(chains)}", color="cyan")
+
+                if chains:
+                    # Get available strikes for this expiry
+                    available_strikes = chains.strikes(expiry, put_or_call.upper())
+                    self.strategy.log_message(f"Available strikes for {expiry}: {len(available_strikes) if available_strikes else 0} strikes", color="cyan")
+
+                    if not available_strikes:
+                        self.strategy.log_message(f"No strikes available for {put_or_call.upper()} on {expiry}; trying next expiry.", color="yellow")
+                        self.non_existing_expiry_dates.append({
+                            "underlying_asset_symbol": underlying_asset.symbol,
+                            "expiry": expiry,
+                        })
+                        expiry += timedelta(days=1)
+                        expiry_attempts += 1
+                        continue
+
+                    # Find the closest strike to our target
+                    closest_strike = min(available_strikes, key=lambda x: abs(x - rounded_underlying_price))
+                    self.strategy.log_message(f"Target strike {rounded_underlying_price} -> Closest available strike: {closest_strike}", color="green")
+
+                    # Create option with the closest available strike
+                    option = Asset(
+                        underlying_asset.symbol,
+                        asset_type="option",
+                        expiration=expiry,
+                        strike=closest_strike,
+                        right=put_or_call,
+                        underlying_asset=underlying_asset,
+                    )
+
+                    # Verify this option has price data
+                    try:
+                        quote = self.strategy.get_quote(option)
+                        has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
+                        if has_valid_quote:
+                            self.strategy.log_message(f"Found valid option: {option.symbol} {option.right} {option.strike} exp {option.expiration}", color="green")
+                            return option
+                    except Exception as e:
+                        self.strategy.log_message(f"Error getting quote for {option.symbol}: {e}", color="yellow")
+
+                    # Fallback to last price
+                    try:
+                        price = self.strategy.get_last_price(option)
+                        if price is not None:
+                            self.strategy.log_message(f"Found valid option (via last price): {option.symbol} {option.right} {option.strike} exp {option.expiration}", color="green")
+                            return option
+                    except Exception as e:
+                        pass
+
+                    # If closest strike didn't work, this expiry might be invalid
+                    self.strategy.log_message(f"Could not get price data for strike {closest_strike} on {expiry}; trying next expiry.", color="yellow")
+                    self.non_existing_expiry_dates.append({
+                        "underlying_asset_symbol": underlying_asset.symbol,
+                        "expiry": expiry,
+                    })
+                    expiry += timedelta(days=1)
+                    expiry_attempts += 1
+                    continue
+
             except Exception as e:
-                self.strategy.log_message(f"Error getting quote for {option.symbol}: {e}", color="yellow")
+                self.strategy.log_message(f"Error getting chains for {underlying_asset.symbol}: {e}; falling back to direct strike attempt.", color="yellow")
+                # Fallback: Try the exact strike requested (old behavior)
+                option = Asset(
+                    underlying_asset.symbol,
+                    asset_type="option",
+                    expiration=expiry,
+                    strike=rounded_underlying_price,
+                    right=put_or_call,
+                    underlying_asset=underlying_asset,
+                )
 
-            # Fallback to checking last price if no quote
-            try:
-                price = self.strategy.get_last_price(option)
-                self.strategy.log_message(f"Price for option {option.symbol} at expiry {expiry} is {price}", color="blue")
-            except Exception as e:
-                self.strategy.log_message(f"Error getting price for {option.symbol}: {e}", color="red")
-                price = None
+                try:
+                    price = self.strategy.get_last_price(option)
+                    if price is not None:
+                        return option
+                except Exception:
+                    pass
 
-            if price is not None:
-                return option
-
-            self.strategy.log_message(f"No price found for option {option.symbol} at expiry {expiry}.", color="yellow")
+            # No valid option found for this expiry, try next day
+            self.strategy.log_message(f"No valid option found for expiry {expiry}; trying next expiry.", color="yellow")
             self.non_existing_expiry_dates.append({
                 "underlying_asset_symbol": underlying_asset.symbol,
                 "expiry": expiry,
             })
             expiry += timedelta(days=1)
-            loop_counter += 1
-            if loop_counter >= 10:
-                self.strategy.log_message("Exceeded maximum attempts to find a valid option.", color="red")
-                return None
+            expiry_attempts += 1
+
+        self.strategy.log_message("Exceeded maximum attempts to find a valid option.", color="red")
+        return None
 
     def get_strike_deltas(self, underlying_asset: Asset, expiry: date, strikes: List[float],
                           right: str, stop_greater_than: Optional[float] = None,

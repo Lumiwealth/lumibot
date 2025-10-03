@@ -28,7 +28,6 @@ class YahooPriceTest(Strategy):
 
 class TestYahooBacktestFull:
 
-    @pytest.mark.xfail(reason="yahoo sucks")
     def test_yahoo_last_price(self):
         """
         Test the YahooDataBacktesting class by running a backtest and checking that the strategy object is returned

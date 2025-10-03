@@ -83,6 +83,20 @@ class Quote:
             return (self.bid + self.ask) / 2
         return self.price
 
+    def __getitem__(self, key):
+        """
+        Allow dictionary-style access to Quote attributes for backward compatibility.
+        Tries to get the attribute first, then falls back to raw_data if available.
+        """
+        # Try to get as an attribute first
+        if hasattr(self, key):
+            return getattr(self, key)
+        # Fall back to raw_data if it exists
+        elif self.raw_data and key in self.raw_data:
+            return self.raw_data[key]
+        else:
+            raise KeyError(f"'{key}' not found in Quote object or raw_data")
+
     def __str__(self):
         return (f"Quote(asset={self.asset}, price={self.price}, bid={self.bid}, ask={self.ask}, "
                 f"volume={self.volume}, timestamp={self.timestamp})")

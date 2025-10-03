@@ -1,6 +1,10 @@
 import datetime
 import pytest
 import pytz
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting, PolygonDataBacktesting
 from lumibot.entities import Asset
@@ -80,10 +84,11 @@ class TestDividends:
     
     def _run_dividend_test(self, data_source_class, **data_source_kwargs):
         """Helper method to run dividend test with specified data source"""
-        # Test period: Jan 25, 2025 to Feb 5, 2025 (to catch potential dividend around Feb 1)
+        # Test period: Aug 25, 2025 to Sep 5, 2025 (to catch potential dividend around Sep 1)
+        # Updated to use more recent dates for data availability
         tzinfo = pytz.timezone("America/New_York")
-        backtesting_start = tzinfo.localize(datetime.datetime(2025, 1, 25))
-        backtesting_end = tzinfo.localize(datetime.datetime(2025, 2, 5, 23, 59, 59))
+        backtesting_start = tzinfo.localize(datetime.datetime(2025, 8, 25))
+        backtesting_end = tzinfo.localize(datetime.datetime(2025, 9, 5, 23, 59, 59))
         
         # Create data source
         data_source = data_source_class(

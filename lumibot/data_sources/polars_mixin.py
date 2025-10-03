@@ -209,22 +209,45 @@ class PolarsMixin:
         self._last_price_cache[cache_key] = price
 
     def _convert_datetime_for_filtering(self, dt: Any) -> datetime:
-        """Convert datetime to naive datetime for filtering.
-        
+        """Convert datetime to naive UTC datetime for filtering.
+
+        CRITICAL FIX: Must convert to UTC BEFORE stripping timezone!
+        If we strip timezone from ET datetime, we lose 5 hours of data.
+
+        Example:
+        - Input: 2024-01-02 18:00:00-05:00 (ET)
+        - Convert to UTC: 2024-01-02 23:00:00+00:00
+        - Strip timezone: 2024-01-02 23:00:00 (naive UTC)
+
+        OLD BUGGY CODE:
+        - Input: 2024-01-02 18:00:00-05:00 (ET)
+        - Strip timezone: 2024-01-02 18:00:00 (naive, loses timezone!)
+        - Compare to cached data in naive UTC: WRONG by 5 hours!
+
         Parameters
         ----------
         dt : Any
             Datetime-like object
-            
+
         Returns
         -------
         datetime
-            Naive datetime object
+            Naive UTC datetime object
         """
-        if hasattr(dt, 'tz_localize'):
-            return dt.tz_localize(None)
+        from datetime import timezone
+
+        # First convert to UTC if timezone-aware
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            # Convert to UTC
+            dt_utc = dt.astimezone(timezone.utc)
+            # Then strip timezone
+            return dt_utc.replace(tzinfo=None)
+        elif hasattr(dt, 'tz_localize'):
+            # Pandas Timestamp
+            return dt.tz_convert('UTC').tz_localize(None)
         elif hasattr(dt, 'replace'):
-            return dt.replace(tzinfo=None)
+            # Already naive
+            return dt
         else:
             return dt
 
@@ -286,7 +309,7 @@ class PolarsMixin:
         timestep: str = "minute"
     ) -> Optional[pl.DataFrame]:
         """Filter data up to end_filter and return last length rows.
-        
+
         Parameters
         ----------
         asset : Asset
@@ -299,14 +322,20 @@ class PolarsMixin:
             Number of rows to return
         timestep : str
             Timestep for caching strategy
-            
+
         Returns
         -------
         Optional[pl.DataFrame]
             Filtered dataframe or None
         """
+        # DEBUG
+        logger.debug(f"[POLARS FILTER] end_filter={end_filter}, tzinfo={end_filter.tzinfo if hasattr(end_filter, 'tzinfo') else 'N/A'}, length={length}")
+
         # Convert end_filter to naive
         end_filter_naive = self._convert_datetime_for_filtering(end_filter)
+
+        # DEBUG
+        logger.debug(f"[POLARS FILTER] end_filter_naive={end_filter_naive}")
 
         # For daily timestep, use caching
         if timestep == "day":
@@ -335,11 +364,31 @@ class PolarsMixin:
                 return None
 
             # Filter and collect
+            # CRITICAL FIX: Keep timezone info! Match the DataFrame's timezone
+            # Get the DataFrame column's timezone from schema
+            dt_dtype = schema[dt_col]
+
+            # Convert filter to match DataFrame's timezone
+            if hasattr(dt_dtype, 'time_zone') and dt_dtype.time_zone:
+                # DataFrame has timezone, convert filter to match
+                import pytz
+                df_tz = pytz.timezone(dt_dtype.time_zone)
+                end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
+            else:
+                # DataFrame is naive, use UTC
+                from datetime import timezone as tz
+                end_filter_with_tz = datetime.combine(
+                    end_filter_naive.date(),
+                    end_filter_naive.time(),
+                    tzinfo=tz.utc
+                )
+
+            # CRITICAL FIX: Deduplicate before caching
             result = (
                 lazy_data
-                .with_columns(pl.col(dt_col).cast(pl.Datetime("us")))
-                .filter(pl.col(dt_col) <= end_filter_naive)
+                .filter(pl.col(dt_col) <= end_filter_with_tz)
                 .sort(dt_col)
+                .unique(subset=[dt_col], keep='last', maintain_order=True)
                 .tail(fetch_length)
                 .collect()
             )
@@ -362,11 +411,35 @@ class PolarsMixin:
                 logger.error("No datetime column found")
                 return None
 
-            return (
+            # CRITICAL FIX: Keep timezone info during filtering!
+            # Match the DataFrame's timezone to avoid comparison errors
+            # Get the DataFrame column's timezone from schema
+            dt_dtype = schema[dt_col]
+
+            # Convert filter to match DataFrame's timezone
+            if hasattr(dt_dtype, 'time_zone') and dt_dtype.time_zone:
+                # DataFrame has timezone, convert filter to match
+                import pytz
+                df_tz = pytz.timezone(dt_dtype.time_zone)
+                end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
+            else:
+                # DataFrame is naive, use UTC
+                from datetime import timezone as tz
+                end_filter_with_tz = datetime.combine(
+                    end_filter_naive.date(),
+                    end_filter_naive.time(),
+                    tzinfo=tz.utc
+                )
+
+            # CRITICAL FIX: Deduplicate before returning
+            # Sometimes lazy operations can create duplicates
+            result = (
                 lazy_data
-                .with_columns(pl.col(dt_col).cast(pl.Datetime("us")))
-                .filter(pl.col(dt_col) <= end_filter_naive)
+                .filter(pl.col(dt_col) <= end_filter_with_tz)
                 .sort(dt_col)
+                .unique(subset=[dt_col], keep='last', maintain_order=True)
                 .tail(length)
                 .collect()
             )
+
+            return result

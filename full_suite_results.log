@@ -1,0 +1,5 @@
+ERROR: usage: __main__.py [options] [file_or_dir] [file_or_dir] [...]
+__main__.py: error: unrecognized arguments: --run_in_background
+  inifile: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/setup.cfg
+  rootdir: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot
+

@@ -71,7 +71,21 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         self._prefetch_cache: Dict[tuple, bool] = {}
         self._prefetched_assets = set()  # Track which assets have been fully loaded
 
+        # OPTIMIZATION: Iteration-level filtered bars cache (same as Pandas)
+        self._filtered_bars_cache = {}  # {(asset_key, length, timestep, timeshift, dt): DataFrame}
+        self._bars_cache_datetime = None  # Track when to invalidate bars cache
+
         logger.info(f"DataBento backtesting initialized for period: {datetime_start} to {datetime_end}")
+
+    def _check_and_clear_bars_cache(self):
+        """
+        OPTIMIZATION: Clear iteration caches when datetime changes.
+        This prevents stale data from being returned across different backtest iterations.
+        """
+        current_dt = self.get_datetime()
+        if self._bars_cache_datetime != current_dt:
+            self._filtered_bars_cache.clear()
+            self._bars_cache_datetime = current_dt
 
     def _enforce_storage_limit(self, data_store: Dict[Asset, pl.LazyFrame]):
         """Enforce storage limit by removing least recently used data."""
@@ -216,13 +230,20 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
             self._prefetched_assets.add(search_asset)
             return
 
-        # Get the start datetime and timestep unit
+        # Get the start datetime and timestep unit (includes length*timestep + buffer)
+        # This matches Pandas logic: start_datetime = (start_dt - length*timestep) - START_BUFFER
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
 
-        # Fetch data for ENTIRE backtest period (like pandas does)
-        start_datetime = self.datetime_start - START_BUFFER
+        # FIX: Ensure timezone-aware datetime for API call (matches Pandas behavior)
+        # Polars was passing naive datetime, causing DataBento to treat it as UTC instead of ET
+        # This caused fetching wrong data (18 hours off!)
+        start_datetime = self.to_default_timezone(start_datetime)
+
+        # FIX: Don't override start_datetime! Use the calculated value that includes bars + buffer
+        # The old code set start_datetime = self.datetime_start - START_BUFFER which was wrong
+        # It didn't account for the requested bar length, causing missing data
         end_datetime = self.datetime_end + timedelta(days=1)
 
         logger.info(f"Prefetching {asset_separated.symbol} data from {start_datetime.date()} to {end_datetime.date()}")
@@ -291,10 +312,31 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
     ) -> Optional[pl.DataFrame]:
         """Pull bars with maximum efficiency using pre-filtered cache."""
 
-        # Build search key
-        search_asset = asset if not isinstance(asset, tuple) else asset
-        if quote:
-            search_asset = (asset, quote)
+        # OPTIMIZATION: Check iteration cache first
+        self._check_and_clear_bars_cache()
+        current_dt = self.get_datetime()
+
+        # Build search key - MUST match _update_data logic!
+        # Default quote to USD forex if not provided (matches _update_data)
+        search_asset = asset
+        quote_asset = quote if quote is not None else Asset("USD", "forex")
+
+        if isinstance(asset, tuple):
+            search_asset, quote_asset = asset
+        else:
+            search_asset = (asset, quote_asset)
+
+        # OPTIMIZATION: Build cache key and check filtered bars cache (same as Pandas)
+        timeshift_key = 0
+        if timeshift:
+            if isinstance(timeshift, int):
+                timeshift_key = timeshift
+            elif hasattr(timeshift, 'total_seconds'):
+                timeshift_key = int(timeshift.total_seconds() / 60)
+
+        bars_cache_key = (search_asset, length, timestep, timeshift_key, current_dt)
+        if bars_cache_key in self._filtered_bars_cache:
+            return self._filtered_bars_cache[bars_cache_key]
 
         # For daily timestep, use optimized caching strategy
         if timestep == "day":
@@ -307,16 +349,12 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
                 if len(result) >= length:
                     return result.tail(length)
 
-        # Get the current datetime and calculate the start datetime
-        current_dt = self.get_datetime()
-        # Get data from DataBento
-        self._update_data(asset, quote, length, timestep, current_dt)
+        # FIX: Pass None as start_dt to match Pandas behavior
+        # Pandas uses self.datetime_start as reference, not current iteration time
+        # This ensures we fetch enough historical data for all iterations
+        self._update_data(asset, quote, length, timestep, start_dt=None)
 
-        # Get lazy data
-        search_asset = asset if not isinstance(asset, tuple) else asset
-        if quote:
-            search_asset = (asset, quote)
-
+        # Get lazy data - use the same search_asset key we already built
         lazy_data = self._get_data_lazy(search_asset)
 
         if lazy_data is None:
@@ -339,12 +377,18 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         # OPTIMIZATION: Direct filtering on eager DataFrame
         current_dt = self.to_default_timezone(self._datetime)
 
-        # Determine end filter
+        # Determine end filter - CRITICAL: Must match pandas logic!
+        # For backtesting, we need to exclude the in-progress bar
         if timestep == "day":
+            # For daily: step back one day
             dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
             end_filter = dt - timedelta(days=1)
+        elif timestep == "hour":
+            # For hourly: step back one hour
+            end_filter = current_dt - timedelta(hours=1)
         else:
-            end_filter = current_dt
+            # For minute/second: step back one bar to exclude in-progress bar
+            end_filter = current_dt - timedelta(minutes=1)
 
         if timeshift:
             if isinstance(timeshift, int):
@@ -369,6 +413,12 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
             )
 
         logger.debug(f"Returning {len(result)} bars for {asset.symbol}")
+
+        # OPTIMIZATION: Cache the result before returning (same as Pandas)
+        if result is not None and not result.is_empty():
+            self._filtered_bars_cache[bars_cache_key] = result
+        else:
+            self._filtered_bars_cache[bars_cache_key] = None
 
         return result
 

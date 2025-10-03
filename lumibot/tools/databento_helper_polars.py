@@ -53,6 +53,9 @@ _SYMBOL_RESOLUTION_CACHE = {}  # {(asset_symbol, asset_type, dt_str): resolved_s
 # Datetime normalization cache: saves ~1.2s on 362k calls (5-10x speedup)
 _DATETIME_NORMALIZATION_CACHE = {}  # {dt_timestamp: normalized_dt}
 
+# Instrument definition cache: stores multipliers and contract specs
+_INSTRUMENT_DEFINITION_CACHE = {}  # {(symbol, dataset): definition_dict}
+
 
 class DataBentoClientPolars:
     """Optimized DataBento client using polars for data handling with Live/Historical hybrid support"""
@@ -869,6 +872,98 @@ def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     return df_norm
 
 
+def _fetch_and_update_futures_multiplier(
+    api_key: str,
+    asset: Asset,
+    resolved_symbol: str,
+    dataset: str = "GLBX.MDP3",
+    reference_date: Optional[datetime] = None
+) -> None:
+    """
+    Fetch futures contract multiplier from DataBento and update the asset in-place.
+    Uses caching to avoid repeated API calls.
+
+    Parameters
+    ----------
+    api_key : str
+        DataBento API key
+    asset : Asset
+        Futures asset to fetch multiplier for (will be updated in-place)
+    resolved_symbol : str
+        The resolved contract symbol (e.g., "MESH4" for MES continuous)
+    dataset : str
+        DataBento dataset (default: GLBX.MDP3 for CME futures)
+    reference_date : datetime, optional
+        Reference date for fetching definition. If None, uses yesterday.
+    """
+    # Only fetch for futures contracts
+    if asset.asset_type not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+        return
+
+    # Skip if multiplier already set (and not default value of 1)
+    if asset.multiplier != 1:
+        logger.debug(f"Asset {asset.symbol} already has multiplier={asset.multiplier}, skipping fetch")
+        return
+
+    # Use the resolved symbol for cache key
+    cache_key = (resolved_symbol, dataset)
+    if cache_key in _INSTRUMENT_DEFINITION_CACHE:
+        cached_def = _INSTRUMENT_DEFINITION_CACHE[cache_key]
+        if 'unit_of_measure_qty' in cached_def:
+            asset.multiplier = int(cached_def['unit_of_measure_qty'])
+            logger.debug(f"Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
+            return
+
+    try:
+        # Use yesterday if no reference date provided
+        if reference_date is None:
+            reference_date = datetime.now() - timedelta(days=1)
+
+        # Convert to datetime if needed
+        if not isinstance(reference_date, datetime):
+            if isinstance(reference_date, str):
+                reference_date = datetime.strptime(reference_date, "%Y-%m-%d")
+
+        # DataBento requires start < end, so add 1 day to end
+        start_date = reference_date.strftime("%Y-%m-%d")
+        end_date = (reference_date + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        logger.info(f"Fetching instrument definition for {resolved_symbol} from DataBento")
+
+        # Create client
+        client = DataBentoClientPolars(api_key)
+
+        # Fetch definition data using the RESOLVED symbol
+        df = client.get_historical_data(
+            dataset=dataset,
+            symbols=[resolved_symbol],
+            schema="definition",
+            start=start_date,
+            end=end_date,
+        )
+
+        if df is None or df.is_empty():
+            logger.warning(f"No instrument definition found for {resolved_symbol}")
+            return
+
+        # Convert first row to dict
+        definition = df.to_dicts()[0]
+
+        # Cache the definition
+        _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
+
+        # Update asset multiplier
+        if 'unit_of_measure_qty' in definition:
+            multiplier = int(definition['unit_of_measure_qty'])
+            asset.multiplier = multiplier
+            logger.info(f"Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+        else:
+            logger.warning(f"No unit_of_measure_qty field in definition for {resolved_symbol}")
+
+    except Exception as e:
+        logger.warning(f"Could not fetch multiplier for {resolved_symbol}: {str(e)}")
+
+
 def get_price_data_from_databento_polars(
     api_key: str,
     asset: Asset,
@@ -920,14 +1015,33 @@ def get_price_data_from_databento_polars(
     end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
     requested_end_naive = end_naive
 
-    # Resolve which symbols we need to cover the requested window
-    symbols_to_fetch = _resolve_databento_symbols_for_range(asset, start_naive, end_naive)
+    # FIX: Use SAME logic as Pandas - resolve to SINGLE contract based on start date
+    # Previously used _resolve_databento_symbols_for_range which fetched MULTIPLE contracts
+    # causing duplicate rows and wrong prices
+    if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+        # Use the start date as reference for backtesting (matches Pandas behavior)
+        resolved_symbol = _format_futures_symbol_for_databento(asset, reference_date=start)
+        symbols_to_fetch = _generate_databento_symbol_alternatives(asset.symbol, resolved_symbol)
+        logger.info(f"Resolved continuous future {asset.symbol} for {start_naive.strftime('%Y-%m-%d')} -> {resolved_symbol}")
+        logger.info(f"DataBento symbol (working format): {symbols_to_fetch[0]}")
+    else:
+        # For specific contracts, just use the formatted symbol
+        resolved_symbol = _format_futures_symbol_for_databento(asset)
+        symbols_to_fetch = [resolved_symbol]
+
+    # Fetch and cache futures multiplier from DataBento if needed (after symbol resolution)
+    _fetch_and_update_futures_multiplier(
+        api_key=api_key,
+        asset=asset,
+        resolved_symbol=symbols_to_fetch[0],  # Use the first resolved symbol
+        dataset=dataset,
+        reference_date=reference_date or start
+    )
+
     logger.debug(
-        "[get_price_data_from_databento_polars] Resolved symbols for %s between %s and %s: %s",
+        "[get_price_data_from_databento_polars] Using symbol %s for %s",
+        symbols_to_fetch[0],
         asset.symbol,
-        start_naive,
-        end_naive,
-        symbols_to_fetch,
     )
 
     # Inspect cache for each symbol

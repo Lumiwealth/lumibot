@@ -1,6 +1,10 @@
 import datetime
 import pytest
 import pytz
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktesting
 from lumibot.data_sources import DataBentoDataBacktesting as DataBentoDataBacktestingPolars

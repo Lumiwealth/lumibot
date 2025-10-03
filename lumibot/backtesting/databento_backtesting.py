@@ -71,12 +71,30 @@ class DataBentoDataBacktesting(PandasData):
         # Track data requests to avoid repeated log messages
         self._logged_requests = set()
 
+        # OPTIMIZATION: Iteration-level caching to avoid redundant filtering
+        # Cache filtered DataFrames per iteration (datetime)
+        self._filtered_bars_cache = {}  # {(asset_key, length, timestep, timeshift, dt): DataFrame}
+        self._last_price_cache = {}     # {(asset_key, dt): price}
+        self._cache_datetime = None     # Track when to invalidate cache
+
         # Verify DataBento availability
         if not databento_helper.DATABENTO_AVAILABLE:
             logger.error("DataBento package not available. Please install with: pip install databento")
             raise ImportError("DataBento package not available")
 
         logger.info(f"DataBento backtesting initialized for period: {datetime_start} to {datetime_end}")
+
+    def _check_and_clear_cache(self):
+        """
+        OPTIMIZATION: Clear iteration caches when datetime changes.
+        This ensures fresh filtering for each new iteration while reusing
+        results within the same iteration.
+        """
+        current_dt = self.get_datetime()
+        if self._cache_datetime != current_dt:
+            self._filtered_bars_cache.clear()
+            self._last_price_cache.clear()
+            self._cache_datetime = current_dt
 
     def prefetch_data(self, assets, timestep="minute"):
         """
@@ -293,7 +311,7 @@ class DataBentoDataBacktesting(PandasData):
     def get_last_price(self, asset, quote=None, exchange=None):
         """
         Get the last price for an asset at the current backtest time
-        
+
         Parameters
         ----------
         asset : Asset
@@ -302,30 +320,36 @@ class DataBentoDataBacktesting(PandasData):
             Quote asset (not typically used with DataBento)
         exchange : str, optional
             Exchange filter
-            
+
         Returns
         -------
         float, Decimal, or None
             Last price at current backtest time
         """
         try:
-            # For backtesting, we get the price at the current simulation time
+            # OPTIMIZATION: Check cache first
+            self._check_and_clear_cache()
             current_dt = self.get_datetime()
-            
+
             # Try to get data from our cached pandas_data first
             search_asset = asset
             quote_asset = quote if quote is not None else Asset("USD", "forex")
-            
+
             if isinstance(search_asset, tuple):
                 asset_separated, quote_asset = search_asset
             else:
                 search_asset = (search_asset, quote_asset)
                 asset_separated = asset
-            
+
+            # OPTIMIZATION: Check iteration cache
+            cache_key = (search_asset, current_dt)
+            if cache_key in self._last_price_cache:
+                return self._last_price_cache[cache_key]
+
             if search_asset in self.pandas_data:
                 asset_data = self.pandas_data[search_asset]
                 df = asset_data.df
-                
+
                 if not df.empty and 'close' in df.columns:
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
@@ -341,11 +365,14 @@ class DataBentoDataBacktesting(PandasData):
 
                         # Filter to data up to current backtest time (exclude current bar unless broker overrides)
                         filtered_df = df[df.index <= cutoff_dt]
-                        
+
                         if not filtered_df.empty:
                             last_price = filtered_df['close'].iloc[-1]
                             if not pd.isna(last_price):
-                                return float(last_price)
+                                price = float(last_price)
+                                # OPTIMIZATION: Cache the result
+                                self._last_price_cache[cache_key] = price
+                                return price
             
             # If no cached data, try to get recent data
             logger.warning(f"No cached data for {asset.symbol}, attempting direct fetch")
@@ -470,34 +497,50 @@ class DataBentoDataBacktesting(PandasData):
     ):
         """
         Override parent method to fetch data from DataBento instead of pre-loaded data store
-        
+
         This method is called by get_historical_prices and is responsible for actually
         fetching the data from the DataBento API.
         """
         timestep = timestep if timestep else "minute"
-        
-        # Check if we need to fetch data by calling _update_pandas_data first
-        # This will only fetch if data is not already cached or prefetched
-        self._update_pandas_data(asset, quote, length, timestep)
-        
+
+        # OPTIMIZATION: Check iteration cache first
+        self._check_and_clear_cache()
+        current_dt = self.get_datetime()
+
         # Get data from our cached pandas_data
         search_asset = asset
         quote_asset = quote if quote is not None else Asset("USD", "forex")
-        
+
         if isinstance(search_asset, tuple):
             asset_separated, quote_asset = search_asset
         else:
             search_asset = (search_asset, quote_asset)
             asset_separated = asset
-        
+
+        # OPTIMIZATION: Build cache key and check cache
+        # Convert timeshift to consistent format for caching
+        timeshift_key = 0
+        if timeshift:
+            if isinstance(timeshift, int):
+                timeshift_key = timeshift
+            else:
+                timeshift_key = int(timeshift.total_seconds() / 60)
+
+        cache_key = (search_asset, length, timestep, timeshift_key, current_dt)
+        if cache_key in self._filtered_bars_cache:
+            return self._filtered_bars_cache[cache_key]
+
+        # Check if we need to fetch data by calling _update_pandas_data first
+        # This will only fetch if data is not already cached or prefetched
+        self._update_pandas_data(asset, quote, length, timestep)
+
         # Check if we have data in pandas_data cache
         if search_asset in self.pandas_data:
             asset_data = self.pandas_data[search_asset]
             df = asset_data.df
-            
+
             if not df.empty:
                 # Apply timeshift if specified
-                current_dt = self.get_datetime()
                 shift_seconds = 0
                 if timeshift:
                     if isinstance(timeshift, int):
@@ -506,10 +549,10 @@ class DataBentoDataBacktesting(PandasData):
                     else:
                         shift_seconds = timeshift.total_seconds()
                         current_dt = current_dt - timeshift
-                
+
                 # Ensure current_dt is timezone-aware for comparison
                 current_dt_aware = to_datetime_aware(current_dt)
-                
+
                 # Step back one bar to avoid exposing the in-progress bar
                 bar_delta = timedelta(minutes=1)
                 if asset_data.timestep == "hour":
@@ -521,14 +564,16 @@ class DataBentoDataBacktesting(PandasData):
 
                 # Filter data up to current backtest time (exclude current bar unless broker overrides)
                 filtered_df = df[df.index <= cutoff_dt] if shift_seconds > 0 else df[df.index < current_dt_aware]
-                
+
                 # Take the last 'length' bars
                 result_df = filtered_df.tail(length)
-                
+
+                # OPTIMIZATION: Cache the result before returning
                 if not result_df.empty:
-                    # Return DataFrame directly like other data sources
+                    self._filtered_bars_cache[cache_key] = result_df
                     return result_df
                 else:
+                    self._filtered_bars_cache[cache_key] = None
                     return None
             else:
                 return None

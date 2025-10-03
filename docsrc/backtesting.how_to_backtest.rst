@@ -132,14 +132,15 @@ Here's an example of a backtest using **Polygon.io**:
             polygon_api_key=polygon_api_key  # Pass the Polygon.io API key here
         )
 
-Optional: Using Environment Variables for Backtest Dates
---------------------------------------------------------
+Optional: Using Environment Variables for Backtest Configuration
+-----------------------------------------------------------------
 
-Instead of specifying `backtesting_start` and `backtesting_end` in your code, you can set these environment variables:
+Instead of specifying `backtesting_start`, `backtesting_end`, and data sources in your code, you can set these environment variables:
 
 - ``IS_BACKTESTING``
 - ``BACKTESTING_START``
 - ``BACKTESTING_END``
+- ``BACKTESTING_DATA_SOURCE``
 
 If they are set, LumiBot will automatically pick them up. For example:
 
@@ -159,12 +160,14 @@ If they are set, LumiBot will automatically pick them up. For example:
    * - BACKTESTING_END
      - End date in the format "YYYY-MM-DD".
      - 2025-05-01
+   * - BACKTESTING_DATA_SOURCE
+     - Data source to use when datasource_class is None. Case-insensitive. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento** (defaults to ThetaData).
+     - Polygon
 
-Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date definitions in code. The same `polygon_api_key` parameter is still required if you are using Polygon.io:
+Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date or data source definitions in code. Set ``BACKTESTING_DATA_SOURCE=Polygon`` in your environment to use Polygon.io (API key still required):
 
 .. code-block:: python
 
-    from lumibot.backtesting import PolygonDataBacktesting
     from lumibot.strategies import Strategy
 
     class MyStrategy(Strategy):
@@ -184,11 +187,12 @@ Below is a short example showing how you might rely *entirely* on environment va
                 self.submit_order(order)
 
     if __name__ == "__main__":
-        # If BACKTESTING_START/BACKTESTING_END are set in the environment,
-        # LumiBot will pick them up automatically.
-        polygon_api_key = "YOUR_POLYGON_API_KEY"
+        # Set in environment: BACKTESTING_DATA_SOURCE=Polygon
+        # Set in environment: BACKTESTING_START=2025-01-01
+        # Set in environment: BACKTESTING_END=2025-05-01
+        polygon_api_key = "YOUR_POLYGON_API_KEY"  # Still required for Polygon
         result = MyStrategy.run_backtest(
-            PolygonDataBacktesting,
+            None,  # Auto-selects from BACKTESTING_DATA_SOURCE env var
             polygon_api_key=polygon_api_key
         )
 

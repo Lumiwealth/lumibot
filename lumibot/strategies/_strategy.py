@@ -1261,6 +1261,40 @@ class _Strategy:
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
 
+        # Auto-select datasource from environment variable if None
+        if datasource_class is None:
+            from lumibot.credentials import BACKTESTING_DATA_SOURCE
+            from lumibot.backtesting import (
+                PolygonDataBacktesting,
+                ThetaDataBacktesting,
+                YahooDataBacktesting,
+                AlpacaBacktesting,
+                CcxtBacktesting,
+                DataBentoDataBacktesting,
+            )
+
+            datasource_map = {
+                "polygon": PolygonDataBacktesting,
+                "thetadata": ThetaDataBacktesting,
+                "yahoo": YahooDataBacktesting,
+                "alpaca": AlpacaBacktesting,
+                "ccxt": CcxtBacktesting,
+                "databento": DataBentoDataBacktesting,
+            }
+
+            datasource_name = BACKTESTING_DATA_SOURCE.lower()
+            if datasource_name not in datasource_map:
+                raise ValueError(
+                    f"Unknown BACKTESTING_DATA_SOURCE: '{BACKTESTING_DATA_SOURCE}'. "
+                    f"Valid options: {list(datasource_map.keys())}"
+                )
+
+            datasource_class = datasource_map[datasource_name]
+            get_logger(__name__).info(colored(
+                f"Auto-selected backtesting data source from BACKTESTING_DATA_SOURCE env var: {BACKTESTING_DATA_SOURCE}",
+                "green"
+            ))
+
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
             optionsource_class = datasource_class["OPTION"]

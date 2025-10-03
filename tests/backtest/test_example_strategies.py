@@ -21,7 +21,6 @@ from lumibot.credentials import POLYGON_CONFIG
 
 class TestExampleStrategies:
 
-    @pytest.mark.xfail(reason="yahoo sucks")
     def test_stock_bracket(self):
         """
         Test the example strategy StockBracket by running a backtest and checking that the strategy object is returned
@@ -158,7 +157,6 @@ class TestExampleStrategies:
         assert entry_order.get_fill_price() > 1
         assert limit_order.get_fill_price() >= 405
 
-    @pytest.mark.xfail(reason="yahoo sucks")
     def test_stock_buy_and_hold(self):
         """
         Test the example strategy BuyAndHold by running a backtest and checking that the strategy object is returned
@@ -188,7 +186,6 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 1.9
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
-    @pytest.mark.xfail(reason="yahoo sucks")
     def test_stock_diversified_leverage(self):
         """
         Test the example strategy DiversifiedLeverage by running a backtest and checking that the strategy object is
@@ -218,7 +215,6 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 5.3
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.0
 
-    @pytest.mark.xfail(reason="yahoo sucks")
     def test_limit_and_trailing_stops(self):
         """
         Test the example strategy LimitAndTrailingStop by running a backtest and checking that the strategy object is
@@ -325,7 +321,6 @@ class TestExampleStrategies:
         assert round(cash_settled_orders.iloc[0]["price"], 0) == 0
         assert cash_settled_orders.iloc[0]["filled_quantity"] == 10
 
-    @pytest.mark.skip()  # Skip this test; it works locally but i can't get it to work on github actions
     def test_ccxt_backtesting(self):
         """
         Test the example strategy StockBracket by running a backtest and checking that the strategy object is returned

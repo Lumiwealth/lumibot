@@ -14,6 +14,10 @@ This test should give us confidence that the basic mechanics are correct.
 import datetime
 import pytest
 import pytz
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
 from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting

@@ -169,6 +169,77 @@ class DataBentoClient:
         # This should never be reached, but just in case
         raise Exception(f"DataBento request failed after {self.max_retries} retries")
 
+    def get_instrument_definition(
+        self,
+        dataset: str,
+        symbol: str,
+        reference_date: Union[str, datetime, date] = None
+    ) -> Optional[Dict]:
+        """
+        Get instrument definition (including multiplier) for a futures contract from DataBento.
+
+        Parameters
+        ----------
+        dataset : str
+            DataBento dataset identifier (e.g., 'GLBX.MDP3')
+        symbol : str
+            Symbol to retrieve definition for (e.g., 'MESH4', 'MES')
+        reference_date : str, datetime, or date, optional
+            Date to fetch definition for. If None, uses yesterday (to ensure data availability)
+
+        Returns
+        -------
+        dict or None
+            Instrument definition with fields like 'unit_of_measure_qty' (multiplier),
+            'min_price_increment', 'expiration', etc. Returns None if not available.
+        """
+        try:
+            # Use yesterday if no reference date provided (ensures data is available)
+            if reference_date is None:
+                reference_date = datetime.now() - timedelta(days=1)
+
+            # Convert to date string
+            if isinstance(reference_date, datetime):
+                date_str = reference_date.strftime("%Y-%m-%d")
+            elif isinstance(reference_date, date):
+                date_str = reference_date.strftime("%Y-%m-%d")
+            else:
+                date_str = reference_date
+
+            logger.info(f"Fetching instrument definition for {symbol} from DataBento on {date_str}")
+
+            # Fetch instrument definition using 'definition' schema
+            data = self.client.timeseries.get_range(
+                dataset=dataset,
+                symbols=[symbol],
+                schema="definition",
+                start=date_str,
+                end=date_str,
+            )
+
+            # Convert to DataFrame
+            if hasattr(data, 'to_df'):
+                df = data.to_df()
+            else:
+                df = pd.DataFrame(data)
+
+            if df.empty:
+                logger.warning(f"No instrument definition found for {symbol} on {date_str}")
+                return None
+
+            # Extract the first row as a dictionary
+            definition = df.iloc[0].to_dict()
+
+            # Log key fields
+            if 'unit_of_measure_qty' in definition:
+                logger.info(f"Found multiplier for {symbol}: {definition['unit_of_measure_qty']}")
+
+            return definition
+
+        except Exception as e:
+            logger.warning(f"Could not fetch instrument definition for {symbol}: {str(e)}")
+            return None
+
 
 def _convert_to_databento_format(symbol: str, asset_symbol: str = None) -> str:
     """
@@ -534,6 +605,70 @@ def _normalize_databento_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df_norm
 
 
+# Instrument definition cache: stores multipliers and contract specs (shared with polars)
+_INSTRUMENT_DEFINITION_CACHE = {}  # {(symbol, dataset): definition_dict}
+
+
+def _fetch_and_update_futures_multiplier(
+    client: DataBentoClient,
+    asset: Asset,
+    resolved_symbol: str,
+    dataset: str = "GLBX.MDP3",
+    reference_date: Optional[datetime] = None
+) -> None:
+    """
+    Fetch futures contract multiplier from DataBento and update the asset in-place.
+    Uses caching to avoid repeated API calls.
+
+    Parameters
+    ----------
+    client : DataBentoClient
+        DataBento client instance
+    asset : Asset
+        Futures asset to fetch multiplier for (will be updated in-place)
+    resolved_symbol : str
+        The resolved contract symbol (e.g., "MESH4" for MES continuous)
+    dataset : str
+        DataBento dataset (default: GLBX.MDP3 for CME futures)
+    reference_date : datetime, optional
+        Reference date for fetching definition. If None, uses yesterday.
+    """
+    # Only fetch for futures contracts
+    if asset.asset_type not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+        return
+
+    # Skip if multiplier already set (and not default value of 1)
+    if asset.multiplier != 1:
+        logger.debug(f"Asset {asset.symbol} already has multiplier={asset.multiplier}, skipping fetch")
+        return
+
+    # Use the resolved symbol for cache key
+    cache_key = (resolved_symbol, dataset)
+    if cache_key in _INSTRUMENT_DEFINITION_CACHE:
+        cached_def = _INSTRUMENT_DEFINITION_CACHE[cache_key]
+        if 'unit_of_measure_qty' in cached_def:
+            asset.multiplier = int(cached_def['unit_of_measure_qty'])
+            logger.debug(f"Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
+            return
+
+    # Fetch from DataBento using the RESOLVED symbol
+    definition = client.get_instrument_definition(
+        dataset=dataset,
+        symbol=resolved_symbol,
+        reference_date=reference_date
+    )
+
+    if definition:
+        # Cache it
+        _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
+
+        # Update asset
+        if 'unit_of_measure_qty' in definition:
+            multiplier = int(definition['unit_of_measure_qty'])
+            asset.multiplier = multiplier
+            logger.info(f"Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+
+
 def get_price_data_from_databento(
     api_key: str,
     asset: Asset,
@@ -592,21 +727,30 @@ def get_price_data_from_databento(
         # Determine dataset and schema
         dataset = _determine_databento_dataset(asset, venue)
         schema = _determine_databento_schema(timestep)
-        
+
         # For continuous futures, resolve to a specific contract FIRST
         # DataBento does not support continuous futures directly - we must resolve to actual contracts
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
             # Use the start date as reference for backtesting (determines which contract was active)
             resolved_symbol = _format_futures_symbol_for_databento(asset, reference_date=start)
-            
+
             # Generate the correct DataBento symbol format (working format only)
             symbols_to_try = _generate_databento_symbol_alternatives(asset.symbol, resolved_symbol)
             logger.info(f"Resolved continuous future {asset.symbol} for {start.strftime('%Y-%m-%d')} -> {resolved_symbol}")
             logger.info(f"DataBento symbol (working format): {symbols_to_try[0]}")
         else:
             # For specific contracts, just use the formatted symbol
-            symbol = _format_futures_symbol_for_databento(asset)
-            symbols_to_try = [symbol]
+            resolved_symbol = _format_futures_symbol_for_databento(asset)
+            symbols_to_try = [resolved_symbol]
+
+        # Fetch and cache futures multiplier from DataBento if needed (after symbol resolution)
+        _fetch_and_update_futures_multiplier(
+            client=client,
+            asset=asset,
+            resolved_symbol=symbols_to_try[0],  # Use the first resolved symbol
+            dataset=dataset,
+            reference_date=start
+        )
         
         # Use the working DataBento symbol format
         df = None

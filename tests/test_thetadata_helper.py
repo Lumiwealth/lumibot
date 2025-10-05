@@ -961,5 +961,174 @@ def test_get_strikes_empty_response(mock_get_request):
     assert strikes == []
 
 
+@pytest.mark.apitest
+class TestThetaDataProcessHealthCheck:
+    """
+    Real integration tests for ThetaData process health monitoring.
+    NO MOCKING - these tests use real ThetaData process and data.
+    """
+
+    def test_process_alive_detection_real_process(self):
+        """Test is_process_alive() with real ThetaData process"""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        # Reset global state
+        thetadata_helper.THETA_DATA_PROCESS = None
+        thetadata_helper.THETA_DATA_PID = None
+
+        # Start process and verify it's tracked
+        process = thetadata_helper.start_theta_data_client(username, password)
+        assert process is not None, "Process should be returned"
+        assert thetadata_helper.THETA_DATA_PROCESS is not None, "Global process should be set"
+        assert thetadata_helper.THETA_DATA_PID is not None, "Global PID should be set"
+
+        # Verify it's alive
+        assert thetadata_helper.is_process_alive() is True, "Process should be alive"
+
+        # Verify actual process is running
+        pid = thetadata_helper.THETA_DATA_PID
+        result = subprocess.run(['ps', '-p', str(pid)], capture_output=True)
+        assert result.returncode == 0, f"Process {pid} should be running"
+
+    def test_force_kill_and_auto_restart(self):
+        """Force kill ThetaData process and verify check_connection() auto-restarts it"""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        # Start initial process
+        thetadata_helper.start_theta_data_client(username, password)
+        time.sleep(3)
+        initial_pid = thetadata_helper.THETA_DATA_PID
+        assert thetadata_helper.is_process_alive() is True, "Initial process should be alive"
+
+        # FORCE KILL the Java process
+        subprocess.run(['kill', '-9', str(initial_pid)], check=True)
+        time.sleep(1)
+
+        # Verify is_process_alive() detects it's dead
+        assert thetadata_helper.is_process_alive() is False, "Process should be detected as dead"
+
+        # check_connection() should detect death and restart
+        client, connected = thetadata_helper.check_connection(username, password)
+
+        # Verify new process started
+        new_pid = thetadata_helper.THETA_DATA_PID
+        assert new_pid is not None, "New PID should be assigned"
+        assert new_pid != initial_pid, "Should have new PID after restart"
+        assert thetadata_helper.is_process_alive() is True, "New process should be alive"
+
+        # Verify new process is actually running
+        result = subprocess.run(['ps', '-p', str(new_pid)], capture_output=True)
+        assert result.returncode == 0, f"New process {new_pid} should be running"
+
+    def test_data_fetch_after_process_restart(self):
+        """Verify we can fetch data after process dies and restarts"""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+        asset = Asset("SPY", asset_type="stock")
+        start = datetime.datetime(2025, 9, 1)
+        end = datetime.datetime(2025, 9, 2)
+
+        # Start process
+        thetadata_helper.start_theta_data_client(username, password)
+        time.sleep(3)
+        initial_pid = thetadata_helper.THETA_DATA_PID
+
+        # FORCE KILL it
+        subprocess.run(['kill', '-9', str(initial_pid)], check=True)
+        time.sleep(1)
+        assert thetadata_helper.is_process_alive() is False
+
+        # Try to fetch data - should auto-restart and succeed
+        df = thetadata_helper.get_price_data(
+            username=username,
+            password=password,
+            asset=asset,
+            start=start,
+            end=end,
+            timespan="minute"
+        )
+
+        # Verify we got data
+        assert df is not None, "Should get data after auto-restart"
+        assert len(df) > 0, "Should have data rows"
+        assert thetadata_helper.is_process_alive() is True, "Process should be alive after data fetch"
+
+        # Verify it's a new process
+        new_pid = thetadata_helper.THETA_DATA_PID
+        assert new_pid != initial_pid, "Should have restarted with new PID"
+
+    def test_multiple_rapid_restarts(self):
+        """Test rapid kill-restart cycles don't break the system"""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        for i in range(3):
+            # Start process
+            thetadata_helper.start_theta_data_client(username, password)
+            time.sleep(2)
+            pid = thetadata_helper.THETA_DATA_PID
+
+            # Kill it
+            subprocess.run(['kill', '-9', str(pid)], check=True)
+            time.sleep(0.5)
+
+            # Verify detection
+            assert thetadata_helper.is_process_alive() is False, f"Cycle {i}: should detect death"
+
+        # Final restart should work
+        client, connected = thetadata_helper.check_connection(username, password)
+        assert connected is True, "Should connect after rapid restarts"
+        assert thetadata_helper.is_process_alive() is True, "Final process should be alive"
+
+    def test_process_dies_during_data_fetch(self):
+        """Test process dying mid-fetch - should retry and succeed"""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+        asset = Asset("AAPL", asset_type="stock")
+        start = datetime.datetime(2025, 9, 1)
+        end = datetime.datetime(2025, 9, 5)  # Multiple days to increase fetch time
+
+        # Start process
+        thetadata_helper.start_theta_data_client(username, password)
+        time.sleep(3)
+
+        # Kill process right before fetch (simulating mid-fetch death)
+        subprocess.run(['kill', '-9', str(thetadata_helper.THETA_DATA_PID)], check=True)
+        time.sleep(0.5)
+
+        # Fetch should detect death, restart, and succeed
+        df = thetadata_helper.get_price_data(
+            username=username,
+            password=password,
+            asset=asset,
+            start=start,
+            end=end,
+            timespan="minute"
+        )
+
+        assert df is not None, "Should recover and fetch data"
+        assert thetadata_helper.is_process_alive() is True, "Process should be alive after recovery"
+
+    def test_process_never_started(self):
+        """Test check_connection() when process was never started"""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        # Reset global state - no process
+        thetadata_helper.THETA_DATA_PROCESS = None
+        thetadata_helper.THETA_DATA_PID = None
+
+        # is_process_alive should return False
+        assert thetadata_helper.is_process_alive() is False, "No process should be detected"
+
+        # check_connection should start one
+        client, connected = thetadata_helper.check_connection(username, password)
+
+        assert thetadata_helper.THETA_DATA_PROCESS is not None, "Process should be started"
+        assert thetadata_helper.is_process_alive() is True, "New process should be alive"
+
+
 if __name__ == '__main__':
     pytest.main()

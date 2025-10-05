@@ -4411,7 +4411,7 @@ class Strategy(_Strategy):
         save_logfile: bool = False,
         thetadata_username: str = None,
         thetadata_password: str = None,
-        use_quote_data: bool = False,
+        use_quote_data: bool = True,  # Changed to True for ThetaData options support
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,

@@ -21,6 +21,7 @@ class ThetaDataBacktesting(PandasData):
     Backtesting implementation of ThetaData
     """
 
+    # Enable fallback to last_price when bid/ask quotes are unavailable for options
     option_quote_fallback_allowed = True
 
     def __init__(
@@ -33,6 +34,7 @@ class ThetaDataBacktesting(PandasData):
         use_quote_data=True,
         **kwargs,
     ):
+        # Pass allow_option_quote_fallback to parent to enable fallback mechanism
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
                          allow_option_quote_fallback=True, **kwargs)
 
@@ -172,7 +174,8 @@ class ThetaDataBacktesting(PandasData):
                 timespan=ts_unit,
                 quote_asset=quote_asset,
                 dt=date_time_now,
-                datastyle="ohlc"
+                datastyle="ohlc",
+                include_after_hours=True  # Default to True for extended hours data
             )
             if df_ohlc is None:
                 logger.info(f"\nSKIP: No OHLC data found for {asset_separated} from ThetaData")
@@ -191,7 +194,8 @@ class ThetaDataBacktesting(PandasData):
                     timespan=ts_unit,
                     quote_asset=quote_asset,
                     dt=date_time_now,
-                    datastyle="quote"
+                    datastyle="quote",
+                    include_after_hours=True  # Default to True for extended hours data
                 )
 
                 # Check if we have data
@@ -199,8 +203,21 @@ class ThetaDataBacktesting(PandasData):
                     logger.info(f"\nSKIP: No QUOTE data found for {quote_asset} from ThetaData")
                     return None
 
-                # Combine the ohlc and quote data
-                df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
+                # Combine the ohlc and quote data using outer join to preserve all data
+                # Use forward fill for missing quote values (ThetaData's recommended approach)
+                df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
+
+                # Forward fill missing quote values
+                quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
+                existing_quote_cols = [col for col in quote_columns if col in df.columns]
+                if existing_quote_cols:
+                    df[existing_quote_cols] = df[existing_quote_cols].fillna(method='ffill')
+
+                    # Log how much forward filling occurred
+                    if 'bid' in df.columns and 'ask' in df.columns:
+                        remaining_nulls = df[['bid', 'ask']].isna().sum().sum()
+                        if remaining_nulls > 0:
+                            logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
             else:
                 df = df_ohlc
 

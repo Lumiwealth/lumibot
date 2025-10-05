@@ -1295,6 +1295,29 @@ class _Strategy:
                 "green"
             ))
 
+        # Make sure polygon_api_key is set if using PolygonDataBacktesting
+        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
+        if datasource_class.__name__ == 'PolygonDataBacktesting' and polygon_api_key is None:
+            raise ValueError(
+                "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
+                "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
+                "from https://polygon.io/."
+            )
+
+        # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
+        if thetadata_username is None or thetadata_password is None:
+            # Try getting the Theta Data credentials from credentials
+            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
+            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
+
+            # Check again if theta data username and pass are set (before checking dict)
+            if datasource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
+
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
             optionsource_class = datasource_class["OPTION"]
@@ -1304,6 +1327,14 @@ class _Strategy:
                 use_other_option_source = False
             else:
                 use_other_option_source = True
+
+            # Check ThetaData credentials for optionsource_class after dict extraction
+            if optionsource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
         else:
             optionsource_class = None
             use_other_option_source = False
@@ -1334,29 +1365,6 @@ class _Strategy:
 
         self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
-        # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
-        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
-            raise ValueError(
-                "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
-                "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
-                "from https://polygon.io/."
-            )
-
-        # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
-        if thetadata_username is None or thetadata_password is None:
-            # Try getting the Theta Data credentials from credentials
-            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
-            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
-
-            # Check again if theta data username and pass are set
-            if (thetadata_username is None or thetadata_password is None) and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
-                raise ValueError(
-                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
-                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
-                    "from https://www.thetadata.net/."
-                )
-
         if not self.IS_BACKTESTABLE:
             get_logger(__name__).warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
@@ -1380,7 +1388,7 @@ class _Strategy:
 
         self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
-        if datasource_class == PolygonDataBacktesting:
+        if datasource_class.__name__ == 'PolygonDataBacktesting':
             data_source = datasource_class(
                 backtesting_start,
                 backtesting_end,
@@ -1393,7 +1401,7 @@ class _Strategy:
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
                 **kwargs,
             )
-        elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
+        elif datasource_class.__name__ == 'ThetaDataBacktesting' or (optionsource_class and optionsource_class.__name__ == 'ThetaDataBacktesting'):
             data_source = datasource_class(
                 backtesting_start,
                 backtesting_end,

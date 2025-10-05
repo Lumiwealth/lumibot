@@ -20,6 +20,10 @@ MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
 
+# Global process tracking for ThetaTerminal
+THETA_DATA_PROCESS = None
+THETA_DATA_PID = None
+
 
 def get_price_data(
     username: str,
@@ -30,7 +34,8 @@ def get_price_data(
     timespan: str = "minute",
     quote_asset: Asset = None,
     dt=None,
-    datastyle: str = "ohlc"
+    datastyle: str = "ohlc",
+    include_after_hours: bool = True
 ):
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
@@ -54,6 +59,10 @@ def get_price_data(
         "month", "quarter"
     quote_asset : Asset
         The quote asset for the asset we are getting data for. This is only needed for Forex assets.
+    datastyle : str
+        The style of data to retrieve ("ohlc" or "quote")
+    include_after_hours : bool
+        Whether to include after-hours trading data (default True)
 
     Returns
     -------
@@ -110,7 +119,7 @@ def get_price_data(
         if end > start + delta:
             end = start + delta
 
-        result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle)
+        result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle, include_after_hours=include_after_hours)
 
         if result_df is None or len(result_df) == 0:
             logger.warning(
@@ -340,9 +349,19 @@ def update_df(df_all, result):
     return df_all
 
 
+def is_process_alive():
+    """Check if ThetaTerminal Java process is still running"""
+    global THETA_DATA_PROCESS
+    if THETA_DATA_PROCESS is None:
+        return False
+    # poll() returns None if process is still running, otherwise returns exit code
+    return THETA_DATA_PROCESS.poll() is None
+
+
 def start_theta_data_client(username: str, password: str):
     import subprocess
     import shutil
+    global THETA_DATA_PROCESS, THETA_DATA_PID
 
     # First try shutting down any existing connection
     try:
@@ -394,20 +413,22 @@ def start_theta_data_client(username: str, password: str):
 
     logger.info(f"Launching ThetaTerminal with creds file: {cmd}")
 
-    # Launch in background
-    process = subprocess.Popen(
+    # Launch in background and store process handle
+    THETA_DATA_PROCESS = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(theta_dir)
     )
+    THETA_DATA_PID = THETA_DATA_PROCESS.pid
+    logger.info(f"ThetaTerminal started with PID: {THETA_DATA_PID}")
 
     # Give it a moment to start
     time.sleep(2)
 
     # We don't return a ThetaClient object since we're launching manually
     # The connection will be established via HTTP/WebSocket to localhost:25510
-    return None
+    return THETA_DATA_PROCESS
 
 
 def check_connection(username: str, password: str):
@@ -416,7 +437,15 @@ def check_connection(username: str, password: str):
     counter = 0
     client = None
     connected = False
+
     while True:
+        # FIRST: Check if the Java process is still alive
+        if not is_process_alive():
+            logger.warning("ThetaTerminal process died, restarting...")
+            client = start_theta_data_client(username=username, password=password)
+            counter += 1
+            continue
+
         try:
             time.sleep(0.5)
             res = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=1)
@@ -434,6 +463,9 @@ def check_connection(username: str, password: str):
                 client = start_theta_data_client(username=username, password=password)
                 counter += 1
         except Exception as e:
+            # Process might have died or network issue
+            if not is_process_alive():
+                logger.warning(f"ThetaTerminal process died during connection check: {e}")
             client = start_theta_data_client(username=username, password=password)
             counter += 1
 
@@ -445,41 +477,70 @@ def check_connection(username: str, password: str):
 
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
-    counter = 0
+    all_responses = []
+    next_page_url = None
+    page_count = 0
+
     while True:
-        try:
-            response = requests.get(url, headers=headers, params=querystring)
-            # If status code is not 200, then we are not connected
-            if response.status_code != 200:
-                check_connection(username=username, password=password)
-            else:
-                json_resp = response.json()
+        counter = 0
+        # Use next_page URL if available, otherwise use original URL with querystring
+        request_url = next_page_url if next_page_url else url
+        request_params = None if next_page_url else querystring
 
-                # Check if json_resp has error_type inside of header
-                if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
-                    # Handle "NO_DATA" error
-                    if json_resp["header"]["error_type"] == "NO_DATA":
-                        logger.warning(
-                            f"No data returned for querystring: {querystring}")
-                        return None
-                    else:
-                        logger.error(
-                            f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
-                        check_connection(username=username, password=password)
+        while True:
+            try:
+                response = requests.get(request_url, headers=headers, params=request_params)
+                # If status code is not 200, then we are not connected
+                if response.status_code != 200:
+                    check_connection(username=username, password=password)
                 else:
-                    break
+                    json_resp = response.json()
 
-        except Exception as e:
-            check_connection(username=username, password=password)
+                    # Check if json_resp has error_type inside of header
+                    if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
+                        # Handle "NO_DATA" error
+                        if json_resp["header"]["error_type"] == "NO_DATA":
+                            logger.warning(
+                                f"No data returned for querystring: {querystring}")
+                            return None
+                        else:
+                            logger.error(
+                                f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
+                            check_connection(username=username, password=password)
+                    else:
+                        break
 
-        counter += 1
-        if counter > 1:
-            raise ValueError("Cannot connect to Theta Data!")
+            except Exception as e:
+                check_connection(username=username, password=password)
+
+            counter += 1
+            if counter > 1:
+                raise ValueError("Cannot connect to Theta Data!")
+
+        # Store this page's response data
+        page_count += 1
+        all_responses.append(json_resp["response"])
+
+        # Check for pagination - follow next_page if it exists
+        next_page = json_resp["header"].get("next_page")
+        if next_page and next_page != "null" and next_page != "":
+            logger.info(f"Following pagination: {page_count} page(s) downloaded, fetching next page...")
+            next_page_url = next_page
+        else:
+            # No more pages, we're done
+            break
+
+    # Merge all pages if we got multiple pages
+    if page_count > 1:
+        logger.info(f"Merged {page_count} pages from ThetaData ({sum(len(r) for r in all_responses)} total rows)")
+        json_resp["response"] = []
+        for page_response in all_responses:
+            json_resp["response"].extend(page_response)
 
     return json_resp
 
 
-def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl: int, username: str, password: str, datastyle:str = "ohlc"):
+def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl: int, username: str, password: str, datastyle:str = "ohlc", include_after_hours: bool = True):
     """
     Get data from ThetaData
 
@@ -497,6 +558,10 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
         Your ThetaData username
     password : str
         Your ThetaData password
+    datastyle : str
+        The style of data to retrieve ("ohlc" or "quote")
+    include_after_hours : bool
+        Whether to include after-hours trading data (default True)
 
     Returns
     -------
@@ -530,7 +595,9 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
             "strike": strike,  # "140000",
             "exp": expiration_str,  # "20220930",
             "right": "C" if asset.right == "CALL" else "P",
-            "rth": "false"
+            # include_after_hours=True means extended hours (rth=false)
+            # include_after_hours=False means regular hours only (rth=true)
+            "rth": "false" if include_after_hours else "true"
         }
     elif asset.asset_type == "index":
         # For indexes (SPX, VIX, etc.), don't use rth parameter
@@ -542,14 +609,15 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
             "ivl": ivl
         }
     else:
-        # For stocks, use Regular Trading Hours (RTH) to match Polygon's behavior
+        # For stocks, respect include_after_hours parameter
+        # rth=false means extended hours (pre-market + regular + after-hours)
         # rth=true means 9:30 AM - 4:00 PM ET (regular market hours only)
         querystring = {
             "root": asset.symbol,
             "start_date": start_date,
             "end_date": end_date,
             "ivl": ivl,
-            "rth": "true"
+            "rth": "false" if include_after_hours else "true"
         }
 
     headers = {"Accept": "application/json"}

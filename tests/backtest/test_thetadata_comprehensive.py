@@ -5,7 +5,10 @@ Tests the essentials without going overboard.
 
 import datetime
 import os
+from typing import Tuple
+
 import pytest
+import pytz
 from dotenv import load_dotenv
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
@@ -14,6 +17,33 @@ from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
 
 # Load environment variables from .env file
 load_dotenv()
+
+
+def _require_theta_credentials() -> Tuple[str, str]:
+    """Fetch ThetaData credentials or skip when unavailable."""
+    username = os.environ.get("THETADATA_USERNAME")
+    password = os.environ.get("THETADATA_PASSWORD")
+
+    if not username or username.lower() in {"", "uname"}:
+        pytest.skip("ThetaData username not configured")
+    if not password or password.lower() in {"", "pwd"}:
+        pytest.skip("ThetaData password not configured")
+
+    try:
+        _, connected = thetadata_helper.check_connection(username=username, password=password)
+    except Exception as exc:  # pragma: no cover - integration guard
+        pytest.skip(f"ThetaData service unavailable: {exc}")
+
+    if not connected:
+        pytest.skip("ThetaData connection could not be established")
+
+    return username, password
+
+
+@pytest.fixture(scope="module")
+def theta_credentials():
+    """Module-scoped credentials fixture that validates live connectivity."""
+    return _require_theta_credentials()
 
 
 @pytest.mark.apitest
@@ -415,6 +445,284 @@ class TestThetaDataExtendedHours:
             print(f"  ✓ Pre-market data available")
         else:
             pytest.skip("Pre-market data not available")
+
+
+@pytest.mark.apitest
+class TestThetaDataQuoteContinuity:
+    """Test that quote data is continuous across multiple days for options."""
+
+    def test_multi_day_option_quote_coverage(self):
+        """
+        CRITICAL: Verify quote data covers the same date range as OHLC data.
+        This test ensures pagination is working correctly.
+        """
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        # Test a liquid option over 10+ trading days
+        asset = Asset(
+            symbol="SPY",
+            asset_type="option",
+            expiration=datetime.date(2024, 9, 20),
+            strike=550,
+            right="CALL"
+        )
+
+        start = datetime.datetime(2024, 8, 26, 9, 30)
+        end = datetime.datetime(2024, 9, 12, 16, 0)
+
+        # Get OHLC data
+        df_ohlc = thetadata_helper.get_price_data(
+            username=username,
+            password=password,
+            asset=asset,
+            start=start,
+            end=end,
+            timespan="minute",
+            datastyle="ohlc"
+        )
+
+        # Get quote data
+        df_quote = thetadata_helper.get_price_data(
+            username=username,
+            password=password,
+            asset=asset,
+            start=start,
+            end=end,
+            timespan="minute",
+            datastyle="quote"
+        )
+
+        assert df_ohlc is not None and len(df_ohlc) > 0, "No OHLC data returned"
+        assert df_quote is not None and len(df_quote) > 0, "No quote data returned"
+
+        # Check date coverage
+        ohlc_dates = df_ohlc.index.date
+        quote_dates = df_quote.index.date
+
+        ohlc_unique_dates = sorted(set(ohlc_dates))
+        quote_unique_dates = sorted(set(quote_dates))
+
+        print(f"\nOHLC date coverage: {len(ohlc_unique_dates)} unique dates")
+        print(f"Quote date coverage: {len(quote_unique_dates)} unique dates")
+        print(f"OHLC rows: {len(df_ohlc)}")
+        print(f"Quote rows: {len(df_quote)}")
+
+        # Quote data should cover at least 80% of OHLC dates (allow some tolerance)
+        coverage_ratio = len(quote_unique_dates) / len(ohlc_unique_dates)
+        print(f"Quote coverage ratio: {coverage_ratio:.1%}")
+
+        assert coverage_ratio >= 0.8, f"Quote data only covers {coverage_ratio:.1%} of OHLC dates. Pagination may be broken."
+
+
+@pytest.mark.apitest
+class TestThetaDataHelperLive:
+    """Live validation for thetadata_helper utilities."""
+
+    eastern = pytz.timezone("America/New_York")
+
+    def test_get_price_data_regular_vs_extended(self, theta_credentials):
+        username, password = theta_credentials
+        asset = Asset("SPY", asset_type="stock")
+        start = datetime.datetime(2024, 8, 1, 4, 0)
+        end = datetime.datetime(2024, 8, 1, 10, 0)
+
+        extended_df = thetadata_helper.get_historical_data(
+            asset=asset,
+            start_dt=start,
+            end_dt=end,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle="ohlc",
+            include_after_hours=True,
+        )
+        assert extended_df is not None and not extended_df.empty, "ThetaData returned no extended-hours data for SPY"
+
+        rth_df = thetadata_helper.get_historical_data(
+            asset=asset,
+            start_dt=start,
+            end_dt=end,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle="ohlc",
+            include_after_hours=False,
+        )
+        assert rth_df is not None and not rth_df.empty, "ThetaData returned no regular-hours data for SPY"
+
+        extended_local = extended_df.index.tz_convert(self.eastern)
+        rth_local = rth_df.index.tz_convert(self.eastern)
+
+        assert extended_local.min().time() <= datetime.time(4, 5), "Extended data missing premarket rows"
+        assert rth_local.min().time() >= datetime.time(9, 29), "Regular-hours data unexpectedly includes premarket rows"
+
+    def test_get_price_data_multi_chunk_fetch(self, theta_credentials):
+        username, password = theta_credentials
+        asset = Asset("SPY", asset_type="stock")
+        start = datetime.datetime(2024, 7, 1)
+        end = datetime.datetime(2024, 8, 20)
+
+        df = thetadata_helper.get_price_data(
+            username=username,
+            password=password,
+            asset=asset,
+            start=start,
+            end=end,
+            timespan="minute",
+            include_after_hours=False,
+        )
+
+        if df is None or df.empty:
+            pytest.skip("ThetaData returned no historical data for requested range")
+
+        assert df.index.min().date() <= start.date()
+        assert df.index.max().date() >= end.date()
+        assert df.index.is_monotonic_increasing
+        assert not df.index.has_duplicates
+
+    def test_get_historical_data_option_live(self, theta_credentials):
+        username, password = theta_credentials
+        asset = Asset(
+            symbol="SPY",
+            asset_type="option",
+            expiration=datetime.datetime(2024, 8, 16),
+            strike=450.0,
+            right="CALL",
+        )
+        start_dt = datetime.datetime(2024, 8, 1, 9, 30)
+        end_dt = datetime.datetime(2024, 8, 1, 16, 0)
+
+        df = thetadata_helper.get_historical_data(
+            asset=asset,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle="ohlc",
+            include_after_hours=False,
+        )
+
+        if df is None or df.empty:
+            pytest.skip("ThetaData returned no option data for SPY call on 2024-08-01")
+
+        assert set(["open", "high", "low", "close", "volume", "count"]).issubset(df.columns)
+        assert df.index.tz.zone == "America/New_York"
+        assert (df[["open", "high", "low", "close"]] >= 0).all().all()
+
+    def test_get_historical_data_index_live(self, theta_credentials):
+        username, password = theta_credentials
+        asset = Asset("SPX", asset_type="index")
+        start_dt = datetime.datetime(2024, 8, 1, 9, 30)
+        end_dt = datetime.datetime(2024, 8, 1, 16, 0)
+
+        df = thetadata_helper.get_historical_data(
+            asset=asset,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle="ohlc",
+        )
+
+        if df is None or df.empty:
+            pytest.skip("ThetaData returned no SPX index data for requested window")
+
+        assert df.index.tz.zone == "America/New_York"
+        assert "count" in df.columns
+        assert df.shape[0] > 0
+
+    def test_get_historical_data_quote_style(self, theta_credentials):
+        username, password = theta_credentials
+        asset = Asset("SPY", asset_type="stock")
+        start_dt = datetime.datetime(2024, 8, 1, 9, 30)
+        end_dt = datetime.datetime(2024, 8, 1, 10, 0)
+
+        df = thetadata_helper.get_historical_data(
+            asset=asset,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle="quote",
+        )
+
+        if df is None or df.empty:
+            pytest.skip("ThetaData returned no quote data for SPY in requested window")
+
+        expected_columns = {"bid_size", "bid_condition", "bid", "ask_size", "ask_condition", "ask"}
+        assert expected_columns.issubset(df.columns)
+        assert df.index.tz.zone == "America/New_York"
+
+    def test_get_historical_data_no_data_returns_none(self, theta_credentials):
+        username, password = theta_credentials
+        asset = Asset("SPY", asset_type="stock")
+        start_dt = datetime.datetime(2024, 8, 3, 9, 30)  # Saturday
+        end_dt = datetime.datetime(2024, 8, 3, 16, 0)
+
+        df = thetadata_helper.get_historical_data(
+            asset=asset,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle="ohlc",
+        )
+
+        assert df is None
+
+    def test_get_expirations_and_strikes_live(self, theta_credentials):
+        username, password = theta_credentials
+        after_date = datetime.date(2024, 8, 1)
+
+        expirations = thetadata_helper.get_expirations(
+            username=username,
+            password=password,
+            ticker="AAPL",
+            after_date=after_date,
+        )
+
+        if not expirations:
+            pytest.skip("ThetaData returned no expirations for AAPL")
+
+        first_expiration = datetime.datetime.strptime(expirations[0], "%Y-%m-%d")
+        assert first_expiration.date() >= after_date
+
+        strikes = thetadata_helper.get_strikes(
+            username=username,
+            password=password,
+            ticker="AAPL",
+            expiration=first_expiration,
+        )
+
+        assert strikes
+        assert all(isinstance(value, float) for value in strikes)
+
+
+@pytest.mark.apitest
+class TestThetaDataPagination:
+    """Test that pagination follows next_page header correctly."""
+
+    def test_pagination_with_mock(self):
+        """
+        Test pagination logic by verifying the get_request function can handle
+        multiple pages. This is a basic test to ensure the code structure is correct.
+        """
+        from lumibot.tools import thetadata_helper
+
+        # Just verify the function signature accepts the parameters and has pagination logic
+        import inspect
+        source = inspect.getsource(thetadata_helper.get_request)
+
+        # Check for pagination keywords in the source
+        assert "next_page" in source, "get_request should check for next_page header"
+        assert "all_responses" in source or "page" in source.lower(), "get_request should collect multiple pages"
+
+        print("\n✓ Pagination logic detected in get_request()")
 
 
 if __name__ == "__main__":

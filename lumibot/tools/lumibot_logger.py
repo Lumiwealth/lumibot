@@ -858,19 +858,36 @@ def set_log_level(level: str):
         # Get the actual lumibot root logger
         root_logger = logging.getLogger("lumibot")
         root_logger.setLevel(log_level)
-        
-        # Update handlers - set both root logger and all handlers to the requested level
+
+        # Update handlers with respect to backtesting quiet logs setting
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
 
-        # Set root logger level
-        root_logger.setLevel(log_level)
+        if is_backtesting:
+            # Check if quiet logs are enabled
+            backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
+            if backtesting_quiet is None:
+                backtesting_quiet = "true"
 
-        # Set all handler levels to match
-        for handler in root_logger.handlers:
-            handler.setLevel(log_level)
+            if backtesting_quiet.lower() == "true":
+                # Quiet mode: console stays at ERROR, but allow file handlers to use requested level
+                root_logger.setLevel(log_level)
+                for handler in root_logger.handlers:
+                    if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                        handler.setLevel(logging.ERROR)  # Console: quiet
+                    else:
+                        handler.setLevel(log_level)  # File handlers: verbose
+            else:
+                # Verbose mode: respect requested level for all handlers
+                root_logger.setLevel(log_level)
+                for handler in root_logger.handlers:
+                    handler.setLevel(log_level)
+        else:
+            # Live trading: set everything normally
+            root_logger.setLevel(log_level)
+            for handler in root_logger.handlers:
+                handler.setLevel(log_level)
 
-        # Update all existing loggers in our registry (for non-backtesting)
-        if not is_backtesting:
+            # Update all existing loggers in our registry
             for logger in _logger_registry.values():
                 logger.setLevel(log_level)
             

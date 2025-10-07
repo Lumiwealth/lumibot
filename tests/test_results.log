@@ -1,0 +1,1493 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-8.4.1, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.12/bin/python3.12
+cachedir: .pytest_cache
+rootdir: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot
+configfile: setup.cfg
+plugins: asyncio-1.1.0, xdist-3.8.0, postmarker-1.0, timeout-2.4.0, anyio-4.10.0, cov-6.2.1, langsmith-0.4.13, mock-3.14.0, forked-1.6.0
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 951 items / 6 skipped
+
+backtest/test_accuracy_verification.py::TestAccuracyVerification::test_one_year_amzn_accuracy PASSED [  0%]
+backtest/test_accuracy_verification.py::TestAccuracyVerification::test_multi_symbol_price_ranges FAILED [  0%]
+backtest/test_backtesting_broker_processing.py::test_process_pending_orders_equity_appies_fee_once PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_process_pending_orders_crypto_keeps_cash_consistent PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_bracket_order_entry_and_exit_cash_consistency PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[market_buy] PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[limit_between_range] PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[limit_gap_down] PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[stop_gap_up] PASSED [  0%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[stop_limit_trigger] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[market_fractional] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_buy_orders_fill_at_expected_prices[stop_fractional] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_limit_order_remains_open_when_price_not_reached PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_sell_orders_fill_at_expected_prices[market_sell] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_sell_orders_fill_at_expected_prices[limit_sell] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_sell_orders_fill_at_expected_prices[stop_sell] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_sell_orders_fill_at_expected_prices[stop_limit_sell] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_sell_orders_fill_at_expected_prices[limit_fractional] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_sell_orders_fill_at_expected_prices[stop_fractional] PASSED [  1%]
+backtest/test_backtesting_broker_processing.py::test_trailing_stop_sell_triggers_after_price_drop PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_bracket_order_stop_exit_executes PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_bracket_order_trailing_exit_executes PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_crypto_market_sell_returns_quote_balance PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_crypto_limit_order_not_filled_when_price_not_hit PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_forex_market_buy_updates_positions PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_percent_fee_is_applied_once PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_flat_fee_is_applied_once PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_multiple_orders_in_single_cycle_all_fill PASSED [  2%]
+backtest/test_backtesting_broker_processing.py::test_missing_bar_falls_back_to_last_available_price PASSED [  3%]
+backtest/test_crypto_cash_regressions.py::test_crypto_cash_regression_no_fees[price_map0] PASSED [  3%]
+backtest/test_crypto_cash_regressions.py::test_crypto_cash_regression_no_fees[price_map1] PASSED [  3%]
+backtest/test_crypto_cash_regressions.py::test_crypto_cash_regression_with_fees PASSED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_pltr FAILED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_spy FAILED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_aapl FAILED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_amzn FAILED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataYahooComparison::test_theta_vs_yahoo_spy_historical PASSED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_intraday_bar_counts[5minute-78] PASSED [  3%]
+backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_intraday_bar_counts[10minute-39] PASSED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_intraday_bar_counts[15minute-26] PASSED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_intraday_bar_counts[30minute-13] PASSED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_intraday_bar_counts[hour-7] PASSED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_intraday_caching_verification PASSED [  4%]
+backtest/test_databento.py::TestDatabentoBacktestFull::test_databento_continuous_futures_minute_data SKIPPED [  4%]
+backtest/test_databento.py::TestDatabentoBacktestFull::test_databento_continuous_futures_minute_data_polars SKIPPED [  4%]
+backtest/test_databento.py::TestDatabentoBacktestFull::test_databento_daily_continuous_futures SKIPPED [  4%]
+backtest/test_databento_comprehensive_trading.py::TestDatabentoComprehensiveTrading::test_multiple_instruments_minute_data SKIPPED [  4%]
+backtest/test_databento_comprehensive_trading.py::TestDatabentoComprehensiveTradingDaily::test_multiple_instruments_daily_data SKIPPED [  5%]
+backtest/test_debug_avg_fill_price.py::test_debug_avg_fill_price SKIPPED [  5%]
+backtest/test_dividends.py::TestDividends::test_yahoo_finance_dividends PASSED [  5%]
+backtest/test_dividends.py::TestDividends::test_polygon_dividends SKIPPED [  5%]
+backtest/test_dividends.py::TestDividends::test_compare_yahoo_vs_polygon_dividends SKIPPED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_bracket FAILED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_oco PASSED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_buy_and_hold FAILED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_diversified_leverage FAILED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_limit_and_trailing_stops FAILED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_options_hold_to_expiry SKIPPED [  6%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_ccxt_backtesting SKIPPED [  6%]
+backtest/test_failing_backtest.py::TestFailingBacktest::test_initialize_failure_raises_exception PASSED [  6%]
+backtest/test_failing_backtest.py::TestFailingBacktest::test_trading_iteration_failure_raises_exception PASSED [  6%]
+backtest/test_failing_backtest.py::TestFailingBacktest::test_backtest_classmethod_initialize_failure PASSED [  6%]
+backtest/test_failing_backtest.py::TestFailingBacktest::test_backtest_classmethod_trading_iteration_failure PASSED [  6%]
+backtest/test_futures_edge_cases.py::TestFuturesEdgeCases::test_short_selling SKIPPED [  6%]
+backtest/test_futures_edge_cases.py::TestFuturesEdgeCases::test_multiple_simultaneous_positions SKIPPED [  6%]
+backtest/test_futures_single_trade.py::TestFuturesSingleTrade::test_single_mes_trade_tracking SKIPPED [  6%]
+backtest/test_futures_ultra_simple.py::test_ultra_simple_buy_hold_sell PASSED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_spx_data_accessible PASSED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_vix_data_accessible PASSED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_index_timestamp_accuracy PASSED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_spx_vs_polygon_comparison FAILED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_vix_vs_polygon_comparison FAILED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_index_ohlc_consistency PASSED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_index_no_missing_bars PASSED [  7%]
+backtest/test_multileg_backtest.py::test_multileg_spread_backtest_cash_and_parent_fill PASSED [  7%]
+backtest/test_pandas_backtest.py::TestPandasBacktest::test_pandas_data_fixture PASSED [  7%]
+backtest/test_pandas_backtest.py::TestPandasBacktest::test_pandas_datasource_with_daily_data_in_backtest PASSED [  8%]
+backtest/test_pandas_backtest.py::test_bracket_orders_apply_entry_and_exit_fees PASSED [  8%]
+backtest/test_passing_trader_into_backtest.py::TestPassingTraderIntoBacktest::test_not_passing_trader_class_into_backtest_creates_generic_trader PASSED [  8%]
+backtest/test_passing_trader_into_backtest.py::TestPassingTraderIntoBacktest::test_passing_trader_class_into_backtest_creates_trader_class PASSED [  8%]
+backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_restclient PASSED [  8%]
+backtest/test_polygon.py::TestPolygonBacktestFull::test_intraday_daterange PASSED [  8%]
+backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_legacy_backtest FAILED [  8%]
+backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_legacy_backtest2 PASSED [  8%]
+backtest/test_polygon.py::TestPolygonBacktestFull::test_pull_source_symbol_bars_with_api_call PASSED [  8%]
+backtest/test_polygon.py::TestPolygonDataSource::test_get_historical_prices PASSED [  9%]
+backtest/test_polygon.py::TestPolygonDataSource::test_get_chains_spy_expected_data PASSED [  9%]
+backtest/test_polygon.py::TestPolygonDataSource::test_get_last_price_unchanged PASSED [  9%]
+backtest/test_polygon.py::TestPolygonDataSource::test_get_historical_prices_unchanged_for_amzn PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataBacktestFull::test_thetadata_restclient PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataBacktestFull::test_intraday_daterange PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataSource::test_get_historical_prices PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataSource::test_get_chains_spy_expected_data PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataSource::test_get_last_price_unchanged PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataSource::test_get_historical_prices_unchanged_for_amzn PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataSource::test_pull_source_symbol_bars_with_api_call PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataStocks::test_first_10_minutes_timestamps_and_prices PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataStocks::test_noon_period_accuracy PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataStocks::test_multiple_symbols PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataMethods::test_get_quote PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataMethods::test_get_chains PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataOptions::test_atm_call_and_put PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataIndexes::test_spx_pricing PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataExtendedHours::test_premarket_data PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataQuoteContinuity::test_multi_day_option_quote_coverage PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_price_data_regular_vs_extended FAILED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_price_data_multi_chunk_fetch PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_option_live PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_index_live PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_quote_style PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_no_data_returns_none PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_expirations_and_strikes_live PASSED [ 11%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataPagination::test_pagination_with_mock PASSED [ 11%]
+backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_stock_price_comparison PASSED [ 11%]
+backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_option_price_comparison PASSED [ 12%]
+backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_index_price_comparison PASSED [ 12%]
+backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_fill_price_comparison PASSED [ 12%]
+backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_portfolio_value_comparison PASSED [ 12%]
+backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_cash_comparison PASSED [ 12%]
+backtest/test_yahoo.py::TestYahooBacktestFull::test_yahoo_last_price FAILED [ 12%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_auth_failed_flag_not_set_for_network_errors PASSED [ 12%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_auth_failed_flag_set_for_real_auth_errors PASSED [ 12%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_reset_auth_failure_method PASSED [ 12%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_client_initialization_with_network_error PASSED [ 13%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_client_initialization_with_auth_error PASSED [ 13%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_get_chains_blocked_after_auth_failure PASSED [ 13%]
+test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_different_auth_error_patterns PASSED [ 13%]
+test_alpaca_helpers.py::test_sanitize_base_and_quote_asset PASSED        [ 13%]
+test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_class_is_correct PASSED [ 13%]
+test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_has_required_fields PASSED [ 13%]
+test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_side_mapping_for_multileg_orders PASSED [ 13%]
+test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_with_limit_price PASSED [ 13%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_api_key_broker_initialization PASSED [ 13%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_api_key_client_creation PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_api_key_data_source_initialization PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_api_key_stream_object PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_mixed_credentials_broker PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_mixed_credentials_data_source PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_no_credentials_error PASSED  [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_broker_initialization PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_client_creation PASSED [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_constants PASSED       [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_data_source_initialization PASSED [ 15%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_error_handling_stops_execution PASSED [ 15%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_only_stream_object PASSED [ 15%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_polling_interval_custom PASSED [ 15%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_strategy_none_handling PASSED [ 15%]
+test_apscheduler_warnings.py::test_sleeptime_10s_max_instances PASSED    [ 15%]
+test_apscheduler_warnings.py::test_sleeptime_1m_default_max_instances PASSED [ 15%]
+test_apscheduler_warnings.py::test_calculate_max_instances_for_sleeptime PASSED [ 15%]
+test_asset.py::test_check_default_asset_name PASSED                      [ 15%]
+test_asset.py::test_check_default_asset_type PASSED                      [ 15%]
+test_asset.py::test_check_defaults_with_stock PASSED                     [ 16%]
+test_asset.py::test_is_hashable PASSED                                   [ 16%]
+test_asset.py::test_extra_attributes_at_initialization PASSED            [ 16%]
+test_asset.py::test_instances_equal PASSED                               [ 16%]
+test_asset.py::test_symbol2asset PASSED                                  [ 16%]
+test_asset.py::test_right_validator[not_call_or_CALL] PASSED             [ 16%]
+test_asset.py::test_right_validator[not_put_or_PUT] PASSED               [ 16%]
+test_asset.py::test_right_validator[CALLS] PASSED                        [ 16%]
+test_asset.py::test_right_validator[PUTS] PASSED                         [ 16%]
+test_asset.py::test_asset_types_validator[bonds] PASSED                  [ 17%]
+test_asset.py::test_asset_types_validator[cash] PASSED                   [ 17%]
+test_asset.py::test_asset_types_validator[swaptions] PASSED              [ 17%]
+test_asset.py::test_continuous_futures_asset_creation PASSED             [ 17%]
+test_asset.py::test_resolve_continuous_futures_contract PASSED           [ 17%]
+test_asset.py::test_resolve_continuous_futures_contract_year_digits PASSED [ 17%]
+test_asset.py::test_resolve_continuous_futures_contract_rolls_mid_month PASSED [ 17%]
+test_asset.py::test_get_potential_futures_contracts PASSED               [ 17%]
+test_asset.py::test_futures_contract_resolution_monthly_cycles PASSED    [ 17%]
+test_asset.py::test_different_futures_symbols PASSED                     [ 17%]
+test_asset.py::test_continuous_futures_equality PASSED                   [ 18%]
+test_asset.py::test_continuous_futures_inequality PASSED                 [ 18%]
+test_asset.py::test_futures_contract_with_year_rollover PASSED           [ 18%]
+test_asset.py::test_asset_type_enum_values PASSED                        [ 18%]
+test_asset.py::test_continuous_futures_string_representation PASSED      [ 18%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_front_month PASSED [ 18%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_next_quarter PASSED [ 18%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_true PASSED [ 18%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_auto PASSED [ 18%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_manual_expiration_overrides_auto_expiry PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_auto_expiry_only_applies_to_futures PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_march PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_after_expiry PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_january PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_december PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_third_friday_calculation PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_invalid_auto_expiry_defaults_to_front_month PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_with_datetime_expiration_conversion PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_string_representation_with_auto_expiry PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_equality_with_auto_expiry PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_next_quarter_same_as_front_month PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_continuous_futures_creation PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_continuous_futures_vs_auto_expiry PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_with_symbol_parsing PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_with_multiplier PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_preserved_in_asset_attributes PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_asset_validation_with_auto_expiry PASSED [ 20%]
+test_auto_market_inference.py::test_projectx_sets_us_futures PASSED      [ 20%]
+test_auto_market_inference.py::test_tradovate_sets_us_futures PASSED     [ 21%]
+test_auto_market_inference.py::test_ccxt_sets_24_7 PASSED                [ 21%]
+test_auto_market_inference.py::test_no_change_if_configured PASSED       [ 21%]
+test_backtesting_broker.py::TestBacktestingBroker::test_limit_fills PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBroker::test_stop_fills PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBroker::test_submit_order_calls_conform_order PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_during_market_hours_no_buffer PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_get_time_to_close_returns_none PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_when_already_past_close_no_buffer PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_with_buffer PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_before_market_opens_no_buffer PASSED [ 22%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_when_market_already_open PASSED [ 22%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_with_buffer PASSED [ 22%]
+test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_with_buffer_making_time_negative PASSED [ 22%]
+test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_during_market_hours_no_buffer PASSED [ 22%]
+test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_get_time_to_close_returns_none PASSED [ 22%]
+test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_when_already_past_close_no_buffer PASSED [ 22%]
+test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_with_buffer PASSED [ 22%]
+test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_with_buffer_making_time_negative PASSED [ 22%]
+test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_await_close_during_market_hours_no_buffer PASSED [ 23%]
+test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_await_close_get_time_to_close_returns_none PASSED [ 23%]
+test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_await_close_when_already_past_close_no_buffer PASSED [ 23%]
+test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_await_close_with_buffer PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_crypto_forex_buy_updates_cash_once PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_crypto_forex_round_trip_restores_cash_on_sell PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_crypto_crypto_pair_uses_quote_position_not_cash PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_filled_order_payload_contains_quantity_and_trade_cost PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_percent_fee_applied_once_to_cash_and_order PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_multiple_orders_same_cycle_keep_cash_consistent PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_option_round_trip_applies_multiplier PASSED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive FAILED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive FAILED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo FAILED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_invalid_data_source_raises_error PASSED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env FAILED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set FAILED [ 24%]
+test_backtesting_flow_control.py::TestBacktestingFlowControl::test_handles_complex_order_updates PASSED [ 24%]
+test_backtesting_flow_control.py::TestBacktestingFlowControl::test_handles_data_gaps PASSED [ 24%]
+test_backtesting_flow_control.py::TestBacktestingFlowControl::test_handles_strategy_exception PASSED [ 25%]
+test_backtesting_multileg_unit.py::test_multileg_parent_fills_after_all_children_complete PASSED [ 25%]
+test_backtesting_multileg_unit.py::test_multileg_parent_waits_if_any_child_pending PASSED [ 25%]
+test_backtesting_multileg_unit.py::test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_default_backtesting_quiet_logs_is_true PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_quiet_logs_true_console_only_shows_progress_bar_and_errors PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_quiet_logs_true_file_only_shows_errors PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_quiet_logs_false_shows_all_info_plus PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_live_trading_always_shows_console_messages PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_progress_bar_always_shows_regardless_of_quiet_logs PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_bot_manager_compatibility PASSED [ 26%]
+test_backtesting_quiet_logs_complete.py::test_environment_variable_vs_function_parameter PASSED [ 26%]
+test_backtesting_quiet_logs_complete.py::test_error_level_equivalence PASSED [ 26%]
+test_bars_aggregate_frequency_normalization.py::test_aggregate_accepts_lowercase_minute_variants PASSED [ 26%]
+test_bars_aggregate_frequency_normalization.py::test_aggregate_rejects_unsupported_frequency PASSED [ 26%]
+test_bars_aggregation_timeunits.py::test_aggregate_bars_epoch_int_timestamp_minutes_failure_current PASSED [ 26%]
+test_bars_aggregation_timeunits.py::test_aggregate_bars_alias_variants_minutes PASSED [ 26%]
+test_bars_frequency_flex.py::test_arbitrary_minute_frequency PASSED      [ 26%]
+test_bars_frequency_flex.py::test_hour_and_second_frequencies PASSED     [ 26%]
+test_bars_frequency_flex.py::test_invalid_frequency_raises PASSED        [ 27%]
+test_bars_frequency_flex.py::test_bars_datetime_index_normalized_to_default_timezone PASSED [ 27%]
+test_botspot_handler.py::test_botspot_handler_dedup_and_aggregation PASSED [ 27%]
+test_botspot_handler.py::test_botspot_handler_distinct_fingerprints PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_handler_initialization_without_api_key PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_handler_initialization_with_api_key PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_log_level_to_severity_mapping PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_basic PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_with_strategy PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_structured_format PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_strategy_with_structured_format PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_strategy_name_in_message PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_no_double_spacing PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_report_to_botspot_success PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_emit_without_api_key PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_emit_below_warning_level PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_duplicate_aggregation PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_rate_limit_window PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_max_errors_per_minute PASSED [ 28%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_rate_limit_counter_reset PASSED [ 29%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_api_error_uses_logging_not_print PASSED [ 29%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_api_exception_uses_logging_not_print PASSED [ 29%]
+test_botspot_logger.py::TestBotspotIntegration::test_handler_not_added_without_api_key PASSED [ 29%]
+test_botspot_logger.py::TestBotspotIntegration::test_strategy_logger_integration PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_get_balances_at_broker PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_initialization_missing_keys PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_initialization_success PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_map_status_from_bitunix PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_parse_broker_order PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_parse_source_timestep PASSED [ 30%]
+test_broker_bitunix.py::TestBitunixBroker::test_pull_positions_success PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_age_based_retention PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_count_based_retention PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_disabled PASSED  [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_preserves_recent_items PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_respects_min_keep PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_thread_safety PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_cleanup_with_missing_timestamps PASSED [ 30%]
+test_broker_cleanup.py::TestBrokerCleanup::test_custom_cleanup_config_initialization PASSED [ 31%]
+test_broker_cleanup.py::TestBrokerCleanup::test_default_cleanup_config_initialization PASSED [ 31%]
+test_broker_cleanup.py::TestBrokerCleanup::test_full_cleanup_process PASSED [ 31%]
+test_broker_cleanup.py::TestBrokerCleanup::test_manual_force_cleanup PASSED [ 31%]
+test_broker_cleanup.py::TestBrokerCleanup::test_periodic_cleanup_trigger PASSED [ 31%]
+test_broker_initialization.py::TestBrokerInitializationSimple::test_strategy_with_none_broker_raises_helpful_error PASSED [ 31%]
+test_broker_initialization.py::TestBrokerInitializationSimple::test_strategy_with_valid_broker_does_not_raise_broker_error PASSED [ 31%]
+test_brokers_handle_crypto.py::TestBrokerHandlesCrypto::test_yahoo_backtesting_with_symbol XPASS [ 31%]
+test_brokers_handle_crypto.py::TestBrokerHandlesCrypto::test_polygon_backtesting_with_base_and_quote SKIPPED [ 31%]
+test_brokers_handle_crypto.py::TestBrokerHandlesCrypto::test_alpaca_broker_with_base_and_quote SKIPPED [ 31%]
+test_brokers_handle_crypto.py::TestBrokerHandlesCrypto::test_ccxt_backtesting_with_base_and_quote SKIPPED [ 32%]
+test_cash.py::TestCash::test_backtest_setup_cash_handling PASSED         [ 32%]
+test_cash.py::TestCash::test_cash_after_position_creation PASSED         [ 32%]
+test_cash.py::TestCash::test_cash_after_trade_simulation PASSED          [ 32%]
+test_cash.py::TestCash::test_cash_consistency_during_backtest_lifecycle PASSED [ 32%]
+test_cash.py::TestCash::test_cash_division_operation PASSED              [ 32%]
+test_cash.py::TestCash::test_cash_multiple_position_updates PASSED       [ 32%]
+test_cash.py::TestCash::test_cash_property_and_method_consistency PASSED [ 32%]
+test_cash.py::TestCash::test_cash_property_never_none PASSED             [ 32%]
+test_cash.py::TestCash::test_cash_with_decimal_values PASSED             [ 33%]
+test_cash.py::TestCash::test_cash_with_property_and_method_interleaved PASSED [ 33%]
+test_cash.py::TestCash::test_cash_with_zero_value PASSED                 [ 33%]
+test_cash.py::TestCash::test_division_with_different_prices PASSED       [ 33%]
+test_cash.py::TestCash::test_get_cash_method_never_none PASSED           [ 33%]
+test_cash.py::TestCash::test_initial_cash_equals_budget PASSED           [ 33%]
+test_cash.py::TestCash::test_multiple_get_cash_calls PASSED              [ 33%]
+test_cash.py::TestCash::test_no_private_cash_variable PASSED             [ 33%]
+test_cash.py::TestCash::test_strategy_mathematical_operations PASSED     [ 33%]
+test_cash.py::TestCashWithDifferentBudgets::test_various_budget_amounts PASSED [ 33%]
+test_ccxt.py::test_initialize_ccxt_broker_legacy PASSED                  [ 34%]
+test_ccxt_store.py::test_cache_download_data[bitmex-ETH/USDT-1d-start0-end0] SKIPPED [ 34%]
+test_ccxt_store.py::test_cache_download_data_without_overap[bitmex-ETH/USDT-1d-start0-end0] SKIPPED [ 34%]
+test_configs_helper.py::TestConfigsHelper::test_get_classic_60_40_config FAILED [ 34%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_parse_contract_symbol_tradovate_style PASSED [ 34%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_parse_contract_symbol_standard_style PASSED [ 34%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_parse_contract_symbol_dot_notation PASSED [ 34%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_parse_contract_symbol_full_year PASSED [ 34%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_parse_contract_symbol_invalid PASSED [ 34%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_symbol_matches_root PASSED [ 35%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_from_ib_expiration_to_code PASSED [ 35%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_generate_symbol_variants PASSED [ 35%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_get_contract_priority_key PASSED [ 35%]
+test_continuous_futures.py::TestFuturesSymbolsUtilities::test_build_ib_contract_variants PASSED [ 35%]
+test_continuous_futures.py::TestAssetPotentialContracts::test_includes_single_digit_variants PASSED [ 35%]
+test_continuous_futures.py::TestAssetPotentialContracts::test_preserves_existing_order PASSED [ 35%]
+test_continuous_futures.py::TestAssetPotentialContracts::test_quarterly_contracts_prioritized PASSED [ 35%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_non_continuous_future_unchanged PASSED [ 35%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_exact_match PASSED [ 35%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_single_contract_match PASSED [ 36%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_multiple_contracts_priority PASSED [ 36%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_ib_style_positions PASSED [ 36%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_no_matches PASSED [ 36%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_ignores_non_futures PASSED [ 36%]
+test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_continuous_future_empty_positions PASSED [ 36%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_asset_class_consistency PASSED [ 36%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_centralization_verification PASSED [ 36%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_contract_format_standardization PASSED [ 36%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_databento_integration_consistency PASSED [ 37%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_error_handling_consistency PASSED [ 37%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_multi_component_consistency PASSED [ 37%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_no_duplicate_logic_verification PASSED [ 37%]
+test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_quarterly_preference_consistency PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_contract_format_validation PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_contract_ordering_priority PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_different_symbol_formats PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_error_handling_non_continuous_futures PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_expiration_edge_cases PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_format_continuous_futures_symbol PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_format_specific_futures_symbol PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_generate_current_futures_contract_july PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_generate_potential_contracts_july PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_integration_with_databento_helper PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_month_code_mapping PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_month_progression_logic PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_potential_contracts_uniqueness PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_quarterly_contract_consistency PASSED [ 38%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_quarterly_contract_preference PASSED [ 39%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_year_rollover_edge_cases PASSED [ 39%]
+test_data_source.py::TestDataSource::test_get_chain_full_info PASSED     [ 39%]
+test_databento_asset_validation.py::TestDataBentoAssetValidation::test_live_data_source_futures_allowed PASSED [ 39%]
+test_databento_asset_validation.py::TestDataBentoAssetValidation::test_live_data_source_equities_rejected PASSED [ 39%]
+test_databento_asset_validation.py::TestDataBentoAssetValidation::test_helper_function_allows_all_assets PASSED [ 39%]
+test_databento_asset_validation.py::TestDataBentoAssetValidation::test_backtesting_allows_all_assets PASSED [ 39%]
+test_databento_asset_validation.py::TestDataBentoAssetValidation::test_benchmark_asset_in_backtesting_only PASSED [ 39%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_formatting_with_auto_expiry PASSED [ 39%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_with_different_auto_expiry_types PASSED [ 39%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_consistency_across_dates PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_with_manual_vs_auto_expiry PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_handles_stock_asset PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_changes_with_date PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_multiple_futures_with_auto_expiry PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoBacktestingAutoExpiry::test_asset_auto_expiry_in_strategy_context PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoBacktestingAutoExpiry::test_asset_auto_expiry_serialization PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoBacktestingAutoExpiry::test_asset_expiry_stability_during_backtest PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoBacktestingAutoExpiry::test_asset_auto_expiry_edge_cases PASSED [ 40%]
+test_databento_auto_expiry_integration.py::TestDataBentoBacktestingAutoExpiry::test_asset_auto_expiry_with_existing_strategy_pattern PASSED [ 41%]
+test_databento_auto_expiry_integration.py::TestDataBentoHelperMethods::test_format_symbol_with_quarterly_expiry PASSED [ 41%]
+test_databento_auto_expiry_integration.py::TestDataBentoHelperMethods::test_format_symbol_consistency PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_no_data PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_success PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_with_timeshift PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_chains PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_last_price_from_cached_data PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_last_price_no_cached_data PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_initialization_databento_unavailable PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_initialization_success PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_prefetch_data_multiple_assets PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_prefetch_data_single_asset PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_prefetch_handles_no_data PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_prefetch_skips_duplicate_requests PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_update_pandas_data_existing_sufficient_data PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_update_pandas_data_no_data PASSED [ 42%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_update_pandas_data_success PASSED [ 42%]
+test_databento_data.py::TestDataBentoData::test_backtesting_mode_detection PASSED [ 42%]
+test_databento_data.py::TestDataBentoData::test_environment_dates_integration PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_error_handling PASSED    [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_chains PASSED        [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_historical_prices_backtesting_path PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_historical_prices_error_handling PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_historical_prices_no_data PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_historical_prices_single_asset PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_historical_prices_success PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_last_price_no_data PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_last_price_success PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_initialization_databento_unavailable PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_initialization_default_dates PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_initialization_success PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_mes_strategy_logic_simulation PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_parse_source_bars_empty_data PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_parse_source_bars_missing_columns PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_parse_source_bars_valid_data PASSED [ 44%]
+test_databento_data.py::TestDataBentoData::test_timestep_mapping PASSED  [ 44%]
+test_databento_data.py::TestDataBentoData::test_timezone_handling PASSED [ 44%]
+test_databento_helper.py::TestDataBentoHelper::test_build_cache_filename PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_cache_filename_edge_cases PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_cache_loading PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_continuous_futures_integration_edge_cases PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_continuous_futures_resolution PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_databento_client_initialization PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_dataframe_normalization_edge_cases PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_dataset_selection_comprehensive PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_determine_databento_dataset PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_determine_databento_schema PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_error_handling_api_exception PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_error_handling_empty_dataframe PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_format_futures_symbol_for_databento PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_futures_month_code_consistency PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_get_last_price_from_databento_empty_data PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_get_last_price_from_databento_exception PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_get_last_price_from_databento_no_data PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_get_last_price_from_databento_success PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_get_last_price_resolves_once_no_retry PASSED [ 46%]
+test_databento_helper.py::TestDataBentoHelper::test_get_price_data_continuous_futures_resolution PASSED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_get_price_data_databento_unavailable PASSED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_get_price_data_from_databento_success FAILED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_market_calendar_spanning_sessions PASSED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_no_get_potential_futures_contracts_usage PASSED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_no_retry_logic_for_correct_symbol FAILED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_normalize_databento_dataframe PASSED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_schema_mapping_comprehensive PASSED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_timezone_aware_datetime_usage PASSED [ 47%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_403_forbidden_triggers_retry PASSED [ 47%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_auth_retry_logging PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_auth_retry_with_different_error_formats PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_authentication_retry_exhausts_after_max_retries PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_authentication_retry_on_401_error PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_client_property_lazy_initialization PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_client_recreation_on_auth_failure PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_non_auth_errors_not_retried PASSED [ 48%]
+test_databento_helper.py::TestDataBentoAuthenticationRetry::test_successful_retry_after_token_refresh PASSED [ 48%]
+test_databento_live.py::test_symbol_resolution PASSED                    [ 48%]
+test_databento_live.py::test_live_api_connection PASSED                  [ 49%]
+test_databento_live.py::test_minute_bar_aggregation PASSED               [ 49%]
+test_databento_live.py::test_api_routing PASSED                          [ 49%]
+test_databento_live.py::test_long_time_periods PASSED                    [ 49%]
+test_databento_live.py::test_continuous_latency_monitoring PASSED        [ 49%]
+test_databento_timezone_fixes.py::TestErrorLoggerFixes::test_error_logger_initialization PASSED [ 49%]
+test_databento_timezone_fixes.py::TestErrorLoggerFixes::test_error_logger_log_error_with_all_args PASSED [ 49%]
+test_databento_timezone_fixes.py::TestErrorLoggerFixes::test_error_logger_log_error_with_minimal_args PASSED [ 49%]
+test_databento_timezone_fixes.py::TestErrorLoggerFixes::test_error_logger_log_error_critical_levels PASSED [ 49%]
+test_databento_timezone_fixes.py::TestTimezoneHandling::test_timezone_naive_datetime_operations PASSED [ 49%]
+test_databento_timezone_fixes.py::TestTimezoneHandling::test_pandas_datetime_filtering PASSED [ 50%]
+test_databento_timezone_fixes.py::TestTimezoneHandling::test_datetime_timezone_consistency PASSED [ 50%]
+test_databento_timezone_fixes.py::TestTimezoneHandling::test_datetime_timezone_consistency_in_databento_context PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_data_source_initialization PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_futures_asset_validation PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_live_trading_mode PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_supported_asset_types PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoTimezoneFixValidation::test_live_trading_datetime_handling PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoTimezoneFixValidation::test_dataframe_timezone_operations PASSED [ 50%]
+test_databento_timezone_fixes.py::test_databento_api_integration[True] PASSED [ 50%]
+test_databento_timezone_fixes.py::test_databento_api_integration[False] SKIPPED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_add_position PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_relative_drift PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_drift_is_negative_one_when_we_have_a_position_and_the_target_weights_says_to_not_have_it PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_drift_is_one_when_we_have_none_of_an_asset_and_target_weights_says_we_should_have_some PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_drift_is_negative_one_when_we_have_none_of_an_asset_and_target_weights_says_we_should_short_some PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_drift_is_zero_when_current_weight_and_target_weight_are_zero PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_quote_asset_position_exists PASSED [ 51%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_relative_drift_when_quote_asset_position_exists PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_quote_asset_in_target_weights PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_drift_when_we_want_short_something PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_shorting_more_when_price_goes_up_short_something PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_we_want_a_100_percent_short_position PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_we_want_a_100_percent_short_position_and_cash_in_target_weights PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_relative_drift_when_we_want_a_100_percent_short_position PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_everything_with_limit_orders PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_everything_with_market_orders PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_part_of_a_holding_with_limit_order PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_with_only_rebalance_drifted_assets_when_over_drift_threshold PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_with_only_rebalance_drifted_assets_when_not_over_drift_threshold PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_part_of_a_holding_with_market_order PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_short_doesnt_create_and_order_when_shorting_is_disabled PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_small_short_position_creates_and_order_when_shorting_is_enabled PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_small_short_position_doesnt_create_order_when_shorting_is_disabled PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_a_100_percent_short_position_creates_an_order_when_shorting_is_enabled PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_something_when_we_have_enough_money_and_there_is_slippage PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_limit_buy_when_we_dont_have_enough_money_for_everything PASSED [ 53%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_market_buy_when_we_dont_have_enough_money_for_everything PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_attempting_to_buy_when_we_dont_have_enough_money_for_even_one_share PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_attempting_to_sell_when_the_amount_we_need_to_sell_is_less_than_the_limit_price_should_not_sell PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_limit_price_when_selling PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_limit_price_when_buying PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_whole_shares PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_fractional_shares PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_everything_with_fractional_limit_orders PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_some_with_fractional_limit_orders PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_with_only_rebalance_drifted_assets_when_over_drift_threshold PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_with_only_rebalance_drifted_assets_when_not_over_drift_threshold PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_trading_costs_with_percent_fees PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_trading_costs_with_flat_fees PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_trading_costs_with_both_fee_types PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_trading_costs_no_fees PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_adjust_quantity_for_fees_buy_affordable PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_adjust_quantity_for_fees_buy_not_affordable PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_adjust_quantity_for_fees_sell PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_get_current_cash_position PASSED [ 55%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_even_odd_drift_rebalancer_absolute PASSED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_even_odd_drift_rebalancer_relative PASSED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_classic_60_40 PASSED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_classic_60_40_with_fractional PASSED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_yahoo XPASS [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_polygon SKIPPED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_alpaca SKIPPED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_alpaca_modern_way SKIPPED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_alpaca_with_fees SKIPPED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_get_last_price_or_raise_returns_decimal PASSED [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_get_last_price_or_raise_raises_value_error_on_none PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_buying_options_with_correct_quantity_calculation PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_buying_options_respects_cash_constraints PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_selling_options_with_correct_quantity_calculation PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_options_quantity_always_whole_contracts PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_mixed_stocks_and_options_portfolio PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_options_cost_calculation_in_cash_deduction PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_options_limit_price_calculation PASSED [ 57%]
+test_drift_rebalancer.py::TestDriftRebalancerOptions::test_options_insufficient_cash_creates_no_order PASSED [ 57%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_no_position_triggers_buy PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_tradovate_position_detected PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_tradovate_position_sells_after_minute PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_ib_style_position_detected PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_multiple_contracts_logs_warning PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_ignores_other_futures PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_ignores_stock_positions PASSED [ 58%]
+test_get_historical_prices.py::TestBacktestingDataSources::test_get_first_trading_day_after_long_weekend PASSED [ 58%]
+test_get_historical_prices.py::TestBacktestingDataSources::test_pandas_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns FAILED [ 58%]
+test_get_historical_prices.py::TestBacktestingDataSources::test_polygon_backtesting_data_source_get_historical_prices_daily_bars_for_backtesting_broker SKIPPED [ 58%]
+test_get_historical_prices.py::TestBacktestingDataSources::test_polygon_backtesting_data_source_get_historical_prices_daily_bars_over_long_weekend SKIPPED [ 59%]
+test_get_historical_prices.py::TestBacktestingDataSources::test_yahoo_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns XFAIL [ 59%]
+test_get_historical_prices.py::TestBacktestingDataSources::test_kraken_ccxt_backtesting_data_source_get_historical_prices_daily_bars SKIPPED [ 59%]
+test_get_historical_prices.py::TestTimestepParsing::test_parse_timestep_standard_formats PASSED [ 59%]
+test_get_historical_prices.py::TestTimestepParsing::test_parse_timestep_multi_minute_formats PASSED [ 59%]
+test_get_historical_prices.py::TestTimestepParsing::test_parse_timestep_hour_formats PASSED [ 59%]
+test_get_historical_prices.py::TestTimestepParsing::test_parse_timestep_day_week_month_formats PASSED [ 59%]
+test_get_historical_prices.py::TestTimestepParsing::test_parse_timestep_case_insensitive PASSED [ 59%]
+test_get_historical_prices.py::TestTimestepParsing::test_parse_timestep_invalid_formats PASSED [ 59%]
+test_helpers.py::test_has_more_than_n_decimal_places PASSED              [ 60%]
+test_helpers.py::test_date_n_bars_from_date_valid_input PASSED           [ 60%]
+test_helpers.py::test_date_n_bars_from_date_zero_bars PASSED             [ 60%]
+test_helpers.py::test_date_n_trading_days_from_date_with_24_7_market PASSED [ 60%]
+test_helpers.py::test_get_trading_days PASSED                            [ 60%]
+test_helpers.py::test_get_trading_times_day_nyse PASSED                  [ 60%]
+test_helpers.py::test_get_trading_times_minute_nyse PASSED               [ 60%]
+test_helpers.py::test_get_trading_times_minute_24_7_utc PASSED           [ 60%]
+test_helpers.py::test_get_trading_times_minute_24_7_UTC PASSED           [ 60%]
+test_helpers.py::test_get_trading_times_minute PASSED                    [ 60%]
+test_helpers.py::test_get_timezone_from_datetime PASSED                  [ 61%]
+test_helpers.py::test_get_timezone_from_datetime_types PASSED            [ 61%]
+test_helpers.py::test_quantize_to_num_decimals PASSED                    [ 61%]
+test_helpers.py::test_is_market_open_during_trading_hours PASSED         [ 61%]
+test_helpers.py::test_is_market_open_before_trading_hours PASSED         [ 61%]
+test_helpers.py::test_is_market_open_after_trading_hours PASSED          [ 61%]
+test_helpers.py::test_is_market_open_weekend PASSED                      [ 61%]
+test_helpers.py::test_is_market_open_invalid_market PASSED               [ 61%]
+test_indicator_subplots.py::TestIndicators::test_default_lines PASSED    [ 61%]
+test_indicator_subplots.py::TestIndicators::test_named_lines PASSED      [ 62%]
+test_indicator_subplots.py::test_plot_indicators_handles_nan_marker_size PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_rejects_nan PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_defaults_color PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_accepts_css_color PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_line_rejects_nan PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_line_defaults_color PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_line_defaults_style PASSED [ 62%]
+test_integration_tests.py::TestIntegrationTests::test_yahoo XPASS (y...) [ 62%]
+test_interactive_brokers.py::test_initialize_interactive_broker_legacy PASSED [ 62%]
+test_live_trading_resilience.py::TestLiveTradingResilience::test_live_trading_resilience_is_working PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #4
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #4
+
+test_logger_env_vars.py::TestEnvironmentVariableHandling::test_backtesting_quiet_logs_overrides_log_level PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #5
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #5
+
+test_logger_env_vars.py::TestEnvironmentVariableHandling::test_env_var_precedence_documentation PASSED [ 63%]
+test_logger_env_vars.py::TestEnvironmentVariableHandling::test_memory_usage_is_minimal PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #6
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #6
+
+test_logging.py::TestLogging::test_logging PASSED                        [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #7
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #7
+
+test_logging.py::TestLogging::test_backtest_produces_no_logs_when_quiet_logs_is_true XFAIL [ 63%]
+test_logging.py::TestLogging::test_backtest_produces_logs_when_quiet_logs_is_false XFAIL [ 63%]
+test_lumibot_logger.py::test_unified_logger_includes_source_context PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #9
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #9
+
+test_lumibot_logger.py::test_unified_logger_info_includes_module_context PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #10
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #10
+
+test_lumibot_logger.py::test_file_handler_uses_lumibot_formatter PASSED  [ 64%]
+test_lumibot_logger.py::test_quiet_logs_functionality PASSED             [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #11
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #11
+
+test_lumibot_logger.py::test_trader_quiet_logs_integration PASSED        [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #12
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #12
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_comprehensive_diagnostic_scenarios PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #13
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #13
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_continuous_vs_non_continuous_markets PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #14
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #14
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_different_market_types PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #15
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #15
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_different_sleeptime_combinations PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #16
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #16
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_es_futures_no_infinite_restart PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #17
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #17
+
+test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability SKIPPED [ 64%]
+test_momentum.py::TestMomentum::test_momo_pandas_lookback_2 PASSED       [ 64%]
+test_momentum.py::TestMomentum::test_momo_pandas_lookback_30 PASSED      [ 65%]
+test_momentum.py::TestMomentum::test_momo_yahoo_lookback_2 XPASS (ya...) [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #35
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #35
+
+test_momentum.py::TestMomentum::test_momo_yahoo_lookback_30 XFAIL (y...) [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #36
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #36
+
+test_options_helper.py::TestOptionsHelper::test_broker_get_chains_handles_missing_payload PASSED [ 65%]
+test_options_helper.py::TestOptionsHelper::test_chains_backward_compatibility_string_access PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #37
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #37
+
+test_options_helper.py::TestOptionsHelper::test_chains_date_helper_methods PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #38
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #38
+
+test_options_helper.py::TestOptionsHelper::test_chains_strikes_accepts_both_string_and_date PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #39
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #39
+
+test_options_helper.py::TestOptionsHelper::test_enhanced_logging_format PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #40
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #40
+
+test_options_helper.py::TestOptionsHelper::test_evaluate_option_market_fallback_allowed PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #41
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #41
+
+test_options_helper.py::TestOptionsHelper::test_evaluate_option_market_fallback_blocked PASSED [ 66%]
+test_options_helper.py::TestOptionsHelper::test_evaluate_option_market_with_quotes PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #42
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #42
+
+test_options_helper.py::TestOptionsHelper::test_find_next_valid_option_checks_quote_first FAILED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #43
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #43
+
+test_options_helper.py::TestOptionsHelper::test_find_next_valid_option_falls_back_to_last_price FAILED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #44
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #44
+
+test_options_helper.py::TestOptionsHelper::test_get_expiration_on_or_after_date_returns_future PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #45
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #45
+
+test_options_helper.py::TestOptionsHelper::test_get_expiration_on_or_after_date_uses_latest_when_needed PASSED [ 66%]
+test_options_helper.py::TestOptionsHelper::test_get_expiration_validates_data_when_underlying_provided PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #46
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #46
+
+test_options_helper.py::TestOptionsHelper::test_invalid_delta PASSED     [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #47
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #47
+
+test_options_helper.py::TestOptionsHelper::test_invalid_underlying_price PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #48
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #48
+
+test_options_helper.py::TestOptionsHelper::test_missing_chains_returns_none PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #49
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #49
+
+test_options_helper.py::TestOptionsHelper::test_normal_strike_calculation PASSED [ 67%]
+test_options_helper.py::TestOptionsHelper::test_normalize_option_chains_adds_missing_keys PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #50
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #50
+
+test_options_helper.py::TestOptionsHelper::test_normalize_option_chains_invalid_expiry PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #51
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #51
+
+test_options_helper.py::TestOptionsHelper::test_options_expiry_to_datetime_date_accepts_strings PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #52
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #52
+
+test_options_helper.py::TestOptionsHelper::test_warning_for_unrealistic_strike PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #53
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #53
+
+test_order.py::TestOrderBasics::test_side_must_be_one_of PASSED          [ 67%]
+test_order.py::TestOrderBasics::test_blank_oco PASSED                    [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #54
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #54
+
+test_order.py::TestOrderBasics::test_price_doesnt_exist PASSED           [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #55
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #55
+
+test_order.py::TestOrderBasics::test_is_option PASSED                    [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #56
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #56
+
+test_order.py::TestOrderBasics::test_get_filled_price PASSED             [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #57
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #57
+
+test_order.py::TestOrderBasics::test_filled PASSED                       [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #58
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #58
+
+test_order.py::TestOrderBasics::test_is_buy_order PASSED                 [ 68%]
+test_order.py::TestOrderBasics::test_is_sell_order PASSED                [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #59
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #59
+
+test_order.py::TestOrderBasics::test_cancelled PASSED                    [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #60
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #60
+
+test_order.py::TestOrderBasics::test_active PASSED                       [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #61
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #61
+
+test_order.py::TestOrderBasics::test_active_oco PASSED                   [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #62
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #62
+
+test_order.py::TestOrderBasics::test_status PASSED                       [ 68%]
+test_order.py::TestOrderBasics::test_equivalent_status PASSED            [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #63
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #63
+
+test_order.py::TestOrderBasics::test_to_position PASSED                  [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #64
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #64
+
+test_order.py::TestOrderAdvanced::test_oco_type_reassigned PASSED        [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #65
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #65
+
+test_order.py::TestOrderAdvanced::test_bracket_standard PASSED           [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #66
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #66
+
+test_order.py::TestOrderAdvanced::test_is_equivalent_status PASSED       [ 69%]
+test_order_serialization.py::TestOrderSerialization::test_to_dict_excludes_internal_fields PASSED [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #67
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #67
+
+test_order_serialization.py::TestOrderSerialization::test_to_dict_includes_essential_fields PASSED [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #68
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #68
+
+test_order_serialization.py::TestOrderSerialization::test_to_dict_size_reduction PASSED [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #69
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #69
+
+test_pandas_data.py::TestPandasData::test_pandas_data_fixture PASSED     [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #70
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #70
+
+test_pandas_data.py::TestPandasData::test_spy_has_dividends PASSED       [ 69%]
+test_pandas_data.py::TestPandasData::test_get_start_datetime_and_ts_unit PASSED [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #71
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #71
+
+test_pandas_data.py::TestPandasData::test_data_get_quote_handles_missing_bid_ask PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #72
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #72
+
+test_polygon_helper.py::TestPolygonHelpers::test_build_cache_filename PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #73
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #73
+
+test_polygon_helper.py::TestPolygonHelpers::test_missing_dates PASSED    [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #74
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #74
+
+test_polygon_helper.py::TestPolygonHelpers::test_get_trading_dates PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #75
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #75
+
+test_polygon_helper.py::TestPolygonHelpers::test_get_polygon_symbol PASSED [ 70%]
+test_polygon_helper.py::TestPolygonHelpers::test_load_data_from_cache PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #76
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #76
+
+test_polygon_helper.py::TestPolygonHelpers::test_update_cache PASSED     [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #77
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #77
+
+test_polygon_helper.py::TestPolygonHelpers::test_update_polygon_data PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #78
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #78
+
+test_polygon_helper.py::TestPolygonPriceData::test_get_price_data_from_polygon PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #79
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #79
+
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[True-day] PASSED [ 70%]🔧 TestStrategy.on_trading_iteration() called - iteration #80
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #80
+
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[True-minute] PASSED [ 71%]
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[False-day] PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #81
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #81
+
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[False-minute] PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #82
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #82
+
+test_polygon_helper.py::TestPolygonPriceData::test_get_chains_cached PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #83
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #83
+
+test_position_serialization.py::TestPositionSerialization::test_orders_list_included PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #84
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #84
+
+test_position_serialization.py::TestPositionSerialization::test_to_dict_excludes_internal_fields PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #85
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #85
+
+test_position_serialization.py::TestPositionSerialization::test_to_dict_includes_essential_fields PASSED [ 71%]
+test_position_serialization.py::TestPositionSerialization::test_to_dict_size_reduction PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #86
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #86
+
+test_projectx.py::TestProjectXBroker::test_broker_initialization PASSED  [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #87
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #87
+
+test_projectx.py::TestProjectXBroker::test_order_status_mapping_corrected PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #88
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #88
+
+test_projectx.py::TestProjectXBroker::test_position_conversion_field_mapping PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #89
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #89
+
+test_projectx.py::TestProjectXBroker::test_position_conversion_field_fallback PASSED [ 72%]
+test_projectx.py::TestProjectXBroker::test_order_conversion_from_broker_format PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #90
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #90
+
+test_projectx.py::TestProjectXBroker::test_order_status_mapping_edge_cases PASSED [ 72%]🔧 TestStrategy.on_trading_iteration() called - iteration #91
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #91
+
+test_projectx.py::TestProjectXBroker::test_asset_resolution_no_hardcoded_mappings PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #92
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #92
+
+test_projectx.py::TestProjectXBroker::test_order_tracking_sync_functionality PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #93
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #93
+
+test_projectx.py::TestProjectXBroker::test_order_sync_prevents_auto_cancellation PASSED [ 72%]
+test_projectx.py::TestProjectXBroker::test_get_historical_account_value_not_implemented PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #94
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #94
+
+test_projectx.py::TestProjectXBroker::test_get_option_chains_not_supported PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #95
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #95
+
+test_projectx.py::TestProjectXBroker::test_order_type_conversions PASSED [ 73%]🔧 TestStrategy.on_trading_iteration() called - iteration #96
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #96
+
+test_projectx.py::TestProjectXBroker::test_contract_id_parsing PASSED    [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #97
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #97
+
+test_projectx.py::TestProjectXBroker::test_logging_cleanup PASSED        [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #98
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #98
+
+test_projectx.py::TestProjectXBroker::test_position_display_format PASSED [ 73%]
+test_projectx.py::TestProjectXBroker::test_multiple_order_status_scenarios PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #99
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #99
+
+test_projectx.py::TestProjectXBrokerIntegration::test_full_order_sync_workflow PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #100
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #100
+
+test_projectx.py::TestProjectXBrokerIntegration::test_position_sync_workflow PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #101
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #101
+
+test_projectx_bracket_helpers.py::test_create_bracket_meta_shape PASSED  [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #102
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #102
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[MYTAG-BRK_ENTRY_MYTAG-MYTAG] PASSED [ 73%]
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[BRK_ENTRY_BASE-BRK_ENTRY_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #103
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #103
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[BRK_TP_BASE-BRK_ENTRY_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #104
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #104
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[BRK_STOP_BASE-BRK_ENTRY_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #105
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #105
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[None-None-None] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #106
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #106
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[BRK_ENTRY_BASE-BASE] PASSED [ 74%]
+test_projectx_bracket_helpers.py::test_derive_base_tag[BRK_TP_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #107
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #107
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[BRK_STOP_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #108
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #108
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[PLAIN-PLAIN] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #109
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #109
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[None-None] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #110
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #110
+
+test_projectx_bracket_helpers.py::test_bracket_child_tag_variants PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #111
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #111
+
+test_projectx_bracket_helpers.py::test_build_unique_order_tag_generates_and_preserves PASSED [ 75%]
+test_projectx_bracket_helpers.py::test_select_effective_prices_precedence_and_rounding PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #112
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #112
+
+test_projectx_bracket_helpers.py::test_early_store_and_restore_bracket_meta PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #113
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #113
+
+test_projectx_bracket_helpers.py::test_should_spawn_bracket_children[meta0-False-expected0] PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #114
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #114
+
+test_projectx_bracket_helpers.py::test_should_spawn_bracket_children[meta1-False-expected1] PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #115
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #115
+
+test_projectx_bracket_helpers.py::test_build_bracket_child_spec_shapes PASSED [ 75%]
+test_projectx_bracket_lifecycle_unit.py::test_bracket_parent_submission_stores_meta_and_normalizes_tag PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #116
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #116
+
+test_projectx_bracket_lifecycle_unit.py::test_bracket_children_spawn_on_fill_and_tagging PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #117
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #117
+
+test_projectx_bracket_lifecycle_unit.py::test_bracket_child_fill_cancels_sibling PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #118
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #118
+
+test_projectx_data.py::TestProjectXDataSource::test_data_source_initialization PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #119
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #119
+
+test_projectx_data.py::TestProjectXDataSource::test_asset_to_contract_id_no_hardcoded_mappings PASSED [ 76%]
+test_projectx_data.py::TestProjectXDataSource::test_contract_id_generation_dynamic PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #120
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #120
+
+test_projectx_data.py::TestProjectXDataSource::test_timespan_parsing PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #121
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #121
+
+test_projectx_data.py::TestProjectXDataSource::test_projectx_unit_mapping PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #122
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #122
+
+test_projectx_data.py::TestProjectXDataSource::test_get_historical_prices_bars_conversion PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #123
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #123
+
+test_projectx_data.py::TestProjectXDataSource::test_get_last_price PASSED [ 76%]
+test_projectx_data.py::TestProjectXDataSource::test_dividends_not_supported PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #124
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #124
+
+test_projectx_data.py::TestProjectXDataSource::test_option_chains_not_supported PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #125
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #125
+
+test_projectx_data.py::TestProjectXDataSource::test_get_bars_with_contract_found PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #126
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #126
+
+test_projectx_data.py::TestProjectXDataSource::test_contract_search_multiple_formats PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #127
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #127
+
+test_projectx_data.py::TestProjectXDataSource::test_error_handling_no_contracts_found PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #128
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #128
+
+test_projectx_data.py::TestProjectXDataSource::test_get_contract_details PASSED [ 77%]
+test_projectx_data.py::TestProjectXDataSource::test_search_contracts PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #129
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #129
+
+test_projectx_data.py::TestProjectXDataSource::test_get_quote PASSED     [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #130
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #130
+
+test_projectx_data.py::TestProjectXDataSource::test_get_bars_from_datetime PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #131
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #131
+
+test_projectx_data.py::TestProjectXDataSourceIntegration::test_full_historical_data_workflow PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #132
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #132
+
+test_projectx_data.py::TestProjectXDataSourceIntegration::test_asset_resolution_workflow_with_fallbacks PASSED [ 77%]
+test_projectx_datetime_columns.py::test_projectx_fetch_bars_datetime_debug PASSED [ 77%]
+test_projectx_datetime_index.py::test_projectx_datetime_index 📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #133
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #133
+PASSED     [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #134
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #134
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_success PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #135
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #135
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_failure PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #136
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #136
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_invalid_json PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #137
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #137
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_missing_config PASSED [ 78%]
+test_projectx_helpers.py::TestProjectXClient::test_client_initialization PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #138
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #138
+
+test_projectx_helpers.py::TestProjectXClient::test_get_accounts PASSED   [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #139
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #139
+
+test_projectx_helpers.py::TestProjectXClient::test_get_preferred_account_id PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #140
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #140
+
+test_projectx_helpers.py::TestProjectXClient::test_get_account_balance PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #141
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #141
+
+test_projectx_helpers.py::TestProjectXClient::test_get_positions PASSED  [ 78%]
+test_projectx_helpers.py::TestProjectXClient::test_get_orders PASSED     [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #142
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #142
+
+test_projectx_helpers.py::TestProjectXClient::test_place_order_success PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #143
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #143
+
+test_projectx_helpers.py::TestProjectXClient::test_cancel_order_success PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #144
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #144
+
+test_projectx_helpers.py::TestProjectXClient::test_get_historical_data PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #145
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #145
+
+test_projectx_helpers.py::TestProjectXClient::test_search_contracts PASSED [ 79%]
+test_projectx_helpers.py::TestProjectXClient::test_get_contract_details PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #146
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #146
+
+test_projectx_helpers.py::TestProjectXClient::test_find_contract_by_symbol PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #147
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #147
+
+test_projectx_helpers.py::TestProjectXClient::test_contract_id_conversion_no_hardcoded_mappings PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #148
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #148
+
+test_projectx_helpers.py::TestProjectXClient::test_get_contract_tick_size PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #149
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #149
+
+test_projectx_helpers.py::TestProjectXClient::test_round_to_tick_size PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #150
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #150
+
+test_projectx_helpers.py::TestProjectXApiClient::test_api_client_initialization PASSED [ 80%]
+test_projectx_helpers.py::TestProjectXApiClient::test_api_request_headers PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #151
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #151
+
+test_projectx_helpers.py::TestProjectXApiClient::test_account_search PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #152
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #152
+
+test_projectx_helpers.py::TestProjectXApiClient::test_position_search_open PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #153
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #153
+
+test_projectx_helpers.py::TestProjectXApiClient::test_order_search PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #154
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #154
+
+test_projectx_helpers.py::TestProjectXApiClient::test_order_place PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #155
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #155
+
+test_projectx_helpers.py::TestProjectXApiClient::test_order_cancel PASSED [ 80%]
+test_projectx_helpers.py::TestProjectXApiClient::test_contract_search PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #156
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #156
+
+test_projectx_helpers.py::TestProjectXApiClient::test_contract_search_id PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #157
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #157
+
+test_projectx_helpers.py::TestProjectXApiClient::test_history_retrieve_bars PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #158
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #158
+
+test_projectx_helpers.py::TestProjectXApiClient::test_get_streaming_client PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #159
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #159
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_authentication_retry_logic PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #160
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #160
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_api_rate_limiting_handling PASSED [ 81%]
+test_projectx_helpers.py::TestProjectXErrorHandling::test_network_error_handling PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #161
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #161
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_invalid_response_handling PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #162
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #162
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_http_error_codes PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #163
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #163
+
+test_projectx_lifecycle.py::test_projectx_initialization PASSED          [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #164
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #164
+
+test_projectx_lifecycle.py::test_projectx_has_client PASSED              [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #165
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #165
+
+test_projectx_lifecycle_unit.py::test_submit_and_cancel PASSED           [ 82%]
+test_projectx_lifecycle_unit.py::test_rejection_mapping_max_position PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #166
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #166
+
+test_projectx_lifecycle_unit.py::test_rejection_generic PASSED           [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #167
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #167
+
+test_projectx_lifecycle_unit.py::test_new_order_event_dispatched_on_submit PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #168
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #168
+
+test_projectx_lifecycle_unit.py::test_order_status_change_detection PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #169
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #169
+
+test_projectx_lifecycle_unit.py::test_order_cancellation_event PASSED    [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #170
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #170
+
+test_projectx_lifecycle_unit.py::test_partial_fill_event PASSED          [ 82%]
+test_projectx_lifecycle_unit.py::test_streaming_order_update_triggers_events PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #171
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #171
+
+test_projectx_lifecycle_unit.py::test_streaming_trade_update_triggers_fill PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #172
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #172
+
+test_projectx_lifecycle_unit.py::test_pre_existing_filled_order_handling PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #173
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #173
+
+test_projectx_lifecycle_unit.py::test_error_order_event PASSED           [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #174
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #174
+
+test_projectx_lifecycle_unit.py::test_order_identifier_sync PASSED       [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #175
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #175
+
+test_projectx_lifecycle_unit.py::test_order_tracking_with_multiple_orders PASSED [ 83%]
+test_projectx_timestep_alias.py::test_projectx_get_bars_accepts_timestep_alias PASSED [ 83%]
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_url_mappings_loaded PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #177
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #177
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_url_patterns PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #178
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #178
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_with_builtin_urls PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #179
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #179
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_with_env_override PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #180
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #180
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_partial_env_override PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #181
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #181
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_topstepx_special_case PASSED [ 84%]
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_unknown_firm PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #182
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #182
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_auto_detection_with_multiple_firms PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #183
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #183
+
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_broker_validation_success PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #184
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #184
+
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_broker_validation_missing_fields PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #185
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #185
+
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_short_firm_name_env_vars_only PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #186
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #186
+
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_no_legacy_firm_names_in_mappings PASSED [ 84%]
+test_quiet_logs_buy_and_hold.py::test_quiet_logs_buy_and_hold_integration PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #187
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #187
+
+test_quiet_logs_comprehensive.py::test_print_progress_bar_respects_quiet_logs PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #188
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #188
+
+test_quiet_logs_comprehensive.py::test_data_source_backtesting_respects_quiet_logs PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #189
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #189
+
+test_quiet_logs_comprehensive.py::test_strategy_logger_respects_quiet_logs PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #190
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #190
+
+test_quiet_logs_comprehensive.py::test_environment_variable_variations PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #191
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #191
+
+test_quiet_logs_functionality.py::test_progress_bar_always_shows_with_quiet_logs PASSED [ 85%]
+test_quiet_logs_functionality.py::test_strategy_logger_respects_quiet_logs PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #192
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #192
+
+test_quiet_logs_functionality.py::test_quiet_logs_environment_variable PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #193
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #193
+
+test_quiet_logs_functionality.py::test_progress_bar_shows_green_bar PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #194
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #194
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_1_console_always_error_during_backtest_quiet_true PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #195
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #195
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_1_console_always_error_during_backtest_quiet_false PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #196
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #196
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_2_file_logging_quiet_true PASSED [ 85%]
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_2_file_logging_quiet_false PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #197
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #197
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_3_live_trading_unaffected PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #198
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #198
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_trader_integration_quiet_logs_false PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #199
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #199
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_default_backtesting_quiet_logs_is_true PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #200
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #200
+
+test_session_manager.py::TestSessionManager::test_backtesting_session_guarantees_time_progression PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #201
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #201
+
+test_session_manager.py::TestSessionManager::test_backtesting_session_prevents_infinite_restart PASSED [ 86%]
+test_session_manager.py::TestSessionManager::test_data_source_agnostic_design PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #202
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #202
+
+test_session_manager.py::TestSessionManager::test_live_trading_session_time_management PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #203
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #203
+
+test_session_manager.py::TestSessionManager::test_session_architecture_separation_of_concerns PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #204
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #204
+
+test_session_manager.py::TestSessionManager::test_session_replaces_problematic_run_trading_session PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #205
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #205
+
+test_strategy_methods.py::TestStrategyMethods::test_get_option_expiration_after_date PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #206
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #206
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_none_quantity PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #207
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #207
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_zero_quantity PASSED [ 87%]
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_valid_quantity PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #208
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #208
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_none_order PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #209
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #209
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_invalid_order_type PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #210
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #210
+
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_returns_job_id PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #211
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #211
+
+test_strategy_methods.py::TestStrategyMethods::test_update_portfolio_value_with_missing_price PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #212
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #212
+
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_adds_job_to_scheduler PASSED [ 87%]
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_uses_broker_timezone PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #213
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #213
+
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_does_nothing_in_backtesting PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #214
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #214
+
+test_thetadata_helper.py::test_get_price_data_with_cached_data FAILED    [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #215
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #215
+
+test_thetadata_helper.py::test_get_price_data_without_cached_data PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #216
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #216
+
+test_thetadata_helper.py::test_get_price_data_partial_cache_hit PASSED   [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #217
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #217
+
+test_thetadata_helper.py::test_get_price_data_empty_response PASSED      [ 88%]
+test_thetadata_helper.py::test_get_trading_dates PASSED                  [ 88%]
+test_thetadata_helper.py::test_build_cache_filename[ohlc] PASSED         [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #219
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #219
+
+test_thetadata_helper.py::test_build_cache_filename[quote] PASSED        [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #220
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #220
+
+test_thetadata_helper.py::test_missing_dates PASSED                      [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #221
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #221
+
+test_thetadata_helper.py::test_update_cache[df_all0-df_cached0-ohlc] PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #222
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #222
+
+test_thetadata_helper.py::test_update_cache[df_all1-df_cached1-quote] PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #223
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #223
+
+test_thetadata_helper.py::test_load_data_from_cache[df_cached0-ohlc] PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #224
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #224
+
+test_thetadata_helper.py::test_load_data_from_cache[df_cached1-quote] PASSED [ 89%]
+test_thetadata_helper.py::test_update_df_with_empty_result PASSED        [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #225
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #225
+
+test_thetadata_helper.py::test_update_df_empty_df_all_and_empty_result PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #226
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #226
+
+test_thetadata_helper.py::test_update_df_empty_df_all_and_result_no_datetime PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #227
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #227
+
+test_thetadata_helper.py::test_update_df_empty_df_all_with_new_data FAILED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #228
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #228
+
+test_thetadata_helper.py::test_update_df_existing_df_all_with_new_data FAILED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #229
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #229
+
+test_thetadata_helper.py::test_update_df_with_overlapping_data FAILED    [ 90%]
+test_thetadata_helper.py::test_update_df_with_timezone_awareness PASSED  [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #230
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #230
+
+test_thetadata_helper.py::test_start_theta_data_client FAILED            [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #233
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #233
+
+test_thetadata_helper.py::test_check_connection PASSED                   [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #234
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #234
+
+test_thetadata_helper.py::test_check_connection_with_exception 

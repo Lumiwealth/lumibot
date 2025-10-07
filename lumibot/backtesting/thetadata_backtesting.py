@@ -319,8 +319,7 @@ class ThetaDataBacktesting(PandasData):
 
     def get_chains(self, asset):
         """
-        Integrates the ThetaData client library into the LumiBot backtest for Options Data
-        in the same structure as modern Lumibot option chain format.
+        Get option chains using cached implementation (matches Polygon pattern).
 
         Parameters
         ----------
@@ -347,34 +346,13 @@ class ThetaDataBacktesting(PandasData):
             }
         """
         from lumibot.entities import Chains
-        from collections import defaultdict
 
-        today = self.get_datetime().date()
-
-        # Get expirations from thetadata_helper
-        expirations = thetadata_helper.get_expirations(self._username, self._password, asset.symbol, today)
-
-        # Build the Chains structure expected by modern Lumibot
-        chains_dict = {
-            "Multiplier": 100,
-            "Exchange": "SMART",
-            "Chains": {
-                "CALL": defaultdict(list),
-                "PUT": defaultdict(list)
-            }
-        }
-
-        # For each expiration, get the strikes
-        for expiration_str in expirations:
-            # Convert expiration string (YYYY-MM-DD) to date object
-            expiration = date.fromisoformat(expiration_str)
-
-            # Get strikes from thetadata_helper for this expiration
-            strikes = thetadata_helper.get_strikes(self._username, self._password, asset.symbol, expiration)
-
-            # Add strikes to both CALL and PUT (ThetaData doesn't distinguish at this level)
-            chains_dict["Chains"]["CALL"][expiration_str] = sorted(strikes)
-            chains_dict["Chains"]["PUT"][expiration_str] = sorted(strikes)
+        chains_dict = thetadata_helper.get_chains_cached(
+            username=self._username,
+            password=self._password,
+            asset=asset,
+            current_date=self.get_datetime().date()
+        )
 
         # Wrap in Chains entity for modern API
         return Chains(chains_dict)

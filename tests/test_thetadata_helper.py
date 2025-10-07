@@ -1,4 +1,5 @@
 import datetime
+from datetime import date
 import logging
 import numpy as np
 import os
@@ -1128,6 +1129,84 @@ class TestThetaDataProcessHealthCheck:
 
         assert thetadata_helper.THETA_DATA_PROCESS is not None, "Process should be started"
         assert thetadata_helper.is_process_alive() is True, "New process should be alive"
+
+
+@pytest.mark.apitest
+class TestThetaDataChainsCaching:
+    """Test option chain caching matches Polygon pattern - ZERO TOLERANCE."""
+
+    def test_chains_cached_basic_structure(self):
+        """Test chain caching returns correct structure."""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        asset = Asset("SPY", asset_type="stock")
+        test_date = date(2025, 9, 15)
+
+        chains = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+
+        assert chains is not None, "Chains should not be None"
+        assert "Multiplier" in chains, "Missing Multiplier"
+        assert chains["Multiplier"] == 100, f"Multiplier should be 100, got {chains['Multiplier']}"
+        assert "Exchange" in chains, "Missing Exchange"
+        assert "Chains" in chains, "Missing Chains"
+        assert "CALL" in chains["Chains"], "Missing CALL chains"
+        assert "PUT" in chains["Chains"], "Missing PUT chains"
+
+        # Verify at least one expiration exists
+        assert len(chains["Chains"]["CALL"]) > 0, "Should have at least one CALL expiration"
+        assert len(chains["Chains"]["PUT"]) > 0, "Should have at least one PUT expiration"
+
+        print(f"✓ Chain structure valid: {len(chains['Chains']['CALL'])} expirations")
+
+    def test_chains_cache_reuse(self):
+        """Test that second call reuses cached data (no API call)."""
+        import time
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        asset = Asset("AAPL", asset_type="stock")
+        test_date = date(2025, 9, 15)
+
+        # First call - downloads
+        start1 = time.time()
+        chains1 = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+        time1 = time.time() - start1
+
+        # Second call - should use cache
+        start2 = time.time()
+        chains2 = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+        time2 = time.time() - start2
+
+        # Verify same data
+        assert chains1 == chains2, "Cached chains should match original"
+
+        # Second call should be MUCH faster (cached)
+        assert time2 < time1 * 0.1, f"Cache not working: time1={time1:.2f}s, time2={time2:.2f}s (should be 10x faster)"
+        print(f"✓ Cache speedup: {time1/time2:.1f}x faster ({time1:.2f}s -> {time2:.4f}s)")
+
+    def test_chains_strike_format(self):
+        """Test strikes are floats (not integers) and properly converted."""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        asset = Asset("PLTR", asset_type="stock")
+        test_date = date(2025, 9, 15)
+
+        chains = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+
+        # Check first expiration
+        first_exp = list(chains["Chains"]["CALL"].keys())[0]
+        strikes = chains["Chains"]["CALL"][first_exp]
+
+        assert len(strikes) > 0, "Should have at least one strike"
+        assert isinstance(strikes[0], float), f"Strikes should be float, got {type(strikes[0])}"
+
+        # Verify reasonable strike values (not in 1/10th cent units)
+        assert strikes[0] < 10000, f"Strike seems unconverted (too large): {strikes[0]}"
+        assert strikes[0] > 0, f"Strike should be positive: {strikes[0]}"
+
+        print(f"✓ Strikes properly formatted: {len(strikes)} strikes ranging {strikes[0]:.2f} to {strikes[-1]:.2f}")
 
 
 if __name__ == '__main__':

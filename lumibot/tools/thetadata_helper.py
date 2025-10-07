@@ -70,12 +70,14 @@ def get_price_data(
         A DataFrame with the pricing data for the asset
 
     """
+    import pytz  # Import at function level to avoid scope issues in nested calls
 
     # Check if we already have data for this asset in the cache file
+    # NOTE: Daily data is aggregated from minute data, so we don't cache daily bars
     df_all = None
     df_cached = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
-    if cache_file.exists():
+    if cache_file.exists() and timespan != "day":
         logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
@@ -84,6 +86,32 @@ def get_price_data(
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     if not missing_dates:
+        # Filter cached data to requested date range before returning
+        if df_all is not None and not df_all.empty:
+            # For daily data, use date-based filtering (timestamps vary by provider)
+            # For intraday data, use precise datetime filtering
+            if timespan == "day":
+                # Convert index to dates for comparison
+                import pandas as pd
+                df_dates = pd.to_datetime(df_all.index).date
+                start_date = start.date() if hasattr(start, 'date') else start
+                end_date = end.date() if hasattr(end, 'date') else end
+                mask = (df_dates >= start_date) & (df_dates <= end_date)
+                df_all = df_all[mask]
+            else:
+                # Intraday: use precise datetime filtering
+                import datetime as dt
+                # Convert date to datetime if needed
+                if isinstance(start, dt.date) and not isinstance(start, dt.datetime):
+                    start = dt.datetime.combine(start, dt.time.min)
+                if isinstance(end, dt.date) and not isinstance(end, dt.datetime):
+                    end = dt.datetime.combine(end, dt.time.max)
+
+                if start.tzinfo is None:
+                    start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
+                if end.tzinfo is None:
+                    end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
+                df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
         return df_all
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
@@ -98,19 +126,79 @@ def get_price_data(
 
     delta = timedelta(days=MAX_DAYS)
 
-    interval_ms = None
-    # Calculate the interval in milliseconds
-    if timespan == "second":
-        interval_ms = 1000
-    elif timespan == "minute":
-        interval_ms = 60000
-    elif timespan == "hour":
-        interval_ms = 3600000
-    elif timespan == "day":
-        interval_ms = 86400000
-    else:
-        interval_ms = 60000
-        logger.warning(f"Unsupported timespan: {timespan}, using default of 1 minute")
+    # For daily bars, ThetaData's API doesn't properly support 24-hour intervals
+    # AND different providers use different close definitions (15:59 vs 16:00)
+    # Solution: Aggregate minute data client-side using 15:59 PM close (matches Polygon/Yahoo)
+    if timespan == "day":
+        import pandas as pd
+        from datetime import datetime as dt_class
+
+        logger.info(f"Daily bars: aggregating from minute data (15:59 PM close)")
+
+        # Extend end to include full trading day
+        minute_end = end
+        if isinstance(minute_end, dt_class) and minute_end.hour == 0 and minute_end.minute == 0:
+            minute_end = dt_class.combine(minute_end.date(), dt_class.max.time())
+
+        # Fetch minute data (RTH only - no need for extended hours)
+        minute_df = get_price_data(
+            username=username,
+            password=password,
+            asset=asset,
+            start=start,
+            end=minute_end,
+            timespan="minute",
+            quote_asset=quote_asset,
+            include_after_hours=False,  # RTH only (ends at 15:59)
+            datastyle=datastyle
+        )
+
+        if minute_df is None or minute_df.empty:
+            return None
+
+        # Group by trading date and aggregate
+        minute_df_copy = minute_df.copy()
+        minute_df_copy['date'] = minute_df_copy.index.date
+        daily_data = []
+
+        for trade_date, day_df in minute_df_copy.groupby('date'):
+            daily_bar = {
+                'open': day_df.iloc[0]['open'],
+                'high': day_df['high'].max(),
+                'low': day_df['low'].min(),
+                'close': day_df.iloc[-1]['close'],  # Last RTH bar (15:59)
+                'volume': day_df['volume'].sum(),
+                'count': day_df['count'].sum() if 'count' in day_df.columns else len(day_df)
+            }
+            daily_data.append((trade_date, daily_bar))
+
+        # Create DataFrame
+        daily_df = pd.DataFrame([bar for _, bar in daily_data],
+                                index=pd.DatetimeIndex([pd.Timestamp(date) for date, _ in daily_data]))
+        daily_df.index = daily_df.index.tz_localize(pytz.UTC)
+
+        logger.info(f"Aggregated {len(minute_df)} RTH minute bars to {len(daily_df)} daily bars")
+        return daily_df
+
+    # Map timespan to milliseconds for intraday intervals
+    TIMESPAN_TO_MS = {
+        "second": 1000,
+        "minute": 60000,
+        "5minute": 300000,
+        "10minute": 600000,
+        "15minute": 900000,
+        "30minute": 1800000,
+        "hour": 3600000,
+        "2hour": 7200000,
+        "4hour": 14400000,
+    }
+
+    interval_ms = TIMESPAN_TO_MS.get(timespan)
+    if interval_ms is None:
+        raise ValueError(
+            f"Unsupported timespan '{timespan}'. "
+            f"Supported values: {list(TIMESPAN_TO_MS.keys())} or 'day'"
+        )
 
     while start <= missing_dates[-1]:
         # If we don't have a paid subscription, we need to wait 1 minute between requests because of
@@ -178,7 +266,9 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         raise ValueError(f"Unsupported asset type for thetadata: {asset.asset_type}")
 
     # Get the trading days between the start and end dates
-    df = cal.schedule(start_date=start.date(), end_date=end.date())
+    start_date = start.date() if hasattr(start, 'date') else start
+    end_date = end.date() if hasattr(end, 'date') else end
+    df = cal.schedule(start_date=start_date, end_date=end_date)
     trading_days = df.index.date.tolist()
     return trading_days
 
@@ -573,12 +663,8 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     start_date = start_dt.strftime("%Y%m%d")
     end_date = end_dt.strftime("%Y%m%d")
 
-    # Create the url based on the asset type
-    # Indexes require v2 API as of ThetaTerminal v1.8.6
-    if asset.asset_type == "index":
-        url = f"{BASE_URL}/v2/hist/{asset.asset_type}/{datastyle}"
-    else:
-        url = f"{BASE_URL}/hist/{asset.asset_type}/{datastyle}"
+    # Use v2 API for ALL asset types
+    url = f"{BASE_URL}/v2/hist/{asset.asset_type}/{datastyle}"
 
     if asset.asset_type == "option":
         # Convert the expiration date to a string
@@ -648,9 +734,8 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
         # Ensure the date is in integer format and then convert to string
         date_str = str(int(row["date"]))
         base_date = datetime.strptime(date_str, "%Y%m%d")
-        # ThetaData timestamps are off by +1 minute (bars labeled 9:31 contain 9:30 data)
-        # Subtract 60000ms (1 minute) to align with correct timestamps
-        datetime_value = base_date + timedelta(milliseconds=int(row["ms_of_day"]) - 60000)
+        # v2 API returns correct start-stamped bars - no adjustment needed
+        datetime_value = base_date + timedelta(milliseconds=int(row["ms_of_day"]))
         return datetime_value
 
     # Apply the function to each row to create a new datetime column
@@ -694,8 +779,8 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
     list[str]
         A list of expiration dates for the given ticker
     """
-    # Create the url based on the request type
-    url = f"{BASE_URL}/list/expirations"
+    # Use v2 API endpoint
+    url = f"{BASE_URL}/v2/list/expirations"
 
     querystring = {"root": ticker}
 
@@ -748,8 +833,8 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     list[float]
         A list of strike prices for the given ticker and expiration date
     """
-    # Create the url based on the request type
-    url = f"{BASE_URL}/list/strikes"
+    # Use v2 API endpoint
+    url = f"{BASE_URL}/v2/list/strikes"
 
     # Convert the expiration date to a string
     expiration_str = expiration.strftime("%Y%m%d")
@@ -771,3 +856,118 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     strikes = [x / 1000.0 for x in strikes]
 
     return strikes
+
+
+def get_chains_cached(
+    username: str,
+    password: str,
+    asset: Asset,
+    current_date: date = None
+) -> dict:
+    """
+    Retrieve option chain with caching (MATCHES POLYGON PATTERN).
+
+    This function follows the EXACT same caching strategy as Polygon:
+    1. Check cache: LUMIBOT_CACHE_FOLDER/thetadata/option_chains/{symbol}_{date}.parquet
+    2. Reuse files within RECENT_FILE_TOLERANCE_DAYS (default 7 days)
+    3. If not found, fetch from ThetaData and save to cache
+    4. Use pyarrow engine with snappy compression
+
+    Parameters
+    ----------
+    username : str
+        ThetaData username
+    password : str
+        ThetaData password
+    asset : Asset
+        Underlying asset (e.g., Asset("SPY"))
+    current_date : date
+        Historical date for backtest (required)
+
+    Returns
+    -------
+    dict : {
+        "Multiplier": 100,
+        "Exchange": "SMART",
+        "Chains": {
+            "CALL": {"2025-09-19": [140.0, 145.0, ...], ...},
+            "PUT": {"2025-09-19": [140.0, 145.0, ...], ...}
+        }
+    }
+    """
+    from collections import defaultdict
+
+    logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
+
+    # 1) If current_date is None => bail out
+    if current_date is None:
+        logger.debug("No current_date provided; returning None.")
+        return None
+
+    # 2) Build cache folder path
+    chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option_chains"
+    chain_folder.mkdir(parents=True, exist_ok=True)
+
+    # 3) Check for recent cached file (within RECENT_FILE_TOLERANCE_DAYS)
+    RECENT_FILE_TOLERANCE_DAYS = 7
+    earliest_okay_date = current_date - timedelta(days=RECENT_FILE_TOLERANCE_DAYS)
+    pattern = f"{asset.symbol}_*.parquet"
+    potential_files = sorted(chain_folder.glob(pattern), reverse=True)
+
+    for fpath in potential_files:
+        fname = fpath.stem  # e.g., "SPY_2025-09-15"
+        parts = fname.split("_", maxsplit=1)
+        if len(parts) != 2:
+            continue
+        file_symbol, date_str = parts
+        if file_symbol != asset.symbol:
+            continue
+
+        try:
+            file_date = date.fromisoformat(date_str)
+        except ValueError:
+            continue
+
+        # If file is recent enough, reuse it
+        if earliest_okay_date <= file_date <= current_date:
+            logger.debug(f"Reusing chain file {fpath} (file_date={file_date})")
+            df_cached = pd.read_parquet(fpath, engine='pyarrow')
+
+            # Convert back to dict with lists (not numpy arrays)
+            data = df_cached["data"][0]
+            for right in data["Chains"]:
+                for exp_date in data["Chains"][right]:
+                    data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+
+            return data
+
+    # 4) No suitable file => fetch from ThetaData
+    logger.debug(f"No suitable file found for {asset.symbol} on {current_date}. Downloading...")
+    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use.")
+
+    # Get expirations and strikes using existing functions
+    expirations = get_expirations(username, password, asset.symbol, current_date)
+
+    chains_dict = {
+        "Multiplier": 100,
+        "Exchange": "SMART",
+        "Chains": {
+            "CALL": defaultdict(list),
+            "PUT": defaultdict(list)
+        }
+    }
+
+    for expiration_str in expirations:
+        expiration = date.fromisoformat(expiration_str)
+        strikes = get_strikes(username, password, asset.symbol, expiration)
+
+        chains_dict["Chains"]["CALL"][expiration_str] = sorted(strikes)
+        chains_dict["Chains"]["PUT"][expiration_str] = sorted(strikes)
+
+    # 5) Save to cache file for future reuse
+    cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
+    df_to_cache = pd.DataFrame({"data": [chains_dict]})
+    df_to_cache.to_parquet(cache_file, compression='snappy', engine='pyarrow')
+    logger.debug(f"Saved chain cache: {cache_file}")
+
+    return chains_dict

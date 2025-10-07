@@ -656,11 +656,18 @@ def _ensure_handlers_configured():
 
     # Determine the effective file (root) log level and console level
     if is_backtesting:
-        console_level = logging.ERROR
         backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
         if backtesting_quiet is None:
             backtesting_quiet = "true"
-        effective_log_level = logging.ERROR if backtesting_quiet.lower() == "true" else log_level
+
+        if backtesting_quiet.lower() == "true":
+            # Quiet mode: only ERROR+ messages to console and file
+            console_level = logging.ERROR
+            effective_log_level = logging.ERROR
+        else:
+            # Verbose mode: respect LUMIBOT_LOG_LEVEL for both console and file
+            console_level = log_level
+            effective_log_level = log_level
     else:
         console_level = log_level
         effective_log_level = log_level

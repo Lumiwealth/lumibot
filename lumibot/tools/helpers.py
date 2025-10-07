@@ -399,7 +399,12 @@ def print_progress_bar(
     filled_length = int(length * percent / 100)
     bar = fill * filled_length + "-" * (length - filled_length)
 
-    line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str} {portfolio_value_str}"
+    # When BACKTESTING_QUIET_LOGS=False, use newline instead of carriage return
+    # so log messages aren't overwritten by the progress bar
+    quiet_logs = os.environ.get("BACKTESTING_QUIET_LOGS", "true").lower() == "true"
+    line_start = "\r" if quiet_logs else "\n"
+
+    line = f"{line_start}{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str} {portfolio_value_str}"
     file.write(line)
     file.flush()
 

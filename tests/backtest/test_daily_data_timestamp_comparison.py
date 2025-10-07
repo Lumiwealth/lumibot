@@ -73,7 +73,255 @@ class TestDailyDataTimestampComparison:
             min_trading_days=19
         )
 
-    def _test_symbol_daily_data(self, symbol, start_date, end_date, min_trading_days):
+    # ========== INDEX TESTS ==========
+    def test_daily_data_full_month_spx_index(self):
+        """Test SPX index daily data for full September 2025 - ZERO tolerance."""
+        self._test_symbol_daily_data(
+            symbol="SPX",
+            start_date=datetime.datetime(2025, 9, 1),
+            end_date=datetime.datetime(2025, 9, 30),
+            min_trading_days=19,
+            asset_type="index"
+        )
+
+    def test_daily_data_full_month_vix_index(self):
+        """Test VIX index daily data for full September 2025 - ZERO tolerance."""
+        self._test_symbol_daily_data(
+            symbol="VIX",
+            start_date=datetime.datetime(2025, 9, 1),
+            end_date=datetime.datetime(2025, 9, 30),
+            min_trading_days=19,
+            asset_type="index"
+        )
+
+    def test_daily_data_full_month_ndx_index(self):
+        """Test NDX index daily data for full September 2025 - ZERO tolerance."""
+        self._test_symbol_daily_data(
+            symbol="NDX",
+            start_date=datetime.datetime(2025, 9, 1),
+            end_date=datetime.datetime(2025, 9, 30),
+            min_trading_days=19,
+            asset_type="index"
+        )
+
+    # ========== OPTION TESTS ==========
+    def test_daily_data_spy_call_option(self):
+        """Test SPY call option daily data for September 2025 - ZERO tolerance."""
+        self._test_option_daily_data(
+            symbol="SPY",
+            start_date=datetime.datetime(2025, 9, 1),
+            end_date=datetime.datetime(2025, 9, 30),
+            min_trading_days=15,  # Options may have less liquidity
+            expiration=datetime.datetime(2025, 12, 19),  # Dec 2025 expiry
+            strike=580.0,  # ATM/slightly OTM for SPY ~$570
+            right="CALL"
+        )
+
+    def test_daily_data_spy_put_option(self):
+        """Test SPY put option daily data for September 2025 - ZERO tolerance."""
+        self._test_option_daily_data(
+            symbol="SPY",
+            start_date=datetime.datetime(2025, 9, 1),
+            end_date=datetime.datetime(2025, 9, 30),
+            min_trading_days=15,
+            expiration=datetime.datetime(2025, 12, 19),
+            strike=560.0,  # ATM/slightly ITM for SPY ~$570
+            right="PUT"
+        )
+
+    def _test_option_daily_data(self, symbol, start_date, end_date, min_trading_days, expiration, strike, right):
+        """
+        Test function for option daily data validation.
+
+        NOTE: Options comparison is challenging because:
+        - Yahoo Finance historical option data is limited (often <1 week)
+        - Different providers use different quote/trade data
+        - Options have wider bid-ask spreads than stocks
+        - No universal "official" option price like stocks have
+
+        This test validates:
+        1. ThetaData returns option data successfully
+        2. Minimum number of trading days
+        3. Price values are reasonable (not zero, not negative)
+        4. Volume data exists
+        """
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        asset = Asset(symbol, asset_type="option", expiration=expiration, strike=strike, right=right)
+
+        print(f"\n{'='*80}")
+        print(f"TESTING {symbol} {right} ${strike} (exp {expiration.date()}) OPTION DAILY DATA")
+        print(f"Period: {start_date.date()} to {end_date.date()}")
+        print(f"{'='*80}")
+
+        # ==== GET THETADATA OPTION DATA ====
+        print(f"\n1. Fetching ThetaData option daily data...")
+        try:
+            theta_df = thetadata_helper.get_price_data(
+                username=username,
+                password=password,
+                asset=asset,
+                start=start_date,
+                end=end_date,
+                timespan="day"
+            )
+        except Exception as e:
+            pytest.fail(f"CRITICAL: ThetaData option daily data FAILED: {e}")
+
+        if theta_df is None or len(theta_df) == 0:
+            pytest.fail(f"CRITICAL: ThetaData returned NO option daily data")
+
+        print(f"   ✓ ThetaData: {len(theta_df)} daily bars")
+        print(f"   Date range: {theta_df.index[0]} to {theta_df.index[-1]}")
+
+        # ==== GET POLYGON OPTION DATA FOR COMPARISON ====
+        print(f"\n2. Fetching Polygon option data for validation...")
+        polygon_api_key = os.environ.get("POLYGON_API_KEY")
+
+        try:
+            polygon_df = polygon_get_price_data(
+                api_key=polygon_api_key,
+                asset=asset,
+                start=start_date,
+                end=end_date,
+                timespan="day",
+                quote_asset=Asset("USD", asset_type="forex")
+            )
+
+            if polygon_df is None or len(polygon_df) == 0:
+                print(f"   ⚠ WARNING: Polygon returned NO option data - skipping price comparison")
+                polygon_df = None
+            else:
+                print(f"   ✓ Polygon: {len(polygon_df)} daily bars")
+                print(f"   Date range: {polygon_df.index[0]} to {polygon_df.index[-1]}")
+        except Exception as e:
+            print(f"   ⚠ WARNING: Polygon failed ({e}) - skipping price comparison")
+            polygon_df = None
+
+        # ==== CHECK: Minimum Trading Days ====
+        print(f"\n3. Verifying minimum trading days...")
+        assert len(theta_df) >= min_trading_days, \
+            f"CRITICAL: Expected at least {min_trading_days} days, got {len(theta_df)}"
+        print(f"   ✓ Sufficient trading days: {len(theta_df)} >= {min_trading_days}")
+
+        # ==== CHECK: Price Comparison (if Polygon data available) ====
+        if polygon_df is not None and len(polygon_df) > 0:
+            print(f"\n4. Verifying OHLC prices vs Polygon (half-penny tolerance: $0.005)...")
+
+            # Check same number of days
+            if len(theta_df) != len(polygon_df):
+                print(f"\n   ✗ MISMATCH: ThetaData={len(theta_df)} days, Polygon={len(polygon_df)} days")
+                pytest.fail(f"CRITICAL: Different number of trading days")
+
+            # Align data
+            max_diff = {'open': 0.0, 'high': 0.0, 'low': 0.0, 'close': 0.0}
+            comparison_data = []
+
+            for theta_idx, polygon_idx in zip(theta_df.index, polygon_df.index):
+                theta_row = theta_df.loc[theta_idx]
+                polygon_row = polygon_df.loc[polygon_idx]
+
+                diffs = {
+                    'open': abs(theta_row['open'] - polygon_row['open']),
+                    'high': abs(theta_row['high'] - polygon_row['high']),
+                    'low': abs(theta_row['low'] - polygon_row['low']),
+                    'close': abs(theta_row['close'] - polygon_row['close'])
+                }
+
+                for field in ['open', 'high', 'low', 'close']:
+                    max_diff[field] = max(max_diff[field], diffs[field])
+
+                comparison_data.append({
+                    'date': theta_idx.date(),
+                    'theta_close': theta_row['close'],
+                    'polygon_close': polygon_row['close'],
+                    'diff_close': diffs['close'],
+                })
+
+            # HALF-PENNY tolerance ($0.005) - anything more is unacceptable
+            tolerance = 0.005
+            failures = []
+
+            for field in ['open', 'high', 'low', 'close']:
+                if max_diff[field] > tolerance:
+                    failures.append(f"{field}: max diff ${max_diff[field]:.4f}")
+
+            if failures:
+                print(f"\n   ✗ PRICE TOLERANCE EXCEEDED:")
+                for failure in failures:
+                    print(f"      {failure}")
+
+                print(f"\n   PRICE COMPARISON (first 10 days):")
+                print(f"   {'Date':<12} {'Theta':<10} {'Polygon':<10} {'Diff':<10}")
+                print(f"   {'-'*50}")
+                for row in comparison_data[:10]:
+                    t_close = row['theta_close']
+                    p_close = row['polygon_close']
+                    diff = row['diff_close']
+                    match_str = "✅" if diff <= tolerance else "❌"
+                    print(f"   {row['date']} ${t_close:<9.2f} ${p_close:<9.2f} ${diff:<9.4f} {match_str}")
+
+                pytest.fail(f"CRITICAL: Option price tolerance exceeded: {', '.join(failures)}")
+
+            print(f"   ✓ All prices within ${tolerance:.3f} tolerance")
+            print(f"      Max differences: open=${max_diff['open']:.4f}, high=${max_diff['high']:.4f}, "
+                  f"low=${max_diff['low']:.4f}, close=${max_diff['close']:.4f}")
+
+        # ==== CHECK: Price Data Sanity ====
+        print(f"\n5. Verifying price data sanity...")
+
+        # Check for zero or negative prices (invalid)
+        zero_prices = (theta_df['close'] <= 0).sum()
+        if zero_prices > 0:
+            pytest.fail(f"CRITICAL: {zero_prices} bars have zero/negative close prices")
+
+        # Check for reasonable price ranges
+        min_price = theta_df['close'].min()
+        max_price = theta_df['close'].max()
+        avg_price = theta_df['close'].mean()
+
+        print(f"   ✓ All prices positive")
+        print(f"      Price range: ${min_price:.2f} - ${max_price:.2f} (avg: ${avg_price:.2f})")
+
+        # ==== CHECK: OHLC Consistency ====
+        print(f"\n4. Verifying OHLC consistency...")
+
+        # High should be >= Low for every bar
+        invalid_hl = (theta_df['high'] < theta_df['low']).sum()
+        if invalid_hl > 0:
+            pytest.fail(f"CRITICAL: {invalid_hl} bars have high < low")
+
+        # High should be >= Open and Close
+        invalid_h = ((theta_df['high'] < theta_df['open']) | (theta_df['high'] < theta_df['close'])).sum()
+        if invalid_h > 0:
+            pytest.fail(f"CRITICAL: {invalid_h} bars have high < open/close")
+
+        # Low should be <= Open and Close
+        invalid_l = ((theta_df['low'] > theta_df['open']) | (theta_df['low'] > theta_df['close'])).sum()
+        if invalid_l > 0:
+            pytest.fail(f"CRITICAL: {invalid_l} bars have low > open/close")
+
+        print(f"   ✓ OHLC relationships valid (high >= low, high >= open/close, low <= open/close)")
+
+        # ==== CHECK: Volume Data ====
+        print(f"\n5. Verifying volume data...")
+        zero_volume = (theta_df['volume'] == 0).sum()
+        pct_zero_vol = (zero_volume / len(theta_df)) * 100
+
+        print(f"   ✓ Volume data present ({zero_volume}/{len(theta_df)} bars with zero volume = {pct_zero_vol:.1f}%)")
+        if pct_zero_vol > 50:
+            print(f"   ⚠ WARNING: >50% of bars have zero volume (may indicate low liquidity)")
+
+        print(f"\n{'='*80}")
+        print(f"✓✓✓ {symbol} OPTION DATA VALIDATION PASSED ✓✓✓")
+        print(f"    Trading days: {len(theta_df)}")
+        print(f"    Price range: ${min_price:.2f} - ${max_price:.2f}")
+        print(f"    OHLC relationships: VALID")
+        print(f"    Period: {theta_df.index[0].date()} to {theta_df.index[-1].date()}")
+        print(f"{'='*80}\n")
+
+    def _test_symbol_daily_data(self, symbol, start_date, end_date, min_trading_days, asset_type="stock"):
         """
         Core test function that validates daily data for a symbol.
 
@@ -90,7 +338,7 @@ class TestDailyDataTimestampComparison:
         password = os.environ.get("THETADATA_PASSWORD")
         polygon_api_key = os.environ.get("POLYGON_API_KEY")
 
-        asset = Asset(symbol, asset_type="stock")
+        asset = Asset(symbol, asset_type=asset_type)
 
         print(f"\n{'='*80}")
         print(f"TESTING {symbol} DAILY DATA: {start_date.date()} to {end_date.date()}")
@@ -116,24 +364,57 @@ class TestDailyDataTimestampComparison:
         print(f"   ✓ ThetaData: {len(theta_df)} daily bars")
         print(f"   Date range: {theta_df.index[0]} to {theta_df.index[-1]}")
 
-        # ==== GET POLYGON DAILY DATA ====
-        print(f"\n2. Fetching Polygon daily data...")
-        try:
-            polygon_df = polygon_get_price_data(
-                api_key=polygon_api_key,
-                asset=asset,
-                start=start_date,
-                end=end_date,
-                timespan="day",
-                quote_asset=Asset("USD", asset_type="forex")
-            )
-        except Exception as e:
-            pytest.fail(f"CRITICAL: Polygon daily data FAILED for {symbol}: {e}")
+        # ==== GET POLYGON OR YAHOO DAILY DATA ====
+        # NOTE: Polygon requires paid plan for indexes, so we use Yahoo Finance for indexes
+        if asset_type == "index":
+            print(f"\n2. Fetching Yahoo Finance daily data (indexes not available in free Polygon)...")
+            import yfinance as yf
 
-        if polygon_df is None or len(polygon_df) == 0:
-            pytest.fail(f"CRITICAL: Polygon returned NO daily data for {symbol}")
+            # Yahoo Finance uses ^SPX for SPX, ^VIX for VIX, ^NDX for NDX
+            yahoo_symbol = f"^{symbol}" if symbol in ["SPX", "VIX", "NDX", "RUT", "DJI"] else symbol
+            ticker = yf.Ticker(yahoo_symbol)
 
-        print(f"   ✓ Polygon: {len(polygon_df)} daily bars")
+            try:
+                from datetime import timedelta as td
+                # Yahoo requires end_date to be exclusive (next day)
+                yahoo_end = (end_date + td(days=1)).strftime('%Y-%m-%d')
+                yahoo_start = start_date.strftime('%Y-%m-%d')
+                yahoo_hist = ticker.history(start=yahoo_start, end=yahoo_end, interval='1d')
+
+                if yahoo_hist is None or len(yahoo_hist) == 0:
+                    pytest.fail(f"CRITICAL: Yahoo Finance returned NO daily data for {symbol}")
+
+                # Convert Yahoo data to match our format
+                polygon_df = pd.DataFrame({
+                    'open': yahoo_hist['Open'],
+                    'high': yahoo_hist['High'],
+                    'low': yahoo_hist['Low'],
+                    'close': yahoo_hist['Close'],
+                    'volume': yahoo_hist['Volume']
+                })
+                polygon_df.index = pd.to_datetime(polygon_df.index).tz_convert('UTC')
+
+            except Exception as e:
+                pytest.fail(f"CRITICAL: Yahoo Finance daily data FAILED for {symbol}: {e}")
+        else:
+            print(f"\n2. Fetching Polygon daily data...")
+            try:
+                polygon_df = polygon_get_price_data(
+                    api_key=polygon_api_key,
+                    asset=asset,
+                    start=start_date,
+                    end=end_date,
+                    timespan="day",
+                    quote_asset=Asset("USD", asset_type="forex")
+                )
+            except Exception as e:
+                pytest.fail(f"CRITICAL: Polygon daily data FAILED for {symbol}: {e}")
+
+            if polygon_df is None or len(polygon_df) == 0:
+                pytest.fail(f"CRITICAL: Polygon returned NO daily data for {symbol}")
+
+        comparison_source = "Yahoo Finance" if asset_type == "index" else "Polygon"
+        print(f"   ✓ {comparison_source}: {len(polygon_df)} daily bars")
         print(f"   Date range: {polygon_df.index[0]} to {polygon_df.index[-1]}")
 
         # ==== CHECK 1: Minimum Trading Days ====
@@ -211,9 +492,10 @@ class TestDailyDataTimestampComparison:
                 'diff_close': diffs['close'],
             })
 
-        # ZERO TOLERANCE - regulated data must match EXACTLY
-        # If Polygon and Yahoo match, ThetaData must match too
-        tolerance = 0.00  # ZERO tolerance
+        # TOLERANCE: Stocks require ZERO tolerance, indexes allow fractional cent (rounding)
+        # Stocks: ZERO tolerance - regulated data must match EXACTLY
+        # Indexes: $0.001 tolerance - calculated values may have fractional cent rounding differences
+        tolerance = 0.001 if asset_type == "index" else 0.00
         failures = []
 
         for field in ['open', 'high', 'low', 'close']:

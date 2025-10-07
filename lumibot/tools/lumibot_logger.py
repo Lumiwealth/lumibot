@@ -859,27 +859,18 @@ def set_log_level(level: str):
         root_logger = logging.getLogger("lumibot")
         root_logger.setLevel(log_level)
         
-        # Update handlers but respect console handler's ERROR level during backtesting
+        # Update handlers - set both root logger and all handlers to the requested level
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-        
-        if is_backtesting:
-            # During backtesting, we need special handling to ensure console stays quiet
-            # Set root logger to allow messages through (for file logging)
-            root_logger.setLevel(log_level)
-            
-            # But ensure ALL console handlers stay at ERROR level
-            for handler in root_logger.handlers:
-                if isinstance(handler, logging.StreamHandler):
-                    handler.setLevel(logging.ERROR)
-            
-            # Don't update individual logger levels - this would bypass handler filtering
-        else:
-            # For live trading, set everything normally
-            root_logger.setLevel(log_level)
-            for handler in root_logger.handlers:
-                handler.setLevel(log_level)
-            
-            # Update all existing loggers in our registry
+
+        # Set root logger level
+        root_logger.setLevel(log_level)
+
+        # Set all handler levels to match
+        for handler in root_logger.handlers:
+            handler.setLevel(log_level)
+
+        # Update all existing loggers in our registry (for non-backtesting)
+        if not is_backtesting:
             for logger in _logger_registry.values():
                 logger.setLevel(log_level)
             

@@ -191,7 +191,7 @@ class Trader:
                 set_log_level("ERROR")
             else:
                 set_log_level("INFO")
-                set_console_log_level("ERROR")  # Only show errors in console for backtesting
+                # When quiet_logs=False, allow INFO logs to console (respects BACKTESTING_QUIET_LOGS)
         else:
             # Live trades should always have full logging for both console and file
             set_log_level("INFO")

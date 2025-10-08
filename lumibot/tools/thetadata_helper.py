@@ -498,19 +498,24 @@ def start_theta_data_client(username: str, password: str):
         logger.info("ThetaTerminal.jar not found, copying from lumibot package...")
         import shutil as shutil_copy
 
-        # Find the bundled jar file in the lumibot package
-        lumibot_jar = Path(__file__).parent.parent.parent / "ThetaTerminal.jar"
+        package_root = Path(__file__).resolve().parent.parent
+        candidate_paths = [
+            package_root / "resources" / "ThetaTerminal.jar",
+            package_root.parent / "ThetaTerminal.jar",  # legacy location fallback
+        ]
 
-        if lumibot_jar.exists():
-            logger.info(f"Copying ThetaTerminal.jar from {lumibot_jar} to {jar_file}")
-            shutil_copy.copy2(lumibot_jar, jar_file)
-            logger.info(f"Successfully copied ThetaTerminal.jar to {jar_file}")
-        else:
+        lumibot_jar = next((path for path in candidate_paths if path.exists()), None)
+
+        if lumibot_jar is None:
             raise FileNotFoundError(
-                f"ThetaTerminal.jar not found at {lumibot_jar}. "
-                f"Please ensure ThetaTerminal.jar is included in the lumibot package, "
-                f"or manually place it at {jar_file}"
+                "ThetaTerminal.jar not bundled with lumibot installation. "
+                f"Searched: {', '.join(str(path) for path in candidate_paths)}. "
+                f"Please reinstall lumibot or manually place the jar at {jar_file}"
             )
+
+        logger.info(f"Copying ThetaTerminal.jar from {lumibot_jar} to {jar_file}")
+        shutil_copy.copy2(lumibot_jar, jar_file)
+        logger.info(f"Successfully copied ThetaTerminal.jar to {jar_file}")
 
     if not jar_file.exists():
         raise FileNotFoundError(f"ThetaTerminal.jar not found at {jar_file}")

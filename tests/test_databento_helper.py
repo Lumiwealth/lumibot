@@ -49,7 +49,12 @@ class TestDataBentoHelper(unittest.TestCase):
         self.assertRegex(result, r"ES[FGHJKMNQUVXZ]\d", "Should auto-resolve to contract format like ESZ5")
         
         # Test specific contract with expiration (March 2025 = H25)
-        result = databento_helper._format_futures_symbol_for_databento(self.test_asset_future)
+        specific_future = Asset(
+            symbol="ES",
+            asset_type="future",
+            expiration=datetime(2025, 3, 15).date()
+        )
+        result = databento_helper._format_futures_symbol_for_databento(specific_future)
         self.assertEqual(result, "ESH25")  # March 2025 = H25
         
         # Test another month (December 2024 = Z24)

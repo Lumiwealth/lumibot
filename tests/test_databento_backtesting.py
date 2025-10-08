@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 import pandas as pd
+import pytz
 
 from lumibot.backtesting.databento_backtesting import DataBentoDataBacktesting
 from lumibot.entities import Asset, Data
@@ -223,6 +224,49 @@ class TestDataBentoDataBacktesting(unittest.TestCase):
         
         self.assertEqual(result, 4250.75)
         mock_get_last_price.assert_called_once()
+
+    @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
+    @patch('lumibot.tools.databento_helper.get_last_price_from_databento')
+    def test_get_last_price_uses_current_bar_when_available(self, mock_get_last_price):
+        """
+        Ensure we reuse the latest completed bar from cache (rather than hitting the API)
+        when no earlier bar exists in the window.
+        """
+        ny = pytz.timezone("America/New_York")
+        current_dt = ny.localize(datetime(2025, 1, 1, 9, 30))
+
+        backtester = DataBentoDataBacktesting(
+            datetime_start=self.start_date,
+            datetime_end=self.end_date,
+            api_key=self.api_key
+        )
+        backtester._datetime = current_dt
+
+        # Seed cached data with a single bar at the current timestamp
+        test_df = pd.DataFrame(
+            {
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.5],
+                "close": [100.5],
+                "volume": [1000],
+            },
+            index=pd.DatetimeIndex([current_dt]),
+        )
+
+        data = Data(
+            self.test_asset,
+            df=test_df,
+            timestep="minute",
+            quote=Asset("USD", "forex"),
+        )
+        search_asset = (self.test_asset, Asset("USD", "forex"))
+        backtester.pandas_data[search_asset] = data
+
+        price = backtester.get_last_price(asset=self.test_asset)
+
+        self.assertEqual(price, 100.5)
+        mock_get_last_price.assert_not_called()
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     def test_get_chains(self):

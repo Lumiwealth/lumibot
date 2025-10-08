@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="4.1.1",
+    version="4.1.2",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -14,7 +14,7 @@ setuptools.setup(
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(),
     license="MIT",  # Add license argument
-    include_package_data=True, 
+    include_package_data=True,
     install_requires=[
         "polygon-api-client>=1.13.3",
         "alpaca-py>=0.42.0",
@@ -61,7 +61,9 @@ setuptools.setup(
         "free-proxy",
         "requests-oauthlib",
     ],
-    data_files=[("", ["ThetaTerminal.jar"])],
+    package_data={
+        "lumibot": ["resources/ThetaTerminal.jar"],
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

@@ -5,7 +5,7 @@ rootdir: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategi
 configfile: setup.cfg
 plugins: asyncio-1.1.0, xdist-3.8.0, postmarker-1.0, timeout-2.4.0, anyio-4.10.0, cov-6.2.1, langsmith-0.4.13, mock-3.14.0, forked-1.6.0
 asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 948 items / 6 skipped
+collecting ... collected 949 items / 6 skipped
 
 backtest/test_accuracy_verification.py::TestAccuracyVerification::test_one_year_amzn_accuracy PASSED [  0%]
 backtest/test_accuracy_verification.py::TestAccuracyVerification::test_multi_symbol_price_ranges PASSED [  0%]
@@ -45,9 +45,9 @@ backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparis
 backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_amzn PASSED [  3%]
 backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_spx_index PASSED [  3%]
 backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_vix_index PASSED [  4%]
-backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_ndx_index FAILED [  4%]
-backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_spy_call_option FAILED [  4%]
-backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_spy_put_option FAILED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_full_month_ndx_index PASSED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_spy_call_option PASSED [  4%]
+backtest/test_daily_data_timestamp_comparison.py::TestDailyDataTimestampComparison::test_daily_data_spy_put_option PASSED [  4%]
 backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_theta_vs_polygon_intervals[5minute-5min-78] PASSED [  4%]
 backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_theta_vs_polygon_intervals[10minute-10min-39] PASSED [  4%]
 backtest/test_daily_data_timestamp_comparison.py::TestIntradayDataComparison::test_theta_vs_polygon_intervals[15minute-15min-26] PASSED [  4%]
@@ -58,21 +58,22 @@ backtest/test_databento.py::TestDatabentoBacktestFull::test_databento_continuous
 backtest/test_databento.py::TestDatabentoBacktestFull::test_databento_daily_continuous_futures SKIPPED [  5%]
 backtest/test_databento_comprehensive_trading.py::TestDatabentoComprehensiveTrading::test_multiple_instruments_minute_data SKIPPED [  5%]
 backtest/test_databento_comprehensive_trading.py::TestDatabentoComprehensiveTradingDaily::test_multiple_instruments_daily_data SKIPPED [  5%]
+backtest/test_databento_comprehensive_trading.py::TestDatabentoComprehensiveTradingDaily::test_multiple_instruments_pandas_version SKIPPED [  5%]
 backtest/test_debug_avg_fill_price.py::test_debug_avg_fill_price SKIPPED [  5%]
 backtest/test_dividends.py::TestDividends::test_yahoo_finance_dividends PASSED [  5%]
 backtest/test_dividends.py::TestDividends::test_polygon_dividends SKIPPED [  5%]
 backtest/test_dividends.py::TestDividends::test_compare_yahoo_vs_polygon_dividends SKIPPED [  5%]
-backtest/test_example_strategies.py::TestExampleStrategies::test_stock_bracket FAILED [  5%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_bracket PASSED [  6%]
 backtest/test_example_strategies.py::TestExampleStrategies::test_stock_oco PASSED [  6%]
-backtest/test_example_strategies.py::TestExampleStrategies::test_stock_buy_and_hold FAILED [  6%]
-backtest/test_example_strategies.py::TestExampleStrategies::test_stock_diversified_leverage FAILED [  6%]
-backtest/test_example_strategies.py::TestExampleStrategies::test_limit_and_trailing_stops FAILED [  6%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_buy_and_hold PASSED [  6%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_stock_diversified_leverage PASSED [  6%]
+backtest/test_example_strategies.py::TestExampleStrategies::test_limit_and_trailing_stops PASSED [  6%]
 backtest/test_example_strategies.py::TestExampleStrategies::test_options_hold_to_expiry SKIPPED [  6%]
 backtest/test_example_strategies.py::TestExampleStrategies::test_ccxt_backtesting SKIPPED [  6%]
 backtest/test_failing_backtest.py::TestFailingBacktest::test_initialize_failure_raises_exception PASSED [  6%]
 backtest/test_failing_backtest.py::TestFailingBacktest::test_trading_iteration_failure_raises_exception PASSED [  6%]
 backtest/test_failing_backtest.py::TestFailingBacktest::test_backtest_classmethod_initialize_failure PASSED [  6%]
-backtest/test_failing_backtest.py::TestFailingBacktest::test_backtest_classmethod_trading_iteration_failure PASSED [  6%]
+backtest/test_failing_backtest.py::TestFailingBacktest::test_backtest_classmethod_trading_iteration_failure PASSED [  7%]
 backtest/test_futures_edge_cases.py::TestFuturesEdgeCases::test_short_selling SKIPPED [  7%]
 backtest/test_futures_edge_cases.py::TestFuturesEdgeCases::test_multiple_simultaneous_positions SKIPPED [  7%]
 backtest/test_futures_single_trade.py::TestFuturesSingleTrade::test_single_mes_trade_tracking SKIPPED [  7%]
@@ -80,8 +81,8 @@ backtest/test_futures_ultra_simple.py::test_ultra_simple_buy_hold_sell PASSED [ 
 backtest/test_index_data_verification.py::TestIndexDataVerification::test_spx_data_accessible PASSED [  7%]
 backtest/test_index_data_verification.py::TestIndexDataVerification::test_vix_data_accessible PASSED [  7%]
 backtest/test_index_data_verification.py::TestIndexDataVerification::test_index_timestamp_accuracy PASSED [  7%]
-backtest/test_index_data_verification.py::TestIndexDataVerification::test_spx_vs_polygon_comparison FAILED [  7%]
-backtest/test_index_data_verification.py::TestIndexDataVerification::test_vix_vs_polygon_comparison FAILED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_spx_vs_polygon_comparison PASSED [  7%]
+backtest/test_index_data_verification.py::TestIndexDataVerification::test_vix_vs_polygon_comparison PASSED [  8%]
 backtest/test_index_data_verification.py::TestIndexDataVerification::test_index_ohlc_consistency PASSED [  8%]
 backtest/test_index_data_verification.py::TestIndexDataVerification::test_index_no_missing_bars PASSED [  8%]
 backtest/test_multileg_backtest.py::test_multileg_spread_backtest_cash_and_parent_fill PASSED [  8%]
@@ -91,7 +92,7 @@ backtest/test_pandas_backtest.py::test_bracket_orders_apply_entry_and_exit_fees 
 backtest/test_passing_trader_into_backtest.py::TestPassingTraderIntoBacktest::test_not_passing_trader_class_into_backtest_creates_generic_trader PASSED [  8%]
 backtest/test_passing_trader_into_backtest.py::TestPassingTraderIntoBacktest::test_passing_trader_class_into_backtest_creates_trader_class PASSED [  8%]
 backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_restclient PASSED [  8%]
-backtest/test_polygon.py::TestPolygonBacktestFull::test_intraday_daterange PASSED [  8%]
+backtest/test_polygon.py::TestPolygonBacktestFull::test_intraday_daterange PASSED [  9%]
 backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_legacy_backtest FAILED [  9%]
 backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_legacy_backtest2 PASSED [  9%]
 backtest/test_polygon.py::TestPolygonBacktestFull::test_pull_source_symbol_bars_with_api_call PASSED [  9%]
@@ -100,7 +101,7 @@ backtest/test_polygon.py::TestPolygonDataSource::test_get_chains_spy_expected_da
 backtest/test_polygon.py::TestPolygonDataSource::test_get_last_price_unchanged PASSED [  9%]
 backtest/test_polygon.py::TestPolygonDataSource::test_get_historical_prices_unchanged_for_amzn PASSED [  9%]
 backtest/test_thetadata.py::TestThetaDataBacktestFull::test_thetadata_restclient PASSED [  9%]
-backtest/test_thetadata.py::TestThetaDataBacktestFull::test_intraday_daterange PASSED [  9%]
+backtest/test_thetadata.py::TestThetaDataBacktestFull::test_intraday_daterange PASSED [ 10%]
 backtest/test_thetadata.py::TestThetaDataSource::test_get_historical_prices PASSED [ 10%]
 backtest/test_thetadata.py::TestThetaDataSource::test_get_chains_spy_expected_data PASSED [ 10%]
 backtest/test_thetadata.py::TestThetaDataSource::test_get_last_price_unchanged PASSED [ 10%]
@@ -110,7 +111,7 @@ backtest/test_thetadata_comprehensive.py::TestThetaDataStocks::test_first_10_min
 backtest/test_thetadata_comprehensive.py::TestThetaDataStocks::test_noon_period_accuracy PASSED [ 10%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataStocks::test_multiple_symbols PASSED [ 10%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataMethods::test_get_quote PASSED [ 10%]
-backtest/test_thetadata_comprehensive.py::TestThetaDataMethods::test_get_chains PASSED [ 10%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataMethods::test_get_chains PASSED [ 11%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataOptions::test_atm_call_and_put PASSED [ 11%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataIndexes::test_spx_pricing PASSED [ 11%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataExtendedHours::test_premarket_data PASSED [ 11%]
@@ -119,8 +120,8 @@ backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_pric
 backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_price_data_multi_chunk_fetch PASSED [ 11%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_option_live PASSED [ 11%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_index_live PASSED [ 11%]
-backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_quote_style PASSED [ 11%]
-backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_no_data_returns_none FAILED [ 12%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_quote_style PASSED [ 12%]
+backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_historical_data_no_data_returns_none PASSED [ 12%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataHelperLive::test_get_expirations_and_strikes_live PASSED [ 12%]
 backtest/test_thetadata_comprehensive.py::TestThetaDataPagination::test_pagination_with_mock PASSED [ 12%]
 backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_stock_price_comparison PASSED [ 12%]
@@ -129,7 +130,7 @@ backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_in
 backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_fill_price_comparison PASSED [ 12%]
 backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_portfolio_value_comparison PASSED [ 12%]
 backtest/test_thetadata_vs_polygon.py::TestThetaDataVsPolygonComparison::test_cash_comparison PASSED [ 12%]
-backtest/test_yahoo.py::TestYahooBacktestFull::test_yahoo_last_price FAILED [ 12%]
+backtest/test_yahoo.py::TestYahooBacktestFull::test_yahoo_last_price PASSED [ 13%]
 test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_auth_failed_flag_not_set_for_network_errors PASSED [ 13%]
 test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_auth_failed_flag_set_for_real_auth_errors PASSED [ 13%]
 test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_reset_auth_failure_method PASSED [ 13%]
@@ -138,7 +139,7 @@ test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_client_initialization_with_auth
 test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_get_chains_blocked_after_auth_failure PASSED [ 13%]
 test_alpaca_auth_fix.py::TestAlpacaAuthFix::test_different_auth_error_patterns PASSED [ 13%]
 test_alpaca_helpers.py::test_sanitize_base_and_quote_asset PASSED        [ 13%]
-test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_class_is_correct PASSED [ 13%]
+test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_class_is_correct PASSED [ 14%]
 test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_has_required_fields PASSED [ 14%]
 test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_side_mapping_for_multileg_orders PASSED [ 14%]
 test_alpaca_multileg_fix.py::TestAlpacaMultiLegOrders::test_multileg_order_with_limit_price PASSED [ 14%]
@@ -148,7 +149,7 @@ test_alpaca_oauth.py::TestAlpacaOAuth::test_api_key_data_source_initialization P
 test_alpaca_oauth.py::TestAlpacaOAuth::test_api_key_stream_object PASSED [ 14%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_mixed_credentials_broker PASSED [ 14%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_mixed_credentials_data_source PASSED [ 14%]
-test_alpaca_oauth.py::TestAlpacaOAuth::test_no_credentials_error PASSED  [ 14%]
+test_alpaca_oauth.py::TestAlpacaOAuth::test_no_credentials_error PASSED  [ 15%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_broker_initialization PASSED [ 15%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_client_creation PASSED [ 15%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_constants PASSED       [ 15%]
@@ -157,7 +158,7 @@ test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_error_handling_stops_execution
 test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_only_stream_object PASSED [ 15%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_oauth_polling_interval_custom PASSED [ 15%]
 test_alpaca_oauth.py::TestAlpacaOAuth::test_strategy_none_handling PASSED [ 15%]
-test_apscheduler_warnings.py::test_sleeptime_10s_max_instances PASSED    [ 15%]
+test_apscheduler_warnings.py::test_sleeptime_10s_max_instances PASSED    [ 16%]
 test_apscheduler_warnings.py::test_sleeptime_1m_default_max_instances PASSED [ 16%]
 test_apscheduler_warnings.py::test_calculate_max_instances_for_sleeptime PASSED [ 16%]
 test_asset.py::test_check_default_asset_name PASSED                      [ 16%]
@@ -167,7 +168,7 @@ test_asset.py::test_is_hashable PASSED                                   [ 16%]
 test_asset.py::test_extra_attributes_at_initialization PASSED            [ 16%]
 test_asset.py::test_instances_equal PASSED                               [ 16%]
 test_asset.py::test_symbol2asset PASSED                                  [ 16%]
-test_asset.py::test_right_validator[not_call_or_CALL] PASSED             [ 16%]
+test_asset.py::test_right_validator[not_call_or_CALL] PASSED             [ 17%]
 test_asset.py::test_right_validator[not_put_or_PUT] PASSED               [ 17%]
 test_asset.py::test_right_validator[CALLS] PASSED                        [ 17%]
 test_asset.py::test_right_validator[PUTS] PASSED                         [ 17%]
@@ -176,7 +177,7 @@ test_asset.py::test_asset_types_validator[cash] PASSED                   [ 17%]
 test_asset.py::test_asset_types_validator[swaptions] PASSED              [ 17%]
 test_asset.py::test_continuous_futures_asset_creation PASSED             [ 17%]
 test_asset.py::test_resolve_continuous_futures_contract PASSED           [ 17%]
-test_asset.py::test_resolve_continuous_futures_contract_year_digits PASSED [ 17%]
+test_asset.py::test_resolve_continuous_futures_contract_year_digits PASSED [ 18%]
 test_asset.py::test_resolve_continuous_futures_contract_rolls_mid_month PASSED [ 18%]
 test_asset.py::test_get_potential_futures_contracts PASSED               [ 18%]
 test_asset.py::test_futures_contract_resolution_monthly_cycles PASSED    [ 18%]
@@ -186,7 +187,7 @@ test_asset.py::test_continuous_futures_inequality PASSED                 [ 18%]
 test_asset.py::test_futures_contract_with_year_rollover PASSED           [ 18%]
 test_asset.py::test_asset_type_enum_values PASSED                        [ 18%]
 test_asset.py::test_continuous_futures_string_representation PASSED      [ 18%]
-test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_front_month PASSED [ 18%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_front_month PASSED [ 19%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_next_quarter PASSED [ 19%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_true PASSED [ 19%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_creation_with_auto_expiry_auto PASSED [ 19%]
@@ -195,7 +196,7 @@ test_asset_auto_expiry.py::TestAssetAutoExpiry::test_auto_expiry_only_applies_to
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_march PASSED [ 19%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_after_expiry PASSED [ 19%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_january PASSED [ 19%]
-test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_december PASSED [ 19%]
+test_asset_auto_expiry.py::TestAssetAutoExpiry::test_front_month_calculation_december PASSED [ 20%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_third_friday_calculation PASSED [ 20%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_invalid_auto_expiry_defaults_to_front_month PASSED [ 20%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_asset_with_datetime_expiration_conversion PASSED [ 20%]
@@ -205,7 +206,7 @@ test_asset_auto_expiry.py::TestAssetAutoExpiry::test_next_quarter_same_as_front_
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_continuous_futures_creation PASSED [ 20%]
 test_asset_auto_expiry.py::TestAssetAutoExpiry::test_continuous_futures_vs_auto_expiry PASSED [ 20%]
 test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_with_symbol_parsing PASSED [ 20%]
-test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_with_multiplier PASSED [ 20%]
+test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_with_multiplier PASSED [ 21%]
 test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_auto_expiry_preserved_in_asset_attributes PASSED [ 21%]
 test_asset_auto_expiry.py::TestAssetAutoExpiryIntegration::test_asset_validation_with_auto_expiry PASSED [ 21%]
 test_auto_market_inference.py::test_projectx_sets_us_futures PASSED      [ 21%]
@@ -214,7 +215,7 @@ test_auto_market_inference.py::test_ccxt_sets_24_7 PASSED                [ 21%]
 test_auto_market_inference.py::test_no_change_if_configured PASSED       [ 21%]
 test_backtesting_broker.py::TestBacktestingBroker::test_limit_fills PASSED [ 21%]
 test_backtesting_broker.py::TestBacktestingBroker::test_stop_fills PASSED [ 21%]
-test_backtesting_broker.py::TestBacktestingBroker::test_submit_order_calls_conform_order PASSED [ 21%]
+test_backtesting_broker.py::TestBacktestingBroker::test_submit_order_calls_conform_order PASSED [ 22%]
 test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_during_market_hours_no_buffer PASSED [ 22%]
 test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_get_time_to_close_returns_none PASSED [ 22%]
 test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_close_when_already_past_close_no_buffer PASSED [ 22%]
@@ -224,7 +225,7 @@ test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_wh
 test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_with_buffer PASSED [ 22%]
 test_backtesting_broker.py::TestBacktestingBrokerTimeAdvance::test_await_open_with_buffer_making_time_negative PASSED [ 22%]
 test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_during_market_hours_no_buffer PASSED [ 22%]
-test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_get_time_to_close_returns_none PASSED [ 22%]
+test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_get_time_to_close_returns_none PASSED [ 23%]
 test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_when_already_past_close_no_buffer PASSED [ 23%]
 test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_with_buffer PASSED [ 23%]
 test_backtesting_broker_await_close.py::TestBacktestingBrokerAwaitClose::test_await_close_with_buffer_making_time_negative PASSED [ 23%]
@@ -233,18 +234,18 @@ test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_
 test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_await_close_when_already_past_close_no_buffer PASSED [ 23%]
 test_backtesting_broker_time_advance.py::TestBacktestingBrokerTimeAdvance::test_await_close_with_buffer PASSED [ 23%]
 test_backtesting_crypto_cash_unit.py::test_crypto_forex_buy_updates_cash_once PASSED [ 23%]
-test_backtesting_crypto_cash_unit.py::test_crypto_forex_round_trip_restores_cash_on_sell PASSED [ 23%]
+test_backtesting_crypto_cash_unit.py::test_crypto_forex_round_trip_restores_cash_on_sell PASSED [ 24%]
 test_backtesting_crypto_cash_unit.py::test_crypto_crypto_pair_uses_quote_position_not_cash PASSED [ 24%]
 test_backtesting_crypto_cash_unit.py::test_filled_order_payload_contains_quantity_and_trade_cost PASSED [ 24%]
 test_backtesting_crypto_cash_unit.py::test_percent_fee_applied_once_to_cash_and_order PASSED [ 24%]
 test_backtesting_crypto_cash_unit.py::test_multiple_orders_same_cycle_keep_cash_consistent PASSED [ 24%]
 test_backtesting_crypto_cash_unit.py::test_option_round_trip_applies_multiplier PASSED [ 24%]
-test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive FAILED [ 24%]
-test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive FAILED [ 24%]
-test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo FAILED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive PASSED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive PASSED [ 24%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo PASSED [ 24%]
 test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_invalid_data_source_raises_error PASSED [ 24%]
-test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env FAILED [ 25%]
-test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set FAILED [ 25%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env PASSED [ 25%]
+test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set PASSED [ 25%]
 test_backtesting_flow_control.py::TestBacktestingFlowControl::test_handles_complex_order_updates PASSED [ 25%]
 test_backtesting_flow_control.py::TestBacktestingFlowControl::test_handles_data_gaps PASSED [ 25%]
 test_backtesting_flow_control.py::TestBacktestingFlowControl::test_handles_strategy_exception PASSED [ 25%]
@@ -252,7 +253,7 @@ test_backtesting_multileg_unit.py::test_multileg_parent_fills_after_all_children
 test_backtesting_multileg_unit.py::test_multileg_parent_waits_if_any_child_pending PASSED [ 25%]
 test_backtesting_multileg_unit.py::test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral PASSED [ 25%]
 test_backtesting_quiet_logs_complete.py::test_default_backtesting_quiet_logs_is_true PASSED [ 25%]
-test_backtesting_quiet_logs_complete.py::test_quiet_logs_true_console_only_shows_progress_bar_and_errors PASSED [ 25%]
+test_backtesting_quiet_logs_complete.py::test_quiet_logs_true_console_only_shows_progress_bar_and_errors PASSED [ 26%]
 test_backtesting_quiet_logs_complete.py::test_quiet_logs_true_file_only_shows_errors PASSED [ 26%]
 test_backtesting_quiet_logs_complete.py::test_quiet_logs_false_shows_all_info_plus PASSED [ 26%]
 test_backtesting_quiet_logs_complete.py::test_live_trading_always_shows_console_messages PASSED [ 26%]
@@ -271,7 +272,7 @@ test_bars_frequency_flex.py::test_bars_datetime_index_normalized_to_default_time
 test_botspot_handler.py::test_botspot_handler_dedup_and_aggregation PASSED [ 27%]
 test_botspot_handler.py::test_botspot_handler_distinct_fingerprints PASSED [ 27%]
 test_botspot_logger.py::TestBotspotErrorHandler::test_handler_initialization_without_api_key PASSED [ 27%]
-test_botspot_logger.py::TestBotspotErrorHandler::test_handler_initialization_with_api_key PASSED [ 27%]
+test_botspot_logger.py::TestBotspotErrorHandler::test_handler_initialization_with_api_key PASSED [ 28%]
 test_botspot_logger.py::TestBotspotErrorHandler::test_log_level_to_severity_mapping PASSED [ 28%]
 test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_basic PASSED [ 28%]
 test_botspot_logger.py::TestBotspotErrorHandler::test_extract_error_info_with_strategy PASSED [ 28%]
@@ -290,7 +291,7 @@ test_botspot_logger.py::TestBotspotErrorHandler::test_api_error_uses_logging_not
 test_botspot_logger.py::TestBotspotErrorHandler::test_api_exception_uses_logging_not_print PASSED [ 29%]
 test_botspot_logger.py::TestBotspotIntegration::test_handler_not_added_without_api_key PASSED [ 29%]
 test_botspot_logger.py::TestBotspotIntegration::test_strategy_logger_integration PASSED [ 29%]
-test_broker_bitunix.py::TestBitunixBroker::test_get_balances_at_broker PASSED [ 29%]
+test_broker_bitunix.py::TestBitunixBroker::test_get_balances_at_broker PASSED [ 30%]
 test_broker_bitunix.py::TestBitunixBroker::test_initialization_missing_keys PASSED [ 30%]
 test_broker_bitunix.py::TestBitunixBroker::test_initialization_success PASSED [ 30%]
 test_broker_bitunix.py::TestBitunixBroker::test_map_status_from_bitunix PASSED [ 30%]
@@ -309,7 +310,7 @@ test_broker_cleanup.py::TestBrokerCleanup::test_default_cleanup_config_initializ
 test_broker_cleanup.py::TestBrokerCleanup::test_full_cleanup_process PASSED [ 31%]
 test_broker_cleanup.py::TestBrokerCleanup::test_manual_force_cleanup PASSED [ 31%]
 test_broker_cleanup.py::TestBrokerCleanup::test_periodic_cleanup_trigger PASSED [ 31%]
-test_broker_initialization.py::TestBrokerInitializationSimple::test_strategy_with_none_broker_raises_helpful_error PASSED [ 31%]
+test_broker_initialization.py::TestBrokerInitializationSimple::test_strategy_with_none_broker_raises_helpful_error PASSED [ 32%]
 test_broker_initialization.py::TestBrokerInitializationSimple::test_strategy_with_valid_broker_does_not_raise_broker_error PASSED [ 32%]
 test_brokers_handle_crypto.py::TestBrokerHandlesCrypto::test_yahoo_backtesting_with_symbol XPASS [ 32%]
 test_brokers_handle_crypto.py::TestBrokerHandlesCrypto::test_polygon_backtesting_with_base_and_quote SKIPPED [ 32%]
@@ -328,7 +329,7 @@ test_cash.py::TestCash::test_cash_with_property_and_method_interleaved PASSED [ 
 test_cash.py::TestCash::test_cash_with_zero_value PASSED                 [ 33%]
 test_cash.py::TestCash::test_division_with_different_prices PASSED       [ 33%]
 test_cash.py::TestCash::test_get_cash_method_never_none PASSED           [ 33%]
-test_cash.py::TestCash::test_initial_cash_equals_budget PASSED           [ 33%]
+test_cash.py::TestCash::test_initial_cash_equals_budget PASSED           [ 34%]
 test_cash.py::TestCash::test_multiple_get_cash_calls PASSED              [ 34%]
 test_cash.py::TestCash::test_no_private_cash_variable PASSED             [ 34%]
 test_cash.py::TestCash::test_strategy_mathematical_operations PASSED     [ 34%]
@@ -347,7 +348,7 @@ test_continuous_futures.py::TestFuturesSymbolsUtilities::test_from_ib_expiration
 test_continuous_futures.py::TestFuturesSymbolsUtilities::test_generate_symbol_variants PASSED [ 35%]
 test_continuous_futures.py::TestFuturesSymbolsUtilities::test_get_contract_priority_key PASSED [ 35%]
 test_continuous_futures.py::TestFuturesSymbolsUtilities::test_build_ib_contract_variants PASSED [ 35%]
-test_continuous_futures.py::TestAssetPotentialContracts::test_includes_single_digit_variants PASSED [ 35%]
+test_continuous_futures.py::TestAssetPotentialContracts::test_includes_single_digit_variants PASSED [ 36%]
 test_continuous_futures.py::TestAssetPotentialContracts::test_preserves_existing_order PASSED [ 36%]
 test_continuous_futures.py::TestAssetPotentialContracts::test_quarterly_contracts_prioritized PASSED [ 36%]
 test_continuous_futures.py::TestContinuousFuturesPositionMatching::test_non_continuous_future_unchanged PASSED [ 36%]
@@ -366,7 +367,7 @@ test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_e
 test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_multi_component_consistency PASSED [ 37%]
 test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_no_duplicate_logic_verification PASSED [ 37%]
 test_continuous_futures_integration.py::TestContinuousFuturesIntegration::test_quarterly_preference_consistency PASSED [ 37%]
-test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_contract_format_validation PASSED [ 37%]
+test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_contract_format_validation PASSED [ 38%]
 test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_contract_ordering_priority PASSED [ 38%]
 test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_different_symbol_formats PASSED [ 38%]
 test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_error_handling_non_continuous_futures PASSED [ 38%]
@@ -385,7 +386,7 @@ test_continuous_futures_resolution.py::TestContinuousFuturesResolution::test_yea
 test_data_source.py::TestDataSource::test_get_chain_full_info PASSED     [ 39%]
 test_databento_asset_validation.py::TestDataBentoAssetValidation::test_live_data_source_futures_allowed PASSED [ 39%]
 test_databento_asset_validation.py::TestDataBentoAssetValidation::test_live_data_source_equities_rejected PASSED [ 39%]
-test_databento_asset_validation.py::TestDataBentoAssetValidation::test_helper_function_allows_all_assets PASSED [ 39%]
+test_databento_asset_validation.py::TestDataBentoAssetValidation::test_helper_function_allows_all_assets PASSED [ 40%]
 test_databento_asset_validation.py::TestDataBentoAssetValidation::test_backtesting_allows_all_assets PASSED [ 40%]
 test_databento_asset_validation.py::TestDataBentoAssetValidation::test_benchmark_asset_in_backtesting_only PASSED [ 40%]
 test_databento_auto_expiry_integration.py::TestDataBentoAutoExpiryIntegration::test_databento_symbol_formatting_with_auto_expiry PASSED [ 40%]
@@ -404,7 +405,7 @@ test_databento_auto_expiry_integration.py::TestDataBentoHelperMethods::test_form
 test_databento_auto_expiry_integration.py::TestDataBentoHelperMethods::test_format_symbol_consistency PASSED [ 41%]
 test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_no_data PASSED [ 41%]
 test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_success PASSED [ 41%]
-test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_with_timeshift PASSED [ 41%]
+test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_bars_dict_with_timeshift PASSED [ 42%]
 test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_chains PASSED [ 42%]
 test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_last_price_from_cached_data PASSED [ 42%]
 test_databento_backtesting.py::TestDataBentoDataBacktesting::test_get_last_price_no_cached_data PASSED [ 42%]
@@ -423,7 +424,7 @@ test_databento_data.py::TestDataBentoData::test_error_handling PASSED    [ 43%]
 test_databento_data.py::TestDataBentoData::test_get_chains PASSED        [ 43%]
 test_databento_data.py::TestDataBentoData::test_get_historical_prices_backtesting_path PASSED [ 43%]
 test_databento_data.py::TestDataBentoData::test_get_historical_prices_error_handling PASSED [ 43%]
-test_databento_data.py::TestDataBentoData::test_get_historical_prices_no_data PASSED [ 43%]
+test_databento_data.py::TestDataBentoData::test_get_historical_prices_no_data PASSED [ 44%]
 test_databento_data.py::TestDataBentoData::test_get_historical_prices_single_asset PASSED [ 44%]
 test_databento_data.py::TestDataBentoData::test_get_historical_prices_success PASSED [ 44%]
 test_databento_data.py::TestDataBentoData::test_get_last_price_no_data PASSED [ 44%]
@@ -442,7 +443,7 @@ test_databento_helper.py::TestDataBentoHelper::test_cache_filename_edge_cases PA
 test_databento_helper.py::TestDataBentoHelper::test_cache_loading PASSED [ 45%]
 test_databento_helper.py::TestDataBentoHelper::test_continuous_futures_integration_edge_cases PASSED [ 45%]
 test_databento_helper.py::TestDataBentoHelper::test_continuous_futures_resolution PASSED [ 45%]
-test_databento_helper.py::TestDataBentoHelper::test_databento_client_initialization PASSED [ 45%]
+test_databento_helper.py::TestDataBentoHelper::test_databento_client_initialization PASSED [ 46%]
 test_databento_helper.py::TestDataBentoHelper::test_dataframe_normalization_edge_cases PASSED [ 46%]
 test_databento_helper.py::TestDataBentoHelper::test_dataset_selection_comprehensive PASSED [ 46%]
 test_databento_helper.py::TestDataBentoHelper::test_determine_databento_dataset PASSED [ 46%]
@@ -461,7 +462,7 @@ test_databento_helper.py::TestDataBentoHelper::test_get_price_data_databento_una
 test_databento_helper.py::TestDataBentoHelper::test_get_price_data_from_databento_success FAILED [ 47%]
 test_databento_helper.py::TestDataBentoHelper::test_market_calendar_spanning_sessions PASSED [ 47%]
 test_databento_helper.py::TestDataBentoHelper::test_no_get_potential_futures_contracts_usage PASSED [ 47%]
-test_databento_helper.py::TestDataBentoHelper::test_no_retry_logic_for_correct_symbol FAILED [ 47%]
+test_databento_helper.py::TestDataBentoHelper::test_no_retry_logic_for_correct_symbol FAILED [ 48%]
 test_databento_helper.py::TestDataBentoHelper::test_normalize_databento_dataframe PASSED [ 48%]
 test_databento_helper.py::TestDataBentoHelper::test_schema_mapping_comprehensive PASSED [ 48%]
 test_databento_helper.py::TestDataBentoHelper::test_timezone_aware_datetime_usage PASSED [ 48%]
@@ -489,7 +490,7 @@ test_databento_timezone_fixes.py::TestTimezoneHandling::test_pandas_datetime_fil
 test_databento_timezone_fixes.py::TestTimezoneHandling::test_datetime_timezone_consistency PASSED [ 50%]
 test_databento_timezone_fixes.py::TestTimezoneHandling::test_datetime_timezone_consistency_in_databento_context PASSED [ 50%]
 test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_data_source_initialization PASSED [ 50%]
-test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_futures_asset_validation PASSED [ 50%]
+test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_futures_asset_validation PASSED [ 51%]
 test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_live_trading_mode PASSED [ 51%]
 test_databento_timezone_fixes.py::TestDataBentoIntegration::test_databento_supported_asset_types PASSED [ 51%]
 test_databento_timezone_fixes.py::TestDataBentoTimezoneFixValidation::test_live_trading_datetime_handling PASSED [ 51%]
@@ -508,7 +509,7 @@ test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_relative_dri
 test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_quote_asset_in_target_weights PASSED [ 52%]
 test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_drift_when_we_want_short_something PASSED [ 52%]
 test_drift_rebalancer.py::TestDriftCalculationLogic::test_shorting_more_when_price_goes_up_short_something PASSED [ 52%]
-test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_we_want_a_100_percent_short_position PASSED [ 52%]
+test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_we_want_a_100_percent_short_position PASSED [ 53%]
 test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_absolute_drift_when_we_want_a_100_percent_short_position_and_cash_in_target_weights PASSED [ 53%]
 test_drift_rebalancer.py::TestDriftCalculationLogic::test_calculate_relative_drift_when_we_want_a_100_percent_short_position PASSED [ 53%]
 test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_everything_with_limit_orders PASSED [ 53%]
@@ -527,7 +528,7 @@ test_drift_rebalancer.py::TestDriftOrderLogic::test_market_buy_when_we_dont_have
 test_drift_rebalancer.py::TestDriftOrderLogic::test_attempting_to_buy_when_we_dont_have_enough_money_for_even_one_share PASSED [ 54%]
 test_drift_rebalancer.py::TestDriftOrderLogic::test_attempting_to_sell_when_the_amount_we_need_to_sell_is_less_than_the_limit_price_should_not_sell PASSED [ 54%]
 test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_limit_price_when_selling PASSED [ 54%]
-test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_limit_price_when_buying PASSED [ 54%]
+test_drift_rebalancer.py::TestDriftOrderLogic::test_calculate_limit_price_when_buying PASSED [ 55%]
 test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_whole_shares PASSED [ 55%]
 test_drift_rebalancer.py::TestDriftOrderLogic::test_buying_fractional_shares PASSED [ 55%]
 test_drift_rebalancer.py::TestDriftOrderLogic::test_selling_everything_with_fractional_limit_orders PASSED [ 55%]
@@ -546,7 +547,7 @@ test_drift_rebalancer.py::TestDriftRebalancer::test_even_odd_drift_rebalancer_ab
 test_drift_rebalancer.py::TestDriftRebalancer::test_even_odd_drift_rebalancer_relative PASSED [ 56%]
 test_drift_rebalancer.py::TestDriftRebalancer::test_classic_60_40 PASSED [ 56%]
 test_drift_rebalancer.py::TestDriftRebalancer::test_classic_60_40_with_fractional PASSED [ 56%]
-test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_yahoo XFAIL [ 56%]
+test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_yahoo XFAIL [ 57%]
 test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_polygon SKIPPED [ 57%]
 test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_alpaca SKIPPED [ 57%]
 test_drift_rebalancer.py::TestDriftRebalancer::test_crypto_50_50_with_alpaca_modern_way SKIPPED [ 57%]
@@ -565,7 +566,7 @@ test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_no_position_t
 test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_tradovate_position_detected PASSED [ 58%]
 test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_tradovate_position_sells_after_minute PASSED [ 58%]
 test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_ib_style_position_detected PASSED [ 58%]
-test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_multiple_contracts_logs_warning PASSED [ 58%]
+test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_multiple_contracts_logs_warning PASSED [ 59%]
 test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_ignores_other_futures PASSED [ 59%]
 test_futures_integration.py::TestFuturesCycleAlgoIntegration::test_ignores_stock_positions PASSED [ 59%]
 test_get_historical_prices.py::TestBacktestingDataSources::test_get_first_trading_day_after_long_weekend PASSED [ 59%]
@@ -584,7 +585,7 @@ test_helpers.py::test_has_more_than_n_decimal_places PASSED              [ 60%]
 test_helpers.py::test_date_n_bars_from_date_valid_input PASSED           [ 60%]
 test_helpers.py::test_date_n_bars_from_date_zero_bars PASSED             [ 60%]
 test_helpers.py::test_date_n_trading_days_from_date_with_24_7_market PASSED [ 60%]
-test_helpers.py::test_get_trading_days PASSED                            [ 60%]
+test_helpers.py::test_get_trading_days PASSED                            [ 61%]
 test_helpers.py::test_get_trading_times_day_nyse PASSED                  [ 61%]
 test_helpers.py::test_get_trading_times_minute_nyse PASSED               [ 61%]
 test_helpers.py::test_get_trading_times_minute_24_7_utc PASSED           [ 61%]
@@ -603,9 +604,66 @@ test_indicator_subplots.py::TestIndicators::test_named_lines PASSED      [ 62%]
 test_indicator_subplots.py::test_plot_indicators_handles_nan_marker_size PASSED [ 62%]
 test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_rejects_nan PASSED [ 62%]
 test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_defaults_color PASSED [ 62%]
-test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_accepts_css_color PASSED [ 62%]
+test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_marker_accepts_css_color PASSED [ 63%]
 test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_line_rejects_nan PASSED [ 63%]
 test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_line_defaults_color PASSED [ 63%]
 test_indicator_subplots.py::TestAddMarkerAndLineGuards::test_add_line_defaults_style PASSED [ 63%]
 test_integration_tests.py::TestIntegrationTests::test_yahoo XPASS (y...) [ 63%]
-test_interactive_brokers.py::test_initialize_interactive_broker_legacy 
+test_interactive_brokers.py::test_initialize_interactive_broker_legacy PASSED [ 63%]
+test_live_trading_resilience.py::TestLiveTradingResilience::test_live_trading_resilience_is_working PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #4
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #4
+
+test_logger_env_vars.py::TestEnvironmentVariableHandling::test_backtesting_quiet_logs_overrides_log_level PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #5
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #5
+
+test_logger_env_vars.py::TestEnvironmentVariableHandling::test_env_var_precedence_documentation PASSED [ 63%]
+test_logger_env_vars.py::TestEnvironmentVariableHandling::test_memory_usage_is_minimal PASSED [ 63%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #6
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #6
+
+test_logging.py::TestLogging::test_logging PASSED                        [ 64%]
+test_logging.py::TestLogging::test_backtest_produces_no_logs_when_quiet_logs_is_true XFAIL [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #7
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #7
+
+test_logging.py::TestLogging::test_backtest_produces_logs_when_quiet_logs_is_false XFAIL [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #8
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #8
+
+test_lumibot_logger.py::test_unified_logger_includes_source_context PASSED [ 64%]
+test_lumibot_logger.py::test_unified_logger_info_includes_module_context PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #9
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #9
+
+test_lumibot_logger.py::test_file_handler_uses_lumibot_formatter PASSED  [ 64%]
+test_lumibot_logger.py::test_quiet_logs_functionality PASSED             [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #10
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #10
+
+test_lumibot_logger.py::test_trader_quiet_logs_integration PASSED        [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #11
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #11
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_comprehensive_diagnostic_scenarios PASSED [ 64%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #12
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #12
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_continuous_vs_non_continuous_markets PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #13
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #13
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_different_market_types PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #14
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #14
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_different_sleeptime_combinations PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #15
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #15
+
+test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_es_futures_no_infinite_restart PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #16
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #16
+
+test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability 

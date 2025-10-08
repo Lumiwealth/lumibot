@@ -404,11 +404,28 @@ def update_df(df_all, result):
 
 def is_process_alive():
     """Check if ThetaTerminal Java process is still running"""
+    import subprocess
     global THETA_DATA_PROCESS
-    if THETA_DATA_PROCESS is None:
+
+    # First check if we have a process handle and it's still alive
+    if THETA_DATA_PROCESS is not None:
+        # poll() returns None if process is still running, otherwise returns exit code
+        if THETA_DATA_PROCESS.poll() is None:
+            return True
+
+    # If we don't have a process handle or it died, check if any ThetaTerminal process is running
+    # This handles cases where the process was started by a previous Python session
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "ThetaTerminal.jar"],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        # pgrep returns 0 if processes found, 1 if none found
+        return result.returncode == 0
+    except Exception:
         return False
-    # poll() returns None if process is still running, otherwise returns exit code
-    return THETA_DATA_PROCESS.poll() is None
 
 
 def start_theta_data_client(username: str, password: str):
@@ -430,16 +447,37 @@ def start_theta_data_client(username: str, password: str):
     theta_dir.mkdir(parents=True, exist_ok=True)
     creds_file = theta_dir / "creds.txt"
 
-    # Write credentials to creds.txt (format: email on first line, password on second line)
-    with open(creds_file, 'w') as f:
-        f.write(f"{username}\n")
-        f.write(f"{password}\n")
+    # IDEMPOTENT WRITE: Only write credentials if file doesn't exist or username changed
+    # This prevents overwriting production credentials with test credentials
+    should_write = False
+    if not creds_file.exists():
+        logger.info(f"Creating new creds.txt file at {creds_file}")
+        should_write = True
+    else:
+        # Check if username changed
+        try:
+            with open(creds_file, 'r') as f:
+                existing_username = f.readline().strip()
+            if existing_username != username:
+                logger.info(f"Username changed from {existing_username} to {username}, updating creds.txt")
+                should_write = True
+            else:
+                logger.debug(f"Using existing creds.txt for {username}")
+        except Exception as e:
+            logger.warning(f"Could not read existing creds.txt: {e}, will recreate")
+            should_write = True
 
-    # Set restrictive permissions on creds file (owner read/write only)
-    # This prevents other users on the system from reading the credentials
-    os.chmod(creds_file, 0o600)
+    if should_write:
+        # Write credentials to creds.txt (format: email on first line, password on second line)
+        with open(creds_file, 'w') as f:
+            f.write(f"{username}\n")
+            f.write(f"{password}\n")
 
-    logger.info(f"Created creds.txt file at {creds_file} for user: {username}")
+        # Set restrictive permissions on creds file (owner read/write only)
+        # This prevents other users on the system from reading the credentials
+        os.chmod(creds_file, 0o600)
+
+        logger.info(f"Updated creds.txt file for user: {username}")
 
     # Launch ThetaTerminal directly with --creds-file to avoid shell escaping issues
     # We bypass the thetadata library's launcher which doesn't support this option
@@ -492,35 +530,38 @@ def check_connection(username: str, password: str):
     connected = False
 
     while True:
-        # FIRST: Check if the Java process is still alive
-        if not is_process_alive():
-            logger.warning("ThetaTerminal process died, restarting...")
-            client = start_theta_data_client(username=username, password=password)
-            counter += 1
-            continue
-
+        # FIRST: Check if already connected (most important check!)
+        # This prevents unnecessary restarts that would overwrite creds.txt
         try:
-            time.sleep(0.5)
             res = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=1)
             con_text = res.text
 
             if con_text == "CONNECTED":
-                logger.debug("Connected to Theta Data!")
+                logger.debug("Already connected to Theta Data!")
                 connected = True
                 break
             elif con_text == "DISCONNECTED":
-                logger.debug("Disconnected from Theta Data!")
-                counter += 1
+                logger.debug("Disconnected from Theta Data, will attempt to start...")
+                # Fall through to process check and restart logic
             else:
-                logger.info(f"Unknown connection status: {con_text}, starting theta data client")
-                client = start_theta_data_client(username=username, password=password)
-                counter += 1
+                logger.debug(f"Unknown connection status: {con_text}")
+                # Fall through to process check and restart logic
         except Exception as e:
-            # Process might have died or network issue
-            if not is_process_alive():
-                logger.warning(f"ThetaTerminal process died during connection check: {e}")
+            # Connection endpoint not responding - process might be dead
+            logger.debug(f"Cannot reach ThetaData status endpoint: {e}")
+            # Fall through to process check and restart logic
+
+        # SECOND: Check if the Java process is still alive
+        if not is_process_alive():
+            logger.warning("ThetaTerminal process is not running, starting...")
             client = start_theta_data_client(username=username, password=password)
             counter += 1
+            time.sleep(0.5)
+            continue
+
+        # THIRD: Process is alive but not connected - wait and retry
+        time.sleep(0.5)
+        counter += 1
 
         if counter > MAX_RETRIES:
             logger.error("Cannot connect to Theta Data!")
@@ -543,8 +584,13 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
         while True:
             try:
                 response = requests.get(request_url, headers=headers, params=request_params)
+                # Status code 472 means "No data" - this is valid, return None
+                if response.status_code == 472:
+                    logger.warning(f"No data available for request: {response.text[:200]}")
+                    return None
                 # If status code is not 200, then we are not connected
-                if response.status_code != 200:
+                elif response.status_code != 200:
+                    logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
                     check_connection(username=username, password=password)
                 else:
                     json_resp = response.json()
@@ -564,7 +610,12 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         break
 
             except Exception as e:
+                logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
                 check_connection(username=username, password=password)
+                # Give the process time to start after restart
+                if counter == 0:
+                    logger.info("Waiting 5 seconds for ThetaTerminal to initialize...")
+                    time.sleep(5)
 
             counter += 1
             if counter > 1:

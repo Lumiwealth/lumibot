@@ -209,12 +209,23 @@ class DataBentoClient:
             logger.info(f"Fetching instrument definition for {symbol} from DataBento on {date_str}")
 
             # Fetch instrument definition using 'definition' schema
+            # DataBento requires end > start, so add 1 day to end
+            from datetime import timedelta
+            if isinstance(reference_date, datetime):
+                end_date = (reference_date + timedelta(days=1)).strftime("%Y-%m-%d")
+            elif isinstance(reference_date, date):
+                end_date = (reference_date + timedelta(days=1)).strftime("%Y-%m-%d")
+            else:
+                # reference_date is a string
+                ref_dt = datetime.strptime(date_str, "%Y-%m-%d")
+                end_date = (ref_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+
             data = self.client.timeseries.get_range(
                 dataset=dataset,
                 symbols=[symbol],
                 schema="definition",
                 start=date_str,
-                end=date_str,
+                end=end_date,
             )
 
             # Convert to DataFrame
@@ -635,23 +646,30 @@ def _fetch_and_update_futures_multiplier(
     """
     # Only fetch for futures contracts
     if asset.asset_type not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+        logger.info(f"[MULTIPLIER] Skipping {asset.symbol} - not a futures contract (type={asset.asset_type})")
         return
+
+    logger.info(f"[MULTIPLIER] Starting fetch for {asset.symbol}, current multiplier={asset.multiplier}")
 
     # Skip if multiplier already set (and not default value of 1)
     if asset.multiplier != 1:
-        logger.debug(f"Asset {asset.symbol} already has multiplier={asset.multiplier}, skipping fetch")
+        logger.info(f"[MULTIPLIER] Asset {asset.symbol} already has multiplier={asset.multiplier}, skipping fetch")
         return
 
     # Use the resolved symbol for cache key
     cache_key = (resolved_symbol, dataset)
+    logger.info(f"[MULTIPLIER] Cache key: {cache_key}, cache has {len(_INSTRUMENT_DEFINITION_CACHE)} entries")
     if cache_key in _INSTRUMENT_DEFINITION_CACHE:
         cached_def = _INSTRUMENT_DEFINITION_CACHE[cache_key]
         if 'unit_of_measure_qty' in cached_def:
             asset.multiplier = int(cached_def['unit_of_measure_qty'])
-            logger.debug(f"Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
+            logger.info(f"[MULTIPLIER] ✓ Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
             return
+        else:
+            logger.warning(f"[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
 
     # Fetch from DataBento using the RESOLVED symbol
+    logger.info(f"[MULTIPLIER] Fetching from DataBento for {resolved_symbol}, dataset={dataset}, ref_date={reference_date}")
     definition = client.get_instrument_definition(
         dataset=dataset,
         symbol=resolved_symbol,
@@ -659,14 +677,21 @@ def _fetch_and_update_futures_multiplier(
     )
 
     if definition:
+        logger.info(f"[MULTIPLIER] Got definition with {len(definition)} fields: {list(definition.keys())}")
         # Cache it
         _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
 
         # Update asset
         if 'unit_of_measure_qty' in definition:
             multiplier = int(definition['unit_of_measure_qty'])
+            logger.info(f"[MULTIPLIER] BEFORE update: asset.multiplier = {asset.multiplier}")
             asset.multiplier = multiplier
-            logger.info(f"Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+            logger.info(f"[MULTIPLIER] ✓✓✓ SUCCESS! Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+            logger.info(f"[MULTIPLIER] AFTER update: asset.multiplier = {asset.multiplier}")
+        else:
+            logger.error(f"[MULTIPLIER] ✗ Definition missing unit_of_measure_qty field! Fields: {list(definition.keys())}")
+    else:
+        logger.error(f"[MULTIPLIER] ✗ Failed to get definition from DataBento for {resolved_symbol}")
 
 
 def get_price_data_from_databento(

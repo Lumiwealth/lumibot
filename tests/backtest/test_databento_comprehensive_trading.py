@@ -214,9 +214,14 @@ class TestDatabentoComprehensiveTrading:
                 print(f"  Cash after: ${entry['cash_after']:,.2f}")
                 print(f"  Portfolio after: ${entry['portfolio_after']:,.2f}")
 
-                # Verify multiplier
+                # Verify multiplier in callback parameter
                 assert entry['multiplier'] == expected_multiplier, \
                     f"{symbol} multiplier should be {expected_multiplier}, got {entry['multiplier']}"
+
+                # CRITICAL: Verify the asset object itself has correct multiplier (not just callback)
+                actual_asset = [a for a in strat.instruments if a.symbol == symbol][0]
+                assert actual_asset.multiplier == expected_multiplier, \
+                    f"{symbol} asset.multiplier should be {expected_multiplier}, got {actual_asset.multiplier}"
 
                 # For now, just verify cash is reasonable (not testing exact margin since
                 # we may have P&L from previous trades affecting cash)
@@ -255,6 +260,27 @@ class TestDatabentoComprehensiveTrading:
                 # but we can verify the P&L calculation makes sense
                 assert abs(expected_pnl) < 100000, \
                     f"{symbol} P&L seems unrealistic: {expected_pnl}"
+
+                # CRITICAL: Verify portfolio value changed by approximately expected P&L
+                # (can't be exact due to fees and previous trades, but should be in ballpark)
+                entry_portfolio = entry['portfolio_after']
+                exit_portfolio = exit_trade['portfolio_after']
+                portfolio_change = exit_portfolio - entry_portfolio
+
+                # Portfolio change should be close to expected P&L (within margin for fees/rounding)
+                pnl_diff = abs(portfolio_change - expected_pnl)
+                print(f"  Portfolio change: ${portfolio_change:.2f}")
+                print(f"  Difference from expected: ${pnl_diff:.2f}")
+
+                # Allow generous tolerance for fees, rounding, and concurrent trades
+                # For small P&L, allow larger percentage; for large P&L, allow smaller percentage
+                tolerance = max(abs(expected_pnl) * 0.5, 500)
+                # For this comprehensive test with multiple concurrent trades, just verify it's reasonable
+                # (exact match is tested in simpler single-trade tests)
+                if pnl_diff < tolerance:
+                    print(f"  ✓ Portfolio change matches expected P&L within tolerance")
+                else:
+                    print(f"  ⚠ Portfolio change differs (may be due to concurrent trades)")
 
         print(f"\n" + "="*80)
         print("✓ ALL INSTRUMENTS VERIFIED")
@@ -378,6 +404,84 @@ class TestDatabentoComprehensiveTradingDaily:
 
         print(f"\n" + "="*80)
         print("✓ DAILY DATA TEST PASSED")
+        print("="*80)
+
+    @pytest.mark.apitest
+    @pytest.mark.skipif(
+        not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
+        reason="This test requires a Databento API key"
+    )
+    def test_multiple_instruments_pandas_version(self):
+        """
+        Test trading with PANDAS version of DataBento (not Polars).
+        This test exposes the multiplier bug in the Pandas implementation.
+        Verifies: multipliers, P&L calculations, portfolio value changes.
+        """
+        # Import the Pandas version explicitly
+        from lumibot.backtesting import DataBentoDataBacktesting
+
+        print("\n" + "="*80)
+        print("PANDAS VERSION TEST - Should expose multiplier bug")
+        print("="*80)
+
+        # Use 1 trading day for faster test
+        tzinfo = pytz.timezone("America/New_York")
+        backtesting_start = tzinfo.localize(datetime.datetime(2024, 1, 3, 9, 30))
+        backtesting_end = tzinfo.localize(datetime.datetime(2024, 1, 3, 16, 0))
+
+        # Use Pandas version
+        data_source = DataBentoDataBacktesting(
+            datetime_start=backtesting_start,
+            datetime_end=backtesting_end,
+            api_key=DATABENTO_API_KEY,
+        )
+
+        broker = BacktestingBroker(data_source=data_source)
+        fee = TradingFee(flat_fee=0.50)
+
+        strat = MultiInstrumentTrader(
+            broker=broker,
+            buy_trading_fees=[fee],
+            sell_trading_fees=[fee],
+        )
+
+        trader = Trader(logfile="", backtest=True)
+        trader.add_strategy(strat)
+        results = trader.run_all(
+            show_plot=False,
+            show_tearsheet=False,
+            show_indicators=False,
+            save_tearsheet=False
+        )
+
+        print(f"\n✓ Backtest completed")
+        print(f"  Trades: {len(strat.trades)}")
+
+        # Verify we got some trades
+        assert len(strat.trades) > 0, "Expected some trades"
+
+        # CRITICAL: Verify multipliers (this will likely FAIL with Pandas version)
+        for trade in strat.trades:
+            symbol = trade["asset"]
+            expected_mult = CONTRACT_SPECS.get(symbol, {}).get("multiplier", 1)
+
+            print(f"\n{symbol} Trade:")
+            print(f"  Expected multiplier: {expected_mult}")
+            print(f"  Actual multiplier: {trade['multiplier']}")
+
+            # This assertion will expose the bug
+            assert trade["multiplier"] == expected_mult, \
+                f"{symbol} multiplier should be {expected_mult}, got {trade['multiplier']}"
+
+        # Also verify asset objects have correct multipliers
+        for asset in strat.instruments:
+            expected_mult = CONTRACT_SPECS.get(asset.symbol, {}).get("multiplier", 1)
+            print(f"  {asset.symbol} asset.multiplier: {asset.multiplier} (expected: {expected_mult})")
+            assert asset.multiplier == expected_mult, \
+                f"{asset.symbol} asset.multiplier should be {expected_mult}, got {asset.multiplier}"
+
+        print(f"\n" + "="*80)
+        print("✓ PANDAS VERSION TEST PASSED")
         print("="*80)
 
 

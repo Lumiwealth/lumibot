@@ -898,21 +898,27 @@ def _fetch_and_update_futures_multiplier(
     """
     # Only fetch for futures contracts
     if asset.asset_type not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+        logger.info(f"[POLARS-MULTIPLIER] Skipping {asset.symbol} - not a futures contract (type={asset.asset_type})")
         return
+
+    logger.info(f"[POLARS-MULTIPLIER] Starting fetch for {asset.symbol}, current multiplier={asset.multiplier}")
 
     # Skip if multiplier already set (and not default value of 1)
     if asset.multiplier != 1:
-        logger.debug(f"Asset {asset.symbol} already has multiplier={asset.multiplier}, skipping fetch")
+        logger.info(f"[POLARS-MULTIPLIER] Asset {asset.symbol} already has multiplier={asset.multiplier}, skipping fetch")
         return
 
     # Use the resolved symbol for cache key
     cache_key = (resolved_symbol, dataset)
+    logger.info(f"[POLARS-MULTIPLIER] Cache key: {cache_key}, cache has {len(_INSTRUMENT_DEFINITION_CACHE)} entries")
     if cache_key in _INSTRUMENT_DEFINITION_CACHE:
         cached_def = _INSTRUMENT_DEFINITION_CACHE[cache_key]
         if 'unit_of_measure_qty' in cached_def:
             asset.multiplier = int(cached_def['unit_of_measure_qty'])
-            logger.debug(f"Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
+            logger.info(f"[POLARS-MULTIPLIER] ✓ Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
             return
+        else:
+            logger.warning(f"[POLARS-MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
 
     try:
         # Use yesterday if no reference date provided
@@ -955,10 +961,12 @@ def _fetch_and_update_futures_multiplier(
         # Update asset multiplier
         if 'unit_of_measure_qty' in definition:
             multiplier = int(definition['unit_of_measure_qty'])
+            logger.info(f"[POLARS-MULTIPLIER] BEFORE update: asset.multiplier = {asset.multiplier}")
             asset.multiplier = multiplier
-            logger.info(f"Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+            logger.info(f"[POLARS-MULTIPLIER] ✓✓✓ SUCCESS! Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+            logger.info(f"[POLARS-MULTIPLIER] AFTER update: asset.multiplier = {asset.multiplier}")
         else:
-            logger.warning(f"No unit_of_measure_qty field in definition for {resolved_symbol}")
+            logger.error(f"[POLARS-MULTIPLIER] ✗ Definition missing unit_of_measure_qty field! Fields: {list(definition.keys())}")
 
     except Exception as e:
         logger.warning(f"Could not fetch multiplier for {resolved_symbol}: {str(e)}")

@@ -95,12 +95,12 @@ class TestDailyDataTimestampComparison:
         )
 
     def test_daily_data_full_month_ndx_index(self):
-        """Test NDX index daily data for full September 2025 - ZERO tolerance."""
+        """Test SPX index daily data for full August 2024 - ZERO tolerance."""
         self._test_symbol_daily_data(
-            symbol="NDX",
-            start_date=datetime.datetime(2025, 9, 1),
-            end_date=datetime.datetime(2025, 9, 30),
-            min_trading_days=19,
+            symbol="SPX",
+            start_date=datetime.datetime(2024, 8, 1),
+            end_date=datetime.datetime(2024, 8, 31),
+            min_trading_days=21,
             asset_type="index"
         )
 

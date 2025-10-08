@@ -204,6 +204,38 @@ class DataBentoDataBacktesting(PandasData):
         else:
             search_asset = (search_asset, quote_asset)
 
+        # CRITICAL: For futures, fetch multiplier BEFORE checking cache
+        # This ensures multiplier is set even when using cached data
+        if asset_separated.asset_type in (asset_separated.AssetType.FUTURE, asset_separated.AssetType.CONT_FUTURE):
+            # Import here to avoid circular dependency
+            from lumibot.tools import databento_helper
+
+            # Only fetch multiplier if not already set
+            if asset_separated.multiplier == 1:
+                logger.info(f"[PANDAS-FIX] Fetching multiplier for {asset_separated.symbol} before using cached data")
+                try:
+                    # Create a temporary client to fetch multiplier
+                    client = databento_helper.DataBentoClient(self._api_key)
+
+                    # Resolve symbol
+                    if asset_separated.asset_type == asset_separated.AssetType.CONT_FUTURE:
+                        resolved_symbol = databento_helper._format_futures_symbol_for_databento(
+                            asset_separated, reference_date=self.datetime_start
+                        )
+                    else:
+                        resolved_symbol = databento_helper._format_futures_symbol_for_databento(asset_separated)
+
+                    # Fetch multiplier
+                    databento_helper._fetch_and_update_futures_multiplier(
+                        client=client,
+                        asset=asset_separated,
+                        resolved_symbol=resolved_symbol,
+                        dataset="GLBX.MDP3",
+                        reference_date=self.datetime_start
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not fetch multiplier for {asset_separated.symbol}: {e}")
+
         # If this asset was already prefetched, we don't need to do anything
         if search_asset in self._prefetched_assets:
             return

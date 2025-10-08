@@ -25,25 +25,28 @@ from lumibot.tools import thetadata_helper
 def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, mock_load_cache, mock_get_missing_dates, mock_get_historical_data, mock_update_df, mock_update_cache):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = True
-    mock_load_cache.return_value = pd.DataFrame({
-        "datetime": [
-                    "2023-07-01 09:30:00",
-                    "2023-07-01 09:31:00",
-                    "2023-07-01 09:32:00",
-                    "2023-07-01 09:33:00",
-                    "2023-07-01 09:34:00",
-                ],
+    # Create DataFrame with proper datetime objects with Lumibot default timezone
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+    df_cache = pd.DataFrame({
+        "datetime": pd.to_datetime([
+                    "2025-09-02 09:30:00",
+                    "2025-09-02 09:31:00",
+                    "2025-09-02 09:32:00",
+                    "2025-09-02 09:33:00",
+                    "2025-09-02 09:34:00",
+                ]).tz_localize(LUMIBOT_DEFAULT_PYTZ),
         "price": [100, 101, 102, 103, 104]
     })
+    df_cache.set_index("datetime", inplace=True)
+    mock_load_cache.return_value = df_cache
 
-    # mock_load_cache.return_value["datetime"] = pd.to_datetime(mock_load_cache.return_value["datetime"])
     mock_get_missing_dates.return_value = []
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start = datetime.datetime(2023, 7, 1)
-    end = datetime.datetime(2023, 7, 2)
+    # Make timezone-aware using Lumibot default timezone
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 2))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 3))
     timespan = "minute"
-    dt = datetime.datetime(2023, 7, 1, 9, 30)
-    mock_load_cache.return_value.set_index("datetime", inplace=True)
+    dt = datetime.datetime(2025, 9, 2, 9, 30)
 
     # Act
     df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan, dt=dt)
@@ -53,7 +56,7 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     assert mock_load_cache.called
     assert df is not None
     assert len(df) == 5  # Data loaded from cache
-    assert df.index[1] == pd.Timestamp("2023-07-01 09:31:00")
+    assert df.index[1] == pd.Timestamp("2025-09-02 09:31:00", tz=LUMIBOT_DEFAULT_PYTZ)
     assert df["price"].iloc[1] == 101
     assert df.loc
     mock_get_historical_data.assert_not_called()  # No need to fetch new data
@@ -68,7 +71,7 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
                                             mock_get_historical_data, mock_update_df, mock_update_cache):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
-    mock_get_missing_dates.return_value = [datetime.datetime(2023, 7, 1)]
+    mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
     mock_get_historical_data.return_value = pd.DataFrame({
         "datetime": pd.date_range("2023-07-01", periods=5, freq="min"),
         "price": [100, 101, 102, 103, 104]
@@ -76,8 +79,8 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     mock_update_df.return_value = mock_get_historical_data.return_value
     
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start = datetime.datetime(2023, 7, 1)
-    end = datetime.datetime(2023, 7, 2)
+    start = datetime.datetime(2025, 9, 2)
+    end = datetime.datetime(2025, 9, 3)
     timespan = "minute"
     dt = datetime.datetime(2023, 7, 1, 9, 30)
 
@@ -108,7 +111,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     })
     mock_build_cache_filename.return_value.exists.return_value = True
     mock_load_cache.return_value = cached_data
-    mock_get_missing_dates.return_value = [datetime.datetime(2023, 7, 2)]
+    mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 3)]
     mock_get_historical_data.return_value = pd.DataFrame({
         "datetime": pd.date_range("2023-07-02", periods=5, freq='min'),
         "price": [110, 111, 112, 113, 114]
@@ -117,8 +120,8 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     mock_update_df.return_value = updated_data
     
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start = datetime.datetime(2023, 7, 1)
-    end = datetime.datetime(2023, 7, 2)
+    start = datetime.datetime(2025, 9, 2)
+    end = datetime.datetime(2025, 9, 3)
     timespan = "minute"
     dt = datetime.datetime(2023, 7, 1, 9, 30)
 
@@ -143,11 +146,11 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_historical_data.return_value = pd.DataFrame()
-    mock_get_missing_dates.return_value = [datetime.datetime(2023, 7, 1)]
+    mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
     
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start = datetime.datetime(2023, 7, 1)
-    end = datetime.datetime(2023, 7, 2)
+    start = datetime.datetime(2025, 9, 2)
+    end = datetime.datetime(2025, 9, 3)
     timespan = "minute"
     dt = datetime.datetime(2023, 7, 1, 9, 30)
 
@@ -452,44 +455,46 @@ def test_update_df_empty_df_all_and_result_no_datetime():
     # Test with empty dataframe and no new data
     df_all = None
     result = [
-        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1690896600000},
-        {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690896660000},
+        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1756819800000},
+        {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1756819860000},
     ]
     with pytest.raises(KeyError):
         thetadata_helper.update_df(df_all, result)
 
 
 def test_update_df_empty_df_all_with_new_data():
+    # Updated to September 2025 dates
     result = pd.DataFrame(
             {
                 "close": [2, 3, 4, 5, 6],
                 "open": [1, 2, 3, 4, 5],
                 "datetime": [
-                    "2023-07-01 09:30:00",
-                    "2023-07-01 09:31:00",
-                    "2023-07-01 09:32:00",
-                    "2023-07-01 09:33:00",
-                    "2023-07-01 09:34:00",
+                    "2025-09-02 09:30:00",
+                    "2025-09-02 09:31:00",
+                    "2025-09-02 09:32:00",
+                    "2025-09-02 09:33:00",
+                    "2025-09-02 09:34:00",
                 ],
             }
         )
-    
+
     result["datetime"] = pd.to_datetime(result["datetime"])
     df_all = None
     df_new = thetadata_helper.update_df(df_all, result)
-    
+
     assert len(df_new) == 5
     assert df_new["close"].iloc[0] == 2
-    
-    # updated_df will update NewYork time to UTC time, and minus 1 min to match with polygon data
-    assert df_new.index[0] == pd.DatetimeIndex(["2023-07-01 13:29:00-00:00"])[0]
+
+    # updated_df will update NewYork time to UTC time
+    # Note: The -1 minute adjustment was removed from implementation
+    assert df_new.index[0] == pd.DatetimeIndex(["2025-09-02 13:30:00-00:00"])[0]
 
 
 def test_update_df_existing_df_all_with_new_data():
     # Test with existing dataframe and new data
     initial_data = [
-        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1690896600000},
-        {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690896660000},
+        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1756819800000},
+        {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1756819860000},
     ]
     for r in initial_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
@@ -497,8 +502,8 @@ def test_update_df_existing_df_all_with_new_data():
     df_all = pd.DataFrame(initial_data).set_index("datetime")
 
     new_data = [
-        {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1690896720000},
-        {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1690896780000},
+        {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1756819920000},
+        {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1756819980000},
     ]
     for r in new_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
@@ -509,16 +514,17 @@ def test_update_df_existing_df_all_with_new_data():
     assert len(df_new) == 4
     assert df_new["c"].iloc[0] == 2
     assert df_new["c"].iloc[2] == 10
-    assert df_new.index[0] == pd.DatetimeIndex(["2023-08-01 13:29:00+00:00"])[0]
-    assert df_new.index[2] == pd.DatetimeIndex(["2023-08-01 13:31:00+00:00"])[0]
+    # Note: The -1 minute adjustment was removed from implementation
+    assert df_new.index[0] == pd.DatetimeIndex(["2025-09-02 13:30:00+00:00"])[0]
+    assert df_new.index[2] == pd.DatetimeIndex(["2025-09-02 13:32:00+00:00"])[0]
 
 def test_update_df_with_overlapping_data():
     # Test with some overlapping rows
     initial_data = [
-        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1690896600000},
-        {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1690896660000},
-        {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1690896720000},
-        {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1690896780000},
+        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1756819800000},
+        {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1756819860000},
+        {"o": 9, "h": 12, "l": 7, "c": 10, "v": 100, "t": 1756819920000},
+        {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1756819980000},
     ]
     for r in initial_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
@@ -526,8 +532,8 @@ def test_update_df_with_overlapping_data():
     df_all = pd.DataFrame(initial_data).set_index("datetime")
 
     overlapping_data = [
-        {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1690896780000},
-        {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1690896840000},
+        {"o": 17, "h": 20, "l": 15, "c": 18, "v": 100, "t": 1756819980000},
+        {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1756820040000},
     ]
     for r in overlapping_data:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
@@ -539,15 +545,16 @@ def test_update_df_with_overlapping_data():
     assert df_new["c"].iloc[2] == 10
     assert df_new["c"].iloc[3] == 14 # This is the overlapping row, should keep the first value from df_all
     assert df_new["c"].iloc[4] == 22
-    assert df_new.index[0] == pd.DatetimeIndex(["2023-08-01 13:29:00+00:00"])[0]
-    assert df_new.index[2] == pd.DatetimeIndex(["2023-08-01 13:31:00+00:00"])[0]
-    assert df_new.index[3] == pd.DatetimeIndex(["2023-08-01 13:32:00+00:00"])[0]
-    assert df_new.index[4] == pd.DatetimeIndex(["2023-08-01 13:33:00+00:00"])[0]
+    # Note: The -1 minute adjustment was removed from implementation
+    assert df_new.index[0] == pd.DatetimeIndex(["2025-09-02 13:30:00+00:00"])[0]
+    assert df_new.index[2] == pd.DatetimeIndex(["2025-09-02 13:32:00+00:00"])[0]
+    assert df_new.index[3] == pd.DatetimeIndex(["2025-09-02 13:33:00+00:00"])[0]
+    assert df_new.index[4] == pd.DatetimeIndex(["2025-09-02 13:34:00+00:00"])[0]
 
 def test_update_df_with_timezone_awareness():
     # Test that timezone awareness is properly handled
     result = [
-        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1690896600000},
+        {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1756819800000},
     ]
     for r in result:
         r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
@@ -737,8 +744,8 @@ def test_get_historical_data_stock(mock_get_request):
     
     #asset = MockAsset(asset_type="stock", symbol="AAPL")
     asset = Asset("AAPL")
-    start_dt = datetime.datetime(2023, 7, 1)
-    end_dt = datetime.datetime(2023, 7, 2)
+    start_dt = datetime.datetime(2025, 9, 2)
+    end_dt = datetime.datetime(2025, 9, 3)
     ivl = 60000
 
     # Act
@@ -747,9 +754,15 @@ def test_get_historical_data_stock(mock_get_request):
     # Assert
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
-    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count", "datetime"]
-    assert df["datetime"].iloc[0] == datetime.datetime(2023, 7, 1, 1, 0, 0)
-    assert df["datetime"].iloc[0].tzinfo is None
+    # 'datetime' is the index, not a column
+    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count"]
+    assert df.index.name == "datetime"
+    # Index is timezone-aware (America/New_York)
+    assert df.index[0].year == 2023
+    assert df.index[0].month == 7
+    assert df.index[0].day == 1
+    assert df.index[0].hour == 1
+    assert df.index[0].tzinfo is not None
     assert 'date' not in df.columns
     assert 'ms_of_day' not in df.columns
     assert df["open"].iloc[1] == 110
@@ -767,10 +780,10 @@ def test_get_historical_data_option(mock_get_request):
     mock_get_request.return_value = mock_json_response
     
     asset = Asset(
-        asset_type="option", symbol="AAPL", expiration=datetime.datetime(2023, 9, 30), strike=140, right="CALL"
+        asset_type="option", symbol="AAPL", expiration=datetime.datetime(2025, 9, 30), strike=140, right="CALL"
     )
-    start_dt = datetime.datetime(2023, 7, 1)
-    end_dt = datetime.datetime(2023, 7, 2)
+    start_dt = datetime.datetime(2025, 9, 2)
+    end_dt = datetime.datetime(2025, 9, 3)
     ivl = 60000
 
     # Act
@@ -779,8 +792,15 @@ def test_get_historical_data_option(mock_get_request):
     # Assert
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
-    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count", "datetime"]
-    assert df["datetime"].iloc[0] == datetime.datetime(2023, 7, 1, 1, 0, 0)
+    # 'datetime' is the index, not a column
+    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count"]
+    assert df.index.name == "datetime"
+    # Index is timezone-aware (America/New_York)
+    assert df.index[0].year == 2023
+    assert df.index[0].month == 7
+    assert df.index[0].day == 1
+    assert df.index[0].hour == 1
+    assert df.index[0].tzinfo is not None
     assert df["open"].iloc[1] == 1.1
 
 
@@ -790,8 +810,8 @@ def test_get_historical_data_empty_response(mock_get_request):
     mock_get_request.return_value = None
     
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start_dt = datetime.datetime(2023, 7, 1)
-    end_dt = datetime.datetime(2023, 7, 2)
+    start_dt = datetime.datetime(2025, 9, 2)
+    end_dt = datetime.datetime(2025, 9, 3)
     ivl = 60000
 
     # Act
@@ -812,8 +832,8 @@ def test_get_historical_data_quote_style(mock_get_request):
     mock_get_request.return_value = mock_json_response
     
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start_dt = datetime.datetime(2023, 7, 1)
-    end_dt = datetime.datetime(2023, 7, 2)
+    start_dt = datetime.datetime(2025, 9, 2)
+    end_dt = datetime.datetime(2025, 9, 3)
     ivl = 60000
 
     # Act
@@ -835,8 +855,8 @@ def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
     mock_get_request.return_value = mock_json_response
     
     asset = Asset(asset_type="stock", symbol="AAPL")
-    start_dt = datetime.datetime(2023, 7, 1)
-    end_dt = datetime.datetime(2023, 7, 2)
+    start_dt = datetime.datetime(2025, 9, 2)
+    end_dt = datetime.datetime(2025, 9, 3)
     ivl = 60000
 
     # Act

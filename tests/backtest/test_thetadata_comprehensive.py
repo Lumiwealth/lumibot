@@ -560,8 +560,8 @@ class TestThetaDataHelperLive:
     def test_get_price_data_multi_chunk_fetch(self, theta_credentials):
         username, password = theta_credentials
         asset = Asset("SPY", asset_type="stock")
-        start = datetime.datetime(2024, 7, 1)
-        end = datetime.datetime(2024, 8, 20)
+        start = datetime.datetime(2025, 8, 1)
+        end = datetime.datetime(2025, 8, 20)
 
         df = thetadata_helper.get_price_data(
             username=username,

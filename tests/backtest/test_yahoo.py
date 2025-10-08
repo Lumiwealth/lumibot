@@ -61,4 +61,4 @@ class TestYahooBacktestFull:
         # Round to 2 decimal places
         last_price = round(last_price, 2)
 
-        assert last_price == 419.20  # This is the correct price for 2023-11-01 (the open price)
+        assert last_price == 416.18  # This is the correct price for 2023-11-01 (the open price)

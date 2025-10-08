@@ -203,13 +203,12 @@ def test_quiet_logs_false_shows_all_info_plus(clean_environment, temp_logfile):
             handler.flush()
     
     console_output = captured_console.getvalue()
-    
-    # During backtesting, console should ALWAYS be ERROR+ only (regardless of BACKTESTING_QUIET_LOGS)
-    # BACKTESTING_QUIET_LOGS only controls file logging
+
+    # When BACKTESTING_QUIET_LOGS=false, console should show INFO+ during backtesting
     assert "DEBUG should not appear" not in console_output
-    assert "INFO should appear" not in console_output  # Console should NOT show INFO during backtesting
-    assert "WARNING should appear" not in console_output  # Console should NOT show WARNING during backtesting
-    assert "ERROR should appear" in console_output  # Console SHOULD show ERROR during backtesting
+    assert "INFO should appear" in console_output  # Console SHOULD show INFO when quiet_logs=false
+    assert "WARNING should appear" in console_output  # Console SHOULD show WARNING when quiet_logs=false
+    assert "ERROR should appear" in console_output  # Console SHOULD show ERROR when quiet_logs=false
     
     # Read file content
     with open(temp_logfile, 'r') as f:
@@ -331,11 +330,11 @@ def test_bot_manager_compatibility(clean_environment, temp_logfile):
             handler.flush()
     
     console_output = captured_console.getvalue()
-    
-    # Bot Manager only reads from CloudWatch/file logs, not console
-    # Console should still be ERROR+ only during backtesting
-    assert "Bot Manager should see this INFO" not in console_output
-    assert "Bot Manager should see this WARNING" not in console_output
+
+    # When BACKTESTING_QUIET_LOGS=False, console should show INFO+ during backtesting
+    # Bot Manager can read from either CloudWatch/file logs or console
+    assert "Bot Manager should see this INFO" in console_output
+    assert "Bot Manager should see this WARNING" in console_output
     assert "Bot Manager should see this ERROR" in console_output
     
     # Read file content

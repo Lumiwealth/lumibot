@@ -303,6 +303,9 @@ class TestPolygonPriceData:
         option_ticker = "O:SPY230801C00100000"
         mock_polyclient().list_options_contracts.return_value = [FakeContract(option_ticker)]
 
+        # Mock list_splits to prevent real API calls and cache invalidation
+        mock_polyclient.create().list_splits.return_value = []
+
         # Basic Setup
         api_key = "abc123"
         asset = Asset("SPY")

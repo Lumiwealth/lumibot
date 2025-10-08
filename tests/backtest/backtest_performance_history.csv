@@ -1504,3 +1504,13 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-10-07T22:47:56.869973,test_portfolio_value_comparison,Polygon,,0.6,1fc97dd7,4.0.22,,,,,Auto-tracked from test_thetadata_vs_polygon
 2025-10-07T22:47:57.970215,test_cash_comparison,Polygon,,0.604,1fc97dd7,4.0.22,,,,,Auto-tracked from test_thetadata_vs_polygon
 2025-10-07T22:47:58.630730,test_yahoo_last_price,Yahoo,,0.155,1fc97dd7,4.0.22,,,,,Auto-tracked from test_yahoo
+2025-10-07T23:16:10.042499,test_polygon_legacy_backtest,Polygon,,0.965,d92df4b3,4.0.22,,,,,Auto-tracked from test_polygon
+2025-10-07T23:18:32.515723,test_multiple_instruments_minute_data,Databento,,20.523,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-07T23:18:40.147083,test_multiple_instruments_daily_data,Databento,,7.538,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-07T23:18:58.492521,test_multiple_instruments_pandas_version,Databento,,18.231,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-08T00:06:34.932683,test_multiple_instruments_minute_data,Databento,,23.081,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-08T00:06:48.436784,test_multiple_instruments_daily_data,Databento,,13.419,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-08T00:07:10.444949,test_multiple_instruments_pandas_version,Databento,,21.909,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-08T00:14:47.402041,test_multiple_instruments_minute_data,Databento,,22.954,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-08T00:15:00.136373,test_multiple_instruments_daily_data,Databento,,12.654,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-08T00:15:23.296590,test_multiple_instruments_pandas_version,Databento,,23.062,d92df4b3,4.0.22,,,,,Auto-tracked from test_databento_comprehensive_trading

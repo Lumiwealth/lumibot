@@ -79,6 +79,7 @@ class MultiInstrumentTrader(Strategy):
         snapshot = {
             "datetime": dt,
             "instrument": asset.symbol,
+            "current_asset": asset.symbol,  # For filtering snapshots by asset
             "phase": self.trade_phase,
             "price": float(price) if price else None,
             "cash": cash,
@@ -89,8 +90,10 @@ class MultiInstrumentTrader(Strategy):
 
         # State machine: BUY → HOLD → SELL → next instrument
         if self.trade_phase == "BUY":
-            # Buy 1 contract
-            order = self.create_order(asset, 1, "buy")
+            # Buy multiple contracts to expose multiplier bugs
+            # Using 10 contracts makes multiplier bugs 10x more obvious
+            quantity = 10
+            order = self.create_order(asset, quantity, "buy")
             self.submit_order(order)
             self.trade_phase = "HOLD"
             self.hold_iterations = 0
@@ -102,9 +105,9 @@ class MultiInstrumentTrader(Strategy):
                 self.trade_phase = "SELL"
 
         elif self.trade_phase == "SELL":
-            # Sell the contract
+            # Sell all contracts
             if position and position.quantity > 0:
-                order = self.create_order(asset, 1, "sell")
+                order = self.create_order(asset, position.quantity, "sell")
                 self.submit_order(order)
             # Move to next instrument
             self.current_instrument_idx += 1
@@ -246,14 +249,16 @@ class TestDatabentoComprehensiveTrading:
                 # Calculate P&L
                 entry_price = entry['price']
                 exit_price = exit_trade['price']
+                quantity = entry['quantity']
                 price_change = exit_price - entry_price
-                expected_pnl = price_change * expected_multiplier
+                expected_pnl = price_change * quantity * expected_multiplier
 
                 print(f"\nP&L VERIFICATION:")
                 print(f"  Entry price: ${entry_price:.2f}")
                 print(f"  Exit price: ${exit_price:.2f}")
+                print(f"  Quantity: {quantity}")
                 print(f"  Price change: ${price_change:.2f}")
-                print(f"  Expected P&L: ${expected_pnl:.2f} (change × {expected_multiplier})")
+                print(f"  Expected P&L: ${expected_pnl:.2f} (change × qty × {expected_multiplier})")
 
                 # Verify final portfolio reflects P&L
                 # Note: We can't verify exact final cash without knowing all previous trades,
@@ -281,6 +286,53 @@ class TestDatabentoComprehensiveTrading:
                     print(f"  ✓ Portfolio change matches expected P&L within tolerance")
                 else:
                     print(f"  ⚠ Portfolio change differs (may be due to concurrent trades)")
+
+        # CRITICAL: Verify unrealized P&L during HOLD periods
+        # This catches bugs in portfolio value calculation (multiplier applied to unrealized P&L)
+        print(f"\n" + "-"*80)
+        print("VERIFYING UNREALIZED P&L DURING HOLD PERIODS")
+        print("-"*80)
+
+        for symbol in trades_by_instrument.keys():
+            # Find snapshots where we're holding this position
+            holding_snapshots = [s for s in strat.snapshots if s['position_qty'] > 0 and s.get('current_asset') == symbol]
+
+            if len(holding_snapshots) >= 2:
+                # Check a couple of snapshots during the hold
+                snap = holding_snapshots[len(holding_snapshots)//2]  # middle of hold period
+
+                # Get the entry trade for this position
+                entries = [t for t in trades_by_instrument[symbol] if "buy" in str(t["side"]).lower()]
+                if entries:
+                    entry = entries[0]
+                    entry_price = entry['price']
+                    quantity = entry['quantity']
+                    current_price = snap['price']
+                    expected_mult = CONTRACT_SPECS.get(symbol, {}).get("multiplier", 1)
+                    expected_margin = CONTRACT_SPECS.get(symbol, {}).get("margin", 1000)
+
+                    # Calculate expected portfolio value
+                    cash = snap['cash']
+                    margin_tied_up = quantity * expected_margin
+                    unrealized_pnl = (current_price - entry_price) * quantity * expected_mult
+                    expected_portfolio = cash + margin_tied_up + unrealized_pnl
+                    actual_portfolio = snap['portfolio']
+
+                    print(f"\n{symbol} during HOLD (snapshot {strat.snapshots.index(snap)}):")
+                    print(f"  Entry: ${entry_price:.2f} × {quantity} contracts")
+                    print(f"  Current: ${current_price:.2f}")
+                    print(f"  Cash: ${cash:,.2f}")
+                    print(f"  Margin: ${margin_tied_up:,.2f}")
+                    print(f"  Unrealized P&L: ${unrealized_pnl:,.2f} = (${current_price:.2f} - ${entry_price:.2f}) × {quantity} × {expected_mult}")
+                    print(f"  Expected portfolio: ${expected_portfolio:,.2f}")
+                    print(f"  Actual portfolio: ${actual_portfolio:,.2f}")
+                    print(f"  Difference: ${abs(actual_portfolio - expected_portfolio):,.2f}")
+
+                    # This tolerance should catch multiplier bugs (5x error would be huge)
+                    tolerance = max(abs(expected_portfolio) * 0.02, 100)  # 2% or $100
+                    assert abs(actual_portfolio - expected_portfolio) < tolerance, \
+                        f"{symbol} portfolio value incorrect during hold: expected ${expected_portfolio:,.2f}, got ${actual_portfolio:,.2f}"
+                    print(f"  ✓ Portfolio value matches expected (within ${tolerance:.2f})")
 
         print(f"\n" + "="*80)
         print("✓ ALL INSTRUMENTS VERIFIED")

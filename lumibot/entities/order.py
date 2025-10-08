@@ -1108,10 +1108,18 @@ class Order:
         if self.asset is None:
             logger.error(f"Cannot create position from order {self.identifier} - asset is None")
             return None
-            
+
         position_qty = quantity
         if self.side == SELL:
             position_qty = -quantity
+
+        # TEMPORARY DEBUG LOGGING - TO BE REMOVED
+        import sys
+        if self.asset.asset_type in ["future", "cont_future"]:
+            print(f"\n[POSITION CREATE] Creating position from order:", file=sys.stderr)
+            print(f"  Order asset: {self.asset.symbol} (ID: {id(self.asset)})", file=sys.stderr)
+            print(f"  Order asset multiplier: {self.asset.multiplier}", file=sys.stderr)
+            print(f"  Position will use SAME asset object", file=sys.stderr)
 
         position = entities.Position(
             self.strategy,

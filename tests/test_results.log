@@ -666,4 +666,1425 @@ test_market_infinite_loop_bug.py::TestESFuturesHangBug::test_es_futures_no_infin
 🔧 TestStrategy.on_trading_iteration() called - iteration #16
 🔧 TestStrategy.on_trading_iteration() completed normally for iteration #16
 
-test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability 
+test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability SKIPPED [ 65%]
+test_momentum.py::TestMomentum::test_momo_pandas_lookback_2 PASSED       [ 65%]
+test_momentum.py::TestMomentum::test_momo_pandas_lookback_30 PASSED      [ 65%]
+test_momentum.py::TestMomentum::test_momo_yahoo_lookback_2 XPASS (ya...) [ 65%]
+test_momentum.py::TestMomentum::test_momo_yahoo_lookback_30 XFAIL (y...) [ 65%]
+test_options_helper.py::TestOptionsHelper::test_broker_get_chains_handles_missing_payload PASSED [ 65%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #34
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #34
+
+test_options_helper.py::TestOptionsHelper::test_chains_backward_compatibility_string_access PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #35
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #35
+
+test_options_helper.py::TestOptionsHelper::test_chains_date_helper_methods PASSED [ 66%]
+test_options_helper.py::TestOptionsHelper::test_chains_strikes_accepts_both_string_and_date PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #36
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #36
+
+test_options_helper.py::TestOptionsHelper::test_enhanced_logging_format PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #37
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #37
+
+test_options_helper.py::TestOptionsHelper::test_evaluate_option_market_fallback_allowed PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #38
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #38
+
+test_options_helper.py::TestOptionsHelper::test_evaluate_option_market_fallback_blocked PASSED [ 66%]
+test_options_helper.py::TestOptionsHelper::test_evaluate_option_market_with_quotes PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #39
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #39
+
+test_options_helper.py::TestOptionsHelper::test_find_next_valid_option_checks_quote_first PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #53
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #53
+
+test_options_helper.py::TestOptionsHelper::test_find_next_valid_option_falls_back_to_last_price PASSED [ 66%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #62
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #62
+
+test_options_helper.py::TestOptionsHelper::test_get_expiration_on_or_after_date_returns_future PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #63
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #63
+
+test_options_helper.py::TestOptionsHelper::test_get_expiration_on_or_after_date_uses_latest_when_needed PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #64
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #64
+
+test_options_helper.py::TestOptionsHelper::test_get_expiration_validates_data_when_underlying_provided PASSED [ 67%]
+test_options_helper.py::TestOptionsHelper::test_invalid_delta PASSED     [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #65
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #65
+
+test_options_helper.py::TestOptionsHelper::test_invalid_underlying_price PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #66
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #66
+
+test_options_helper.py::TestOptionsHelper::test_missing_chains_returns_none PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #67
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #67
+
+test_options_helper.py::TestOptionsHelper::test_normal_strike_calculation PASSED [ 67%]
+test_options_helper.py::TestOptionsHelper::test_normalize_option_chains_adds_missing_keys PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #68
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #68
+
+test_options_helper.py::TestOptionsHelper::test_normalize_option_chains_invalid_expiry PASSED [ 67%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #69
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #69
+
+test_options_helper.py::TestOptionsHelper::test_options_expiry_to_datetime_date_accepts_strings PASSED [ 67%]
+test_options_helper.py::TestOptionsHelper::test_warning_for_unrealistic_strike PASSED [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #70
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #70
+
+test_order.py::TestOrderBasics::test_side_must_be_one_of PASSED          [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #71
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #71
+
+test_order.py::TestOrderBasics::test_blank_oco PASSED                    [ 68%]
+test_order.py::TestOrderBasics::test_price_doesnt_exist PASSED           [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #72
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #72
+
+test_order.py::TestOrderBasics::test_is_option PASSED                    [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #73
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #73
+
+test_order.py::TestOrderBasics::test_get_filled_price PASSED             [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #74
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #74
+
+test_order.py::TestOrderBasics::test_filled PASSED                       [ 68%]
+test_order.py::TestOrderBasics::test_is_buy_order PASSED                 [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #75
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #75
+
+test_order.py::TestOrderBasics::test_is_sell_order PASSED                [ 68%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #76
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #76
+
+test_order.py::TestOrderBasics::test_cancelled PASSED                    [ 69%]
+test_order.py::TestOrderBasics::test_active PASSED                       [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #77
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #77
+
+test_order.py::TestOrderBasics::test_active_oco PASSED                   [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #78
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #78
+
+test_order.py::TestOrderBasics::test_status PASSED                       [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #79
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #79
+
+test_order.py::TestOrderBasics::test_equivalent_status PASSED            [ 69%]
+test_order.py::TestOrderBasics::test_to_position PASSED                  [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #80
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #80
+
+test_order.py::TestOrderAdvanced::test_oco_type_reassigned PASSED        [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #81
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #81
+
+test_order.py::TestOrderAdvanced::test_bracket_standard PASSED           [ 69%]
+test_order.py::TestOrderAdvanced::test_is_equivalent_status PASSED       [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #82
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #82
+
+test_order_serialization.py::TestOrderSerialization::test_to_dict_excludes_internal_fields PASSED [ 69%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #83
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #83
+
+test_order_serialization.py::TestOrderSerialization::test_to_dict_includes_essential_fields PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #84
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #84
+
+test_order_serialization.py::TestOrderSerialization::test_to_dict_size_reduction PASSED [ 70%]
+test_pandas_data.py::TestPandasData::test_pandas_data_fixture PASSED     [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #85
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #85
+
+test_pandas_data.py::TestPandasData::test_spy_has_dividends PASSED       [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #86
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #86
+
+test_pandas_data.py::TestPandasData::test_get_start_datetime_and_ts_unit PASSED [ 70%]
+test_pandas_data.py::TestPandasData::test_data_get_quote_handles_missing_bid_ask PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #87
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #87
+
+test_polygon_helper.py::TestPolygonHelpers::test_build_cache_filename PASSED [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #88
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #88
+
+test_polygon_helper.py::TestPolygonHelpers::test_missing_dates PASSED    [ 70%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #89
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #89
+
+test_polygon_helper.py::TestPolygonHelpers::test_get_trading_dates PASSED [ 70%]
+test_polygon_helper.py::TestPolygonHelpers::test_get_polygon_symbol PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #90
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #90
+
+test_polygon_helper.py::TestPolygonHelpers::test_load_data_from_cache PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #91
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #91
+
+test_polygon_helper.py::TestPolygonHelpers::test_update_cache PASSED     [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #92
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #92
+
+test_polygon_helper.py::TestPolygonHelpers::test_update_polygon_data PASSED [ 71%]
+test_polygon_helper.py::TestPolygonPriceData::test_get_price_data_from_polygon FAILED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #93
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #93
+
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[True-day] PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #94
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #94
+
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[True-minute] PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #95
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #95
+
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[False-day] PASSED [ 71%]
+test_polygon_helper.py::TestPolygonPriceData::test_polygon_missing_day_caching[False-minute] PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #96
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #96
+
+test_polygon_helper.py::TestPolygonPriceData::test_get_chains_cached PASSED [ 71%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #97
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #97
+
+test_position_serialization.py::TestPositionSerialization::test_orders_list_included PASSED [ 72%]
+test_position_serialization.py::TestPositionSerialization::test_to_dict_excludes_internal_fields PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #98
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #98
+
+test_position_serialization.py::TestPositionSerialization::test_to_dict_includes_essential_fields PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #99
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #99
+
+test_position_serialization.py::TestPositionSerialization::test_to_dict_size_reduction PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #100
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #100
+
+test_projectx.py::TestProjectXBroker::test_broker_initialization PASSED  [ 72%]
+test_projectx.py::TestProjectXBroker::test_order_status_mapping_corrected PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #101
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #101
+
+test_projectx.py::TestProjectXBroker::test_position_conversion_field_mapping PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #102
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #102
+
+test_projectx.py::TestProjectXBroker::test_position_conversion_field_fallback PASSED [ 72%]
+test_projectx.py::TestProjectXBroker::test_order_conversion_from_broker_format PASSED [ 72%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #103
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #103
+
+test_projectx.py::TestProjectXBroker::test_order_status_mapping_edge_cases PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #104
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #104
+
+test_projectx.py::TestProjectXBroker::test_asset_resolution_no_hardcoded_mappings PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #105
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #105
+
+test_projectx.py::TestProjectXBroker::test_order_tracking_sync_functionality PASSED [ 73%]
+test_projectx.py::TestProjectXBroker::test_order_sync_prevents_auto_cancellation PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #106
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #106
+
+test_projectx.py::TestProjectXBroker::test_get_historical_account_value_not_implemented PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #107
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #107
+
+test_projectx.py::TestProjectXBroker::test_get_option_chains_not_supported PASSED [ 73%]
+test_projectx.py::TestProjectXBroker::test_order_type_conversions PASSED [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #108
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #108
+
+test_projectx.py::TestProjectXBroker::test_contract_id_parsing PASSED    [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #109
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #109
+
+test_projectx.py::TestProjectXBroker::test_logging_cleanup PASSED        [ 73%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #110
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #110
+
+test_projectx.py::TestProjectXBroker::test_position_display_format PASSED [ 73%]
+test_projectx.py::TestProjectXBroker::test_multiple_order_status_scenarios PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #111
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #111
+
+test_projectx.py::TestProjectXBrokerIntegration::test_full_order_sync_workflow PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #112
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #112
+
+test_projectx.py::TestProjectXBrokerIntegration::test_position_sync_workflow PASSED [ 74%]
+test_projectx_bracket_helpers.py::test_create_bracket_meta_shape PASSED  [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #113
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #113
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[MYTAG-BRK_ENTRY_MYTAG-MYTAG] PASSED [ 74%]🔧 TestStrategy.on_trading_iteration() called - iteration #114
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #114
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[BRK_ENTRY_BASE-BRK_ENTRY_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #115
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #115
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[BRK_TP_BASE-BRK_ENTRY_BASE-BASE] PASSED [ 74%]
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[BRK_STOP_BASE-BRK_ENTRY_BASE-BASE] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #116
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #116
+
+test_projectx_bracket_helpers.py::test_normalize_bracket_entry_tag[None-None-None] PASSED [ 74%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #117
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #117
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[BRK_ENTRY_BASE-BASE] PASSED [ 75%]
+test_projectx_bracket_helpers.py::test_derive_base_tag[BRK_TP_BASE-BASE] PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #118
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #118
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[BRK_STOP_BASE-BASE] PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #119
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #119
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[PLAIN-PLAIN] PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #120
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #120
+
+test_projectx_bracket_helpers.py::test_derive_base_tag[None-None] PASSED [ 75%]
+test_projectx_bracket_helpers.py::test_bracket_child_tag_variants PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #121
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #121
+
+test_projectx_bracket_helpers.py::test_build_unique_order_tag_generates_and_preserves PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #122
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #122
+
+test_projectx_bracket_helpers.py::test_select_effective_prices_precedence_and_rounding PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #123
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #123
+
+test_projectx_bracket_helpers.py::test_early_store_and_restore_bracket_meta PASSED [ 75%]
+test_projectx_bracket_helpers.py::test_should_spawn_bracket_children[meta0-False-expected0] PASSED [ 75%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #124
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #124
+
+test_projectx_bracket_helpers.py::test_should_spawn_bracket_children[meta1-False-expected1] PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #125
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #125
+
+test_projectx_bracket_helpers.py::test_build_bracket_child_spec_shapes PASSED [ 76%]
+test_projectx_bracket_lifecycle_unit.py::test_bracket_parent_submission_stores_meta_and_normalizes_tag PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #126
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #126
+
+test_projectx_bracket_lifecycle_unit.py::test_bracket_children_spawn_on_fill_and_tagging PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #127
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #127
+
+test_projectx_bracket_lifecycle_unit.py::test_bracket_child_fill_cancels_sibling PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #128
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #128
+
+test_projectx_data.py::TestProjectXDataSource::test_data_source_initialization PASSED [ 76%]
+test_projectx_data.py::TestProjectXDataSource::test_asset_to_contract_id_no_hardcoded_mappings PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #129
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #129
+
+test_projectx_data.py::TestProjectXDataSource::test_contract_id_generation_dynamic PASSED [ 76%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #130
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #130
+
+test_projectx_data.py::TestProjectXDataSource::test_timespan_parsing PASSED [ 76%]
+test_projectx_data.py::TestProjectXDataSource::test_projectx_unit_mapping PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #131
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #131
+
+test_projectx_data.py::TestProjectXDataSource::test_get_historical_prices_bars_conversion PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #132
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #132
+
+test_projectx_data.py::TestProjectXDataSource::test_get_last_price PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #133
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #133
+
+test_projectx_data.py::TestProjectXDataSource::test_dividends_not_supported PASSED [ 77%]
+test_projectx_data.py::TestProjectXDataSource::test_option_chains_not_supported PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #134
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #134
+
+test_projectx_data.py::TestProjectXDataSource::test_get_bars_with_contract_found PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #135
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #135
+
+test_projectx_data.py::TestProjectXDataSource::test_contract_search_multiple_formats PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #136
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #136
+
+test_projectx_data.py::TestProjectXDataSource::test_error_handling_no_contracts_found PASSED [ 77%]
+test_projectx_data.py::TestProjectXDataSource::test_get_contract_details PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #137
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #137
+
+test_projectx_data.py::TestProjectXDataSource::test_search_contracts PASSED [ 77%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #138
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #138
+
+test_projectx_data.py::TestProjectXDataSource::test_get_quote PASSED     [ 78%]
+test_projectx_data.py::TestProjectXDataSource::test_get_bars_from_datetime PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #139
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #139
+
+test_projectx_data.py::TestProjectXDataSourceIntegration::test_full_historical_data_workflow PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #140
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #140
+
+test_projectx_data.py::TestProjectXDataSourceIntegration::test_asset_resolution_workflow_with_fallbacks PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #141
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #141
+
+test_projectx_datetime_columns.py::test_projectx_fetch_bars_datetime_debug PASSED [ 78%]
+test_projectx_datetime_index.py::test_projectx_datetime_index PASSED     [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #142
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #142
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_success PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #143
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #143
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_failure PASSED [ 78%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #144
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #144
+
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_invalid_json PASSED [ 78%]
+test_projectx_helpers.py::TestProjectXAuth::test_get_auth_token_missing_config PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #145
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #145
+
+test_projectx_helpers.py::TestProjectXClient::test_client_initialization PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #146
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #146
+
+test_projectx_helpers.py::TestProjectXClient::test_get_accounts PASSED   [ 79%]
+test_projectx_helpers.py::TestProjectXClient::test_get_preferred_account_id PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #147
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #147
+
+test_projectx_helpers.py::TestProjectXClient::test_get_account_balance PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #148
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #148
+
+test_projectx_helpers.py::TestProjectXClient::test_get_positions PASSED  [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #149
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #149
+
+test_projectx_helpers.py::TestProjectXClient::test_get_orders PASSED     [ 79%]
+test_projectx_helpers.py::TestProjectXClient::test_place_order_success PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #150
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #150
+
+test_projectx_helpers.py::TestProjectXClient::test_cancel_order_success PASSED [ 79%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #151
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #151
+
+test_projectx_helpers.py::TestProjectXClient::test_get_historical_data PASSED [ 79%]
+test_projectx_helpers.py::TestProjectXClient::test_search_contracts PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #152
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #152
+
+test_projectx_helpers.py::TestProjectXClient::test_get_contract_details PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #153
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #153
+
+test_projectx_helpers.py::TestProjectXClient::test_find_contract_by_symbol PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #154
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #154
+
+test_projectx_helpers.py::TestProjectXClient::test_contract_id_conversion_no_hardcoded_mappings PASSED [ 80%]
+test_projectx_helpers.py::TestProjectXClient::test_get_contract_tick_size PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #155
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #155
+
+test_projectx_helpers.py::TestProjectXClient::test_round_to_tick_size PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #156
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #156
+
+test_projectx_helpers.py::TestProjectXApiClient::test_api_client_initialization PASSED [ 80%]
+test_projectx_helpers.py::TestProjectXApiClient::test_api_request_headers PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #157
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #157
+
+test_projectx_helpers.py::TestProjectXApiClient::test_account_search PASSED [ 80%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #158
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #158
+
+test_projectx_helpers.py::TestProjectXApiClient::test_position_search_open PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #159
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #159
+
+test_projectx_helpers.py::TestProjectXApiClient::test_order_search PASSED [ 81%]
+test_projectx_helpers.py::TestProjectXApiClient::test_order_place PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #160
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #160
+
+test_projectx_helpers.py::TestProjectXApiClient::test_order_cancel PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #161
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #161
+
+test_projectx_helpers.py::TestProjectXApiClient::test_contract_search PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #162
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #162
+
+test_projectx_helpers.py::TestProjectXApiClient::test_contract_search_id PASSED [ 81%]
+test_projectx_helpers.py::TestProjectXApiClient::test_history_retrieve_bars PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #163
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #163
+
+test_projectx_helpers.py::TestProjectXApiClient::test_get_streaming_client PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #164
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #164
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_authentication_retry_logic PASSED [ 81%]
+test_projectx_helpers.py::TestProjectXErrorHandling::test_api_rate_limiting_handling PASSED [ 81%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #165
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #165
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_network_error_handling PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #166
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #166
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_invalid_response_handling PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #167
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #167
+
+test_projectx_helpers.py::TestProjectXErrorHandling::test_http_error_codes PASSED [ 82%]
+test_projectx_lifecycle.py::test_projectx_initialization PASSED          [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #168
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #168
+
+test_projectx_lifecycle.py::test_projectx_has_client PASSED              [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #169
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #169
+
+test_projectx_lifecycle_unit.py::test_submit_and_cancel PASSED           [ 82%]
+test_projectx_lifecycle_unit.py::test_rejection_mapping_max_position PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #170
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #170
+
+test_projectx_lifecycle_unit.py::test_rejection_generic PASSED           [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #171
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #171
+
+test_projectx_lifecycle_unit.py::test_new_order_event_dispatched_on_submit PASSED [ 82%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #172
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #172
+
+test_projectx_lifecycle_unit.py::test_order_status_change_detection PASSED [ 83%]
+test_projectx_lifecycle_unit.py::test_order_cancellation_event PASSED    [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #173
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #173
+
+test_projectx_lifecycle_unit.py::test_partial_fill_event PASSED          [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #174
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #174
+
+test_projectx_lifecycle_unit.py::test_streaming_order_update_triggers_events PASSED [ 83%]
+test_projectx_lifecycle_unit.py::test_streaming_trade_update_triggers_fill PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #175
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #175
+
+test_projectx_lifecycle_unit.py::test_pre_existing_filled_order_handling PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #176
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #176
+
+test_projectx_lifecycle_unit.py::test_error_order_event PASSED           [ 83%]
+test_projectx_lifecycle_unit.py::test_order_identifier_sync PASSED       [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #177
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #177
+
+test_projectx_lifecycle_unit.py::test_order_tracking_with_multiple_orders PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #178
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #178
+
+test_projectx_timestep_alias.py::test_projectx_get_bars_accepts_timestep_alias PASSED [ 83%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #179
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #179
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_url_mappings_loaded PASSED [ 84%]
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_url_patterns PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #180
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #180
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_with_builtin_urls PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #181
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #181
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_with_env_override PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #182
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #182
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_partial_env_override PASSED [ 84%]
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_topstepx_special_case PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #183
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #183
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_get_config_unknown_firm PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #184
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #184
+
+test_projectx_url_mappings.py::TestProjectXURLMappings::test_auto_detection_with_multiple_firms PASSED [ 84%]
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_broker_validation_success PASSED [ 84%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #185
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #185
+
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_broker_validation_missing_fields PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #186
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #186
+
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_short_firm_name_env_vars_only PASSED [ 85%]
+test_projectx_url_mappings.py::TestProjectXBrokerValidation::test_no_legacy_firm_names_in_mappings PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #187
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #187
+
+test_quiet_logs_buy_and_hold.py::test_quiet_logs_buy_and_hold_integration PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #188
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #188
+
+test_quiet_logs_comprehensive.py::test_print_progress_bar_respects_quiet_logs PASSED [ 85%]
+test_quiet_logs_comprehensive.py::test_data_source_backtesting_respects_quiet_logs PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #189
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #189
+
+test_quiet_logs_comprehensive.py::test_strategy_logger_respects_quiet_logs PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #190
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #190
+
+test_quiet_logs_comprehensive.py::test_environment_variable_variations PASSED [ 85%]
+test_quiet_logs_functionality.py::test_progress_bar_always_shows_with_quiet_logs PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #191
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #191
+
+test_quiet_logs_functionality.py::test_strategy_logger_respects_quiet_logs PASSED [ 85%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #192
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #192
+
+test_quiet_logs_functionality.py::test_quiet_logs_environment_variable PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #193
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #193
+
+test_quiet_logs_functionality.py::test_progress_bar_shows_green_bar PASSED [ 86%]
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_1_console_always_error_during_backtest_quiet_true PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #194
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #194
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_1_console_always_error_during_backtest_quiet_false FAILED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #195
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #195
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_2_file_logging_quiet_true PASSED [ 86%]
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_2_file_logging_quiet_false PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #196
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #196
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_3_live_trading_unaffected PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #197
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #197
+
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_trader_integration_quiet_logs_false PASSED [ 86%]
+test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_default_backtesting_quiet_logs_is_true PASSED [ 86%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #198
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #198
+
+test_session_manager.py::TestSessionManager::test_backtesting_session_guarantees_time_progression PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #199
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #199
+
+test_session_manager.py::TestSessionManager::test_backtesting_session_prevents_infinite_restart PASSED [ 87%]
+test_session_manager.py::TestSessionManager::test_data_source_agnostic_design PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #200
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #200
+
+test_session_manager.py::TestSessionManager::test_live_trading_session_time_management PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #201
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #201
+
+test_session_manager.py::TestSessionManager::test_session_architecture_separation_of_concerns PASSED [ 87%]
+test_session_manager.py::TestSessionManager::test_session_replaces_problematic_run_trading_session PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #202
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #202
+
+test_strategy_methods.py::TestStrategyMethods::test_get_option_expiration_after_date PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #203
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #203
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_none_quantity PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #204
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #204
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_zero_quantity PASSED [ 87%]
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_valid_quantity PASSED [ 87%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #205
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #205
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_none_order PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #206
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #206
+
+test_strategy_methods.py::TestStrategyMethods::test_validate_order_with_invalid_order_type PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #207
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #207
+
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_returns_job_id PASSED [ 88%]
+test_strategy_methods.py::TestStrategyMethods::test_update_portfolio_value_with_missing_price PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #208
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #208
+
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_adds_job_to_scheduler PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #209
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #209
+
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_uses_broker_timezone PASSED [ 88%]
+test_strategy_methods.py::TestStrategyMethods::test_register_cron_callback_does_nothing_in_backtesting PASSED [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #210
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #210
+
+test_thetadata_helper.py::test_get_price_data_with_cached_data PASSED    [ 88%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #211
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #211
+
+test_thetadata_helper.py::test_get_price_data_without_cached_data PASSED [ 88%]
+test_thetadata_helper.py::test_get_price_data_partial_cache_hit PASSED   [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #212
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #212
+
+test_thetadata_helper.py::test_get_price_data_empty_response PASSED      [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #213
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #213
+
+test_thetadata_helper.py::test_get_trading_dates PASSED                  [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #214
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #214
+
+test_thetadata_helper.py::test_build_cache_filename[ohlc] PASSED         [ 89%]
+test_thetadata_helper.py::test_build_cache_filename[quote] PASSED        [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #215
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #215
+
+test_thetadata_helper.py::test_missing_dates PASSED                      [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #216
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #216
+
+test_thetadata_helper.py::test_update_cache[df_all0-df_cached0-ohlc] PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #217
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #217
+
+test_thetadata_helper.py::test_update_cache[df_all1-df_cached1-quote] PASSED [ 89%]
+test_thetadata_helper.py::test_load_data_from_cache[df_cached0-ohlc] PASSED [ 89%]🔧 TestStrategy.on_trading_iteration() called - iteration #218
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #218
+
+test_thetadata_helper.py::test_load_data_from_cache[df_cached1-quote] PASSED [ 89%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #219
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #219
+
+test_thetadata_helper.py::test_update_df_with_empty_result PASSED        [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #220
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #220
+
+test_thetadata_helper.py::test_update_df_empty_df_all_and_empty_result PASSED [ 90%]
+test_thetadata_helper.py::test_update_df_empty_df_all_and_result_no_datetime PASSED [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #221
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #221
+
+test_thetadata_helper.py::test_update_df_empty_df_all_with_new_data PASSED [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #222
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #222
+
+test_thetadata_helper.py::test_update_df_existing_df_all_with_new_data PASSED [ 90%]
+test_thetadata_helper.py::test_update_df_with_overlapping_data PASSED    [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #223
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #223
+
+test_thetadata_helper.py::test_update_df_with_timezone_awareness PASSED  [ 90%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #224
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #224
+
+test_thetadata_helper.py::test_start_theta_data_client FAILED            [ 90%]
+test_thetadata_helper.py::test_check_connection 📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #227
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #227
+FAILED                   [ 90%]
+test_thetadata_helper.py::test_check_connection_with_exception FAILED    [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #228
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #228
+
+test_thetadata_helper.py::test_get_request_successful FAILED             [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #229
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #229
+
+test_thetadata_helper.py::test_get_request_non_200_status_code FAILED    [ 91%]
+test_thetadata_helper.py::test_get_request_error_in_json PASSED          [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #230
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #230
+
+test_thetadata_helper.py::test_get_request_exception_handling PASSED     [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #236
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #236
+
+test_thetadata_helper.py::test_get_historical_data_stock PASSED          [ 91%]
+test_thetadata_helper.py::test_get_historical_data_option PASSED         [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #237
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #237
+
+test_thetadata_helper.py::test_get_historical_data_empty_response PASSED [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #238
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #238
+
+test_thetadata_helper.py::test_get_historical_data_quote_style PASSED    [ 91%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #239
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #239
+
+test_thetadata_helper.py::test_get_historical_data_ohlc_style_with_zero_in_response PASSED [ 91%]
+test_thetadata_helper.py::test_get_expirations_normal_operation PASSED   [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #240
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #240
+
+test_thetadata_helper.py::test_get_expirations_empty_response PASSED     [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #241
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #241
+
+test_thetadata_helper.py::test_get_expirations_dates_before_after_date PASSED [ 92%]
+test_thetadata_helper.py::test_get_strikes_normal_operation PASSED       [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #242
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #242
+
+test_thetadata_helper.py::test_get_strikes_empty_response PASSED         [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #243
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #243
+
+test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_process_alive_detection_real_process PASSED [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #246
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #246
+
+test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_force_kill_and_auto_restart PASSED [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #255
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #255
+
+test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_data_fetch_after_process_restart FAILED [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #262
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #262
+
+test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_multiple_rapid_restarts PASSED [ 92%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #279
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #279
+
+test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_process_dies_during_data_fetch PASSED [ 93%]🔧 TestStrategy.on_trading_iteration() called - iteration #294
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #294
+
+test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_process_never_started FAILED [ 93%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #295
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #295
+
+test_thetadata_helper.py::TestThetaDataChainsCaching::test_chains_cached_basic_structure PASSED [ 93%]
+test_thetadata_helper.py::TestThetaDataChainsCaching::test_chains_cache_reuse PASSED [ 93%]
+test_thetadata_helper.py::TestThetaDataChainsCaching::test_chains_strike_format PASSED [ 93%]
+test_tradier.py::TestTradierBrokerAPI::test_get_last_price SKIPPED (...) [ 93%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #303
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #303
+
+test_tradier.py::TestTradierBrokerAPI::test_submit_order SKIPPED (Th...) [ 93%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #304
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #304
+
+test_tradier.py::TestTradierBroker::test_basics PASSED                   [ 93%]
+test_tradier.py::TestTradierBroker::test_modify_order PASSED             [ 93%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #305
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #305
+
+test_tradier.py::TestTradierBroker::test_tradier_side2lumi PASSED        [ 93%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #306
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #306
+
+test_tradier.py::TestTradierBroker::test_lumi_side2tradier PASSED        [ 94%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #307
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #307
+
+test_tradier.py::TestTradierBroker::test_pull_broker_all_orders PASSED   [ 94%]
+test_tradier.py::TestTradierBroker::test_parse_broker_order PASSED       [ 94%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #308
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #308
+
+test_tradier.py::TestTradierBroker::test_oco_parse_broker_order PASSED   [ 94%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #309
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #309
+
+test_tradier.py::TestTradierBroker::test_do_polling SKIPPED (Complex...) [ 94%]
+test_tradingfee.py::TestTradingFee::test_init PASSED                     [ 94%]
+test_tradovate.py::TestTradovateImports::test_tradovate_broker_import PASSED [ 94%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #310
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #310
+
+test_tradovate.py::TestTradovateImports::test_tradovate_data_source_import PASSED [ 94%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #311
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #311
+
+test_tradovate.py::TestTradovateImports::test_tradovate_exception_import PASSED [ 94%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #312
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #312
+
+test_tradovate.py::TestTradovateImports::test_old_misspelling_not_accessible PASSED [ 95%]
+test_tradovate.py::TestTradovateConfiguration::test_tradovate_config_structure PASSED [ 95%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #313
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #313
+
+test_tradovate.py::TestTradovateConfiguration::test_tradovate_config_default_values PASSED [ 95%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #314
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #314
+
+test_tradovate.py::TestTradovateConfiguration::test_environment_variable_names SKIPPED [ 95%]
+test_tradovate.py::TestTradovateConfiguration::test_tradovate_env_var_prefix PASSED [ 95%]
+test_tradovate.py::TestTradovateBroker::test_broker_class_attributes PASSED [ 95%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #315
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #315
+
+test_tradovate.py::TestTradovateBroker::test_broker_has_required_methods PASSED [ 95%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #316
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #316
+
+test_tradovate.py::TestTradovateBroker::test_broker_config_validation PASSED [ 95%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #317
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #317
+
+test_tradovate.py::TestTradovateBroker::test_broker_handles_missing_credentials PASSED [ 95%]
+test_tradovate.py::TestTradovateDataSource::test_data_source_attributes PASSED [ 95%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #318
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #318
+
+test_tradovate.py::TestTradovateDataSource::test_data_source_initialization PASSED [ 96%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #319
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #319
+
+test_tradovate.py::TestTradovateSymbolConversion::test_continuous_futures_symbol_resolution PASSED [ 96%]
+test_tradovate.py::TestTradovateSymbolConversion::test_order_symbol_extraction PASSED [ 96%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #320
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #320
+
+test_tradovate.py::TestTradovateIntegration::test_end_to_end_order_flow PASSED [ 96%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #321
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #321
+
+test_tradovate.py::TestTradovateSymbolResolution::test_tradovate_symbol_format PASSED [ 96%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #322
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #322
+
+test_tradovate.py::TestTradovateSymbolResolution::test_tradovate_converts_specific_contract_to_single_digit PASSED [ 96%]
+test_tradovate.py::TestTradovateSymbolResolution::test_tradovate_vs_standard_symbol_difference PASSED [ 96%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #323
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #323
+
+test_tradovate.py::TestTradovateAPIPayload::test_limit_order_payload_format PASSED [ 96%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #324
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #324
+
+test_tradovate.py::TestTradovateAPIPayload::test_stop_order_payload_format PASSED [ 96%]
+test_tradovate.py::TestTradovateTokenRenewal::test_token_renewal_on_expiry PASSED [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #325
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #325
+
+test_tradovate.py::TestTradovateTokenRenewal::test_automatic_retry_on_401 PASSED [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #326
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #326
+
+test_tradovate.py::TestTradovateTokenRenewal::test_get_balances_with_token_renewal SKIPPED [ 97%]
+test_tradovate.py::TestTradovateTokenRenewal::test_proactive_token_check PASSED [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #327
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #327
+
+test_tradovate.py::TestTradovateTokenRenewal::test_token_not_renewed_when_fresh PASSED [ 97%]
+test_unified_logger.py::TestBasicLogging::test_logger_hierarchy PASSED   [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #328
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #328
+
+test_unified_logger.py::TestBasicLogging::test_logger_already_starts_with_lumibot PASSED [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #329
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #329
+
+test_unified_logger.py::TestBasicLogging::test_strategy_logger_prefix PASSED [ 97%]
+test_unified_logger.py::TestBasicLogging::test_strategy_logger_update_name PASSED [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #330
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #330
+
+test_unified_logger.py::TestCSVErrorHandler::test_csv_handler_initialization PASSED [ 97%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #331
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #331
+
+test_unified_logger.py::TestCSVErrorHandler::test_csv_file_creation PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #332
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #332
+
+test_unified_logger.py::TestCSVErrorHandler::test_error_deduplication PASSED [ 98%]
+test_unified_logger.py::TestCSVErrorHandler::test_error_details_normalization PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #333
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #333
+
+test_unified_logger.py::TestLoggerConfiguration::test_set_log_level PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #334
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #334
+
+test_unified_logger.py::TestLoggerConfiguration::test_invalid_log_level PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #335
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #335
+
+test_unified_logger.py::TestLoggerFormatter::test_formatter_creates_different_formats PASSED [ 98%]
+test_unified_logger.py::TestLoggerFormatter::test_message_cleaning PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #336
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #336
+
+test_unified_logger.py::TestThreadSafety::test_concurrent_csv_logging PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #337
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #337
+
+test_unified_logger.py::TestEnvironmentVariables::test_backtesting_quiet_logs PASSED [ 98%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #338
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #338
+
+test_vix_helper.py::TestVixHelperImport::test_numpy_nan_compatibility PASSED [ 99%]
+test_vix_helper.py::TestVixHelperImport::test_pandas_ta_import_with_numpy_2 PASSED [ 99%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #339
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #339
+
+test_vix_helper.py::TestVixHelper::test_check_max_vix_1d PASSED          [ 99%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #340
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #340
+
+test_vix_helper.py::TestVixHelper::test_get_vix_rsi_value PASSED         [ 99%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #341
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #341
+
+test_vix_helper.py::TestVixHelper::test_get_vix_value PASSED             [ 99%]
+test_vix_helper.py::TestVixHelper::test_vix_helper_initialization PASSED [ 99%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #342
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #342
+
+test_vix_helper.py::TestVixHelper::test_vix_percentile_calculation PASSED [ 99%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #343
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #343
+
+test_vix_helper.py::TestNumPyCompatibility::test_module_import_order_independence PASSED [ 99%]
+test_vix_helper.py::TestNumPyCompatibility::test_numpy_nan_alias_creation PASSED [ 99%]📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #344
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #344
+
+test_vix_helper.py::TestNumPyCompatibility::test_pandas_operations_with_nan PASSED [100%]
+
+=================================== FAILURES ===================================
+_____________ TestPolygonBacktestFull.test_polygon_legacy_backtest _____________
+backtest/test_polygon.py:316: in test_polygon_legacy_backtest
+    results, poly_strat_obj = PolygonBacktestStrat.run_backtest(
+../lumibot/strategies/_strategy.py:1301: in run_backtest
+    raise ValueError(
+E   ValueError: Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if you are using PolygonDataBacktesting. If you don't have one, you can get a free API key from https://polygon.io/.
+_______________ TestConfigsHelper.test_get_classic_60_40_config ________________
+test_configs_helper.py:13: in test_get_classic_60_40_config
+    configs_helper = ConfigsHelper(configs_folder="example_strategies")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../lumibot/components/configs_helper.py:34: in __init__
+    raise FileNotFoundError(f"Configs folder {configs_folder} not found")
+E   FileNotFoundError: Configs folder example_strategies not found
+________ TestDataBentoHelper.test_get_price_data_from_databento_success ________
+test_databento_helper.py:165: in test_get_price_data_from_databento_success
+    self.assertIsNotNone(result)
+E   AssertionError: unexpectedly None
+----------------------------- Captured stdout call -----------------------------
+2025-10-07 22:51:45,859 | ERROR | databento_helper.py:get_price_data_from_databento:835 | DATABENTO_DATA_FETCH_ERROR: DataBento data fetch error: object of type 'Mock' has no len() | Asset: ES, Start: 2025-01-01 00:00:00, End: 2025-01-31 00:00:00
+------------------------------ Captured log call -------------------------------
+ERROR    lumibot.tools.databento_helper:databento_helper.py:835 DATABENTO_DATA_FETCH_ERROR: DataBento data fetch error: object of type 'Mock' has no len() | Asset: ES, Start: 2025-01-01 00:00:00, End: 2025-01-31 00:00:00
+__________ TestDataBentoHelper.test_no_retry_logic_for_correct_symbol __________
+test_databento_helper.py:259: in test_no_retry_logic_for_correct_symbol
+    self.assertIsNotNone(result)
+E   AssertionError: unexpectedly None
+----------------------------- Captured stdout call -----------------------------
+2025-10-07 22:51:47,457 | ERROR | databento_helper.py:get_price_data_from_databento:835 | DATABENTO_DATA_FETCH_ERROR: DataBento data fetch error: object of type 'Mock' has no len() | Asset: MES, Start: 2025-01-01 00:00:00, End: 2025-01-31 00:00:00
+------------------------------ Captured log call -------------------------------
+ERROR    lumibot.tools.databento_helper:databento_helper.py:835 DATABENTO_DATA_FETCH_ERROR: DataBento data fetch error: object of type 'Mock' has no len() | Asset: MES, Start: 2025-01-01 00:00:00, End: 2025-01-31 00:00:00
+_ TestBacktestingDataSources.test_pandas_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns _
+test_get_historical_prices.py:120: in test_pandas_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns
+    self.check_dividends_and_adjusted_returns(bars)
+test_get_historical_prices.py:67: in check_dividends_and_adjusted_returns
+    expected_df = pd.read_csv(file_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/lib/python3.12/site-packages/pandas/io/parsers/readers.py:1026: in read_csv
+    return _read(filepath_or_buffer, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/lib/python3.12/site-packages/pandas/io/parsers/readers.py:620: in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/lib/python3.12/site-packages/pandas/io/parsers/readers.py:1620: in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/lib/python3.12/site-packages/pandas/io/parsers/readers.py:1880: in _make_engine
+    self.handles = get_handle(
+/opt/homebrew/lib/python3.12/site-packages/pandas/io/common.py:873: in get_handle
+    handle = open(
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/data/SPY.csv'
+____________ TestPolygonPriceData.test_get_price_data_from_polygon _____________
+test_polygon_helper.py:337: in test_get_price_data_from_polygon
+    assert len(df) == 6
+E   assert 2 == 6
+E    +  where 2 = len(                           open  high  low  close  volume              t\ndatetime                                                                \n2023-08-02 14:30:00+00:00    13    16   11     14     100  1690986600000\n2023-08-02 14:31:00+00:00    17    20   15     18     100  1690986660000)
+----------------------------- Captured stderr call -----------------------------
+Downloading and caching SPY /  'minute':   0%|          | 0/1 [00:00<?, ?it/s]Downloading and caching SPY /  'minute': 100%|██████████| 1/1 [00:00<00:00, 674.76it/s]
+_ TestQuietLogsRequirements.test_requirement_1_console_always_error_during_backtest_quiet_false _
+test_quiet_logs_requirements.py:94: in test_requirement_1_console_always_error_during_backtest_quiet_false
+    assert console_handlers[0].level == logging.ERROR, "Console should be ERROR level even with quiet_logs=false"
+E   AssertionError: Console should be ERROR level even with quiet_logs=false
+E   assert 20 == 40
+E    +  where 20 = <StreamHandler <_io.FileIO name=6 mode='rb+' closefd=True> (INFO)>.level
+E    +  and   40 = logging.ERROR
+_________________________ test_start_theta_data_client _________________________
+/opt/homebrew/Cellar/python@3.12/3.12.10/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py:960: in assert_called_once_with
+    raise AssertionError(msg)
+E   AssertionError: Expected 'ThetaClient' to be called once. Called 0 times.
+
+During handling of the above exception, another exception occurred:
+test_thetadata_helper.py:582: in test_start_theta_data_client
+    mock_ThetaClient.assert_called_once_with(username="test_user", passwd="test_password")
+E   AssertionError: Expected 'ThetaClient' to be called once. Called 0 times.
+----------------------------- Captured stdout call -----------------------------
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #225
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #225
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #226
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #226
+____________________________ test_check_connection _____________________________
+test_thetadata_helper.py:603: in test_check_connection
+    assert client == mock_start_client.return_value
+E   AssertionError: assert None == <MagicMock name='start_theta_data_client()' id='18469479072'>
+E    +  where <MagicMock name='start_theta_data_client()' id='18469479072'> = <MagicMock name='start_theta_data_client' id='19300295856'>.return_value
+_____________________ test_check_connection_with_exception _____________________
+test_thetadata_helper.py:622: in test_check_connection_with_exception
+    assert mock_start_client.call_count == 16
+E   AssertionError: assert 0 == 16
+E    +  where 0 = <MagicMock name='start_theta_data_client' id='18469477056'>.call_count
+----------------------------- Captured stdout call -----------------------------
+2025-10-07 22:57:57,686 | ERROR | thetadata_helper.py:check_connection:567 | Cannot connect to Theta Data!
+------------------------------ Captured log call -------------------------------
+ERROR    lumibot.tools.thetadata_helper:thetadata_helper.py:567 Cannot connect to Theta Data!
+_________________________ test_get_request_successful __________________________
+test_thetadata_helper.py:647: in test_get_request_successful
+    response = thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../lumibot/tools/thetadata_helper.py:626: in get_request
+    all_responses.append(json_resp["response"])
+                         ^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'response'
+_____________________ test_get_request_non_200_status_code _____________________
+test_thetadata_helper.py:677: in test_get_request_non_200_status_code
+    assert mock_get.mock_calls[1] == expected_call
+E   AssertionError: assert call().text._...e, 200, None)) == (('http://tes...': 'value1'}})
+E     
+E     At index 0 diff: '().text.__getitem__' != ('http://test.com',)
+E     Left contains one more item: {}
+E     
+E     Full diff:
+E     + call().text.__getitem__(slice(None, 200, None))
+E     - (...
+E     
+E     ...Full output truncated (12 lines hidden), use '-vv' to show
+____ TestThetaDataProcessHealthCheck.test_data_fetch_after_process_restart _____
+test_thetadata_helper.py:1076: in test_data_fetch_after_process_restart
+    assert len(df) > 0, "Should have data rows"
+E   AssertionError: Should have data rows
+E   assert 0 > 0
+E    +  where 0 = len(Empty DataFrame\nColumns: [open, high, low, close, volume, count]\nIndex: [])
+----------------------------- Captured stdout call -----------------------------
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #256
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #256
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #257
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #257
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #258
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #258
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #259
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #259
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #260
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #260
+📊 MockLiveBroker.is_market_open() called - returning True
+🔧 TestStrategy.on_trading_iteration() called - iteration #261
+🔧 TestStrategy.on_trading_iteration() completed normally for iteration #261
+__________ TestThetaDataProcessHealthCheck.test_process_never_started __________
+test_thetadata_helper.py:1145: in test_process_never_started
+    assert thetadata_helper.is_process_alive() is False, "No process should be detected"
+E   AssertionError: No process should be detected
+E   assert True is False
+E    +  where True = <function is_process_alive at 0x11fb34ea0>()
+E    +    where <function is_process_alive at 0x11fb34ea0> = thetadata_helper.is_process_alive
+=============================== warnings summary ===============================
+../../../../../../../../opt/homebrew/lib/python3.12/site-packages/dateutil/tz/tz.py:37
+  /opt/homebrew/lib/python3.12/site-packages/dateutil/tz/tz.py:37: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    EPOCH = datetime.datetime.utcfromtimestamp(0)
+
+../../../../../../../../opt/homebrew/lib/python3.12/site-packages/websockets/legacy/__init__.py:6
+  /opt/homebrew/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+../../../../../../../../opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10
+  /opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10: DeprecationWarning: websockets.client.connect is deprecated
+    from websockets.client import connect, WebSocketClientProtocol
+
+../../../../../../../../opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10
+  /opt/homebrew/lib/python3.12/site-packages/polygon/websocket/__init__.py:10: DeprecationWarning: websockets.client.WebSocketClientProtocol is deprecated
+    from websockets.client import connect, WebSocketClientProtocol
+
+tests/backtest/test_thetadata.py: 5 warnings
+tests/backtest/test_thetadata_comprehensive.py: 9 warnings
+tests/backtest/test_thetadata_vs_polygon.py: 6 warnings
+tests/test_options_helper.py: 4 warnings
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting.py:214: FutureWarning:
+  
+  DataFrame.fillna with 'method' is deprecated and will raise in a future version. Use obj.ffill() or obj.bfill() instead.
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/entities/bars.py:231: FutureWarning:
+  
+  The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+
+tests/test_backtesting_data_source_env.py: 12 warnings
+  /opt/homebrew/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3045: RuntimeWarning:
+  
+  invalid value encountered in divide
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /opt/homebrew/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3046: RuntimeWarning:
+  
+  invalid value encountered in divide
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /opt/homebrew/lib/python3.12/site-packages/scipy/stats/_distn_infrastructure.py:2304: RuntimeWarning:
+  
+  invalid value encountered in multiply
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /opt/homebrew/lib/python3.12/site-packages/scipy/stats/_distn_infrastructure.py:2305: RuntimeWarning:
+  
+  invalid value encountered in multiply
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /Users/robertgrzesik/Documents/Development/quantstats_lumi/quantstats_lumi/_plotting/wrappers.py:542: FutureWarning:
+  
+  'Y' is deprecated and will be removed in a future version, please use 'YE' instead.
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /Users/robertgrzesik/Documents/Development/quantstats_lumi/quantstats_lumi/_plotting/wrappers.py:544: FutureWarning:
+  
+  'Y' is deprecated and will be removed in a future version, please use 'YE' instead.
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /Users/robertgrzesik/Documents/Development/quantstats_lumi/quantstats_lumi/_plotting/wrappers.py:552: FutureWarning:
+  
+  'Y' is deprecated and will be removed in a future version, please use 'YE' instead.
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /Users/robertgrzesik/Documents/Development/quantstats_lumi/quantstats_lumi/_plotting/wrappers.py:555: FutureWarning:
+  
+  'Y' is deprecated and will be removed in a future version, please use 'YE' instead.
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /Users/robertgrzesik/Documents/Development/quantstats_lumi/quantstats_lumi/_plotting/core.py:964: UserWarning:
+  
+  Attempting to set identical low and high ylims makes transformation singular; automatically expanding.
+
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_polygon_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_thetadata_case_insensitive
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_auto_select_yahoo
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_explicit_datasource_overrides_env
+tests/test_backtesting_data_source_env.py::TestBacktestingDataSourceEnv::test_default_thetadata_when_no_env_set
+  /Users/robertgrzesik/Documents/Development/quantstats_lumi/quantstats_lumi/_plotting/core.py:1041: FutureWarning:
+  
+  'Y' is deprecated and will be removed in a future version, please use 'YE' instead.
+
+tests/test_databento_data.py::TestDataBentoData::test_get_historical_prices_backtesting_path
+tests/test_databento_data.py::TestDataBentoData::test_get_historical_prices_single_asset
+tests/test_databento_data.py::TestDataBentoData::test_get_historical_prices_success
+tests/test_databento_data.py::TestDataBentoData::test_timezone_handling
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/entities/bars.py:231: SettingWithCopyWarning:
+  
+  
+  A value is trying to be set on a copy of a slice from a DataFrame.
+  Try using .loc[row_indexer,col_indexer] = value instead
+  
+  See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+
+tests/test_databento_live.py::test_symbol_resolution
+  /opt/homebrew/lib/python3.12/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning:
+  
+  Test functions should return None, but tests/test_databento_live.py::test_symbol_resolution returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+
+tests/test_databento_live.py::test_live_api_connection
+  /opt/homebrew/lib/python3.12/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning:
+  
+  Test functions should return None, but tests/test_databento_live.py::test_live_api_connection returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+
+tests/test_databento_live.py::test_minute_bar_aggregation
+  /opt/homebrew/lib/python3.12/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning:
+  
+  Test functions should return None, but tests/test_databento_live.py::test_minute_bar_aggregation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+
+tests/test_databento_live.py::test_api_routing
+  /opt/homebrew/lib/python3.12/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning:
+  
+  Test functions should return None, but tests/test_databento_live.py::test_api_routing returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+
+tests/test_databento_live.py::test_long_time_periods
+  /opt/homebrew/lib/python3.12/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning:
+  
+  Test functions should return None, but tests/test_databento_live.py::test_long_time_periods returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+
+tests/test_databento_live.py::test_continuous_latency_monitoring
+  /opt/homebrew/lib/python3.12/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning:
+  
+  Test functions should return None, but tests/test_databento_live.py::test_continuous_latency_monitoring returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  No data found for the request you submitted.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MES.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MES1!.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MES.C.0.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MESU5.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MES.U5.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MESZ4.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MES.Z4.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MESH5.
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_mes_symbols.py:56: BentoWarning:
+  
+  The streaming request had one or more symbols which did not resolve: MES.H5.
+
+tests/test_projectx_timestep_alias.py::test_projectx_get_bars_accepts_timestep_alias
+tests/test_projectx_timestep_alias.py::test_projectx_get_bars_accepts_timestep_alias
+  /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/test_projectx_timestep_alias.py:12: FutureWarning:
+  
+  'T' is deprecated and will be removed in a future version, please use 'min' instead.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED backtest/test_polygon.py::TestPolygonBacktestFull::test_polygon_legacy_backtest
+FAILED test_configs_helper.py::TestConfigsHelper::test_get_classic_60_40_config
+FAILED test_databento_helper.py::TestDataBentoHelper::test_get_price_data_from_databento_success
+FAILED test_databento_helper.py::TestDataBentoHelper::test_no_retry_logic_for_correct_symbol
+FAILED test_get_historical_prices.py::TestBacktestingDataSources::test_pandas_backtesting_data_source_get_historical_prices_daily_bars_dividends_and_adj_returns
+FAILED test_polygon_helper.py::TestPolygonPriceData::test_get_price_data_from_polygon
+FAILED test_quiet_logs_requirements.py::TestQuietLogsRequirements::test_requirement_1_console_always_error_during_backtest_quiet_false
+FAILED test_thetadata_helper.py::test_start_theta_data_client - AssertionErro...
+FAILED test_thetadata_helper.py::test_check_connection - AssertionError: asse...
+FAILED test_thetadata_helper.py::test_check_connection_with_exception - Asser...
+FAILED test_thetadata_helper.py::test_get_request_successful - KeyError: 'res...
+FAILED test_thetadata_helper.py::test_get_request_non_200_status_code - Asser...
+FAILED test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_data_fetch_after_process_restart
+FAILED test_thetadata_helper.py::TestThetaDataProcessHealthCheck::test_process_never_started
+= 14 failed, 894 passed, 39 skipped, 5 xfailed, 3 xpassed, 123 warnings in 1075.00s (0:17:55) =

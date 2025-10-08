@@ -684,6 +684,7 @@ class _Strategy:
 
             positions = self.broker.get_tracked_positions(self._name)
             assets_original = [position.asset for position in positions]
+
             # Set the base currency for crypto valuations.
 
             prices = {}
@@ -752,7 +753,7 @@ class _Strategy:
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
-                    multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
+                    multiplier = asset.multiplier if asset.asset_type in ["option", "future", "cont_future"] else 1
 
                 # BACKTESTING ONLY: Special handling for futures portfolio value
                 # In backtesting, cash has margin deducted, so we need to add it back
@@ -774,9 +775,33 @@ class _Strategy:
                     entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
                     unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
                     portfolio_value += unrealized_pnl
+
+                    # TEMPORARY DEBUG LOGGING - TO BE REMOVED
+                    print(f"  [FUTURES] {asset.symbol}:", file=sys.stderr)
+                    print(f"    Price: ${price}", file=sys.stderr)
+                    print(f"    Entry: ${entry_price}", file=sys.stderr)
+                    print(f"    Quantity: {quantity}", file=sys.stderr)
+                    print(f"    Multiplier: {multiplier}", file=sys.stderr)
+                    print(f"    Margin added: ${total_margin:,.2f}", file=sys.stderr)
+                    print(f"    Unrealized P&L: ${unrealized_pnl:,.2f}", file=sys.stderr)
+                    print(f"    Portfolio value so far: ${portfolio_value:,.2f}", file=sys.stderr)
+                    # END TEMPORARY DEBUG LOGGING
                 else:
                     # All other cases (stocks, options, crypto, live trading)
-                    portfolio_value += float(quantity) * float(price) * multiplier
+                    position_value = float(quantity) * float(price) * multiplier
+                    portfolio_value += position_value
+
+                    # TEMPORARY DEBUG LOGGING - TO BE REMOVED
+                    print(f"  [NON-FUTURES] {asset.symbol if isinstance(asset, Asset) else asset}:", file=sys.stderr)
+                    print(f"    Quantity: {quantity}, Price: ${price}, Multiplier: {multiplier}", file=sys.stderr)
+                    print(f"    Position value: ${position_value:,.2f}", file=sys.stderr)
+                    print(f"    Portfolio value so far: ${portfolio_value:,.2f}", file=sys.stderr)
+                    # END TEMPORARY DEBUG LOGGING
+
+            # TEMPORARY DEBUG LOGGING - TO BE REMOVED
+            print(f"  FINAL portfolio_value: ${portfolio_value:,.2f}", file=sys.stderr)
+            # END TEMPORARY DEBUG LOGGING
+
             self._portfolio_value = portfolio_value
         return portfolio_value
 

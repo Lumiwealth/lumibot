@@ -16,8 +16,7 @@ class TestDataBentoHelper(unittest.TestCase):
         self.api_key = "test_api_key"
         self.test_asset_future = Asset(
             symbol="ES",
-            asset_type="future",
-            expiration=datetime(2025, 3, 15).date()
+            asset_type="CONT_FUTURE"
         )
         self.test_asset_stock = Asset(
             symbol="AAPL",
@@ -217,8 +216,8 @@ class TestDataBentoHelper(unittest.TestCase):
             self.end_date,
             "minute"
         )
-        
-        expected_name = "ES_20250315_minute_20250101_20250131.parquet"
+
+        expected_name = "ES_minute_202501010000_202501310000.parquet"
         self.assertEqual(filename.name, expected_name)
 
     def test_no_retry_logic_for_correct_symbol(self):

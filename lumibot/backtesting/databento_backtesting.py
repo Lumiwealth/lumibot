@@ -438,6 +438,10 @@ class DataBentoDataBacktesting(PandasData):
                         # Filter to data up to current backtest time (exclude current bar unless broker overrides)
                         filtered_df = df[df.index <= cutoff_dt]
 
+                        # If we have no prior bar (e.g., first iteration), allow the current timestamp
+                        if filtered_df.empty:
+                            filtered_df = df[df.index <= current_dt_aware]
+
                         if not filtered_df.empty:
                             last_price = filtered_df['close'].iloc[-1]
                             if not pd.isna(last_price):

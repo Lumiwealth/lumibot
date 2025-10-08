@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="4.1.0",
+    version="4.1.1",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -61,6 +61,7 @@ setuptools.setup(
         "free-proxy",
         "requests-oauthlib",
     ],
+    data_files=[("", ["ThetaTerminal.jar"])],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

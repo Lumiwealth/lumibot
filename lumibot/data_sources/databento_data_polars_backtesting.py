@@ -20,7 +20,7 @@ import polars as pl
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.data_sources.polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars
-from lumibot.tools import databento_helper_polars
+from lumibot.tools import databento_helper_polars, databento_helper
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -75,7 +75,73 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         self._filtered_bars_cache = {}  # {(asset_key, length, timestep, timeshift, dt): DataFrame}
         self._bars_cache_datetime = None  # Track when to invalidate bars cache
 
+        # Futures multiplier cache - track which assets have had multipliers fetched
+        self._multiplier_fetched_assets = set()
+
         logger.info(f"DataBento backtesting initialized for period: {datetime_start} to {datetime_end}")
+
+    def _ensure_futures_multiplier(self, asset):
+        """
+        Ensure futures asset has correct multiplier set.
+
+        This method is idempotent and cached - safe to call multiple times.
+        Only fetches multiplier once per unique asset.
+
+        Design rationale:
+        - Futures multipliers must be fetched from data provider (e.g., DataBento)
+        - Asset class defaults to multiplier=1
+        - Data source is responsible for updating multiplier on first use
+        - Lazy fetching is more efficient than prefetching all possible assets
+
+        Parameters
+        ----------
+        asset : Asset
+            The asset to ensure has correct multiplier
+        """
+        # Skip if not a futures asset
+        if asset.asset_type not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+            return
+
+        # Skip if multiplier already set to non-default value
+        if asset.multiplier != 1:
+            return
+
+        # Create cache key to track which assets we've already processed
+        # Use symbol + asset_type + expiration to handle different contracts
+        cache_key = (asset.symbol, asset.asset_type, getattr(asset, 'expiration', None))
+
+        # Check if we already tried to fetch for this asset
+        if cache_key in self._multiplier_fetched_assets:
+            return  # Already attempted (even if failed, don't retry every time)
+
+        # Mark as attempted to avoid redundant API calls
+        self._multiplier_fetched_assets.add(cache_key)
+
+        # Fetch and set multiplier from DataBento
+        try:
+            client = databento_helper.DataBentoClient(self._api_key)
+
+            # Resolve symbol based on asset type
+            if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+                resolved_symbol = databento_helper._format_futures_symbol_for_databento(
+                    asset, reference_date=self.datetime_start
+                )
+            else:
+                resolved_symbol = databento_helper._format_futures_symbol_for_databento(asset)
+
+            # Fetch multiplier from DataBento instrument definition
+            databento_helper._fetch_and_update_futures_multiplier(
+                client=client,
+                asset=asset,
+                resolved_symbol=resolved_symbol,
+                dataset="GLBX.MDP3",
+                reference_date=self.datetime_start
+            )
+
+            logger.info(f"Successfully set multiplier for {asset.symbol}: {asset.multiplier}")
+
+        except Exception as e:
+            logger.warning(f"Could not fetch multiplier for {asset.symbol}: {e}")
 
     def _check_and_clear_bars_cache(self):
         """
@@ -265,6 +331,9 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
 
         # Download data from DataBento using polars helper
         try:
+            # CRITICAL FIX: Use start_datetime as reference_date to match Pandas behavior!
+            # Pandas passes reference_date=start (WITH buffer included) - see databento_helper.py line 797
+            # This determines which futures contract is active at that time
             df = databento_helper_polars.get_price_data_from_databento_polars(
                 api_key=self._api_key,
                 asset=asset_separated,
@@ -272,7 +341,8 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
                 end=end_datetime,
                 timestep=timestep,
                 venue=None,
-                force_cache_update=False
+                force_cache_update=False,
+                reference_date=start_datetime  # MUST match Pandas: reference_date=start (WITH buffer)
             )
         except Exception as e:
             # Handle all exceptions
@@ -356,8 +426,11 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
 
         # Get lazy data - use the same search_asset key we already built
         lazy_data = self._get_data_lazy(search_asset)
+        logger.info(f"[POLARS-DEBUG] _get_data_lazy returned: {lazy_data is not None}, search_asset={search_asset}")
+        logger.info(f"[POLARS-DEBUG] Data store keys: {list(self._data_store.keys())}")
 
         if lazy_data is None:
+            logger.warning(f"[POLARS-DEBUG] lazy_data is None for search_asset={search_asset}")
             return None
 
         # Use lazy evaluation and collect only when needed
@@ -374,34 +447,43 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
             # For minute data, collect on demand
             data = lazy_data.collect()
 
+        logger.info(f"[POLARS-DEBUG] After collect: data shape={data.shape if data is not None else 'None'}")
+
         # OPTIMIZATION: Direct filtering on eager DataFrame
         current_dt = self.to_default_timezone(self._datetime)
 
         # Determine end filter - CRITICAL: Must match pandas logic!
         # For backtesting, we need to exclude the in-progress bar
-        if timestep == "day":
-            # For daily: step back one day
-            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
-            end_filter = dt - timedelta(days=1)
-        elif timestep == "hour":
-            # For hourly: step back one hour
-            end_filter = current_dt - timedelta(hours=1)
-        else:
-            # For minute/second: step back one bar to exclude in-progress bar
-            end_filter = current_dt - timedelta(minutes=1)
+        # IMPORTANT: Use the current datetime directly, not minus 1 bar
+        # The filter uses < (not <=) to exclude the current bar
+        use_strict_less_than = False  # Use < instead of <=
 
         if timeshift:
+            # When timeshift is present, use <= with adjusted end_filter
             if isinstance(timeshift, int):
                 timeshift = timedelta(days=timeshift)
-            end_filter = end_filter - timeshift
+
+            if timestep == "day":
+                dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+                end_filter = dt - timedelta(days=1) - timeshift
+            elif timestep == "hour":
+                end_filter = current_dt - timedelta(hours=1) - timeshift
+            else:
+                end_filter = current_dt - timedelta(minutes=1) - timeshift
+        else:
+            # No timeshift: use current_dt with < operator (matches Pandas behavior)
+            end_filter = current_dt
+            use_strict_less_than = True
 
         logger.debug(f"Filtering {asset.symbol} data: current_dt={current_dt}, end_filter={end_filter}, timestep={timestep}, timeshift={timeshift}")
 
         # Convert to lazy frame for filtering
         lazy_data = data.lazy() if not hasattr(data, 'collect') else data
+        logger.info(f"[POLARS-DEBUG] Before filter: lazy_data type={type(lazy_data)}, end_filter={end_filter}, length={length}, use_strict_less_than={use_strict_less_than}")
 
         # Use mixin's filter method
-        result = self._filter_data_polars(search_asset, lazy_data, end_filter, length, timestep)
+        result = self._filter_data_polars(search_asset, lazy_data, end_filter, length, timestep, use_strict_less_than=use_strict_less_than)
+        logger.info(f"[POLARS-DEBUG] After filter: result shape={result.shape if result is not None else 'None'}")
 
         if result is None:
             return None
@@ -458,6 +540,9 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         if cached_price is not None:
             return cached_price
 
+        # Ensure futures have correct multiplier set
+        self._ensure_futures_multiplier(asset)
+
         try:
             dt = self.get_datetime()
             self._update_data(asset, quote, 1, timestep, dt)
@@ -467,34 +552,40 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
             self._cache_last_price_polars(asset, None, current_datetime, timestep)
             return None
 
-        # Get price efficiently
-        # For daily data, don't apply additional timeshift since _pull_source_symbol_bars
-        # already handles getting the previous day's data
-        # Only request 1 bar for efficiency (matching pandas implementation)
-        timeshift = None if timestep == "day" else timedelta(days=-1)
-        length = 1
-
+        # Request a single completed bar (aligns with pandas implementation)
         bars_data = self._pull_source_symbol_bars(
-            asset, length, timestep=timestep, timeshift=timeshift, quote=quote
+            asset, 1, timestep=timestep, timeshift=None, quote=quote
         )
 
         if bars_data is None or len(bars_data) == 0:
-            logger.warning(f"No bars data for {asset.symbol} at {current_datetime}")
+            logger.warning(f"[POLARS-DEBUG] ✗✗✗ NO BARS DATA for {asset.symbol} at {current_datetime}, timestep={timestep}")
+            logger.warning(f"[POLARS-DEBUG] Data store keys: {list(self._data_store.keys())}")
             self._cache_last_price_polars(asset, None, current_datetime, timestep)
             return None
 
-        # Direct column access - since we only request 1 bar, take the first (and only) element
-        open_price = bars_data["open"][0]
+        # Use the close of the most recent completed bar (pandas parity)
+        if "close" not in bars_data.columns:
+            logger.warning(f"[POLARS-DEBUG] ✗✗✗ Close column missing for {asset.symbol}")
+            self._cache_last_price_polars(asset, None, current_datetime, timestep)
+            return None
 
-        # Convert if needed
-        if isinstance(open_price, (np.int64, np.integer)):
-            open_price = Decimal(int(open_price))
-        elif isinstance(open_price, (np.float64, np.floating)):
-            open_price = float(open_price)
+        last_close = bars_data.select(pl.col("close").tail(1)).item()
 
-        # Use mixin's cache method
-        self._cache_last_price_polars(asset, open_price, current_datetime, timestep)
-        return open_price
+        if last_close is None:
+            logger.warning(f"[POLARS-DEBUG] ✗✗✗ Unable to extract close price for {asset.symbol}")
+            self._cache_last_price_polars(asset, None, current_datetime, timestep)
+            return None
+
+        if isinstance(last_close, (np.int64, np.integer)):
+            price_value = Decimal(int(last_close))
+        elif isinstance(last_close, (np.float64, np.floating)):
+            price_value = float(last_close)
+        else:
+            price_value = float(last_close)
+
+        self._cache_last_price_polars(asset, price_value, current_datetime, timestep)
+        logger.info(f"[POLARS-DEBUG] Returning price from bars (close): {price_value}")
+        return price_value
 
     def get_historical_prices(
         self,
@@ -508,7 +599,7 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         return_polars: bool = False,
     ) -> Optional[Bars]:
         """Get historical prices using polars."""
-        logger.debug(f"get_historical_prices called for {asset.symbol}")
+        logger.info(f"[POLARS-DEBUG] get_historical_prices called: asset={asset.symbol}, length={length}, timestep={timestep}, datetime={self._datetime}")
         if timestep is None:
             timestep = self.get_timestep()
 
@@ -523,12 +614,17 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         )
 
         if bars_data is None:
+            logger.warning(f"[POLARS-DEBUG] ✗✗✗ _pull_source_symbol_bars returned None for {asset.symbol}")
             return None
 
+        logger.info(f"[POLARS-DEBUG] _pull_source_symbol_bars returned {len(bars_data)} bars")
+
         # Create and return Bars object
-        return self._parse_source_symbol_bars(
+        result = self._parse_source_symbol_bars(
             bars_data, asset, quote=quote, length=length, return_polars=return_polars
         )
+        logger.info(f"[POLARS-DEBUG] Returning Bars object: {result is not None}")
+        return result
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
         """Get option chains - not implemented for DataBento."""

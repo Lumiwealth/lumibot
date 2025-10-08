@@ -128,10 +128,10 @@ class TestBacktestingDataSources:
         timestep = "day"
         tzinfo = pytz.timezone('America/New_York')
 
-        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
-        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        datetime_start = tzinfo.localize(datetime(2025, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2025, 12, 31))
         # First trading day after MLK day
-        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
+        now = tzinfo.localize(datetime(2025, 1, 21)).replace(hour=9, minute=30)
         data_source = PolygonDataBacktesting(
             datetime_start,
             datetime_end,
@@ -162,10 +162,10 @@ class TestBacktestingDataSources:
         timestep = "day"
         tzinfo = pytz.timezone('America/New_York')
 
-        datetime_start = tzinfo.localize(datetime(2019, 1, 2))
-        datetime_end = tzinfo.localize(datetime(2019, 12, 31))
+        datetime_start = tzinfo.localize(datetime(2025, 1, 2))
+        datetime_end = tzinfo.localize(datetime(2025, 12, 31))
         # First trading day after MLK day
-        now = tzinfo.localize(datetime(2019, 1, 22)).replace(hour=9, minute=30)
+        now = tzinfo.localize(datetime(2025, 1, 21)).replace(hour=9, minute=30)
 
         length = 10
         data_source = PolygonDataBacktesting(

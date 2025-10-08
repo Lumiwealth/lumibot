@@ -31,7 +31,7 @@ except ImportError:
     logger.warning("DataBento package not available. Please install with: pip install databento")
 
 # Cache settings
-CACHE_SUBFOLDER = "databento_polars"
+CACHE_SUBFOLDER = "databento_polars_v2"
 LUMIBOT_DATABENTO_CACHE_FOLDER = os.path.join(LUMIBOT_CACHE_FOLDER, CACHE_SUBFOLDER)
 RECENT_FILE_TOLERANCE_DAYS = 14
 MAX_DATABENTO_DAYS = 365  # DataBento can handle larger date ranges than some providers
@@ -415,7 +415,15 @@ class DataBentoClientPolars:
                         pandas_df = pandas_df.rename(columns={index_name: 'datetime'})
                 # Convert to polars
                 df = pl.from_pandas(pandas_df)
-                logger.debug(f"[DataBentoClientPolars] Converted to polars, columns: {df.columns}")
+                logger.info(f"[DataBentoClientPolars] Converted to polars, shape: {df.shape}, columns: {df.columns}")
+
+                # DEBUG: Check for duplicates immediately after conversion
+                if 'datetime' in df.columns:
+                    dup_count = df.filter(df['datetime'].is_duplicated()).height
+                    if dup_count > 0:
+                        logger.warning(f"[DataBentoClientPolars] ⚠️ FOUND {dup_count} DUPLICATE TIMESTAMPS AFTER CONVERSION!")
+                    else:
+                        logger.info(f"[DataBentoClientPolars] ✓ No duplicates after conversion")
                 # Ensure datetime column is datetime type
                 if 'datetime' in df.columns:
                     df = df.with_columns(pl.col('datetime').cast(pl.Datetime))
@@ -743,6 +751,14 @@ def _filter_front_month_rows(asset: Asset, df: pl.DataFrame) -> pl.DataFrame:
     if df.is_empty() or "symbol" not in df.columns or "datetime" not in df.columns:
         return df
 
+    # If only a single contract is present, there is nothing to filter – match pandas behaviour.
+    try:
+        if df.select(pl.col("symbol").n_unique()).item() <= 1:
+            return df
+    except Exception:
+        # Fall back to no filtering if uniqueness check fails unexpectedly.
+        return df
+
     def expected_symbol(dt: datetime) -> str:
         # This now uses the cached _resolve_databento_symbol_for_datetime
         return _resolve_databento_symbol_for_datetime(asset, dt)
@@ -801,17 +817,19 @@ def _save_cache(df: pl.DataFrame, cache_file: Path) -> None:
 def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """
     Normalize DataBento DataFrame to Lumibot standard format using polars
-    
+
     Parameters
     ----------
     df : pl.DataFrame
         Raw DataBento DataFrame
-        
+
     Returns
     -------
     pl.DataFrame
         Normalized DataFrame with standard OHLCV columns
     """
+    logger.info(f"[_normalize_databento_dataframe] INPUT: shape={df.shape}, has duplicates={'datetime' in df.columns and df.filter(df['datetime'].is_duplicated()).height > 0}")
+
     if df.is_empty():
         return df
 
@@ -868,6 +886,8 @@ def _normalize_databento_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     if 'datetime' in df_norm.columns:
         df_norm = _ensure_polars_datetime_timezone(df_norm)
         df_norm = df_norm.sort('datetime')
+
+    logger.info(f"[_normalize_databento_dataframe] OUTPUT: shape={df_norm.shape}, has duplicates={'datetime' in df_norm.columns and df_norm.filter(df_norm['datetime'].is_duplicated()).height > 0}")
 
     return df_norm
 
@@ -1023,15 +1043,14 @@ def get_price_data_from_databento_polars(
     end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
     requested_end_naive = end_naive
 
-    # FIX: Use SAME logic as Pandas - resolve to SINGLE contract based on start date
-    # Previously used _resolve_databento_symbols_for_range which fetched MULTIPLE contracts
-    # causing duplicate rows and wrong prices
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-        # Use the start date as reference for backtesting (matches Pandas behavior)
-        resolved_symbol = _format_futures_symbol_for_databento(asset, reference_date=start)
-        symbols_to_fetch = _generate_databento_symbol_alternatives(asset.symbol, resolved_symbol)
-        logger.info(f"Resolved continuous future {asset.symbol} for {start_naive.strftime('%Y-%m-%d')} -> {resolved_symbol}")
-        logger.info(f"DataBento symbol (working format): {symbols_to_fetch[0]}")
+        # Mirror the pandas implementation by resolving all contracts required across the window.
+        range_start = reference_date if reference_date is not None else start
+        symbols_to_fetch = _resolve_databento_symbols_for_range(asset, range_start, end)
+        logger.info(
+            f"Resolved continuous future {asset.symbol} for range "
+            f"{range_start.strftime('%Y-%m-%d')} → {end.strftime('%Y-%m-%d')} -> {symbols_to_fetch}"
+        )
     else:
         # For specific contracts, just use the formatted symbol
         resolved_symbol = _format_futures_symbol_for_databento(asset)
@@ -1043,13 +1062,11 @@ def get_price_data_from_databento_polars(
         asset=asset,
         resolved_symbol=symbols_to_fetch[0],  # Use the first resolved symbol
         dataset=dataset,
-        reference_date=reference_date or start
+        reference_date=start  # Use start date to match Pandas
     )
 
-    logger.debug(
-        "[get_price_data_from_databento_polars] Using symbol %s for %s",
-        symbols_to_fetch[0],
-        asset.symbol,
+    logger.info(
+        f"[get_price_data_from_databento_polars] Fetching {len(symbols_to_fetch)} symbol(s) for {asset.symbol}: {symbols_to_fetch}"
     )
 
     # Inspect cache for each symbol
@@ -1066,6 +1083,9 @@ def get_price_data_from_databento_polars(
                 continue
             # Keep as lazy frame for now, collect later in batch
             cached_lazy_frames.append((symbol_code, cached_lazy))
+    else:
+        # If forcing cache update, mark all symbols as missing
+        symbols_missing = list(symbols_to_fetch)
 
     # Collect all lazy frames at once for better performance
     cached_frames: List[pl.DataFrame] = []
@@ -1081,9 +1101,7 @@ def get_price_data_from_databento_polars(
         )
         cached_frames.append(_ensure_polars_datetime_timezone(cached_df))
 
-    else:
-        symbols_missing = list(symbols_to_fetch)
-
+    logger.info(f"[get_price_data_from_databento_polars] Cache check done: cached_frames={len(cached_frames)}, symbols_missing={symbols_missing}")
     frames: List[pl.DataFrame] = list(cached_frames)
 
     # Fetch missing symbols from DataBento
@@ -1126,7 +1144,9 @@ def get_price_data_from_databento_polars(
                     continue
 
                 df_normalized = _normalize_databento_dataframe(df)
+                logger.info(f"[get_price_data_from_databento_polars] BEFORE append: frames has {len(frames)} items, normalized shape={df_normalized.shape}")
                 frames.append(df_normalized)
+                logger.info(f"[get_price_data_from_databento_polars] AFTER append: frames has {len(frames)} items")
 
                 cache_path = _build_cache_filename(asset, start, end, timestep, symbol_override=symbol_code)
                 _save_cache(df_normalized, cache_path)
@@ -1142,8 +1162,11 @@ def get_price_data_from_databento_polars(
         logger.error(f"DataBento symbol resolution failed for {asset.symbol}")
         return None
 
+    logger.info(f"[get_price_data_from_databento_polars] BEFORE concat: {len(frames)} frames with shapes: {[f.shape for f in frames]}")
     combined = pl.concat(frames, how="vertical", rechunk=True)
+    logger.info(f"[get_price_data_from_databento_polars] AFTER concat: combined shape={combined.shape}")
     combined = combined.sort("datetime")
+    logger.info(f"[get_price_data_from_databento_polars] AFTER sort: combined shape={combined.shape}")
     filter_end = end_naive if end_naive > requested_end_naive else requested_end_naive
 
     datetime_dtype = combined.schema.get("datetime")

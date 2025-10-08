@@ -330,20 +330,31 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
     ValueError
         If symbol resolution fails with actionable error message
     """
-    symbol = asset.symbol
-    
+    import re
+
+    symbol = asset.symbol.upper()
+
+    # Check if symbol already has contract month/year embedded (e.g., MESZ5, ESH24)
+    # Pattern: root + month code (F,G,H,J,K,M,N,Q,U,V,X,Z) + 1-2 digit year
+    has_contract_suffix = bool(re.match(r'^[A-Z]{1,4}[FGHJKMNQUVXZ]\d{1,2}$', symbol))
+
+    # If symbol already has contract month, return as-is
+    if has_contract_suffix:
+        logger.info(f"Symbol {symbol} already contains contract month/year, using as-is")
+        return symbol
+
     # For continuous contracts, resolve to active contract for the reference date
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
         logger.info(f"Resolving continuous futures symbol: {symbol}")
-        
+
         # Use Asset class method for contract resolution
         resolved_symbol = asset.resolve_continuous_futures_contract(
             reference_date=reference_date,
             year_digits=1,
         )
-        
+
         logger.info(f"Resolved continuous future {symbol} -> {resolved_symbol}")
-        
+
         # Return format based on whether reference_date was provided
         if reference_date is not None:
             # When reference_date is provided, return full format (for DataBento helper tests)
@@ -352,7 +363,7 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
             # When no reference_date, return DataBento format (for continuous futures resolution tests)
             databento_symbols = _generate_databento_symbol_alternatives(symbol, resolved_symbol)
             return databento_symbols[0] if databento_symbols else resolved_symbol
-    
+
     # For specific futures contracts, format with expiration if provided
     if asset.asset_type == Asset.AssetType.FUTURE and asset.expiration:
         # DataBento uses month codes for specific contracts
@@ -360,20 +371,41 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
             1: 'F', 2: 'G', 3: 'H', 4: 'J', 5: 'K', 6: 'M',
             7: 'N', 8: 'Q', 9: 'U', 10: 'V', 11: 'X', 12: 'Z'
         }
-        
+
         year = asset.expiration.year % 100  # Last 2 digits of year for specific contracts
         month_code = month_codes.get(asset.expiration.month, 'H')
-        
+
         # Format as SYMBOL{MONTH_CODE}{YY} (e.g., MESZ25 for December 2025)
         formatted_symbol = f"{symbol}{month_code}{year:02d}"
-        
+
         logger.info(f"Formatted specific futures symbol: {asset.symbol} {asset.expiration} -> {formatted_symbol}")
-        
+
         # For specific contracts, return full year format (not DataBento short format)
         return formatted_symbol
-    
-    # For regular futures without expiration, return raw symbol (no resolution)
-    logger.info(f"Using raw futures symbol: {symbol}")
+
+    # IDIOT-PROOFING: If asset_type is FUTURE but no expiration, treat as continuous
+    if asset.asset_type == Asset.AssetType.FUTURE and not asset.expiration:
+        logger.warning(
+            f"Asset '{symbol}' has asset_type=FUTURE but no expiration specified. "
+            f"Auto-treating as continuous future and resolving to front month contract. "
+            f"To avoid this warning, use Asset.AssetType.CONT_FUTURE instead."
+        )
+        # Create temporary continuous futures asset and resolve
+        temp_asset = Asset(symbol=symbol, asset_type=Asset.AssetType.CONT_FUTURE)
+        resolved_symbol = temp_asset.resolve_continuous_futures_contract(
+            reference_date=reference_date,
+            year_digits=1,
+        )
+        logger.info(f"Auto-resolved future {symbol} -> {resolved_symbol}")
+
+        if reference_date is not None:
+            return resolved_symbol
+        else:
+            databento_symbols = _generate_databento_symbol_alternatives(symbol, resolved_symbol)
+            return databento_symbols[0] if databento_symbols else resolved_symbol
+
+    # For other asset types, return raw symbol
+    logger.info(f"Using raw symbol: {symbol}")
     return symbol
 
 
@@ -753,9 +785,14 @@ def get_price_data_from_databento(
         dataset = _determine_databento_dataset(asset, venue)
         schema = _determine_databento_schema(timestep)
 
-        # For continuous futures, resolve to a specific contract FIRST
+        # For continuous futures OR futures without expiration (idiot-proofing), resolve to a specific contract FIRST
         # DataBento does not support continuous futures directly - we must resolve to actual contracts
-        if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+        needs_resolution = (
+            asset.asset_type == Asset.AssetType.CONT_FUTURE or
+            (asset.asset_type == Asset.AssetType.FUTURE and not asset.expiration)
+        )
+
+        if needs_resolution:
             # Use the start date as reference for backtesting (determines which contract was active)
             resolved_symbol = _format_futures_symbol_for_databento(asset, reference_date=start)
 

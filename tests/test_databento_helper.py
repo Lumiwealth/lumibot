@@ -41,10 +41,13 @@ class TestDataBentoHelper(unittest.TestCase):
         result = databento_helper._format_futures_symbol_for_databento(mes_continuous, reference_date)
         self.assertIn("MESH5", result)
         
-        # Test regular future (no expiration) - should return raw symbol
+        # Test regular future (no expiration) - should auto-resolve via idiot-proofing
+        # Idiot-proofing: futures without expiration are auto-treated as continuous and resolved
         regular_future = Asset(symbol="ES", asset_type="future")
         result = databento_helper._format_futures_symbol_for_databento(regular_future)
-        self.assertEqual(result, "ES")
+        # Should resolve to a contract month (e.g., ESZ5 for Dec 2025)
+        self.assertIn("ES", result)
+        self.assertRegex(result, r"ES[FGHJKMNQUVXZ]\d", "Should auto-resolve to contract format like ESZ5")
         
         # Test specific contract with expiration (March 2025 = H25)
         result = databento_helper._format_futures_symbol_for_databento(self.test_asset_future)
@@ -138,14 +141,19 @@ class TestDataBentoHelper(unittest.TestCase):
         if not api_key:
             self.skipTest("DATABENTO_API_KEY not found in environment")
 
-        # Use recent dates that should have data
-        start_date = datetime(2024, 1, 2)
-        end_date = datetime(2024, 1, 3)
+        # Use Aug 2024 dates (past data that definitely exists)
+        start_date = datetime(2024, 8, 20)
+        end_date = datetime(2024, 8, 21)
 
-        # Test with ES futures
+        # Test with ES continuous futures (will resolve to appropriate contract)
+        es_asset = Asset(
+            symbol="ES",
+            asset_type=Asset.AssetType.CONT_FUTURE
+        )
+
         result = databento_helper.get_price_data_from_databento(
             api_key=api_key,
-            asset=self.test_asset_future,
+            asset=es_asset,
             start=start_date,
             end=end_date,
             timestep="minute"
@@ -223,8 +231,8 @@ class TestDataBentoHelper(unittest.TestCase):
             self.skipTest("DATABENTO_API_KEY not found in environment")
 
         # Use recent dates that should have data
-        start_date = datetime(2024, 1, 2)
-        end_date = datetime(2024, 1, 3)
+        start_date = datetime(2025, 1, 2)
+        end_date = datetime(2025, 1, 3)
 
         # Test with MES continuous futures
         mes_asset = Asset(symbol="MES", asset_type="future")

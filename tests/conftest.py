@@ -7,6 +7,26 @@ import pytest
 import gc
 import atexit
 import threading
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file at the very beginning, before any imports
+# This ensures environment variables are available for all tests
+project_root = Path(__file__).parent.parent
+env_file = project_root / ".env"
+if env_file.exists():
+    load_dotenv(env_file)
+    print(f"Loaded .env file from: {env_file}")
+else:
+    print(f"Warning: .env file not found at {env_file}")
+
+# Ensure working directory is set to project root for tests
+# This fixes issues with ConfigsHelper and other path-dependent code
+original_cwd = os.getcwd()
+if os.getcwd() != str(project_root):
+    os.chdir(project_root)
+    print(f"Changed working directory to: {project_root}")
 
 
 def cleanup_all_schedulers():

@@ -711,6 +711,10 @@ class Asset:
         if reference_date is None:
             reference_date = datetime.now()
 
+        # import logging
+        # logger = logging.getLogger(__name__)
+        # logger.info(f"[CONTRACT RESOLUTION] symbol={self.symbol}, reference_date={reference_date}, month={reference_date.month}, day={reference_date.day}")
+
         current_month = reference_date.month
         current_year = reference_date.year
         current_day = reference_date.day

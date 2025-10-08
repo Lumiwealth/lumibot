@@ -106,6 +106,11 @@ def get_price_data(
                 if isinstance(end, dt.date) and not isinstance(end, dt.datetime):
                     end = dt.datetime.combine(end, dt.time.max)
 
+                # Handle datetime objects with midnight time (users often pass datetime(YYYY, MM, DD))
+                if isinstance(end, dt.datetime) and end.time() == dt.time.min:
+                    # Convert end-of-period midnight to end-of-day
+                    end = dt.datetime.combine(end.date(), dt.time.max)
+
                 if start.tzinfo is None:
                     start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
                 if end.tzinfo is None:

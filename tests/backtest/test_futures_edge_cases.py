@@ -5,6 +5,9 @@ Edge case tests for futures trading:
 3. Rapid entry/exit cycles
 """
 import datetime
+import shutil
+from pathlib import Path
+
 import pytest
 import pytz
 from dotenv import load_dotenv
@@ -13,17 +16,27 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
+from lumibot.backtesting.databento_backtesting import (
+    DataBentoDataBacktesting as DataBentoDataBacktestingPandas,
+)
 from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
 # Contract specs
 MES_MULTIPLIER = 5
 ES_MULTIPLIER = 50
+
+
+def _clear_polars_cache():
+    cache_path = Path(LUMIBOT_DATABENTO_CACHE_FOLDER)
+    if cache_path.exists():
+        shutil.rmtree(cache_path)
 
 
 class ShortSellingStrategy(Strategy):
@@ -164,7 +177,14 @@ class TestFuturesEdgeCases:
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"
     )
-    def test_short_selling(self):
+    @pytest.mark.parametrize(
+        "datasource_cls",
+        [
+            DataBentoDataPolarsBacktesting,
+            DataBentoDataBacktestingPandas,
+        ],
+    )
+    def test_short_selling(self, datasource_cls):
         """
         Test short selling:
         1. Sell 1 MES contract (open short)
@@ -180,7 +200,10 @@ class TestFuturesEdgeCases:
         backtesting_start = tzinfo.localize(datetime.datetime(2024, 1, 3, 9, 30))
         backtesting_end = tzinfo.localize(datetime.datetime(2024, 1, 3, 16, 0))
 
-        data_source = DataBentoDataPolarsBacktesting(
+        if datasource_cls is DataBentoDataPolarsBacktesting:
+            _clear_polars_cache()
+
+        data_source = datasource_cls(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=DATABENTO_API_KEY,
@@ -276,7 +299,14 @@ class TestFuturesEdgeCases:
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"
     )
-    def test_multiple_simultaneous_positions(self):
+    @pytest.mark.parametrize(
+        "datasource_cls",
+        [
+            DataBentoDataPolarsBacktesting,
+            DataBentoDataBacktestingPandas,
+        ],
+    )
+    def test_multiple_simultaneous_positions(self, datasource_cls):
         """
         Test holding multiple positions at once:
         1. Buy MES
@@ -294,7 +324,10 @@ class TestFuturesEdgeCases:
         backtesting_start = tzinfo.localize(datetime.datetime(2024, 1, 3, 9, 30))
         backtesting_end = tzinfo.localize(datetime.datetime(2024, 1, 3, 16, 0))
 
-        data_source = DataBentoDataPolarsBacktesting(
+        if datasource_cls is DataBentoDataPolarsBacktesting:
+            _clear_polars_cache()
+
+        data_source = datasource_cls(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=DATABENTO_API_KEY,

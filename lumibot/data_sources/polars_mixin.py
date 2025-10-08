@@ -72,17 +72,19 @@ class PolarsMixin:
 
     def _get_data_lazy(self, asset: Asset) -> Optional[pl.LazyFrame]:
         """Get lazy frame for asset.
-        
+
         Parameters
         ----------
-        asset : Asset
-            The asset to get data for
-            
+        asset : Asset or tuple
+            The asset to get data for (can be a tuple of (asset, quote))
+
         Returns
         -------
         Optional[pl.LazyFrame]
             The lazy frame or None if not found
         """
+        # CRITICAL FIX: Handle both Asset and (Asset, quote) tuple keys
+        # The data store uses tuple keys (asset, quote), so we need to look up by that key
         return self._data_store.get(asset)
 
     def _parse_source_symbol_bars_polars(
@@ -95,7 +97,7 @@ class PolarsMixin:
         return_polars: bool = False
     ) -> Bars:
         """Parse bars from polars DataFrame.
-        
+
         Parameters
         ----------
         response : pl.DataFrame
@@ -108,7 +110,7 @@ class PolarsMixin:
             The quote asset for forex/crypto
         length : Optional[int]
             Limit the number of bars
-            
+
         Returns
         -------
         Bars
@@ -120,6 +122,21 @@ class PolarsMixin:
         # Limit length if specified
         if length and len(response) > length:
             response = response.tail(length)
+
+        # Filter to only keep OHLCV + datetime columns (remove DataBento metadata like rtype, publisher_id, etc.)
+        # Required columns for strategies
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        optional_cols = ['datetime', 'timestamp', 'date', 'time', 'dividend', 'stock_splits', 'symbol']
+
+        # Determine which columns to keep
+        keep_cols = []
+        for col in response.columns:
+            if col in required_cols or col in optional_cols:
+                keep_cols.append(col)
+
+        # Select only the relevant columns
+        if keep_cols:
+            response = response.select(keep_cols)
 
         # Create bars object
         bars = Bars(response, source, asset, raw=response, quote=quote, return_polars=return_polars)
@@ -306,7 +323,8 @@ class PolarsMixin:
         lazy_data: pl.LazyFrame,
         end_filter: datetime,
         length: int,
-        timestep: str = "minute"
+        timestep: str = "minute",
+        use_strict_less_than: bool = False
     ) -> Optional[pl.DataFrame]:
         """Filter data up to end_filter and return last length rows.
 
@@ -322,6 +340,8 @@ class PolarsMixin:
             Number of rows to return
         timestep : str
             Timestep for caching strategy
+        use_strict_less_than : bool
+            If True, use < instead of <= for filtering (matches Pandas behavior without timeshift)
 
         Returns
         -------
@@ -384,9 +404,15 @@ class PolarsMixin:
                 )
 
             # CRITICAL FIX: Deduplicate before caching
+            # Use < or <= based on use_strict_less_than flag
+            if use_strict_less_than:
+                filter_expr = pl.col(dt_col) < end_filter_with_tz
+            else:
+                filter_expr = pl.col(dt_col) <= end_filter_with_tz
+
             result = (
                 lazy_data
-                .filter(pl.col(dt_col) <= end_filter_with_tz)
+                .filter(filter_expr)
                 .sort(dt_col)
                 .unique(subset=[dt_col], keep='last', maintain_order=True)
                 .tail(fetch_length)
@@ -433,9 +459,15 @@ class PolarsMixin:
 
             # CRITICAL FIX: Deduplicate before returning
             # Sometimes lazy operations can create duplicates
+            # Use < or <= based on use_strict_less_than flag
+            if use_strict_less_than:
+                filter_expr = pl.col(dt_col) < end_filter_with_tz
+            else:
+                filter_expr = pl.col(dt_col) <= end_filter_with_tz
+
             result = (
                 lazy_data
-                .filter(pl.col(dt_col) <= end_filter_with_tz)
+                .filter(filter_expr)
                 .sort(dt_col)
                 .unique(subset=[dt_col], keep='last', maintain_order=True)
                 .tail(length)

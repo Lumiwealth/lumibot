@@ -9,8 +9,8 @@ from .thetadata_backtesting import ThetaDataBacktesting
 from .yahoo_backtesting import YahooDataBacktesting
 
 # Import DataBento backtesting
-# Pandas version (stable, widely tested)
-from .databento_backtesting import DataBentoDataBacktesting
+# Polars version (NEW DEFAULT - faster performance)
+from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting as DataBentoDataBacktesting
 
-# Polars version available as separate import for users who want faster performance
-# from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+# Pandas version (stable fallback, kept for compatibility)
+from .databento_backtesting import DataBentoDataBacktesting as DataBentoDataBacktestingPandas

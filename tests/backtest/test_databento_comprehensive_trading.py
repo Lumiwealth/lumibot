@@ -9,15 +9,21 @@ Tests ACTUAL TRADING with multiple instruments, verifying:
 - Mark-to-market accounting during hold periods
 """
 import datetime
+import shutil
 import pytest
 import pytz
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
 from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting import (
+    DataBentoDataBacktesting as DataBentoDataBacktestingPandas,
+)
+from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -128,6 +134,13 @@ class MultiInstrumentTrader(Strategy):
         })
 
 
+def _clear_polars_cache():
+    """Remove cached polars DataBento files so cross-backend tests are deterministic."""
+    cache_path = Path(LUMIBOT_DATABENTO_CACHE_FOLDER)
+    if cache_path.exists():
+        shutil.rmtree(cache_path)
+
+
 class TestDatabentoComprehensiveTrading:
     """Comprehensive futures trading tests with full verification"""
 
@@ -136,7 +149,14 @@ class TestDatabentoComprehensiveTrading:
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"
     )
-    def test_multiple_instruments_minute_data(self):
+    @pytest.mark.parametrize(
+        "datasource_cls",
+        [
+            DataBentoDataPolarsBacktesting,
+            DataBentoDataBacktestingPandas,
+        ],
+    )
+    def test_multiple_instruments_minute_data(self, datasource_cls):
         """
         Test trading multiple futures instruments with minute data.
         Verifies: margin, fees, P&L, multipliers, cash, portfolio value.
@@ -150,7 +170,10 @@ class TestDatabentoComprehensiveTrading:
         backtesting_start = tzinfo.localize(datetime.datetime(2024, 1, 3, 9, 30))
         backtesting_end = tzinfo.localize(datetime.datetime(2024, 1, 4, 16, 0))
 
-        data_source = DataBentoDataPolarsBacktesting(
+        if datasource_cls is DataBentoDataPolarsBacktesting:
+            _clear_polars_cache()
+
+        data_source = datasource_cls(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=DATABENTO_API_KEY,

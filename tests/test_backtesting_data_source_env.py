@@ -72,6 +72,10 @@ class TestBacktestingDataSourceEnv:
 
     def test_auto_select_polygon_case_insensitive(self, clean_environment, restore_theta_credentials, caplog):
         """Test that BACKTESTING_DATA_SOURCE=polygon (lowercase) selects PolygonDataBacktesting."""
+        # Configure caplog to capture INFO level logs from lumibot.strategies._strategy
+        import logging
+        caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
+
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'polygon'}):
             # Re-import credentials to pick up env change
             from importlib import reload

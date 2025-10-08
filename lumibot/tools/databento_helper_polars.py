@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import pytz
 
@@ -13,6 +13,7 @@ from polars.datatypes import Datetime as PlDatetime
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
+from lumibot.tools import databento_helper, databento_roll
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
@@ -42,16 +43,6 @@ if not os.path.exists(LUMIBOT_DATABENTO_CACHE_FOLDER):
         os.makedirs(LUMIBOT_DATABENTO_CACHE_FOLDER)
     except Exception as e:
         logger.warning(f"Could not create DataBento cache folder: {e}")
-
-# ============================================================================
-# PERFORMANCE CACHES - Critical for backtesting performance
-# ============================================================================
-# These caches dramatically reduce overhead for high-frequency function calls
-# Symbol resolution cache: saves ~2.5s on 362k calls (10-20x speedup)
-_SYMBOL_RESOLUTION_CACHE = {}  # {(asset_symbol, asset_type, dt_str): resolved_symbol}
-
-# Datetime normalization cache: saves ~1.2s on 362k calls (5-10x speedup)
-_DATETIME_NORMALIZATION_CACHE = {}  # {dt_timestamp: normalized_dt}
 
 # Instrument definition cache: stores multipliers and contract specs
 _INSTRUMENT_DEFINITION_CACHE = {}  # {(symbol, dataset): definition_dict}
@@ -651,132 +642,28 @@ def _build_cache_filename(
     return path
 
 
-def _normalize_reference_datetime(dt: datetime) -> datetime:
-    """
-    Normalize datetime to the default Lumibot timezone and drop tzinfo.
-
-    PERFORMANCE OPTIMIZATION: This function is called 362k+ times during backtesting.
-    Caching provides 5-10x speedup, saving ~1.2s per backtest.
-    """
-    if dt is None:
-        return dt
-
-    # Cache key: use timestamp for faster lookup than full datetime
-    cache_key = dt.timestamp() if hasattr(dt, 'timestamp') else None
-
-    if cache_key is not None and cache_key in _DATETIME_NORMALIZATION_CACHE:
-        return _DATETIME_NORMALIZATION_CACHE[cache_key]
-
-    # Perform normalization
-    if dt.tzinfo is not None:
-        normalized = dt.astimezone(LUMIBOT_DEFAULT_PYTZ).replace(tzinfo=None)
-    else:
-        normalized = dt
-
-    # Cache the result
-    if cache_key is not None:
-        _DATETIME_NORMALIZATION_CACHE[cache_key] = normalized
-
-    return normalized
-
-
-def _resolve_databento_symbol_for_datetime(asset: Asset, dt: datetime) -> str:
-    """
-    Resolve the expected DataBento symbol for a datetime using the strategy roll rules.
-
-    PERFORMANCE OPTIMIZATION: This function is called 362k+ times during backtesting.
-    Caching provides 10-20x speedup, saving ~2.5s per backtest.
-    """
-    # Create cache key from asset and datetime
-    # Use normalized datetime string for consistent caching
-    dt_timestamp = dt.timestamp() if hasattr(dt, 'timestamp') else str(dt)
-    cache_key = (asset.symbol, asset.asset_type, dt_timestamp)
-
-    if cache_key in _SYMBOL_RESOLUTION_CACHE:
-        return _SYMBOL_RESOLUTION_CACHE[cache_key]
-
-    # Perform symbol resolution
-    reference_dt = _normalize_reference_datetime(dt)
-    variants = asset.resolve_continuous_futures_contract_variants(reference_date=reference_dt)
-    contract = variants[2]
-    resolved_symbol = _generate_databento_symbol_alternatives(asset.symbol, contract)[0]
-
-    # Cache the result
-    _SYMBOL_RESOLUTION_CACHE[cache_key] = resolved_symbol
-
-    return resolved_symbol
-
-
-def _resolve_databento_symbols_for_range(
-    asset: Asset,
-    start: datetime,
-    end: datetime,
-) -> List[str]:
-    """Resolve all DataBento symbols necessary to cover a time range for continuous futures."""
-    if asset.asset_type != Asset.AssetType.CONT_FUTURE:
-        return [_format_futures_symbol_for_databento(asset)]
-
-    start_ref = _normalize_reference_datetime(start)
-    end_ref = _normalize_reference_datetime(end)
-    if start_ref is None or end_ref is None:
-        return [_format_futures_symbol_for_databento(asset)]
-
-    symbols: List[str] = []
-    seen = set()
-    cursor = start_ref
-    # Step roughly every 45 days to guarantee we cross quarter roll boundaries
-    step = timedelta(days=45)
-    while cursor <= end_ref + timedelta(days=45):
-        symbol = _resolve_databento_symbol_for_datetime(asset, cursor)
-        if symbol not in seen:
-            seen.add(symbol)
-            symbols.append(symbol)
-        cursor += step
-
-    # Ensure the end of the range is covered
-    end_symbol = _resolve_databento_symbol_for_datetime(asset, end_ref)
-    if end_symbol not in seen:
-        symbols.append(end_symbol)
-
-    return symbols
-
-
-def _filter_front_month_rows(asset: Asset, df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Keep only rows matching the expected continuous contract for each timestamp.
-
-    PERFORMANCE OPTIMIZATION: Uses cached symbol resolution to avoid
-    repeated computation for the same datetime values.
-    """
+def _filter_front_month_rows(df: pl.DataFrame, schedule: List[Tuple[str, datetime, datetime]]) -> pl.DataFrame:
+    """Filter a polars DataFrame so that each timestamp uses the scheduled contract."""
     if df.is_empty() or "symbol" not in df.columns or "datetime" not in df.columns:
         return df
 
-    # If only a single contract is present, there is nothing to filter – match pandas behaviour.
-    try:
-        if df.select(pl.col("symbol").n_unique()).item() <= 1:
-            return df
-    except Exception:
-        # Fall back to no filtering if uniqueness check fails unexpectedly.
+    if not schedule:
         return df
 
-    def expected_symbol(dt: datetime) -> str:
-        # This now uses the cached _resolve_databento_symbol_for_datetime
-        return _resolve_databento_symbol_for_datetime(asset, dt)
+    mask = None
+    for symbol, start_dt, end_dt in schedule:
+        condition = pl.col("symbol") == symbol
+        if start_dt is not None:
+            condition = condition & (pl.col("datetime") >= pl.lit(start_dt))
+        if end_dt is not None:
+            condition = condition & (pl.col("datetime") < pl.lit(end_dt))
+        mask = condition if mask is None else mask | condition
 
-    try:
-        df_with_expectation = df.with_columns(
-            pl.col("datetime")
-            .map_elements(expected_symbol, return_dtype=pl.Utf8)
-            .alias("_expected_symbol")
-        )
-        filtered = df_with_expectation.filter(pl.col("symbol") == pl.col("_expected_symbol")).drop("_expected_symbol")
-        if not filtered.is_empty():
-            return filtered
-    except Exception as filtering_err:
-        logger.debug(f"Continuous futures filtering fallback due to: {filtering_err}")
+    if mask is None:
+        return df
 
-    # Fallback to original data if filtering fails or removes all rows
-    return df
+    filtered = df.filter(mask)
+    return filtered if not filtered.is_empty() else df
 
 
 def _load_cache(cache_file: Path) -> Optional[pl.LazyFrame]:
@@ -1041,28 +928,29 @@ def get_price_data_from_databento_polars(
     # Ensure start and end are timezone-naive for DataBento API
     start_naive = start.replace(tzinfo=None) if start.tzinfo is not None else start
     end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
-    requested_end_naive = end_naive
 
     if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-        # Mirror the pandas implementation by resolving all contracts required across the window.
-        range_start = reference_date if reference_date is not None else start
-        symbols_to_fetch = _resolve_databento_symbols_for_range(asset, range_start, end)
+        schedule_start = start
+        symbols_to_fetch = databento_roll.resolve_symbols_for_range(asset, schedule_start, end)
+        front_symbol = databento_roll.resolve_symbol_for_datetime(asset, reference_date or start)
+        if front_symbol not in symbols_to_fetch:
+            symbols_to_fetch.insert(0, front_symbol)
         logger.info(
             f"Resolved continuous future {asset.symbol} for range "
-            f"{range_start.strftime('%Y-%m-%d')} → {end.strftime('%Y-%m-%d')} -> {symbols_to_fetch}"
+            f"{schedule_start.strftime('%Y-%m-%d')} → {end.strftime('%Y-%m-%d')} -> {symbols_to_fetch}"
         )
     else:
-        # For specific contracts, just use the formatted symbol
-        resolved_symbol = _format_futures_symbol_for_databento(asset)
-        symbols_to_fetch = [resolved_symbol]
+        schedule_start = start
+        front_symbol = _format_futures_symbol_for_databento(asset)
+        symbols_to_fetch = [front_symbol]
 
     # Fetch and cache futures multiplier from DataBento if needed (after symbol resolution)
     _fetch_and_update_futures_multiplier(
         api_key=api_key,
         asset=asset,
-        resolved_symbol=symbols_to_fetch[0],  # Use the first resolved symbol
+        resolved_symbol=symbols_to_fetch[0],
         dataset=dataset,
-        reference_date=start  # Use start date to match Pandas
+        reference_date=reference_date or start
     )
 
     logger.info(
@@ -1101,7 +989,9 @@ def get_price_data_from_databento_polars(
         )
         cached_frames.append(_ensure_polars_datetime_timezone(cached_df))
 
-    logger.info(f"[get_price_data_from_databento_polars] Cache check done: cached_frames={len(cached_frames)}, symbols_missing={symbols_missing}")
+    logger.info(
+        f"[get_price_data_from_databento_polars] Cache check done: cached_frames={len(cached_frames)}, symbols_missing={symbols_missing}"
+    )
     frames: List[pl.DataFrame] = list(cached_frames)
 
     # Fetch missing symbols from DataBento
@@ -1162,28 +1052,55 @@ def get_price_data_from_databento_polars(
         logger.error(f"DataBento symbol resolution failed for {asset.symbol}")
         return None
 
-    logger.info(f"[get_price_data_from_databento_polars] BEFORE concat: {len(frames)} frames with shapes: {[f.shape for f in frames]}")
+    logger.info(
+        f"[get_price_data_from_databento_polars] BEFORE concat: {len(frames)} frames with shapes: {[f.shape for f in frames]}"
+    )
     combined = pl.concat(frames, how="vertical", rechunk=True)
-    logger.info(f"[get_price_data_from_databento_polars] AFTER concat: combined shape={combined.shape}")
     combined = combined.sort("datetime")
-    logger.info(f"[get_price_data_from_databento_polars] AFTER sort: combined shape={combined.shape}")
-    filter_end = end_naive if end_naive > requested_end_naive else requested_end_naive
+    logger.info(f"[get_price_data_from_databento_polars] AFTER concat+sort: combined shape={combined.shape}")
 
-    datetime_dtype = combined.schema.get("datetime")
-    if isinstance(datetime_dtype, PlDatetime) and datetime_dtype.time_zone is not None:
-        tz = pytz.timezone(datetime_dtype.time_zone)
-        start_filter = tz.localize(start_naive) if start_naive.tzinfo is None else start_naive.astimezone(tz)
-        end_filter = tz.localize(filter_end) if filter_end.tzinfo is None else filter_end.astimezone(tz)
-        combined = combined.filter(
-            (pl.col("datetime") >= start_filter) & (pl.col("datetime") <= end_filter)
-        )
-    else:
-        combined = combined.filter(
-            (pl.col("datetime") >= start_naive) & (pl.col("datetime") <= filter_end)
-        )
+    primary_definition_cache = databento_helper._INSTRUMENT_DEFINITION_CACHE
+    definition_client = None
 
-    if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-        combined = _filter_front_month_rows(asset, combined)
+    def get_definition(symbol_code: str) -> Optional[Dict]:
+        nonlocal definition_client
+        cache_key = (symbol_code, dataset)
+        if cache_key in primary_definition_cache:
+            return primary_definition_cache[cache_key]
+        if cache_key in _INSTRUMENT_DEFINITION_CACHE:
+            definition = _INSTRUMENT_DEFINITION_CACHE[cache_key]
+            primary_definition_cache[cache_key] = definition
+            return definition
+        if definition_client is None:
+            try:
+                definition_client = databento_helper.DataBentoClient(api_key=api_key)
+            except Exception as exc:
+                logger.warning(f"Unable to initialize DataBento definition client: {exc}")
+                return None
+        try:
+            definition = definition_client.get_instrument_definition(
+                dataset=dataset,
+                symbol=symbol_code,
+                reference_date=reference_date or start,
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to fetch definition for {symbol_code}: {exc}")
+            return None
+        if definition:
+            primary_definition_cache[cache_key] = definition
+            _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
+        return definition
+
+    schedule = databento_roll.build_roll_schedule(
+        asset,
+        schedule_start,
+        end,
+        definition_provider=get_definition,
+        roll_days=databento_roll.ROLL_DAYS_BEFORE_EXPIRATION,
+    )
+
+    if schedule:
+        combined = _filter_front_month_rows(combined, schedule)
 
     if combined.is_empty():
         logger.warning("[get_price_data_from_databento_polars] Combined dataset empty after filtering")

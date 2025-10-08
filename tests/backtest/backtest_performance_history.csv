@@ -1939,3 +1939,5 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-10-08T13:09:34.980413,test_short_selling[DataBentoDataBacktesting],Databento,,2.214,3b8abb00,4.0.22,,,,,Auto-tracked from test_futures_edge_cases
 2025-10-08T13:09:48.515441,test_multiple_simultaneous_positions[DataBentoDataPolarsBacktesting],Databento,,6.02,3b8abb00,4.0.22,,,,,Auto-tracked from test_futures_edge_cases
 2025-10-08T13:09:56.992932,test_multiple_simultaneous_positions[DataBentoDataBacktesting],Databento,,8.369,3b8abb00,4.0.22,,,,,Auto-tracked from test_futures_edge_cases
+2025-10-08T15:17:20.995687,test_ultra_simple_buy_hold_sell,unknown,,1.988,316fed19,4.0.22,,,,,Auto-tracked from test_futures_ultra_simple
+2025-10-08T15:18:24.649232,test_ultra_simple_buy_hold_sell,unknown,,1.645,316fed19,4.0.22,,,,,Auto-tracked from test_futures_ultra_simple

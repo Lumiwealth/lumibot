@@ -566,6 +566,10 @@ def test_update_df_with_timezone_awareness():
     assert df_new.index.tzinfo.zone == 'UTC'
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Requires ThetaData Terminal (not available in CI)"
+)
 def test_start_theta_data_client():
     """Test starting real ThetaData client process - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -587,6 +591,10 @@ def test_start_theta_data_client():
     res = requests.get(f"{thetadata_helper.BASE_URL}/v2/system/mdds/status", timeout=2)
     assert res.text in ["CONNECTED", "DISCONNECTED"], f"Should get valid status response, got: {res.text}"
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Requires ThetaData Terminal (not available in CI)"
+)
 def test_check_connection():
     """Test check_connection() with real ThetaData - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -608,6 +616,10 @@ def test_check_connection():
     assert res.text == "CONNECTED", f"Status endpoint should report CONNECTED, got: {res.text}"
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Requires ThetaData Terminal (not available in CI)"
+)
 def test_check_connection_with_exception():
     """Test check_connection() when ThetaData process already running - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -626,6 +638,10 @@ def test_check_connection_with_exception():
     assert connected is True, "Should be connected"
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Requires ThetaData Terminal (not available in CI)"
+)
 def test_get_request_successful():
     """Test get_request() with real ThetaData using get_price_data - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -655,6 +671,10 @@ def test_get_request_successful():
     assert df is not None, "Should get data from ThetaData"
     assert len(df) > 0, "Should have data rows"
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Requires ThetaData Terminal (not available in CI)"
+)
 def test_get_request_non_200_status_code():
     """Test that ThetaData connection works and handles requests properly - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")

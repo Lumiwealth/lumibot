@@ -66,6 +66,10 @@ class UltraSimpleStrategy(Strategy):
         print(f"[FILL] {order.side} @ ${price:.2f} → Cash=${cash_after:,.2f}, Portfolio=${portfolio_after:,.2f}")
 
 
+@pytest.mark.skipif(
+    not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
+    reason="Requires DataBento API key for futures data"
+)
 def test_ultra_simple_buy_hold_sell():
     """
     The simplest possible test:

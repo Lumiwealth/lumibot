@@ -3,12 +3,13 @@ import os
 import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Tuple, Union
 from decimal import Decimal
 
 import pandas as pd
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
+from lumibot.tools import databento_roll
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
@@ -501,16 +502,29 @@ def _determine_databento_schema(timestep: str) -> str:
     return schema_mapping.get(timestep.lower(), 'ohlcv-1m')
 
 
-def _build_cache_filename(asset: Asset, start: datetime, end: datetime, timestep: str) -> Path:
-    """Build a cache filename for the given parameters"""
-    symbol = asset.symbol
-    if asset.expiration:
+def _build_cache_filename(
+    asset: Asset,
+    start: datetime,
+    end: datetime,
+    timestep: str,
+    symbol_override: Optional[str] = None,
+) -> Path:
+    """Build a cache filename for the given parameters."""
+    symbol = symbol_override or asset.symbol
+    if symbol_override is None and asset.expiration:
         symbol += f"_{asset.expiration.strftime('%Y%m%d')}"
-    
-    start_str = start.strftime('%Y%m%d')
-    end_str = end.strftime('%Y%m%d')
-    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
 
+    start_dt = start if isinstance(start, datetime) else datetime.combine(start, datetime.min.time())
+    end_dt = end if isinstance(end, datetime) else datetime.combine(end, datetime.min.time())
+
+    if (timestep or "").lower() in ("minute", "1m", "hour", "1h"):
+        start_str = start_dt.strftime("%Y%m%d%H%M")
+        end_str = end_dt.strftime("%Y%m%d%H%M")
+    else:
+        start_str = start_dt.strftime("%Y%m%d")
+        end_str = end_dt.strftime("%Y%m%d")
+
+    filename = f"{symbol}_{timestep}_{start_str}_{end_str}.parquet"
     return Path(LUMIBOT_DATABENTO_CACHE_FOLDER) / filename
 
 
@@ -569,6 +583,27 @@ def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
         logger.debug(f"Cached data saved to {cache_file}")
     except Exception as e:
         logger.warning(f"Error saving cache file {cache_file}: {e}")
+
+
+def _filter_front_month_rows_pandas(
+    df: pd.DataFrame,
+    schedule: List[Tuple[str, datetime, datetime]],
+) -> pd.DataFrame:
+    """Filter combined contract data so each timestamp uses the scheduled symbol."""
+    if df.empty or "symbol" not in df.columns or schedule is None:
+        return df
+
+    mask = pd.Series(False, index=df.index)
+    for symbol, start_dt, end_dt in schedule:
+        cond = df["symbol"] == symbol
+        if start_dt is not None:
+            cond &= df.index >= start_dt
+        if end_dt is not None:
+            cond &= df.index < end_dt
+        mask |= cond
+
+    filtered = df.loc[mask]
+    return filtered if not filtered.empty else df
 
 
 def _normalize_databento_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -734,145 +769,155 @@ def get_price_data_from_databento(
     timestep: str = "minute",
     venue: Optional[str] = None,
     force_cache_update: bool = False,
+    reference_date: Optional[datetime] = None,
     **kwargs
 ) -> Optional[pd.DataFrame]:
-    """
-    Get historical price data from DataBento for the given asset
-    
-    Parameters
-    ----------
-    api_key : str
-        DataBento API key
-    asset : Asset
-        Lumibot Asset object
-    start : datetime
-        Start datetime for data retrieval
-    end : datetime
-        End datetime for data retrieval
-    timestep : str, optional
-        Data timestep ('minute', 'hour', 'day'), default 'minute'
-    venue : str, optional
-        Specific exchange/venue filter
-    force_cache_update : bool, optional
-        Force refresh of cached data, default False
-    **kwargs
-        Additional parameters for DataBento API
-        
-    Returns
-    -------
-    pd.DataFrame or None
-        Historical price data in standard OHLCV format, None if no data
-    """
+    """Get historical price data from DataBento for the given asset."""
     if not DATABENTO_AVAILABLE:
         logger.error("DataBento package not available. Please install with: pip install databento")
         return None
-    
-    # Build cache filename
-    cache_file = _build_cache_filename(asset, start, end, timestep)
-    
-    # Try to load from cache first
-    if not force_cache_update:
-        cached_data = _load_cache(cache_file)
-        if cached_data is not None and not cached_data.empty:
-            logger.debug(f"Loaded DataBento data from cache: {cache_file}")
-            return _ensure_datetime_index_utc(cached_data)
-    
-    # Initialize DataBento client
+
+    dataset = _determine_databento_dataset(asset, venue)
+    schema = _determine_databento_schema(timestep)
+
+    start_naive = start.replace(tzinfo=None) if start.tzinfo is not None else start
+    end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
+
+    if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+        schedule_start = start
+        symbols = databento_roll.resolve_symbols_for_range(asset, schedule_start, end)
+        front_symbol = databento_roll.resolve_symbol_for_datetime(asset, reference_date or start)
+        if front_symbol not in symbols:
+            symbols.insert(0, front_symbol)
+    else:
+        schedule_start = start
+        front_symbol = _format_futures_symbol_for_databento(asset)
+        symbols = [front_symbol]
+
+    # Ensure multiplier is populated using the first contract.
     try:
-        client = DataBentoClient(api_key=api_key)
-        
-        # Determine dataset and schema
-        dataset = _determine_databento_dataset(asset, venue)
-        schema = _determine_databento_schema(timestep)
-
-        # For continuous futures OR futures without expiration (idiot-proofing), resolve to a specific contract FIRST
-        # DataBento does not support continuous futures directly - we must resolve to actual contracts
-        needs_resolution = (
-            asset.asset_type == Asset.AssetType.CONT_FUTURE or
-            (asset.asset_type == Asset.AssetType.FUTURE and not asset.expiration)
-        )
-
-        if needs_resolution:
-            # Use the start date as reference for backtesting (determines which contract was active)
-            resolved_symbol = _format_futures_symbol_for_databento(asset, reference_date=start)
-
-            # Generate the correct DataBento symbol format (working format only)
-            symbols_to_try = _generate_databento_symbol_alternatives(asset.symbol, resolved_symbol)
-            logger.info(f"Resolved continuous future {asset.symbol} for {start.strftime('%Y-%m-%d')} -> {resolved_symbol}")
-            logger.info(f"DataBento symbol (working format): {symbols_to_try[0]}")
-        else:
-            # For specific contracts, just use the formatted symbol
-            resolved_symbol = _format_futures_symbol_for_databento(asset)
-            symbols_to_try = [resolved_symbol]
-
-        # Fetch and cache futures multiplier from DataBento if needed (after symbol resolution)
+        client_for_multiplier = DataBentoClient(api_key=api_key)
         _fetch_and_update_futures_multiplier(
-            client=client,
+            client=client_for_multiplier,
             asset=asset,
-            resolved_symbol=symbols_to_try[0],  # Use the first resolved symbol
+            resolved_symbol=symbols[0],
             dataset=dataset,
-            reference_date=start
+            reference_date=reference_date or start,
         )
-        
-        # Use the working DataBento symbol format
-        df = None
-        
-        # Ensure start and end are timezone-naive for DataBento API
-        start_naive = start.replace(tzinfo=None) if start.tzinfo is not None else start
-        end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
-        
-        for symbol_to_use in symbols_to_try:
+    except Exception as exc:
+        logger.warning(f"Unable to update futures multiplier for {asset.symbol}: {exc}")
+
+    frames: List[pd.DataFrame] = []
+    symbols_missing: List[str] = []
+
+    if not force_cache_update:
+        for symbol in symbols:
+            cache_path = _build_cache_filename(asset, start, end, timestep, symbol_override=symbol)
+            cached_df = _load_cache(cache_path)
+            if cached_df is None or cached_df.empty:
+                symbols_missing.append(symbol)
+                continue
+            cached_df = cached_df.copy()
+            cached_df["symbol"] = symbol
+            frames.append(cached_df)
+    else:
+        symbols_missing = list(symbols)
+
+    data_client: Optional[DataBentoClient] = None
+    if symbols_missing:
+        try:
+            data_client = DataBentoClient(api_key=api_key)
+        except Exception as exc:
+            logger.error(f"DataBento data fetch error: {exc}")
+            return None
+
+        min_step = timedelta(minutes=1)
+        if schema == "ohlcv-1h":
+            min_step = timedelta(hours=1)
+        elif schema == "ohlcv-1d":
+            min_step = timedelta(days=1)
+        if end_naive <= start_naive:
+            end_naive = start_naive + min_step
+
+        for symbol in symbols_missing:
             try:
-                logger.info(f"Using DataBento symbol: {symbol_to_use}")
-                logger.info(f"DataBento request details: dataset={dataset}, symbol={symbol_to_use}, schema={schema}, start={start_naive}, end={end_naive}")
-                
-                df = client.get_historical_data(
+                logger.debug(
+                    "Requesting DataBento data for %s (%s) between %s and %s",
+                    symbol,
+                    schema,
+                    start_naive,
+                    end_naive,
+                )
+                df_raw = data_client.get_historical_data(
                     dataset=dataset,
-                    symbols=symbol_to_use,
+                    symbols=symbol,
                     schema=schema,
                     start=start_naive,
                     end=end_naive,
-                    **kwargs
+                    **kwargs,
                 )
-                
-                if df is not None and not df.empty:
-                    logger.info(f"✓ SUCCESS: Retrieved {len(df)} rows for symbol: {symbol_to_use}")
-                    
-                    # Normalize the data
-                    df_normalized = _normalize_databento_dataframe(df)
-                    
-                    # Cache the data
-                    _save_cache(df_normalized, cache_file)
-                    
-                    logger.debug(f"Successfully retrieved and cached {len(df_normalized)} rows")
-                    return df_normalized
-                else:
-                    logger.warning(f"✗ No data returned for symbol: {symbol_to_use}")
-                    
-            except Exception as e:
-                error_str = str(e).lower()
-                if "symbology_invalid_request" in error_str or "none of the symbols could be resolved" in error_str:
-                    logger.warning(f"Symbol {symbol_to_use} not resolved in DataBento")
-                else:
-                    logger.warning(f"✗ Error with symbol {symbol_to_use}: {str(e)}")
+            except Exception as exc:
+                logger.warning(f"Error fetching {symbol} from DataBento: {exc}")
                 continue
-        
-        # If we get here, none of the symbols worked
-        logger.error(f"❌ DataBento symbol resolution FAILED for {asset.symbol}")
-        logger.error(f"Symbols tried: {symbols_to_try}")
-        logger.error("This indicates:")
-        logger.error("1. Contract may not be available in DataBento GLBX.MDP3 dataset")
-        logger.error("2. Data may not be available for the requested time range")
-        logger.error("3. Markets may be closed (weekend/holiday)")
-        logger.error("Check DataBento documentation: https://databento.com/docs/api-reference-historical/basics/symbology")
-        
+
+            if df_raw is None or df_raw.empty:
+                logger.warning(f"No data returned from DataBento for symbol {symbol}")
+                continue
+
+            df_normalized = _normalize_databento_dataframe(df_raw)
+            df_normalized["symbol"] = symbol
+            cache_path = _build_cache_filename(asset, start, end, timestep, symbol_override=symbol)
+            _save_cache(df_normalized, cache_path)
+            frames.append(df_normalized)
+
+    if not frames:
+        logger.warning(f"No DataBento data available for {asset.symbol} between {start} and {end}")
         return None
-        
-    except Exception as e:
-        logger.error("DATABENTO_DATA_FETCH_ERROR: DataBento data fetch error: %s | Asset: %s, Start: %s, End: %s", 
-                    str(e), asset.symbol, start, end)
-        
-        return None
+
+    combined = pd.concat(frames, axis=0)
+    combined.sort_index(inplace=True)
+
+    definition_client: Optional[DataBentoClient] = None
+
+    def get_definition(symbol_code: str) -> Optional[Dict]:
+        nonlocal definition_client
+        cache_key = (symbol_code, dataset)
+        if cache_key in _INSTRUMENT_DEFINITION_CACHE:
+            return _INSTRUMENT_DEFINITION_CACHE[cache_key]
+        if definition_client is None:
+            try:
+                definition_client = DataBentoClient(api_key=api_key)
+            except Exception as exc:
+                logger.warning(f"Unable to create DataBento definition client: {exc}")
+                return None
+        try:
+            definition = definition_client.get_instrument_definition(
+                dataset=dataset,
+                symbol=symbol_code,
+                reference_date=reference_date or start,
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to fetch definition for {symbol_code}: {exc}")
+            return None
+        if definition:
+            _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
+        return definition
+
+    schedule = databento_roll.build_roll_schedule(
+        asset,
+        schedule_start,
+        end,
+        definition_provider=get_definition,
+        roll_days=databento_roll.ROLL_DAYS_BEFORE_EXPIRATION,
+    )
+
+    if schedule:
+        combined = _filter_front_month_rows_pandas(combined, schedule)
+
+    if "symbol" in combined.columns:
+        combined = combined.drop(columns=["symbol"])
+
+    return combined
 
 
 def get_last_price_from_databento(

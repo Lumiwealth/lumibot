@@ -10,7 +10,6 @@ import requests
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset
-from thetadata import ThetaClient
 from tqdm import tqdm
 
 logger = get_logger(__name__)
@@ -495,10 +494,23 @@ def start_theta_data_client(username: str, password: str):
     # Find ThetaTerminal.jar
     jar_file = theta_dir / "ThetaTerminal.jar"
     if not jar_file.exists():
-        # Try to download it using the thetadata library's download mechanism
-        from thetadata.terminal import check_download
-        logger.info("ThetaTerminal.jar not found, attempting to download...")
-        check_download(auto_update=True, stable=True)
+        # Copy ThetaTerminal.jar from lumibot package to user's ThetaData directory
+        logger.info("ThetaTerminal.jar not found, copying from lumibot package...")
+        import shutil as shutil_copy
+
+        # Find the bundled jar file in the lumibot package
+        lumibot_jar = Path(__file__).parent.parent.parent / "ThetaTerminal.jar"
+
+        if lumibot_jar.exists():
+            logger.info(f"Copying ThetaTerminal.jar from {lumibot_jar} to {jar_file}")
+            shutil_copy.copy2(lumibot_jar, jar_file)
+            logger.info(f"Successfully copied ThetaTerminal.jar to {jar_file}")
+        else:
+            raise FileNotFoundError(
+                f"ThetaTerminal.jar not found at {lumibot_jar}. "
+                f"Please ensure ThetaTerminal.jar is included in the lumibot package, "
+                f"or manually place it at {jar_file}"
+            )
 
     if not jar_file.exists():
         raise FileNotFoundError(f"ThetaTerminal.jar not found at {jar_file}")

@@ -461,8 +461,8 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         if timeshift:
             # When timeshift is present, use <= with adjusted end_filter
             if isinstance(timeshift, int):
-                timeshift = timedelta(days=timeshift)
-
+                # Match pandas implementation: interpret integer timeshift as minutes
+                timeshift = timedelta(minutes=timeshift)
             if timestep == "day":
                 dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
                 end_filter = dt - timedelta(days=1) - timeshift

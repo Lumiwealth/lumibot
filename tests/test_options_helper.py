@@ -6,6 +6,7 @@ from unittest.mock import Mock, MagicMock
 from datetime import date, timedelta, datetime
 import sys
 import os
+import pytest
 
 # Add the lumibot path
 sys.path.insert(0, '/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot')
@@ -396,6 +397,10 @@ class TestOptionsHelper(unittest.TestCase):
         self.assertEqual(chains_partial["Chains"]["CALL"]["2024-01-02"], [100.0])
         self.assertIn("PUT", chains_partial["Chains"])
 
+    @pytest.mark.skipif(
+        os.environ.get("CI") == "true",
+        reason="Requires ThetaData Terminal (not available in CI)"
+    )
     def test_find_next_valid_option_checks_quote_first(self):
         """Test that find_next_valid_option checks quote before last_price using REAL ThetaData"""
         import os
@@ -472,6 +477,10 @@ class TestOptionsHelper(unittest.TestCase):
         # Verify that an option was found using real data
         self.assertIsNotNone(strategy.option_found, "Should find valid option using real ThetaData")
 
+    @pytest.mark.skipif(
+        os.environ.get("CI") == "true",
+        reason="Requires ThetaData Terminal (not available in CI)"
+    )
     def test_find_next_valid_option_falls_back_to_last_price(self):
         """Test fallback to last_price when quote has no bid/ask using REAL ThetaData"""
         import os

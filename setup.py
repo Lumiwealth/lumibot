@@ -52,7 +52,6 @@ setuptools.setup(
         "exchange_calendars>=4.6.0",
         "duckdb",
         "tabulate",
-        "thetadata==0.9.11",
         "databento>=0.42.0",
         "holidays",
         "psutil",

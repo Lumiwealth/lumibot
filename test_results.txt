@@ -1,1 +1,0 @@
-nohup: python: No such file or directory

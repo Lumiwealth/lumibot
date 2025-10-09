@@ -13,7 +13,7 @@ from polars.datatypes import Datetime as PlDatetime
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
-from lumibot.tools import databento_helper, databento_roll
+from lumibot.tools import databento_helper, futures_roll
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
@@ -935,8 +935,17 @@ def get_price_data_from_databento_polars(
 
     if roll_asset.asset_type == Asset.AssetType.CONT_FUTURE:
         schedule_start = start
-        symbols_to_fetch = databento_roll.resolve_symbols_for_range(roll_asset, schedule_start, end)
-        front_symbol = databento_roll.resolve_symbol_for_datetime(roll_asset, reference_date or start)
+        symbols_to_fetch = futures_roll.resolve_symbols_for_range(
+            roll_asset,
+            schedule_start,
+            end,
+            year_digits=1,
+        )
+        front_symbol = futures_roll.resolve_symbol_for_datetime(
+            roll_asset,
+            reference_date or start,
+            year_digits=1,
+        )
         if front_symbol not in symbols_to_fetch:
             symbols_to_fetch.insert(0, front_symbol)
         logger.info(
@@ -1098,12 +1107,11 @@ def get_price_data_from_databento_polars(
             _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
         return definition
 
-    schedule = databento_roll.build_roll_schedule(
+    schedule = futures_roll.build_roll_schedule(
         roll_asset,
         schedule_start,
         end,
-        definition_provider=get_definition,
-        roll_days=databento_roll.ROLL_DAYS_BEFORE_EXPIRATION,
+        year_digits=1,
     )
 
     if schedule:

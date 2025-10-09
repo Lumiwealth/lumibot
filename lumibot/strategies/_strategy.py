@@ -776,7 +776,7 @@ class _Strategy:
 
             dividend_assets = []
             for position in positions:
-                if position.asset != self._quote_asset and position.asset.asset_type != Asset.AssetType.OPTION:
+                if position.asset != self._quote_asset and position.asset.asset_type != "option":
                     dividend_assets.append(position.asset)
 
             dividends_per_share = self.get_yesterday_dividends(dividend_assets)

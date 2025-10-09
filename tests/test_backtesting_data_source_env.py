@@ -98,7 +98,7 @@ class TestBacktestingDataSourceEnv:
             )
 
             # Verify the log message shows polygon was selected
-            assert any("Auto-selected backtesting data source from BACKTESTING_DATA_SOURCE env var: polygon" in record.message
+            assert any("Using BACKTESTING_DATA_SOURCE setting for backtest data: polygon" in record.message
                       for record in caplog.records)
 
     def test_auto_select_thetadata_case_insensitive(self, clean_environment, restore_theta_credentials, caplog):
@@ -130,7 +130,7 @@ class TestBacktestingDataSourceEnv:
                 pass
 
             # Verify the log message shows thetadata was selected OR check for ThetaData error
-            thetadata_selected = any("Auto-selected backtesting data source from BACKTESTING_DATA_SOURCE env var: THETADATA" in record.message
+            thetadata_selected = any("Using BACKTESTING_DATA_SOURCE setting for backtest data: THETADATA" in record.message
                                     for record in caplog.records)
             thetadata_attempted = any("Cannot connect to Theta Data" in record.message or "ThetaData" in record.message
                                      for record in caplog.records)
@@ -183,8 +183,11 @@ class TestBacktestingDataSourceEnv:
                     show_indicators=False,
                 )
 
-    def test_explicit_datasource_overrides_env(self, clean_environment, restore_theta_credentials, caplog):
-        """Test that explicit datasource_class overrides BACKTESTING_DATA_SOURCE env var."""
+    def test_env_override_wins_over_explicit_datasource(self, clean_environment, restore_theta_credentials, caplog):
+        """Test that BACKTESTING_DATA_SOURCE env var takes precedence over explicit datasource_class."""
+        import logging
+        caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
+
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'polygon'}):
             # Re-import credentials to pick up env change
             from importlib import reload
@@ -205,9 +208,36 @@ class TestBacktestingDataSourceEnv:
                 show_progress_bar=False,
             )
 
-            # Verify the auto-select message was NOT logged (explicit datasource was used)
-            assert not any("Auto-selected backtesting data source" in record.message
-                          for record in caplog.records)
+            # Verify the env override message was logged (env var wins)
+            assert any("Using BACKTESTING_DATA_SOURCE setting for backtest data: polygon" in record.message
+                       for record in caplog.records)
+
+    def test_explicit_datasource_used_when_env_none(self, clean_environment, restore_theta_credentials, caplog):
+        """Test that setting BACKTESTING_DATA_SOURCE to 'none' defers to the explicit datasource_class."""
+        import logging
+        caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
+
+        with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'none'}):
+            from importlib import reload
+            import lumibot.credentials
+            reload(lumibot.credentials)
+
+            backtesting_start = datetime(2023, 1, 1)
+            backtesting_end = datetime(2023, 1, 10)  # Shorter backtest for speed
+
+            SimpleTestStrategy.run_backtest(
+                YahooDataBacktesting,
+                backtesting_start=backtesting_start,
+                backtesting_end=backtesting_end,
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+            )
+
+            # Confirm no override occurred
+            assert not any("Using BACKTESTING_DATA_SOURCE setting for backtest data" in record.message
+                           for record in caplog.records)
 
     def test_default_thetadata_when_no_env_set(self, clean_environment, restore_theta_credentials, caplog):
         """Test that ThetaData is the default when BACKTESTING_DATA_SOURCE is not set."""
@@ -240,9 +270,13 @@ class TestBacktestingDataSourceEnv:
                 # Expected to fail with test credentials - that's okay
                 pass
 
-            # Verify ThetaData was attempted (no auto-select message since it's the default)
-            assert any("Cannot connect to Theta Data" in record.message or "ThetaData" in record.message
-                      for record in caplog.records), "ThetaData was not used as default"
+            # Verify ThetaData was attempted (look for override message or Theta-specific logs)
+            assert any(
+                "Using BACKTESTING_DATA_SOURCE setting for backtest data: ThetaData" in record.message
+                or "Cannot connect to Theta Data" in record.message
+                or "ThetaData" in record.message
+                for record in caplog.records
+            ), "ThetaData was not used as default"
 
 
 if __name__ == "__main__":

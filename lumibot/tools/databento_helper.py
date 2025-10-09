@@ -593,13 +593,29 @@ def _filter_front_month_rows_pandas(
     if df.empty or "symbol" not in df.columns or schedule is None:
         return df
 
+    index_tz = getattr(df.index, "tz", None)
+
+    def _align(ts: datetime | pd.Timestamp | None) -> pd.Timestamp | None:
+        if ts is None:
+            return None
+        ts_pd = pd.Timestamp(ts)
+        if index_tz is None:
+            return ts_pd.tz_localize(None) if ts_pd.tz is not None else ts_pd
+        if ts_pd.tz is None:
+            ts_pd = ts_pd.tz_localize(index_tz)
+        else:
+            ts_pd = ts_pd.tz_convert(index_tz)
+        return ts_pd
+
     mask = pd.Series(False, index=df.index)
     for symbol, start_dt, end_dt in schedule:
         cond = df["symbol"] == symbol
-        if start_dt is not None:
-            cond &= df.index >= start_dt
-        if end_dt is not None:
-            cond &= df.index < end_dt
+        start_aligned = _align(start_dt)
+        end_aligned = _align(end_dt)
+        if start_aligned is not None:
+            cond &= df.index >= start_aligned
+        if end_aligned is not None:
+            cond &= df.index < end_aligned
         mask |= cond
 
     filtered = df.loc[mask]
@@ -783,15 +799,22 @@ def get_price_data_from_databento(
     start_naive = start.replace(tzinfo=None) if start.tzinfo is not None else start
     end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
 
-    if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+    roll_asset = asset
+    if asset.asset_type == Asset.AssetType.FUTURE and not asset.expiration:
+        roll_asset = Asset(asset.symbol, Asset.AssetType.CONT_FUTURE)
+
+    if roll_asset.asset_type == Asset.AssetType.CONT_FUTURE:
         schedule_start = start
-        symbols = databento_roll.resolve_symbols_for_range(asset, schedule_start, end)
-        front_symbol = databento_roll.resolve_symbol_for_datetime(asset, reference_date or start)
+        symbols = databento_roll.resolve_symbols_for_range(roll_asset, schedule_start, end)
+        front_symbol = databento_roll.resolve_symbol_for_datetime(roll_asset, reference_date or start)
         if front_symbol not in symbols:
             symbols.insert(0, front_symbol)
     else:
         schedule_start = start
-        front_symbol = _format_futures_symbol_for_databento(asset)
+        front_symbol = _format_futures_symbol_for_databento(
+            asset,
+            reference_date=reference_date or start,
+        )
         symbols = [front_symbol]
 
     # Ensure multiplier is populated using the first contract.
@@ -904,7 +927,7 @@ def get_price_data_from_databento(
         return definition
 
     schedule = databento_roll.build_roll_schedule(
-        asset,
+        roll_asset,
         schedule_start,
         end,
         definition_provider=get_definition,

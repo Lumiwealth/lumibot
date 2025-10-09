@@ -215,6 +215,14 @@ class TestDatabentoComprehensiveTrading:
 
         print(f"\n  Instruments traded: {list(trades_by_instrument.keys())}")
 
+        snapshots_by_symbol = {}
+        for snap in strat.snapshots:
+            symbol = snap.get("current_asset")
+            if symbol:
+                snapshots_by_symbol.setdefault(symbol, []).append(snap)
+
+        fee_amount = float(fee.flat_fee)
+
         # Analyze each instrument's trades
         for symbol, trades in trades_by_instrument.items():
             print(f"\n" + "-"*80)
@@ -249,16 +257,45 @@ class TestDatabentoComprehensiveTrading:
                 assert actual_asset.multiplier == expected_multiplier, \
                     f"{symbol} asset.multiplier should be {expected_multiplier}, got {actual_asset.multiplier}"
 
-                # For now, just verify cash is reasonable (not testing exact margin since
-                # we may have P&L from previous trades affecting cash)
-                print(f"\nCASH STATE:")
-                print(f"  Cash after entry: ${entry['cash_after']:,.2f}")
-                print(f"  (Note: Cash includes P&L from previous trades)")
+                symbol_snapshots = snapshots_by_symbol.get(symbol, [])
+                entry_snapshot = next((s for s in symbol_snapshots if s.get("phase") == "BUY"), None)
+                sell_snapshot = next((s for s in symbol_snapshots if s.get("phase") == "SELL"), None)
+                hold_snapshots = [s for s in symbol_snapshots if s.get("phase") == "HOLD"]
 
-                # Verify portfolio value is reasonable (shouldn't be massively negative)
-                portfolio_after = entry['portfolio_after']
-                assert portfolio_after > 50000, \
-                    f"{symbol} portfolio value seems wrong after entry: ${portfolio_after:,.2f}"
+                assert entry_snapshot is not None, f"No entry snapshot recorded for {symbol}"
+                assert sell_snapshot is not None, f"No sell snapshot recorded for {symbol}"
+
+                cash_before_entry = float(entry_snapshot["cash"])
+                entry_cash_after = float(entry["cash_after"])
+                margin_deposit = cash_before_entry - entry_cash_after - fee_amount
+                expected_margin_total = expected_margin * float(entry["quantity"])
+
+                print(f"\nCASH / MARGIN STATE:")
+                print(f"  Cash before entry: ${cash_before_entry:,.2f}")
+                print(f"  Cash after entry: ${entry_cash_after:,.2f}")
+                print(f"  Margin captured: ${margin_deposit:,.2f} (expected ${expected_margin_total:,.2f})")
+                assert pytest.approx(margin_deposit, abs=0.01) == expected_margin_total, (
+                    f"{symbol} margin mismatch: expected ${expected_margin_total:,.2f}, "
+                    f"got ${margin_deposit:,.2f}"
+                )
+
+                # Verify mark-to-market during hold period is exact
+                for snap in hold_snapshots:
+                    price = snap.get("price")
+                    if price is None:
+                        continue
+                    unrealized = (price - entry["price"]) * float(entry["quantity"]) * expected_multiplier
+                    expected_portfolio = entry_cash_after + margin_deposit + unrealized
+                    assert pytest.approx(expected_portfolio, abs=0.01) == float(snap["portfolio"]), (
+                        f"{symbol} mark-to-market mismatch at {snap['datetime']}: "
+                        f"expected ${expected_portfolio:,.2f}, got ${snap['portfolio']:,.2f}"
+                    )
+
+                # Snapshot immediately before exit should have identical cash to post-entry state
+                assert pytest.approx(float(sell_snapshot["cash"]), abs=0.01) == entry_cash_after, (
+                    f"{symbol} cash prior to exit changed unexpectedly: "
+                    f"{sell_snapshot['cash']} vs {entry_cash_after}"
+                )
 
             if len(exits) > 0 and len(entries) > 0:
                 entry = entries[0]
@@ -283,79 +320,21 @@ class TestDatabentoComprehensiveTrading:
                 print(f"  Price change: ${price_change:.2f}")
                 print(f"  Expected P&L: ${expected_pnl:.2f} (change × qty × {expected_multiplier})")
 
-                # Verify final portfolio reflects P&L
-                # Note: We can't verify exact final cash without knowing all previous trades,
-                # but we can verify the P&L calculation makes sense
-                assert abs(expected_pnl) < 100000, \
-                    f"{symbol} P&L seems unrealistic: {expected_pnl}"
-
-                # CRITICAL: Verify portfolio value changed by approximately expected P&L
-                # (can't be exact due to fees and previous trades, but should be in ballpark)
-                entry_portfolio = entry['portfolio_after']
-                exit_portfolio = exit_trade['portfolio_after']
-                portfolio_change = exit_portfolio - entry_portfolio
-
-                # Portfolio change should be close to expected P&L (within margin for fees/rounding)
-                pnl_diff = abs(portfolio_change - expected_pnl)
-                print(f"  Portfolio change: ${portfolio_change:.2f}")
-                print(f"  Difference from expected: ${pnl_diff:.2f}")
-
-                # Allow generous tolerance for fees, rounding, and concurrent trades
-                # For small P&L, allow larger percentage; for large P&L, allow smaller percentage
-                tolerance = max(abs(expected_pnl) * 0.5, 500)
-                # For this comprehensive test with multiple concurrent trades, just verify it's reasonable
-                # (exact match is tested in simpler single-trade tests)
-                if pnl_diff < tolerance:
-                    print(f"  ✓ Portfolio change matches expected P&L within tolerance")
-                else:
-                    print(f"  ⚠ Portfolio change differs (may be due to concurrent trades)")
-
-        # CRITICAL: Verify unrealized P&L during HOLD periods
-        # This catches bugs in portfolio value calculation (multiplier applied to unrealized P&L)
-        print(f"\n" + "-"*80)
-        print("VERIFYING UNREALIZED P&L DURING HOLD PERIODS")
-        print("-"*80)
-
-        for symbol in trades_by_instrument.keys():
-            # Find snapshots where we're holding this position
-            holding_snapshots = [s for s in strat.snapshots if s['position_qty'] > 0 and s.get('current_asset') == symbol]
-
-            if len(holding_snapshots) >= 2:
-                # Check a couple of snapshots during the hold
-                snap = holding_snapshots[len(holding_snapshots)//2]  # middle of hold period
-
-                # Get the entry trade for this position
-                entries = [t for t in trades_by_instrument[symbol] if "buy" in str(t["side"]).lower()]
-                if entries:
-                    entry = entries[0]
-                    entry_price = entry['price']
-                    quantity = entry['quantity']
-                    current_price = snap['price']
-                    expected_mult = CONTRACT_SPECS.get(symbol, {}).get("multiplier", 1)
-                    expected_margin = CONTRACT_SPECS.get(symbol, {}).get("margin", 1000)
-
-                    # Calculate expected portfolio value
-                    cash = snap['cash']
-                    margin_tied_up = quantity * expected_margin
-                    unrealized_pnl = (current_price - entry_price) * quantity * expected_mult
-                    expected_portfolio = cash + margin_tied_up + unrealized_pnl
-                    actual_portfolio = snap['portfolio']
-
-                    print(f"\n{symbol} during HOLD (snapshot {strat.snapshots.index(snap)}):")
-                    print(f"  Entry: ${entry_price:.2f} × {quantity} contracts")
-                    print(f"  Current: ${current_price:.2f}")
-                    print(f"  Cash: ${cash:,.2f}")
-                    print(f"  Margin: ${margin_tied_up:,.2f}")
-                    print(f"  Unrealized P&L: ${unrealized_pnl:,.2f} = (${current_price:.2f} - ${entry_price:.2f}) × {quantity} × {expected_mult}")
-                    print(f"  Expected portfolio: ${expected_portfolio:,.2f}")
-                    print(f"  Actual portfolio: ${actual_portfolio:,.2f}")
-                    print(f"  Difference: ${abs(actual_portfolio - expected_portfolio):,.2f}")
-
-                    # This tolerance should catch multiplier bugs (5x error would be huge)
-                    tolerance = max(abs(expected_portfolio) * 0.02, 100)  # 2% or $100
-                    assert abs(actual_portfolio - expected_portfolio) < tolerance, \
-                        f"{symbol} portfolio value incorrect during hold: expected ${expected_portfolio:,.2f}, got ${actual_portfolio:,.2f}"
-                    print(f"  ✓ Portfolio value matches expected (within ${tolerance:.2f})")
+                cash_before_entry = float(snapshots_by_symbol[symbol][0]["cash"])
+                expected_cash_after_exit = (
+                    cash_before_entry
+                    - fee_amount  # entry fee
+                    - fee_amount  # exit fee
+                    + expected_pnl
+                )
+                print(f"\nCASH RECONCILIATION:")
+                print(f"  Expected cash after exit: ${expected_cash_after_exit:,.2f}")
+                actual_cash_after_exit = float(exit_trade["cash_after"])
+                print(f"  Actual cash after exit:   ${actual_cash_after_exit:,.2f}")
+                assert pytest.approx(expected_cash_after_exit, abs=0.01) == actual_cash_after_exit, (
+                    f"{symbol} cash after exit mismatch: expected ${expected_cash_after_exit:,.2f}, "
+                    f"got ${actual_cash_after_exit:,.2f}"
+                )
 
         print(f"\n" + "="*80)
         print("✓ ALL INSTRUMENTS VERIFIED")

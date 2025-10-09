@@ -929,10 +929,14 @@ def get_price_data_from_databento_polars(
     start_naive = start.replace(tzinfo=None) if start.tzinfo is not None else start
     end_naive = end.replace(tzinfo=None) if end.tzinfo is not None else end
 
-    if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+    roll_asset = asset
+    if asset.asset_type == Asset.AssetType.FUTURE and not asset.expiration:
+        roll_asset = Asset(asset.symbol, Asset.AssetType.CONT_FUTURE)
+
+    if roll_asset.asset_type == Asset.AssetType.CONT_FUTURE:
         schedule_start = start
-        symbols_to_fetch = databento_roll.resolve_symbols_for_range(asset, schedule_start, end)
-        front_symbol = databento_roll.resolve_symbol_for_datetime(asset, reference_date or start)
+        symbols_to_fetch = databento_roll.resolve_symbols_for_range(roll_asset, schedule_start, end)
+        front_symbol = databento_roll.resolve_symbol_for_datetime(roll_asset, reference_date or start)
         if front_symbol not in symbols_to_fetch:
             symbols_to_fetch.insert(0, front_symbol)
         logger.info(
@@ -941,7 +945,10 @@ def get_price_data_from_databento_polars(
         )
     else:
         schedule_start = start
-        front_symbol = _format_futures_symbol_for_databento(asset)
+        front_symbol = _format_futures_symbol_for_databento(
+            asset,
+            reference_date=reference_date or start,
+        )
         symbols_to_fetch = [front_symbol]
 
     # Fetch and cache futures multiplier from DataBento if needed (after symbol resolution)
@@ -1092,7 +1099,7 @@ def get_price_data_from_databento_polars(
         return definition
 
     schedule = databento_roll.build_roll_schedule(
-        asset,
+        roll_asset,
         schedule_start,
         end,
         definition_provider=get_definition,

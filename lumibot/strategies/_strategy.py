@@ -1264,9 +1264,24 @@ class _Strategy:
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
 
-        # Auto-select datasource from environment variable if None
-        if datasource_class is None:
-            from lumibot.credentials import BACKTESTING_DATA_SOURCE
+        from lumibot.credentials import BACKTESTING_DATA_SOURCE as _DEFAULT_BACKTESTING_DATA_SOURCE
+
+        # Determine whether an environment override exists. When BACKTESTING_DATA_SOURCE
+        # is set (and not blank/\"none\"), it should take precedence even if a
+        # datasource_class argument was provided.
+        env_override_raw = os.environ.get("BACKTESTING_DATA_SOURCE")
+        env_override_name = None
+
+        if env_override_raw is not None:
+            trimmed = env_override_raw.strip()
+            if trimmed and trimmed.lower() != "none":
+                env_override_name = trimmed.lower()
+        elif datasource_class is None:
+            # No override provided and no class in code – fall back to the default
+            # configured in credentials (ThetaData unless the project overrides it).
+            env_override_name = _DEFAULT_BACKTESTING_DATA_SOURCE.lower()
+
+        if env_override_name is not None:
             from lumibot.backtesting import (
                 PolygonDataBacktesting,
                 ThetaDataBacktesting,
@@ -1285,18 +1300,24 @@ class _Strategy:
                 "databento": DataBentoDataBacktesting,
             }
 
-            datasource_name = BACKTESTING_DATA_SOURCE.lower()
-            if datasource_name not in datasource_map:
+            if env_override_name not in datasource_map:
+                label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
                 raise ValueError(
-                    f"Unknown BACKTESTING_DATA_SOURCE: '{BACKTESTING_DATA_SOURCE}'. "
+                    f"Unknown BACKTESTING_DATA_SOURCE: '{label}'. "
                     f"Valid options: {list(datasource_map.keys())}"
                 )
 
-            datasource_class = datasource_map[datasource_name]
+            datasource_class = datasource_map[env_override_name]
+            label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
             get_logger(__name__).info(colored(
-                f"Auto-selected backtesting data source from BACKTESTING_DATA_SOURCE env var: {BACKTESTING_DATA_SOURCE}",
+                f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
                 "green"
             ))
+        elif datasource_class is None:
+            raise ValueError(
+                "No backtesting data source provided. Set BACKTESTING_DATA_SOURCE in the environment "
+                "or pass datasource_class when calling backtest()."
+            )
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY

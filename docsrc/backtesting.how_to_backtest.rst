@@ -161,7 +161,7 @@ If they are set, LumiBot will automatically pick them up. For example:
      - End date in the format "YYYY-MM-DD".
      - 2025-05-01
    * - BACKTESTING_DATA_SOURCE
-     - Data source to use when datasource_class is None. Case-insensitive. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento** (defaults to ThetaData).
+     - Backtesting data source. This value is case-insensitive and takes precedence even when your code passes a ``datasource_class`` argument. Set it to ``none`` (or leave it unset) if you prefer to control the data source from code. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento** (defaults to ThetaData).
      - Polygon
 
 Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date or data source definitions in code. Set ``BACKTESTING_DATA_SOURCE=Polygon`` in your environment to use Polygon.io (API key still required):

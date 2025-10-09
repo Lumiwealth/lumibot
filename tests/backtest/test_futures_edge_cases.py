@@ -31,6 +31,8 @@ DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 # Contract specs
 MES_MULTIPLIER = 5
 ES_MULTIPLIER = 50
+MES_MARGIN = 1300
+ES_MARGIN = 13000
 
 
 def _clear_polars_cache():
@@ -211,6 +213,8 @@ class TestFuturesEdgeCases:
 
         broker = BacktestingBroker(data_source=data_source)
         fee = TradingFee(flat_fee=0.50)
+        fee_amount = float(fee.flat_fee)
+        fee_amount = float(fee.flat_fee)
 
         strat = ShortSellingStrategy(
             broker=broker,
@@ -252,7 +256,7 @@ class TestFuturesEdgeCases:
             assert trade['multiplier'] == MES_MULTIPLIER, \
                 f"MES multiplier should be {MES_MULTIPLIER}, got {trade['multiplier']}"
 
-        # If we have both entry and exit, verify P&L
+        # If we have both entry and exit, verify P&L and cash bookkeeping exactly
         if len(strat.trades) >= 2:
             entry = strat.trades[0]  # Sell to open
             exit_trade = strat.trades[1]  # Buy to cover
@@ -261,10 +265,19 @@ class TestFuturesEdgeCases:
             print("P&L VERIFICATION (SHORT TRADE)")
             print("-"*80)
 
-            # For short: P&L = (Entry - Exit) × Qty × Multiplier (inverted!)
+            entry_snapshot = strat.snapshots[0]
+            holding_snapshots = [s for s in strat.snapshots if s['position_qty'] < 0]
+            assert holding_snapshots, "No holding snapshots recorded for short position"
+            sell_snapshot = holding_snapshots[-1]  # still short immediately before closing
+            final_snapshot = next((s for s in strat.snapshots if s['position_qty'] == 0 and s['iteration'] > sell_snapshot['iteration']), strat.snapshots[-1])
+
+            margin_deposit = float(entry_snapshot['cash']) - float(entry['cash_after']) - fee_amount
+            print(f"  Margin captured: ${margin_deposit:.2f}")
+            assert pytest.approx(margin_deposit, abs=0.01) == 1300.0, f"Expected $1,300 margin, got ${margin_deposit:.2f}"
+
             entry_price = entry['price']
             exit_price = exit_trade['price']
-            price_change = entry_price - exit_price  # Inverted for short
+            price_change = entry_price - exit_price  # inverted for short
             expected_pnl = price_change * MES_MULTIPLIER
 
             print(f"  Entry (sell): ${entry_price:.2f}")
@@ -272,23 +285,34 @@ class TestFuturesEdgeCases:
             print(f"  Price change (entry - exit): ${price_change:.2f}")
             print(f"  Expected P&L: ${expected_pnl:.2f} (inverted for short)")
 
-            # Verify final cash
-            starting_cash = 100000
-            total_fees = 1.00  # 2 × $0.50
-            expected_final_cash = starting_cash + expected_pnl - total_fees
+            # Mark-to-market validation during the hold window
+            for snap in holding_snapshots[:-1]:
+                current_price = snap['price']
+                if current_price is None:
+                    continue
+                unrealized = (entry_price - current_price) * MES_MULTIPLIER
+                expected_portfolio = float(entry['cash_after']) + margin_deposit + unrealized
+                assert pytest.approx(expected_portfolio, abs=0.01) == float(snap['portfolio']), (
+                    f"Short unrealized P&L mismatch at {snap['datetime']}: "
+                    f"expected ${expected_portfolio:,.2f}, got ${snap['portfolio']:,.2f}"
+                )
 
-            # Get final snapshot cash
-            final_cash = strat.snapshots[-1]['cash']
-            cash_diff = abs(expected_final_cash - final_cash)
+            assert pytest.approx(float(sell_snapshot['cash']), abs=0.01) == float(entry['cash_after']), \
+                "Cash should not drift while holding the short position"
 
-            print(f"\n  Starting cash: ${starting_cash:,.2f}")
-            print(f"  Expected final cash: ${expected_final_cash:,.2f}")
-            print(f"  Actual final cash: ${final_cash:,.2f}")
-            print(f"  Difference: ${cash_diff:.2f}")
+            # Final cash should equal initial cash minus fees plus realized P&L
+            starting_cash = float(entry_snapshot['cash'])
+            expected_final_cash = starting_cash - 2 * fee_amount + expected_pnl
+            print(f"\n  Expected final cash: ${expected_final_cash:,.2f}")
+            actual_final_cash = float(final_snapshot['cash'])
+            print(f"  Actual final cash:   ${actual_final_cash:,.2f}")
+            assert pytest.approx(expected_final_cash, abs=0.01) == actual_final_cash, \
+                f"Final cash mismatch: expected ${expected_final_cash:,.2f}, got ${actual_final_cash:,.2f}"
 
-            # Allow tolerance for timing/fill differences
-            assert cash_diff < 150, f"Cash difference too large: ${cash_diff:.2f}"
-            print(f"\n✓ PASS: Short selling P&L is correct")
+            assert pytest.approx(expected_final_cash, abs=0.01) == float(exit_trade['cash_after']), \
+                "Cash reported in exit trade callback should match final ledger"
+
+            print(f"\n✓ PASS: Short selling P&L and cash bookkeeping are exact")
 
         print("\n" + "="*80)
         print("✓ SHORT SELLING TEST PASSED")
@@ -383,54 +407,63 @@ class TestFuturesEdgeCases:
             assert trade['multiplier'] == ES_MULTIPLIER, \
                 f"ES multiplier should be {ES_MULTIPLIER}, got {trade['multiplier']}"
 
-        # Calculate expected P&L for each instrument
-        print("\n" + "-"*80)
-        print("P&L VERIFICATION")
-        print("-"*80)
-
-        # MES P&L
+        fee_amount = float(fee.flat_fee)
         mes_entry = mes_trades[0]
         mes_exit = mes_trades[1]
-        mes_pnl = (mes_exit['price'] - mes_entry['price']) * MES_MULTIPLIER
-
-        print(f"\nMES:")
-        print(f"  Entry: ${mes_entry['price']:.2f}")
-        print(f"  Exit: ${mes_exit['price']:.2f}")
-        print(f"  P&L: ${mes_pnl:.2f}")
-
-        # ES P&L
         es_entry = es_trades[0]
         es_exit = es_trades[1]
+
+        mes_entry_snapshot = next(s for s in strat.snapshots if s['datetime'] == mes_entry['datetime'])
+        es_entry_snapshot = next(s for s in strat.snapshots if s['datetime'] == es_entry['datetime'])
+
+        mes_margin = float(mes_entry_snapshot['cash']) - float(mes_entry['cash_after']) - fee_amount
+        es_margin = float(es_entry_snapshot['cash']) - float(es_entry['cash_after']) - fee_amount
+
+        assert pytest.approx(mes_margin, abs=0.01) == MES_MARGIN, \
+            f"MES margin should be ${MES_MARGIN}, got ${mes_margin:.2f}"
+        assert pytest.approx(es_margin, abs=0.01) == ES_MARGIN, \
+            f"ES margin should be ${ES_MARGIN}, got ${es_margin:.2f}"
+
+        print("\n" + "-"*80)
+        print("MARK-TO-MARKET VERIFICATION")
+        print("-"*80)
+
+        for snap in strat.snapshots:
+            expected_portfolio = float(snap['cash'])
+
+            if snap['mes_qty'] != 0 and snap.get('mes_price') is not None:
+                expected_portfolio += abs(snap['mes_qty']) * MES_MARGIN
+                expected_portfolio += (snap['mes_price'] - mes_entry['price']) * snap['mes_qty'] * MES_MULTIPLIER
+
+            if snap['es_qty'] != 0 and snap.get('es_price') is not None:
+                expected_portfolio += abs(snap['es_qty']) * ES_MARGIN
+                expected_portfolio += (snap['es_price'] - es_entry['price']) * snap['es_qty'] * ES_MULTIPLIER
+
+            assert pytest.approx(expected_portfolio, abs=0.01) == float(snap['portfolio']), (
+                f"Portfolio mismatch at {snap['datetime']}: "
+                f"expected ${expected_portfolio:,.2f}, got ${snap['portfolio']:,.2f}"
+            )
+
+        mes_pnl = (mes_exit['price'] - mes_entry['price']) * MES_MULTIPLIER
         es_pnl = (es_exit['price'] - es_entry['price']) * ES_MULTIPLIER
-
-        print(f"\nES:")
-        print(f"  Entry: ${es_entry['price']:.2f}")
-        print(f"  Exit: ${es_exit['price']:.2f}")
-        print(f"  P&L: ${es_pnl:.2f}")
-
-        # Total P&L
         total_pnl = mes_pnl + es_pnl
-        total_fees = 4.00  # 4 trades × $0.50 each (assuming $0.50 per side)
+        total_fees = 4 * fee_amount
 
-        print(f"\nTotal:")
-        print(f"  Combined P&L: ${total_pnl:.2f}")
-        print(f"  Total fees: ${total_fees:.2f}")
-        print(f"  Net P&L: ${total_pnl - total_fees:.2f}")
+        starting_cash = float(strat.snapshots[0]['cash'])
+        expected_final_cash = starting_cash - total_fees + total_pnl
+        final_cash = float(strat.snapshots[-1]['cash'])
 
-        # Verify final cash
-        starting_cash = 100000
-        expected_final_cash = starting_cash + total_pnl - total_fees
-        final_cash = strat.snapshots[-1]['cash']
-        cash_diff = abs(expected_final_cash - final_cash)
+        print(f"\nTotal realised P&L: ${total_pnl:.2f}")
+        print(f"Total fees: ${total_fees:.2f}")
+        print(f"Expected final cash: ${expected_final_cash:,.2f}")
+        print(f"Actual final cash:   ${final_cash:,.2f}")
 
-        print(f"\n  Starting cash: ${starting_cash:,.2f}")
-        print(f"  Expected final cash: ${expected_final_cash:,.2f}")
-        print(f"  Actual final cash: ${final_cash:,.2f}")
-        print(f"  Difference: ${cash_diff:.2f}")
+        assert pytest.approx(expected_final_cash, abs=0.01) == final_cash, \
+            f"Final cash mismatch: expected ${expected_final_cash:,.2f}, got ${final_cash:,.2f}"
+        assert pytest.approx(expected_final_cash, abs=0.01) == float(es_exit['cash_after']), \
+            "Exit trade cash should match ledger final cash"
 
-        # Allow tolerance
-        assert cash_diff < 200, f"Cash difference too large: ${cash_diff:.2f}"
-        print(f"\n✓ PASS: Multiple simultaneous positions tracked correctly")
+        print(f"\n✓ PASS: Multiple simultaneous positions tracked with exact accounting")
 
         # Verify we had both positions at the same time (iteration 3-4)
         snapshot_with_both = None

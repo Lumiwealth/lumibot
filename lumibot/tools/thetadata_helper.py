@@ -408,28 +408,28 @@ def update_df(df_all, result):
 
 def is_process_alive():
     """Check if ThetaTerminal Java process is still running"""
+    import os
     import subprocess
-    global THETA_DATA_PROCESS
 
-    # First check if we have a process handle and it's still alive
+    global THETA_DATA_PROCESS, THETA_DATA_PID
+
+    # If we have a subprocess handle, trust it first
     if THETA_DATA_PROCESS is not None:
-        # poll() returns None if process is still running, otherwise returns exit code
         if THETA_DATA_PROCESS.poll() is None:
             return True
+        # Process exited—clear cached handle
+        THETA_DATA_PROCESS = None
 
-    # If we don't have a process handle or it died, check if any ThetaTerminal process is running
-    # This handles cases where the process was started by a previous Python session
-    try:
-        result = subprocess.run(
-            ["pgrep", "-f", "ThetaTerminal.jar"],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-        # pgrep returns 0 if processes found, 1 if none found
-        return result.returncode == 0
-    except Exception:
-        return False
+    # If we know the PID, probe it directly
+    if THETA_DATA_PID:
+        try:
+            # Sending signal 0 simply tests liveness
+            os.kill(THETA_DATA_PID, 0)
+            return True
+        except OSError:
+            THETA_DATA_PID = None
+
+    return False
 
 
 def start_theta_data_client(username: str, password: str):

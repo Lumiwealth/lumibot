@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 import pytz
 
-from lumibot.backtesting.databento_backtesting import DataBentoDataBacktesting as DataBentoPandas
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBacktestingPandas as DataBentoPandas
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoPolars
 from lumibot.entities import Asset
 from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.tools import databento_helper, databento_helper_polars
@@ -49,7 +49,7 @@ def test_databento_price_parity():
         api_key=DATABENTO_API_KEY,
         show_progress_bar=False,
     )
-    polars_ds = DataBentoDataPolarsBacktesting(
+    polars_ds = DataBentoPolars(
         datetime_start=start,
         datetime_end=end,
         api_key=DATABENTO_API_KEY,

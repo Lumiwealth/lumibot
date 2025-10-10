@@ -4,13 +4,41 @@ from .backtesting_broker import BacktestingBroker
 from .ccxt_backtesting import CcxtBacktesting
 from .interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 from .pandas_backtesting import PandasDataBacktesting
-from .polygon_backtesting import PolygonDataBacktesting
-from .thetadata_backtesting import ThetaDataBacktesting
-from .yahoo_backtesting import YahooDataBacktesting
+from .polygon_backtesting import (
+    PolygonDataBacktesting,
+    PolygonDataBacktestingPolars,
+    PolygonDataBacktestingPandas,
+)
+from .thetadata_backtesting import (
+    ThetaDataBacktesting,
+    ThetaDataBacktestingPandas,
+)
+from .yahoo_backtesting import (
+    YahooDataBacktesting,
+    YahooDataBacktestingPolars,
+    YahooDataBacktestingPandas,
+)
 
-# Import DataBento backtesting
-# Polars version (NEW DEFAULT - faster performance)
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting as DataBentoDataBacktesting
+from .databento_backtesting import DataBentoDataBacktesting
+from .databento_backtesting_polars import DataBentoDataBacktestingPolars
+from .databento_backtesting_pandas import DataBentoDataBacktestingPandas
 
-# Pandas version (stable fallback, kept for compatibility)
-from .databento_backtesting import DataBentoDataBacktesting as DataBentoDataBacktestingPandas
+__all__ = [
+    "AlpacaBacktesting",
+    "AlphaVantageBacktesting",
+    "BacktestingBroker",
+    "CcxtBacktesting",
+    "InteractiveBrokersRESTBacktesting",
+    "PandasDataBacktesting",
+    "PolygonDataBacktesting",
+    "PolygonDataBacktestingPolars",
+    "PolygonDataBacktestingPandas",
+    "ThetaDataBacktesting",
+    "ThetaDataBacktestingPandas",
+    "YahooDataBacktesting",
+    "YahooDataBacktestingPolars",
+    "YahooDataBacktestingPandas",
+    "DataBentoDataBacktesting",
+    "DataBentoDataBacktestingPolars",
+    "DataBentoDataBacktestingPandas",
+]

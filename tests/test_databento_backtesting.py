@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytz
 
-from lumibot.backtesting.databento_backtesting import DataBentoDataBacktesting
+from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBacktestingPandas as DataBentoDataBacktesting
 from lumibot.entities import Asset, Data
 
 

@@ -19,10 +19,8 @@ from pathlib import Path
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
-from lumibot.backtesting.databento_backtesting import (
-    DataBentoDataBacktesting as DataBentoDataBacktestingPandas,
-)
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
+from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBacktestingPandas
 from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
@@ -152,7 +150,7 @@ class TestDatabentoComprehensiveTrading:
     @pytest.mark.parametrize(
         "datasource_cls",
         [
-            DataBentoDataPolarsBacktesting,
+            DataBentoDataBacktestingPolars,
             DataBentoDataBacktestingPandas,
         ],
     )
@@ -170,7 +168,7 @@ class TestDatabentoComprehensiveTrading:
         backtesting_start = tzinfo.localize(datetime.datetime(2024, 1, 3, 9, 30))
         backtesting_end = tzinfo.localize(datetime.datetime(2024, 1, 4, 16, 0))
 
-        if datasource_cls is DataBentoDataPolarsBacktesting:
+        if datasource_cls is DataBentoDataBacktestingPolars:
             _clear_polars_cache()
 
         data_source = datasource_cls(
@@ -418,7 +416,7 @@ class TestDatabentoComprehensiveTradingDaily:
                     "cash_after": self.get_cash(),
                 })
 
-        data_source = DataBentoDataPolarsBacktesting(
+        data_source = DataBentoDataBacktestingPolars(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
             api_key=DATABENTO_API_KEY,

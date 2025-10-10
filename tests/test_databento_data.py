@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 import pandas as pd
 
-from lumibot.data_sources.databento_data import DataBentoData
+from lumibot.data_sources.databento_data_pandas import DataBentoDataPandas as DataBentoData
 from lumibot.entities import Asset, Bars
 
 

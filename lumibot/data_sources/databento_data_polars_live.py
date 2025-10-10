@@ -18,8 +18,8 @@ from collections import defaultdict
 import polars as pl
 import databento as db
 
-from lumibot.data_sources import DataSource
-from lumibot.data_sources.polars_mixin import PolarsMixin
+from .data_source import DataSource
+from .polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools import databento_helper_polars
 from lumibot.tools.databento_helper_polars import _ensure_polars_datetime_timezone as _ensure_polars_tz

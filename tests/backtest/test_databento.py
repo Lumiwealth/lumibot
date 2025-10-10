@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktesting
-from lumibot.data_sources import DataBentoDataBacktesting as DataBentoDataBacktestingPolars
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader

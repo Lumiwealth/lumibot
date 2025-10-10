@@ -634,3 +634,7 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
     def get_quote(self, asset: Asset) -> None:
         """Get quote - not implemented for DataBento backtesting."""
         return None
+
+
+# Backwards compatibility alias
+DataBentoDataBacktestingPolars = DataBentoDataPolarsBacktesting

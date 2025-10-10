@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
 from lumibot.entities import Asset
-from lumibot.data_sources.databento_data import DataBentoData
+from lumibot.data_sources.databento_data_pandas import DataBentoDataPandas
 from lumibot.tools.databento_helper import get_price_data_from_databento
 
 
@@ -15,7 +15,7 @@ class TestDataBentoAssetValidation:
     
     def test_live_data_source_futures_allowed(self):
         """Test that futures assets are allowed in live data source"""
-        data_source = DataBentoData(api_key="test_key")
+        data_source = DataBentoDataPandas(api_key="test_key")
         
         # Test different futures asset types
         future_assets = [
@@ -26,7 +26,7 @@ class TestDataBentoAssetValidation:
         for asset in future_assets:
             # Should not raise an exception during validation
             # (We'll mock the actual API call)
-            with patch('lumibot.data_sources.databento_data.databento_helper.get_price_data_from_databento') as mock_get_data:
+            with patch('lumibot.data_sources.databento_data_pandas.databento_helper.get_price_data_from_databento') as mock_get_data:
                 mock_get_data.return_value = Mock()
                 try:
                     data_source.get_historical_prices(asset, 10, "minute")
@@ -41,7 +41,7 @@ class TestDataBentoAssetValidation:
     
     def test_live_data_source_equities_rejected(self):
         """Test that equity assets are rejected in live data source"""
-        data_source = DataBentoData(api_key="test_key")
+        data_source = DataBentoDataPandas(api_key="test_key")
         
         # Test equity assets that should be rejected
         equity_assets = [

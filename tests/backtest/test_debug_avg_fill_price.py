@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -79,7 +79,7 @@ def test_debug_avg_fill_price():
     backtesting_start = tzinfo.localize(datetime.datetime(2024, 1, 3, 9, 30))
     backtesting_end = tzinfo.localize(datetime.datetime(2024, 1, 3, 16, 0))
 
-    data_source = DataBentoDataPolarsBacktesting(
+    data_source = DataBentoDataBacktestingPolars(
         datetime_start=backtesting_start,
         datetime_end=backtesting_end,
         api_key=DATABENTO_API_KEY,

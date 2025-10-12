@@ -194,8 +194,8 @@ def get_price_data(
     cache_file = build_cache_filename(asset, timespan, datastyle)
     print(
         f"[THETADATA-CACHE] asset={asset}/{quote_asset.symbol if quote_asset else None} "
-        f"timespan={timespan} datastyle={datastyle} cache_exists={cache_file.exists()} "
-        f"missing={len(missing_dates)}"
+        f"timespan={timespan} datastyle={datastyle} cache_file={cache_file} "
+        f"exists={cache_file.exists()} missing={len(missing_dates)}"
     )
     if not missing_dates:
         if df_all is not None and not df_all.empty:
@@ -318,6 +318,8 @@ def get_price_data(
             break
 
     update_cache(cache_file, df_all, df_cached)
+    if df_all is not None:
+        print(f"[THETADATA-CACHE-WRITE] wrote {cache_file} rows={len(df_all)}")
     if df_all is not None:
         logger.info("ThetaData cache updated for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
     # Close the progress bar when done

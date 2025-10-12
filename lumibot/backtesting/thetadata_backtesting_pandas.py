@@ -170,30 +170,40 @@ class ThetaDataBacktestingPandas(PandasData):
                         ts_unit = "minute"
 
         # Download data from ThetaData
-        try:
-            # Get ohlc data from ThetaData
-            date_time_now = self.get_datetime()
-            df_ohlc = None
-            df_ohlc = thetadata_helper.get_price_data(
-                self._username,
-                self._password,
-                asset_separated,
-                start_datetime,
-                self.datetime_end,
-                timespan=ts_unit,
-                quote_asset=quote_asset,
-                dt=date_time_now,
-                datastyle="ohlc",
-                include_after_hours=True  # Default to True for extended hours data
-            )
-            if df_ohlc is None:
-                logger.info(f"\nSKIP: No OHLC data found for {asset_separated} from ThetaData")
-                return None
+        # Get ohlc data from ThetaData
+        date_time_now = self.get_datetime()
+        logger.debug(
+            "[THETADATA-PANDAS] fetch asset=%s quote=%s length=%s timestep=%s start=%s end=%s",
+            asset_separated,
+            quote_asset,
+            length,
+            timestep,
+            start_datetime,
+            self.datetime_end,
+        )
+        df_ohlc = thetadata_helper.get_price_data(
+            self._username,
+            self._password,
+            asset_separated,
+            start_datetime,
+            self.datetime_end,
+            timespan=ts_unit,
+            quote_asset=quote_asset,
+            dt=date_time_now,
+            datastyle="ohlc",
+            include_after_hours=True  # Default to True for extended hours data
+        )
+        if df_ohlc is None or df_ohlc.empty:
+            logger.warning(f"No OHLC data returned for {asset_separated} / {quote_asset} ({ts_unit}); skipping cache update.")
+            return None
 
-            # Quote data (bid/ask) is only available for intraday data (minute, hour, second)
-            # For daily+ data, only use OHLC
-            if self._use_quote_data and ts_unit in ["minute", "hour", "second"]:
-                # Get quote data from ThetaData
+        df = df_ohlc
+
+        # Quote data (bid/ask) is only available for intraday data (minute, hour, second)
+        # For daily+ data, only use OHLC
+        if self._use_quote_data and ts_unit in ["minute", "hour", "second"]:
+            df_quote = None
+            try:
                 df_quote = thetadata_helper.get_price_data(
                     self._username,
                     self._password,
@@ -206,12 +216,13 @@ class ThetaDataBacktestingPandas(PandasData):
                     datastyle="quote",
                     include_after_hours=True  # Default to True for extended hours data
                 )
+            except Exception as exc:
+                logger.error(f"Quote download failed for {asset_separated} / {quote_asset} ({ts_unit}): {exc}")
 
-                # Check if we have data
-                if df_quote is None:
-                    logger.info(f"\nSKIP: No QUOTE data found for {quote_asset} from ThetaData")
-                    return None
-
+            # If the quote dataframe is empty, continue with OHLC but log
+            if df_quote is None or df_quote.empty:
+                logger.warning(f"No QUOTE data returned for {asset_separated} / {quote_asset} ({ts_unit}); continuing without quotes.")
+            else:
                 # Combine the ohlc and quote data using outer join to preserve all data
                 # Use forward fill for missing quote values (ThetaData's recommended approach)
                 df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
@@ -227,11 +238,6 @@ class ThetaDataBacktestingPandas(PandasData):
                         remaining_nulls = df[['bid', 'ask']].isna().sum().sum()
                         if remaining_nulls > 0:
                             logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
-            else:
-                df = df_ohlc
-
-        except Exception as e:
-            raise Exception("Error getting data from ThetaData") from e
 
         if df is None or df.empty:
             return None
@@ -254,12 +260,9 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        try:
-            dt = self.get_datetime()
-            self._update_pandas_data(asset, quote, 1, timestep, dt)
-        except Exception as e:
-            logger.error(f"\nERROR: _pull_source_symbol_bars from ThetaData: {e}, {dt}, asset:{asset}")
-
+        dt = self.get_datetime()
+        requested_length = self.estimate_requested_length(length, timestep=timestep)
+        self._update_pandas_data(asset, quote, requested_length, timestep, dt)
         return super()._pull_source_symbol_bars(
             asset, length, timestep, timeshift, quote, exchange, include_after_hours
         )
@@ -275,7 +278,10 @@ class ThetaDataBacktestingPandas(PandasData):
         start_date=None,
         end_date=None,
     ):
-        self._update_pandas_data(asset, quote, 1, timestep)
+        inferred_length = self.estimate_requested_length(
+            None, start_date=start_date, end_date=end_date, timestep=timestep
+        )
+        self._update_pandas_data(asset, quote, inferred_length, timestep)
 
         response = super()._pull_source_symbol_bars_between_dates(
             asset, timestep, quote, exchange, include_after_hours, start_date, end_date
@@ -288,12 +294,8 @@ class ThetaDataBacktestingPandas(PandasData):
         return bars
 
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
-        try:
-            dt = self.get_datetime()
-            self._update_pandas_data(asset, quote, 1, timestep, dt)
-        except Exception as e:
-            logger.error(f"\nERROR: get_last_price from ThetaData: {e}, {dt}, asset:{asset}")
-
+        dt = self.get_datetime()
+        self._update_pandas_data(asset, quote, 1, timestep, dt)
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
     def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
@@ -318,12 +320,8 @@ class ThetaDataBacktestingPandas(PandasData):
         Quote
             A Quote object with the quote information.
         """
-        try:
-            dt = self.get_datetime()
-            self._update_pandas_data(asset, quote, 1, timestep, dt)
-        except Exception as e:
-            logger.error(f"\nnERROR: get_quote from ThetaData: {e}, {dt}, asset:{asset}")
-
+        dt = self.get_datetime()
+        self._update_pandas_data(asset, quote, 1, timestep, dt)
         return super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset):

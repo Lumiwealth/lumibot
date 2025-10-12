@@ -290,6 +290,7 @@ class BacktestingBroker(Broker):
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
+        self._sync_trading_day_pointer(new_datetime)
 
     # =========Clock functions=====================
 
@@ -342,27 +343,19 @@ class BacktestingBroker(Broker):
 
     def get_time_to_open(self):
         """Return the remaining time for the market to open in seconds."""
-        now = self.datetime
-
-        search = self._trading_days[now < self._trading_days.index]
-        if search.empty:
+        if not self._market_open_list:
             logger.info("Cannot predict future")
             return None
 
-        trading_day = search.iloc[0]
-        open_time = trading_day.market_open
+        now = self.datetime
+        self._sync_trading_day_pointer(now)
 
-        # For Backtesting, sometimes the user can just pass in dates (i.e. 2023-08-01) and not datetimes.
-        # In this case the "now" variable is starting at midnight, so we need to adjust the open_time to be actual
-        # market open time. In the case where the user passes in a valid trading day, use that time
-        # as the start of trading instead of market open.
-        # BUT: Only do this if the current day (now.date()) is actually a trading day
-        if self.IS_BACKTESTING_BROKER and now > open_time:
-            now_date = now.date() if hasattr(now, 'date') else now
-            trading_day_dates = self._trading_days.index.date
-            if now_date in trading_day_dates:
-                open_time = self.data_source.datetime_start
+        idx = self._next_trading_day_idx
+        if idx >= len(self._market_open_list):
+            logger.info("Cannot predict future")
+            return None
 
+        open_time = self._market_open_list[idx]
         datetime_end = getattr(self.data_source, "datetime_end", None)
         if datetime_end is not None and open_time > datetime_end:
             return 0.0
@@ -370,31 +363,27 @@ class BacktestingBroker(Broker):
         if now >= open_time:
             return 0.0
 
-        delta = open_time - now
-        return delta.total_seconds()
+        return (open_time - now).total_seconds()
 
     def get_time_to_close(self):
-        """Return the remaining time for the market to close in seconds"""
-        now = self.datetime
-
-        idx = self._trading_days.index.searchsorted(now, side='left')
-
-        if idx >= len(self._trading_days):
+        """Return the remaining time for the market to close in seconds."""
+        if not self._market_close_list:
             logger.warning("Backtest has reached the end of available trading days data.")
             return None
 
-        market_close_time = self._trading_days.index[idx]
-        if not self._market_open_cache:
-            self.initialize_market_calendars(self._trading_days.reset_index())
-        market_open = self._market_open_cache[market_close_time]
-        market_close = market_close_time
+        now = self.datetime
+        self._sync_trading_day_pointer(now)
 
-        if now < market_open:
-            delta = market_close - now
-            return delta.total_seconds()
+        idx = self._next_trading_day_idx
+        if idx >= len(self._market_close_list):
+            logger.warning("Backtest has reached the end of available trading days data.")
+            return None
 
-        delta = market_close - now
-        return delta.total_seconds()
+        market_close = self._market_close_list[idx]
+        if now >= market_close:
+            return 0.0
+
+        return (market_close - now).total_seconds()
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
         # Process outstanding orders first before waiting for market to open

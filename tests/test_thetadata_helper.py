@@ -140,6 +140,80 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     mock_update_cache.assert_called_once()
 
 
+def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path):
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+    cache_root = tmp_path / "cache_root"
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+    thetadata_helper.reset_connection_diagnostics()
+
+    asset = Asset(asset_type="stock", symbol="PLTR")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 1))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 3))
+    trading_days = [
+        datetime.date(2024, 1, 1),
+        datetime.date(2024, 1, 2),
+        datetime.date(2024, 1, 3),
+    ]
+
+    partial_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-01", "2024-01-02"], utc=True),
+            "open": [10.0, 11.0],
+            "high": [11.0, 12.0],
+            "low": [9.5, 10.5],
+            "close": [10.5, 11.5],
+            "volume": [1_000, 1_200],
+        }
+    )
+
+    progress_stub = MagicMock()
+    progress_stub.update.return_value = None
+    progress_stub.close.return_value = None
+
+    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+         patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+        eod_mock = MagicMock(return_value=partial_df)
+        with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
+            first = thetadata_helper.get_price_data(
+                "user",
+                "pass",
+                asset,
+                start,
+                end,
+                "day",
+            )
+
+            assert eod_mock.call_count == 1
+            assert len(first) == 2
+            assert set(first.index.date) == {datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)}
+
+            cache_file = thetadata_helper.build_cache_filename(asset, "day", "ohlc")
+            loaded = thetadata_helper.load_cache(cache_file)
+            assert len(loaded) == 3
+            assert "missing" in loaded.columns
+            assert int(loaded["missing"].sum()) == 1
+            missing_dates = {idx.date() for idx, flag in loaded["missing"].items() if flag}
+            assert missing_dates == {datetime.date(2024, 1, 3)}
+
+        # Second run should reuse cache entirely
+        eod_second_mock = MagicMock(return_value=partial_df)
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days), \
+             patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_second_mock):
+            second = thetadata_helper.get_price_data(
+                "user",
+                "pass",
+                asset,
+                start,
+                end,
+                "day",
+            )
+
+            assert eod_second_mock.call_count == 0
+            assert len(second) == 2
+            assert set(second.index.date) == {datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)}
+
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
 @patch('lumibot.tools.thetadata_helper.get_historical_data')
@@ -548,7 +622,7 @@ def test_update_df_with_overlapping_data():
     assert len(df_new) == 5
     assert df_new["c"].iloc[0] == 2
     assert df_new["c"].iloc[2] == 10
-    assert df_new["c"].iloc[3] == 14 # This is the overlapping row, should keep the first value from df_all
+    assert df_new["c"].iloc[3] == 18  # Overlap prefers latest data
     assert df_new["c"].iloc[4] == 22
     # Note: The -1 minute adjustment was removed from implementation
     assert df_new.index[0] == pd.DatetimeIndex(["2025-09-02 13:30:00+00:00"])[0]
@@ -730,7 +804,11 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
 
     # Assert
     mock_get.assert_called_with(url, headers=headers, params=querystring)
-    mock_check_connection.assert_called_with(username="test_user", password="test_password")
+    mock_check_connection.assert_called_with(
+        username="test_user",
+        password="test_password",
+        wait_for_connection=True,
+    )
     assert mock_check_connection.call_count == 2
 
 
@@ -749,7 +827,11 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
 
     # Assert
     mock_get.assert_called_with(url, headers=headers, params=querystring)
-    mock_check_connection.assert_called_with(username="test_user", password="test_password")
+    mock_check_connection.assert_called_with(
+        username="test_user",
+        password="test_password",
+        wait_for_connection=True,
+    )
     assert mock_check_connection.call_count == 2
 
 

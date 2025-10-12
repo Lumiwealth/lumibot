@@ -11,6 +11,7 @@ import yappi
 
 from lumibot.entities import Asset, TradingFee
 from lumibot.backtesting import ThetaDataBacktesting, ThetaDataBacktestingPandas
+from lumibot.tools import thetadata_helper
 
 from tests.performance.strategies.aapl_deep_dip_calls import AAPLDeepDipCalls
 
@@ -46,6 +47,7 @@ def run_profile(mode: str) -> float:
     yappi.start()
     start = time.time()
 
+    thetadata_helper.reset_connection_diagnostics()
     AAPLDeepDipCalls.backtest(
         datasource,
         backtesting_start=BACKTEST_START,
@@ -60,16 +62,23 @@ def run_profile(mode: str) -> float:
         show_tearsheet=False,
         save_tearsheet=False,
         show_indicators=False,
-        quiet_logs=True,
+        quiet_logs=False,  # Keep verbose logs to capture real-world overhead during profiling
         show_progress_bar=False,
-        save_stats_file=False,
-        save_logfile=False,
+        save_stats_file=True,
+        save_logfile=True,
     )
 
     elapsed = time.time() - start
     yappi.stop()
 
     yappi.get_func_stats().save(str(profile_path), type="pstat")
+    diagnostics = thetadata_helper.CONNECTION_DIAGNOSTICS.copy()
+    print(
+        f"[theta diagnostics] mode={mode} "
+        f"network_requests={diagnostics['network_requests']} "
+        f"check_connection_calls={diagnostics['check_connection_calls']} "
+        f"start_terminal_calls={diagnostics['start_terminal_calls']}"
+    )
     return elapsed
 
 

@@ -85,7 +85,9 @@ class ThetaDataBacktestingPolars(PolarsData):
     def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=START_BUFFER):
         td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
         if ts_unit == "day":
-            td = timedelta(days=length + 3)
+            weeks_requested = length // 5
+            extra_padding_days = weeks_requested * 3
+            td = timedelta(days=length + extra_padding_days)
         else:
             td *= length
 
@@ -133,29 +135,44 @@ class ThetaDataBacktestingPolars(PolarsData):
         if search_asset in self._data_store:
             return
 
-        try:
-            current_dt = self.get_datetime()
-            df_ohlc = thetadata_helper.get_price_data(
-                self._username,
-                self._password,
+        current_dt = self.get_datetime()
+        logger.debug(
+            "[THETADATA-POLARS] fetch asset=%s quote=%s length=%s timestep=%s start=%s end=%s",
+            asset_separated,
+            quote_asset,
+            length,
+            timestep,
+            start_datetime,
+            self.datetime_end,
+        )
+        df_ohlc = thetadata_helper.get_price_data(
+            self._username,
+            self._password,
+            asset_separated,
+            start_datetime,
+            self.datetime_end,
+            timespan=ts_unit,
+            quote_asset=quote_asset,
+            dt=current_dt,
+            datastyle="ohlc",
+            include_after_hours=True,
+        )
+        if df_ohlc is None or df_ohlc.empty:
+            logger.warning(
+                "ThetaData returned no OHLC rows for %s/%s (%s); skipping cache update.",
                 asset_separated,
-                start_datetime,
-                self.datetime_end,
-                timespan=ts_unit,
-                quote_asset=quote_asset,
-                dt=current_dt,
-                datastyle="ohlc",
-                include_after_hours=True,
+                quote_asset,
+                ts_unit,
             )
-            if df_ohlc is None or df_ohlc.empty:
-                return
+            return
 
-            datetime_col = df_ohlc.index.name or "index"
-            ohlc_frame = pl.from_pandas(df_ohlc.reset_index()).rename({datetime_col: "datetime"})
-            ohlc_frame = ohlc_frame.sort("datetime")
-            combined_frame = ohlc_frame
+        datetime_col = df_ohlc.index.name or "index"
+        ohlc_frame = pl.from_pandas(df_ohlc.reset_index()).rename({datetime_col: "datetime"})
+        ohlc_frame = ohlc_frame.sort("datetime")
+        combined_frame = ohlc_frame
 
-            if self._use_quote_data and ts_unit in {"minute", "hour", "second"}:
+        if self._use_quote_data and ts_unit in {"minute", "hour", "second"}:
+            try:
                 df_quote = thetadata_helper.get_price_data(
                     self._username,
                     self._password,
@@ -168,31 +185,45 @@ class ThetaDataBacktestingPolars(PolarsData):
                     datastyle="quote",
                     include_after_hours=True,
                 )
-                if df_quote is not None and not df_quote.empty:
-                    quote_datetime_col = df_quote.index.name or "index"
-                    quote_frame = pl.from_pandas(df_quote.reset_index()).rename({quote_datetime_col: "datetime"})
-                    quote_frame = quote_frame.sort("datetime")
-                    combined_frame = ohlc_frame.join(quote_frame, on="datetime", how="left")
-                    quote_cols = [
-                        "bid",
-                        "ask",
-                        "bid_size",
-                        "ask_size",
-                        "bid_condition",
-                        "ask_condition",
-                        "bid_exchange",
-                        "ask_exchange",
-                    ]
-                    forward_fill_exprs = [
-                        pl.col(col).fill_null(strategy="forward")
-                        for col in quote_cols
-                        if col in combined_frame.columns
-                    ]
-                    if forward_fill_exprs:
-                        combined_frame = combined_frame.with_columns(forward_fill_exprs)
-        except Exception as exc:  # pragma: no cover - logged upstream
-            logger.error("Error getting data from ThetaData: %s", exc)
-            return
+            except Exception as exc:
+                logger.error(
+                    "ThetaData quote fetch failed for %s/%s (%s): %s",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                    exc,
+                )
+                df_quote = None
+
+            if df_quote is not None and not df_quote.empty:
+                quote_datetime_col = df_quote.index.name or "index"
+                quote_frame = pl.from_pandas(df_quote.reset_index()).rename({quote_datetime_col: "datetime"})
+                quote_frame = quote_frame.sort("datetime")
+                combined_frame = ohlc_frame.join(quote_frame, on="datetime", how="left")
+                quote_cols = [
+                    "bid",
+                    "ask",
+                    "bid_size",
+                    "ask_size",
+                    "bid_condition",
+                    "ask_condition",
+                    "bid_exchange",
+                    "ask_exchange",
+                ]
+                forward_fill_exprs = [
+                    pl.col(col).fill_null(strategy="forward")
+                    for col in quote_cols
+                    if col in combined_frame.columns
+                ]
+                if forward_fill_exprs:
+                    combined_frame = combined_frame.with_columns(forward_fill_exprs)
+            else:
+                logger.warning(
+                    "ThetaData returned no quote rows for %s/%s (%s); continuing with OHLC data only.",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                )
 
         if combined_frame.is_empty():
             return

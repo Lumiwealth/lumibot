@@ -145,10 +145,16 @@ class WeeklyMomentumOptionsStrategy(Strategy):
                 end = df['close'].iloc[-1]
                 pct = (end - start) / start
                 perf[s] = pct
+                self.log_message(
+                    f'[RANK] {s}: start={start:.4f} end={end:.4f} pct_change={pct:.4f} (rows={df.shape[0]})',
+                    color='blue'
+                )
             except Exception as e:
                 self.log_message(f'Error ranking {s}: {e}', color='red')
         # Return symbols sorted by performance descending
-        return sorted(perf.keys(), key=lambda x: perf[x], reverse=True)
+        ranked = sorted(perf.keys(), key=lambda x: perf[x], reverse=True)
+        self.log_message(f'[RANK] ordered symbols: {ranked}', color='blue')
+        return ranked
 
     # Helper: attempt to buy an option for a single symbol using allocation percent
     def _attempt_buy_for_symbol(self, symbol, allocation_pct):
@@ -187,6 +193,10 @@ class WeeklyMomentumOptionsStrategy(Strategy):
         if underlying_price is None:
             self.log_message(f'No last price for {symbol}', color='red')
             return False
+        self.log_message(
+            f'[OPTION] underlying {symbol} last_price={float(underlying_price):.4f} target_expiry={expiry_date}',
+            color='cyan'
+        )
 
         rounded_price = round(float(underlying_price))
         # Prefer ATM, allow 1 strike ITM (lower strike for call) to be slightly ITM
@@ -198,6 +208,10 @@ class WeeklyMomentumOptionsStrategy(Strategy):
         if not option_asset:
             self.log_message(f'No valid option strike found for {symbol} at expiry {expiry_date}', color='red')
             return False
+        self.log_message(
+            f'[OPTION] candidate {option_asset.symbol} strike={option_asset.strike} expiry={option_asset.expiration}',
+            color='cyan'
+        )
 
         # Get quote for the option to estimate price (use mid price when possible)
         quote = self.get_quote(option_asset)
@@ -208,14 +222,26 @@ class WeeklyMomentumOptionsStrategy(Strategy):
                 self.log_message(f'No quote for option {option_asset}', color='red')
                 return False
             mid = float(last)
+            self.log_message(
+                f'[OPTION] {option_asset.symbol} quote missing mid; last_price used {mid:.4f}',
+                color='yellow'
+            )
         else:
             mid = float(quote.mid_price)
+            self.log_message(
+                f'[OPTION] {option_asset.symbol} bid={quote.bid} ask={quote.ask} mid={quote.mid_price}',
+                color='cyan'
+            )
 
         # Cost per contract in dollars is mid * 100 (option multiplier)
         cost_per_contract = mid * 100.0
         if cost_per_contract <= 0:
             self.log_message('Invalid option price, skipping.', color='red')
             return False
+        self.log_message(
+            f'[OPTION] {option_asset.symbol} cost_per_contract={cost_per_contract:.2f} cash={float(self.get_cash()):.2f}',
+            color='cyan'
+        )
 
         cash = float(self.get_cash())
         target_cash = cash * float(allocation_pct)

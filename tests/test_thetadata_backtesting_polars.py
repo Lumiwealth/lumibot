@@ -192,3 +192,54 @@ def test_theta_missing_data_cached(monkeypatch, tmp_path):
     )
     assert fetch_calls["count"] == 2, "ThetaData was re-queried for cached-miss quote data"
     assert fourth is None or getattr(fourth, "empty", False)
+
+
+def test_theta_polars_quote_failure_stores_ohlc(monkeypatch):
+    start = datetime(2025, 3, 1, tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+    counts = {"ohlc": 0, "quote": 0}
+
+    monkeypatch.setattr(
+        "lumibot.backtesting.thetadata_backtesting_polars.subprocess.run",
+        lambda *args, **kwargs: type("Result", (), {"stdout": ""})(),
+    )
+    monkeypatch.setattr(
+        "lumibot.backtesting.thetadata_backtesting_polars.thetadata_helper.get_chains_cached",
+        lambda **kwargs: {"Multiplier": 100, "Chains": {}},
+    )
+
+    def fake_get_price_data(username, password, asset, start_datetime, end_datetime, timespan, quote_asset, dt, datastyle, include_after_hours):
+        if datastyle == "quote":
+            counts["quote"] += 1
+            raise ValueError("Cannot connect to Theta Data!")
+        counts["ohlc"] += 1
+        return _ohlc_frame(start_datetime, rows=16)
+
+    monkeypatch.setattr(
+        "lumibot.backtesting.thetadata_backtesting_polars.thetadata_helper.get_price_data",
+        fake_get_price_data,
+    )
+
+    backtester = ThetaDataBacktestingPolars(
+        datetime_start=start,
+        datetime_end=end,
+        username="demo",
+        password="demo",
+        show_progress_bar=False,
+    )
+
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    bars_first = backtester.get_historical_prices(asset, length=10, timestep="minute", return_polars=True)
+
+    assert counts["ohlc"] == 1
+    assert counts["quote"] == 1
+    assert bars_first is not None
+    assert bars_first.polars_df.height == 10
+    assert "close" in bars_first.polars_df.columns
+
+    # Second call should come from the in-memory cache with no extra Theta fetches.
+    bars_second = backtester.get_historical_prices(asset, length=5, timestep="minute", return_polars=True)
+    assert counts["ohlc"] == 1
+    assert counts["quote"] == 1
+    assert bars_second is not None
+    assert bars_second.polars_df.height == 5

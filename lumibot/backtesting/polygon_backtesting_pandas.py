@@ -214,7 +214,10 @@ class PolygonDataBacktestingPandas(PandasData):
         start_date=None,
         end_date=None,
     ):
-        self._update_pandas_data(asset, quote, 1, timestep)
+        inferred_length = self.estimate_requested_length(
+            None, start_date=start_date, end_date=end_date, timestep=timestep
+        )
+        self._update_pandas_data(asset, quote, inferred_length, timestep)
 
         response = super()._pull_source_symbol_bars_between_dates(
             asset, timestep, quote, exchange, include_after_hours, start_date, end_date
@@ -227,13 +230,18 @@ class PolygonDataBacktestingPandas(PandasData):
         return bars
 
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+        dt = self.get_datetime()
         try:
-            dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
-        except Exception as e:
-            print(f"Error get_last_price from Polygon: {e}")
-            print(f"Error get_last_price from Polygon: {asset=} {quote=} {timestep=} {dt=} {e}")
-
+        except Exception as exc:
+            logger.exception(
+                "Polygon get_last_price failed for asset=%s quote=%s timestep=%s at %s",
+                asset,
+                quote,
+                timestep,
+                dt,
+            )
+            raise
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):

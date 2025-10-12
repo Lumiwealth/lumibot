@@ -1,8 +1,10 @@
 from collections import OrderedDict
 
-
 from lumibot.data_sources import InteractiveBrokersRESTData, DataSourceBacktesting
 from lumibot.entities import Asset, Data
+from lumibot.tools.lumibot_logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class InteractiveBrokersRESTBacktesting(DataSourceBacktesting, InteractiveBrokersRESTData):
@@ -102,11 +104,19 @@ class InteractiveBrokersRESTBacktesting(DataSourceBacktesting, InteractiveBroker
             timestep = self.get_timestep()
 
         # Try to update the data store with historical data
+        dt = self.get_datetime()
+        requested_length = self.estimate_requested_length(length, timestep=timestep)
         try:
-            dt = self.get_datetime()
-            self._update_pandas_data(asset, quote, length, timestep, dt)
-        except Exception as e:
-            print(f"Error updating data for {asset}: {e}")
+            self._update_pandas_data(asset, quote, requested_length, timestep, dt)
+        except Exception as exc:
+            logger.exception(
+                "Interactive Brokers REST _pull_source_symbol_bars failed for asset=%s quote=%s timestep=%s length=%s",
+                asset,
+                quote,
+                timestep,
+                requested_length,
+            )
+            raise
 
         # Let the parent class handle the rest using the updated data store
         return super()._pull_source_symbol_bars(
@@ -127,7 +137,10 @@ class InteractiveBrokersRESTBacktesting(DataSourceBacktesting, InteractiveBroker
         Get pricing data for an asset between specific dates during backtesting.
         """
         # Try to update the data store with historical data
-        self._update_pandas_data(asset, quote, 1, timestep)
+        inferred_length = self.estimate_requested_length(
+            None, start_date=start_date, end_date=end_date, timestep=timestep
+        )
+        self._update_pandas_data(asset, quote, inferred_length, timestep)
 
         # Let the parent class handle the rest using the updated data store
         response = super()._pull_source_symbol_bars_between_dates(
@@ -144,12 +157,18 @@ class InteractiveBrokersRESTBacktesting(DataSourceBacktesting, InteractiveBroker
         """
         Get the last price for an asset during backtesting.
         """
+        dt = self.get_datetime()
         try:
-            dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
-        except Exception as e:
-            print(f"Error get_last_price from Interactive Brokers REST: {e}")
-
+        except Exception as exc:
+            logger.exception(
+                "Interactive Brokers REST get_last_price failed for asset=%s quote=%s timestep=%s at %s",
+                asset,
+                quote,
+                timestep,
+                dt,
+            )
+            raise
         return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
     def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
@@ -174,10 +193,16 @@ class InteractiveBrokersRESTBacktesting(DataSourceBacktesting, InteractiveBroker
         Quote
             A Quote object with the quote information.
         """
+        dt = self.get_datetime()
         try:
-            dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
-        except Exception as e:
-            print(f"Error get_quote from Interactive Brokers REST: {e}")
-
+        except Exception as exc:
+            logger.exception(
+                "Interactive Brokers REST get_quote failed for asset=%s quote=%s timestep=%s at %s",
+                asset,
+                quote,
+                timestep,
+                dt,
+            )
+            raise
         return super().get_quote(asset=asset, quote=quote, exchange=exchange)

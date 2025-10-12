@@ -29,6 +29,14 @@ THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
 THETA_DATA_LOG_HANDLE = None
 
+def reset_connection_diagnostics():
+    """Reset ThetaData connection counters (useful for tests)."""
+    CONNECTION_DIAGNOSTICS.update({
+        "check_connection_calls": 0,
+        "start_terminal_calls": 0,
+        "network_requests": 0,
+    })
+
 
 def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
     """Ensure the dataframe includes a `missing` flag column (True for placeholders)."""
@@ -36,6 +44,23 @@ def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
         return df
     if "missing" not in df.columns:
         df["missing"] = False
+        logger.debug(
+            "[THETADATA-CACHE] added 'missing' column to frame (rows=%d)",
+            len(df),
+        )
+    return df
+
+
+def restore_numeric_dtypes(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Try to convert object columns back to numeric types after placeholder removal."""
+    if df is None or len(df) == 0:
+        return df
+    for column in df.columns:
+        if df[column].dtype == object:
+            try:
+                df[column] = pd.to_numeric(df[column])
+            except (ValueError, TypeError):
+                continue
     return df
 
 
@@ -47,6 +72,7 @@ def append_missing_markers(
     if not missing_dates:
         if df_all is not None and not df_all.empty and "missing" in df_all.columns:
             df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+            df_all = restore_numeric_dtypes(df_all)
         return df_all
 
     base_columns = ["open", "high", "low", "close", "volume"]
@@ -75,7 +101,12 @@ def append_missing_markers(
             df_all = placeholder_df
         else:
             df_all = pd.concat([df_all, placeholder_df]).sort_index()
-        df_all = df_all[~df_all.index.duplicated(keep="first")]
+        df_all = df_all[~df_all.index.duplicated(keep="last")]
+        logger.info(
+            "[THETADATA-CACHE] recorded %d placeholder day(s): %s",
+            len(rows),
+            ", ".join(sorted({d.isoformat() for d in missing_dates})),
+        )
 
     return df_all
 
@@ -95,7 +126,13 @@ def remove_missing_markers(
         lambda ts: ts.date() in available_set
     )
     if mask.any():
+        removed_dates = sorted({ts.date().isoformat() for ts in df_all.index[mask]})
         df_all = df_all.loc[~mask]
+        logger.info(
+            "[THETADATA-CACHE] cleared %d placeholder row(s) for dates: %s",
+            mask.sum(),
+            ", ".join(removed_dates),
+        )
 
     return df_all
 
@@ -130,6 +167,13 @@ def reset_theta_terminal_tracking():
         except Exception:
             pass
     THETA_DATA_LOG_HANDLE = None
+
+
+CONNECTION_DIAGNOSTICS = {
+    "check_connection_calls": 0,
+    "start_terminal_calls": 0,
+    "network_requests": 0,
+}
 
 
 def get_price_data(
@@ -188,14 +232,31 @@ def get_price_data(
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
             df_all = df_cached.copy() # Make a copy so we can check the original later for differences
+    cached_rows = 0 if df_all is None else len(df_all)
+    placeholder_rows = 0
+    if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+        placeholder_rows = int(df_all["missing"].sum())
+    logger.debug(
+        "[THETADATA-CACHE] pre-fetch rows=%d placeholders=%d for %s %s %s",
+        cached_rows,
+        placeholder_rows,
+        asset,
+        timespan,
+        datastyle,
+    )
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
     cache_file = build_cache_filename(asset, timespan, datastyle)
-    print(
-        f"[THETADATA-CACHE] asset={asset}/{quote_asset.symbol if quote_asset else None} "
-        f"timespan={timespan} datastyle={datastyle} cache_file={cache_file} "
-        f"exists={cache_file.exists()} missing={len(missing_dates)}"
+    logger.debug(
+        "[THETADATA-CACHE] asset=%s/%s timespan=%s datastyle=%s cache_file=%s exists=%s missing=%d",
+        asset,
+        quote_asset.symbol if quote_asset else None,
+        timespan,
+        datastyle,
+        cache_file,
+        cache_file.exists(),
+        len(missing_dates),
     )
     if not missing_dates:
         if df_all is not None and not df_all.empty:
@@ -206,7 +267,6 @@ def get_price_data(
             # For intraday data, use precise datetime filtering
             if timespan == "day":
                 # Convert index to dates for comparison
-                import pandas as pd
                 df_dates = pd.to_datetime(df_all.index).date
                 start_date = start.date() if hasattr(start, 'date') else start
                 end_date = end.date() if hasattr(end, 'date') else end
@@ -237,6 +297,7 @@ def get_price_data(
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
 
+
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
 
@@ -253,7 +314,15 @@ def get_price_data(
     # The EOD endpoint includes the 16:00 closing auction and follows SIP sale-condition rules
     # This matches Polygon and Yahoo Finance EXACTLY (zero tolerance)
     if timespan == "day":
-        logger.info(f"Daily bars: using EOD endpoint for official close prices")
+        requested_dates = list(missing_dates)
+        logger.info("Daily bars: using EOD endpoint for official close prices")
+        logger.debug(
+            "[THETADATA-EOD] requesting %d trading day(s) for %s from %s to %s",
+            len(requested_dates),
+            asset,
+            start,
+            end,
+        )
 
         # Use EOD endpoint for official daily OHLC
         result_df = get_historical_eod_data(
@@ -264,8 +333,84 @@ def get_price_data(
             password=password,
             datastyle=datastyle
         )
+        logger.debug(
+            "[THETADATA-EOD] fetched rows=%s for %s",
+            0 if result_df is None else len(result_df),
+            asset,
+        )
 
-        return result_df
+        if result_df is None or result_df.empty:
+            logger.warning(
+                "[THETADATA-EOD] No rows returned for %s between %s and %s; recording placeholders.",
+                asset,
+                start,
+                end,
+            )
+            df_all = append_missing_markers(df_all, requested_dates)
+            update_cache(
+                cache_file,
+                df_all,
+                df_cached,
+                missing_dates=requested_dates,
+            )
+            df_clean = df_all.copy() if df_all is not None else None
+            if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
+                df_clean = df_clean[~df_clean["missing"].astype(bool)].drop(columns=["missing"])
+                df_clean = restore_numeric_dtypes(df_clean)
+            logger.info(
+                "ThetaData cache updated for %s %s %s with placeholders only (missing=%d).",
+                asset,
+                timespan,
+                datastyle,
+                len(requested_dates),
+            )
+            return df_clean if df_clean is not None else pd.DataFrame()
+
+        df_all = update_df(df_all, result_df)
+        logger.debug(
+            "[THETADATA-EOD] merged cache rows=%d (cached=%d new=%d)",
+            0 if df_all is None else len(df_all),
+            0 if df_cached is None else len(df_cached),
+            len(result_df),
+        )
+
+        trading_days = get_trading_dates(asset, start, end)
+        if "datetime" in result_df.columns:
+            covered_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
+        else:
+            covered_index = pd.DatetimeIndex(result_df.index)
+        if covered_index.tz is None:
+            covered_index = covered_index.tz_localize(pytz.UTC)
+        else:
+            covered_index = covered_index.tz_convert(pytz.UTC)
+        covered_days = set(covered_index.date)
+
+        df_all = remove_missing_markers(df_all, list(covered_days))
+        missing_within_range = [day for day in trading_days if day not in covered_days]
+        placeholder_count = len(missing_within_range)
+        df_all = append_missing_markers(df_all, missing_within_range)
+
+        update_cache(
+            cache_file,
+            df_all,
+            df_cached,
+            missing_dates=missing_within_range,
+        )
+
+        df_clean = df_all.copy() if df_all is not None else None
+        if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
+            df_clean = df_clean[~df_clean["missing"].astype(bool)].drop(columns=["missing"])
+            df_clean = restore_numeric_dtypes(df_clean)
+
+        logger.info(
+            "ThetaData cache updated for %s %s %s (rows=%d placeholders=%d).",
+            asset,
+            timespan,
+            datastyle,
+            0 if df_all is None else len(df_all),
+            placeholder_count,
+        )
+        return df_clean if df_clean is not None else pd.DataFrame()
 
     # Map timespan to milliseconds for intraday intervals
     TIMESPAN_TO_MS = {
@@ -309,6 +454,18 @@ def get_price_data(
             df_all = update_df(df_all, result_df)
             available_chunk = get_trading_dates(asset, start, chunk_end)
             df_all = remove_missing_markers(df_all, available_chunk)
+            if "datetime" in result_df.columns:
+                chunk_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
+            else:
+                chunk_index = pd.DatetimeIndex(result_df.index)
+            if chunk_index.tz is None:
+                chunk_index = chunk_index.tz_localize(pytz.UTC)
+            else:
+                chunk_index = chunk_index.tz_convert(pytz.UTC)
+            covered_days = {ts.date() for ts in chunk_index}
+            missing_within_chunk = [day for day in available_chunk if day not in covered_days]
+            if missing_within_chunk:
+                df_all = append_missing_markers(df_all, missing_within_chunk)
             pbar.update(1)
 
         start = end + timedelta(days=1)
@@ -319,13 +476,14 @@ def get_price_data(
 
     update_cache(cache_file, df_all, df_cached)
     if df_all is not None:
-        print(f"[THETADATA-CACHE-WRITE] wrote {cache_file} rows={len(df_all)}")
+        logger.debug("[THETADATA-CACHE-WRITE] wrote %s rows=%d", cache_file, len(df_all))
     if df_all is not None:
         logger.info("ThetaData cache updated for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
     # Close the progress bar when done
     pbar.close()
     if df_all is not None and not df_all.empty and "missing" in df_all.columns:
         df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+        df_all = restore_numeric_dtypes(df_all)
     return df_all
 
 
@@ -417,6 +575,11 @@ def get_missing_dates(df_all, asset, start, end):
     """
     trading_dates = get_trading_dates(asset, start, end)
     if df_all is None or not len(df_all):
+        logger.debug(
+            "[THETADATA-CACHE] %s cache empty -> %d trading day(s) missing",
+            asset,
+            len(trading_dates),
+        )
         return trading_dates
 
     # It is possible to have full day gap in the data if previous queries were far apart
@@ -429,6 +592,13 @@ def get_missing_dates(df_all, asset, start, end):
     if asset.asset_type == "option":
         missing_dates = [x for x in missing_dates if x <= asset.expiration]
 
+    logger.debug(
+        "[THETADATA-CACHE] asset=%s missing_dates=%d (from %s to %s)",
+        asset,
+        len(missing_dates),
+        trading_dates[0] if trading_dates else None,
+        trading_dates[-1] if trading_dates else None,
+    )
     return missing_dates
 
 
@@ -454,24 +624,41 @@ def load_cache(cache_file):
     return df
 
 
-def update_cache(cache_file, df_all, df_cached):
-    """Update the cache file with the new data"""
-    # Check if df_all is different from df_cached (if df_cached exists)
-    if df_all is not None and len(df_all) > 0:
-        # Check if the dataframes are the same
-        if df_all.equals(df_cached):
+def update_cache(cache_file, df_all, df_cached, missing_dates=None):
+    """Update the cache file with the new data and optional placeholder markers."""
+    if df_all is None or len(df_all) == 0:
+        if not missing_dates:
             return
+        df_working = append_missing_markers(None, missing_dates)
+    else:
+        df_working = ensure_missing_column(df_all.copy())
+        if missing_dates:
+            df_working = append_missing_markers(df_working, missing_dates)
 
-        df_all = ensure_missing_column(df_all)
+    if df_working is None or len(df_working) == 0:
+        return
 
-        # Create the directory if it doesn't exist
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
+    df_cached_cmp = None
+    if df_cached is not None and len(df_cached) > 0:
+        df_cached_cmp = ensure_missing_column(df_cached.copy())
 
-        # Reset the index to convert DatetimeIndex to a regular column
-        df_all_reset = df_all.reset_index()
+    if df_cached_cmp is not None and df_working.equals(df_cached_cmp):
+        logger.debug(
+            "[THETADATA-CACHE] No changes for %s (rows=%d); skipping write.",
+            cache_file,
+            len(df_working),
+        )
+        return
 
-        # Save the data to a parquet file
-        df_all_reset.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    df_to_save = df_working.reset_index()
+    logger.debug(
+        "[THETADATA-CACHE-WRITE] %s rows=%d placeholders=%d",
+        cache_file,
+        len(df_working),
+        int(df_working["missing"].sum()) if "missing" in df_working.columns else 0,
+    )
+    df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
 
 
 def update_df(df_all, result):
@@ -535,7 +722,7 @@ def update_df(df_all, result):
             df_all = df
         else:
             df_all = pd.concat([df_all, df]).sort_index()
-            df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+            df_all = df_all[~df_all.index.duplicated(keep="last")]  # Keep newest data over placeholders
 
         # NOTE: Timestamp correction is now done in get_historical_data() at line 569
         # Do NOT subtract 1 minute here as it would double-correct
@@ -574,6 +761,7 @@ def start_theta_data_client(username: str, password: str):
     import subprocess
     import shutil
     global THETA_DATA_PROCESS, THETA_DATA_PID
+    CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
 
     # First try shutting down any existing connection
     try:
@@ -715,6 +903,8 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
         If False, perform a lightweight liveness check and return immediately.
     """
 
+    CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
+
     max_retries = CONNECTION_MAX_RETRIES
     sleep_interval = CONNECTION_RETRY_SLEEP
     restart_attempts = 0
@@ -792,6 +982,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
         while True:
             try:
+                CONNECTION_DIAGNOSTICS["network_requests"] += 1
                 response = requests.get(request_url, headers=headers, params=request_params)
                 # Status code 472 means "No data" - this is valid, return None
                 if response.status_code == 472:

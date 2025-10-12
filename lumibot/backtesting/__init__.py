@@ -11,6 +11,7 @@ from .polygon_backtesting import (
 )
 from .thetadata_backtesting import (
     ThetaDataBacktesting,
+    ThetaDataBacktestingPolars,
     ThetaDataBacktestingPandas,
 )
 from .yahoo_backtesting import (
@@ -34,6 +35,7 @@ __all__ = [
     "PolygonDataBacktestingPolars",
     "PolygonDataBacktestingPandas",
     "ThetaDataBacktesting",
+    "ThetaDataBacktestingPolars",
     "ThetaDataBacktestingPandas",
     "YahooDataBacktesting",
     "YahooDataBacktestingPolars",

@@ -395,13 +395,8 @@ class PolarsMixin:
                 df_tz = pytz.timezone(dt_dtype.time_zone)
                 end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
             else:
-                # DataFrame is naive, use UTC
-                from datetime import timezone as tz
-                end_filter_with_tz = datetime.combine(
-                    end_filter_naive.date(),
-                    end_filter_naive.time(),
-                    tzinfo=tz.utc
-                )
+                # DataFrame is naive, keep the naive UTC value
+                end_filter_with_tz = end_filter_naive
 
             # CRITICAL FIX: Deduplicate before caching
             # Use < or <= based on use_strict_less_than flag
@@ -449,13 +444,8 @@ class PolarsMixin:
                 df_tz = pytz.timezone(dt_dtype.time_zone)
                 end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
             else:
-                # DataFrame is naive, use UTC
-                from datetime import timezone as tz
-                end_filter_with_tz = datetime.combine(
-                    end_filter_naive.date(),
-                    end_filter_naive.time(),
-                    tzinfo=tz.utc
-                )
+                # DataFrame is naive, keep the naive UTC value
+                end_filter_with_tz = end_filter_naive
 
             # CRITICAL FIX: Deduplicate before returning
             # Sometimes lazy operations can create duplicates

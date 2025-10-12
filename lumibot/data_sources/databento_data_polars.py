@@ -28,7 +28,7 @@ from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 
-class DataBentoDataPolarsLive(PolarsMixin, DataSource):
+class DataBentoDataPolars(PolarsMixin, DataSource):
     """
     DataBento data source optimized with Polars and proper Live API usage.
 

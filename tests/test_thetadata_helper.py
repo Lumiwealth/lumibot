@@ -72,11 +72,12 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
-    mock_get_historical_data.return_value = pd.DataFrame({
-        "datetime": pd.date_range("2023-07-01", periods=5, freq="min"),
+    raw_df = pd.DataFrame({
+        "datetime": pd.date_range("2023-07-01 09:30:00", periods=5, freq="min", tz="UTC"),
         "price": [100, 101, 102, 103, 104]
-    })
-    mock_update_df.return_value = mock_get_historical_data.return_value
+    }).set_index("datetime")
+    mock_get_historical_data.return_value = raw_df.reset_index()
+    mock_update_df.return_value = raw_df
     
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = datetime.datetime(2025, 9, 2)
@@ -106,17 +107,20 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
                                           mock_get_historical_data, mock_update_df, mock_update_cache):
     # Arrange
     cached_data = pd.DataFrame({
-        "datetime": pd.date_range("2023-07-01", periods=5, freq='min'),
-        "price": [100, 101, 102, 103, 104]
-    })
+        "datetime": pd.date_range("2023-07-01 09:30:00", periods=5, freq='min', tz="UTC"),
+        "price": [100, 101, 102, 103, 104],
+        "missing": [False] * 5,
+    }).set_index("datetime")
     mock_build_cache_filename.return_value.exists.return_value = True
     mock_load_cache.return_value = cached_data
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 3)]
-    mock_get_historical_data.return_value = pd.DataFrame({
-        "datetime": pd.date_range("2023-07-02", periods=5, freq='min'),
-        "price": [110, 111, 112, 113, 114]
-    })
-    updated_data = pd.concat([cached_data, mock_get_historical_data.return_value])
+    new_chunk = pd.DataFrame({
+        "datetime": pd.date_range("2023-07-02 09:30:00", periods=5, freq='min', tz="UTC"),
+        "price": [110, 111, 112, 113, 114],
+        "missing": [False] * 5,
+    }).set_index("datetime")
+    mock_get_historical_data.return_value = new_chunk.reset_index()
+    updated_data = pd.concat([cached_data, new_chunk]).sort_index()
     mock_update_df.return_value = updated_data
     
     asset = Asset(asset_type="stock", symbol="AAPL")
@@ -132,7 +136,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     assert df is not None
     assert len(df) == 10  # Combined cached and fetched data
     mock_get_historical_data.assert_called_once()
-    assert mock_update_df.return_value.equals(df)
+    pd.testing.assert_frame_equal(df, updated_data.drop(columns="missing"))
     mock_update_cache.assert_called_once()
 
 
@@ -158,7 +162,8 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
     df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan, dt=dt)
 
     # Assert
-    assert df is None  # Expect None due to empty data returned
+    assert df is not None
+    assert df.empty
     mock_update_df.assert_not_called()
 
 

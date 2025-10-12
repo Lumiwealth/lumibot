@@ -265,6 +265,12 @@ def get_price_data_from_polygon_async(
     # Load cached data if available
     if cache_file.exists() and not force_cache_update:
         df_all = load_cache_polars(cache_file)
+        if df_all is not None:
+            if 'missing' in df_all.columns:
+                df_all = df_all.drop('missing')
+            df_all = df_all.drop_nulls(subset=['open', 'high', 'low', 'close'])
+            if df_all.height == 0:
+                df_all = None
 
     # Determine missing trading dates
     missing_dates = get_missing_dates_polars(df_all, asset, start, end)
@@ -314,7 +320,7 @@ def get_price_data_from_polygon_async(
     # Reload and clean cache
     df_all_full = load_cache_polars(cache_file)
     if "missing" in df_all_full.columns:
-        df_all_output = df_all_full.filter(~pl.col("missing").cast(pl.Boolean))
+        df_all_output = df_all_full.filter(~pl.col("missing").cast(pl.Boolean)).drop("missing")
     else:
         df_all_output = df_all_full
 

@@ -1,6 +1,7 @@
 # This file contains helper functions for getting data from Polygon.io
 import time
 import os
+from typing import List, Optional
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import pytz
@@ -18,10 +19,117 @@ WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
+CONNECTION_RETRY_SLEEP = float(os.getenv("THETADATA_RETRY_SLEEP_SECONDS", "1.0"))
+CONNECTION_MAX_RETRIES = int(os.getenv("THETADATA_MAX_RETRIES", "60"))
+BOOT_GRACE_PERIOD = float(os.getenv("THETADATA_BOOT_GRACE_SECONDS", "5.0"))
+MAX_RESTART_ATTEMPTS = int(os.getenv("THETADATA_MAX_RESTARTS", "3"))
 
 # Global process tracking for ThetaTerminal
 THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
+THETA_DATA_LOG_HANDLE = None
+
+
+def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Ensure the dataframe includes a `missing` flag column (True for placeholders)."""
+    if df is None or len(df) == 0:
+        return df
+    if "missing" not in df.columns:
+        df["missing"] = False
+    return df
+
+
+def append_missing_markers(
+    df_all: Optional[pd.DataFrame],
+    missing_dates: List[datetime.date],
+) -> Optional[pd.DataFrame]:
+    """Append placeholder rows for dates that returned no data."""
+    if not missing_dates:
+        if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+            df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+        return df_all
+
+    base_columns = ["open", "high", "low", "close", "volume"]
+
+    if df_all is None or len(df_all) == 0:
+        df_all = pd.DataFrame(columns=base_columns + ["missing"])
+        df_all.index = pd.DatetimeIndex([], name="datetime")
+
+    df_all = ensure_missing_column(df_all)
+
+    rows = []
+    for d in missing_dates:
+        dt = datetime(d.year, d.month, d.day, tzinfo=pytz.UTC)
+        row = {col: pd.NA for col in df_all.columns if col != "missing"}
+        row["datetime"] = dt
+        row["missing"] = True
+        rows.append(row)
+
+    if rows:
+        placeholder_df = pd.DataFrame(rows).set_index("datetime")
+        for col in df_all.columns:
+            if col not in placeholder_df.columns:
+                placeholder_df[col] = pd.NA if col != "missing" else True
+        placeholder_df = placeholder_df[df_all.columns]
+        if len(df_all) == 0:
+            df_all = placeholder_df
+        else:
+            df_all = pd.concat([df_all, placeholder_df]).sort_index()
+        df_all = df_all[~df_all.index.duplicated(keep="first")]
+
+    return df_all
+
+
+def remove_missing_markers(
+    df_all: Optional[pd.DataFrame],
+    available_dates: List[datetime.date],
+) -> Optional[pd.DataFrame]:
+    """Drop placeholder rows when real data becomes available."""
+    if df_all is None or len(df_all) == 0 or not available_dates:
+        return df_all
+
+    df_all = ensure_missing_column(df_all)
+    available_set = set(available_dates)
+
+    mask = df_all["missing"].eq(True) & df_all.index.map(
+        lambda ts: ts.date() in available_set
+    )
+    if mask.any():
+        df_all = df_all.loc[~mask]
+
+    return df_all
+
+
+def _clamp_option_end(asset: Asset, dt: datetime) -> datetime:
+    """Ensure intraday pulls for options never extend beyond expiration."""
+    if isinstance(dt, datetime):
+        end_dt = dt
+    else:
+        end_dt = datetime.combine(dt, datetime.max.time())
+
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=pytz.UTC)
+
+    if asset.asset_type == "option" and asset.expiration:
+        expiration_dt = datetime.combine(asset.expiration, datetime.max.time())
+        expiration_dt = expiration_dt.replace(tzinfo=end_dt.tzinfo)
+        if end_dt > expiration_dt:
+            return expiration_dt
+
+    return end_dt
+
+
+def reset_theta_terminal_tracking():
+    """Clear cached ThetaTerminal process references."""
+    global THETA_DATA_PROCESS, THETA_DATA_PID, THETA_DATA_LOG_HANDLE
+    THETA_DATA_PROCESS = None
+    THETA_DATA_PID = None
+    if THETA_DATA_LOG_HANDLE is not None:
+        try:
+            THETA_DATA_LOG_HANDLE.close()
+        except Exception:
+            pass
+    THETA_DATA_LOG_HANDLE = None
 
 
 def get_price_data(
@@ -83,7 +191,15 @@ def get_price_data(
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
+    cache_file = build_cache_filename(asset, timespan, datastyle)
+    print(
+        f"[THETADATA-CACHE] asset={asset}/{quote_asset.symbol if quote_asset else None} "
+        f"timespan={timespan} datastyle={datastyle} cache_exists={cache_file.exists()} "
+        f"missing={len(missing_dates)}"
+    )
     if not missing_dates:
+        if df_all is not None and not df_all.empty:
+            logger.info("ThetaData cache HIT for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
         # Filter cached data to requested date range before returning
         if df_all is not None and not df_all.empty:
             # For daily data, use date-based filtering (timestamps vary by provider)
@@ -115,7 +231,11 @@ def get_price_data(
                 if end.tzinfo is None:
                     end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
                 df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
+        if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+            df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
         return df_all
+
+    logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
@@ -175,14 +295,20 @@ def get_price_data(
             end = start + delta
 
         result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle, include_after_hours=include_after_hours)
+        chunk_end = _clamp_option_end(asset, end)
 
         if result_df is None or len(result_df) == 0:
             logger.warning(
                 f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
             )
+            missing_chunk = get_trading_dates(asset, start, chunk_end)
+            df_all = append_missing_markers(df_all, missing_chunk)
+            pbar.update(1)
 
         else:
             df_all = update_df(df_all, result_df)
+            available_chunk = get_trading_dates(asset, start, chunk_end)
+            df_all = remove_missing_markers(df_all, available_chunk)
             pbar.update(1)
 
         start = end + timedelta(days=1)
@@ -192,8 +318,12 @@ def get_price_data(
             break
 
     update_cache(cache_file, df_all, df_cached)
+    if df_all is not None:
+        logger.info("ThetaData cache updated for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
     # Close the progress bar when done
     pbar.close()
+    if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+        df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
     return df_all
 
 
@@ -317,6 +447,8 @@ def load_cache(cache_file):
         # Set the timezone to UTC
         df.index = df.index.tz_localize("UTC")
 
+    df = ensure_missing_column(df)
+
     return df
 
 
@@ -327,6 +459,8 @@ def update_cache(cache_file, df_all, df_cached):
         # Check if the dataframes are the same
         if df_all.equals(df_cached):
             return
+
+        df_all = ensure_missing_column(df_all)
 
         # Create the directory if it doesn't exist
         cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -366,6 +500,7 @@ def update_df(df_all, result):
     ny_tz = LUMIBOT_DEFAULT_PYTZ
     df = pd.DataFrame(result)
     if not df.empty:
+        df["missing"] = False
         if "datetime" not in df.index.names:
             # check if df has a column named "datetime", if not raise key error
             if "datetime" not in df.columns:
@@ -403,6 +538,7 @@ def update_df(df_all, result):
         # NOTE: Timestamp correction is now done in get_historical_data() at line 569
         # Do NOT subtract 1 minute here as it would double-correct
         # df_all.index = df_all.index - pd.Timedelta(minutes=1)
+        df_all = ensure_missing_column(df_all)
     return df_all
 
 
@@ -411,14 +547,14 @@ def is_process_alive():
     import os
     import subprocess
 
-    global THETA_DATA_PROCESS, THETA_DATA_PID
+    global THETA_DATA_PROCESS, THETA_DATA_PID, THETA_DATA_LOG_HANDLE
 
     # If we have a subprocess handle, trust it first
     if THETA_DATA_PROCESS is not None:
         if THETA_DATA_PROCESS.poll() is None:
             return True
-        # Process exited—clear cached handle
-        THETA_DATA_PROCESS = None
+        # Process exited—clear cached handle and PID
+        reset_theta_terminal_tracking()
 
     # If we know the PID, probe it directly
     if THETA_DATA_PID:
@@ -427,7 +563,7 @@ def is_process_alive():
             os.kill(THETA_DATA_PID, 0)
             return True
         except OSError:
-            THETA_DATA_PID = None
+            reset_theta_terminal_tracking()
 
     return False
 
@@ -451,37 +587,43 @@ def start_theta_data_client(username: str, password: str):
     theta_dir.mkdir(parents=True, exist_ok=True)
     creds_file = theta_dir / "creds.txt"
 
-    # IDEMPOTENT WRITE: Only write credentials if file doesn't exist or username changed
-    # This prevents overwriting production credentials with test credentials
-    should_write = False
-    if not creds_file.exists():
-        logger.info(f"Creating new creds.txt file at {creds_file}")
-        should_write = True
-    else:
-        # Check if username changed
+    # Read previous credentials if they exist so we can decide whether to overwrite
+    existing_username = None
+    existing_password = None
+    if creds_file.exists():
         try:
             with open(creds_file, 'r') as f:
-                existing_username = f.readline().strip()
-            if existing_username != username:
-                logger.info(f"Username changed from {existing_username} to {username}, updating creds.txt")
-                should_write = True
-            else:
-                logger.debug(f"Using existing creds.txt for {username}")
-        except Exception as e:
-            logger.warning(f"Could not read existing creds.txt: {e}, will recreate")
-            should_write = True
+                existing_username = (f.readline().strip() or None)
+                existing_password = (f.readline().strip() or None)
+        except Exception as exc:
+            logger.warning(f"Could not read existing creds.txt: {exc}; will recreate the file.")
+            existing_username = None
+            existing_password = None
+
+    if username is None:
+        username = existing_username
+    if password is None:
+        password = existing_password
+
+    if username is None or password is None:
+        raise ValueError(
+            "ThetaData credentials are required to start ThetaTerminal. Provide them via backtest() or configure THETADATA_USERNAME/THETADATA_PASSWORD."
+        )
+
+    should_write = (
+        not creds_file.exists()
+        or existing_username != username
+        or existing_password != password
+    )
 
     if should_write:
-        # Write credentials to creds.txt (format: email on first line, password on second line)
+        logger.info(f"Writing creds.txt file for user: {username}")
         with open(creds_file, 'w') as f:
             f.write(f"{username}\n")
             f.write(f"{password}\n")
-
-        # Set restrictive permissions on creds file (owner read/write only)
-        # This prevents other users on the system from reading the credentials
         os.chmod(creds_file, 0o600)
-
-        logger.info(f"Updated creds.txt file for user: {username}")
+    else:
+        logger.debug(f"Reusing existing creds.txt for {username}")
 
     # Launch ThetaTerminal directly with --creds-file to avoid shell escaping issues
     # We bypass the thetadata library's launcher which doesn't support this option
@@ -526,68 +668,108 @@ def start_theta_data_client(username: str, password: str):
 
     logger.info(f"Launching ThetaTerminal with creds file: {cmd}")
 
-    # Launch in background and store process handle
-    THETA_DATA_PROCESS = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(theta_dir)
-    )
+    reset_theta_terminal_tracking()
+
+    log_path = theta_dir / "lumibot_launch.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_handle = open(log_path, "ab")
+    log_handle.write(f"\n---- Launch {datetime.utcnow().isoformat()}Z ----\n".encode())
+    log_handle.flush()
+
+    global THETA_DATA_LOG_HANDLE
+    THETA_DATA_LOG_HANDLE = log_handle
+
+    try:
+        THETA_DATA_PROCESS = subprocess.Popen(
+            cmd,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            cwd=str(theta_dir)
+        )
+    except Exception:
+        THETA_DATA_LOG_HANDLE = None
+        log_handle.close()
+        raise
+
     THETA_DATA_PID = THETA_DATA_PROCESS.pid
     logger.info(f"ThetaTerminal started with PID: {THETA_DATA_PID}")
-
-    # Give it a moment to start
-    time.sleep(2)
 
     # We don't return a ThetaClient object since we're launching manually
     # The connection will be established via HTTP/WebSocket to localhost:25510
     return THETA_DATA_PROCESS
 
 
-def check_connection(username: str, password: str):
-    # Do endless while loop and check if connected every 100 milliseconds
-    MAX_RETRIES = 15
-    counter = 0
-    client = None
-    connected = False
+def check_connection(username: str, password: str, wait_for_connection: bool = False):
+    """Ensure the local ThetaTerminal is running. Optionally block until it is connected.
 
-    while True:
-        # FIRST: Check if already connected (most important check!)
-        # This prevents unnecessary restarts that would overwrite creds.txt
+    Parameters
+    ----------
+    username : str
+        ThetaData username.
+    password : str
+        ThetaData password.
+    wait_for_connection : bool, optional
+        If True, block and retry until the terminal reports CONNECTED (or retries are exhausted).
+        If False, perform a lightweight liveness check and return immediately.
+    """
+
+    max_retries = CONNECTION_MAX_RETRIES
+    sleep_interval = CONNECTION_RETRY_SLEEP
+    restart_attempts = 0
+    client = None
+
+    def probe_status() -> Optional[str]:
         try:
             res = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=1)
-            con_text = res.text
+            return res.text
+        except Exception as exc:
+            logger.debug(f"Cannot reach ThetaTerminal status endpoint: {exc}")
+            return None
 
-            if con_text == "CONNECTED":
-                logger.debug("Already connected to Theta Data!")
-                connected = True
-                break
-            elif con_text == "DISCONNECTED":
-                logger.debug("Disconnected from Theta Data, will attempt to start...")
-                # Fall through to process check and restart logic
-            else:
-                logger.debug(f"Unknown connection status: {con_text}")
-                # Fall through to process check and restart logic
-        except Exception as e:
-            # Connection endpoint not responding - process might be dead
-            logger.debug(f"Cannot reach ThetaData status endpoint: {e}")
-            # Fall through to process check and restart logic
+    if not wait_for_connection:
+        status_text = probe_status()
+        if status_text == "CONNECTED":
+            logger.debug("ThetaTerminal already connected.")
+            return None, True
 
-        # SECOND: Check if the Java process is still alive
         if not is_process_alive():
-            logger.warning("ThetaTerminal process is not running, starting...")
+            logger.debug("ThetaTerminal process not running; launching background restart.")
             client = start_theta_data_client(username=username, password=password)
-            counter += 1
-            time.sleep(0.5)
+        return client, False
+
+    counter = 0
+    connected = False
+
+    while counter < max_retries:
+        status_text = probe_status()
+        if status_text == "CONNECTED":
+            if counter:
+                logger.info("ThetaTerminal connected after %s attempt(s).", counter + 1)
+            connected = True
+            break
+        elif status_text == "DISCONNECTED":
+            logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
+        elif status_text is not None:
+            logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
+
+        if not is_process_alive():
+            if restart_attempts >= MAX_RESTART_ATTEMPTS:
+                logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
+                break
+            restart_attempts += 1
+            logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
+            client = start_theta_data_client(username=username, password=password)
+            time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
+            counter = 0
             continue
 
-        # THIRD: Process is alive but not connected - wait and retry
-        time.sleep(0.5)
         counter += 1
+        if counter % 10 == 0:
+            logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
+        time.sleep(sleep_interval)
 
-        if counter > MAX_RETRIES:
-            logger.error("Cannot connect to Theta Data!")
-            break
+    if not connected and counter >= max_retries:
+        logger.error("Cannot connect to Theta Data after %s attempts.", counter)
 
     return client, connected
 
@@ -596,6 +778,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     all_responses = []
     next_page_url = None
     page_count = 0
+
+    # Lightweight liveness probe before issuing the request
+    check_connection(username=username, password=password, wait_for_connection=False)
 
     while True:
         counter = 0
@@ -613,7 +798,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 # If status code is not 200, then we are not connected
                 elif response.status_code != 200:
                     logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
-                    check_connection(username=username, password=password)
+                    check_connection(username=username, password=password, wait_for_connection=True)
                 else:
                     json_resp = response.json()
 
@@ -627,13 +812,13 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         else:
                             logger.error(
                                 f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
-                            check_connection(username=username, password=password)
+                            check_connection(username=username, password=password, wait_for_connection=True)
                     else:
                         break
 
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
-                check_connection(username=username, password=password)
+                check_connection(username=username, password=password, wait_for_connection=True)
                 # Give the process time to start after restart
                 if counter == 0:
                     logger.info("Waiting 5 seconds for ThetaTerminal to initialize...")

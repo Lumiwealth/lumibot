@@ -288,6 +288,14 @@ class Bars:
             return self._df
         if self._pandas_cache is not None:
             return self._pandas_cache
+        tracker = PolarsConversionTracker()
+        if isinstance(self.asset, tuple):
+            asset_symbol = "/".join(
+                getattr(component, "symbol", str(component)) for component in self.asset
+            )
+        else:
+            asset_symbol = getattr(self.asset, "symbol", str(self.asset))
+        tracker.track_conversion(asset_symbol)
         pandas_df = self._df.to_pandas()
         if 'datetime' in pandas_df.columns:
             pandas_df = pandas_df.set_index('datetime')

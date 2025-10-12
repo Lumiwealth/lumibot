@@ -1,4 +1,5 @@
 # This file contains helper functions for getting data from Polygon.io optimized with Polars
+import json
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -236,6 +237,7 @@ def get_price_data_from_polygon_polars(
             df_all_output = (
                 df_all_lazy
                 .filter(~pl.col("missing").cast(pl.Boolean))
+                .drop("missing")
                 .drop_nulls()
                 .collect()
             )
@@ -245,7 +247,7 @@ def get_price_data_from_polygon_polars(
         # Fallback to regular loading
         df_all_full = load_cache_polars(cache_file)
         if "missing" in df_all_full.columns:
-            df_all_output = df_all_full.filter(~pl.col("missing").cast(pl.Boolean))
+            df_all_output = df_all_full.filter(~pl.col("missing").cast(pl.Boolean)).drop("missing")
         else:
             df_all_output = df_all_full
         df_all_output = df_all_output.drop_nulls()
@@ -278,8 +280,20 @@ def validate_cache_polars(force_cache_update: bool, asset: Asset, cache_file: Pa
             # Convert the generator to a list so DataFrame will make a row per item.
             splits_list = list(splits)
             if splits_list:
-                # Convert to polars DataFrame
-                splits_df = pl.DataFrame(splits_list)
+                # Convert to a list of plain dictionaries for consistent schema
+                splits_records = []
+                for item in splits_list:
+                    if hasattr(item, "model_dump"):
+                        splits_records.append(item.model_dump())
+                    elif hasattr(item, "__dict__"):
+                        splits_records.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+                    else:
+                        try:
+                            splits_records.append(dict(item))
+                        except TypeError:
+                            splits_records.append({"value": item})
+
+                splits_df = pl.DataFrame(splits_records, strict=False)
                 if splits_file_path.exists() and not cached_splits.is_empty() and cached_splits.equals(splits_df):
                     # No need to rewrite contents.  Just update the timestamp.
                     splits_file_path.touch()
@@ -400,7 +414,19 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
             return
 
         # Example: O:SPY230802C00457000
-        symbol = contracts[0].ticker
+        contract = contracts[0]
+        symbol = contract.ticker
+        list_date = getattr(contract, "list_date", None)
+        if list_date:
+            try:
+                parsed = datetime.fromisoformat(str(list_date))
+            except ValueError:
+                try:
+                    parsed = datetime.strptime(str(list_date), "%Y-%m-%d")
+                except ValueError:
+                    parsed = None
+            if parsed:
+                setattr(asset, "_polygon_list_date", parsed)
 
     else:
         raise ValueError(f"Unsupported asset type for polygon: {asset.asset_type}")
@@ -481,7 +507,13 @@ def get_missing_dates_polars(
     trading_dates = get_trading_dates(asset, start, end)
     # For options, limit to dates on or before the expiration.
     if asset.asset_type == "option":
-        trading_dates = [d for d in trading_dates if d <= asset.expiration]
+        expiration_date = asset.expiration.date() if isinstance(asset.expiration, datetime) else asset.expiration
+        lower_bound = max(start.date(), expiration_date - timedelta(days=365))
+        list_date = getattr(asset, "_polygon_list_date", None)
+        if list_date:
+            list_date = list_date.date() if hasattr(list_date, "date") else list_date
+            lower_bound = max(lower_bound, list_date)
+        trading_dates = [d for d in trading_dates if lower_bound <= d <= expiration_date]
     if df_all is None or len(df_all) == 0:
         return trading_dates
     # Use only the date portion of the cache datetime column.
@@ -544,13 +576,37 @@ def update_cache_polars(
     pl.DataFrame
         The updated DataFrame (which is also saved to the cache file).
     """
+    DEFAULT_SCHEMA = {
+        "datetime": pl.Datetime("ms", "UTC"),
+        "open": pl.Float64,
+        "high": pl.Float64,
+        "low": pl.Float64,
+        "close": pl.Float64,
+        "volume": pl.Int64,
+        "missing": pl.Boolean,
+    }
+
     # Ensure we have a DataFrame to work with.
     if df_all is None:
         df_all = pl.DataFrame()
 
-    # If there is cached data, ensure it's sorted
     if len(df_all) > 0:
-        df_all = df_all.sort("datetime")
+        df_all = df_all.sort("datetime").with_columns(
+            pl.col("datetime").dt.cast_time_unit("ms")
+        )
+        if "missing" not in df_all.columns:
+            df_all = df_all.with_columns(pl.lit(False).alias("missing"))
+        base_columns = df_all.columns
+    else:
+        base_columns = [
+            "datetime",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "missing",
+        ]
 
     # Determine dates already present in the cache
     cached_dates = set(df_all["datetime"].dt.date().to_list()) if len(df_all) > 0 else set()
@@ -559,25 +615,31 @@ def update_cache_polars(
     dummy_rows = []
     for d in missing_dates or []:
         if d not in cached_dates:
-            # Create a datetime at the start of the day in UTC
             dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=timezone.utc)
-            dummy_rows.append({
-                "datetime": dt,
-                "missing": True,
-                "open": None,
-                "high": None,
-                "low": None,
-                "close": None,
-                "volume": None
-            })
+            row_template = {col: None for col in base_columns}
+            row_template["datetime"] = dt
+            if "missing" in row_template:
+                row_template["missing"] = True
+            dummy_rows.append(row_template.copy())
 
     # If any dummy rows were created, add them to the DataFrame.
     if dummy_rows:
-        missing_df = pl.DataFrame(dummy_rows)
-        if len(df_all) > 0:
-            df_all = pl.concat([df_all, missing_df])
+        schema = {col: DEFAULT_SCHEMA[col] for col in base_columns if col in DEFAULT_SCHEMA}
+        if len(df_all) == 0:
+            df_all = pl.DataFrame(dummy_rows, schema=schema)
         else:
-            df_all = missing_df
+            missing_df = pl.DataFrame(dummy_rows, schema=schema)
+            aligned_columns = df_all.columns
+            casts = []
+            for col in aligned_columns:
+                dtype = df_all.schema[col]
+                if col in missing_df.columns:
+                    casts.append(pl.col(col).cast(dtype).alias(col))
+                else:
+                    fill_value = False if col == "missing" else None
+                    casts.append(pl.lit(fill_value).cast(dtype).alias(col))
+            missing_df = missing_df.select(casts)
+            df_all = pl.concat([df_all, missing_df])
         df_all = df_all.sort("datetime")
 
     # Save the updated DataFrame to the cache file.
@@ -749,8 +811,13 @@ def get_chains_cached(
             )
             df_cached = pl.read_parquet(fpath)
 
+            raw_data = df_cached["data"][0]
+            if isinstance(raw_data, str):
+                data = json.loads(raw_data)
+            else:
+                data = raw_data
+
             # Convert the data back to a dictionary of lists instead of NP arrays to match original return types
-            data = df_cached["data"][0]
             for right in data["Chains"]:
                 for exp_date in data["Chains"][right]:
                     data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
@@ -800,7 +867,7 @@ def get_chains_cached(
 
     # 8) Save to a new file for future reuse
     cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
-    df_to_cache = pl.DataFrame({"data": [option_contracts]})
+    df_to_cache = pl.DataFrame({"data": [json.dumps(option_contracts)]})
     df_to_cache.write_parquet(cache_file)
     logger.debug(
         f"Download complete for {asset.symbol} on {current_date}. "

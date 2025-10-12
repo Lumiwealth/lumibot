@@ -1,6 +1,8 @@
 import traceback
+import math
 import threading
 from collections import OrderedDict
+from bisect import bisect_right
 from datetime import timedelta
 from decimal import Decimal
 from typing import Union
@@ -136,8 +138,12 @@ class BacktestingBroker(Broker):
         self.prefetcher = None
         self.hybrid_prefetcher = None
         self._last_cache_clear = None
-        # Market open lookup cache (populated when calendars are initialized)
+        # Market open/close lookup cache (populated when calendars are initialized)
         self._market_open_cache = {}
+        self._market_open_list = []
+        self._market_close_list = []
+        self._next_trading_day_idx = 0
+
     def initialize_market_calendars(self, trading_days_df):
         """Initialize trading calendar and eagerly build caches for backtesting."""
         super().initialize_market_calendars(trading_days_df)
@@ -145,18 +151,64 @@ class BacktestingBroker(Broker):
         self._market_open_cache = {}
         self._daily_sessions = {}
         self._sessions_built = False
+        self._market_open_list = []
+        self._market_close_list = []
+        self._next_trading_day_idx = 0
+
         if self._trading_days is None or len(self._trading_days) == 0:
             return
-        self._market_open_cache = self._trading_days['market_open'].to_dict()
-        for close_time in self._trading_days.index:
-            open_time = self._market_open_cache[close_time]
-            for dt in (open_time, close_time):
-                day = dt.date()
-                sess = (open_time, close_time)
-                self._daily_sessions.setdefault(day, [])
-                if sess not in self._daily_sessions[day]:
-                    self._daily_sessions[day].append(sess)
+
+        market_open_series = self._trading_days['market_open']
+        self._market_open_cache = market_open_series.to_dict()
+
+        for close_time, open_time in zip(self._trading_days.index, market_open_series):
+            open_dt = open_time.to_pydatetime() if hasattr(open_time, 'to_pydatetime') else open_time
+            close_dt = close_time.to_pydatetime() if hasattr(close_time, 'to_pydatetime') else close_time
+
+            self._market_open_list.append(open_dt)
+            self._market_close_list.append(close_dt)
+
+            day = open_dt.date()
+            sess = (open_dt, close_dt)
+            self._daily_sessions.setdefault(day, [])
+            if sess not in self._daily_sessions[day]:
+                self._daily_sessions[day].append(sess)
+
+            # also register by close date in case session spans midnight
+            close_day = close_dt.date()
+            if close_day != day:
+                self._daily_sessions.setdefault(close_day, [])
+                if sess not in self._daily_sessions[close_day]:
+                    self._daily_sessions[close_day].append(sess)
+
+        self._market_open_list = tuple(self._market_open_list)
+        self._market_close_list = tuple(self._market_close_list)
         self._sessions_built = True
+        self._sync_trading_day_pointer()
+
+    def _sync_trading_day_pointer(self, current_time=None):
+        """Advance cached trading-day index to align with the current broker time."""
+        if not self._market_close_list:
+            self._next_trading_day_idx = 0
+            return
+
+        if current_time is None:
+            try:
+                current_time = self.datetime
+            except Exception:
+                current_time = None
+
+        if current_time is None:
+            self._next_trading_day_idx = 0
+            return
+
+        idx = bisect_right(self._market_close_list, current_time)
+        if idx < 0:
+            idx = 0
+        if idx > len(self._market_close_list):
+            idx = len(self._market_close_list)
+
+        self._next_trading_day_idx = idx
 
     def _build_daily_sessions(self):
         """Build day-based session dict for fast O(1) day lookup."""
@@ -289,7 +341,7 @@ class BacktestingBroker(Broker):
         return search.market_open[0].to_pydatetime()
 
     def get_time_to_open(self):
-        """Return the remaining time for the market to open in seconds"""
+        """Return the remaining time for the market to open in seconds."""
         now = self.datetime
 
         search = self._trading_days[now < self._trading_days.index]
@@ -300,56 +352,43 @@ class BacktestingBroker(Broker):
         trading_day = search.iloc[0]
         open_time = trading_day.market_open
 
-        # DEBUG: Log what's happening
-        print(f"[BROKER DEBUG] get_time_to_open: now={now}, next_trading_day={trading_day.name}, open_time={open_time}")
-
-        # For Backtesting, sometimes the user can just pass in dates (i.e. 2023-08-01) and not datetimes
+        # For Backtesting, sometimes the user can just pass in dates (i.e. 2023-08-01) and not datetimes.
         # In this case the "now" variable is starting at midnight, so we need to adjust the open_time to be actual
-        # market open time.  In the case where the user passes in a valid trading day, use that time
+        # market open time. In the case where the user passes in a valid trading day, use that time
         # as the start of trading instead of market open.
         # BUT: Only do this if the current day (now.date()) is actually a trading day
         if self.IS_BACKTESTING_BROKER and now > open_time:
-            # Check if now.date() is in trading days before overriding
             now_date = now.date() if hasattr(now, 'date') else now
             trading_day_dates = self._trading_days.index.date
             if now_date in trading_day_dates:
-                print(f"[BROKER DEBUG] Overriding open_time to datetime_start because now ({now}) is on a trading day but after market open")
                 open_time = self.data_source.datetime_start
-            else:
-                print(f"[BROKER DEBUG] NOT overriding open_time because now ({now}) is NOT a trading day")
+
+        datetime_end = getattr(self.data_source, "datetime_end", None)
+        if datetime_end is not None and open_time > datetime_end:
+            return 0.0
 
         if now >= open_time:
-            print(f"[BROKER DEBUG] Market already open: now={now} >= open_time={open_time}, returning 0")
-            return 0
+            return 0.0
 
         delta = open_time - now
-        print(f"[BROKER DEBUG] Market opens in {delta.total_seconds()} seconds")
         return delta.total_seconds()
 
     def get_time_to_close(self):
         """Return the remaining time for the market to close in seconds"""
         now = self.datetime
 
-        # Use searchsorted for efficient searching and reduce unnecessary DataFrame access
         idx = self._trading_days.index.searchsorted(now, side='left')
 
         if idx >= len(self._trading_days):
-            logger.warning(f"Backtest has reached the end of available trading days data. Current time: {now}, Last trading day: {self._trading_days.index[-1] if len(self._trading_days) > 0 else 'No data'}")
-            # Return None to signal that backtesting should stop
+            logger.warning("Backtest has reached the end of available trading days data.")
             return None
 
-        # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
-        # Use cached dict instead of .at for performance; cache should be ready from initialization
         if not self._market_open_cache:
-            # Safety: rebuild via centralized path rather than inline logic
             self.initialize_market_calendars(self._trading_days.reset_index())
         market_open = self._market_open_cache[market_close_time]
-        market_close = market_close_time  # Assuming this is a scalar value directly from the index
+        market_close = market_close_time
 
-        # If we're before the market opens for the found trading day,
-        # count the whole time until that day's market close so the clock
-        # can advance instead of stalling.
         if now < market_open:
             delta = market_close - now
             return delta.total_seconds()
@@ -962,9 +1001,6 @@ class BacktestingBroker(Broker):
         --------
             List of orders
         """
-        if self.data_source.SOURCE != "PANDAS":
-            return
-
         # If it's the same day as the expiration, we need to check the time to see if it's after market close
         time_to_close = self.get_time_to_close()
 
@@ -1382,7 +1418,6 @@ class BacktestingBroker(Broker):
                     close = ohlc.df['close'].iloc[-1]
                     volume = ohlc.df['volume'].iloc[-1]
                 else:  # polars
-                    # Find datetime column
                     dt_cols = [col for col in ohlc.df.columns if 'date' in col.lower() or 'time' in col.lower()]
                     if dt_cols:
                         dt = ohlc.df[dt_cols[0]][-1]
@@ -1394,7 +1429,6 @@ class BacktestingBroker(Broker):
                     close = ohlc.df['close'][-1]
                     volume = ohlc.df['volume'][-1]
 
-            # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = self.data_source.get_historical_prices(
@@ -1452,6 +1486,27 @@ class BacktestingBroker(Broker):
                     close = df["close"].iloc[0]
                     volume = df["volume"].iloc[0]
 
+            elif self.data_source.SOURCE.upper() in {"POLYGON", "POLARS", "THETADATA", "THETADATA_POLARS", "YAHOO_POLARS", "DATABENTO_POLARS"}:
+                ohlc = self.data_source.get_historical_prices(
+                    asset=asset,
+                    length=1,
+                    quote=order.quote,
+                    timeshift=timeshift,
+                    return_polars=True,
+                )
+
+                if ohlc is None or ohlc.df is None or ohlc.df.is_empty():
+                    self.cancel_order(order)
+                    continue
+
+                df = ohlc.df
+                dt = df["datetime"][-1] if "datetime" in df.columns else None
+                open = df["open"][-1]
+                high = df["high"][-1]
+                low = df["low"][-1]
+                close = df["close"][-1]
+                volume = df["volume"][-1]
+
             #############################
             # Determine transaction price.
             #############################
@@ -1507,18 +1562,40 @@ class BacktestingBroker(Broker):
         # After handling all pending orders, cash settle any residual expired contracts.
         self.process_expired_option_contracts(strategy)
 
+    def _coerce_price(self, value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return value
+
+    def _is_invalid_price(self, value):
+        if value is None:
+            return True
+        if isinstance(value, float) and math.isnan(value):
+            return True
+        return False
+
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""
+        open_val = self._coerce_price(open_)
+        high_val = self._coerce_price(high)
+        low_val = self._coerce_price(low)
+
+        if any(self._is_invalid_price(val) for val in (open_val, high_val, low_val)):
+            return None
+
         # Gap Up case: Limit wasn't triggered by previous candle but current candle opens higher, fill it now
-        if side == "sell" and limit_price <= open_:
-            return open_
+        if side == "sell" and limit_price <= open_val:
+            return open_val
 
         # Gap Down case: Limit wasn't triggered by previous candle but current candle opens lower, fill it now
-        if side == "buy" and limit_price >= open_:
-            return open_
+        if side == "buy" and limit_price >= open_val:
+            return open_val
 
         # Current candle triggered limit normally
-        if low <= limit_price <= high:
+        if low_val <= limit_price <= high_val:
             return limit_price
 
         # Limit has not been met
@@ -1526,16 +1603,23 @@ class BacktestingBroker(Broker):
 
     def stop_order(self, stop_price, side, open_, high, low):
         """Stop order logic."""
+        open_val = self._coerce_price(open_)
+        high_val = self._coerce_price(high)
+        low_val = self._coerce_price(low)
+
+        if any(self._is_invalid_price(val) for val in (open_val, high_val, low_val)):
+            return None
+
         # Gap Down case: Stop wasn't triggered by previous candle but current candle opens lower, fill it now
-        if side == "sell" and stop_price >= open_:
-            return open_
+        if side == "sell" and stop_price >= open_val:
+            return open_val
 
         # Gap Up case: Stop wasn't triggered by previous candle but current candle opens higher, fill it now
-        if side == "buy" and stop_price <= open_:
-            return open_
+        if side == "buy" and stop_price <= open_val:
+            return open_val
 
         # Current candle triggered stop normally
-        if low <= stop_price <= high:
+        if low_val <= stop_price <= high_val:
             return stop_price
 
         # Stop has not been met

@@ -1,11 +1,9 @@
-"""Ultra-optimized DataBento backtesting using pure polars with zero pandas conversions.
+"""DataBento backtesting data source implemented with polars.
 
 This implementation:
 1. Uses polars columnar storage directly
-2. Lazy evaluation for maximum performance
-3. Efficient caching with parquet files
-4. Vectorized operations only
-5. Inherits from DataSourceBacktesting (proper architecture)
+2. Supports lazy evaluation and caching
+3. Focuses on compatibility with Pandas counterpart
 """
 
 import os
@@ -17,8 +15,7 @@ from typing import Dict, Optional, Union
 import numpy as np
 import polars as pl
 
-from lumibot.data_sources import DataSourceBacktesting
-from lumibot.data_sources.polars_mixin import PolarsMixin
+from lumibot.data_sources.polars_data import PolarsData
 from lumibot.entities import Asset, Bars
 from lumibot.tools import databento_helper_polars, databento_helper
 from lumibot.tools.lumibot_logger import get_logger
@@ -27,7 +24,7 @@ logger = get_logger(__name__)
 START_BUFFER = timedelta(days=5)
 
 
-class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
+class DataBentoDataBacktestingPolars(PolarsData):
     """Ultra-optimized DataBento backtesting data source with pure polars."""
 
     SOURCE = "DATABENTO"
@@ -61,8 +58,6 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         self._max_retries = max_retries
         self.MAX_STORAGE_BYTES = max_memory
 
-        # Initialize polars storage from mixin
-        self._init_polars_storage()
 
         # DataBento-specific caches
         self._eager_cache: Dict[Asset, pl.DataFrame] = {}
@@ -79,6 +74,21 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         self._multiplier_fetched_assets = set()
 
         logger.info(f"DataBento backtesting initialized for period: {datetime_start} to {datetime_end}")
+
+    def _coerce_asset(self, asset: Asset | str) -> Asset:
+        if isinstance(asset, Asset):
+            return asset
+        symbol = asset.upper()
+        asset_type = Asset.AssetType.CONT_FUTURE
+        if any(ch.isdigit() for ch in symbol):
+            asset_type = Asset.AssetType.FUTURE
+        return Asset(symbol, asset_type=asset_type)
+
+    def _coerce_quote(self, quote: Optional[Asset | str]) -> Optional[Asset]:
+        if quote is None or isinstance(quote, Asset):
+            return quote
+        return Asset(str(quote), asset_type=Asset.AssetType.FOREX)
+
 
     def _ensure_futures_multiplier(self, asset):
         """
@@ -242,6 +252,8 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         bool
             True if data is cached, False otherwise
         """
+        asset = self._coerce_asset(asset)
+        quote = self._coerce_quote(quote)
         search_asset = asset
         if isinstance(asset, tuple):
             search_asset = asset
@@ -260,7 +272,7 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         cache_key = (search_asset, start_dt.date(), end_dt.date(), timestep)
         return cache_key in self._prefetch_cache
 
-    def _update_data(self, asset: Asset, quote: Asset, length: int, timestep: str, start_dt=None):
+    def _update_data(self, asset: Asset | str, quote: Asset | str, length: int, timestep: str, start_dt=None):
         """
         Get asset data and update the self._data_store dictionary.
 
@@ -381,6 +393,9 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         include_after_hours: bool = True,
     ) -> Optional[pl.DataFrame]:
         """Pull bars with maximum efficiency using pre-filtered cache."""
+
+        asset = self._coerce_asset(asset)
+        quote = self._coerce_quote(quote)
 
         # OPTIMIZATION: Check iteration cache first
         self._check_and_clear_bars_cache()
@@ -531,6 +546,9 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
     ) -> Union[float, Decimal, None]:
         """Get last price with aggressive caching."""
 
+        asset = self._coerce_asset(asset)
+        quote = self._coerce_quote(quote)
+
         if timestep is None:
             timestep = self.get_timestep()
 
@@ -589,7 +607,7 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
 
     def get_historical_prices(
         self,
-        asset: Asset,
+        asset: Asset | str,
         length: int,
         timestep: str = None,
         timeshift: Optional[timedelta] = None,
@@ -599,6 +617,8 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         return_polars: bool = False,
     ) -> Optional[Bars]:
         """Get historical prices using polars."""
+        asset = self._coerce_asset(asset)
+        quote = self._coerce_quote(quote)
         logger.info(f"[POLARS-DEBUG] get_historical_prices called: asset={asset.symbol}, length={length}, timestep={timestep}, datetime={self._datetime}")
         if timestep is None:
             timestep = self.get_timestep()
@@ -636,5 +656,6 @@ class DataBentoDataPolarsBacktesting(PolarsMixin, DataSourceBacktesting):
         return None
 
 
-# Backwards compatibility alias
-DataBentoDataBacktestingPolars = DataBentoDataPolarsBacktesting
+__all__ = [
+    "DataBentoDataBacktestingPolars",
+]

@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
+from lumibot.credentials import THETADATA_CONFIG
 from lumibot.tools import thetadata_helper
 
 logger = logging.getLogger(__name__)
@@ -38,11 +39,19 @@ class ThetaDataBacktestingPandas(PandasData):
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
                          allow_option_quote_fallback=True, **kwargs)
 
+        if username is None:
+            username = THETADATA_CONFIG.get("THETADATA_USERNAME")
+        if password is None:
+            password = THETADATA_CONFIG.get("THETADATA_PASSWORD")
+        if username is None or password is None:
+            logger.warning("ThetaData credentials are not configured; ThetaTerminal may fail to authenticate.")
+
         self._username       = username
         self._password       = password
         self._use_quote_data = use_quote_data
 
         self.kill_processes_by_name("ThetaTerminal.jar")
+        thetadata_helper.reset_theta_terminal_tracking()
 
     def is_weekend(self, date):
         """

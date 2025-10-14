@@ -2608,3 +2608,77 @@ class TestDriftRebalancerOptions:
         
         # Should create no orders since we can't afford even 1 contract
         assert len(strategy.orders) == 0
+
+# New tests added for drift_threshold == 0 behavior
+
+def _make_mock_strategy():
+    class _Logger:
+        def info(self, *args, **kwargs):
+            pass
+        def error(self, *args, **kwargs):
+            pass
+    class _Strategy:
+        def __init__(self):
+            self.logger = _Logger()
+            self.quote_asset = None
+            self.cash = 0
+        def update_broker_balances(self, force_update=False):
+            pass
+    return _Strategy()
+
+
+def test_zero_threshold_allows_nonzero_slippage():
+    from decimal import Decimal
+    from lumibot.entities import Order
+    from lumibot.components.drift_rebalancer_logic import DriftOrderLogic
+
+    strategy = _make_mock_strategy()
+    logic = DriftOrderLogic(
+        strategy=strategy,
+        drift_threshold=Decimal("0"),
+        acceptable_slippage=Decimal("0.01"),
+        order_type=Order.OrderType.LIMIT,
+    )
+    assert logic.acceptable_slippage == Decimal("0.01")
+
+
+def test_zero_threshold_always_rebalance():
+    from decimal import Decimal
+    import pandas as pd
+    from lumibot.components.drift_rebalancer_logic import DriftOrderLogic
+
+    strategy = _make_mock_strategy()
+    logic = DriftOrderLogic(
+        strategy=strategy,
+        drift_threshold=Decimal("0"),
+        acceptable_slippage=Decimal("0.005"),
+    )
+
+    drift_df = pd.DataFrame([
+        {"symbol": "AAA", "current_weight": Decimal("0.10"), "target_weight": Decimal("0.10"), "drift": Decimal("0.00")},
+        {"symbol": "BBB", "current_weight": Decimal("0.20"), "target_weight": Decimal("0.25"), "drift": Decimal("0.05")},
+    ])
+
+    assert logic._check_if_rebalance_needed(drift_df) is True
+
+
+def test_limit_price_uses_slippage_when_threshold_zero():
+    from decimal import Decimal
+    from lumibot.entities import Asset
+    from lumibot.components.drift_rebalancer_logic import DriftOrderLogic
+
+    strategy = _make_mock_strategy()
+    logic = DriftOrderLogic(
+        strategy=strategy,
+        drift_threshold=Decimal("0"),
+        acceptable_slippage=Decimal("0.01"),
+    )
+
+    midpoint = Decimal("100.00")
+    stock = Asset(symbol="XYZ", asset_type="stock")
+
+    buy_price = logic.calculate_limit_price(midpoint_price=midpoint, side="buy", asset=stock)
+    sell_price = logic.calculate_limit_price(midpoint_price=midpoint, side="sell", asset=stock)
+
+    assert buy_price == Decimal("101.00")
+    assert sell_price == Decimal("99.00")

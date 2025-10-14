@@ -395,8 +395,12 @@ class DriftOrderLogic:
         self.only_rebalance_drifted_assets = only_rebalance_drifted_assets
 
         # Sanity checks
-        if self.acceptable_slippage >= self.drift_threshold:
-            raise ValueError("acceptable_slippage must be less than drift_threshold")
+        # If drift_threshold == 0, we are in "always rebalance" mode. In that case,
+        # acceptable_slippage is used solely for limit pricing and should NOT be
+        # constrained by the threshold.
+        if self.drift_threshold != Decimal("0"):
+            if self.acceptable_slippage >= self.drift_threshold:
+                raise ValueError("acceptable_slippage must be less than drift_threshold")
         if self.drift_threshold >= Decimal("1.0"):
             raise ValueError("drift_threshold must be less than 1.0")
         if self.order_type not in [Order.OrderType.LIMIT, Order.OrderType.MARKET]:
@@ -666,6 +670,11 @@ class DriftOrderLogic:
         return order
 
     def _check_if_rebalance_needed(self, drift_df: pd.DataFrame) -> bool:
+        # If threshold is zero, "always rebalance" mode is active
+        if self.drift_threshold == Decimal("0"):
+            self.strategy.logger.info("drift_threshold is 0: always rebalance mode enabled.")
+            return True
+
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
         for index, row in drift_df.iterrows():

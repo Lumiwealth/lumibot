@@ -134,3 +134,48 @@ def test_get_historical_prices_non_future_returns_none():
 
     bars = backtester.get_historical_prices(asset, length=5)
     assert bars is None
+
+
+@pytest.mark.usefixtures("mocked_polars_helper")
+def test_databento_polars_quote_midpoint(monkeypatch):
+    start = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    end = datetime(2025, 6, 2, tzinfo=timezone.utc)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    backtester = DataBentoDataBacktestingPolars(
+        datetime_start=start,
+        datetime_end=end,
+        api_key=API_KEY,
+        show_progress_bar=False,
+    )
+
+    current_dt = datetime(2025, 6, 1, 15, 30, tzinfo=timezone.utc)
+    monkeypatch.setattr(backtester, "get_datetime", lambda: current_dt)
+
+    sample_df = pl.DataFrame(
+        {
+            "datetime": [current_dt],
+            "open": [4300.0],
+            "high": [4301.0],
+            "low": [4299.5],
+            "close": [4300.5],
+            "volume": [1500],
+            "bid": [4299.75],
+            "ask": [4301.25],
+            "bid_size": [5],
+            "ask_size": [6],
+        }
+    )
+
+    def fake_pull(self, *_args, **_kwargs):
+        return sample_df
+
+    monkeypatch.setattr(backtester, "_pull_source_symbol_bars", fake_pull.__get__(backtester, type(backtester)))
+
+    quote = backtester.get_quote(asset)
+    expected_mid = (sample_df["bid"][0] + sample_df["ask"][0]) / 2.0
+
+    assert quote.mid_price == pytest.approx(expected_mid)
+    assert quote.price == pytest.approx(expected_mid)
+    assert getattr(quote, "source", None) == "polars"
+

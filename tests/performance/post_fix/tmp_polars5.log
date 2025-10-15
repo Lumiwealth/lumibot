@@ -1,0 +1,11 @@
+Lumibot version 4.1.3
+2025-10-14 14:32:51,821 | INFO | .env file loaded from: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/.env
+2025-10-14 14:32:51,822 | INFO | [unknown] Waiting for the socket stream connection to be established,
+                method _stream_established must be called
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/performance/profile_weekly_momentum.py", line 16, in <module>
+    from tests.performance.strategies.weekly_momentum_options import WeeklyMomentumOptionsStrategy
+  File "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/tests/performance/strategies/weekly_momentum_options.py", line 166
+    skipped = {}
+    ^
+IndentationError: expected an indented block after 'for' statement on line 165

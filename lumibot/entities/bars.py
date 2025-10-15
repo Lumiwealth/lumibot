@@ -183,6 +183,26 @@ class Bars:
         self._polars_cache = None
         self._pandas_cache = None
         self._tzinfo = self._normalize_tzinfo(tzinfo)
+        df_type = type(df).__name__
+        if isinstance(df, pl.DataFrame):
+            df_rows = df.height
+            df_columns = df.columns
+        elif isinstance(df, pd.DataFrame):
+            df_rows = len(df)
+            df_columns = list(df.columns)
+        else:
+            df_rows = None
+            df_columns = None
+        logger.info(
+            "[BARS][INIT] asset=%s source=%s input_type=%s rows=%s columns=%s return_polars=%s tz=%s",
+            self.symbol,
+            self.source,
+            df_type,
+            df_rows,
+            df_columns,
+            return_polars,
+            getattr(self._tzinfo, "zone", None) or getattr(self._tzinfo, "key", None),
+        )
         
         # Check if empty
         if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
@@ -204,6 +224,16 @@ class Bars:
                 df = df.with_columns([
                     pl.col("close").pct_change().alias("return")
                 ])
+
+            if "datetime" in df.columns and self._tzinfo is not None:
+                target_tz = getattr(self._tzinfo, "zone", None) or getattr(self._tzinfo, "key", None)
+                if target_tz:
+                    current_dtype = df.schema.get("datetime")
+                    current_tz = getattr(current_dtype, "time_zone", None)
+                    if current_tz != target_tz:
+                        df = df.with_columns(
+                            pl.col("datetime").dt.replace_time_zone(target_tz)
+                        )
             
             if return_polars:
                 # Keep as polars
@@ -241,10 +271,66 @@ class Bars:
             else:
                 self._pandas_cache = None
 
+        if isinstance(self._df, pl.DataFrame):
+            final_rows = self._df.height
+            final_columns = self._df.columns
+            try:
+                final_missing = int(
+                    self._df.select(pl.col("missing").cast(pl.Int64).sum()).item()
+                ) if "missing" in self._df.columns else None
+            except Exception:
+                final_missing = None
+        elif isinstance(self._df, pd.DataFrame):
+            final_rows = len(self._df)
+            final_columns = list(self._df.columns)
+            try:
+                final_missing = int(self._df["missing"].sum()) if "missing" in self._df.columns else None
+            except Exception:
+                final_missing = None
+        else:
+            final_rows = None
+            final_columns = None
+            final_missing = None
+        logger.info(
+            "[BARS][FINAL] asset=%s source=%s output_type=%s rows=%s columns=%s missing_true=%s return_polars=%s",
+            self.symbol,
+            self.source,
+            type(self._df).__name__,
+            final_rows,
+            final_columns,
+            final_missing,
+            self._return_polars,
+        )
+
     @property
     def df(self):
         """Return the active DataFrame representation (Polars when requested, otherwise Pandas)."""
-        return self.polars_df if self._return_polars else self.pandas_df
+        # DEBUG-LOG: df property access
+        logger.info(
+            "[BARS][DF_PROPERTY] asset=%s _return_polars=%s will_use=%s",
+            self.symbol,
+            self._return_polars,
+            "polars_df" if self._return_polars else "pandas_df"
+        )
+        result = self.polars_df if self._return_polars else self.pandas_df
+
+        # DEBUG-LOG: df property result
+        if isinstance(result, pl.DataFrame):
+            logger.info(
+                "[BARS][DF_PROPERTY_RESULT] asset=%s type=Polars shape=%s columns=%s",
+                self.symbol,
+                (result.height, len(result.columns)),
+                result.columns
+            )
+        elif isinstance(result, pd.DataFrame):
+            logger.info(
+                "[BARS][DF_PROPERTY_RESULT] asset=%s type=Pandas shape=%s columns=%s",
+                self.symbol,
+                result.shape,
+                list(result.columns)
+            )
+
+        return result
 
     @df.setter
     def df(self, value):
@@ -274,20 +360,74 @@ class Bars:
     @property
     def polars_df(self):
         """Return as Polars DataFrame, converting on demand if needed."""
+        # DEBUG-LOG: polars_df property access
+        logger.info(
+            "[BARS][POLARS_DF_PROPERTY] asset=%s _df_type=%s has_cache=%s",
+            self.symbol,
+            type(self._df).__name__,
+            self._polars_cache is not None
+        )
+
         if isinstance(self._df, pl.DataFrame):
+            logger.info(
+                "[BARS][POLARS_DF_PROPERTY_DIRECT] asset=%s returning_internal_df=True",
+                self.symbol
+            )
             return self._df
         if self._polars_cache is not None:
+            logger.info(
+                "[BARS][POLARS_DF_PROPERTY_CACHED] asset=%s returning_cached_polars=True cache_shape=%s",
+                self.symbol,
+                (self._polars_cache.height, len(self._polars_cache.columns))
+            )
             return self._polars_cache
+
+        # DEBUG-LOG: Converting pandas to polars
+        logger.info(
+            "[BARS][POLARS_DF_PROPERTY_CONVERTING] asset=%s pandas_shape=%s",
+            self.symbol,
+            self._df.shape
+        )
         self._polars_cache = self._convert_pandas_to_polars(self._df)
+        logger.info(
+            "[BARS][POLARS_DF_PROPERTY_CONVERTED] asset=%s polars_shape=%s",
+            self.symbol,
+            (self._polars_cache.height, len(self._polars_cache.columns))
+        )
         return self._polars_cache
 
     @property
     def pandas_df(self):
         """Return as Pandas DataFrame, converting on demand if needed."""
+        # DEBUG-LOG: pandas_df property access
+        logger.info(
+            "[BARS][PANDAS_DF_PROPERTY] asset=%s _df_type=%s has_cache=%s",
+            self.symbol,
+            type(self._df).__name__,
+            self._pandas_cache is not None
+        )
+
         if isinstance(self._df, pd.DataFrame):
+            logger.info(
+                "[BARS][PANDAS_DF_PROPERTY_DIRECT] asset=%s returning_internal_df=True",
+                self.symbol
+            )
             return self._df
         if self._pandas_cache is not None:
+            logger.info(
+                "[BARS][PANDAS_DF_PROPERTY_CACHED] asset=%s returning_cached_pandas=True cache_shape=%s",
+                self.symbol,
+                self._pandas_cache.shape
+            )
             return self._pandas_cache
+
+        # DEBUG-LOG: Converting polars to pandas
+        logger.info(
+            "[BARS][PANDAS_DF_PROPERTY_CONVERTING] asset=%s polars_shape=%s",
+            self.symbol,
+            (self._df.height, len(self._df.columns))
+        )
+
         tracker = PolarsConversionTracker()
         if isinstance(self.asset, tuple):
             asset_symbol = "/".join(
@@ -300,6 +440,15 @@ class Bars:
         if 'datetime' in pandas_df.columns:
             pandas_df = pandas_df.set_index('datetime')
         self._pandas_cache = self._apply_timezone(pandas_df)
+
+        # DEBUG-LOG: Conversion complete
+        logger.info(
+            "[BARS][PANDAS_DF_PROPERTY_CONVERTED] asset=%s pandas_shape=%s pandas_columns=%s",
+            self.symbol,
+            self._pandas_cache.shape,
+            list(self._pandas_cache.columns)
+        )
+
         return self._pandas_cache
 
     def __repr__(self):

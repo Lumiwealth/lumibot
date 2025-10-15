@@ -3958,3 +3958,11 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-10-12T15:23:09.056644,test_spx_data_accessible,unknown,,6.407,c16b6005,4.1.3,,,,,Auto-tracked from test_index_data_verification
 2025-10-12T15:23:09.405284,test_vix_data_accessible,unknown,,0.258,c16b6005,4.1.3,,,,,Auto-tracked from test_index_data_verification
 2025-10-12T15:23:09.610028,test_index_timestamp_accuracy,unknown,,0.115,c16b6005,4.1.3,,,,,Auto-tracked from test_index_data_verification
+2025-10-14T21:04:43.925554,test_databento_price_parity,Databento,,4.602,a794269c,4.1.3,,,,,Auto-tracked from test_databento_parity
+2025-10-14T21:05:05.856729,test_multiple_instruments_minute_data[DataBentoDataBacktestingPolars],Databento,,13.864,a794269c,4.1.3,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-14T21:05:26.484379,test_multiple_instruments_minute_data[DataBentoDataBacktestingPandas],Databento,,20.51,a794269c,4.1.3,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-14T21:05:43.025173,test_multiple_instruments_daily_data,Databento,,10.039,a794269c,4.1.3,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-10-14T21:05:53.829806,test_short_selling[DataBentoDataBacktestingPolars0],Databento,,3.172,a794269c,4.1.3,,,,,Auto-tracked from test_futures_edge_cases
+2025-10-14T21:05:55.527207,test_short_selling[DataBentoDataBacktestingPolars1],Databento,,1.588,a794269c,4.1.3,,,,,Auto-tracked from test_futures_edge_cases
+2025-10-14T21:06:00.216528,test_multiple_simultaneous_positions[DataBentoDataBacktestingPolars0],Databento,,4.575,a794269c,4.1.3,,,,,Auto-tracked from test_futures_edge_cases
+2025-10-14T21:06:03.455900,test_multiple_simultaneous_positions[DataBentoDataBacktestingPolars1],Databento,,3.117,a794269c,4.1.3,,,,,Auto-tracked from test_futures_edge_cases

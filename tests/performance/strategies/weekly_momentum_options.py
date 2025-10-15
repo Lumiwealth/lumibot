@@ -6,6 +6,13 @@ from lumibot.components.options_helper import OptionsHelper
 from lumibot.credentials import IS_BACKTESTING
 import pandas as pd
 from datetime import timedelta
+from pathlib import Path
+import json
+import logging
+import uuid
+
+# DEBUG-LOG: Get logger for strategy logging
+logger = logging.getLogger(__name__)
 
 
 ''' 
@@ -48,10 +55,60 @@ class WeeklyMomentumOptionsStrategy(Strategy):
         'max_simultaneous': 1,
     }
 
+    def _detect_engine_mode(self) -> str:
+        data_source = getattr(self, "data_source", None)
+        if data_source is None:
+            return "unknown"
+        name = data_source.__class__.__name__.lower()
+        return "polars" if "polars" in name else "pandas"
+
+    def _get_debug_dir(self) -> Path:
+        cached = getattr(self, "_debug_dir", None)
+        if cached is None:
+            debug_path = Path(self.parameters.get("diagnostics_dir", "logs/weekly_momentum_debug"))
+            debug_path.mkdir(parents=True, exist_ok=True)
+            self._debug_dir = debug_path
+            cached = debug_path
+        return cached
+
+    def _record_debug_event(self, event_type: str, payload: dict) -> None:
+        try:
+            counter = getattr(self, "_debug_counter", 0)
+            engine = payload.get("engine") or self._detect_engine_mode()
+            payload = {**payload, "engine": engine, "event": event_type, "timestamp": self.get_datetime().isoformat()}
+            debug_dir = self._get_debug_dir()
+            filename = f"{engine}_{event_type}_{self.get_datetime().strftime('%Y%m%dT%H%M%S')}_{counter:04d}.json"
+            with (debug_dir / filename).open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, default=str, indent=2)
+            self._debug_counter = counter + 1
+        except Exception as exc:
+            self.log_message(f"[DEBUG] failed recording {event_type}: {exc}", color="red")
+
     def initialize(self):
         # Called once when the strategy starts. We set up helpers and persistent variables.
         # Run once per day in backtests by default; set sleep timing if live.
         self.sleeptime = '1D'  # run once per day
+
+        # DEBUG-LOG: Generate run correlation ID
+        self.vars.run_id = str(uuid.uuid4())[:8]
+        engine = self._detect_engine_mode()
+
+        # DEBUG-LOG: Print run banner
+        banner = f"""
+{'='*80}
+RUN BANNER - Weekly Momentum Options Strategy
+{'='*80}
+RUN_ID: {self.vars.run_id}
+ENGINE: {engine}
+START_TIME: {self.get_datetime().isoformat() if hasattr(self, 'get_datetime') and callable(self.get_datetime) else 'UNKNOWN'}
+SYMBOLS: {self.parameters.get('symbols', [])}
+ALLOCATION_PCT: {self.parameters.get('allocation_pct', 0.07)}
+LOOKBACK_DAYS: 63
+{'='*80}
+"""
+        logger.warning(banner)
+        print(banner)
+
         # Keep the market normal (US stocks). Options trade during market hours.
         # Options helper makes it easier to find expirations and strikes.
         self.options_helper = OptionsHelper(self)
@@ -130,42 +187,259 @@ class WeeklyMomentumOptionsStrategy(Strategy):
 
     # Helper: rank symbols by 3-month performance
     def _rank_by_performance(self, symbols, lookback_days=63):
+        # DEBUG-LOG: Entry with parameters
+        run_id = getattr(self.vars, 'run_id', 'UNKNOWN')
+        current_dt = self.get_datetime()
+        logger.info(
+            "[STRATEGY][RANK][ENTRY] run_id=%s symbols=%s lookback_days=%s current_dt=%s",
+            run_id,
+            symbols,
+            lookback_days,
+            current_dt.isoformat()
+        )
+
         perf = {}
+        skipped = {}
         for s in symbols:
             try:
+                # DEBUG-LOG: Before get_historical_prices request
+                logger.info(
+                    "[STRATEGY][RANK][BEFORE_GET_HIST] run_id=%s symbol=%s lookback_days=%s timestep=day",
+                    run_id,
+                    s,
+                    lookback_days
+                )
+
                 asset = Asset(s, asset_type=Asset.AssetType.STOCK)
                 bars = self.get_historical_prices(asset, lookback_days, 'day')
-                if bars is None or bars.df.empty:
+
+                # DEBUG-LOG: After get_historical_prices returns
+                if bars is None:
+                    logger.warning(
+                        "[STRATEGY][RANK][AFTER_GET_HIST] run_id=%s symbol=%s bars=None",
+                        run_id,
+                        s
+                    )
                     self.log_message(f'No historical data for {s}', color='red')
+                    skipped[s] = 'no_data'
                     continue
-                df = bars.df.dropna()
-                if df.shape[0] < 2:
+
+                # DEBUG-LOG: Bars object received
+                bars_df_type = type(bars._df).__name__ if hasattr(bars, '_df') else 'UNKNOWN'
+                bars_return_polars = getattr(bars, '_return_polars', 'UNKNOWN')
+                logger.info(
+                    "[STRATEGY][RANK][BARS_RECEIVED] run_id=%s symbol=%s bars_type=%s bars._df_type=%s bars._return_polars=%s",
+                    run_id,
+                    s,
+                    type(bars).__name__,
+                    bars_df_type,
+                    bars_return_polars
+                )
+
+                # DEBUG-LOG: Before accessing bars.df
+                logger.info(
+                    "[STRATEGY][RANK][BEFORE_DF_ACCESS] run_id=%s symbol=%s",
+                    run_id,
+                    s
+                )
+
+                raw_df = bars.df.copy()
+
+                # DEBUG-LOG: After accessing bars.df
+                df_type = type(raw_df).__name__
+                df_shape = raw_df.shape if hasattr(raw_df, 'shape') else (getattr(raw_df, 'height', 'N/A'), 'N/A')
+                df_columns = list(raw_df.columns) if hasattr(raw_df, 'columns') else 'N/A'
+                logger.info(
+                    "[STRATEGY][RANK][AFTER_DF_ACCESS] run_id=%s symbol=%s df_type=%s df_shape=%s df_columns=%s",
+                    run_id,
+                    s,
+                    df_type,
+                    df_shape,
+                    df_columns
+                )
+
+                if raw_df.empty:
+                    logger.warning(
+                        "[STRATEGY][RANK][EMPTY_DF] run_id=%s symbol=%s",
+                        run_id,
+                        s
+                    )
+                    self.log_message(f'No historical data for {s}', color='red')
+                    skipped[s] = 'no_data'
                     continue
+
+                na_summary = {col: bool(raw_df[col].isna().all()) for col in raw_df.columns}
+                raw_rows = raw_df.shape[0]
+
+                # DEBUG-LOG: Raw dataframe analysis
+                logger.info(
+                    "[STRATEGY][RANK][RAW_DF] run_id=%s symbol=%s raw_rows=%s na_summary=%s",
+                    run_id,
+                    s,
+                    raw_rows,
+                    na_summary
+                )
+
+                missing_counts = {}
+                if 'missing' in raw_df.columns:
+                    try:
+                        missing_counts = raw_df['missing'].value_counts(dropna=False).to_dict()
+                    except Exception:
+                        missing_counts = "value_counts_error"
+
+                    # DEBUG-LOG: Missing column analysis
+                    logger.info(
+                        "[STRATEGY][RANK][MISSING_COLUMN] run_id=%s symbol=%s missing_counts=%s",
+                        run_id,
+                        s,
+                        missing_counts
+                    )
+
+                    filtered_df = raw_df[raw_df['missing'] == False]
+                else:
+                    filtered_df = raw_df
+
+                filtered_rows = filtered_df.shape[0]
+
+                # DEBUG-LOG: After missing filter
+                logger.info(
+                    "[STRATEGY][RANK][AFTER_MISSING_FILTER] run_id=%s symbol=%s filtered_rows=%s",
+                    run_id,
+                    s,
+                    filtered_rows
+                )
+
+                df = filtered_df.dropna(subset=['close']) if 'close' in filtered_df.columns else filtered_df.dropna()
+                final_rows = df.shape[0]
+
+                # DEBUG-LOG: After dropna
+                logger.info(
+                    "[STRATEGY][RANK][AFTER_DROPNA] run_id=%s symbol=%s final_rows=%s",
+                    run_id,
+                    s,
+                    final_rows
+                )
+
+                self.log_message(
+                    f'[RANK-DEBUG] {s}: raw={raw_rows} filtered={filtered_rows} final={final_rows} missing_summary={missing_counts}',
+                    color='magenta'
+                )
+
+                if final_rows:
+                    head_closes = df['close'].head(min(3, final_rows)).tolist() if 'close' in df.columns else []
+                    tail_closes = df['close'].tail(min(3, final_rows)).tolist() if 'close' in df.columns else []
+                    index_tail = df.index[-min(3, final_rows):].tolist() if hasattr(df.index, "tolist") else []
+
+                    # DEBUG-LOG: Sample data
+                    logger.info(
+                        "[STRATEGY][RANK][SAMPLE_DATA] run_id=%s symbol=%s head_closes=%s tail_closes=%s tail_index=%s",
+                        run_id,
+                        s,
+                        head_closes,
+                        tail_closes,
+                        index_tail
+                    )
+
+                    self.log_message(
+                        f'[RANK-SAMPLE] {s}: head_close={head_closes} tail_close={tail_closes} tail_index={index_tail}',
+                        color='cyan'
+                    )
+
+                if final_rows < 2:
+                    skip_reason = {
+                        'reason': f'insufficient_rows:{final_rows}',
+                        'raw_rows': int(filtered_rows),
+                        'na_columns': na_summary,
+                    }
+                    logger.warning(
+                        "[STRATEGY][RANK][SKIPPED] run_id=%s symbol=%s skip_reason=%s",
+                        run_id,
+                        s,
+                        skip_reason
+                    )
+                    skipped[s] = skip_reason
+                    continue
+
                 start = df['close'].iloc[0]
                 end = df['close'].iloc[-1]
                 pct = (end - start) / start
                 perf[s] = pct
+
+                # DEBUG-LOG: Performance calculation
+                logger.info(
+                    "[STRATEGY][RANK][PERFORMANCE] run_id=%s symbol=%s start_close=%.4f end_close=%.4f pct_change=%.4f final_rows=%s",
+                    run_id,
+                    s,
+                    start,
+                    end,
+                    pct,
+                    final_rows
+                )
+
                 self.log_message(
-                    f'[RANK] {s}: start={start:.4f} end={end:.4f} pct_change={pct:.4f} (rows={df.shape[0]})',
+                    f'[RANK] {s}: start={start:.4f} end={end:.4f} pct_change={pct:.4f} (rows={final_rows})',
                     color='blue'
                 )
             except Exception as e:
+                logger.exception(
+                    "[STRATEGY][RANK][EXCEPTION] run_id=%s symbol=%s error=%s",
+                    run_id,
+                    s,
+                    str(e)
+                )
                 self.log_message(f'Error ranking {s}: {e}', color='red')
-        # Return symbols sorted by performance descending
+                skipped[s] = f'exception:{e}'
+
         ranked = sorted(perf.keys(), key=lambda x: perf[x], reverse=True)
+
+        # DEBUG-LOG: Final ranking
+        logger.info(
+            "[STRATEGY][RANK][RESULT] run_id=%s ranked_symbols=%s performance=%s skipped_count=%s",
+            run_id,
+            ranked,
+            {sym: float(perf[sym]) for sym in ranked},
+            len(skipped)
+        )
+
         self.log_message(f'[RANK] ordered symbols: {ranked}', color='blue')
+        try:
+            self._record_debug_event(
+                "rank_snapshot",
+                {
+                    "ranked_symbols": ranked,
+                    "lookback_days": int(lookback_days),
+                    "performance": {sym: float(perf[sym]) for sym in ranked},
+                    "timestamp": self.get_datetime().isoformat(),
+                    "skipped_symbols": skipped,
+                },
+            )
+        except Exception:
+            pass
         return ranked
 
     # Helper: attempt to buy an option for a single symbol using allocation percent
     def _attempt_buy_for_symbol(self, symbol, allocation_pct):
         dt = self.get_datetime()
         underlying = Asset(symbol, asset_type=Asset.AssetType.STOCK)
+        debug_payload = {
+            "symbol": symbol,
+            "attempt_dt": dt.isoformat(),
+            "allocation_pct": float(allocation_pct),
+            "existing_positions": [str(asset) for asset in self.vars.trades.keys()],
+        }
 
         # Get option chains for the underlying
         chains_res = self.get_chains(underlying)
         if not chains_res:
             self.log_message(f'Option chains unavailable for {symbol}', color='red')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "no_option_chains"
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
+        try:
+            debug_payload["chains_expirations"] = chains_res.expirations("CALL")
+        except Exception:
+            debug_payload["chains_expirations"] = []
 
         # Choose an expiration at least min_days_to_expiry ahead, but not too far
         min_days = int(self.parameters.get('min_days_to_expiry', 14))
@@ -186,17 +460,25 @@ class WeeklyMomentumOptionsStrategy(Strategy):
 
         if not expiry_date:
             self.log_message(f'No suitable expiration found for {symbol}', color='red')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "no_expiration"
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
+        debug_payload["chosen_expiration"] = expiry_date.isoformat()
 
         # Find ATM or slightly ITM strike. We'll round the underlying price to nearest dollar.
         underlying_price = self.get_last_price(underlying)
         if underlying_price is None:
             self.log_message(f'No last price for {symbol}', color='red')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "no_underlying_last_price"
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
         self.log_message(
             f'[OPTION] underlying {symbol} last_price={float(underlying_price):.4f} target_expiry={expiry_date}',
             color='cyan'
         )
+        debug_payload["underlying_price"] = float(underlying_price)
 
         rounded_price = round(float(underlying_price))
         # Prefer ATM, allow 1 strike ITM (lower strike for call) to be slightly ITM
@@ -207,21 +489,34 @@ class WeeklyMomentumOptionsStrategy(Strategy):
 
         if not option_asset:
             self.log_message(f'No valid option strike found for {symbol} at expiry {expiry_date}', color='red')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "no_option_asset"
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
         self.log_message(
             f'[OPTION] candidate {option_asset.symbol} strike={option_asset.strike} expiry={option_asset.expiration}',
             color='cyan'
         )
+        debug_payload["selected_option"] = {
+            "symbol": option_asset.symbol,
+            "strike": float(option_asset.strike),
+            "expiration": option_asset.expiration.isoformat() if option_asset.expiration else None,
+        }
 
         # Get quote for the option to estimate price (use mid price when possible)
         quote = self.get_quote(option_asset)
+        quote_source = "mid"
         if quote is None or quote.mid_price is None:
             # Try last price fallback
             last = self.get_last_price(option_asset)
             if last is None:
                 self.log_message(f'No quote for option {option_asset}', color='red')
+                debug_payload["status"] = "failed"
+                debug_payload["reason"] = "no_option_quote"
+                self._record_debug_event("buy_attempt", debug_payload)
                 return False
             mid = float(last)
+            quote_source = "last_price_fallback"
             self.log_message(
                 f'[OPTION] {option_asset.symbol} quote missing mid; last_price used {mid:.4f}',
                 color='yellow'
@@ -232,16 +527,25 @@ class WeeklyMomentumOptionsStrategy(Strategy):
                 f'[OPTION] {option_asset.symbol} bid={quote.bid} ask={quote.ask} mid={quote.mid_price}',
                 color='cyan'
             )
+        debug_payload["quote_source"] = quote_source
+        debug_payload["quote_mid"] = mid
+        if quote is not None:
+            debug_payload["quote_bid"] = quote.bid
+            debug_payload["quote_ask"] = quote.ask
 
         # Cost per contract in dollars is mid * 100 (option multiplier)
         cost_per_contract = mid * 100.0
         if cost_per_contract <= 0:
             self.log_message('Invalid option price, skipping.', color='red')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "invalid_option_price"
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
         self.log_message(
             f'[OPTION] {option_asset.symbol} cost_per_contract={cost_per_contract:.2f} cash={float(self.get_cash()):.2f}',
             color='cyan'
         )
+        debug_payload["cost_per_contract"] = cost_per_contract
 
         cash = float(self.get_cash())
         target_cash = cash * float(allocation_pct)
@@ -249,6 +553,10 @@ class WeeklyMomentumOptionsStrategy(Strategy):
         contracts = int(target_cash // cost_per_contract)
         if contracts < 1:
             self.log_message(f'Not enough cash to buy 1 contract for {symbol} using {allocation_pct*100:.1f}% allocation.', color='yellow')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "insufficient_cash"
+            debug_payload["target_cash"] = target_cash
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
 
         # Create a limit order at mid price to reduce slippage
@@ -260,6 +568,9 @@ class WeeklyMomentumOptionsStrategy(Strategy):
         submitted = self.submit_order(order)
         if not submitted:
             self.log_message(f'Order submission failed for {symbol}', color='red')
+            debug_payload["status"] = "failed"
+            debug_payload["reason"] = "order_submission_failed"
+            self._record_debug_event("buy_attempt", debug_payload)
             return False
 
         # Store pending trade info; we'll capture fill details in on_filled_order
@@ -276,6 +587,14 @@ class WeeklyMomentumOptionsStrategy(Strategy):
             f'{option_asset.right} {option_asset.strike} exp {option_asset.expiration} at {mid}',
             color='green'
         )
+        debug_payload.update(
+            {
+                "status": "submitted",
+                "contracts": contracts,
+                "order_limit_price": mid,
+            }
+        )
+        self._record_debug_event("buy_attempt", debug_payload)
         return True
 
     # Lifecycle callback when an order is filled
@@ -300,6 +619,7 @@ class WeeklyMomentumOptionsStrategy(Strategy):
         # Iterate through our stored trades and current positions to decide exits
         to_remove = []
         for opt_asset, info in list(self.vars.trades.items()):
+            underlying_symbol = info.get('underlying')
             # If we don't have an entry_price yet, skip until fill is recorded
             entry_price = info.get('entry_price')
             if entry_price is None:
@@ -375,7 +695,7 @@ class WeeklyMomentumOptionsStrategy(Strategy):
                         continue
 
                 if found is None:
-                    self.log_message(f'Position for {opt_symbol} not found at exit time', color='yellow')
+                    self.log_message(f'Position for {option_asset.symbol} not found at exit time', color='yellow')
                     # Remove trade record to avoid infinite loop
                     to_remove.append(opt_asset)
                     continue
@@ -393,6 +713,19 @@ class WeeklyMomentumOptionsStrategy(Strategy):
                     f'Submitted exit for {option_asset.symbol} {option_asset.right} '
                     f'{option_asset.strike} exp {option_asset.expiration} due to {exit_reason}',
                     color='blue'
+                )
+                self._record_debug_event(
+                    "exit_decision",
+                    {
+                        "symbol": underlying_symbol,
+                        "option_symbol": option_asset.symbol,
+                        "reason": exit_reason,
+                        "entry_price": entry_price,
+                        "current_mid": current_mid,
+                        "pnl_pct": pnl_pct,
+                        "held_days": held_days,
+                        "contracts": qty,
+                    },
                 )
 
                 # Clean up stored trade record; we'll also handle fill confirmations in callbacks

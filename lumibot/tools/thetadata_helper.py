@@ -35,6 +35,7 @@ def reset_connection_diagnostics():
         "check_connection_calls": 0,
         "start_terminal_calls": 0,
         "network_requests": 0,
+        "placeholder_writes": 0,
     })
 
 
@@ -92,6 +93,15 @@ def append_missing_markers(
         rows.append(row)
 
     if rows:
+        CONNECTION_DIAGNOSTICS["placeholder_writes"] = CONNECTION_DIAGNOSTICS.get("placeholder_writes", 0) + len(rows)
+
+        # DEBUG-LOG: Placeholder injection
+        logger.info(
+            "[THETA][PLACEHOLDER][INJECT] count=%d dates=%s",
+            len(rows),
+            ", ".join(sorted({d.isoformat() for d in missing_dates}))
+        )
+
         placeholder_df = pd.DataFrame(rows).set_index("datetime")
         for col in df_all.columns:
             if col not in placeholder_df.columns:
@@ -173,6 +183,7 @@ CONNECTION_DIAGNOSTICS = {
     "check_connection_calls": 0,
     "start_terminal_calls": 0,
     "network_requests": 0,
+    "placeholder_writes": 0,
 }
 
 
@@ -223,19 +234,53 @@ def get_price_data(
     """
     import pytz  # Import at function level to avoid scope issues in nested calls
 
+    # DEBUG-LOG: Entry point for ThetaData request
+    logger.info(
+        "[THETA][REQUEST][ENTRY] asset=%s quote=%s start=%s end=%s timespan=%s datastyle=%s include_after_hours=%s",
+        asset,
+        quote_asset,
+        start.isoformat() if hasattr(start, 'isoformat') else start,
+        end.isoformat() if hasattr(end, 'isoformat') else end,
+        timespan,
+        datastyle,
+        include_after_hours
+    )
+
     # Check if we already have data for this asset in the cache file
     df_all = None
     df_cached = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
+
+    # DEBUG-LOG: Cache file check
+    logger.info(
+        "[THETA][CACHE][CHECK] asset=%s timespan=%s datastyle=%s cache_file=%s exists=%s",
+        asset,
+        timespan,
+        datastyle,
+        cache_file,
+        cache_file.exists()
+    )
+
     if cache_file.exists():
         logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
             df_all = df_cached.copy() # Make a copy so we can check the original later for differences
+
     cached_rows = 0 if df_all is None else len(df_all)
     placeholder_rows = 0
     if df_all is not None and not df_all.empty and "missing" in df_all.columns:
         placeholder_rows = int(df_all["missing"].sum())
+
+    # DEBUG-LOG: Cache load result
+    logger.info(
+        "[THETA][CACHE][LOADED] asset=%s cached_rows=%d placeholder_rows=%d real_rows=%d",
+        asset,
+        cached_rows,
+        placeholder_rows,
+        cached_rows - placeholder_rows
+    )
+
     logger.debug(
         "[THETADATA-CACHE] pre-fetch rows=%d placeholders=%d for %s %s %s",
         cached_rows,
@@ -261,6 +306,16 @@ def get_price_data(
     if not missing_dates:
         if df_all is not None and not df_all.empty:
             logger.info("ThetaData cache HIT for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
+            # DEBUG-LOG: Cache hit
+            logger.info(
+                "[THETA][CACHE][HIT] asset=%s timespan=%s datastyle=%s rows=%d start=%s end=%s",
+                asset,
+                timespan,
+                datastyle,
+                len(df_all),
+                start.isoformat() if hasattr(start, 'isoformat') else start,
+                end.isoformat() if hasattr(end, 'isoformat') else end
+            )
         # Filter cached data to requested date range before returning
         if df_all is not None and not df_all.empty:
             # For daily data, use date-based filtering (timestamps vary by provider)
@@ -296,6 +351,17 @@ def get_price_data(
         return df_all
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
+
+    # DEBUG-LOG: Cache miss
+    logger.info(
+        "[THETA][CACHE][MISS] asset=%s timespan=%s datastyle=%s missing_intervals=%d first=%s last=%s",
+        asset,
+        timespan,
+        datastyle,
+        len(missing_dates),
+        missing_dates[0] if missing_dates else None,
+        missing_dates[-1] if missing_dates else None
+    )
 
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
@@ -340,12 +406,27 @@ def get_price_data(
         )
 
         if result_df is None or result_df.empty:
-            logger.warning(
-                "[THETADATA-EOD] No rows returned for %s between %s and %s; recording placeholders.",
-                asset,
-                start,
-                end,
+            expired_range = (
+                asset.asset_type == "option"
+                and asset.expiration is not None
+                and requested_dates
+                and all(day > asset.expiration for day in requested_dates)
             )
+            if expired_range:
+                logger.info(
+                    "[THETADATA-EOD] Option %s expired on %s; cache reuse for range %s -> %s.",
+                    asset,
+                    asset.expiration,
+                    start,
+                    end,
+                )
+            else:
+                logger.warning(
+                    "[THETADATA-EOD] No rows returned for %s between %s and %s; recording placeholders.",
+                    asset,
+                    start,
+                    end,
+                )
             df_all = append_missing_markers(df_all, requested_dates)
             update_cache(
                 cache_file,
@@ -443,9 +524,23 @@ def get_price_data(
         chunk_end = _clamp_option_end(asset, end)
 
         if result_df is None or len(result_df) == 0:
-            logger.warning(
-                f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
+            expired_chunk = (
+                asset.asset_type == "option"
+                and asset.expiration is not None
+                and chunk_end.date() >= asset.expiration
             )
+            if expired_chunk:
+                logger.info(
+                    "[THETADATA] Option %s considered expired on %s; reusing cached data between %s and %s.",
+                    asset,
+                    asset.expiration,
+                    start,
+                    chunk_end,
+                )
+            else:
+                logger.warning(
+                    f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
+                )
             missing_chunk = get_trading_dates(asset, start, chunk_end)
             df_all = append_missing_markers(df_all, missing_chunk)
             pbar.update(1)
@@ -983,17 +1078,42 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
         while True:
             try:
                 CONNECTION_DIAGNOSTICS["network_requests"] += 1
+
+                # DEBUG-LOG: API request
+                logger.info(
+                    "[THETA][API][REQUEST] url=%s params=%s",
+                    request_url if next_page_url else url,
+                    request_params if request_params else querystring
+                )
+
                 response = requests.get(request_url, headers=headers, params=request_params)
                 # Status code 472 means "No data" - this is valid, return None
                 if response.status_code == 472:
                     logger.warning(f"No data available for request: {response.text[:200]}")
+                    # DEBUG-LOG: API response - no data
+                    logger.info(
+                        "[THETA][API][RESPONSE] status=472 result=NO_DATA"
+                    )
                     return None
                 # If status code is not 200, then we are not connected
                 elif response.status_code != 200:
                     logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
+                    # DEBUG-LOG: API response - error
+                    logger.info(
+                        "[THETA][API][RESPONSE] status=%d result=ERROR",
+                        response.status_code
+                    )
                     check_connection(username=username, password=password, wait_for_connection=True)
                 else:
                     json_resp = response.json()
+
+                    # DEBUG-LOG: API response - success
+                    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
+                    logger.info(
+                        "[THETA][API][RESPONSE] status=200 rows=%d has_next_page=%s",
+                        response_rows,
+                        bool(json_resp.get("header", {}).get("next_page"))
+                    )
 
                     # Check if json_resp has error_type inside of header
                     if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
@@ -1098,11 +1218,33 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
 
     headers = {"Accept": "application/json"}
 
+    # DEBUG-LOG: EOD data request
+    logger.info(
+        "[THETA][EOD][REQUEST] asset=%s start=%s end=%s datastyle=%s",
+        asset,
+        start_date,
+        end_date,
+        datastyle
+    )
+
     # Send the request
     json_resp = get_request(url=url, headers=headers, querystring=querystring,
                             username=username, password=password)
     if json_resp is None:
+        # DEBUG-LOG: EOD data response - no data
+        logger.info(
+            "[THETA][EOD][RESPONSE] asset=%s result=NO_DATA",
+            asset
+        )
         return None
+
+    # DEBUG-LOG: EOD data response - success
+    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
+    logger.info(
+        "[THETA][EOD][RESPONSE] asset=%s rows=%d",
+        asset,
+        response_rows
+    )
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
@@ -1253,12 +1395,36 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
 
     headers = {"Accept": "application/json"}
 
+    # DEBUG-LOG: Intraday data request
+    logger.info(
+        "[THETA][INTRADAY][REQUEST] asset=%s start=%s end=%s ivl=%d datastyle=%s include_after_hours=%s",
+        asset,
+        start_date,
+        end_date,
+        ivl,
+        datastyle,
+        include_after_hours
+    )
+
     # Send the request
 
     json_resp = get_request(url=url, headers=headers, querystring=querystring,
                             username=username, password=password)
     if json_resp is None:
+        # DEBUG-LOG: Intraday data response - no data
+        logger.info(
+            "[THETA][INTRADAY][RESPONSE] asset=%s result=NO_DATA",
+            asset
+        )
         return None
+
+    # DEBUG-LOG: Intraday data response - success
+    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
+    logger.info(
+        "[THETA][INTRADAY][RESPONSE] asset=%s rows=%d",
+        asset,
+        response_rows
+    )
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])

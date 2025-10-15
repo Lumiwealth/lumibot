@@ -1,0 +1,1516 @@
+Lumibot version 4.1.3
+2025-10-12 19:22:46,874 | INFO | .env file loaded from: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/.env
+2025-10-12 19:22:46,965 | WARNING | thetadata_backtesting_polars.py:__init__:63 | ThetaData credentials are not configured; ThetaTerminal may fail to authenticate.
+2025-10-12 19:22:46,991 | INFO | Killing ThetaTerminal process 77530
+2025-10-12 19:22:47,008 | INFO | [WeeklyMomentumOptionsStrategy] Starting backtest...
+2025-10-12 19:22:47,008 | INFO | Backtesting starting...
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-01 00:00:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 207000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 203400.0
+[BROKER DEBUG] Advancing time by 203400.0 seconds
+Progress ||   1.11%  [Elapsed: 0:00:01 ETA: 0:01:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-03 08:30:00-05:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   1.13%  [Elapsed: 0:00:01 ETA: 0:01:32] Progress ||   1.25%  [Elapsed: 0:00:01 ETA: 0:01:22] Portfolio Val: 100,000.00Progress ||   1.72%  [Elapsed: 0:00:01 ETA: 0:00:59] Progress ||   1.72%  [Elapsed: 0:00:01 ETA: 0:00:59] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-04 16:00:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   2.04%  [Elapsed: 0:00:01 ETA: 0:00:50] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-05 08:30:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-05 08:30:00-05:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   2.06%  [Elapsed: 0:00:01 ETA: 0:00:49] Progress ||   2.19%  [Elapsed: 0:00:01 ETA: 0:00:46] Portfolio Val: 100,000.00Progress ||   2.66%  [Elapsed: 0:00:01 ETA: 0:00:38] Progress ||   2.66%  [Elapsed: 0:00:01 ETA: 0:00:38] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-06 16:00:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   2.98%  [Elapsed: 0:00:01 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-07 08:30:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-07 08:30:00-05:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   3.00%  [Elapsed: 0:00:01 ETA: 0:00:33] Progress ||   3.13%  [Elapsed: 0:00:01 ETA: 0:00:32] Portfolio Val: 100,000.00Progress ||   4.52%  [Elapsed: 0:00:01 ETA: 0:00:00] Progress ||   4.52%  [Elapsed: 0:00:01 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-10 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   4.84%  [Elapsed: 0:00:01 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-11 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-11 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   4.86%  [Elapsed: 0:00:01 ETA: 0:00:00] Progress ||   4.99%  [Elapsed: 0:00:01 ETA: 0:00:00] Portfolio Val: 100,000.00Progress ||   5.46%  [Elapsed: 0:00:01 ETA: 0:00:00] Progress ||   5.46%  [Elapsed: 0:00:01 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-12 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   5.78%  [Elapsed: 0:00:01 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-13 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-13 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   5.80%  [Elapsed: 0:00:01 ETA: 0:00:00] 
+Downloading 'ohlc' data for HOOD / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:866: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  log_handle.write(f"\n---- Launch {datetime.utcnow().isoformat()}Z ----\n".encode())
+
+Downloading 'ohlc' data for HOOD / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:24<?, ?it/s]
+
+Downloading 'ohlc' data for VST / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for VST / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:08<?, ?it/s]
+
+Downloading 'ohlc' data for STX / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for STX / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:05<?, ?it/s]
+
+Downloading 'ohlc' data for WDC / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for WDC / USD with 'day' from ThetaData...:   0%|          | 0/1 [01:18<?, ?it/s]
+
+Downloading 'ohlc' data for PLTR / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for PLTR / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:37<?, ?it/s]
+
+Downloading 'ohlc' data for APP / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for APP / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:09<?, ?it/s]
+
+Downloading 'ohlc' data for NRG / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for NRG / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:05<?, ?it/s]
+
+Downloading 'ohlc' data for CCJ / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CCJ / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:05<?, ?it/s]
+
+Downloading 'ohlc' data for CVNA / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CVNA / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:08<?, ?it/s]
+
+Downloading 'ohlc' data for HIMS / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HIMS / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:15<?, ?it/s]
+
+Downloading option chain for PLTR on 2025-03-13. This will be cached for future use.
+
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:05<00:00,  5.31s/it]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 2it [00:10,  5.08s/it]                       
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 3it [00:14,  4.71s/it]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 4it [00:18,  4.41s/it]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 5it [00:22,  4.18s/it]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 6it [00:27,  4.41s/it]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 7it [00:31,  4.37s/it]
+Downloading 'ohlc' data for PLTR / USD with 'minute' from ThetaData...: 7it [00:31,  4.48s/it]
+
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.31s/it]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 2it [00:02,  1.18s/it]                       
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 3it [00:03,  1.13s/it]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 4it [00:04,  1.13s/it]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 5it [00:05,  1.12s/it]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 6it [00:06,  1.16s/it]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 7it [00:08,  1.19s/it]
+Downloading 'quote' data for PLTR / USD with 'minute' from ThetaData...: 7it [00:08,  1.18s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for PLTR 2025-03-28 83.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for PLTR 2025-03-28 83.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.04it/s]
+Downloading 'ohlc' data for PLTR 2025-03-28 83.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.00it/s]
+
+Downloading 'quote' data for PLTR 2025-03-28 83.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for PLTR 2025-03-28 83.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.31it/s]
+Downloading 'quote' data for PLTR 2025-03-28 83.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.30it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||   5.93%  [Elapsed: 0:04:06 ETA: 1:05:05] Portfolio Val: 100,000.00Progress ||   6.40%  [Elapsed: 0:04:06 ETA: 0:00:00] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||   6.40%  [Elapsed: 0:04:06 ETA: 0:01:02] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-14 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||   7.66%  [Elapsed: 0:04:06 ETA: 0:00:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-17 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for PLTR 2025-03-28 83.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for PLTR 2025-03-28 83.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-17 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   7.68%  [Elapsed: 0:04:08 ETA: 0:01:56] Progress ||   7.81%  [Elapsed: 0:04:08 ETA: 0:01:48] Portfolio Val: 102,529.94Progress ||   8.28%  [Elapsed: 0:04:08 ETA: 0:01:26] Progress ||   8.28%  [Elapsed: 0:04:08 ETA: 0:01:26] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-18 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   8.60%  [Elapsed: 0:04:08 ETA: 0:01:16] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-19 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-19 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   8.62%  [Elapsed: 0:04:08 ETA: 0:01:15] Progress ||   8.75%  [Elapsed: 0:04:08 ETA: 0:01:12] Portfolio Val: 99,339.94Progress ||   9.22%  [Elapsed: 0:04:08 ETA: 0:01:01] Progress ||   9.22%  [Elapsed: 0:04:08 ETA: 0:01:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-20 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   9.54%  [Elapsed: 0:04:08 ETA: 0:00:56] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   9.56%  [Elapsed: 0:04:08 ETA: 0:00:55] Progress ||   9.69%  [Elapsed: 0:04:08 ETA: 0:00:54] Portfolio Val: 93,839.94Progress ||  11.09%  [Elapsed: 0:04:08 ETA: 0:00:38] Progress ||  11.09%  [Elapsed: 0:04:08 ETA: 0:00:38] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-24 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  11.42%  [Elapsed: 0:04:08 ETA: 0:00:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-25 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-25 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  11.44%  [Elapsed: 0:04:08 ETA: 0:00:36] Progress ||  11.56%  [Elapsed: 0:04:08 ETA: 0:00:35] Portfolio Val: 109,239.78Progress ||  12.03%  [Elapsed: 0:04:08 ETA: 0:00:32] Progress ||  12.03%  [Elapsed: 0:04:08 ETA: 0:00:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-26 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  12.36%  [Elapsed: 0:04:08 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-27 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-27 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  12.38%  [Elapsed: 0:04:08 ETA: 0:00:30] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for HIMS on 2025-03-27. This will be cached for future use.
+
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.72s/it]
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 2it [00:04,  2.34s/it]                       
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 3it [00:06,  2.34s/it]
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 4it [00:08,  2.24s/it]
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 5it [00:11,  2.26s/it]
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 6it [00:13,  2.21s/it]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 7it [00:14,  2.02s/it]
+Downloading 'ohlc' data for HIMS / USD with 'minute' from ThetaData...: 7it [00:14,  2.14s/it]
+
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.16s/it]
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 2it [00:02,  1.15s/it]                       
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 3it [00:03,  1.12s/it]
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 4it [00:04,  1.15s/it]
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 5it [00:05,  1.14s/it]
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 6it [00:07,  1.27s/it]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 7it [00:08,  1.11s/it]
+Downloading 'quote' data for HIMS / USD with 'minute' from ThetaData...: 7it [00:08,  1.15s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for HIMS 2025-04-11 33.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HIMS 2025-04-11 33.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.69it/s]
+Downloading 'ohlc' data for HIMS 2025-04-11 33.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.67it/s]
+
+Downloading 'quote' data for HIMS 2025-04-11 33.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HIMS 2025-04-11 33.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.28it/s]
+Downloading 'quote' data for HIMS 2025-04-11 33.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.27it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  12.50%  [Elapsed: 0:04:37 ETA: 0:08:47] Portfolio Val: 109,239.78/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  12.97%  [Elapsed: 0:04:37 ETA: 0:08:03] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  12.97%  [Elapsed: 0:04:38 ETA: 0:08:08] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-28 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  14.23%  [Elapsed: 0:04:38 ETA: 0:00:47] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-31 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-31 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  14.25%  [Elapsed: 0:04:38 ETA: 0:00:46] Progress ||  14.38%  [Elapsed: 0:04:38 ETA: 0:00:43] Portfolio Val: 109,239.78Progress ||  14.85%  [Elapsed: 0:04:38 ETA: 0:00:34] Progress ||  14.85%  [Elapsed: 0:04:38 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-01 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  15.17%  [Elapsed: 0:04:38 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-02 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-02 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  15.19%  [Elapsed: 0:04:38 ETA: 0:00:30] Progress ||  15.32%  [Elapsed: 0:04:38 ETA: 0:00:29] Portfolio Val: 109,239.78Progress ||  15.79%  [Elapsed: 0:04:38 ETA: 0:00:24] Progress ||  15.79%  [Elapsed: 0:04:38 ETA: 0:00:25] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-03 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  16.11%  [Elapsed: 0:04:38 ETA: 0:00:22] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-04 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-04 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  16.13%  [Elapsed: 0:04:38 ETA: 0:00:22] Progress ||  16.26%  [Elapsed: 0:04:38 ETA: 0:00:21] Portfolio Val: 109,239.78Progress ||  17.67%  [Elapsed: 0:04:38 ETA: 0:00:15] Progress ||  17.67%  [Elapsed: 0:04:38 ETA: 0:00:15] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-07 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  17.99%  [Elapsed: 0:04:38 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-08 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for HIMS 2025-04-11 33.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for HIMS 2025-04-11 33.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-08 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  18.01%  [Elapsed: 0:04:39 ETA: 0:00:38] Progress ||  18.14%  [Elapsed: 0:04:39 ETA: 0:00:37] Portfolio Val: 109,265.78Progress ||  18.61%  [Elapsed: 0:04:39 ETA: 0:00:34] Progress ||  18.61%  [Elapsed: 0:04:39 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-09 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  18.93%  [Elapsed: 0:04:39 ETA: 0:00:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-10 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-10 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  18.95%  [Elapsed: 0:04:39 ETA: 0:00:32] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for CVNA on 2025-04-10. This will be cached for future use.
+
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.24s/it]
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 2it [00:02,  1.22s/it]                       
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 3it [00:03,  1.18s/it]
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 4it [00:04,  1.20s/it]
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 5it [00:05,  1.12s/it]
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 6it [00:07,  1.31s/it]
+Downloading 'ohlc' data for CVNA / USD with 'minute' from ThetaData...: 6it [00:07,  1.24s/it]
+
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.11s/it]
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 2it [00:02,  1.10s/it]                       
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 3it [00:03,  1.09s/it]
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 4it [00:04,  1.11s/it]
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 5it [00:05,  1.08s/it]
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 6it [00:06,  1.15s/it]
+Downloading 'quote' data for CVNA / USD with 'minute' from ThetaData...: 6it [00:06,  1.13s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for CVNA 2025-04-25 205.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CVNA 2025-04-25 205.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.53it/s]
+Downloading 'ohlc' data for CVNA 2025-04-25 205.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.51it/s]
+
+Downloading 'quote' data for CVNA 2025-04-25 205.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for CVNA 2025-04-25 205.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.18it/s]
+Downloading 'quote' data for CVNA 2025-04-25 205.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.18it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  19.08%  [Elapsed: 0:04:59 ETA: 0:04:37] Portfolio Val: 109,213.77/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  19.55%  [Elapsed: 0:05:00 ETA: 0:04:21] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  19.55%  [Elapsed: 0:05:00 ETA: 0:04:24] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-11 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  20.81%  [Elapsed: 0:05:00 ETA: 0:03:44] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-14 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-14 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  20.83%  [Elapsed: 0:05:00 ETA: 0:03:44] Progress ||  20.95%  [Elapsed: 0:05:00 ETA: 0:03:40] Portfolio Val: 109,213.77Progress ||  21.42%  [Elapsed: 0:05:00 ETA: 0:03:27] Progress ||  21.42%  [Elapsed: 0:05:00 ETA: 0:03:27] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-15 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  21.75%  [Elapsed: 0:05:00 ETA: 0:03:19] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-16 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-16 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  21.77%  [Elapsed: 0:05:00 ETA: 0:03:19] Progress ||  21.89%  [Elapsed: 0:05:00 ETA: 0:03:16] Portfolio Val: 109,213.77Progress ||  22.36%  [Elapsed: 0:05:00 ETA: 0:03:05] Progress ||  22.36%  [Elapsed: 0:05:00 ETA: 0:03:05] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-17 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 322200.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 318600.0
+[BROKER DEBUG] Advancing time by 318600.0 seconds
+Progress ||  24.10%  [Elapsed: 0:05:00 ETA: 0:02:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  24.11%  [Elapsed: 0:05:01 ETA: 0:02:34] Progress ||  24.24%  [Elapsed: 0:05:01 ETA: 0:02:32] Portfolio Val: 109,213.77Progress ||  24.71%  [Elapsed: 0:05:01 ETA: 0:02:25] Progress ||  24.71%  [Elapsed: 0:05:01 ETA: 0:02:25] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-22 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  25.03%  [Elapsed: 0:05:01 ETA: 0:02:21] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-23 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-23 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  25.05%  [Elapsed: 0:05:01 ETA: 0:02:20] Progress ||  25.18%  [Elapsed: 0:05:01 ETA: 0:02:19] Portfolio Val: 109,213.77Progress ||  25.65%  [Elapsed: 0:05:01 ETA: 0:02:13] Progress ||  25.65%  [Elapsed: 0:05:01 ETA: 0:02:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-24 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  25.97%  [Elapsed: 0:05:01 ETA: 0:02:09] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-25 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for CVNA 2025-04-25 205.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for CVNA 2025-04-25 205.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:01<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-25 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  25.99%  [Elapsed: 0:05:02 ETA: 0:02:19] Progress ||  26.12%  [Elapsed: 0:05:02 ETA: 0:02:18] Portfolio Val: 105,661.73Progress ||  27.53%  [Elapsed: 0:05:02 ETA: 0:02:02] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  27.53%  [Elapsed: 0:05:03 ETA: 0:02:04] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-28 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  27.85%  [Elapsed: 0:05:03 ETA: 0:02:02] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-29 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-29 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  27.87%  [Elapsed: 0:05:03 ETA: 0:02:04] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  28.00%  [Elapsed: 0:05:04 ETA: 0:02:07] Portfolio Val: 105,661.73Progress ||  28.47%  [Elapsed: 0:05:04 ETA: 0:02:02] Progress ||  28.47%  [Elapsed: 0:05:04 ETA: 0:02:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-30 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  28.79%  [Elapsed: 0:05:04 ETA: 0:01:59] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-01 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-01 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  28.81%  [Elapsed: 0:05:04 ETA: 0:01:59] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for NRG on 2025-05-01. This will be cached for future use.
+
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.02s/it]
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...: 2it [00:02,  1.01s/it]                       
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...: 3it [00:02,  1.03it/s]
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...: 4it [00:03,  1.00s/it]
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...: 5it [00:04,  1.04it/s]
+Downloading 'ohlc' data for NRG / USD with 'minute' from ThetaData...: 5it [00:04,  1.02it/s]
+
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.07s/it]
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...: 2it [00:02,  1.08s/it]                       
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...: 3it [00:03,  1.07s/it]
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...: 4it [00:04,  1.09s/it]
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...: 5it [00:05,  1.07s/it]
+Downloading 'quote' data for NRG / USD with 'minute' from ThetaData...: 5it [00:05,  1.08s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for NRG 2025-05-16 110.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for NRG 2025-05-16 110.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.90it/s]
+Downloading 'ohlc' data for NRG 2025-05-16 110.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.88it/s]
+
+Downloading 'quote' data for NRG 2025-05-16 110.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for NRG 2025-05-16 110.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.42it/s]
+Downloading 'quote' data for NRG 2025-05-16 110.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.41it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:28:07,135 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:07,285 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  28.94%  [Elapsed: 0:05:20 ETA: 0:02:29] Portfolio Val: 113,447.73/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  29.41%  [Elapsed: 0:05:20 ETA: 0:02:23] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  29.41%  [Elapsed: 0:05:21 ETA: 0:02:25] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-02 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  30.67%  [Elapsed: 0:05:21 ETA: 0:02:09] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-05 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-05 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  30.69%  [Elapsed: 0:05:21 ETA: 0:02:09] 2025-10-12 19:28:08,705 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:08,855 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  30.82%  [Elapsed: 0:05:21 ETA: 0:02:09] Portfolio Val: 113,447.73Progress ||  31.29%  [Elapsed: 0:05:21 ETA: 0:02:03] Progress ||  31.29%  [Elapsed: 0:05:21 ETA: 0:02:03] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-06 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  31.61%  [Elapsed: 0:05:21 ETA: 0:01:59] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-07 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-07 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  31.63%  [Elapsed: 0:05:21 ETA: 0:01:59] 2025-10-12 19:28:09,018 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:09,168 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  31.76%  [Elapsed: 0:05:22 ETA: 0:01:59] Portfolio Val: 113,447.73Progress ||  32.22%  [Elapsed: 0:05:22 ETA: 0:01:54] Progress ||  32.22%  [Elapsed: 0:05:22 ETA: 0:01:54] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-08 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  32.55%  [Elapsed: 0:05:22 ETA: 0:01:51] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-09 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-09 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  32.57%  [Elapsed: 0:05:22 ETA: 0:01:51] 2025-10-12 19:28:09,330 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:09,480 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  32.69%  [Elapsed: 0:05:22 ETA: 0:01:51] Portfolio Val: 113,447.73Progress ||  34.10%  [Elapsed: 0:05:22 ETA: 0:01:38] Progress ||  34.10%  [Elapsed: 0:05:22 ETA: 0:01:38] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-12 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  34.43%  [Elapsed: 0:05:22 ETA: 0:01:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-13 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-13 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  34.45%  [Elapsed: 0:05:22 ETA: 0:01:36] 2025-10-12 19:28:09,643 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:09,793 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  34.57%  [Elapsed: 0:05:22 ETA: 0:01:36] Portfolio Val: 113,447.73Progress ||  35.04%  [Elapsed: 0:05:22 ETA: 0:01:33] Progress ||  35.04%  [Elapsed: 0:05:22 ETA: 0:01:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-14 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  35.37%  [Elapsed: 0:05:22 ETA: 0:01:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-15 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-15 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  35.38%  [Elapsed: 0:05:22 ETA: 0:01:30] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for CCJ on 2025-05-15. This will be cached for future use.
+
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.19s/it]
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...: 2it [00:02,  1.13s/it]                       
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...: 3it [00:03,  1.12s/it]
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...: 4it [00:04,  1.19s/it]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...: 5it [00:06,  1.24s/it]
+Downloading 'ohlc' data for CCJ / USD with 'minute' from ThetaData...: 5it [00:06,  1.20s/it]
+
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.19s/it]
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...: 2it [00:02,  1.10s/it]                       
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...: 3it [00:03,  1.10s/it]
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...: 4it [00:04,  1.13s/it]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...: 5it [00:05,  1.14s/it]
+Downloading 'quote' data for CCJ / USD with 'minute' from ThetaData...: 5it [00:05,  1.14s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for CCJ 2025-05-30 53.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for CCJ 2025-05-30 53.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.64it/s]
+Downloading 'ohlc' data for CCJ 2025-05-30 53.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.62it/s]
+
+Downloading 'quote' data for CCJ 2025-05-30 53.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for CCJ 2025-05-30 53.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.37it/s]
+Downloading 'quote' data for CCJ 2025-05-30 53.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.36it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:28:26,345 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:26,496 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  35.51%  [Elapsed: 0:05:39 ETA: 0:03:08] Portfolio Val: 113,447.73Progress ||  35.98%  [Elapsed: 0:05:39 ETA: 0:02:54] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  35.98%  [Elapsed: 0:05:40 ETA: 0:02:57] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-16 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  37.24%  [Elapsed: 0:05:40 ETA: 0:02:30] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-19 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for CCJ 2025-05-30 53.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for CCJ 2025-05-30 53.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-19 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  37.26%  [Elapsed: 0:05:42 ETA: 0:02:45] 2025-10-12 19:28:29,689 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:29,844 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  37.39%  [Elapsed: 0:05:43 ETA: 0:02:47] Portfolio Val: 109,287.67/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  37.86%  [Elapsed: 0:05:43 ETA: 0:02:39] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  37.86%  [Elapsed: 0:05:43 ETA: 0:02:41] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-20 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  38.18%  [Elapsed: 0:05:44 ETA: 0:02:37] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  38.20%  [Elapsed: 0:05:44 ETA: 0:02:41] 2025-10-12 19:28:31,911 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:32,062 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  38.33%  [Elapsed: 0:05:45 ETA: 0:02:42] Portfolio Val: 108,647.652025-10-12 19:28:32,524 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for NRG 2025-05-16 110.0 CALL/USD (minute); skipping cache update.
+Progress ||  38.80%  [Elapsed: 0:05:45 ETA: 0:02:34] 2025-10-12 19:28:32,674 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for NRG 2025-05-16 110.0 CALL/USD (minute); skipping cache update.
+Progress ||  38.80%  [Elapsed: 0:05:45 ETA: 0:02:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-22 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  39.12%  [Elapsed: 0:05:45 ETA: 0:02:29] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-23 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-23 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  39.14%  [Elapsed: 0:05:45 ETA: 0:02:29] 2025-10-12 19:28:32,826 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:32,978 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  39.27%  [Elapsed: 0:05:46 ETA: 0:02:29] Portfolio Val: 108,647.65Progress ||  41.15%  [Elapsed: 0:05:46 ETA: 0:02:02] Progress ||  41.15%  [Elapsed: 0:05:46 ETA: 0:02:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-27 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  41.47%  [Elapsed: 0:05:46 ETA: 0:01:58] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-28 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-28 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  41.49%  [Elapsed: 0:05:46 ETA: 0:01:58] 2025-10-12 19:28:33,128 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:33,278 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  41.62%  [Elapsed: 0:05:46 ETA: 0:01:58] Portfolio Val: 108,647.65Progress ||  42.09%  [Elapsed: 0:05:46 ETA: 0:01:53] Progress ||  42.09%  [Elapsed: 0:05:46 ETA: 0:01:53] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-29 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  42.41%  [Elapsed: 0:05:46 ETA: 0:01:49] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-30 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-30 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  42.43%  [Elapsed: 0:05:46 ETA: 0:01:49] 2025-10-12 19:28:33,429 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:33,577 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  42.56%  [Elapsed: 0:05:46 ETA: 0:01:49] Portfolio Val: 108,647.65Progress ||  43.96%  [Elapsed: 0:05:46 ETA: 0:01:36] Progress ||  43.96%  [Elapsed: 0:05:46 ETA: 0:01:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-02 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  44.29%  [Elapsed: 0:05:46 ETA: 0:01:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-03 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-03 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  44.31%  [Elapsed: 0:05:46 ETA: 0:01:34] 2025-10-12 19:28:33,725 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:33,872 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  44.43%  [Elapsed: 0:05:46 ETA: 0:01:34] Portfolio Val: 108,647.65Progress ||  44.90%  [Elapsed: 0:05:46 ETA: 0:01:30] Progress ||  44.90%  [Elapsed: 0:05:46 ETA: 0:01:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-04 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  45.23%  [Elapsed: 0:05:46 ETA: 0:01:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-05 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-05 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  45.25%  [Elapsed: 0:05:46 ETA: 0:01:28] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for HOOD on 2025-06-05. This will be cached for future use.
+
+Downloading 'ohlc' data for HOOD / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:02<00:00,  2.78s/it]
+Downloading 'ohlc' data for HOOD / USD with 'minute' from ThetaData...: 2it [00:05,  2.81s/it]                       
+Downloading 'ohlc' data for HOOD / USD with 'minute' from ThetaData...: 3it [00:08,  2.73s/it]
+Downloading 'ohlc' data for HOOD / USD with 'minute' from ThetaData...: 4it [00:11,  3.12s/it]
+Downloading 'ohlc' data for HOOD / USD with 'minute' from ThetaData...: 4it [00:11,  2.99s/it]
+
+Downloading 'quote' data for HOOD / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.58s/it]
+Downloading 'quote' data for HOOD / USD with 'minute' from ThetaData...: 2it [00:03,  1.51s/it]                       
+Downloading 'quote' data for HOOD / USD with 'minute' from ThetaData...: 3it [00:04,  1.46s/it]
+Downloading 'quote' data for HOOD / USD with 'minute' from ThetaData...: 4it [00:05,  1.39s/it]
+Downloading 'quote' data for HOOD / USD with 'minute' from ThetaData...: 4it [00:05,  1.44s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.52it/s]
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.50it/s]
+
+Downloading 'quote' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.42it/s]
+Downloading 'quote' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.41it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:28:56,530 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:56,679 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  45.37%  [Elapsed: 0:06:10 ETA: 0:02:53] Portfolio Val: 108,647.65/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  45.84%  [Elapsed: 0:06:10 ETA: 0:03:07] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  45.84%  [Elapsed: 0:06:10 ETA: 0:02:57] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-06 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  47.10%  [Elapsed: 0:06:10 ETA: 0:02:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-09 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-09 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  47.12%  [Elapsed: 0:06:10 ETA: 0:02:32] 2025-10-12 19:28:58,092 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:28:58,245 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  47.25%  [Elapsed: 0:06:11 ETA: 0:02:31] Portfolio Val: 108,647.65Progress ||  47.72%  [Elapsed: 0:06:11 ETA: 0:02:23] Progress ||  47.72%  [Elapsed: 0:06:11 ETA: 0:02:23] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-10 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  48.04%  [Elapsed: 0:06:11 ETA: 0:02:18] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-11 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:02<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-11 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  48.06%  [Elapsed: 0:06:13 ETA: 0:02:36] 2025-10-12 19:29:01,032 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:01,183 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  48.19%  [Elapsed: 0:06:14 ETA: 0:02:32] Portfolio Val: 107,374.58Progress ||  48.66%  [Elapsed: 0:06:14 ETA: 0:02:24] Progress ||  48.66%  [Elapsed: 0:06:14 ETA: 0:02:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-12 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  48.98%  [Elapsed: 0:06:14 ETA: 0:02:19] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-13 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-13 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  49.00%  [Elapsed: 0:06:14 ETA: 0:02:18] 2025-10-12 19:29:01,345 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:01,495 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  49.13%  [Elapsed: 0:06:14 ETA: 0:02:18] Portfolio Val: 106,994.58Progress ||  50.54%  [Elapsed: 0:06:14 ETA: 0:01:59] Progress ||  50.54%  [Elapsed: 0:06:14 ETA: 0:01:59] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-16 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  50.86%  [Elapsed: 0:06:14 ETA: 0:01:55] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-17 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-17 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  50.88%  [Elapsed: 0:06:14 ETA: 0:01:55] 2025-10-12 19:29:01,657 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:01,805 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  51.01%  [Elapsed: 0:06:14 ETA: 0:01:53] Portfolio Val: 109,673.58Progress ||  51.48%  [Elapsed: 0:06:14 ETA: 0:01:48] Progress ||  51.48%  [Elapsed: 0:06:14 ETA: 0:01:48] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-18 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 149400.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 145800.0
+[BROKER DEBUG] Advancing time by 145800.0 seconds
+Progress ||  52.27%  [Elapsed: 0:06:14 ETA: 0:01:40] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-20 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-20 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  52.29%  [Elapsed: 0:06:14 ETA: 0:01:40] 2025-10-12 19:29:01,965 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:02,114 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  52.42%  [Elapsed: 0:06:15 ETA: 0:01:40] Portfolio Val: 109,882.51Progress ||  53.82%  [Elapsed: 0:06:15 ETA: 0:01:28] Progress ||  53.83%  [Elapsed: 0:06:15 ETA: 0:01:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-23 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  54.15%  [Elapsed: 0:06:15 ETA: 0:01:26] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-24 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-24 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  54.17%  [Elapsed: 0:06:15 ETA: 0:01:26] 2025-10-12 19:29:02,265 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:02,414 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  54.29%  [Elapsed: 0:06:15 ETA: 0:01:28] Portfolio Val: 109,882.51Progress ||  54.76%  [Elapsed: 0:06:15 ETA: 0:01:24] Progress ||  54.76%  [Elapsed: 0:06:15 ETA: 0:01:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-25 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  55.09%  [Elapsed: 0:06:15 ETA: 0:01:22] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-26 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-26 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  55.11%  [Elapsed: 0:06:15 ETA: 0:01:22] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for STX on 2025-06-26. This will be cached for future use.
+
+Downloading 'ohlc' data for STX / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for STX / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.04s/it]
+Downloading 'ohlc' data for STX / USD with 'minute' from ThetaData...: 2it [00:02,  1.08s/it]                       
+Downloading 'ohlc' data for STX / USD with 'minute' from ThetaData...: 3it [00:03,  1.13s/it]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for STX / USD with 'minute' from ThetaData...: 4it [00:10,  3.43s/it]
+Downloading 'ohlc' data for STX / USD with 'minute' from ThetaData...: 4it [00:10,  2.58s/it]
+
+Downloading 'quote' data for STX / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for STX / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:04<00:00,  4.50s/it]
+Downloading 'quote' data for STX / USD with 'minute' from ThetaData...: 2it [00:08,  4.14s/it]                       
+Downloading 'quote' data for STX / USD with 'minute' from ThetaData...: 3it [00:14,  5.07s/it]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for STX / USD with 'minute' from ThetaData...: 4it [00:18,  4.68s/it]
+Downloading 'quote' data for STX / USD with 'minute' from ThetaData...: 4it [00:18,  4.66s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for STX 2025-07-11 138.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for STX 2025-07-11 138.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.14s/it]
+Downloading 'ohlc' data for STX 2025-07-11 138.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.15s/it]
+
+Downloading 'quote' data for STX 2025-07-11 138.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for STX 2025-07-11 138.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:02<00:00,  2.53s/it]
+Downloading 'quote' data for STX 2025-07-11 138.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:02<00:00,  2.53s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:29:39,033 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:39,180 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  55.23%  [Elapsed: 0:06:52 ETA: 0:05:34] Portfolio Val: 109,882.51/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  55.70%  [Elapsed: 0:06:52 ETA: 0:00:29] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  55.70%  [Elapsed: 0:06:53 ETA: 0:00:59] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-27 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  56.97%  [Elapsed: 0:06:53 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-30 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-30 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  56.99%  [Elapsed: 0:06:53 ETA: 0:00:24] 2025-10-12 19:29:40,651 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:40,803 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  57.11%  [Elapsed: 0:06:53 ETA: 0:00:30] Portfolio Val: 109,882.51Progress ||  57.58%  [Elapsed: 0:06:53 ETA: 0:00:23] Progress ||  57.58%  [Elapsed: 0:06:53 ETA: 0:00:23] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-01 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  57.90%  [Elapsed: 0:06:53 ETA: 0:00:20] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-02 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-02 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  57.92%  [Elapsed: 0:06:53 ETA: 0:00:20] 2025-10-12 19:29:40,963 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:41,111 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  58.05%  [Elapsed: 0:06:54 ETA: 0:00:24] Portfolio Val: 109,882.51Progress ||  58.46%  [Elapsed: 0:06:54 ETA: 0:00:20] Progress ||  58.46%  [Elapsed: 0:06:54 ETA: 0:00:20] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-03 13:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 333000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 329400.0
+[BROKER DEBUG] Advancing time by 329400.0 seconds
+Progress ||  60.25%  [Elapsed: 0:06:54 ETA: 0:00:12] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-07 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-07 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  60.27%  [Elapsed: 0:06:54 ETA: 0:00:12] 2025-10-12 19:29:41,273 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:41,422 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  60.40%  [Elapsed: 0:06:54 ETA: 0:00:14] Portfolio Val: 109,882.51Progress ||  60.87%  [Elapsed: 0:06:54 ETA: 0:00:13] Progress ||  60.87%  [Elapsed: 0:06:54 ETA: 0:00:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-08 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  61.19%  [Elapsed: 0:06:54 ETA: 0:00:12] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-09 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-09 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  61.21%  [Elapsed: 0:06:54 ETA: 0:00:12] 2025-10-12 19:29:41,584 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:41,735 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  61.34%  [Elapsed: 0:06:54 ETA: 0:00:14] Portfolio Val: 109,882.51Progress ||  61.81%  [Elapsed: 0:06:54 ETA: 0:00:13] Progress ||  61.81%  [Elapsed: 0:06:54 ETA: 0:00:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-10 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  62.13%  [Elapsed: 0:06:54 ETA: 0:00:12] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-11 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-11 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  62.15%  [Elapsed: 0:06:54 ETA: 0:00:12] 2025-10-12 19:29:41,898 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:42,044 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  62.28%  [Elapsed: 0:06:55 ETA: 0:00:13] Portfolio Val: 109,882.51Progress ||  63.69%  [Elapsed: 0:06:55 ETA: 0:00:10] 2025-10-12 19:29:42,196 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+Progress ||  63.69%  [Elapsed: 0:06:55 ETA: 0:00:11] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-14 16:00:00-04:00, timedelta=60
+2025-10-12 19:29:42,347 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  64.01%  [Elapsed: 0:06:55 ETA: 0:00:11] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-15 08:30:00-04:00, timedelta=60
+2025-10-12 19:29:42,496 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-15 08:30:00-04:00, timedelta=0
+2025-10-12 19:29:42,647 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  64.03%  [Elapsed: 0:06:55 ETA: 0:00:12] 2025-10-12 19:29:42,796 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:42,945 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:43,093 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+Progress ||  64.16%  [Elapsed: 0:06:56 ETA: 0:00:14] Portfolio Val: 109,882.512025-10-12 19:29:43,241 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+Progress ||  64.63%  [Elapsed: 0:06:56 ETA: 0:00:14] 2025-10-12 19:29:43,389 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+Progress ||  64.63%  [Elapsed: 0:06:56 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-16 16:00:00-04:00, timedelta=60
+2025-10-12 19:29:43,538 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  64.95%  [Elapsed: 0:06:56 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-17 08:30:00-04:00, timedelta=60
+2025-10-12 19:29:43,689 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for STX 2025-07-11 138.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-17 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  64.97%  [Elapsed: 0:06:56 ETA: 0:00:15] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for WDC on 2025-07-17. This will be cached for future use.
+
+Downloading 'ohlc' data for WDC / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for WDC / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.31s/it]
+Downloading 'ohlc' data for WDC / USD with 'minute' from ThetaData...: 2it [00:02,  1.15s/it]                       /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for WDC / USD with 'minute' from ThetaData...: 3it [00:03,  1.27s/it]
+Downloading 'ohlc' data for WDC / USD with 'minute' from ThetaData...: 3it [00:03,  1.26s/it]
+
+Downloading 'quote' data for WDC / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for WDC / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.22s/it]
+Downloading 'quote' data for WDC / USD with 'minute' from ThetaData...: 2it [00:02,  1.15s/it]                       /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for WDC / USD with 'minute' from ThetaData...: 3it [00:03,  1.13s/it]
+Downloading 'quote' data for WDC / USD with 'minute' from ThetaData...: 3it [00:03,  1.15s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for WDC 2025-08-01 66.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for WDC 2025-08-01 66.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:02<00:00,  2.06s/it]
+Downloading 'ohlc' data for WDC 2025-08-01 66.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:02<00:00,  2.06s/it]
+
+Downloading 'quote' data for WDC 2025-08-01 66.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for WDC 2025-08-01 66.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.40s/it]
+Downloading 'quote' data for WDC 2025-08-01 66.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.40s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:29:57,363 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:57,515 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  65.10%  [Elapsed: 0:07:10 ETA: 0:01:04] Portfolio Val: 109,882.51/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  65.56%  [Elapsed: 0:07:11 ETA: 0:01:02] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  65.56%  [Elapsed: 0:07:11 ETA: 0:01:03] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-18 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  66.83%  [Elapsed: 0:07:11 ETA: 0:00:55] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  66.85%  [Elapsed: 0:07:11 ETA: 0:00:55] 2025-10-12 19:29:58,938 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:59,088 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  66.97%  [Elapsed: 0:07:12 ETA: 0:00:55] Portfolio Val: 109,882.51Progress ||  67.44%  [Elapsed: 0:07:12 ETA: 0:00:52] Progress ||  67.44%  [Elapsed: 0:07:12 ETA: 0:00:52] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-22 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  67.77%  [Elapsed: 0:07:12 ETA: 0:00:50] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-23 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-23 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  67.79%  [Elapsed: 0:07:12 ETA: 0:00:50] 2025-10-12 19:29:59,250 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:59,398 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  67.91%  [Elapsed: 0:07:12 ETA: 0:00:50] Portfolio Val: 109,882.51Progress ||  68.38%  [Elapsed: 0:07:12 ETA: 0:00:47] Progress ||  68.38%  [Elapsed: 0:07:12 ETA: 0:00:47] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-24 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  68.70%  [Elapsed: 0:07:12 ETA: 0:00:46] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-25 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-25 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  68.72%  [Elapsed: 0:07:12 ETA: 0:00:46] 2025-10-12 19:29:59,563 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:29:59,714 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  68.85%  [Elapsed: 0:07:12 ETA: 0:00:46] Portfolio Val: 109,882.51Progress ||  70.26%  [Elapsed: 0:07:12 ETA: 0:00:40] Progress ||  70.26%  [Elapsed: 0:07:12 ETA: 0:00:40] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-28 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  70.58%  [Elapsed: 0:07:12 ETA: 0:00:38] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-29 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-29 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  70.60%  [Elapsed: 0:07:12 ETA: 0:00:38] 2025-10-12 19:29:59,877 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:30:00,025 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  70.73%  [Elapsed: 0:07:13 ETA: 0:00:38] Portfolio Val: 109,882.51Progress ||  71.20%  [Elapsed: 0:07:13 ETA: 0:00:37] Progress ||  71.20%  [Elapsed: 0:07:13 ETA: 0:00:37] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-30 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  71.52%  [Elapsed: 0:07:13 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-31 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-31 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  71.54%  [Elapsed: 0:07:13 ETA: 0:00:35] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for VST on 2025-07-31. This will be cached for future use.
+
+Downloading 'ohlc' data for VST / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for VST / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.42s/it]
+Downloading 'ohlc' data for VST / USD with 'minute' from ThetaData...: 2it [00:02,  1.41s/it]                       /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for VST / USD with 'minute' from ThetaData...: 3it [00:10,  4.32s/it]
+Downloading 'ohlc' data for VST / USD with 'minute' from ThetaData...: 3it [00:10,  3.54s/it]
+
+Downloading 'quote' data for VST / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for VST / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:02<00:00,  2.39s/it]
+Downloading 'quote' data for VST / USD with 'minute' from ThetaData...: 2it [00:05,  2.56s/it]                       /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for VST / USD with 'minute' from ThetaData...: 3it [00:09,  3.25s/it]
+Downloading 'quote' data for VST / USD with 'minute' from ThetaData...: 3it [00:09,  3.05s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for VST 2025-08-15 210.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for VST 2025-08-15 210.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:03<00:00,  3.55s/it]
+Downloading 'ohlc' data for VST 2025-08-15 210.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:03<00:00,  3.55s/it]
+
+Downloading 'quote' data for VST 2025-08-15 210.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for VST 2025-08-15 210.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:03<00:00,  3.71s/it]
+Downloading 'quote' data for VST 2025-08-15 210.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:03<00:00,  3.71s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:30:29,965 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:30:30,120 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  71.67%  [Elapsed: 0:07:43 ETA: 0:03:03] Portfolio Val: 109,882.51/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  72.14%  [Elapsed: 0:07:43 ETA: 0:00:19] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  72.14%  [Elapsed: 0:07:44 ETA: 0:00:38] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-01 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  73.40%  [Elapsed: 0:07:44 ETA: 0:00:14] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-04 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-04 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  73.42%  [Elapsed: 0:07:45 ETA: 0:00:24] 2025-10-12 19:30:32,186 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:30:32,337 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  73.55%  [Elapsed: 0:07:45 ETA: 0:00:31] Portfolio Val: 109,882.51/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  74.02%  [Elapsed: 0:07:46 ETA: 0:00:28] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  74.02%  [Elapsed: 0:07:46 ETA: 0:00:31] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-05 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  74.34%  [Elapsed: 0:07:46 ETA: 0:00:30] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-06 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-06 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  74.36%  [Elapsed: 0:07:47 ETA: 0:00:36] 2025-10-12 19:30:34,387 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:30:34,536 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  74.49%  [Elapsed: 0:07:47 ETA: 0:00:39] Portfolio Val: 109,882.512025-10-12 19:30:35,000 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for WDC 2025-08-01 66.0 CALL/USD (minute); skipping cache update.
+Progress ||  74.96%  [Elapsed: 0:07:48 ETA: 0:00:34] 2025-10-12 19:30:35,151 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for WDC 2025-08-01 66.0 CALL/USD (minute); skipping cache update.
+Progress ||  74.96%  [Elapsed: 0:07:48 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-07 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  75.28%  [Elapsed: 0:07:48 ETA: 0:00:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-08 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for VST 2025-08-15 210.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for VST 2025-08-15 210.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:18<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-08 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  75.30%  [Elapsed: 0:08:06 ETA: 0:02:40] 2025-10-12 19:30:54,116 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:30:54,269 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  75.43%  [Elapsed: 0:08:07 ETA: 0:02:35] Portfolio Val: 106,424.44Progress ||  76.83%  [Elapsed: 0:08:07 ETA: 0:01:46] Progress ||  76.83%  [Elapsed: 0:08:07 ETA: 0:01:46] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-11 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  77.16%  [Elapsed: 0:08:07 ETA: 0:01:39] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-12 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-12 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  77.18%  [Elapsed: 0:08:07 ETA: 0:01:38] 2025-10-12 19:30:54,431 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:30:54,581 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  77.30%  [Elapsed: 0:08:07 ETA: 0:01:37] Portfolio Val: 106,424.41Progress ||  77.77%  [Elapsed: 0:08:07 ETA: 0:01:27] Progress ||  77.77%  [Elapsed: 0:08:07 ETA: 0:01:27] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-13 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  78.10%  [Elapsed: 0:08:07 ETA: 0:01:22] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-14 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-14 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  78.12%  [Elapsed: 0:08:07 ETA: 0:01:21] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading option chain for APP on 2025-08-14. This will be cached for future use.
+
+Downloading 'ohlc' data for APP / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for APP / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.59s/it]
+Downloading 'ohlc' data for APP / USD with 'minute' from ThetaData...: 2it [00:03,  1.96s/it]                       
+Downloading 'ohlc' data for APP / USD with 'minute' from ThetaData...: 2it [00:03,  1.91s/it]
+
+Downloading 'quote' data for APP / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for APP / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.15s/it]
+Downloading 'quote' data for APP / USD with 'minute' from ThetaData...: 2it [00:02,  1.15s/it]                       
+Downloading 'quote' data for APP / USD with 'minute' from ThetaData...: 2it [00:02,  1.15s/it]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+
+Downloading 'ohlc' data for APP 2025-08-29 435.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for APP 2025-08-29 435.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.38it/s]
+Downloading 'ohlc' data for APP 2025-08-29 435.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.37it/s]
+
+Downloading 'quote' data for APP 2025-08-29 435.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for APP 2025-08-29 435.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.28it/s]
+Downloading 'quote' data for APP 2025-08-29 435.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.27it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:31:04,826 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:04,975 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  78.24%  [Elapsed: 0:08:18 ETA: 0:01:23] Portfolio Val: 106,424.41/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  78.71%  [Elapsed: 0:08:18 ETA: 0:01:12] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  78.71%  [Elapsed: 0:08:18 ETA: 0:01:14] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-15 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  79.97%  [Elapsed: 0:08:19 ETA: 0:00:52] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-18 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-18 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  79.99%  [Elapsed: 0:08:19 ETA: 0:00:52] 2025-10-12 19:31:06,391 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:06,540 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  80.12%  [Elapsed: 0:08:19 ETA: 0:00:51] Portfolio Val: 106,424.41Progress ||  80.59%  [Elapsed: 0:08:19 ETA: 0:00:46] Progress ||  80.59%  [Elapsed: 0:08:19 ETA: 0:00:46] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-19 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  80.91%  [Elapsed: 0:08:19 ETA: 0:00:42] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-20 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-20 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  80.93%  [Elapsed: 0:08:19 ETA: 0:00:42] 2025-10-12 19:31:06,702 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:06,851 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  81.06%  [Elapsed: 0:08:19 ETA: 0:00:42] Portfolio Val: 106,424.41Progress ||  81.53%  [Elapsed: 0:08:19 ETA: 0:00:38] Progress ||  81.53%  [Elapsed: 0:08:19 ETA: 0:00:38] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-21 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  81.85%  [Elapsed: 0:08:19 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-22 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+
+Downloading 'ohlc' data for APP 2025-08-29 435.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for APP 2025-08-29 435.0 CALL / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-22 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  81.87%  [Elapsed: 0:08:21 ETA: 0:00:39] 2025-10-12 19:31:08,375 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:08,525 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  82.00%  [Elapsed: 0:08:21 ETA: 0:00:39] Portfolio Val: 106,226.39Progress ||  83.41%  [Elapsed: 0:08:21 ETA: 0:00:29] Progress ||  83.41%  [Elapsed: 0:08:21 ETA: 0:00:29] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-25 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  83.73%  [Elapsed: 0:08:21 ETA: 0:00:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-26 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-26 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  83.75%  [Elapsed: 0:08:21 ETA: 0:00:28] 2025-10-12 19:31:08,686 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:08,831 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  83.88%  [Elapsed: 0:08:21 ETA: 0:00:27] Portfolio Val: 104,924.39Progress ||  84.35%  [Elapsed: 0:08:21 ETA: 0:00:25] Progress ||  84.35%  [Elapsed: 0:08:21 ETA: 0:00:25] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-27 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  84.67%  [Elapsed: 0:08:21 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-28 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-28 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  84.69%  [Elapsed: 0:08:21 ETA: 0:00:24] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  84.82%  [Elapsed: 0:08:22 ETA: 0:00:24] Portfolio Val: 104,924.39Progress ||  85.29%  [Elapsed: 0:08:22 ETA: 0:00:22] Progress ||  85.29%  [Elapsed: 0:08:22 ETA: 0:00:22] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-29 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 322200.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 318600.0
+[BROKER DEBUG] Advancing time by 318600.0 seconds
+Progress ||  87.02%  [Elapsed: 0:08:22 ETA: 0:00:16] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-02 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-02 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  87.04%  [Elapsed: 0:08:23 ETA: 0:00:17] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+2025-10-12 19:31:10,811 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:10,959 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  87.17%  [Elapsed: 0:08:24 ETA: 0:00:18] Portfolio Val: 104,924.39/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  87.63%  [Elapsed: 0:08:24 ETA: 0:00:17] 2025-10-12 19:31:11,737 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for APP 2025-08-29 435.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:11,886 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for APP 2025-08-29 435.0 CALL/USD (minute); skipping cache update.
+Progress ||  87.63%  [Elapsed: 0:08:24 ETA: 0:00:17] 2025-10-12 19:31:12,036 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for APP 2025-08-29 435.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-03 16:00:00-04:00, timedelta=60
+2025-10-12 19:31:12,187 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for APP 2025-08-29 435.0 CALL/USD (minute); skipping cache update.
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  87.96%  [Elapsed: 0:08:25 ETA: 0:00:17] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-04 08:30:00-04:00, timedelta=60
+2025-10-12 19:31:12,341 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for APP 2025-08-29 435.0 CALL/USD (minute); skipping cache update.
+/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-04 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  87.98%  [Elapsed: 0:08:25 ETA: 0:00:17] /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/backtesting/thetadata_backtesting_polars.py:108: FutureWarning: The default fill_method='pad' in Series.pct_change is deprecated and will be removed in a future version. Either fill in any non-leading NA values prior to calling pct_change or specify 'fill_method=None' to not fill NA values.
+  pandas_frame["price_change"] = pandas_frame["close"].pct_change().fillna(0.0)
+Progress ||  88.10%  [Elapsed: 0:08:25 ETA: 0:00:17] Portfolio Val: 117,324.39Progress ||  88.57%  [Elapsed: 0:08:25 ETA: 0:00:16] Progress ||  88.57%  [Elapsed: 0:08:25 ETA: 0:00:16] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-05 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  89.84%  [Elapsed: 0:08:25 ETA: 0:00:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-08 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-08 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  89.86%  [Elapsed: 0:08:25 ETA: 0:00:13] 2025-10-12 19:31:13,054 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:13,203 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  89.98%  [Elapsed: 0:08:26 ETA: 0:00:13] Portfolio Val: 117,324.39Progress ||  90.45%  [Elapsed: 0:08:26 ETA: 0:00:12] Progress ||  90.45%  [Elapsed: 0:08:26 ETA: 0:00:12] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-09 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  90.78%  [Elapsed: 0:08:26 ETA: 0:00:11] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-10 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-10 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  90.79%  [Elapsed: 0:08:26 ETA: 0:00:11] 2025-10-12 19:31:13,354 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:13,504 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  90.92%  [Elapsed: 0:08:26 ETA: 0:00:11] Portfolio Val: 117,324.39Progress ||  91.39%  [Elapsed: 0:08:26 ETA: 0:00:10] Progress ||  91.39%  [Elapsed: 0:08:26 ETA: 0:00:10] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-11 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  91.71%  [Elapsed: 0:08:26 ETA: 0:00:09] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-12 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-12 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  91.73%  [Elapsed: 0:08:26 ETA: 0:00:09] 2025-10-12 19:31:13,655 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:13,804 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  91.86%  [Elapsed: 0:08:26 ETA: 0:00:09] Portfolio Val: 117,324.39Progress ||  93.27%  [Elapsed: 0:08:26 ETA: 0:00:07] Progress ||  93.27%  [Elapsed: 0:08:26 ETA: 0:00:07] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-15 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  93.59%  [Elapsed: 0:08:26 ETA: 0:00:06] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-16 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-16 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  93.61%  [Elapsed: 0:08:26 ETA: 0:00:06] 2025-10-12 19:31:13,953 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:14,102 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  93.74%  [Elapsed: 0:08:27 ETA: 0:00:06] Portfolio Val: 117,324.39Progress ||  94.21%  [Elapsed: 0:08:27 ETA: 0:00:06] Progress ||  94.21%  [Elapsed: 0:08:27 ETA: 0:00:06] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-17 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  94.53%  [Elapsed: 0:08:27 ETA: 0:00:05] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-18 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-18 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  94.55%  [Elapsed: 0:08:27 ETA: 0:00:05] Progress ||  94.68%  [Elapsed: 0:08:27 ETA: 0:00:05] Portfolio Val: 117,324.39Progress ||  95.15%  [Elapsed: 0:08:27 ETA: 0:00:04] Progress ||  95.15%  [Elapsed: 0:08:27 ETA: 0:00:04] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-19 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  96.41%  [Elapsed: 0:08:27 ETA: 0:00:03] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-22 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-22 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  96.43%  [Elapsed: 0:08:27 ETA: 0:00:03] 2025-10-12 19:31:14,309 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:14,460 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  96.56%  [Elapsed: 0:08:27 ETA: 0:00:03] Portfolio Val: 117,324.39Progress ||  97.03%  [Elapsed: 0:08:27 ETA: 0:00:02] Progress ||  97.03%  [Elapsed: 0:08:27 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-23 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  97.35%  [Elapsed: 0:08:27 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-24 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-24 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  97.37%  [Elapsed: 0:08:27 ETA: 0:00:02] 2025-10-12 19:31:14,612 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:14,763 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  97.50%  [Elapsed: 0:08:27 ETA: 0:00:02] Portfolio Val: 117,324.39Progress ||  97.97%  [Elapsed: 0:08:27 ETA: 0:00:01] Progress ||  97.97%  [Elapsed: 0:08:27 ETA: 0:00:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-25 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  98.29%  [Elapsed: 0:08:27 ETA: 0:00:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-26 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-26 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  98.31%  [Elapsed: 0:08:27 ETA: 0:00:01] 2025-10-12 19:31:14,914 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+2025-10-12 19:31:15,063 | WARNING | thetadata_backtesting_polars.py:_update_data:200 | ThetaData returned no OHLC rows for CVNA 2025-04-25 205.0 CALL/USD (minute); skipping cache update.
+Progress ||  98.44%  [Elapsed: 0:08:28 ETA: 0:00:01] Portfolio Val: 117,324.39Progress ||  99.84%  [Elapsed: 0:08:28 ETA: 0:00:00] Progress ||  99.84%  [Elapsed: 0:08:28 ETA: 0:00:00] [theta diagnostics] mode=polars network_requests=530 check_connection_calls=530 start_terminal_calls=1
+mode=polars elapsed=513.78s

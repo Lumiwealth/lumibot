@@ -580,10 +580,28 @@ class Broker(ABC):
         float or Decimal or None
             The last known price of the asset.
         """
+        # DEBUG-LOG: Broker quote request
+        logger.info(
+            "[BROKER][QUOTE][REQUEST] asset=%s quote=%s exchange=%s using_option_source=%s",
+            getattr(asset, 'symbol', asset),
+            getattr(quote, 'symbol', quote) if quote is not None else None,
+            exchange,
+            bool(self.option_source and asset.asset_type == "option")
+        )
+
         if self.option_source and asset.asset_type == "option":
-            return self.option_source.get_last_price(asset, quote=quote, exchange=exchange)
+            result = self.option_source.get_last_price(asset, quote=quote, exchange=exchange)
         else:
-            return self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
+            result = self.data_source.get_last_price(asset, quote=quote, exchange=exchange)
+
+        # DEBUG-LOG: Broker quote response
+        logger.info(
+            "[BROKER][QUOTE][RESPONSE] asset=%s value=%s",
+            getattr(asset, 'symbol', asset),
+            result
+        )
+
+        return result
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """

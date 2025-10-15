@@ -1,0 +1,1031 @@
+Lumibot version 4.1.3
+2025-10-12 18:28:50,031 | INFO | .env file loaded from: /Users/robertgrzesik/Documents/Development/lumivest_bot_server/.env
+2025-10-12 18:28:50,147 | WARNING | thetadata_backtesting_polars.py:__init__:58 | ThetaData credentials are not configured; ThetaTerminal may fail to authenticate.
+2025-10-12 18:28:50,175 | INFO | No processes found related to 'ThetaTerminal.jar'
+2025-10-12 18:28:50,179 | INFO | [WeeklyMomentumOptionsStrategy] Starting backtest...
+2025-10-12 18:28:50,179 | INFO | Backtesting starting...
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-01 00:00:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 207000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 203400.0
+[BROKER DEBUG] Advancing time by 203400.0 seconds
+Progress ||   1.11%  [Elapsed: 0:00:00 ETA: 0:01:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-03 08:30:00-05:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   1.13%  [Elapsed: 0:00:00 ETA: 0:01:27] Progress ||   1.25%  [Elapsed: 0:00:00 ETA: 0:01:18] Portfolio Val: 100,000.00Progress ||   1.72%  [Elapsed: 0:00:00 ETA: 0:00:56] Progress ||   1.72%  [Elapsed: 0:00:00 ETA: 0:00:56] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-04 16:00:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   2.04%  [Elapsed: 0:00:00 ETA: 0:00:47] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-05 08:30:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-05 08:30:00-05:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   2.06%  [Elapsed: 0:00:00 ETA: 0:00:47] Progress ||   2.19%  [Elapsed: 0:00:00 ETA: 0:00:44] Portfolio Val: 100,000.00Progress ||   2.66%  [Elapsed: 0:00:00 ETA: 0:00:36] Progress ||   2.66%  [Elapsed: 0:00:00 ETA: 0:00:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-06 16:00:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   2.98%  [Elapsed: 0:00:00 ETA: 0:00:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-07 08:30:00-05:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-07 08:30:00-05:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   3.00%  [Elapsed: 0:00:00 ETA: 0:00:32] Progress ||   3.13%  [Elapsed: 0:00:00 ETA: 0:00:30] Portfolio Val: 100,000.00Progress ||   4.52%  [Elapsed: 0:00:00 ETA: 0:00:00] Progress ||   4.52%  [Elapsed: 0:00:00 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-10 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   4.84%  [Elapsed: 0:00:00 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-11 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-11 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   4.86%  [Elapsed: 0:00:00 ETA: 0:00:00] Progress ||   4.99%  [Elapsed: 0:00:00 ETA: 0:00:00] Portfolio Val: 100,000.00Progress ||   5.46%  [Elapsed: 0:00:00 ETA: 0:00:00] Progress ||   5.46%  [Elapsed: 0:00:00 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-12 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   5.78%  [Elapsed: 0:00:00 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-13 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-13 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   5.80%  [Elapsed: 0:00:00 ETA: 0:00:00] 
+Downloading 'ohlc' data for HOOD / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:866: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  log_handle.write(f"\n---- Launch {datetime.utcnow().isoformat()}Z ----\n".encode())
+
+Downloading 'ohlc' data for HOOD / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:23<?, ?it/s]
+
+Downloading 'ohlc' data for VST / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for VST / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:07<?, ?it/s]
+
+Downloading 'ohlc' data for STX / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for STX / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:05<?, ?it/s]
+
+Downloading 'ohlc' data for WDC / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for WDC / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:06<?, ?it/s]
+
+Downloading 'ohlc' data for PLTR / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for PLTR / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:36<?, ?it/s]
+
+Downloading 'ohlc' data for APP / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for APP / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:09<?, ?it/s]
+
+Downloading 'ohlc' data for NRG / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for NRG / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:05<?, ?it/s]
+
+Downloading 'ohlc' data for CCJ / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CCJ / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:05<?, ?it/s]
+
+Downloading 'ohlc' data for CVNA / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CVNA / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:06<?, ?it/s]
+
+Downloading 'ohlc' data for HIMS / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HIMS / USD with 'day' from ThetaData...:   0%|          | 0/1 [00:12<?, ?it/s]
+
+Downloading option chain for PLTR on 2025-03-13. This will be cached for future use.
+
+Downloading 'ohlc' data for PLTR 2025-03-28 80.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for PLTR 2025-03-28 80.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.59it/s]
+Downloading 'ohlc' data for PLTR 2025-03-28 80.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.58it/s]
+
+Downloading 'quote' data for PLTR 2025-03-28 80.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for PLTR 2025-03-28 80.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.06it/s]
+Downloading 'quote' data for PLTR 2025-03-28 80.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.05it/s]
+Progress ||   5.93%  [Elapsed: 0:02:06 ETA: 0:33:33] Portfolio Val: 100,000.00Progress ||   6.40%  [Elapsed: 0:02:06 ETA: 0:00:00] Progress ||   6.40%  [Elapsed: 0:02:06 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-14 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||   7.66%  [Elapsed: 0:02:06 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-17 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-17 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   7.68%  [Elapsed: 0:02:07 ETA: 0:00:05] Progress ||   7.81%  [Elapsed: 0:02:07 ETA: 0:00:05] Portfolio Val: 101,375.94Progress ||   8.28%  [Elapsed: 0:02:07 ETA: 0:00:04] Progress ||   8.28%  [Elapsed: 0:02:07 ETA: 0:00:04] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-18 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   8.60%  [Elapsed: 0:02:07 ETA: 0:00:04] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-19 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-19 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   8.62%  [Elapsed: 0:02:07 ETA: 0:00:04] Progress ||   8.75%  [Elapsed: 0:02:07 ETA: 0:00:04] Portfolio Val: 99,127.94Progress ||   9.22%  [Elapsed: 0:02:07 ETA: 0:00:03] Progress ||   9.22%  [Elapsed: 0:02:07 ETA: 0:00:03] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-20 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||   9.54%  [Elapsed: 0:02:07 ETA: 0:00:03] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||   9.56%  [Elapsed: 0:02:07 ETA: 0:00:03] Progress ||   9.69%  [Elapsed: 0:02:07 ETA: 0:00:03] Portfolio Val: 99,735.94Progress ||  11.09%  [Elapsed: 0:02:07 ETA: 0:00:02] Progress ||  11.09%  [Elapsed: 0:02:07 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-24 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  11.42%  [Elapsed: 0:02:07 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-25 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-25 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  11.44%  [Elapsed: 0:02:07 ETA: 0:00:02] Progress ||  11.56%  [Elapsed: 0:02:07 ETA: 0:00:02] Portfolio Val: 99,895.88Progress ||  12.03%  [Elapsed: 0:02:07 ETA: 0:00:02] Progress ||  12.03%  [Elapsed: 0:02:07 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-26 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  12.36%  [Elapsed: 0:02:07 ETA: 0:00:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-27 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-27 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  12.38%  [Elapsed: 0:02:07 ETA: 0:00:01] 
+Downloading option chain for HIMS on 2025-03-27. This will be cached for future use.
+
+Downloading 'ohlc' data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.16it/s]
+Downloading 'ohlc' data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.14it/s]
+
+Downloading 'quote' data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.21it/s]
+Downloading 'quote' data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.20it/s]
+Progress ||  12.50%  [Elapsed: 0:02:10 ETA: 0:00:47] Portfolio Val: 99,895.88Progress ||  12.97%  [Elapsed: 0:02:10 ETA: 0:00:43] Progress ||  12.97%  [Elapsed: 0:02:10 ETA: 0:00:43] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-28 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  14.23%  [Elapsed: 0:02:10 ETA: 0:00:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-31 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-03-31 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  14.25%  [Elapsed: 0:02:10 ETA: 0:00:37] Progress ||  14.38%  [Elapsed: 0:02:10 ETA: 0:00:37] Portfolio Val: 97,064.83Progress ||  14.85%  [Elapsed: 0:02:10 ETA: 0:00:35] Progress ||  14.85%  [Elapsed: 0:02:10 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-01 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  15.17%  [Elapsed: 0:02:10 ETA: 0:00:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-02 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-02 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  15.19%  [Elapsed: 0:02:10 ETA: 0:00:33] Progress ||  15.32%  [Elapsed: 0:02:10 ETA: 0:00:33] Portfolio Val: 97,064.81Progress ||  15.79%  [Elapsed: 0:02:10 ETA: 0:00:31] Progress ||  15.79%  [Elapsed: 0:02:10 ETA: 0:00:31] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-03 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  16.11%  [Elapsed: 0:02:10 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-04 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-04 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  16.13%  [Elapsed: 0:02:10 ETA: 0:00:30] Progress ||  16.26%  [Elapsed: 0:02:10 ETA: 0:00:29] Portfolio Val: 97,064.81Progress ||  17.67%  [Elapsed: 0:02:10 ETA: 0:00:25] Progress ||  17.67%  [Elapsed: 0:02:10 ETA: 0:00:25] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-07 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  17.99%  [Elapsed: 0:02:10 ETA: 0:00:25] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-08 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-08 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  18.01%  [Elapsed: 0:02:10 ETA: 0:00:25] Progress ||  18.14%  [Elapsed: 0:02:10 ETA: 0:00:24] Portfolio Val: 97,064.81Progress ||  18.61%  [Elapsed: 0:02:10 ETA: 0:00:23] Progress ||  18.61%  [Elapsed: 0:02:10 ETA: 0:00:23] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-09 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  18.93%  [Elapsed: 0:02:10 ETA: 0:00:22] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-10 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-10 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  18.95%  [Elapsed: 0:02:10 ETA: 0:00:22] 
+Downloading option chain for PLTR on 2025-04-10. This will be cached for future use.
+
+Downloading 'ohlc' data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.01it/s]
+Downloading 'ohlc' data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.00it/s]
+
+Downloading 'quote' data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.21s/it]
+Downloading 'quote' data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.22s/it]
+Progress ||  19.08%  [Elapsed: 0:02:15 ETA: 0:00:53] Portfolio Val: 97,064.81Progress ||  19.55%  [Elapsed: 0:02:15 ETA: 0:00:51] Progress ||  19.55%  [Elapsed: 0:02:15 ETA: 0:00:51] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-11 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  20.81%  [Elapsed: 0:02:15 ETA: 0:00:46] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-14 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-14 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  20.83%  [Elapsed: 0:02:15 ETA: 0:00:46] Progress ||  20.95%  [Elapsed: 0:02:15 ETA: 0:00:46] Portfolio Val: 100,736.77Progress ||  21.42%  [Elapsed: 0:02:15 ETA: 0:00:44] Progress ||  21.42%  [Elapsed: 0:02:15 ETA: 0:00:44] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-15 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  21.75%  [Elapsed: 0:02:15 ETA: 0:00:43] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-16 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-16 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  21.77%  [Elapsed: 0:02:15 ETA: 0:00:43] Progress ||  21.89%  [Elapsed: 0:02:15 ETA: 0:00:43] Portfolio Val: 101,896.77Progress ||  22.36%  [Elapsed: 0:02:15 ETA: 0:00:41] Progress ||  22.36%  [Elapsed: 0:02:15 ETA: 0:00:41] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-17 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 322200.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 318600.0
+[BROKER DEBUG] Advancing time by 318600.0 seconds
+Progress ||  24.10%  [Elapsed: 0:02:15 ETA: 0:00:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  24.11%  [Elapsed: 0:02:15 ETA: 0:00:36] Progress ||  24.24%  [Elapsed: 0:02:15 ETA: 0:00:36] Portfolio Val: 101,896.68Progress ||  24.71%  [Elapsed: 0:02:15 ETA: 0:00:35] Progress ||  24.71%  [Elapsed: 0:02:15 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-22 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  25.03%  [Elapsed: 0:02:15 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-23 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-23 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  25.05%  [Elapsed: 0:02:15 ETA: 0:00:34] Progress ||  25.18%  [Elapsed: 0:02:15 ETA: 0:00:34] Portfolio Val: 101,896.68Progress ||  25.65%  [Elapsed: 0:02:15 ETA: 0:00:33] Progress ||  25.65%  [Elapsed: 0:02:15 ETA: 0:00:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-24 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  25.97%  [Elapsed: 0:02:15 ETA: 0:00:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-25 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-25 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  25.99%  [Elapsed: 0:02:15 ETA: 0:00:32] Progress ||  26.12%  [Elapsed: 0:02:15 ETA: 0:00:32] Portfolio Val: 101,896.68Progress ||  27.53%  [Elapsed: 0:02:15 ETA: 0:00:29] Progress ||  27.53%  [Elapsed: 0:02:15 ETA: 0:00:29] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-28 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  27.85%  [Elapsed: 0:02:15 ETA: 0:00:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-29 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-29 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  27.87%  [Elapsed: 0:02:15 ETA: 0:00:28] Progress ||  28.00%  [Elapsed: 0:02:15 ETA: 0:00:28] Portfolio Val: 101,896.68Progress ||  28.47%  [Elapsed: 0:02:15 ETA: 0:00:27] Progress ||  28.47%  [Elapsed: 0:02:15 ETA: 0:00:27] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-04-30 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  28.79%  [Elapsed: 0:02:15 ETA: 0:00:27] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-01 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-01 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  28.81%  [Elapsed: 0:02:15 ETA: 0:00:27] 
+Downloading option chain for PLTR on 2025-05-01. This will be cached for future use.
+
+Downloading 'ohlc' data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.51it/s]
+Downloading 'ohlc' data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.49it/s]
+
+Downloading 'quote' data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.28it/s]
+Downloading 'quote' data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.27it/s]
+Progress ||  28.94%  [Elapsed: 0:02:19 ETA: 0:00:40] Portfolio Val: 101,896.68Progress ||  29.41%  [Elapsed: 0:02:19 ETA: 0:00:39] Progress ||  29.41%  [Elapsed: 0:02:19 ETA: 0:00:39] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-02 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  30.67%  [Elapsed: 0:02:19 ETA: 0:00:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-05 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-05 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  30.69%  [Elapsed: 0:02:20 ETA: 0:00:36] Progress ||  30.82%  [Elapsed: 0:02:20 ETA: 0:00:36] Portfolio Val: 104,446.62Progress ||  31.29%  [Elapsed: 0:02:20 ETA: 0:00:35] Progress ||  31.29%  [Elapsed: 0:02:20 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-06 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  31.61%  [Elapsed: 0:02:20 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-07 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-07 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  31.63%  [Elapsed: 0:02:20 ETA: 0:00:35] Progress ||  31.76%  [Elapsed: 0:02:20 ETA: 0:00:34] Portfolio Val: 97,006.62Progress ||  32.22%  [Elapsed: 0:02:20 ETA: 0:00:33] Progress ||  32.22%  [Elapsed: 0:02:20 ETA: 0:00:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-08 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  32.55%  [Elapsed: 0:02:20 ETA: 0:00:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-09 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-09 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  32.57%  [Elapsed: 0:02:20 ETA: 0:00:33] Progress ||  32.69%  [Elapsed: 0:02:20 ETA: 0:00:33] Portfolio Val: 97,084.61Progress ||  34.10%  [Elapsed: 0:02:20 ETA: 0:00:30] Progress ||  34.10%  [Elapsed: 0:02:20 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-12 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  34.43%  [Elapsed: 0:02:20 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-13 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-13 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  34.45%  [Elapsed: 0:02:20 ETA: 0:00:30] Progress ||  34.57%  [Elapsed: 0:02:20 ETA: 0:00:30] Portfolio Val: 97,084.61Progress ||  35.04%  [Elapsed: 0:02:20 ETA: 0:00:29] Progress ||  35.04%  [Elapsed: 0:02:20 ETA: 0:00:29] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-14 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  35.37%  [Elapsed: 0:02:20 ETA: 0:00:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-15 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-15 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  35.38%  [Elapsed: 0:02:20 ETA: 0:00:28] 
+Downloading option chain for NRG on 2025-05-15. This will be cached for future use.
+
+Downloading 'ohlc' data for NRG 2025-05-30 155.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for NRG 2025-05-30 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.31it/s]
+Downloading 'ohlc' data for NRG 2025-05-30 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.29it/s]
+
+Downloading 'quote' data for NRG 2025-05-30 155.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for NRG 2025-05-30 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.67it/s]
+Downloading 'quote' data for NRG 2025-05-30 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.65it/s]
+
+Downloading 'ohlc' data for NRG 2025-06-06 155.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for NRG 2025-06-06 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.31it/s]
+Downloading 'ohlc' data for NRG 2025-06-06 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.29it/s]
+
+Downloading 'quote' data for NRG 2025-06-06 155.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for NRG 2025-06-06 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.25it/s]
+Downloading 'quote' data for NRG 2025-06-06 155.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.24it/s]
+
+Downloading option chain for CCJ on 2025-05-15. This will be cached for future use.
+
+Downloading 'ohlc' data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.27it/s]
+Downloading 'ohlc' data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.25it/s]
+
+Downloading 'quote' data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.41it/s]
+Downloading 'quote' data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.40it/s]
+Progress ||  35.51%  [Elapsed: 0:02:28 ETA: 0:00:47] Portfolio Val: 97,084.61Progress ||  35.98%  [Elapsed: 0:02:28 ETA: 0:00:45] Progress ||  35.98%  [Elapsed: 0:02:28 ETA: 0:00:45] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-16 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  37.24%  [Elapsed: 0:02:28 ETA: 0:00:43] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-19 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-19 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  37.26%  [Elapsed: 0:02:28 ETA: 0:00:43] Progress ||  37.39%  [Elapsed: 0:02:28 ETA: 0:00:43] Portfolio Val: 93,054.54Progress ||  37.86%  [Elapsed: 0:02:28 ETA: 0:00:42] Progress ||  37.86%  [Elapsed: 0:02:28 ETA: 0:00:42] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-20 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  38.18%  [Elapsed: 0:02:28 ETA: 0:00:41] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  38.20%  [Elapsed: 0:02:28 ETA: 0:00:41] Progress ||  38.33%  [Elapsed: 0:02:28 ETA: 0:00:41] Portfolio Val: 93,054.52Progress ||  38.80%  [Elapsed: 0:02:28 ETA: 0:00:40] Progress ||  38.80%  [Elapsed: 0:02:28 ETA: 0:00:40] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-22 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  39.12%  [Elapsed: 0:02:28 ETA: 0:00:39] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-23 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-23 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  39.14%  [Elapsed: 0:02:28 ETA: 0:00:39] Progress ||  39.27%  [Elapsed: 0:02:28 ETA: 0:00:39] Portfolio Val: 93,054.52Progress ||  41.15%  [Elapsed: 0:02:28 ETA: 0:00:36] Progress ||  41.15%  [Elapsed: 0:02:28 ETA: 0:00:36] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-27 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  41.47%  [Elapsed: 0:02:28 ETA: 0:00:35] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-28 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-28 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  41.49%  [Elapsed: 0:02:28 ETA: 0:00:35] Progress ||  41.62%  [Elapsed: 0:02:28 ETA: 0:00:35] Portfolio Val: 93,054.52Progress ||  42.09%  [Elapsed: 0:02:28 ETA: 0:00:34] Progress ||  42.09%  [Elapsed: 0:02:28 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-29 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  42.41%  [Elapsed: 0:02:28 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-30 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-05-30 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  42.43%  [Elapsed: 0:02:28 ETA: 0:00:34] Progress ||  42.56%  [Elapsed: 0:02:28 ETA: 0:00:34] Portfolio Val: 93,054.52Progress ||  43.96%  [Elapsed: 0:02:28 ETA: 0:00:31] Progress ||  43.96%  [Elapsed: 0:02:28 ETA: 0:00:31] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-02 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  44.29%  [Elapsed: 0:02:28 ETA: 0:00:31] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-03 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-03 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  44.31%  [Elapsed: 0:02:28 ETA: 0:00:31] Progress ||  44.43%  [Elapsed: 0:02:28 ETA: 0:00:31] Portfolio Val: 93,054.52Progress ||  44.90%  [Elapsed: 0:02:28 ETA: 0:00:30] Progress ||  44.90%  [Elapsed: 0:02:28 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-04 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  45.23%  [Elapsed: 0:02:28 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-05 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-05 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  45.25%  [Elapsed: 0:02:28 ETA: 0:00:30] 
+Downloading option chain for HOOD on 2025-06-05. This will be cached for future use.
+
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.83it/s]
+Downloading 'ohlc' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.82it/s]
+
+Downloading 'quote' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.42it/s]
+Downloading 'quote' data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.41it/s]
+Progress ||  45.37%  [Elapsed: 0:02:32 ETA: 0:00:35] Portfolio Val: 93,054.52Progress ||  45.84%  [Elapsed: 0:02:32 ETA: 0:00:34] Progress ||  45.84%  [Elapsed: 0:02:32 ETA: 0:00:34] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-06 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  47.10%  [Elapsed: 0:02:32 ETA: 0:00:33] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-09 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-09 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  47.12%  [Elapsed: 0:02:32 ETA: 0:00:33] Progress ||  47.25%  [Elapsed: 0:02:32 ETA: 0:00:32] Portfolio Val: 93,054.52Progress ||  47.72%  [Elapsed: 0:02:32 ETA: 0:00:32] Progress ||  47.72%  [Elapsed: 0:02:32 ETA: 0:00:32] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-10 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  48.04%  [Elapsed: 0:02:32 ETA: 0:00:31] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-11 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-11 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  48.06%  [Elapsed: 0:02:32 ETA: 0:00:31] Progress ||  48.19%  [Elapsed: 0:02:32 ETA: 0:00:31] Portfolio Val: 91,982.46Progress ||  48.66%  [Elapsed: 0:02:32 ETA: 0:00:31] Progress ||  48.66%  [Elapsed: 0:02:32 ETA: 0:00:31] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-12 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  48.98%  [Elapsed: 0:02:32 ETA: 0:00:30] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-13 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-13 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  49.00%  [Elapsed: 0:02:32 ETA: 0:00:30] Progress ||  49.13%  [Elapsed: 0:02:32 ETA: 0:00:30] Portfolio Val: 91,662.46Progress ||  50.54%  [Elapsed: 0:02:32 ETA: 0:00:28] Progress ||  50.54%  [Elapsed: 0:02:32 ETA: 0:00:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-16 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  50.86%  [Elapsed: 0:02:32 ETA: 0:00:28] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-17 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-17 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  50.88%  [Elapsed: 0:02:32 ETA: 0:00:28] Progress ||  51.01%  [Elapsed: 0:02:32 ETA: 0:00:28] Portfolio Val: 93,918.46Progress ||  51.48%  [Elapsed: 0:02:32 ETA: 0:00:27] Progress ||  51.48%  [Elapsed: 0:02:32 ETA: 0:00:27] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-18 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 149400.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 145800.0
+[BROKER DEBUG] Advancing time by 145800.0 seconds
+Progress ||  52.27%  [Elapsed: 0:02:32 ETA: 0:00:26] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-20 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-20 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  52.29%  [Elapsed: 0:02:32 ETA: 0:00:26] Progress ||  52.42%  [Elapsed: 0:02:32 ETA: 0:00:26] Portfolio Val: 94,094.40Progress ||  53.82%  [Elapsed: 0:02:32 ETA: 0:00:24] Progress ||  53.83%  [Elapsed: 0:02:32 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-23 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  54.15%  [Elapsed: 0:02:32 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-24 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-24 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  54.17%  [Elapsed: 0:02:32 ETA: 0:00:24] Progress ||  54.29%  [Elapsed: 0:02:32 ETA: 0:00:24] Portfolio Val: 94,094.40Progress ||  54.76%  [Elapsed: 0:02:32 ETA: 0:00:23] Progress ||  54.76%  [Elapsed: 0:02:32 ETA: 0:00:23] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-25 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  55.09%  [Elapsed: 0:02:32 ETA: 0:00:23] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-26 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-26 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  55.11%  [Elapsed: 0:02:32 ETA: 0:00:23] 
+Downloading option chain for HOOD on 2025-06-26. This will be cached for future use.
+
+Downloading 'ohlc' data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.61it/s]
+Downloading 'ohlc' data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.59it/s]
+
+Downloading 'quote' data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.30it/s]
+Downloading 'quote' data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.30it/s]
+Progress ||  55.23%  [Elapsed: 0:02:36 ETA: 0:00:26] Portfolio Val: 94,094.40Progress ||  55.70%  [Elapsed: 0:02:36 ETA: 0:00:26] Progress ||  55.70%  [Elapsed: 0:02:36 ETA: 0:00:26] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-27 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  56.97%  [Elapsed: 0:02:36 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-30 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-06-30 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  56.99%  [Elapsed: 0:02:36 ETA: 0:00:25] Progress ||  57.11%  [Elapsed: 0:02:36 ETA: 0:00:24] Portfolio Val: 97,580.34Progress ||  57.58%  [Elapsed: 0:02:36 ETA: 0:00:24] Progress ||  57.58%  [Elapsed: 0:02:36 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-01 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  57.90%  [Elapsed: 0:02:36 ETA: 0:00:24] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-02 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-02 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  57.92%  [Elapsed: 0:02:36 ETA: 0:00:24] Progress ||  58.05%  [Elapsed: 0:02:36 ETA: 0:00:23] Portfolio Val: 107,429.34Progress ||  58.46%  [Elapsed: 0:02:36 ETA: 0:00:23] Progress ||  58.46%  [Elapsed: 0:02:36 ETA: 0:00:23] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-03 13:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 333000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 329400.0
+[BROKER DEBUG] Advancing time by 329400.0 seconds
+Progress ||  60.25%  [Elapsed: 0:02:36 ETA: 0:00:21] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-07 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-07 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  60.27%  [Elapsed: 0:02:36 ETA: 0:00:21] Progress ||  60.40%  [Elapsed: 0:02:36 ETA: 0:00:21] Portfolio Val: 107,597.14Progress ||  60.87%  [Elapsed: 0:02:36 ETA: 0:00:21] Progress ||  60.87%  [Elapsed: 0:02:36 ETA: 0:00:21] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-08 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  61.19%  [Elapsed: 0:02:36 ETA: 0:00:20] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-09 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-09 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  61.21%  [Elapsed: 0:02:36 ETA: 0:00:20] Progress ||  61.34%  [Elapsed: 0:02:36 ETA: 0:00:20] Portfolio Val: 107,597.14Progress ||  61.81%  [Elapsed: 0:02:36 ETA: 0:00:20] Progress ||  61.81%  [Elapsed: 0:02:36 ETA: 0:00:20] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-10 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  62.13%  [Elapsed: 0:02:36 ETA: 0:00:20] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-11 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-11 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  62.15%  [Elapsed: 0:02:36 ETA: 0:00:20] Progress ||  62.28%  [Elapsed: 0:02:36 ETA: 0:00:19] Portfolio Val: 107,597.14Progress ||  63.69%  [Elapsed: 0:02:36 ETA: 0:00:18] Progress ||  63.69%  [Elapsed: 0:02:36 ETA: 0:00:18] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-14 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  64.01%  [Elapsed: 0:02:36 ETA: 0:00:18] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-15 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-15 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  64.03%  [Elapsed: 0:02:36 ETA: 0:00:18] Progress ||  64.16%  [Elapsed: 0:02:36 ETA: 0:00:18] Portfolio Val: 107,597.14Progress ||  64.63%  [Elapsed: 0:02:36 ETA: 0:00:17] Progress ||  64.63%  [Elapsed: 0:02:36 ETA: 0:00:17] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-16 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  64.95%  [Elapsed: 0:02:36 ETA: 0:00:17] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-17 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-17 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  64.97%  [Elapsed: 0:02:36 ETA: 0:00:17] 
+Downloading option chain for HOOD on 2025-07-17. This will be cached for future use.
+
+Downloading 'ohlc' data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.41it/s]
+Downloading 'ohlc' data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.40it/s]
+
+Downloading 'quote' data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.12s/it]
+Downloading 'quote' data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:01<00:00,  1.13s/it]
+Progress ||  65.10%  [Elapsed: 0:02:40 ETA: 0:00:19] Portfolio Val: 107,597.14Progress ||  65.56%  [Elapsed: 0:02:40 ETA: 0:00:18] Progress ||  65.56%  [Elapsed: 0:02:40 ETA: 0:00:18] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-18 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  66.83%  [Elapsed: 0:02:40 ETA: 0:00:17] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-21 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-21 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  66.85%  [Elapsed: 0:02:41 ETA: 0:00:17] Progress ||  66.97%  [Elapsed: 0:02:41 ETA: 0:00:17] Portfolio Val: 111,254.57Progress ||  67.44%  [Elapsed: 0:02:41 ETA: 0:00:17] Progress ||  67.44%  [Elapsed: 0:02:41 ETA: 0:00:17] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-22 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  67.77%  [Elapsed: 0:02:41 ETA: 0:00:16] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-23 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-23 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  67.79%  [Elapsed: 0:02:41 ETA: 0:00:16] Progress ||  67.91%  [Elapsed: 0:02:41 ETA: 0:00:16] Portfolio Val: 105,424.57Progress ||  68.38%  [Elapsed: 0:02:41 ETA: 0:00:16] Progress ||  68.38%  [Elapsed: 0:02:41 ETA: 0:00:16] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-24 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  68.70%  [Elapsed: 0:02:41 ETA: 0:00:16] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-25 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-25 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  68.72%  [Elapsed: 0:02:41 ETA: 0:00:16] Progress ||  68.85%  [Elapsed: 0:02:41 ETA: 0:00:15] Portfolio Val: 104,434.57Progress ||  70.26%  [Elapsed: 0:02:41 ETA: 0:00:14] Progress ||  70.26%  [Elapsed: 0:02:41 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-28 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  70.58%  [Elapsed: 0:02:41 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-29 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-29 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  70.60%  [Elapsed: 0:02:41 ETA: 0:00:14] Progress ||  70.73%  [Elapsed: 0:02:41 ETA: 0:00:14] Portfolio Val: 104,456.53Progress ||  71.20%  [Elapsed: 0:02:41 ETA: 0:00:14] Progress ||  71.20%  [Elapsed: 0:02:41 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-30 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  71.52%  [Elapsed: 0:02:41 ETA: 0:00:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-31 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-07-31 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  71.54%  [Elapsed: 0:02:41 ETA: 0:00:13] 
+Downloading option chain for HOOD on 2025-07-31. This will be cached for future use.
+
+Downloading 'ohlc' data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.00it/s]
+Downloading 'ohlc' data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.97it/s]
+
+Downloading 'quote' data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.24it/s]
+Downloading 'quote' data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.23it/s]
+Progress ||  71.67%  [Elapsed: 0:02:44 ETA: 0:00:15] Portfolio Val: 104,456.53Progress ||  72.14%  [Elapsed: 0:02:44 ETA: 0:00:15] Progress ||  72.14%  [Elapsed: 0:02:44 ETA: 0:00:15] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-01 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  73.40%  [Elapsed: 0:02:44 ETA: 0:00:14] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-04 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-04 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  73.42%  [Elapsed: 0:02:44 ETA: 0:00:14] Progress ||  73.55%  [Elapsed: 0:02:44 ETA: 0:00:14] Portfolio Val: 100,406.46Progress ||  74.02%  [Elapsed: 0:02:44 ETA: 0:00:13] Progress ||  74.02%  [Elapsed: 0:02:44 ETA: 0:00:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-05 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  74.34%  [Elapsed: 0:02:44 ETA: 0:00:13] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-06 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-06 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  74.36%  [Elapsed: 0:02:44 ETA: 0:00:13] Progress ||  74.49%  [Elapsed: 0:02:44 ETA: 0:00:13] Portfolio Val: 100,676.42Progress ||  74.96%  [Elapsed: 0:02:44 ETA: 0:00:12] Progress ||  74.96%  [Elapsed: 0:02:44 ETA: 0:00:12] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-07 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  75.28%  [Elapsed: 0:02:44 ETA: 0:00:12] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-08 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-08 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  75.30%  [Elapsed: 0:02:44 ETA: 0:00:12] Progress ||  75.43%  [Elapsed: 0:02:44 ETA: 0:00:12] Portfolio Val: 100,676.42Progress ||  76.83%  [Elapsed: 0:02:44 ETA: 0:00:11] Progress ||  76.83%  [Elapsed: 0:02:44 ETA: 0:00:11] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-11 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  77.16%  [Elapsed: 0:02:44 ETA: 0:00:11] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-12 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-12 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  77.18%  [Elapsed: 0:02:44 ETA: 0:00:11] Progress ||  77.30%  [Elapsed: 0:02:44 ETA: 0:00:11] Portfolio Val: 100,676.42Progress ||  77.77%  [Elapsed: 0:02:44 ETA: 0:00:10] Progress ||  77.77%  [Elapsed: 0:02:44 ETA: 0:00:10] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-13 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  78.10%  [Elapsed: 0:02:44 ETA: 0:00:10] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-14 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-14 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  78.12%  [Elapsed: 0:02:44 ETA: 0:00:10] 
+Downloading option chain for HOOD on 2025-08-14. This will be cached for future use.
+
+Downloading 'ohlc' data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'ohlc' data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.99it/s]
+Downloading 'ohlc' data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.97it/s]
+
+Downloading 'quote' data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.31it/s]
+Downloading 'quote' data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.30it/s]
+Progress ||  78.24%  [Elapsed: 0:02:47 ETA: 0:00:12] Portfolio Val: 100,676.42Progress ||  78.71%  [Elapsed: 0:02:47 ETA: 0:00:11] Progress ||  78.71%  [Elapsed: 0:02:47 ETA: 0:00:11] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-15 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  79.97%  [Elapsed: 0:02:47 ETA: 0:00:10] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-18 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-18 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  79.99%  [Elapsed: 0:02:48 ETA: 0:00:10] Progress ||  80.12%  [Elapsed: 0:02:48 ETA: 0:00:10] Portfolio Val: 105,296.37Progress ||  80.59%  [Elapsed: 0:02:48 ETA: 0:00:10] Progress ||  80.59%  [Elapsed: 0:02:48 ETA: 0:00:10] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-19 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  80.91%  [Elapsed: 0:02:48 ETA: 0:00:10] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-20 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-20 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  80.93%  [Elapsed: 0:02:48 ETA: 0:00:10] Progress ||  81.06%  [Elapsed: 0:02:48 ETA: 0:00:10] Portfolio Val: 99,296.37Progress ||  81.53%  [Elapsed: 0:02:48 ETA: 0:00:09] Progress ||  81.53%  [Elapsed: 0:02:48 ETA: 0:00:09] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-21 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  81.85%  [Elapsed: 0:02:48 ETA: 0:00:09] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-22 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-22 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  81.87%  [Elapsed: 0:02:48 ETA: 0:00:09] Progress ||  82.00%  [Elapsed: 0:02:48 ETA: 0:00:09] Portfolio Val: 98,336.37Progress ||  83.41%  [Elapsed: 0:02:48 ETA: 0:00:08] Progress ||  83.41%  [Elapsed: 0:02:48 ETA: 0:00:08] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-25 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  83.73%  [Elapsed: 0:02:48 ETA: 0:00:08] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-26 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-26 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  83.75%  [Elapsed: 0:02:48 ETA: 0:00:08] Progress ||  83.88%  [Elapsed: 0:02:48 ETA: 0:00:08] Portfolio Val: 98,336.33Progress ||  84.35%  [Elapsed: 0:02:48 ETA: 0:00:07] Progress ||  84.35%  [Elapsed: 0:02:48 ETA: 0:00:07] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-27 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  84.67%  [Elapsed: 0:02:48 ETA: 0:00:07] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-28 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-28 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  84.69%  [Elapsed: 0:02:48 ETA: 0:00:07] 
+Downloading option chain for WDC on 2025-08-28. This will be cached for future use.
+
+Downloading 'ohlc' data for WDC 2025-09-12 82.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for WDC 2025-09-12 82.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.67it/s]
+Downloading 'ohlc' data for WDC 2025-09-12 82.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.65it/s]
+
+Downloading 'quote' data for WDC 2025-09-12 82.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for WDC 2025-09-12 82.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.23it/s]
+Downloading 'quote' data for WDC 2025-09-12 82.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.23it/s]
+Progress ||  84.82%  [Elapsed: 0:02:50 ETA: 0:00:06] Portfolio Val: 98,336.33Progress ||  85.29%  [Elapsed: 0:02:50 ETA: 0:00:06] Progress ||  85.29%  [Elapsed: 0:02:50 ETA: 0:00:06] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-08-29 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 322200.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 318600.0
+[BROKER DEBUG] Advancing time by 318600.0 seconds
+Progress ||  87.02%  [Elapsed: 0:02:50 ETA: 0:00:05] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-02 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-02 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  87.04%  [Elapsed: 0:02:51 ETA: 0:00:05] Progress ||  87.17%  [Elapsed: 0:02:51 ETA: 0:00:05] Portfolio Val: 96,229.27Progress ||  87.63%  [Elapsed: 0:02:51 ETA: 0:00:05] Progress ||  87.63%  [Elapsed: 0:02:51 ETA: 0:00:05] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-03 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  87.96%  [Elapsed: 0:02:51 ETA: 0:00:05] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-04 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-04 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  87.98%  [Elapsed: 0:02:51 ETA: 0:00:05] 
+Downloading 'ohlc' data for WDC 2025-09-19 90.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for WDC 2025-09-19 90.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.92it/s]
+Downloading 'ohlc' data for WDC 2025-09-19 90.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.91it/s]
+
+Downloading 'quote' data for WDC 2025-09-19 90.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for WDC 2025-09-19 90.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.09it/s]
+Downloading 'quote' data for WDC 2025-09-19 90.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.09it/s]
+Progress ||  88.10%  [Elapsed: 0:02:52 ETA: 0:00:05] Portfolio Val: 108,484.27Progress ||  88.57%  [Elapsed: 0:02:52 ETA: 0:00:05] Progress ||  88.57%  [Elapsed: 0:02:52 ETA: 0:00:05] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-05 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  89.84%  [Elapsed: 0:02:52 ETA: 0:00:04] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-08 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-08 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  89.86%  [Elapsed: 0:02:52 ETA: 0:00:04] Progress ||  89.98%  [Elapsed: 0:02:52 ETA: 0:00:04] Portfolio Val: 121,224.03Progress ||  90.45%  [Elapsed: 0:02:52 ETA: 0:00:04] Progress ||  90.45%  [Elapsed: 0:02:52 ETA: 0:00:04] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-09 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  90.78%  [Elapsed: 0:02:52 ETA: 0:00:04] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-10 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-10 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  90.79%  [Elapsed: 0:02:52 ETA: 0:00:04] Progress ||  90.92%  [Elapsed: 0:02:52 ETA: 0:00:04] Portfolio Val: 121,223.84Progress ||  91.39%  [Elapsed: 0:02:52 ETA: 0:00:03] Progress ||  91.39%  [Elapsed: 0:02:52 ETA: 0:00:03] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-11 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  91.71%  [Elapsed: 0:02:52 ETA: 0:00:03] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-12 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-12 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  91.73%  [Elapsed: 0:02:52 ETA: 0:00:03] Progress ||  91.86%  [Elapsed: 0:02:52 ETA: 0:00:03] Portfolio Val: 121,223.84Progress ||  93.27%  [Elapsed: 0:02:52 ETA: 0:00:02] Progress ||  93.27%  [Elapsed: 0:02:52 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-15 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  93.59%  [Elapsed: 0:02:52 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-16 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-16 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  93.61%  [Elapsed: 0:02:52 ETA: 0:00:02] Progress ||  93.74%  [Elapsed: 0:02:52 ETA: 0:00:02] Portfolio Val: 121,223.84Progress ||  94.21%  [Elapsed: 0:02:52 ETA: 0:00:02] Progress ||  94.21%  [Elapsed: 0:02:52 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-17 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  94.53%  [Elapsed: 0:02:52 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-18 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-18 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  94.55%  [Elapsed: 0:02:52 ETA: 0:00:02] 
+Downloading option chain for APP on 2025-09-18. This will be cached for future use.
+
+Downloading 'ohlc' data for APP 2025-10-03 622.5 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for APP 2025-10-03 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.65it/s]
+Downloading 'ohlc' data for APP 2025-10-03 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.62it/s]
+
+Downloading 'quote' data for APP 2025-10-03 622.5 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for APP 2025-10-03 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.20it/s]
+Downloading 'quote' data for APP 2025-10-03 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.17it/s]
+
+Downloading 'ohlc' data for APP 2025-10-10 622.5 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for APP 2025-10-10 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.52it/s]
+Downloading 'ohlc' data for APP 2025-10-10 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.49it/s]
+
+Downloading 'quote' data for APP 2025-10-10 622.5 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'quote' data for APP 2025-10-10 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.68it/s]
+Downloading 'quote' data for APP 2025-10-10 622.5 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  2.65it/s]
+
+Downloading option chain for WDC on 2025-09-18. This will be cached for future use.
+
+Downloading 'ohlc' data for WDC 2025-10-03 105.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py:103: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  df_all = pd.concat([df_all, placeholder_df]).sort_index()
+
+Downloading 'ohlc' data for WDC 2025-10-03 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.13it/s]
+Downloading 'ohlc' data for WDC 2025-10-03 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  3.10it/s]
+
+Downloading 'quote' data for WDC 2025-10-03 105.0 CALL / USD with 'minute' from ThetaData...:   0%|          | 0/1 [00:00<?, ?it/s]
+Downloading 'quote' data for WDC 2025-10-03 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.47it/s]
+Downloading 'quote' data for WDC 2025-10-03 105.0 CALL / USD with 'minute' from ThetaData...: 100%|██████████| 1/1 [00:00<00:00,  1.46it/s]
+Progress ||  94.68%  [Elapsed: 0:02:58 ETA: 0:00:02] Portfolio Val: 121,223.84Progress ||  95.15%  [Elapsed: 0:02:58 ETA: 0:00:02] Progress ||  95.15%  [Elapsed: 0:02:58 ETA: 0:00:02] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-19 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 235800.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 232200.0
+[BROKER DEBUG] Advancing time by 232200.0 seconds
+Progress ||  96.41%  [Elapsed: 0:02:58 ETA: 0:00:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-22 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-22 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  96.43%  [Elapsed: 0:02:58 ETA: 0:00:01] Progress ||  96.56%  [Elapsed: 0:02:58 ETA: 0:00:01] Portfolio Val: 124,765.76Progress ||  97.03%  [Elapsed: 0:02:58 ETA: 0:00:01] Progress ||  97.03%  [Elapsed: 0:02:58 ETA: 0:00:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-23 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  97.35%  [Elapsed: 0:02:58 ETA: 0:00:01] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-24 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-24 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  97.37%  [Elapsed: 0:02:58 ETA: 0:00:01] Progress ||  97.50%  [Elapsed: 0:02:58 ETA: 0:00:01] Portfolio Val: 129,779.76Progress ||  97.97%  [Elapsed: 0:02:58 ETA: 0:00:00] Progress ||  97.97%  [Elapsed: 0:02:58 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-25 16:00:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 63000.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 59400.0
+[BROKER DEBUG] Advancing time by 59400.0 seconds
+Progress ||  98.29%  [Elapsed: 0:02:58 ETA: 0:00:00] [BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-26 08:30:00-04:00, timedelta=60
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: 0.0
+[BROKER DEBUG] time_to_open <= 0 (0.0), returning without advancing time
+[BROKER DEBUG] _await_market_to_open called, current datetime=2025-09-26 08:30:00-04:00, timedelta=0
+[BROKER DEBUG] get_time_to_open returned: 3600.0
+[BROKER DEBUG] Advancing time by 3600.0 seconds
+Progress ||  98.31%  [Elapsed: 0:02:58 ETA: 0:00:00] Progress ||  98.44%  [Elapsed: 0:02:58 ETA: 0:00:00] Portfolio Val: 129,848.59Progress ||  99.84%  [Elapsed: 0:02:58 ETA: 0:00:00] Progress ||  99.84%  [Elapsed: 0:02:58 ETA: 0:00:00] [theta diagnostics] mode=polars network_requests=568 check_connection_calls=568 start_terminal_calls=1
+mode=polars elapsed=182.16s

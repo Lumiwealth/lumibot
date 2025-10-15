@@ -1476,11 +1476,17 @@ class BacktestingBroker(Broker):
                     volume = df["volume"].iloc[0]
 
             elif self.data_source.SOURCE.upper() in {"POLYGON", "POLARS", "THETADATA", "THETADATA_POLARS", "YAHOO_POLARS", "DATABENTO_POLARS"}:
+                request_length = 1
+                request_timeshift = timeshift
+                source_upper = self.data_source.SOURCE.upper()
+                if source_upper in {"THETADATA", "THETADATA_POLARS"}:
+                    request_length = 2
+                    request_timeshift = timedelta(minutes=-2)
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,
-                    length=1,
+                    length=request_length,
                     quote=order.quote,
-                    timeshift=timeshift,
+                    timeshift=request_timeshift,
                     return_polars=True,
                 )
 
@@ -1489,25 +1495,62 @@ class BacktestingBroker(Broker):
                     continue
 
                 df = ohlc.df
-                dt = df["datetime"][-1] if "datetime" in df.columns else None
-                open = df["open"][-1]
-                high = df["high"][-1]
-                low = df["low"][-1]
-                close = df["close"][-1]
-                volume = df["volume"][-1]
+                target = df
+                dt = None
+                if "datetime" in df.columns:
+                    try:
+                        current_literal = pl.lit(current_dt).cast(df["datetime"].dtype)
+                    except Exception:
+                        current_literal = pl.lit(current_dt)
+                    future_rows = df.filter(pl.col("datetime") >= current_literal)
+                    if future_rows.height > 0:
+                        target = future_rows.head(1)
+                    else:
+                        target = df.tail(1)
+                    dt = target["datetime"][0]
+                else:
+                    target = df.tail(1)
+                open = target["open"][0] if "open" in target.columns else None
+                high = target["high"][0] if "high" in target.columns else None
+                low = target["low"][0] if "low" in target.columns else None
+                close = target["close"][0] if "close" in target.columns else None
+                volume = target["volume"][0] if "volume" in target.columns else None
 
+            bar_snapshot = {
+                "timestamp": dt.isoformat() if hasattr(dt, "isoformat") else dt,
+                "open": self._coerce_price(open),
+                "high": self._coerce_price(high),
+                "low": self._coerce_price(low),
+                "close": self._coerce_price(close),
+                "volume": self._coerce_price(volume),
+            }
+            logger.info(
+                "[BROKER_FILL_BAR] order_id=%s strategy=%s asset=%s source=%s timestep=%s broker_dt=%s bar=%s",
+                getattr(order, "id", None),
+                strategy_name,
+                getattr(order.asset, "symbol", str(order.asset)),
+                getattr(self.data_source, "SOURCE", "UNKNOWN"),
+                getattr(self.data_source, "_timestep", None),
+                current_dt.isoformat() if hasattr(current_dt, "isoformat") else current_dt,
+                bar_snapshot,
+            )
+
+            price_source = None
             #############################
             # Determine transaction price.
             #############################
             simple_side = "buy" if order.is_buy_order() else "sell"
             if order.order_type == Order.OrderType.MARKET:
                 price = open
+                price_source = "market_open"
 
             elif order.order_type == Order.OrderType.LIMIT:
                 price = self.limit_order(order.limit_price, simple_side, open, high, low)
+                price_source = "limit" if price is not None else "limit_unfilled"
 
             elif order.order_type == Order.OrderType.STOP:
                 price = self.stop_order(order.stop_price, simple_side, open, high, low)
+                price_source = "stop" if price is not None else "stop_unfilled"
 
             elif order.order_type == Order.OrderType.STOP_LIMIT:
                 if not order.price_triggered:
@@ -1515,14 +1558,17 @@ class BacktestingBroker(Broker):
                     if price is not None:
                         price = self.limit_order(order.limit_price, simple_side, price, high, low)
                         order.price_triggered = True
+                        price_source = "stop_limit_triggered"
                 elif order.price_triggered:
                     price = self.limit_order(order.limit_price, simple_side, open, high, low)
+                    price_source = "stop_limit_post_trigger" if price is not None else "stop_limit_wait"
 
             elif order.order_type == Order.OrderType.TRAIL:
                 current_trail_stop_price = order.get_current_trail_stop_price()
                 if current_trail_stop_price:
                     # Check if we have hit the trail stop price for both sell/buy orders
                     price = self.stop_order(current_trail_stop_price, simple_side, open, high, low)
+                    price_source = "trail_stop" if price is not None else "trail_wait"
 
                 # Update the stop price if the price has moved
                 if order.is_sell_order():
@@ -1539,6 +1585,16 @@ class BacktestingBroker(Broker):
 
             # If the price is set, then the order has been filled
             if price is not None:
+                logger.info(
+                    "[BROKER_FILL_EXEC] order_id=%s strategy=%s asset=%s price=%s side=%s qty=%s source=%s",
+                    getattr(order, "id", None),
+                    strategy_name,
+                    getattr(order.asset, "symbol", str(order.asset)),
+                    self._coerce_price(price),
+                    simple_side,
+                    self._coerce_price(filled_quantity),
+                    price_source or order.order_type,
+                )
                 self._execute_filled_order(
                     order=order,
                     price=price,

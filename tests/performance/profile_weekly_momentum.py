@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from datetime import datetime
 from pathlib import Path
 
 import yappi
+
+# Force verbose logging for broker fill debugging
+os.environ['BACKTESTING_QUIET_LOGS'] = 'false'
 
 from lumibot.entities import Asset, TradingFee
 from lumibot.backtesting import ThetaDataBacktesting, ThetaDataBacktestingPandas

@@ -7,6 +7,7 @@ This implementation:
 """
 
 import os
+import math
 import traceback
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -16,7 +17,7 @@ import numpy as np
 import polars as pl
 
 from lumibot.data_sources.polars_data import PolarsData
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools import databento_helper_polars, databento_helper
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -651,9 +652,97 @@ class DataBentoDataBacktestingPolars(PolarsData):
         logger.warning("get_chains is not implemented for DataBentoData")
         return None
 
-    def get_quote(self, asset: Asset) -> None:
-        """Get quote - not implemented for DataBento backtesting."""
-        return None
+    def get_quote(
+        self,
+        asset: Asset | str,
+        timestep: str = "minute",
+        quote: Optional[Asset] = None,
+        exchange: Optional[str] = None,
+        **kwargs,
+    ) -> Quote:
+        asset = self._coerce_asset(asset)
+        quote_asset = self._coerce_quote(quote)
+        current_dt = self.get_datetime()
+
+        bars_df = self._pull_source_symbol_bars(
+            asset,
+            length=5,
+            timestep=timestep or "minute",
+            quote=quote_asset,
+            include_after_hours=True,
+        )
+
+        row_dict: Optional[dict] = None
+        if bars_df is not None and not bars_df.is_empty():
+            target = bars_df
+            if "datetime" in bars_df.columns:
+                try:
+                    literal = pl.lit(self.to_default_timezone(current_dt)).cast(bars_df["datetime"].dtype)
+                except Exception:
+                    literal = pl.lit(self.to_default_timezone(current_dt))
+                window = bars_df.filter(pl.col("datetime") <= literal)
+                if window.height > 0:
+                    target = window.tail(1)
+                else:
+                    target = bars_df.tail(1)
+            else:
+                target = bars_df.tail(1)
+            row_dict = target.row(0, named=True)
+
+        if row_dict is None:
+            logger.warning(
+                "[DATABENTO-QUOTE][POLARS][EMPTY] asset=%s quote=%s timestep=%s current_dt=%s",
+                getattr(asset, "symbol", asset),
+                getattr(quote_asset, "symbol", quote_asset) if quote_asset is not None else None,
+                timestep,
+                current_dt,
+            )
+            return Quote(asset=asset, timestamp=current_dt)
+
+        bid = row_dict.get("bid")
+        ask = row_dict.get("ask")
+        close = row_dict.get("close")
+
+        def _valid(value):
+            if value is None:
+                return False
+            if isinstance(value, float):
+                return not math.isnan(value)
+            try:
+                return not np.isnan(value)
+            except Exception:
+                return True
+
+        mid = None
+        if _valid(bid) and _valid(ask):
+            mid = (bid + ask) / 2.0
+        price = mid if mid is not None else (close if _valid(close) else None)
+
+        quote_obj = Quote(
+            asset=asset,
+            price=price,
+            bid=bid,
+            ask=ask,
+            volume=row_dict.get("volume"),
+            timestamp=current_dt,
+            bid_size=row_dict.get("bid_size"),
+            ask_size=row_dict.get("ask_size"),
+            raw_data=row_dict,
+            mid_price=mid,
+            source="polars",
+        )
+
+        logger.info(
+            "[DATABENTO-QUOTE][POLARS] asset=%s quote=%s current_dt=%s price=%s bid=%s ask=%s mid=%s",
+            getattr(asset, "symbol", asset),
+            getattr(quote_asset, "symbol", quote_asset) if quote_asset is not None else None,
+            current_dt,
+            price,
+            bid,
+            ask,
+            mid,
+        )
+        return quote_obj
 
 
 __all__ = [

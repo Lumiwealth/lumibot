@@ -1,0 +1,1004 @@
+2025-10-12 15:52:13,605 | INFO | [WeeklyMomentumOptionsStrategy] Strategy WeeklyMomentumOptionsStrategy is initializing
+2025-10-12 15:52:13,605 | INFO | [WeeklyMomentumOptionsStrategy] Executing the initialize lifecycle method
+2025-10-12 15:52:13,605 | INFO | [WeeklyMomentumOptionsStrategy] OptionsHelper initialized.
+2025-10-12 15:52:14,342 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:14,342 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:14,342 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:14 PM LMT
+2025-10-12 15:52:14,342 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:14 PM EDT
+2025-10-12 15:52:14,342 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:14,342 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:14 PM LMT
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:14 PM EDT
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:14 PM LMT
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:14 PM EDT
+2025-10-12 15:52:14,343 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:14 PM LMT
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:14 PM EDT
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:14 PM LMT
+2025-10-12 15:52:14,344 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for HOOD, 63 bars, day
+2025-10-12 15:52:14,345 | INFO | Loading 'ohlc' pricing data for HOOD / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,454 | INFO | ThetaData cache HIT for HOOD day ohlc (185 rows).
+2025-10-12 15:52:14,458 | WARNING | bars.py:track_conversion:41 | ======================================================================
+PERFORMANCE TIP: DataFrame Conversion Detected
+======================================================================
+Polars DataFrames are being converted to Pandas, which adds overhead.
+
+For ~2-5x faster backtesting, modify your strategy:
+
+  Change: bars = self.get_historical_prices(asset, length, timestep)
+      To: bars = self.get_historical_prices(asset, length, timestep, return_polars=True)
+
+Note: When using return_polars=True, use Polars DataFrame methods instead of Pandas.
+======================================================================
+2025-10-12 15:52:14,459 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for VST, 63 bars, day
+2025-10-12 15:52:14,459 | INFO | Loading 'ohlc' pricing data for VST / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,527 | INFO | ThetaData cache HIT for VST day ohlc (185 rows).
+2025-10-12 15:52:14,531 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for STX, 63 bars, day
+2025-10-12 15:52:14,531 | INFO | Loading 'ohlc' pricing data for STX / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,597 | INFO | ThetaData cache HIT for STX day ohlc (185 rows).
+2025-10-12 15:52:14,601 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for WDC, 63 bars, day
+2025-10-12 15:52:14,601 | INFO | Loading 'ohlc' pricing data for WDC / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,667 | INFO | ThetaData cache HIT for WDC day ohlc (185 rows).
+2025-10-12 15:52:14,670 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for PLTR, 63 bars, day
+2025-10-12 15:52:14,670 | INFO | Loading 'ohlc' pricing data for PLTR / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,735 | INFO | ThetaData cache HIT for PLTR day ohlc (186 rows).
+2025-10-12 15:52:14,738 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for APP, 63 bars, day
+2025-10-12 15:52:14,738 | INFO | Loading 'ohlc' pricing data for APP / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,804 | INFO | ThetaData cache HIT for APP day ohlc (185 rows).
+2025-10-12 15:52:14,807 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for NRG, 63 bars, day
+2025-10-12 15:52:14,807 | INFO | Loading 'ohlc' pricing data for NRG / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,873 | INFO | ThetaData cache HIT for NRG day ohlc (185 rows).
+2025-10-12 15:52:14,876 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for CCJ, 63 bars, day
+2025-10-12 15:52:14,876 | INFO | Loading 'ohlc' pricing data for CCJ / USD with 'day' timespan from cache file...
+2025-10-12 15:52:14,941 | INFO | ThetaData cache HIT for CCJ day ohlc (185 rows).
+2025-10-12 15:52:14,944 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for CVNA, 63 bars, day
+2025-10-12 15:52:14,945 | INFO | Loading 'ohlc' pricing data for CVNA / USD with 'day' timespan from cache file...
+2025-10-12 15:52:15,012 | INFO | ThetaData cache HIT for CVNA day ohlc (185 rows).
+2025-10-12 15:52:15,015 | INFO | [WeeklyMomentumOptionsStrategy] Getting historical prices for HIMS, 63 bars, day
+2025-10-12 15:52:15,016 | INFO | Loading 'ohlc' pricing data for HIMS / USD with 'day' timespan from cache file...
+2025-10-12 15:52:15,083 | INFO | ThetaData cache HIT for HIMS day ohlc (185 rows).
+2025-10-12 15:52:15,091 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-03-28
+2025-10-12 15:52:15,092 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HIMS at strike 32 and expiry 2025-03-28
+2025-10-12 15:52:15,095 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HIMS: True
+2025-10-12 15:52:15,095 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-03-28: 108 strikes
+2025-10-12 15:52:15,095 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 32 -> Closest available strike: 32.0
+2025-10-12 15:52:15,096 | INFO | Loading 'ohlc' pricing data for HIMS 2025-03-28 32.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:15,161 | INFO | ThetaData cache HIT for HIMS 2025-03-28 32.0 CALL minute ohlc (330 rows).
+2025-10-12 15:52:15,162 | INFO | Loading 'quote' pricing data for HIMS 2025-03-28 32.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:15,231 | INFO | ThetaData cache HIT for HIMS 2025-03-28 32.0 CALL minute quote (13050 rows).
+2025-10-12 15:52:15,235 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HIMS CALL 32.0 exp 2025-03-28
+2025-10-12 15:52:15,236 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HIMS ID=8c1b50cadb744cd482743d147a3fcb0a, processed by broker backtesting
+2025-10-12 15:52:15,236 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 18 HIMS 2025-03-28 CALL 32.0 buy | @ $3.8 new
+2025-10-12 15:52:15,237 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 18 contracts of HIMS CALL 32.0 exp 2025-03-28 at 3.8
+2025-10-12 15:52:15,237 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HIMS.
+2025-10-12 15:52:15,237 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 18 HIMS 2025-03-28 CALL 32.0 buy | @ $3.8 new}
+2025-10-12 15:52:15,237 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,238 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HIMS ID=8c1b50cadb744cd482743d147a3fcb0a, processed by broker backtesting
+2025-10-12 15:52:15,239 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 18 HIMS 2025-03-28 CALL 32.0 buy | @ $3.8 fill
+2025-10-12 15:52:15,239 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,240 | INFO | [WeeklyMomentumOptionsStrategy] Filled 18.0 of HIMS CALL 32.0 exp 2025-03-28 at 3.8
+2025-10-12 15:52:15,240 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,241 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,350 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,351 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,352 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,353 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,354 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,356 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,357 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,358 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,359 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,360 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,360 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,361 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,362 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,363 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,364 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,365 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,366 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HIMS ID=ada341491c144e58be7bd26b2bb0a8c0, processed by broker backtesting
+2025-10-12 15:52:15,366 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 18.0 HIMS 2025-03-28 CALL 32.0 sell | new
+2025-10-12 15:52:15,367 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HIMS CALL 32.0 exp 2025-03-28 due to time_exit
+2025-10-12 15:52:15,367 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 18.0 HIMS 2025-03-28 CALL 32.0 sell | new}
+2025-10-12 15:52:15,367 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,368 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HIMS ID=ada341491c144e58be7bd26b2bb0a8c0, processed by broker backtesting
+2025-10-12 15:52:15,368 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HIMS 2025-03-28 32.0 CALL (2 orders) liquidated
+2025-10-12 15:52:15,368 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 18.0 HIMS 2025-03-28 CALL 32.0 sell | @ $2.37 fill
+2025-10-12 15:52:15,369 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,369 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,370 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,390 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-04-11
+2025-10-12 15:52:15,391 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HIMS at strike 32 and expiry 2025-04-11
+2025-10-12 15:52:15,394 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HIMS: True
+2025-10-12 15:52:15,394 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-04-11: 91 strikes
+2025-10-12 15:52:15,394 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 32 -> Closest available strike: 32.0
+2025-10-12 15:52:15,394 | INFO | Loading 'ohlc' pricing data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:15,462 | INFO | ThetaData cache HIT for HIMS 2025-04-11 32.0 CALL minute ohlc (620 rows).
+2025-10-12 15:52:15,464 | INFO | Loading 'quote' pricing data for HIMS 2025-04-11 32.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:15,535 | INFO | ThetaData cache HIT for HIMS 2025-04-11 32.0 CALL minute quote (13043 rows).
+2025-10-12 15:52:15,538 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HIMS CALL 32.0 exp 2025-04-11
+2025-10-12 15:52:15,539 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HIMS ID=a26e8d159d6a449893713ef690a12fb6, processed by broker backtesting
+2025-10-12 15:52:15,539 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 19 HIMS 2025-04-11 CALL 32.0 buy | @ $3.575 new
+2025-10-12 15:52:15,540 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 19 contracts of HIMS CALL 32.0 exp 2025-04-11 at 3.575
+2025-10-12 15:52:15,540 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HIMS.
+2025-10-12 15:52:15,540 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 19 HIMS 2025-04-11 CALL 32.0 buy | @ $3.575 new}
+2025-10-12 15:52:15,540 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,541 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,543 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HIMS ID=a26e8d159d6a449893713ef690a12fb6, processed by broker backtesting
+2025-10-12 15:52:15,543 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 19 HIMS 2025-04-11 CALL 32.0 buy | @ $2.6 fill
+2025-10-12 15:52:15,544 | INFO | [WeeklyMomentumOptionsStrategy] Filled 19.0 of HIMS CALL 32.0 exp 2025-04-11 at 2.6
+2025-10-12 15:52:15,545 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,545 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,651 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,652 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,653 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,655 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HIMS ID=acb0bf96ee224893bb752384d3b64c91, processed by broker backtesting
+2025-10-12 15:52:15,655 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 19.0 HIMS 2025-04-11 CALL 32.0 sell | new
+2025-10-12 15:52:15,656 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HIMS CALL 32.0 exp 2025-04-11 due to stop_loss
+2025-10-12 15:52:15,656 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 19.0 HIMS 2025-04-11 CALL 32.0 sell | new}
+2025-10-12 15:52:15,656 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,657 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HIMS ID=acb0bf96ee224893bb752384d3b64c91, processed by broker backtesting
+2025-10-12 15:52:15,657 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HIMS 2025-04-11 32.0 CALL (2 orders) liquidated
+2025-10-12 15:52:15,657 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 19.0 HIMS 2025-04-11 CALL 32.0 sell | @ $1.11 fill
+2025-10-12 15:52:15,658 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,658 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,658 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,659 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,660 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,680 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-04-25
+2025-10-12 15:52:15,680 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for PLTR at strike 89 and expiry 2025-04-25
+2025-10-12 15:52:15,684 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for PLTR: True
+2025-10-12 15:52:15,684 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-04-25: 95 strikes
+2025-10-12 15:52:15,684 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 89 -> Closest available strike: 89.0
+2025-10-12 15:52:15,684 | INFO | Loading 'ohlc' pricing data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:15,750 | INFO | ThetaData cache HIT for PLTR 2025-04-25 89.0 CALL minute ohlc (917 rows).
+2025-10-12 15:52:15,751 | INFO | Loading 'quote' pricing data for PLTR 2025-04-25 89.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:15,820 | INFO | ThetaData cache HIT for PLTR 2025-04-25 89.0 CALL minute quote (12180 rows).
+2025-10-12 15:52:15,824 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: PLTR CALL 89.0 exp 2025-04-25
+2025-10-12 15:52:15,825 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new PLTR ID=262290ca9c2447e2910833bc5dc7d2d0, processed by broker backtesting
+2025-10-12 15:52:15,825 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 7 PLTR 2025-04-25 CALL 89.0 buy | @ $8.425 new
+2025-10-12 15:52:15,826 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 7 contracts of PLTR CALL 89.0 exp 2025-04-25 at 8.425
+2025-10-12 15:52:15,826 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for PLTR.
+2025-10-12 15:52:15,826 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 7 PLTR 2025-04-25 CALL 89.0 buy | @ $8.425 new}
+2025-10-12 15:52:15,826 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,827 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill PLTR ID=262290ca9c2447e2910833bc5dc7d2d0, processed by broker backtesting
+2025-10-12 15:52:15,827 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 7 PLTR 2025-04-25 CALL 89.0 buy | @ $5.01 fill
+2025-10-12 15:52:15,828 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,828 | INFO | [WeeklyMomentumOptionsStrategy] Filled 7.0 of PLTR CALL 89.0 exp 2025-04-25 at 5.01
+2025-10-12 15:52:15,829 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,830 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,934 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,936 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,937 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,938 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,938 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,939 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,940 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,941 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,942 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,943 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,944 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new PLTR ID=5040dd7561434b97a185cf69a0dc1517, processed by broker backtesting
+2025-10-12 15:52:15,944 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 7.0 PLTR 2025-04-25 CALL 89.0 sell | new
+2025-10-12 15:52:15,945 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for PLTR CALL 89.0 exp 2025-04-25 due to take_profit
+2025-10-12 15:52:15,945 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 7.0 PLTR 2025-04-25 CALL 89.0 sell | new}
+2025-10-12 15:52:15,945 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,946 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill PLTR ID=5040dd7561434b97a185cf69a0dc1517, processed by broker backtesting
+2025-10-12 15:52:15,946 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of PLTR 2025-04-25 89.0 CALL (2 orders) liquidated
+2025-10-12 15:52:15,946 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 7.0 PLTR 2025-04-25 CALL 89.0 sell | @ $11.05 fill
+2025-10-12 15:52:15,947 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,947 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,947 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,947 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,947 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,948 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:15 PM EDT
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:15,949 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:15 PM LMT
+2025-10-12 15:52:15,967 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-05-16
+2025-10-12 15:52:15,968 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for PLTR at strike 116 and expiry 2025-05-16
+2025-10-12 15:52:15,972 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for PLTR: True
+2025-10-12 15:52:15,972 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-05-16: 120 strikes
+2025-10-12 15:52:15,972 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 116 -> Closest available strike: 116.0
+2025-10-12 15:52:15,972 | INFO | Loading 'ohlc' pricing data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,039 | INFO | ThetaData cache HIT for PLTR 2025-05-16 116.0 CALL minute ohlc (1898 rows).
+2025-10-12 15:52:16,040 | INFO | Loading 'quote' pricing data for PLTR 2025-05-16 116.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,111 | INFO | ThetaData cache HIT for PLTR 2025-05-16 116.0 CALL minute quote (12181 rows).
+2025-10-12 15:52:16,114 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: PLTR CALL 116.0 exp 2025-05-16
+2025-10-12 15:52:16,115 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new PLTR ID=430afbc357c74b80be061565e8e982cd, processed by broker backtesting
+2025-10-12 15:52:16,115 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 6 PLTR 2025-05-16 CALL 116.0 buy | @ $11.475000000000001 new
+2025-10-12 15:52:16,116 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 6 contracts of PLTR CALL 116.0 exp 2025-05-16 at 11.475000000000001
+2025-10-12 15:52:16,116 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for PLTR.
+2025-10-12 15:52:16,116 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 6 PLTR 2025-05-16 CALL 116.0 buy | @ $11.475000000000001 new}
+2025-10-12 15:52:16,116 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,117 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,118 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill PLTR ID=430afbc357c74b80be061565e8e982cd, processed by broker backtesting
+2025-10-12 15:52:16,119 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 6 PLTR 2025-05-16 CALL 116.0 buy | @ $9.95 fill
+2025-10-12 15:52:16,120 | INFO | [WeeklyMomentumOptionsStrategy] Filled 6.0 of PLTR CALL 116.0 exp 2025-05-16 at 9.95
+2025-10-12 15:52:16,121 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,122 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,230 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,231 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,232 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,233 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,234 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,235 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,236 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,237 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,238 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,239 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,240 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new PLTR ID=11eb0fdb60414115bbf110605a9475e7, processed by broker backtesting
+2025-10-12 15:52:16,240 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 6.0 PLTR 2025-05-16 CALL 116.0 sell | new
+2025-10-12 15:52:16,241 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for PLTR CALL 116.0 exp 2025-05-16 due to stop_loss
+2025-10-12 15:52:16,241 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 6.0 PLTR 2025-05-16 CALL 116.0 sell | new}
+2025-10-12 15:52:16,241 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,242 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill PLTR ID=11eb0fdb60414115bbf110605a9475e7, processed by broker backtesting
+2025-10-12 15:52:16,242 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of PLTR 2025-05-16 116.0 CALL (2 orders) liquidated
+2025-10-12 15:52:16,242 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 6.0 PLTR 2025-05-16 CALL 116.0 sell | @ $1.93 fill
+2025-10-12 15:52:16,243 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,243 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,243 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,243 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,244 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,264 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-05-30
+2025-10-12 15:52:16,264 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for NRG at strike 155 and expiry 2025-05-30
+2025-10-12 15:52:16,267 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,267 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-05-30: 31 strikes
+2025-10-12 15:52:16,267 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 155 -> Closest available strike: 155.0
+2025-10-12 15:52:16,267 | INFO | Loading 'ohlc' pricing data for NRG 2025-05-30 155.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,332 | INFO | ThetaData cache HIT for NRG 2025-05-30 155.0 CALL minute ohlc (45 rows).
+2025-10-12 15:52:16,332 | INFO | Loading 'quote' pricing data for NRG 2025-05-30 155.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,400 | INFO | ThetaData cache HIT for NRG 2025-05-30 155.0 CALL minute quote (9573 rows).
+2025-10-12 15:52:16,404 | INFO | [WeeklyMomentumOptionsStrategy] Could not get price data for strike 155.0 on 2025-05-30; trying next expiry.
+2025-10-12 15:52:16,407 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,407 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-05-31: 0 strikes
+2025-10-12 15:52:16,407 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-05-31; trying next expiry.
+2025-10-12 15:52:16,410 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,410 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-01: 0 strikes
+2025-10-12 15:52:16,410 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-01; trying next expiry.
+2025-10-12 15:52:16,413 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,413 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-02: 0 strikes
+2025-10-12 15:52:16,413 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-02; trying next expiry.
+2025-10-12 15:52:16,416 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,416 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-03: 0 strikes
+2025-10-12 15:52:16,416 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-03; trying next expiry.
+2025-10-12 15:52:16,419 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,419 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-04: 0 strikes
+2025-10-12 15:52:16,419 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-04; trying next expiry.
+2025-10-12 15:52:16,421 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,421 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-05: 0 strikes
+2025-10-12 15:52:16,421 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-05; trying next expiry.
+2025-10-12 15:52:16,424 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,424 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-06: 27 strikes
+2025-10-12 15:52:16,424 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 155 -> Closest available strike: 155.0
+2025-10-12 15:52:16,424 | INFO | Loading 'ohlc' pricing data for NRG 2025-06-06 155.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,492 | INFO | ThetaData cache HIT for NRG 2025-06-06 155.0 CALL minute ohlc (54 rows).
+2025-10-12 15:52:16,493 | INFO | Loading 'quote' pricing data for NRG 2025-06-06 155.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,563 | INFO | ThetaData cache HIT for NRG 2025-06-06 155.0 CALL minute quote (13923 rows).
+2025-10-12 15:52:16,567 | INFO | [WeeklyMomentumOptionsStrategy] Could not get price data for strike 155.0 on 2025-06-06; trying next expiry.
+2025-10-12 15:52:16,570 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,570 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-07: 0 strikes
+2025-10-12 15:52:16,570 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-07; trying next expiry.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-08: 0 strikes
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-08; trying next expiry.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Exceeded maximum attempts to find a valid option.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for NRG at strike 154 and expiry 2025-05-30
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-05-30 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-05-31 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-01 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-02 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-03 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-04 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-05 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-06 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-07 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,573 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-06-08 previously invalid for NRG; trying next day.
+2025-10-12 15:52:16,576 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for NRG: True
+2025-10-12 15:52:16,576 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-09: 0 strikes
+2025-10-12 15:52:16,576 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-06-09; trying next expiry.
+2025-10-12 15:52:16,576 | INFO | [WeeklyMomentumOptionsStrategy] Exceeded maximum attempts to find a valid option.
+2025-10-12 15:52:16,576 | INFO | [WeeklyMomentumOptionsStrategy] No valid option strike found for NRG at expiry 2025-05-30
+2025-10-12 15:52:16,576 | INFO | [WeeklyMomentumOptionsStrategy] Failed to buy option for NRG, trying next.
+2025-10-12 15:52:16,579 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-05-30
+2025-10-12 15:52:16,580 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for CCJ at strike 52 and expiry 2025-05-30
+2025-10-12 15:52:16,582 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for CCJ: True
+2025-10-12 15:52:16,582 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-05-30: 55 strikes
+2025-10-12 15:52:16,582 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 52 -> Closest available strike: 52.0
+2025-10-12 15:52:16,582 | INFO | Loading 'ohlc' pricing data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,648 | INFO | ThetaData cache HIT for CCJ 2025-05-30 52.0 CALL minute ohlc (246 rows).
+2025-10-12 15:52:16,649 | INFO | Loading 'quote' pricing data for CCJ 2025-05-30 52.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,717 | INFO | ThetaData cache HIT for CCJ 2025-05-30 52.0 CALL minute quote (12180 rows).
+2025-10-12 15:52:16,720 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: CCJ CALL 52.0 exp 2025-05-30
+2025-10-12 15:52:16,721 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new CCJ ID=69ce682c2e93411ebe20a24e29b344ea, processed by broker backtesting
+2025-10-12 15:52:16,721 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 25 CCJ 2025-05-30 CALL 52.0 buy | @ $2.54 new
+2025-10-12 15:52:16,722 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 25 contracts of CCJ CALL 52.0 exp 2025-05-30 at 2.54
+2025-10-12 15:52:16,722 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for CCJ.
+2025-10-12 15:52:16,722 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 25 CCJ 2025-05-30 CALL 52.0 buy | @ $2.54 new}
+2025-10-12 15:52:16,722 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,723 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill CCJ ID=69ce682c2e93411ebe20a24e29b344ea, processed by broker backtesting
+2025-10-12 15:52:16,723 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 25 CCJ 2025-05-30 CALL 52.0 buy | @ $2.51 fill
+2025-10-12 15:52:16,724 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,724 | INFO | [WeeklyMomentumOptionsStrategy] Filled 25.0 of CCJ CALL 52.0 exp 2025-05-30 at 2.51
+2025-10-12 15:52:16,725 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,726 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,835 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,836 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,837 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,839 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new CCJ ID=870643f0211e48e8af25dfc86ce366c9, processed by broker backtesting
+2025-10-12 15:52:16,839 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 25.0 CCJ 2025-05-30 CALL 52.0 sell | new
+2025-10-12 15:52:16,840 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for CCJ CALL 52.0 exp 2025-05-30 due to stop_loss
+2025-10-12 15:52:16,840 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 25.0 CCJ 2025-05-30 CALL 52.0 sell | new}
+2025-10-12 15:52:16,840 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,841 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill CCJ ID=870643f0211e48e8af25dfc86ce366c9, processed by broker backtesting
+2025-10-12 15:52:16,842 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of CCJ 2025-05-30 52.0 CALL (2 orders) liquidated
+2025-10-12 15:52:16,842 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 25.0 CCJ 2025-05-30 CALL 52.0 sell | @ $0.96 fill
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,843 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,844 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:16 PM EDT
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:16,845 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:16 PM LMT
+2025-10-12 15:52:16,865 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-06-20
+2025-10-12 15:52:16,865 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HOOD at strike 73 and expiry 2025-06-20
+2025-10-12 15:52:16,869 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HOOD: True
+2025-10-12 15:52:16,869 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-06-20: 92 strikes
+2025-10-12 15:52:16,869 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 73 -> Closest available strike: 73.0
+2025-10-12 15:52:16,869 | INFO | Loading 'ohlc' pricing data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:16,934 | INFO | ThetaData cache HIT for HOOD 2025-06-20 73.0 CALL minute ohlc (1984 rows).
+2025-10-12 15:52:16,935 | INFO | Loading 'quote' pricing data for HOOD 2025-06-20 73.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,003 | INFO | ThetaData cache HIT for HOOD 2025-06-20 73.0 CALL minute quote (12180 rows).
+2025-10-12 15:52:17,006 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HOOD CALL 73.0 exp 2025-06-20
+2025-10-12 15:52:17,007 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=df3b77c562d04e2d92bb54bb2a894ddb, processed by broker backtesting
+2025-10-12 15:52:17,007 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 15 HOOD 2025-06-20 CALL 73.0 buy | @ $3.95 new
+2025-10-12 15:52:17,008 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 15 contracts of HOOD CALL 73.0 exp 2025-06-20 at 3.95
+2025-10-12 15:52:17,008 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HOOD.
+2025-10-12 15:52:17,008 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 15 HOOD 2025-06-20 CALL 73.0 buy | @ $3.95 new}
+2025-10-12 15:52:17,008 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,009 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,011 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,012 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,014 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,015 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,015 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,015 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,016 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=df3b77c562d04e2d92bb54bb2a894ddb, processed by broker backtesting
+2025-10-12 15:52:17,016 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 15 HOOD 2025-06-20 CALL 73.0 buy | @ $3.4 fill
+2025-10-12 15:52:17,017 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,017 | INFO | [WeeklyMomentumOptionsStrategy] Filled 15.0 of HOOD CALL 73.0 exp 2025-06-20 at 3.4
+2025-10-12 15:52:17,018 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,019 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,127 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,128 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,130 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,131 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,131 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,132 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,134 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,135 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,136 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,137 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,138 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,138 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,139 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,140 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,140 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,141 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,142 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,143 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=717e426f01994c1dbd4be72b88692054, processed by broker backtesting
+2025-10-12 15:52:17,143 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 15.0 HOOD 2025-06-20 CALL 73.0 sell | new
+2025-10-12 15:52:17,144 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HOOD CALL 73.0 exp 2025-06-20 due to time_exit
+2025-10-12 15:52:17,144 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 15.0 HOOD 2025-06-20 CALL 73.0 sell | new}
+2025-10-12 15:52:17,144 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,145 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=717e426f01994c1dbd4be72b88692054, processed by broker backtesting
+2025-10-12 15:52:17,145 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HOOD 2025-06-20 73.0 CALL (2 orders) liquidated
+2025-10-12 15:52:17,145 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 15.0 HOOD 2025-06-20 CALL 73.0 sell | @ $4.05 fill
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,147 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,148 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,168 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-07-11
+2025-10-12 15:52:17,168 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HOOD at strike 85 and expiry 2025-07-11
+2025-10-12 15:52:17,171 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HOOD: True
+2025-10-12 15:52:17,171 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-07-11: 78 strikes
+2025-10-12 15:52:17,171 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 85 -> Closest available strike: 85.0
+2025-10-12 15:52:17,172 | INFO | Loading 'ohlc' pricing data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,237 | INFO | ThetaData cache HIT for HOOD 2025-07-11 85.0 CALL minute ohlc (1455 rows).
+2025-10-12 15:52:17,238 | INFO | Loading 'quote' pricing data for HOOD 2025-07-11 85.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,306 | INFO | ThetaData cache HIT for HOOD 2025-07-11 85.0 CALL minute quote (12180 rows).
+2025-10-12 15:52:17,309 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HOOD CALL 85.0 exp 2025-07-11
+2025-10-12 15:52:17,310 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=13e4738ce1c0433e8237b2f79827ce4b, processed by broker backtesting
+2025-10-12 15:52:17,310 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 20 HOOD 2025-07-11 CALL 85.0 buy | @ $3.075 new
+2025-10-12 15:52:17,311 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 20 contracts of HOOD CALL 85.0 exp 2025-07-11 at 3.075
+2025-10-12 15:52:17,311 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HOOD.
+2025-10-12 15:52:17,311 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 20 HOOD 2025-07-11 CALL 85.0 buy | @ $3.075 new}
+2025-10-12 15:52:17,311 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,312 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,313 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,314 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=13e4738ce1c0433e8237b2f79827ce4b, processed by broker backtesting
+2025-10-12 15:52:17,314 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 20 HOOD 2025-07-11 CALL 85.0 buy | @ $2.94 fill
+2025-10-12 15:52:17,315 | INFO | [WeeklyMomentumOptionsStrategy] Filled 20.0 of HOOD CALL 85.0 exp 2025-07-11 at 2.94
+2025-10-12 15:52:17,316 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,423 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,425 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,426 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,427 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,427 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,428 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,429 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,430 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,431 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,432 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,433 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=78c8fca6e30741acaacce9d59f9483bd, processed by broker backtesting
+2025-10-12 15:52:17,433 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 20.0 HOOD 2025-07-11 CALL 85.0 sell | new
+2025-10-12 15:52:17,434 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HOOD CALL 85.0 exp 2025-07-11 due to take_profit
+2025-10-12 15:52:17,434 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 20.0 HOOD 2025-07-11 CALL 85.0 sell | new}
+2025-10-12 15:52:17,435 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,436 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=78c8fca6e30741acaacce9d59f9483bd, processed by broker backtesting
+2025-10-12 15:52:17,436 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HOOD 2025-07-11 85.0 CALL (2 orders) liquidated
+2025-10-12 15:52:17,436 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 20.0 HOOD 2025-07-11 CALL 85.0 sell | @ $9.37 fill
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,437 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,438 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,439 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,458 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-08-01
+2025-10-12 15:52:17,459 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HOOD at strike 105 and expiry 2025-08-01
+2025-10-12 15:52:17,462 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HOOD: True
+2025-10-12 15:52:17,462 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-08-01: 99 strikes
+2025-10-12 15:52:17,462 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 105 -> Closest available strike: 105.0
+2025-10-12 15:52:17,463 | INFO | Loading 'ohlc' pricing data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,530 | INFO | ThetaData cache HIT for HOOD 2025-08-01 105.0 CALL minute ohlc (3724 rows).
+2025-10-12 15:52:17,531 | INFO | Loading 'quote' pricing data for HOOD 2025-08-01 105.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,599 | INFO | ThetaData cache HIT for HOOD 2025-08-01 105.0 CALL minute quote (13049 rows).
+2025-10-12 15:52:17,602 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HOOD CALL 105.0 exp 2025-08-01
+2025-10-12 15:52:17,603 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=8f6b9df5f32c4775b345ffd8d0619302, processed by broker backtesting
+2025-10-12 15:52:17,603 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 11 HOOD 2025-08-01 CALL 105.0 buy | @ $6.575 new
+2025-10-12 15:52:17,604 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 11 contracts of HOOD CALL 105.0 exp 2025-08-01 at 6.575
+2025-10-12 15:52:17,604 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HOOD.
+2025-10-12 15:52:17,604 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 11 HOOD 2025-08-01 CALL 105.0 buy | @ $6.575 new}
+2025-10-12 15:52:17,605 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,606 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=8f6b9df5f32c4775b345ffd8d0619302, processed by broker backtesting
+2025-10-12 15:52:17,606 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 11 HOOD 2025-08-01 CALL 105.0 buy | @ $6.58 fill
+2025-10-12 15:52:17,606 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,607 | INFO | [WeeklyMomentumOptionsStrategy] Filled 11.0 of HOOD CALL 105.0 exp 2025-08-01 at 6.575
+2025-10-12 15:52:17,608 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,609 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,712 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,713 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,714 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,715 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,716 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,717 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,718 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,719 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,720 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,721 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,722 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,722 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,723 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,724 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,725 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,726 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,727 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,728 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=b8bddbf7ba494763aae304d2e60f20c3, processed by broker backtesting
+2025-10-12 15:52:17,728 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 11.0 HOOD 2025-08-01 CALL 105.0 sell | new
+2025-10-12 15:52:17,729 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HOOD CALL 105.0 exp 2025-08-01 due to time_exit
+2025-10-12 15:52:17,729 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 11.0 HOOD 2025-08-01 CALL 105.0 sell | new}
+2025-10-12 15:52:17,729 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,730 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=b8bddbf7ba494763aae304d2e60f20c3, processed by broker backtesting
+2025-10-12 15:52:17,730 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HOOD 2025-08-01 105.0 CALL (2 orders) liquidated
+2025-10-12 15:52:17,730 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 11.0 HOOD 2025-08-01 CALL 105.0 sell | @ $3.72 fill
+2025-10-12 15:52:17,731 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,731 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,731 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,731 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,731 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:17,732 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:17 PM LMT
+2025-10-12 15:52:17,750 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-08-15
+2025-10-12 15:52:17,751 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HOOD at strike 103 and expiry 2025-08-15
+2025-10-12 15:52:17,754 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HOOD: True
+2025-10-12 15:52:17,754 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-08-15: 106 strikes
+2025-10-12 15:52:17,754 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 103 -> Closest available strike: 103.0
+2025-10-12 15:52:17,754 | INFO | Loading 'ohlc' pricing data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,872 | INFO | ThetaData cache HIT for HOOD 2025-08-15 103.0 CALL minute ohlc (895 rows).
+2025-10-12 15:52:17,873 | INFO | Loading 'quote' pricing data for HOOD 2025-08-15 103.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:17,939 | INFO | ThetaData cache HIT for HOOD 2025-08-15 103.0 CALL minute quote (13049 rows).
+2025-10-12 15:52:17,942 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HOOD CALL 103.0 exp 2025-08-15
+2025-10-12 15:52:17,943 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=cb51856b749e486d95282f753b3f5f36, processed by broker backtesting
+2025-10-12 15:52:17,943 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 8 HOOD 2025-08-15 CALL 103.0 buy | @ $8.05 new
+2025-10-12 15:52:17,944 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 8 contracts of HOOD CALL 103.0 exp 2025-08-15 at 8.05
+2025-10-12 15:52:17,944 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HOOD.
+2025-10-12 15:52:17,944 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 8 HOOD 2025-08-15 CALL 103.0 buy | @ $8.05 new}
+2025-10-12 15:52:17,944 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:17 PM EDT
+2025-10-12 15:52:17,945 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=cb51856b749e486d95282f753b3f5f36, processed by broker backtesting
+2025-10-12 15:52:17,945 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 8 HOOD 2025-08-15 CALL 103.0 buy | @ $8.0 fill
+2025-10-12 15:52:17,946 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:17,946 | INFO | [WeeklyMomentumOptionsStrategy] Filled 8.0 of HOOD CALL 103.0 exp 2025-08-15 at 8.0
+2025-10-12 15:52:17,947 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:17,948 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,052 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,053 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,055 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,056 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=9b2db0175f69477fa4ec88ccdbcca2a1, processed by broker backtesting
+2025-10-12 15:52:18,056 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 8.0 HOOD 2025-08-15 CALL 103.0 sell | new
+2025-10-12 15:52:18,058 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HOOD CALL 103.0 exp 2025-08-15 due to stop_loss
+2025-10-12 15:52:18,058 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 8.0 HOOD 2025-08-15 CALL 103.0 sell | new}
+2025-10-12 15:52:18,058 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,059 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=9b2db0175f69477fa4ec88ccdbcca2a1, processed by broker backtesting
+2025-10-12 15:52:18,059 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HOOD 2025-08-15 103.0 CALL (2 orders) liquidated
+2025-10-12 15:52:18,059 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 8.0 HOOD 2025-08-15 CALL 103.0 sell | @ $3.8 fill
+2025-10-12 15:52:18,060 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,060 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,061 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,062 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,081 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-08-29
+2025-10-12 15:52:18,082 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for HOOD at strike 111 and expiry 2025-08-29
+2025-10-12 15:52:18,084 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for HOOD: True
+2025-10-12 15:52:18,084 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-08-29: 77 strikes
+2025-10-12 15:52:18,084 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 111 -> Closest available strike: 111.0
+2025-10-12 15:52:18,084 | INFO | Loading 'ohlc' pricing data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:18,149 | INFO | ThetaData cache HIT for HOOD 2025-08-29 111.0 CALL minute ohlc (2272 rows).
+2025-10-12 15:52:18,150 | INFO | Loading 'quote' pricing data for HOOD 2025-08-29 111.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:18,217 | INFO | ThetaData cache HIT for HOOD 2025-08-29 111.0 CALL minute quote (13050 rows).
+2025-10-12 15:52:18,220 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: HOOD CALL 111.0 exp 2025-08-29
+2025-10-12 15:52:18,221 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=1160b892cea54074bb46347d63b3aa3f, processed by broker backtesting
+2025-10-12 15:52:18,221 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 14 HOOD 2025-08-29 CALL 111.0 buy | @ $4.575 new
+2025-10-12 15:52:18,222 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 14 contracts of HOOD CALL 111.0 exp 2025-08-29 at 4.575
+2025-10-12 15:52:18,222 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for HOOD.
+2025-10-12 15:52:18,222 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 14 HOOD 2025-08-29 CALL 111.0 buy | @ $4.575 new}
+2025-10-12 15:52:18,222 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,224 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=1160b892cea54074bb46347d63b3aa3f, processed by broker backtesting
+2025-10-12 15:52:18,224 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 14 HOOD 2025-08-29 CALL 111.0 buy | @ $3.72 fill
+2025-10-12 15:52:18,224 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,224 | INFO | [WeeklyMomentumOptionsStrategy] Filled 14.0 of HOOD CALL 111.0 exp 2025-08-29 at 3.72
+2025-10-12 15:52:18,225 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,226 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,335 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,336 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,337 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,339 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,339 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,340 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,341 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,343 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,344 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,345 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,346 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,346 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,347 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,347 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,348 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,349 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,350 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,351 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new HOOD ID=60220e6ccfdf48aebdba15c01d53a131, processed by broker backtesting
+2025-10-12 15:52:18,351 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 14.0 HOOD 2025-08-29 CALL 111.0 sell | new
+2025-10-12 15:52:18,352 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for HOOD CALL 111.0 exp 2025-08-29 due to time_exit
+2025-10-12 15:52:18,352 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 14.0 HOOD 2025-08-29 CALL 111.0 sell | new}
+2025-10-12 15:52:18,352 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,353 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill HOOD ID=60220e6ccfdf48aebdba15c01d53a131, processed by broker backtesting
+2025-10-12 15:52:18,353 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of HOOD 2025-08-29 111.0 CALL (2 orders) liquidated
+2025-10-12 15:52:18,353 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 14.0 HOOD 2025-08-29 CALL 111.0 sell | @ $2.16 fill
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,355 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,356 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,356 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,356 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,373 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-09-12
+2025-10-12 15:52:18,374 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for WDC at strike 82 and expiry 2025-09-12
+2025-10-12 15:52:18,376 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for WDC: True
+2025-10-12 15:52:18,376 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-09-12: 61 strikes
+2025-10-12 15:52:18,376 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 82 -> Closest available strike: 82.0
+2025-10-12 15:52:18,376 | INFO | Loading 'ohlc' pricing data for WDC 2025-09-12 82.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:18,440 | INFO | ThetaData cache HIT for WDC 2025-09-12 82.0 CALL minute ohlc (33 rows).
+2025-10-12 15:52:18,441 | INFO | Loading 'quote' pricing data for WDC 2025-09-12 82.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:18,511 | INFO | ThetaData cache HIT for WDC 2025-09-12 82.0 CALL minute quote (12180 rows).
+2025-10-12 15:52:18,514 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: WDC CALL 82.0 exp 2025-09-12
+2025-10-12 15:52:18,515 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new WDC ID=f7ba8d344a214872a22099e4a3d33a46, processed by broker backtesting
+2025-10-12 15:52:18,515 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 42 WDC 2025-09-12 CALL 82.0 buy | @ $1.58 new
+2025-10-12 15:52:18,516 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 42 contracts of WDC CALL 82.0 exp 2025-09-12 at 1.58
+2025-10-12 15:52:18,516 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for WDC.
+2025-10-12 15:52:18,516 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 42 WDC 2025-09-12 CALL 82.0 buy | @ $1.58 new}
+2025-10-12 15:52:18,516 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,517 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill WDC ID=f7ba8d344a214872a22099e4a3d33a46, processed by broker backtesting
+2025-10-12 15:52:18,517 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 42 WDC 2025-09-12 CALL 82.0 buy | @ $1.58 fill
+2025-10-12 15:52:18,518 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,518 | INFO | [WeeklyMomentumOptionsStrategy] Filled 42.0 of WDC CALL 82.0 exp 2025-09-12 at 1.58
+2025-10-12 15:52:18,519 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,520 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,628 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,629 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,630 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,632 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,632 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,633 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,634 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,635 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,636 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,636 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,656 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-09-19
+2025-10-12 15:52:18,656 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for WDC at strike 90 and expiry 2025-09-19
+2025-10-12 15:52:18,659 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for WDC: True
+2025-10-12 15:52:18,659 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-09-19: 97 strikes
+2025-10-12 15:52:18,659 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 90 -> Closest available strike: 90.0
+2025-10-12 15:52:18,659 | INFO | Loading 'ohlc' pricing data for WDC 2025-09-19 90.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:18,722 | INFO | ThetaData cache HIT for WDC 2025-09-19 90.0 CALL minute ohlc (198 rows).
+2025-10-12 15:52:18,723 | INFO | Loading 'quote' pricing data for WDC 2025-09-19 90.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:18,790 | INFO | ThetaData cache HIT for WDC 2025-09-19 90.0 CALL minute quote (12180 rows).
+2025-10-12 15:52:18,793 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: WDC CALL 90.0 exp 2025-09-19
+2025-10-12 15:52:18,794 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new WDC ID=11718692c96947d789f849f099c4513a, processed by broker backtesting
+2025-10-12 15:52:18,794 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 47 WDC 2025-09-19 CALL 90.0 buy | @ $1.3050000000000002 new
+2025-10-12 15:52:18,795 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 47 contracts of WDC CALL 90.0 exp 2025-09-19 at 1.3050000000000002
+2025-10-12 15:52:18,795 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for WDC.
+2025-10-12 15:52:18,796 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new WDC ID=7fd1d2d124e04f1dbd8fd3a6bec991d0, processed by broker backtesting
+2025-10-12 15:52:18,796 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 42.0 WDC 2025-09-12 CALL 82.0 sell | new
+2025-10-12 15:52:18,797 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for WDC CALL 82.0 exp 2025-09-12 due to take_profit
+2025-10-12 15:52:18,797 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 47 WDC 2025-09-19 CALL 90.0 buy | @ $1.3050000000000002 new}
+2025-10-12 15:52:18,797 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 42.0 WDC 2025-09-12 CALL 82.0 sell | new}
+2025-10-12 15:52:18,797 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,798 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill WDC ID=11718692c96947d789f849f099c4513a, processed by broker backtesting
+2025-10-12 15:52:18,798 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 47 WDC 2025-09-19 CALL 90.0 buy | @ $1.29 fill
+2025-10-12 15:52:18,800 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill WDC ID=7fd1d2d124e04f1dbd8fd3a6bec991d0, processed by broker backtesting
+2025-10-12 15:52:18,800 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of WDC 2025-09-12 82.0 CALL (2 orders) liquidated
+2025-10-12 15:52:18,801 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 42.0 WDC 2025-09-12 CALL 82.0 sell | @ $3.94 fill
+2025-10-12 15:52:18,801 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,801 | INFO | [WeeklyMomentumOptionsStrategy] Filled 47.0 of WDC CALL 90.0 exp 2025-09-19 at 1.29
+2025-10-12 15:52:18,802 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,803 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,906 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,908 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,909 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,910 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new WDC ID=b9469378c4854d419fa76cb10ea7511a, processed by broker backtesting
+2025-10-12 15:52:18,910 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 47.0 WDC 2025-09-19 CALL 90.0 sell | new
+2025-10-12 15:52:18,911 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for WDC CALL 90.0 exp 2025-09-19 due to take_profit
+2025-10-12 15:52:18,911 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 47.0 WDC 2025-09-19 CALL 90.0 sell | new}
+2025-10-12 15:52:18,911 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,912 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill WDC ID=b9469378c4854d419fa76cb10ea7511a, processed by broker backtesting
+2025-10-12 15:52:18,912 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of WDC 2025-09-19 90.0 CALL (2 orders) liquidated
+2025-10-12 15:52:18,912 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 47.0 WDC 2025-09-19 CALL 90.0 sell | @ $3.89 fill
+2025-10-12 15:52:18,913 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,913 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,914 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:18 PM EDT
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:18,915 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:18 PM LMT
+2025-10-12 15:52:18,933 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-10-03
+2025-10-12 15:52:18,934 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for APP at strike 622 and expiry 2025-10-03
+2025-10-12 15:52:18,937 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:18,937 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-03: 202 strikes
+2025-10-12 15:52:18,937 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 622 -> Closest available strike: 622.5
+2025-10-12 15:52:18,937 | INFO | Loading 'ohlc' pricing data for APP 2025-10-03 622.5 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:19,000 | INFO | ThetaData cache HIT for APP 2025-10-03 622.5 CALL minute ohlc (38 rows).
+2025-10-12 15:52:19,001 | INFO | Loading 'quote' pricing data for APP 2025-10-03 622.5 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:19,068 | INFO | ThetaData cache HIT for APP 2025-10-03 622.5 CALL minute quote (5225 rows).
+2025-10-12 15:52:19,072 | INFO | [WeeklyMomentumOptionsStrategy] Could not get price data for strike 622.5 on 2025-10-03; trying next expiry.
+2025-10-12 15:52:19,075 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,075 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-04: 0 strikes
+2025-10-12 15:52:19,075 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-04; trying next expiry.
+2025-10-12 15:52:19,077 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,077 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-05: 0 strikes
+2025-10-12 15:52:19,077 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-05; trying next expiry.
+2025-10-12 15:52:19,080 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,080 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-06: 0 strikes
+2025-10-12 15:52:19,080 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-06; trying next expiry.
+2025-10-12 15:52:19,082 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,082 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-07: 0 strikes
+2025-10-12 15:52:19,082 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-07; trying next expiry.
+2025-10-12 15:52:19,085 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,085 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-08: 0 strikes
+2025-10-12 15:52:19,085 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-08; trying next expiry.
+2025-10-12 15:52:19,087 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,087 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-09: 0 strikes
+2025-10-12 15:52:19,087 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-09; trying next expiry.
+2025-10-12 15:52:19,089 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,089 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-10: 195 strikes
+2025-10-12 15:52:19,089 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 622 -> Closest available strike: 622.5
+2025-10-12 15:52:19,090 | INFO | Loading 'ohlc' pricing data for APP 2025-10-10 622.5 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:19,153 | INFO | ThetaData cache HIT for APP 2025-10-10 622.5 CALL minute ohlc (28 rows).
+2025-10-12 15:52:19,154 | INFO | Loading 'quote' pricing data for APP 2025-10-10 622.5 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:19,218 | INFO | ThetaData cache HIT for APP 2025-10-10 622.5 CALL minute quote (3487 rows).
+2025-10-12 15:52:19,221 | INFO | [WeeklyMomentumOptionsStrategy] Could not get price data for strike 622.5 on 2025-10-10; trying next expiry.
+2025-10-12 15:52:19,223 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,223 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-11: 0 strikes
+2025-10-12 15:52:19,223 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-11; trying next expiry.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-12: 0 strikes
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-12; trying next expiry.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Exceeded maximum attempts to find a valid option.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for APP at strike 621 and expiry 2025-10-03
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-03 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-04 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-05 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-06 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-07 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-08 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-09 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-10 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-11 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,226 | INFO | [WeeklyMomentumOptionsStrategy] Expiry 2025-10-12 previously invalid for APP; trying next day.
+2025-10-12 15:52:19,229 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for APP: True
+2025-10-12 15:52:19,229 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-13: 0 strikes
+2025-10-12 15:52:19,229 | INFO | [WeeklyMomentumOptionsStrategy] No strikes available for CALL on 2025-10-13; trying next expiry.
+2025-10-12 15:52:19,229 | INFO | [WeeklyMomentumOptionsStrategy] Exceeded maximum attempts to find a valid option.
+2025-10-12 15:52:19,229 | INFO | [WeeklyMomentumOptionsStrategy] No valid option strike found for APP at expiry 2025-10-03
+2025-10-12 15:52:19,229 | INFO | [WeeklyMomentumOptionsStrategy] Failed to buy option for APP, trying next.
+2025-10-12 15:52:19,231 | INFO | [WeeklyMomentumOptionsStrategy] Cannot validate data without underlying symbol, returning 2025-10-03
+2025-10-12 15:52:19,231 | INFO | [WeeklyMomentumOptionsStrategy] Finding next valid option for WDC at strike 105 and expiry 2025-10-03
+2025-10-12 15:52:19,233 | INFO | [WeeklyMomentumOptionsStrategy] Got chains for WDC: True
+2025-10-12 15:52:19,233 | INFO | [WeeklyMomentumOptionsStrategy] Available strikes for 2025-10-03: 98 strikes
+2025-10-12 15:52:19,233 | INFO | [WeeklyMomentumOptionsStrategy] Target strike 105 -> Closest available strike: 105.0
+2025-10-12 15:52:19,233 | INFO | Loading 'ohlc' pricing data for WDC 2025-10-03 105.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:19,296 | INFO | ThetaData cache HIT for WDC 2025-10-03 105.0 CALL minute ohlc (42 rows).
+2025-10-12 15:52:19,298 | INFO | Loading 'quote' pricing data for WDC 2025-10-03 105.0 CALL / USD with 'minute' timespan from cache file...
+2025-10-12 15:52:19,364 | INFO | ThetaData cache HIT for WDC 2025-10-03 105.0 CALL minute quote (9570 rows).
+2025-10-12 15:52:19,367 | INFO | [WeeklyMomentumOptionsStrategy] Found valid option: WDC CALL 105.0 exp 2025-10-03
+2025-10-12 15:52:19,367 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new WDC ID=99df93b739a84d21ab4daa676b151f55, processed by broker backtesting
+2025-10-12 15:52:19,368 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: limit order of | 22 WDC 2025-10-03 CALL 105.0 buy | @ $3.575 new
+2025-10-12 15:52:19,368 | INFO | [WeeklyMomentumOptionsStrategy] Submitted buy order for 22 contracts of WDC CALL 105.0 exp 2025-10-03 at 3.575
+2025-10-12 15:52:19,368 | INFO | [WeeklyMomentumOptionsStrategy] Bought option for WDC.
+2025-10-12 15:52:19,369 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': limit order of | 22 WDC 2025-10-03 CALL 105.0 buy | @ $3.575 new}
+2025-10-12 15:52:19,369 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:19 PM EDT
+2025-10-12 15:52:19,370 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill WDC ID=99df93b739a84d21ab4daa676b151f55, processed by broker backtesting
+2025-10-12 15:52:19,370 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: limit order of | 22 WDC 2025-10-03 CALL 105.0 buy | @ $3.55 fill
+2025-10-12 15:52:19,370 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:19,370 | INFO | [WeeklyMomentumOptionsStrategy] Filled 22.0 of WDC CALL 105.0 exp 2025-10-03 at 3.55
+2025-10-12 15:52:19,371 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:19,372 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:19,477 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:19,478 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:19,479 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:19 PM LMT
+2025-10-12 15:52:19,481 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:19 PM EDT
+2025-10-12 15:52:19,481 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:19,482 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:19,483 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:19,484 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:19,485 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:19,486 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:19 PM LMT
+2025-10-12 15:52:19,487 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: new WDC ID=ec1eb44255754885a0285fd12739fe7b, processed by broker backtesting
+2025-10-12 15:52:19,487 | INFO | [WeeklyMomentumOptionsStrategy] New order was created: market order of | 22.0 WDC 2025-10-03 CALL 105.0 sell | new
+2025-10-12 15:52:19,488 | INFO | [WeeklyMomentumOptionsStrategy] Submitted exit for WDC CALL 105.0 exp 2025-10-03 due to take_profit
+2025-10-12 15:52:19,488 | INFO | [WeeklyMomentumOptionsStrategy] Processing a new order, payload: {'order': market order of | 22.0 WDC 2025-10-03 CALL 105.0 sell | new}
+2025-10-12 15:52:19,488 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:19 PM EDT
+2025-10-12 15:52:19,489 | INFO | [WeeklyMomentumOptionsStrategy] Processing trade event. Trade event received for WeeklyMomentumOptionsStrategy strategy: fill WDC ID=ec1eb44255754885a0285fd12739fe7b, processed by broker backtesting
+2025-10-12 15:52:19,489 | INFO | Position WeeklyMomentumOptionsStrategy Position: 0.0 shares of WDC 2025-10-03 105.0 CALL (2 orders) liquidated
+2025-10-12 15:52:19,489 | INFO | [WeeklyMomentumOptionsStrategy] Order was filled: market order of | 22.0 WDC 2025-10-03 CALL 105.0 sell | @ $7.3 fill
+2025-10-12 15:52:19,490 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:19,490 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:19,490 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_opens lifecycle method
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_starting_trading lifecycle method
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Bot is running. Executing the on_trading_iteration lifecycle method at 2025-10-12 03:52:19 PM LMT
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Trading iteration ended at 2025-10-12 03:52:19 PM EDT
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Sleeping for 86400 seconds
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Executing the before_market_closes lifecycle method
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Executing the after_market_closes lifecycle method
+2025-10-12 15:52:19,491 | INFO | [WeeklyMomentumOptionsStrategy] Executing the on_strategy_end lifecycle method
+2025-10-12 15:52:24,597 | INFO | Backtesting finished
+2025-10-12 15:52:24,603 | INFO | [WeeklyMomentumOptionsStrategy] Backtest took 0:00:10.999292 for a speed of 0.000

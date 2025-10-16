@@ -12,6 +12,7 @@ try:
 except ImportError:
     from tqdm import tqdm
 from lumibot.entities import Asset
+from lumibot.tools import polygon_helper
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -158,10 +159,8 @@ async def download_polygon_data_async(
 
     if symbol is None:
         # Get symbol using sync method (or implement async version)
-        from lumibot.tools.polygon_helper import PolygonClient
-        sync_client = PolygonClient.create(api_key=api_key)
-        from lumibot.tools.polygon_helper_polars_optimized import get_polygon_symbol
-        symbol = get_polygon_symbol(asset, sync_client, quote_asset)
+        sync_client = polygon_helper.PolygonClient.create(api_key=api_key)
+        symbol = polygon_helper.get_polygon_symbol(asset, sync_client, quote_asset)
 
     if symbol is None:
         return None

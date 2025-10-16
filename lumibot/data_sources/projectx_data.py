@@ -187,7 +187,7 @@ class ProjectXData(DataSource):
         return super().get_bars(assets, length, timestep=timestep, timeshift=timeshift, chunk_size=chunk_size, max_workers=max_workers, quote=quote, exchange=exchange, include_after_hours=include_after_hours, sleep_time=sleep_time)
 
     # Internal single-asset fetcher to align with base class multi-asset logic
-    def _fetch_bars(self, asset: Asset, length: int, timestep: str = "minute", timeshift: int = None) -> Bars | None:
+    def _fetch_bars(self, asset: Asset, length: int, timestep: str = "minute", timeshift: int = None, return_polars: bool = False) -> Bars | None:
         try:
             contract_id = self._get_contract_id_from_asset(asset)
             if not contract_id:
@@ -296,7 +296,7 @@ class ProjectXData(DataSource):
                 logger.debug(debug_msg)
             except Exception as log_exc:
                 self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
-            return Bars(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
+            return Bars(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict(), return_polars=return_polars)
         except Exception as e:
             self.logger.error(f"Error fetching bars for {getattr(asset, 'symbol', asset)}: {e}")
             return None
@@ -311,7 +311,7 @@ class ProjectXData(DataSource):
         return 0.0
 
     def get_historical_prices(self, asset: Asset, length: int, timestep: str = "minute",
-                             timeshift=None, quote=None, exchange=None, include_after_hours=True) -> Bars:
+                             timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False) -> Bars:
         """
         Get historical prices for an asset.
 
@@ -323,12 +323,13 @@ class ProjectXData(DataSource):
             quote: Quote asset (not used for futures)
             exchange: Exchange (not used)
             include_after_hours: Whether to include after hours data (not used for futures)
+            return_polars: Whether to return a Polars DataFrame instead of pandas
 
         Returns:
             Bars object containing historical data
         """
         try:
-            bars = self._fetch_bars(asset=asset, length=length, timestep=timestep, timeshift=timeshift)
+            bars = self._fetch_bars(asset=asset, length=length, timestep=timestep, timeshift=timeshift, return_polars=return_polars)
 
             return bars
 
@@ -552,7 +553,7 @@ class ProjectXData(DataSource):
             return Quote(asset=asset)
 
     def get_bars_from_datetime(self, asset: Asset, start_datetime: datetime,
-                              end_datetime: datetime, timespan: str = "minute") -> Bars:
+                              end_datetime: datetime, timespan: str = "minute", return_polars: bool = False) -> Bars:
         """
         Get historical bars between specific datetime range.
 
@@ -561,6 +562,7 @@ class ProjectXData(DataSource):
             start_datetime: Start datetime
             end_datetime: End datetime
             timespan: Time span for bars (minute, hour, day, week, month)
+            return_polars: Whether to return a Polars DataFrame instead of pandas
 
         Returns:
             Bars object containing the historical data
@@ -600,7 +602,8 @@ class ProjectXData(DataSource):
                 df=df,
                 source=self.SOURCE,
                 asset=asset,
-                raw=df.to_dict()
+                raw=df.to_dict(),
+                return_polars=return_polars
             )
 
             self.logger.debug(f"Retrieved {len(df)} bars for {asset.symbol} from {start_datetime} to {end_datetime}")

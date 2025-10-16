@@ -21,11 +21,11 @@ load_dotenv()
 from lumibot.backtesting import BacktestingBroker
 from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
 from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBacktestingPandas
-from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.tools import databento_helper_polars
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -134,7 +134,7 @@ class MultiInstrumentTrader(Strategy):
 
 def _clear_polars_cache():
     """Remove cached polars DataBento files so cross-backend tests are deterministic."""
-    cache_path = Path(LUMIBOT_DATABENTO_CACHE_FOLDER)
+    cache_path = Path(databento_helper_polars.LUMIBOT_DATABENTO_CACHE_FOLDER)
     if cache_path.exists():
         shutil.rmtree(cache_path)
 

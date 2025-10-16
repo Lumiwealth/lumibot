@@ -26,7 +26,7 @@ class ExampleBrokerData(DataSource):
         return {}  # Return an empty dictionary as a placeholder
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
     ) -> Bars:
         logger.error(colored("Method 'get_historical_prices' is not yet implemented.", "red"))
         return None  # Return None as a placeholder

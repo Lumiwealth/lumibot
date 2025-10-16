@@ -2,8 +2,22 @@
 
 from __future__ import annotations
 
+################################################################################
+# Must Be Imported First If Run Locally
+if True:
+    import os
+    import sys
+    from pathlib import Path
+
+    # Add the lumibot root directory to sys.path
+    # This finds the lumibot directory by going up from this file's location
+    current_file = Path(__file__).resolve()
+    lumibot_root = current_file.parent.parent.parent
+    if str(lumibot_root) not in sys.path:
+        sys.path.insert(0, str(lumibot_root))
+################################################################################
+
 import argparse
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -22,8 +36,9 @@ from tests.performance.strategies.weekly_momentum_options import WeeklyMomentumO
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-BACKTEST_START = datetime(2025, 3, 1)
-BACKTEST_END = datetime(2025, 9, 30)
+# Full 6-month backtest to see real bottlenecks
+BACKTEST_START = datetime(2024, 7, 1)
+BACKTEST_END = datetime(2024, 12, 31)  # 6 months for proper profiling
 STRATEGY_PARAMS = {}
 
 

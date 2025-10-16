@@ -360,8 +360,11 @@ LOOKBACK_DAYS: 63
                     skipped[s] = skip_reason
                     continue
 
-                start = df['close'].iloc[0]
-                end = df['close'].iloc[-1]
+                # Get first and last values - compatible with both pandas and polars
+                close_series = df['close']
+                close_list = close_series.to_list() if hasattr(close_series, 'to_list') else list(close_series)
+                start = close_list[0]
+                end = close_list[-1]
                 pct = (end - start) / start
                 perf[s] = pct
 

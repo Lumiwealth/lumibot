@@ -322,7 +322,7 @@ class TradierData(DataSource):
             df = df.iloc[-length:]
 
         # Convert the dataframe to a Bars object
-        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote, return_polars=return_polars)
 
         return bars
 

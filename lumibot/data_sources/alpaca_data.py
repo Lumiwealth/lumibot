@@ -550,6 +550,7 @@ class AlpacaData(DataSource):
         exchange: Optional[str] = None,
         include_after_hours: bool = True,
         sleep_time: float = 0.0,
+        return_polars: bool = False,
     ) -> Dict[Asset, Bars]:
         """Fetch historical bars for multiple assets using Alpaca's multi-symbol API.
 
@@ -690,6 +691,7 @@ class AlpacaData(DataSource):
                                         asset_obj,
                                         raw=cleaned,
                                         tzinfo=self.tzinfo,
+                                        return_polars=return_polars,
                                     )
                     else:  # Single symbol fallback
                         sym = syms[0]
@@ -702,6 +704,7 @@ class AlpacaData(DataSource):
                                 asset_obj,
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
+                                        return_polars=return_polars,
                             )
                 except Exception as e:
                     logger.error(f"Could not get stock pricing data from Alpaca for batch ({len(syms)} symbols): {e}")
@@ -738,6 +741,7 @@ class AlpacaData(DataSource):
                                     a,
                                     raw=cleaned,
                                     tzinfo=self.tzinfo,
+                                    return_polars=return_polars,
                                 )
                     else:  # Single symbol fallback
                         sym = syms[0]
@@ -749,6 +753,7 @@ class AlpacaData(DataSource):
                                 chunk[0],
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
+                                return_polars=return_polars,
                             )
                 except Exception as e:
                     logger.error(f"Could not get option pricing data from Alpaca batch ({len(syms)} symbols): {e}")
@@ -793,6 +798,7 @@ class AlpacaData(DataSource):
                                     a,
                                     raw=cleaned,
                                     tzinfo=self.tzinfo,
+                                    return_polars=return_polars,
                                 )
                     else:
                         sym = syms[0]
@@ -805,6 +811,7 @@ class AlpacaData(DataSource):
                                 a,
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
+                                return_polars=return_polars,
                             )
                 except Exception as e:
                     logger.error(f"Could not get crypto pricing data from Alpaca batch ({len(syms)} symbols): {e}")
@@ -846,7 +853,7 @@ class AlpacaData(DataSource):
         if df is None:
             return None
 
-        bars = self._parse_source_symbol_bars(df, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(df, asset, quote=quote, length=length, return_polars=return_polars)
         return bars
 
     def _get_dataframe_from_api(
@@ -984,7 +991,7 @@ class AlpacaData(DataSource):
 
         return df
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, return_polars: bool = False):
         bars = Bars(
             response,
             self.SOURCE,
@@ -992,6 +999,7 @@ class AlpacaData(DataSource):
             raw=response,
             quote=quote,
             tzinfo=self.tzinfo,
+            return_polars=return_polars,
         )
         return bars
 

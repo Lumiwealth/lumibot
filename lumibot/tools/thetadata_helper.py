@@ -1,11 +1,12 @@
 # This file contains helper functions for getting data from Polygon.io
 import time
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import pytz
 import pandas as pd
+import polars as pl
 import pandas_market_calendars as mcal
 import requests
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
@@ -197,12 +198,16 @@ def get_price_data(
     quote_asset: Asset = None,
     dt=None,
     datastyle: str = "ohlc",
-    include_after_hours: bool = True
-):
+    include_after_hours: bool = True,
+    return_polars: bool = False
+) -> Optional[Union[pd.DataFrame, pl.DataFrame]]:
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
     cached in the LUMIBOT_CACHE_FOLDER/{CACHE_SUBFOLDER} folder so that it can be reused later and we don't have to query
     ThetaData every time we run a backtest.
+
+    Returns pandas DataFrames by default for backwards compatibility.
+    Set return_polars=True to get polars DataFrames for optimal performance.
 
     Parameters
     ----------
@@ -225,25 +230,30 @@ def get_price_data(
         The style of data to retrieve ("ohlc" or "quote")
     include_after_hours : bool
         Whether to include after-hours trading data (default True)
+    return_polars : bool
+        If True (default), return polars DataFrame for optimal performance.
+        If False, return pandas DataFrame for backwards compatibility.
 
     Returns
     -------
-    pd.DataFrame
-        A DataFrame with the pricing data for the asset
+    Optional[Union[pd.DataFrame, pl.DataFrame]]
+        A polars or pandas DataFrame with the pricing data for the asset
 
     """
     import pytz  # Import at function level to avoid scope issues in nested calls
 
     # DEBUG-LOG: Entry point for ThetaData request
-    logger.info(
-        "[THETA][REQUEST][ENTRY] asset=%s quote=%s start=%s end=%s timespan=%s datastyle=%s include_after_hours=%s",
+    logger.debug(
+        "[THETA][REQUEST][ENTRY] asset=%s quote=%s start=%s end=%s dt=%s timespan=%s datastyle=%s include_after_hours=%s return_polars=%s",
         asset,
         quote_asset,
         start.isoformat() if hasattr(start, 'isoformat') else start,
         end.isoformat() if hasattr(end, 'isoformat') else end,
+        dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt,
         timespan,
         datastyle,
-        include_after_hours
+        include_after_hours,
+        return_polars
     )
 
     # Check if we already have data for this asset in the cache file
@@ -345,9 +355,76 @@ def get_price_data(
                     start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
                 if end.tzinfo is None:
                     end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
-                df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
+
+                # CRITICAL FIX: Use dt (current broker time) if provided, otherwise use end
+                # This prevents look-ahead bias in backtesting
+                if dt is not None:
+                    # Convert dt to UTC for comparison
+                    if isinstance(dt, datetime):
+                        dt_utc = dt
+                        if dt_utc.tzinfo is None:
+                            dt_utc = LUMIBOT_DEFAULT_PYTZ.localize(dt_utc).astimezone(pytz.UTC)
+                        else:
+                            dt_utc = dt_utc.astimezone(pytz.UTC)
+
+                        # DEBUG: Show before/after filtering
+                        before_rows = len(df_all)
+                        before_max = df_all.index.max() if len(df_all) > 0 else None
+
+                        # Use dt as the upper bound instead of end
+                        df_all = df_all[(df_all.index >= start) & (df_all.index <= dt_utc)]
+
+                        after_rows = len(df_all)
+                        after_max = df_all.index.max() if len(df_all) > 0 else None
+
+                        if before_rows != after_rows:
+                            print(f"[FIX-WORKING] {asset}: FILTERED {before_rows} -> {after_rows} rows, broker_dt={dt_utc.isoformat()}, before_max={before_max.isoformat() if before_max else 'None'}, after_max={after_max.isoformat() if after_max else 'None'}", flush=True)
+                    else:
+                        # dt is a date, not datetime - use end
+                        df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
+                else:
+                    df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
+
+        # DEBUG-LOG: After date range filtering, before missing removal
+        if df_all is not None and not df_all.empty:
+            logger.info(
+                "[THETA][FILTER][AFTER] asset=%s rows=%d first_ts=%s last_ts=%s dt_filter=%s",
+                asset,
+                len(df_all),
+                df_all.index.min().isoformat() if len(df_all) > 0 else None,
+                df_all.index.max().isoformat() if len(df_all) > 0 else None,
+                dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt
+            )
+
         if df_all is not None and not df_all.empty and "missing" in df_all.columns:
             df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+
+        # Convert to polars if requested (default for polars-optimized version)
+        if return_polars and df_all is not None and not df_all.empty:
+            logger.info(f"[POLARS] Converting final DataFrame to polars for {asset}: {len(df_all)} rows")
+            # DEBUG-LOG: Before polars conversion
+            logger.info(
+                "[THETA][RETURN][POLARS] asset=%s rows=%d first_ts=%s last_ts=%s",
+                asset,
+                len(df_all),
+                df_all.index.min().isoformat() if len(df_all) > 0 else None,
+                df_all.index.max().isoformat() if len(df_all) > 0 else None
+            )
+            df_reset = df_all.reset_index()
+            if 'datetime' not in df_reset.columns and isinstance(df_all.index, pd.DatetimeIndex):
+                df_reset['datetime'] = df_all.index
+            df_polars = pl.from_pandas(df_reset)
+            return df_polars
+
+        # DEBUG-LOG: Before pandas return
+        if df_all is not None and not df_all.empty:
+            logger.info(
+                "[THETA][RETURN][PANDAS] asset=%s rows=%d first_ts=%s last_ts=%s",
+                asset,
+                len(df_all),
+                df_all.index.min().isoformat() if len(df_all) > 0 else None,
+                df_all.index.max().isoformat() if len(df_all) > 0 else None
+            )
         return df_all
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
@@ -445,6 +522,16 @@ def get_price_data(
                 datastyle,
                 len(requested_dates),
             )
+
+            # Convert to polars if requested
+            if return_polars and df_clean is not None and not df_clean.empty:
+                logger.info(f"[POLARS] Converting final DataFrame to polars for {asset}: {len(df_clean)} rows")
+                df_reset = df_clean.reset_index()
+                if 'datetime' not in df_reset.columns and isinstance(df_clean.index, pd.DatetimeIndex):
+                    df_reset['datetime'] = df_clean.index
+                df_polars = pl.from_pandas(df_reset)
+                return df_polars
+
             return df_clean if df_clean is not None else pd.DataFrame()
 
         df_all = update_df(df_all, result_df)
@@ -491,6 +578,16 @@ def get_price_data(
             0 if df_all is None else len(df_all),
             placeholder_count,
         )
+
+        # Convert to polars if requested
+        if return_polars and df_clean is not None and not df_clean.empty:
+            logger.info(f"[POLARS] Converting final DataFrame to polars for {asset}: {len(df_clean)} rows")
+            df_reset = df_clean.reset_index()
+            if 'datetime' not in df_reset.columns and isinstance(df_clean.index, pd.DatetimeIndex):
+                df_reset['datetime'] = df_clean.index
+            df_polars = pl.from_pandas(df_reset)
+            return df_polars
+
         return df_clean if df_clean is not None else pd.DataFrame()
 
     # Map timespan to milliseconds for intraday intervals
@@ -579,6 +676,16 @@ def get_price_data(
     if df_all is not None and not df_all.empty and "missing" in df_all.columns:
         df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
         df_all = restore_numeric_dtypes(df_all)
+
+    # Convert to polars if requested
+    if return_polars and df_all is not None and not df_all.empty:
+        logger.info(f"[POLARS] Converting final DataFrame to polars for {asset}: {len(df_all)} rows")
+        df_reset = df_all.reset_index()
+        if 'datetime' not in df_reset.columns and isinstance(df_all.index, pd.DatetimeIndex):
+            df_reset['datetime'] = df_all.index
+        df_polars = pl.from_pandas(df_reset)
+        return df_polars
+
     return df_all
 
 

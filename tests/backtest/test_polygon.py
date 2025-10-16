@@ -370,16 +370,16 @@ class TestPolygonBacktestFull:
         polygon_data_backtesting.use_async = False
 
         mocked_get_price_data = mocker.patch(
-            'lumibot.tools.polygon_helper_polars_optimized.get_price_data_from_polygon_polars',
-            return_value=pl.DataFrame({
-                "datetime": [],
-                "open": [],
-                "high": [],
-                "low": [],
-                "close": [],
-                "volume": [],
-                "dividend": [],
-            })
+        'lumibot.tools.polygon_helper.get_price_data_from_polygon',
+        return_value=pd.DataFrame({
+            "datetime": pd.to_datetime([]),
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+            "dividend": [],
+        })
         )
 
         asset = Asset(symbol="AAPL", asset_type="stock")

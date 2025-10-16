@@ -411,6 +411,15 @@ class Data:
 
             length = kwargs.get("length", 1)
             timeshift = kwargs.get("timeshift", 0)
+
+            # Convert timedelta to integer number of periods
+            if isinstance(timeshift, datetime.timedelta):
+                # Determine the period length based on timestep
+                if self.timestep == "day":
+                    timeshift = int(timeshift.total_seconds() / (24 * 3600))
+                else:  # minute
+                    timeshift = int(timeshift.total_seconds() / 60)
+
             data_index = i + 1 - length - timeshift
             is_data = data_index >= 0
             if not is_data:
@@ -538,14 +547,21 @@ class Data:
             The number of periods to get the data.
         timestep : str
             The frequency of the data to get the data.
-        timeshift : int
-            The number of periods to shift the data.
+        timeshift : int | timedelta
+            The number of periods to shift the data, or a timedelta object.
 
         Returns
         -------
         dict
 
         """
+
+        # Convert timedelta to integer number of periods if needed
+        if isinstance(timeshift, datetime.timedelta):
+            if self.timestep == "day":
+                timeshift = int(timeshift.total_seconds() / (24 * 3600))
+            else:  # minute
+                timeshift = int(timeshift.total_seconds() / 60)
 
         # Get bars.
         end_row = self.get_iter_count(dt) - timeshift

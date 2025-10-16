@@ -132,6 +132,17 @@ Here's an example of a backtest using **Polygon.io**:
             polygon_api_key=polygon_api_key  # Pass the Polygon.io API key here
         )
 
+.. tip::
+
+   **Performance Optimization**
+
+   For 2-3x faster backtesting, add ``return_polars=True`` when fetching historical prices:
+
+   .. code-block:: python
+
+       bars = self.get_historical_prices(asset, 200, "minute", return_polars=True)
+       df = bars.df  # Polars DataFrame (much faster for indicators)
+
 Optional: Using Environment Variables for Backtest Configuration
 -----------------------------------------------------------------
 

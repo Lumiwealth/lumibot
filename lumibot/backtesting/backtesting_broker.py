@@ -1490,7 +1490,16 @@ class BacktestingBroker(Broker):
                     return_polars=True,
                 )
 
-                if ohlc is None or ohlc.df is None or ohlc.df.is_empty():
+                # Handle both pandas and polars DataFrames
+                is_empty = False
+                if ohlc is None or ohlc.df is None:
+                    is_empty = True
+                elif hasattr(ohlc.df, 'is_empty'):  # Polars
+                    is_empty = ohlc.df.is_empty()
+                elif hasattr(ohlc.df, 'empty'):  # Pandas
+                    is_empty = ohlc.df.empty
+
+                if is_empty:
                     self.cancel_order(order)
                     continue
 

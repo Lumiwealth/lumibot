@@ -27,14 +27,10 @@ if str(ROOT_DIR) not in sys.path:
 
 from lumibot.backtesting import (  # noqa: E402
     BacktestingBroker,
-    PolygonDataBacktestingPandas,
-    PolygonDataBacktestingPolars,
     ThetaDataBacktestingPandas,
     ThetaDataBacktestingPolars,
     DataBentoDataBacktestingPandas,
     DataBentoDataBacktestingPolars,
-    YahooDataBacktestingPandas,
-    YahooDataBacktestingPolars,
 )
 from lumibot.entities import Asset  # noqa: E402
 from lumibot.strategies import Strategy  # noqa: E402
@@ -122,25 +118,6 @@ class BaseProfilingStrategy(Strategy):
         self._iteration += 1
 
 
-class PolygonProfilingStrategy(BaseProfilingStrategy):
-    parameters = {"symbol": "AMZN"}
-
-    def initialize(self):
-        self.asset = Asset(self.parameters["symbol"], asset_type=Asset.AssetType.STOCK)
-        self.base_timestep = "day"
-        self.base_unit = "day"
-        self.resample_multiplier = 2
-        super().initialize()
-
-    def on_trading_iteration(self):
-        super().on_trading_iteration()
-        if getattr(self, "_latest_bars", None) is not None and self._use_polars_default:
-            try:
-                resample_polars_ohlc(self._latest_bars.polars_df, multiplier=self.resample_multiplier, base_unit=self.base_unit, length=3)
-            except Exception as exc:  # pragma: no cover - diagnostic only
-                self.log_message(f"[profiling] manual resample failed: {exc}")
-
-
 class ThetaProfilingStrategy(BaseProfilingStrategy):
     parameters = {"symbol": "AMZN"}
 
@@ -168,17 +145,6 @@ class DataBentoProfilingStrategy(BaseProfilingStrategy):
 
     def initialize(self):
         self.asset = Asset(self.parameters["symbol"], asset_type=Asset.AssetType.CONT_FUTURE)
-        super().initialize()
-
-
-class YahooProfilingStrategy(BaseProfilingStrategy):
-    parameters = {"symbol": "QQQ"}
-
-    def initialize(self):
-        self.asset = Asset(self.parameters["symbol"], asset_type=Asset.AssetType.STOCK)
-        self.base_timestep = "day"
-        self.base_unit = "day"
-        self.resample_multiplier = 2
         super().initialize()
 
 
@@ -318,15 +284,9 @@ def run_profile(provider: ProviderConfig, mode: str, warm: bool,
 
 def build_configs() -> Dict[str, ProviderConfig]:
     home = Path.home()
-    polygon_key = os.environ.get("POLYGON_API_KEY")
     theta_user = os.environ.get("THETADATA_USERNAME")
     theta_pass = os.environ.get("THETADATA_PASSWORD")
     databento_key = os.environ.get("DATABENTO_API_KEY") or os.environ.get("DATABENTO_APIKEY")
-
-    def polygon_kwargs(_mode: str) -> Optional[Dict]:
-        if not polygon_key or polygon_key.startswith("<"):
-            return None
-        return {"api_key": polygon_key, "show_progress_bar": False}
 
     def thetadata_kwargs(_mode: str) -> Optional[Dict]:
         if not theta_user or not theta_pass:
@@ -338,21 +298,7 @@ def build_configs() -> Dict[str, ProviderConfig]:
             return None
         return {"api_key": databento_key, "show_progress_bar": False}
 
-    def yahoo_kwargs(_mode: str) -> Dict:
-        return {"show_progress_bar": False}
-
     return {
-        "polygon": ProviderConfig(
-            name="polygon",
-            pandas_ds=PolygonDataBacktestingPandas,
-            polars_ds=PolygonDataBacktestingPolars,
-            strategy_factory=lambda use_polars: PolygonProfilingStrategy,
-            start=datetime(2025, 9, 15),
-            end=datetime(2025, 9, 29),
-            cache_dirs=(home / ".lumibot" / "polygon",),
-            ds_kwargs_factory=polygon_kwargs,
-            description="Polygon equity profiling strategy",
-        ),
         "thetadata": ProviderConfig(
             name="thetadata",
             pandas_ds=ThetaDataBacktestingPandas,
@@ -375,23 +321,12 @@ def build_configs() -> Dict[str, ProviderConfig]:
             ds_kwargs_factory=databento_kwargs,
             description="DataBento futures profiling strategy",
         ),
-        "yahoo": ProviderConfig(
-            name="yahoo",
-            pandas_ds=YahooDataBacktestingPandas,
-            polars_ds=YahooDataBacktestingPolars,
-            strategy_factory=lambda use_polars: YahooProfilingStrategy,
-            start=datetime(2025, 9, 1),
-            end=datetime(2025, 9, 15),
-            cache_dirs=(home / ".lumibot" / "yahoo",),
-            ds_kwargs_factory=yahoo_kwargs,
-            description="Yahoo equity profiling strategy",
-        ),
     }
 
 
 def main():
     parser = argparse.ArgumentParser(description="Profile pandas vs Polars backtests with YAPPI")
-    parser.add_argument("--providers", nargs="*", default=["polygon", "thetadata", "databento", "yahoo"],
+    parser.add_argument("--providers", nargs="*", default=["thetadata", "databento"],
                         help="Subset of providers to profile")
     parser.add_argument("--modes", nargs="*", default=["pandas", "polars"], choices=["pandas", "polars"],
                         help="Which data frame modes to run")

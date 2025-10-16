@@ -6,7 +6,6 @@ from .interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktest
 from .pandas_backtesting import PandasDataBacktesting
 from .polygon_backtesting import (
     PolygonDataBacktesting,
-    PolygonDataBacktestingPolars,
     PolygonDataBacktestingPandas,
 )
 from .thetadata_backtesting import (
@@ -16,13 +15,12 @@ from .thetadata_backtesting import (
 )
 from .yahoo_backtesting import (
     YahooDataBacktesting,
-    YahooDataBacktestingPolars,
     YahooDataBacktestingPandas,
 )
 
 from .databento_backtesting import DataBentoDataBacktesting
-from .databento_backtesting_polars import DataBentoDataBacktestingPolars
 from .databento_backtesting_pandas import DataBentoDataBacktestingPandas
+from .databento_backtesting_polars import DataBentoDataBacktestingPolars
 
 __all__ = [
     "AlpacaBacktesting",
@@ -32,15 +30,13 @@ __all__ = [
     "InteractiveBrokersRESTBacktesting",
     "PandasDataBacktesting",
     "PolygonDataBacktesting",
-    "PolygonDataBacktestingPolars",
     "PolygonDataBacktestingPandas",
     "ThetaDataBacktesting",
     "ThetaDataBacktestingPolars",
     "ThetaDataBacktestingPandas",
     "YahooDataBacktesting",
-    "YahooDataBacktestingPolars",
     "YahooDataBacktestingPandas",
     "DataBentoDataBacktesting",
-    "DataBentoDataBacktestingPolars",
     "DataBentoDataBacktestingPandas",
+    "DataBentoDataBacktestingPolars",
 ]

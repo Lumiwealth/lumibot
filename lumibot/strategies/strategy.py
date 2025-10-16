@@ -3518,6 +3518,11 @@ class Strategy(_Strategy):
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not actual_timestep:
             actual_timestep = self.broker.data_source.get_timestep()
+
+        # Keep return_polars as-is for now
+        # TODO Phase 4B: Optimize when we rewrite strategy operations to use polars
+        effective_return_polars = return_polars
+
         # Call through to the appropriate data source. Only pass `return_polars` if supported
         # to maintain compatibility with live data sources that don't yet accept it.
         import inspect
@@ -3541,7 +3546,7 @@ class Strategy(_Strategy):
                 return fn(
                     asset,
                     actual_length,  # Use the actual length for fetching
-                    return_polars=return_polars,
+                    return_polars=effective_return_polars,
                     **common_kwargs,
                 )
             else:

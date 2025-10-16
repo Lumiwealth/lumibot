@@ -5,6 +5,7 @@ from .bar import Bar
 from .bars import Bars as _BarsBase
 from .chains import Chains
 from .data import Data as _DataBase
+from .data_polars import DataPolars
 from .dataline import Dataline
 from .order import Order
 from .position import Position

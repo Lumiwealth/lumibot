@@ -488,7 +488,7 @@ class SchwabData(DataSource):
                 df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
             # Create and return the Bars object
-            bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+            bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote, return_polars=return_polars)
             return bars
 
         except Exception as e:

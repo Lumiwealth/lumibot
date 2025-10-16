@@ -58,7 +58,7 @@ class TradovateData(DataSource):
         return {}
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
     ) -> Bars:
         """
         Retrieve historical chart data for the given asset via WebSocket using the md/getChart command.

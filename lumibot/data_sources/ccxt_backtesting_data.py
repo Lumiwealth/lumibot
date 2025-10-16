@@ -166,7 +166,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
         return result
 
     def get_historical_prices(self, asset:tuple[Asset,Asset], length:int, timestep:str=None,
-            timeshift:int=None, quote:Asset=None, exchange:Any=None, include_after_hours:bool=True
+            timeshift:int=None, quote:Asset=None, exchange:Any=None, include_after_hours:bool=True, return_polars: bool = False
     )->Bars:
         """Get bars for a given asset"""
         if isinstance(asset, str):
@@ -189,7 +189,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
         elif response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length, return_polars=return_polars)
         return bars
 
     # Get pricing data for an asset for the entire backtesting period
@@ -202,6 +202,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
         include_after_hours:bool=True,
         start_date:datetime=None,
         end_date:datetime=None,
+        return_polars: bool = False,
     )->Bars:
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
@@ -225,14 +226,14 @@ class CcxtBacktestingData(DataSourceBacktesting):
         data.index  = data.index.tz_localize("UTC")
         data.index = data.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 
-        bars = self._parse_source_symbol_bars(data, asset, quote=quote)
+        bars = self._parse_source_symbol_bars(data, asset, quote=quote, return_polars=return_polars)
         return bars
 
 
     def _parse_source_symbol_bars(self, response:DataFrame, asset:tuple[Asset,Asset],
-                                  quote:Asset=None, length:int=None)->Bars:
+                                  quote:Asset=None, length:int=None, return_polars: bool = False)->Bars:
         # Parse the dataframe returned from CCXT.
-        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
+        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response, return_polars=return_polars)
         return bars
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

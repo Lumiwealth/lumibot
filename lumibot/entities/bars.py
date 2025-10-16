@@ -19,28 +19,48 @@ logger = get_logger(__name__)
 
 
 class PolarsConversionTracker:
-    """Track Polars to Pandas conversions and report them efficiently."""
+    """Track Polars to Pandas conversions and report them efficiently with detailed metrics."""
     _instance = None
     _warned_assets: Set[str] = set()
     _total_conversions: int = 0
     _first_warning_shown: bool = False
-    
+    _asset_conversion_counts: dict = None
+    _start_time: float = None
+
     def __new__(cls):
         if cls._instance is None:
+            import time
             cls._instance = super().__new__(cls)
+            cls._instance._asset_conversion_counts = {}
+            cls._instance._start_time = time.time()
             # Register cleanup function to show summary
             atexit.register(cls._instance.show_summary)
         return cls._instance
-    
+
     def track_conversion(self, asset_symbol: str):
-        """Track a conversion and show warning if needed."""
+        """Track a conversion with detailed metrics."""
+        import time
+
         self._total_conversions += 1
-        
+
+        # Track per-asset conversion count
+        if asset_symbol not in self._asset_conversion_counts:
+            self._asset_conversion_counts[asset_symbol] = 0
+        self._asset_conversion_counts[asset_symbol] += 1
+
+        # Log conversion with [CONVERSION] tag
+        logger.info(
+            "[CONVERSION][POLARS→PANDAS] asset=%s conversion_count=%d total_conversions=%d",
+            asset_symbol,
+            self._asset_conversion_counts[asset_symbol],
+            self._total_conversions
+        )
+
         # Show warning on first encounter
         if not self._first_warning_shown:
             logger.warning(
                 "\n" + "="*70 + "\n"
-                "PERFORMANCE TIP: DataFrame Conversion Detected\n" + 
+                "PERFORMANCE TIP: DataFrame Conversion Detected\n" +
                 "="*70 + "\n"
                 "Polars DataFrames are being converted to Pandas, which adds overhead.\n"
                 "\n"
@@ -53,27 +73,71 @@ class PolarsConversionTracker:
                 "="*70
             )
             self._first_warning_shown = True
-        
+
         # Track which assets have been converted
         if asset_symbol not in self._warned_assets:
             self._warned_assets.add(asset_symbol)
-    
+
     def show_summary(self):
-        """Show summary at the end if there were conversions."""
+        """Show detailed summary at the end if there were conversions."""
+        import time
+
         if self._total_conversions > 0:
+            elapsed = time.time() - self._start_time
             unique_assets = len(self._warned_assets)
             assets_list = list(self._warned_assets)[:5]  # Show first 5 assets
             assets_str = ", ".join(assets_list)
             if unique_assets > 5:
                 assets_str += f", ... ({unique_assets - 5} more)"
-    
+
+            # Build detailed summary
+            summary_lines = [
+                "\n" + "="*70,
+                "CONVERSION SUMMARY: Polars→Pandas Conversions Detected",
+                "="*70,
+                f"Total conversions: {self._total_conversions}",
+                f"Unique assets converted: {unique_assets}",
+                f"Total elapsed time: {elapsed:.2f}s",
+                "",
+                "Top 10 Assets by Conversion Count:",
+            ]
+
+            # Sort assets by conversion count (descending)
+            sorted_assets = sorted(
+                self._asset_conversion_counts.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+
+            for i, (asset, count) in enumerate(sorted_assets[:10], 1):
+                pct = (count / self._total_conversions) * 100
+                summary_lines.append(f"  {i:2d}. {asset:15s} - {count:4d} conversions ({pct:5.1f}%)")
+
+            if len(sorted_assets) > 10:
+                remaining = len(sorted_assets) - 10
+                summary_lines.append(f"  ... and {remaining} more assets")
+
+            summary_lines.extend([
+                "",
+                "To eliminate conversions:",
+                "  1. Add return_polars=True to get_historical_prices() calls",
+                "  2. Use Polars DataFrame methods instead of Pandas methods",
+                "  3. See: https://docs.pola.rs/user-guide/migration/pandas/",
+                "="*70
+            ])
+
+            logger.warning("\n".join(summary_lines))
+
     @classmethod
     def reset(cls):
         """Reset the tracker (useful for testing)."""
+        import time
         if cls._instance:
             cls._instance._warned_assets.clear()
             cls._instance._total_conversions = 0
             cls._instance._first_warning_shown = False
+            cls._instance._asset_conversion_counts.clear()
+            cls._instance._start_time = time.time()
 
 
 class Bars:
@@ -231,8 +295,10 @@ class Bars:
                     current_dtype = df.schema.get("datetime")
                     current_tz = getattr(current_dtype, "time_zone", None)
                     if current_tz != target_tz:
+                        # CRITICAL FIX: Use convert_time_zone() to actually convert timestamps,
+                        # not replace_time_zone() which just relabels (causing 4-hour offset bug)
                         df = df.with_columns(
-                            pl.col("datetime").dt.replace_time_zone(target_tz)
+                            pl.col("datetime").dt.convert_time_zone(target_tz)
                         )
             
             if return_polars:
@@ -489,12 +555,16 @@ class Bars:
 
         try:
             if target_df.index.tz is None:
+                logger.debug(f"Localizing naive datetime index to {tz}")
                 target_df.index = target_df.index.tz_localize(tz)
             else:
+                logger.debug(f"Converting datetime index from {target_df.index.tz} to {tz}")
                 target_df.index = target_df.index.tz_convert(tz)
             self._tzinfo = tz
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error applying timezone: {e}")
             pass
+
         if df is None:
             self._df = target_df
         return target_df

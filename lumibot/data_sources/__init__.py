@@ -6,6 +6,7 @@ from .data_source_backtesting import DataSourceBacktesting
 from .exceptions import NoDataFound, UnavailabeTimestep
 from .interactive_brokers_data import InteractiveBrokersData
 from .pandas_data import PandasData
+from .polars_data import PolarsData
 from .tradier_data import TradierData
 
 from .yahoo_data import YahooData

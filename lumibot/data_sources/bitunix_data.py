@@ -119,7 +119,8 @@ class BitunixData(DataSource):
         timeshift=None,
         quote: Asset = None,
         exchange: str = None,
-        include_after_hours: bool = True
+        include_after_hours: bool = True,
+        return_polars: bool = False
     ) -> Optional[Bars]:
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if not timestep:
@@ -193,7 +194,8 @@ class BitunixData(DataSource):
                     df[required_cols],
                     asset,
                     quote=None if asset.asset_type == Asset.AssetType.FUTURE else quote,
-                    length=length
+                    length=length,
+                    return_polars=return_polars
                 )
 
         except Exception:
@@ -202,11 +204,11 @@ class BitunixData(DataSource):
             return None
 
 
-    def _parse_source_symbol_bars(self, df: pd.DataFrame, asset: Asset, quote: Asset = None, length: int = None) -> Bars:
+    def _parse_source_symbol_bars(self, df: pd.DataFrame, asset: Asset, quote: Asset = None, length: int = None, return_polars: bool = False) -> Bars:
         """
         Wraps the raw DataFrame into a Bars entity with source metadata.
         """
-        return Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        return Bars(df, self.SOURCE, asset, raw=df, quote=quote, return_polars=return_polars)
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """Option chains not supported by BitUnix."""

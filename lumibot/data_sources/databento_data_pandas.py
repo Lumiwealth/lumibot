@@ -78,7 +78,8 @@ class DataBentoDataPandas(DataSource):
         timeshift: timedelta = None,
         quote: Asset = None,
         exchange: str = None,
-        include_after_hours: bool = True
+        include_after_hours: bool = True,
+        return_polars: bool = False
     ) -> Bars:
         """
         Get historical price data for an asset
@@ -224,7 +225,8 @@ class DataBentoDataPandas(DataSource):
             df=df_result,
             source=self.SOURCE,
             asset=asset,
-            quote=quote
+            quote=quote,
+            return_polars=return_polars
         )
 
         logger.info(f"Retrieved {len(df_result)} bars for {asset.symbol}")
@@ -349,10 +351,10 @@ class DataBentoDataPandas(DataSource):
 
         return self._live_delegate
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, return_polars: bool = False):
         """
         Parse source data for a single asset into Bars format
-        
+
         Parameters
         ----------
         response : pd.DataFrame
@@ -361,7 +363,9 @@ class DataBentoDataPandas(DataSource):
             The asset the data is for
         quote : Asset, optional
             Quote asset (not used for DataBento)
-            
+        return_polars : bool, optional
+            Whether to return a Polars DataFrame instead of pandas, default False
+
         Returns
         -------
         Bars or None
@@ -382,7 +386,8 @@ class DataBentoDataPandas(DataSource):
                 df=response,
                 source=self.SOURCE,
                 asset=asset,
-                quote=quote
+                quote=quote,
+                return_polars=return_polars
             )
 
             return bars

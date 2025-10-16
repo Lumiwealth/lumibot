@@ -1,5 +1,5 @@
-"""Canonical DataBento data source aliasing the polars implementation."""
+"""Canonical DataBento data source aliasing the pandas implementation."""
 
-from .databento_data_polars import DataBentoDataPolars as DataBentoData
+from .databento_data_pandas import DataBentoDataPandas as DataBentoData
 
 __all__ = ["DataBentoData"]

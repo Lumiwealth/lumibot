@@ -256,10 +256,10 @@ class InteractiveBrokersData(DataSource):
                 response[asset] = df
         return response
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, return_polars: bool = False):
         # Catch empty dataframe.
         if isinstance(response, float) or response.empty:
-            bars = Bars(response, self.SOURCE, asset, raw=response)
+            bars = Bars(response, self.SOURCE, asset, raw=response, return_polars=return_polars)
             return bars
         df = response.copy()
         # df["date"] = pd.to_datetime(df["date"], unit='s')
@@ -286,7 +286,7 @@ class InteractiveBrokersData(DataSource):
             ]
         ]
 
-        bars = Bars(df, self.SOURCE, asset, raw=response, quote=quote)
+        bars = Bars(df, self.SOURCE, asset, raw=response, quote=quote, return_polars=return_polars)
         return bars
 
     def _start_realtime_bars(self, asset, keep_bars=12):
@@ -339,7 +339,7 @@ class InteractiveBrokersData(DataSource):
         elif response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length, return_polars=return_polars)
         return bars
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

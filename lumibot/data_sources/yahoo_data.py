@@ -357,11 +357,11 @@ class YahooData(DataSourceBacktesting):
             result[asset] = self._pull_source_symbol_bars(asset, length, timestep=timestep, timeshift=timeshift)
         return result
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, return_polars: bool = False):
         if quote is not None:
             logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+        bars = Bars(response, self.SOURCE, asset, raw=response, return_polars=return_polars)
         return bars
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
@@ -423,7 +423,7 @@ class YahooData(DataSourceBacktesting):
         )
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
     ):
         """Get bars for a given asset"""
         if isinstance(asset, str):
@@ -450,5 +450,5 @@ class YahooData(DataSourceBacktesting):
         elif response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length, return_polars=return_polars)
         return bars

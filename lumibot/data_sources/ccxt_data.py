@@ -121,7 +121,7 @@ class CcxtData(DataSource):
         elif response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length, return_polars=return_polars)
         return bars
 
     def get_barset_from_api(self, api, symbol, freq, limit=None, end=None):
@@ -208,9 +208,9 @@ class CcxtData(DataSource):
 
         return df_ret
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, return_polars: bool = False):
         # Parse the dataframe returned from CCXT.
-        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
+        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response, return_polars=return_polars)
         return bars
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

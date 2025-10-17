@@ -212,50 +212,97 @@ def date_n_trading_days_from_date(
     Get the trading date n_days from start_datetime.
     Positive n_days means going backwards in time (earlier dates).
     Negative n_days means going forwards in time (later dates).
+    Works with tz-aware indices and cross-midnight sessions.
+
+    Semantics:
+    - n_days > 0: move backward n trading sessions (earlier dates).
+    - n_days < 0: move forward |n_days| trading sessions (later dates).
+    - The "current" session is determined by the last market_open that is
+      less than or equal to start_datetime in the given market tz.
     """
     if n_days == 0:
         return start_datetime.date()
     if not isinstance(start_datetime, dt.datetime):
         raise ValueError("start_datetime must be datetime")
 
+    # Ensure timezone-aware start
     if start_datetime.tzinfo is None:
         start_datetime = LUMIBOT_DEFAULT_PYTZ.localize(start_datetime)
 
     tzinfo = start_datetime.tzinfo
 
-    # Special handling for 24/7 market
+    # 24/7 special case identical to legacy behavior
     if market == "24/7":
         return (start_datetime - dt.timedelta(days=n_days)).date()
 
-    # Regular market handling
-    buffer_bars = max(10, abs(n_days) + (abs(n_days) // 5) * 3)  # Padding for weekends/holidays
+    # Padding for non-trading days/holidays and to cover lookaround range
+    buffer_days = max(10, abs(n_days) + (abs(n_days) // 5) * 3)
 
-    # Calculate date range based on direction
-    date_range = {
-        'market': market,
-        'tzinfo': tzinfo,
-    }
+    # Build date window around start_datetime depending on direction
     if n_days > 0:
-        date_range.update({
-            'start_date': (start_datetime - dt.timedelta(days=n_days + buffer_bars)).date().isoformat(),
-            'end_date': (start_datetime + dt.timedelta(days=1)).date().isoformat(),  # Add one day to include end date
-        })
+        start_date = (start_datetime - dt.timedelta(days=n_days + buffer_days)).date().isoformat()
+        end_date = (start_datetime + dt.timedelta(days=1)).date().isoformat()
     else:
-        date_range.update({
-            'start_date': start_datetime.date().isoformat(),
-            'end_date': (start_datetime + dt.timedelta(days=abs(n_days) + buffer_bars + 1)).date().isoformat(),
-            # Add one day
-        })
+        start_date = start_datetime.date().isoformat()
+        end_date = (start_datetime + dt.timedelta(days=abs(n_days) + buffer_days + 1)).date().isoformat()
 
-    trading_days = get_trading_days(**date_range)
-    start_datetime_naive = start_datetime.replace(tzinfo=None)
+    sched = get_trading_days(
+        market=market,
+        start_date=start_date,
+        end_date=end_date,
+        tzinfo=tzinfo,
+    )
 
-    # Find index and calculate result
-    start_index = (trading_days.index.get_loc(start_datetime_naive)
-                   if start_datetime_naive in trading_days.index
-                   else trading_days.index.get_indexer([start_datetime_naive], method='bfill')[0])
+    if sched.empty:
+        # Fallback: no sessions found; return start date to avoid crash
+        return start_datetime.date()
 
-    return trading_days.index[start_index - n_days].date()
+    # Determine reference index position based on session DATE (schedule index)
+    session_idx = pd.DatetimeIndex(sched.index)
+    # Build target date matching index tz-awareness
+    if getattr(session_idx, 'tz', None) is None:
+        target_date_val = pd.Timestamp(start_datetime.astimezone(tzinfo).date())
+    else:
+        target_date_val = pd.Timestamp(start_datetime.astimezone(tzinfo).date(), tz=tzinfo)
+
+    # Equivalent to bfill on dates: find first session with date >= target date
+    pos = session_idx.searchsorted(target_date_val, side='left')
+    if pos >= len(session_idx):
+        pos = len(session_idx) - 1
+
+    target_index = pos - n_days  # subtract because positive n_days means go back
+
+    # If target index is outside range, attempt a single retry with larger buffer
+    if target_index < 0 or target_index >= len(session_idx):
+        extra = abs(n_days) + buffer_days + 30
+        if n_days > 0:
+            start_date = (start_datetime - dt.timedelta(days=abs(n_days) + extra)).date().isoformat()
+            end_date = (start_datetime + dt.timedelta(days=1)).date().isoformat()
+        else:
+            start_date = start_datetime.date().isoformat()
+            end_date = (start_datetime + dt.timedelta(days=abs(n_days) + extra + 1)).date().isoformat()
+        sched = get_trading_days(market=market, start_date=start_date, end_date=end_date, tzinfo=tzinfo)
+        if sched.empty:
+            return start_datetime.date()
+        session_idx = pd.DatetimeIndex(sched.index)
+        # Match tz-awareness again on retry
+        if getattr(session_idx, 'tz', None) is None:
+            retry_target = pd.Timestamp(start_datetime.astimezone(tzinfo).date())
+        else:
+            retry_target = pd.Timestamp(start_datetime.astimezone(tzinfo).date(), tz=tzinfo)
+        pos = session_idx.searchsorted(retry_target, side='left')
+        if pos >= len(session_idx):
+            pos = len(session_idx) - 1
+        target_index = pos - n_days
+
+    # Final clamp to valid range (should be valid after retry)
+    target_index = max(0, min(target_index, len(session_idx) - 1))
+
+    # Return the trading date (date component of the session index)
+    session_date = session_idx[target_index].date()
+
+    return session_date
+
 
 
 def is_market_open(

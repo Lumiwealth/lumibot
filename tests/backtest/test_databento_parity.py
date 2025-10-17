@@ -28,6 +28,38 @@ def _clear_databento_caches():
             shutil.rmtree(path)
 
 
+def test_databento_source_identifier():
+    """Verify polars has correct SOURCE identifier for broker timeshift routing.
+
+    Regression test for issue where polars inherited SOURCE='POLARS' instead of
+    'DATABENTO_POLARS', preventing broker from applying -2 minute timeshift.
+
+    This SOURCE identifier determines how the broker applies timeshift during order fills:
+    - PANDAS → uses SOURCE=="PANDAS" branch (line 1442 in backtesting_broker.py)
+    - DATABENTO_POLARS → uses SOURCE=="DATABENTO_POLARS" branch (line 1503), gets timeshift=-2
+
+    Without the correct SOURCE, polars would never receive timeshift=-2, causing ~14% portfolio divergence.
+    """
+    pandas_ds = DataBentoPandas(
+        datetime_start=datetime(2024, 1, 1),
+        datetime_end=datetime(2024, 1, 2),
+        api_key=DATABENTO_API_KEY,
+        show_progress_bar=False,
+    )
+    polars_ds = DataBentoPolars(
+        datetime_start=datetime(2024, 1, 1),
+        datetime_end=datetime(2024, 1, 2),
+        api_key=DATABENTO_API_KEY,
+        show_progress_bar=False,
+    )
+
+    # Both must have correct SOURCE identifiers for broker routing
+    # Pandas inherits SOURCE="PANDAS" from PandasData parent class
+    # Polars must override to SOURCE="DATABENTO_POLARS" for broker timeshift routing
+    assert pandas_ds.SOURCE == "PANDAS", f"Pandas SOURCE is {pandas_ds.SOURCE}, expected PANDAS"
+    assert polars_ds.SOURCE == "DATABENTO_POLARS", f"Polars SOURCE is {polars_ds.SOURCE}, expected DATABENTO_POLARS"
+
+
 @pytest.mark.apitest
 @pytest.mark.skipif(
     not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',

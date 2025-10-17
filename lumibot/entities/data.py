@@ -373,14 +373,37 @@ class Data:
 
         # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
         if getattr(self, "iter_index_dict", None) is None:
+            logger.info(
+                "[DEBUG][GET_ITER_COUNT][BUILD] asset=%s | "
+                "iter_index_dict is None, calling repair_times_and_fill | "
+                "df.index.size=%d df.index[0]=%s df.index[-1]=%s",
+                self.asset.symbol,
+                len(self.df.index),
+                self.df.index[0].isoformat() if hasattr(self.df.index[0], 'isoformat') else str(self.df.index[0]),
+                self.df.index[-1].isoformat() if hasattr(self.df.index[-1], 'isoformat') else str(self.df.index[-1])
+            )
             self.repair_times_and_fill(self.df.index)
 
         # Search for dt in self.iter_index_dict
         if dt in self.iter_index_dict:
             i = self.iter_index_dict[dt]
+            logger.info(
+                "[DEBUG][GET_ITER_COUNT][EXACT] asset=%s | "
+                "dt=%s found_exact_match=True index=%d",
+                self.asset.symbol,
+                dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
+                i
+            )
         else:
             # If not found, get the last known data
             i = self.iter_index.asof(dt)
+            logger.info(
+                "[DEBUG][GET_ITER_COUNT][ASOF] asset=%s | "
+                "dt=%s found_exact_match=False using_asof=True index=%d",
+                self.asset.symbol,
+                dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
+                i
+            )
 
         return i
 
@@ -632,6 +655,14 @@ class Data:
         pandas.DataFrame
 
         """
+        logger.info(
+            "[DEBUG][DATA][GET_BARS][ENTRY] asset=%s | "
+            "dt=%s length=%d timestep=%s timeshift=%s",
+            self.asset.symbol,
+            dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
+            length, timestep, timeshift
+        )
+
         # Parse the timestep
         quantity, timestep = parse_timestep_qty_and_unit(timestep)
         num_periods = length
@@ -682,6 +713,29 @@ class Data:
         # The original df_result may include more rows when timestep is day and self.timestep is minute.
         # In this case, we only want to return the last n rows.
         df_result = df_result.tail(n=int(num_periods))
+
+        # Log the result before returning
+        if df_result is not None and not df_result.empty:
+            first_ts = df_result.index[0]
+            last_ts = df_result.index[-1]
+            future_bars = df_result[df_result.index > dt] if hasattr(dt, '__gt__') else pd.DataFrame()
+
+            logger.info(
+                "[DEBUG][DATA][GET_BARS][RETURN] asset=%s | "
+                "rows=%d columns=%s | "
+                "first_ts=%s last_ts=%s | "
+                "future_bars=%d %s",
+                self.asset.symbol, len(df_result), list(df_result.columns),
+                first_ts.isoformat() if hasattr(first_ts, 'isoformat') else str(first_ts),
+                last_ts.isoformat() if hasattr(last_ts, 'isoformat') else str(last_ts),
+                len(future_bars),
+                "LOOK_AHEAD_BIAS!" if len(future_bars) > 0 else "OK"
+            )
+        else:
+            logger.info(
+                "[DEBUG][DATA][GET_BARS][RETURN] asset=%s | EMPTY_RESULT",
+                self.asset.symbol
+            )
 
         return df_result
 

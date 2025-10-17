@@ -4007,3 +4007,8 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-10-16T00:00:22.355961,test_bracket_orders_apply_entry_and_exit_fees,unknown,,4.969,232316ca,4.1.3,,,,,Auto-tracked from test_pandas_backtest
 2025-10-16T00:00:27.888898,test_not_passing_trader_class_into_backtest_creates_generic_trader,unknown,,5.325,232316ca,4.1.3,,,,,Auto-tracked from test_passing_trader_into_backtest
 2025-10-16T00:00:33.518681,test_passing_trader_class_into_backtest_creates_trader_class,unknown,,5.407,232316ca,4.1.3,,,,,Auto-tracked from test_passing_trader_into_backtest
+2025-10-16T22:05:05.155724,test_databento_price_parity,Databento,,9.948,8775b529,4.1.3,,,,,Auto-tracked from test_databento_parity
+2025-10-16T22:07:58.200980,test_databento_price_parity,Databento,,7.789,8775b529,4.1.3,,,,,Auto-tracked from test_databento_parity
+2025-10-16T23:12:42.712452,test_databento_price_parity,Databento,,6.644,8775b529,4.1.3,,,,,Auto-tracked from test_databento_parity
+2025-10-16T23:37:08.957855,test_databento_price_parity,Databento,,6.993,8775b529,4.1.3,,,,,Auto-tracked from test_databento_parity
+2025-10-17T01:24:41.751078,test_multi_symbol_price_ranges,unknown,,136.546,8775b529,4.1.3,,,,,Auto-tracked from test_accuracy_verification

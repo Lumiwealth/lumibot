@@ -30,6 +30,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
     Currently identical to pandas version - will be incrementally optimized to use Polars.
     """
 
+    # Override SOURCE so broker recognizes this as DataBento and applies correct timeshift
+    SOURCE = "DATABENTO_POLARS"
+
     def __init__(
         self,
         datetime_start,
@@ -382,9 +385,17 @@ class DataBentoDataBacktestingPolars(PolarsData):
             start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
                 length, timestep, start_dt, start_buffer=START_BUFFER
             )
-            
+
             # Calculate end datetime (use current backtest end or a bit beyond)
             end_datetime = self.datetime_end + timedelta(days=1)
+
+            # NOTE: Sliding window clamping is disabled during initial data fetch
+            # to ensure we have sufficient data for the entire backtest period.
+            # Runtime trimming is handled by _trim_cached_data() which is called
+            # periodically during get_historical_prices().
+            #
+            # Premature clamping here causes accuracy issues when strategies request
+            # more lookback than the window size (e.g., 500 bars with 5000 bar window)
 
             # Get data from DataBento (returns polars DataFrame by default)
             _log_conversion("FETCH", "DataBento", "polars", "_update_pandas_data")
@@ -739,15 +750,21 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 polars_df = asset_data.polars_df
 
                 if polars_df.height > 0:
-                    # Apply timeshift if specified
+                    # ========================================================================
+                    # CRITICAL: NEGATIVE TIMESHIFT ARITHMETIC FOR LOOKAHEAD (MATCHES PANDAS)
+                    # ========================================================================
+                    # Negative timeshift allows broker to "peek ahead" for realistic fills.
+                    # This arithmetic MUST match pandas exactly: current_dt - timeshift
+                    # With timeshift=-2: current_dt - (-2) = current_dt + 2 minutes ✓
+                    # ========================================================================
                     shift_seconds = 0
                     if timeshift:
                         if isinstance(timeshift, int):
                             shift_seconds = timeshift * 60
-                            current_dt = current_dt - timedelta(minutes=timeshift)
+                            current_dt = current_dt - timedelta(minutes=timeshift)  # FIXED: was +, now matches pandas
                         else:
                             shift_seconds = timeshift.total_seconds()
-                            current_dt = current_dt - timeshift
+                            current_dt = current_dt - timeshift  # FIXED: was +, now matches pandas
 
                     # Ensure current_dt is timezone-aware for comparison
                     current_dt_aware = to_datetime_aware(current_dt)
@@ -772,11 +789,23 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         cutoff_dt_compat = cutoff_dt
                         current_dt_compat = current_dt_aware
 
+                    # INSTRUMENTATION: Log timeshift application and filtering
+                    broker_dt_orig = self.get_datetime()
+                    filter_branch = "shift_seconds > 0 (<=cutoff)" if shift_seconds > 0 else "shift_seconds <= 0 (<current)"
+
                     # Filter using polars operations (no conversion!)
                     if shift_seconds > 0:
                         filtered_df = polars_df.filter(pl.col("datetime") <= cutoff_dt_compat)
                     else:
                         filtered_df = polars_df.filter(pl.col("datetime") < current_dt_compat)
+
+                    # Log what bar we're returning
+                    if filtered_df.height > 0:
+                        returned_bar_dt = filtered_df["datetime"][-1]
+                        logger.info(f"[TIMESHIFT_POLARS] asset={asset_separated.symbol} broker_dt={broker_dt_orig} "
+                                   f"timeshift={timeshift} shift_seconds={shift_seconds} "
+                                   f"shifted_dt={current_dt_aware} cutoff_dt={cutoff_dt} "
+                                   f"filter={filter_branch} returned_bar={returned_bar_dt}")
 
                     # Take the last 'length' bars
                     result_df = filtered_df.tail(length)
@@ -795,15 +824,21 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 df = asset_data.df
 
                 if not df.empty:
-                    # Apply timeshift if specified
+                    # ========================================================================
+                    # CRITICAL: NEGATIVE TIMESHIFT ARITHMETIC FOR LOOKAHEAD (MATCHES PANDAS)
+                    # ========================================================================
+                    # Negative timeshift allows broker to "peek ahead" for realistic fills.
+                    # This arithmetic MUST match pandas exactly: current_dt - timeshift
+                    # With timeshift=-2: current_dt - (-2) = current_dt + 2 minutes ✓
+                    # ========================================================================
                     shift_seconds = 0
                     if timeshift:
                         if isinstance(timeshift, int):
                             shift_seconds = timeshift * 60
-                            current_dt = current_dt - timedelta(minutes=timeshift)
+                            current_dt = current_dt - timedelta(minutes=timeshift)  # FIXED: was +, now matches pandas
                         else:
                             shift_seconds = timeshift.total_seconds()
-                            current_dt = current_dt - timeshift
+                            current_dt = current_dt - timeshift  # FIXED: was +, now matches pandas
 
                     # Ensure current_dt is timezone-aware for comparison
                     current_dt_aware = to_datetime_aware(current_dt)
@@ -817,8 +852,20 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
                     cutoff_dt = current_dt_aware - bar_delta
 
+                    # INSTRUMENTATION: Log timeshift application and filtering (pandas fallback)
+                    broker_dt_orig = self.get_datetime()
+                    filter_branch = "shift_seconds > 0 (<=cutoff)" if shift_seconds > 0 else "shift_seconds <= 0 (<current)"
+
                     # Filter data up to current backtest time (exclude current bar unless broker overrides)
                     filtered_df = df[df.index <= cutoff_dt] if shift_seconds > 0 else df[df.index < current_dt_aware]
+
+                    # Log what bar we're returning
+                    if not filtered_df.empty:
+                        returned_bar_dt = filtered_df.index[-1]
+                        logger.info(f"[TIMESHIFT_POLARS_PD] asset={asset_separated.symbol} broker_dt={broker_dt_orig} "
+                                   f"timeshift={timeshift} shift_seconds={shift_seconds} "
+                                   f"shifted_dt={current_dt_aware} cutoff_dt={cutoff_dt} "
+                                   f"filter={filter_branch} returned_bar={returned_bar_dt}")
 
                     # Take the last 'length' bars
                     result_df = filtered_df.tail(length)

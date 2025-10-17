@@ -412,29 +412,134 @@ class ThetaDataBacktestingPandas(PandasData):
             existing_start = existing_meta.get("start")
             existing_rows = existing_meta.get("rows", 0)
             existing_end = existing_meta.get("end")
+
+            # DEBUG-LOG: Cache validation entry
+            logger.info(
+                "[DEBUG][BACKTEST][PANDAS][CACHE_VALIDATION][ENTRY] asset=%s timestep=%s | "
+                "REQUESTED: start=%s start_threshold=%s end_requirement=%s length=%d | "
+                "EXISTING: start=%s end=%s rows=%d",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                ts_unit,
+                requested_start.isoformat() if requested_start else None,
+                start_threshold.isoformat() if start_threshold else None,
+                end_requirement.isoformat() if end_requirement else None,
+                requested_length,
+                existing_start.isoformat() if existing_start else None,
+                existing_end.isoformat() if existing_end else None,
+                existing_rows
+            )
+
             start_ok = (
                 existing_start is not None
                 and (start_threshold is None or existing_start <= start_threshold)
             )
+
+            # DEBUG-LOG: Start validation result
+            logger.info(
+                "[DEBUG][BACKTEST][PANDAS][START_VALIDATION] asset=%s | "
+                "start_ok=%s | "
+                "existing_start=%s start_threshold=%s | "
+                "reasoning=%s",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                start_ok,
+                existing_start.isoformat() if existing_start else None,
+                start_threshold.isoformat() if start_threshold else None,
+                "existing_start <= start_threshold" if start_ok else
+                ("start_threshold is None" if start_threshold is None else "existing_start > start_threshold")
+            )
+
             tail_placeholder = existing_meta.get("tail_placeholder", False)
             end_ok = True
+
+            # DEBUG-LOG: End validation entry
+            logger.info(
+                "[DEBUG][BACKTEST][PANDAS][END_VALIDATION][ENTRY] asset=%s | "
+                "end_requirement=%s existing_end=%s tail_placeholder=%s",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                end_requirement.isoformat() if end_requirement else None,
+                existing_end.isoformat() if existing_end else None,
+                tail_placeholder
+            )
+
             if end_requirement is not None:
                 if existing_end is None:
                     end_ok = False
-                elif existing_end > end_requirement:
-                    end_ok = True
-                elif existing_end == end_requirement:
-                    weekday = existing_end.weekday() if hasattr(existing_end, "weekday") else None
-                    placeholder_on_weekend = tail_placeholder and weekday is not None and weekday >= 5
-                    placeholder_empty_fetch = tail_placeholder and existing_meta.get("empty_fetch")
-                    end_ok = (not tail_placeholder) or placeholder_on_weekend or placeholder_empty_fetch
+                    logger.info(
+                        "[DEBUG][BACKTEST][PANDAS][END_VALIDATION][RESULT] asset=%s | "
+                        "end_ok=FALSE | reason=existing_end_is_None",
+                        asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated)
+                    )
                 else:
-                    end_ok = False
+                    # FIX: For daily data, use date-only comparison instead of datetime comparison
+                    # This prevents false negatives when existing_end is midnight and end_requirement is later the same day
+                    if ts_unit == "day":
+                        existing_end_date = existing_end.date() if hasattr(existing_end, 'date') else existing_end
+                        end_requirement_date = end_requirement.date() if hasattr(end_requirement, 'date') else end_requirement
+                        existing_end_cmp = existing_end_date
+                        end_requirement_cmp = end_requirement_date
+                    else:
+                        existing_end_cmp = existing_end
+                        end_requirement_cmp = end_requirement
+
+                    if existing_end_cmp > end_requirement_cmp:
+                        end_ok = True
+                        logger.info(
+                            "[DEBUG][BACKTEST][PANDAS][END_VALIDATION][RESULT] asset=%s | "
+                            "end_ok=TRUE | reason=existing_end_exceeds_requirement | "
+                            "existing_end=%s end_requirement=%s ts_unit=%s",
+                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                            existing_end.isoformat(),
+                            end_requirement.isoformat(),
+                            ts_unit
+                        )
+                    elif existing_end_cmp == end_requirement_cmp:
+                        weekday = existing_end.weekday() if hasattr(existing_end, "weekday") else None
+                        placeholder_on_weekend = tail_placeholder and weekday is not None and weekday >= 5
+                        placeholder_empty_fetch = tail_placeholder and existing_meta.get("empty_fetch")
+                        end_ok = (not tail_placeholder) or placeholder_on_weekend or placeholder_empty_fetch
+
+                        logger.info(
+                            "[DEBUG][BACKTEST][PANDAS][END_VALIDATION][EXACT_MATCH] asset=%s | "
+                            "existing_end == end_requirement | "
+                            "weekday=%s placeholder_on_weekend=%s placeholder_empty_fetch=%s | "
+                            "end_ok=%s ts_unit=%s",
+                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                            weekday,
+                            placeholder_on_weekend,
+                            placeholder_empty_fetch,
+                            end_ok,
+                            ts_unit
+                        )
+                    else:
+                        end_ok = False
+                        logger.info(
+                            "[DEBUG][BACKTEST][PANDAS][END_VALIDATION][RESULT] asset=%s | "
+                            "end_ok=FALSE | reason=existing_end_less_than_requirement | "
+                            "existing_end=%s end_requirement=%s ts_unit=%s",
+                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                            existing_end.isoformat(),
+                            end_requirement.isoformat(),
+                            ts_unit
+                        )
 
             cache_covers = (
                 start_ok
                 and existing_rows >= requested_length
                 and end_ok
+            )
+
+            # DEBUG-LOG: Final cache decision
+            logger.info(
+                "[DEBUG][BACKTEST][PANDAS][CACHE_DECISION] asset=%s | "
+                "cache_covers=%s | "
+                "start_ok=%s rows_ok=%s (existing=%d >= requested=%d) end_ok=%s",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                cache_covers,
+                start_ok,
+                existing_rows >= requested_length,
+                existing_rows,
+                requested_length,
+                end_ok
             )
 
             if cache_covers:

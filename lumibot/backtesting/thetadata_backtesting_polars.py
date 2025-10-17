@@ -481,29 +481,134 @@ class ThetaDataBacktestingPolars(PolarsData):
             existing_start = existing_meta.get("start")
             existing_rows = existing_meta.get("rows", 0)
             existing_end = existing_meta.get("end")
+
+            # DEBUG-LOG: Cache validation entry
+            logger.info(
+                "[DEBUG][BACKTEST][CACHE_VALIDATION][ENTRY] asset=%s timestep=%s | "
+                "REQUESTED: start=%s start_threshold=%s end_requirement=%s length=%d | "
+                "EXISTING: start=%s end=%s rows=%d",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                ts_unit,
+                requested_start.isoformat() if requested_start else None,
+                start_threshold.isoformat() if start_threshold else None,
+                end_requirement.isoformat() if end_requirement else None,
+                requested_length,
+                existing_start.isoformat() if existing_start else None,
+                existing_end.isoformat() if existing_end else None,
+                existing_rows
+            )
+
             start_ok = (
                 existing_start is not None
                 and (start_threshold is None or existing_start <= start_threshold)
             )
+
+            # DEBUG-LOG: Start validation result
+            logger.info(
+                "[DEBUG][BACKTEST][START_VALIDATION] asset=%s | "
+                "start_ok=%s | "
+                "existing_start=%s start_threshold=%s | "
+                "reasoning=%s",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                start_ok,
+                existing_start.isoformat() if existing_start else None,
+                start_threshold.isoformat() if start_threshold else None,
+                "existing_start <= start_threshold" if start_ok else
+                ("start_threshold is None" if start_threshold is None else "existing_start > start_threshold")
+            )
+
             tail_placeholder = existing_meta.get("tail_placeholder", False)
             end_ok = True
+
+            # DEBUG-LOG: End validation entry
+            logger.info(
+                "[DEBUG][BACKTEST][END_VALIDATION][ENTRY] asset=%s | "
+                "end_requirement=%s existing_end=%s tail_placeholder=%s",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                end_requirement.isoformat() if end_requirement else None,
+                existing_end.isoformat() if existing_end else None,
+                tail_placeholder
+            )
+
             if end_requirement is not None:
                 if existing_end is None:
                     end_ok = False
-                elif existing_end > end_requirement:
-                    end_ok = True
-                elif existing_end == end_requirement:
-                    weekday = existing_end.weekday() if hasattr(existing_end, "weekday") else None
-                    placeholder_on_weekend = tail_placeholder and weekday is not None and weekday >= 5
-                    placeholder_empty_fetch = tail_placeholder and existing_meta.get("empty_fetch")
-                    end_ok = (not tail_placeholder) or placeholder_on_weekend or placeholder_empty_fetch
+                    logger.info(
+                        "[DEBUG][BACKTEST][END_VALIDATION][RESULT] asset=%s | "
+                        "end_ok=FALSE | reason=existing_end_is_None",
+                        asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated)
+                    )
                 else:
-                    end_ok = False
+                    # FIX: For daily data, use date-only comparison instead of datetime comparison
+                    # This prevents false negatives when existing_end is midnight and end_requirement is later the same day
+                    if ts_unit == "day":
+                        existing_end_date = existing_end.date() if hasattr(existing_end, 'date') else existing_end
+                        end_requirement_date = end_requirement.date() if hasattr(end_requirement, 'date') else end_requirement
+                        existing_end_cmp = existing_end_date
+                        end_requirement_cmp = end_requirement_date
+                    else:
+                        existing_end_cmp = existing_end
+                        end_requirement_cmp = end_requirement
+
+                    if existing_end_cmp > end_requirement_cmp:
+                        end_ok = True
+                        logger.info(
+                            "[DEBUG][BACKTEST][END_VALIDATION][RESULT] asset=%s | "
+                            "end_ok=TRUE | reason=existing_end_exceeds_requirement | "
+                            "existing_end=%s end_requirement=%s ts_unit=%s",
+                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                            existing_end.isoformat(),
+                            end_requirement.isoformat(),
+                            ts_unit
+                        )
+                    elif existing_end_cmp == end_requirement_cmp:
+                        weekday = existing_end.weekday() if hasattr(existing_end, "weekday") else None
+                        placeholder_on_weekend = tail_placeholder and weekday is not None and weekday >= 5
+                        placeholder_empty_fetch = tail_placeholder and existing_meta.get("empty_fetch")
+                        end_ok = (not tail_placeholder) or placeholder_on_weekend or placeholder_empty_fetch
+
+                        logger.info(
+                            "[DEBUG][BACKTEST][END_VALIDATION][EXACT_MATCH] asset=%s | "
+                            "existing_end == end_requirement | "
+                            "weekday=%s placeholder_on_weekend=%s placeholder_empty_fetch=%s | "
+                            "end_ok=%s ts_unit=%s",
+                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                            weekday,
+                            placeholder_on_weekend,
+                            placeholder_empty_fetch,
+                            end_ok,
+                            ts_unit
+                        )
+                    else:
+                        end_ok = False
+                        logger.info(
+                            "[DEBUG][BACKTEST][END_VALIDATION][RESULT] asset=%s | "
+                            "end_ok=FALSE | reason=existing_end_less_than_requirement | "
+                            "existing_end=%s end_requirement=%s ts_unit=%s",
+                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                            existing_end.isoformat(),
+                            end_requirement.isoformat(),
+                            ts_unit
+                        )
 
             cache_covers = (
                 start_ok
                 and existing_rows >= requested_length
                 and end_ok
+            )
+
+            # DEBUG-LOG: Final cache decision
+            logger.info(
+                "[DEBUG][BACKTEST][CACHE_DECISION] asset=%s | "
+                "cache_covers=%s | "
+                "start_ok=%s rows_ok=%s (existing=%d >= requested=%d) end_ok=%s",
+                asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
+                cache_covers,
+                start_ok,
+                existing_rows >= requested_length,
+                existing_rows,
+                requested_length,
+                end_ok
             )
 
             if cache_covers:
@@ -734,8 +839,61 @@ class ThetaDataBacktestingPolars(PolarsData):
                 # Combine the ohlc and quote data using outer join to preserve all data
                 # Use forward fill for missing quote values (ThetaData's recommended approach)
 
-                # Polars join operation
-                df = df_ohlc.join(df_quote, on='datetime', how='full')
+                # DEBUG: Log DataFrame details before join
+                logger.info(
+                    "[DEBUG][PREJOIN] asset=%s | ohlc: rows=%d first=%s last=%s | quote: rows=%d first=%s last=%s",
+                    asset_separated,
+                    df_ohlc.height,
+                    df_ohlc['datetime'].min().isoformat() if df_ohlc.height > 0 else 'NONE',
+                    df_ohlc['datetime'].max().isoformat() if df_ohlc.height > 0 else 'NONE',
+                    df_quote.height,
+                    df_quote['datetime'].min().isoformat() if df_quote.height > 0 else 'NONE',
+                    df_quote['datetime'].max().isoformat() if df_quote.height > 0 else 'NONE'
+                )
+
+                # Polars join operation - use coalesce=True to merge datetime keys
+                # Without coalesce, 'full' creates separate datetime columns with NULLs
+                df = df_ohlc.join(df_quote, on='datetime', how='full', coalesce=True)
+
+                # DEBUG: Log DataFrame details after join (before sort)
+                null_count = df['datetime'].null_count()
+                logger.info(
+                    "[DEBUG][POSTJOIN_PRESORT] asset=%s | merged: rows=%d null_datetimes=%d first=%s last=%s",
+                    asset_separated,
+                    df.height,
+                    null_count,
+                    df['datetime'].min().isoformat() if df.height > 0 else 'NONE',
+                    df['datetime'].max().isoformat() if df.height > 0 else 'NONE'
+                )
+
+                # If there are null datetimes, this is a BUG in the join!
+                if null_count > 0:
+                    logger.error(
+                        "[BUG][POSTJOIN] asset=%s | JOIN CREATED NULL DATETIMES! rows=%d nulls=%d",
+                        asset_separated, df.height, null_count
+                    )
+                    # Drop rows with null datetimes
+                    df = df.filter(pl.col('datetime').is_not_null())
+                    logger.info(
+                        "[BUG][POSTJOIN][FIXED] asset=%s | DROPPED NULL ROWS | remaining_rows=%d first=%s last=%s",
+                        asset_separated,
+                        df.height,
+                        df['datetime'].min().isoformat() if df.height > 0 else 'NONE',
+                        df['datetime'].max().isoformat() if df.height > 0 else 'NONE'
+                    )
+
+                # CRITICAL: Sort by datetime after join to ensure proper min/max and forward fill
+                # Without sorting, min/max might not reflect true range and forward fill won't work correctly
+                df = df.sort('datetime')
+
+                # DEBUG: Log DataFrame details after sort
+                logger.info(
+                    "[DEBUG][POSTSORT] asset=%s | merged: rows=%d first=%s last=%s",
+                    asset_separated,
+                    df.height,
+                    df['datetime'].min().isoformat() if df.height > 0 else 'NONE',
+                    df['datetime'].max().isoformat() if df.height > 0 else 'NONE'
+                )
 
                 # Forward fill missing quote values using polars
                 quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
@@ -757,6 +915,18 @@ class ThetaDataBacktestingPolars(PolarsData):
         # Helper returned polars DataFrame - store directly as DataPolars (no conversion!)
         logger.info(f"[POLARS] Storing polars DataFrame for {asset_separated}: {df.height} rows")
 
+        # DEBUG: Log DataFrame details before DataPolars construction
+        if 'datetime' in df.columns and df.height > 0:
+            first_ts = df['datetime'].min()
+            last_ts = df['datetime'].max()
+            logger.info(
+                "[DEBUG][PRE_DATAPOLARS] asset=%s | df.height=%d first_ts=%s last_ts=%s",
+                asset_separated,
+                df.height,
+                first_ts.isoformat() if hasattr(first_ts, 'isoformat') else str(first_ts),
+                last_ts.isoformat() if hasattr(last_ts, 'isoformat') else str(last_ts)
+            )
+
         # Create DataPolars object directly
         data_polars = DataPolars(
             asset=asset_separated,
@@ -766,34 +936,25 @@ class ThetaDataBacktestingPolars(PolarsData):
             timezone=str(self.tzinfo)
         )
 
-        # CRITICAL FIX: Normalize sparse data to minute grid
-        # For options data, we often have sparse data (e.g., only 186 rows for 6 months)
-        # Without normalization, get_iter_count() will land on wrong timestamps
-        # because it falls back to self.df.index which is sparse
-        if ts_unit == "minute" and df.height > 0:
-            # Get the actual data start/end from polars DataFrame
-            data_start = df['datetime'].min()
-            data_end = df['datetime'].max()
+        # DEBUG: Log DataPolars details after construction
+        logger.info(
+            "[DEBUG][POST_DATAPOLARS] asset=%s | polars_df.height=%d datetime_start=%s datetime_end=%s",
+            asset_separated,
+            data_polars.polars_df.height,
+            data_polars.datetime_start.isoformat() if hasattr(data_polars.datetime_start, 'isoformat') else str(data_polars.datetime_start),
+            data_polars.datetime_end.isoformat() if hasattr(data_polars.datetime_end, 'isoformat') else str(data_polars.datetime_end)
+        )
 
-            # Convert to python datetime if needed
-            if hasattr(data_start, 'to_pydatetime'):
-                data_start = data_start.to_pydatetime()
-            if hasattr(data_end, 'to_pydatetime'):
-                data_end = data_end.to_pydatetime()
-
-            # Build minute-frequency index for the data range
-            # This will fill gaps in sparse data (e.g., option data only has bars when trades happen)
-            date_index = pd.date_range(start=data_start, end=data_end, freq='1min', tz=self.tzinfo)
-
-            # Call repair_times_and_fill to normalize sparse data to minute grid
-            # This is what PolarsData.load_data() does for static data sources
-            data_polars.repair_times_and_fill(date_index)
-
-            logger.info(
-                f"[NORMALIZE] Normalized sparse data for {asset_separated}: "
-                f"original={df.height} rows, after_normalization={len(data_polars.df)} rows, "
-                f"date_range={data_start} to {data_end}"
-            )
+        # REMOVED: Premature normalization in backtester was causing parity issues
+        # Pandas doesn't normalize here - it does it lazily in get_iter_count via repair_times_and_fill
+        # The backtester was normalizing to self.datetime_end (backtest end), creating extra rows
+        # that pandas doesn't have, causing different iter_index_dict sizes and selection logic divergence
+        #
+        # Now both paths work the same way:
+        # 1. Backtester stores sparse DataFrame
+        # 2. get_iter_count calls repair_times_and_fill(self.df.index) when first needed
+        # 3. repair_times_and_fill normalizes using the sparse data's own index as template
+        pass  # No normalization here - let repair_times_and_fill handle it lazily
 
         # Store in pandas_data (name is legacy but works for both types)
         polars_data_update = self._set_pandas_data_keys([data_polars])

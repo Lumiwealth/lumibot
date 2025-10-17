@@ -1376,19 +1376,40 @@ class BacktestingBroker(Broker):
             # Get OHLCV data for the asset
             #############################
 
-            # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
+            # CRITICAL BACKTESTING CONCEPT: NEGATIVE TIMESHIFT ALLOWS LOOKING INTO THE FUTURE
+            #
+            # In backtesting, the broker needs to "peek ahead" to simulate realistic order fills.
+            # When an order is placed at time T, it gets filled at the OPEN price of bar T+1.
+            #
+            # Example with timeshift=-2 at broker_dt=09:30:
+            #   - timeshift=-2 means: request bars up to current_time + 2 minutes = 09:32
+            #   - Data source returns bars: [..., 09:29, 09:30, 09:31, 09:32]
+            #   - Broker filters to get bars >= current_time (09:30): [09:30, 09:31, 09:32]
+            #   - Broker takes FIRST future bar (09:31) and uses its OPEN price for filling
+            #
+            # Why negative values "look ahead":
+            #   - Arithmetic: current_dt - timedelta(minutes=-2) = current_dt + 2 minutes
+            #   - So timeshift=-2 adds 2 minutes, giving access to future bars
+            #
+            # Why this is necessary:
+            #   - Real-world: You place an order at 09:30:30, it fills at 09:31:00 open
+            #   - Backtest simulation: Broker at 09:30 needs to see 09:31 bar to fill realistically
+            #   - Without this, backtesting would have perfect fills (impossible in reality)
+            #
+            # Source-specific timeshift values:
             data_source_name = self.data_source.SOURCE.upper()
             if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO"]:
-                # Default to backing up one minute so fills use the next bar, consistent with other sources.
+                # Default: -1 minute allows seeing 1 bar ahead for fills
                 timeshift = timedelta(minutes=-1)
                 if data_source_name == "DATABENTO":
-                    # DataBento mimics Polygon by requesting two bars to guard against gaps.
+                    # DataBento uses -2 minutes to request 2 bars ahead, guarding against data gaps
+                    # If one bar is missing, we still have the next one for realistic fills
                     timeshift = timedelta(minutes=-2)
                 elif data_source_name == "YAHOO":
-                    # Yahoo uses day bars; shift one day instead to mirror legacy behavior.
+                    # Yahoo uses daily bars, so shift one day ahead instead
                     timeshift = timedelta(days=-1)
                 elif data_source_name == "ALPACA":
-                    # Alpaca minute bars are aligned to the current iteration already.
+                    # Alpaca minute bars are pre-aligned, no timeshift needed
                     timeshift = None
 
                 ohlc = self.data_source.get_historical_prices(
@@ -1479,7 +1500,7 @@ class BacktestingBroker(Broker):
                 request_length = 1
                 request_timeshift = timeshift
                 source_upper = self.data_source.SOURCE.upper()
-                if source_upper in {"THETADATA", "THETADATA_POLARS"}:
+                if source_upper in {"THETADATA", "THETADATA_POLARS", "DATABENTO_POLARS"}:
                     request_length = 2
                     request_timeshift = timedelta(minutes=-2)
                 ohlc = self.data_source.get_historical_prices(

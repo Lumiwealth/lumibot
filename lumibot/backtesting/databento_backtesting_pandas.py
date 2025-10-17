@@ -616,7 +616,28 @@ class DataBentoDataBacktestingPandas(PandasData):
             df = asset_data.df
 
             if not df.empty:
-                # Apply timeshift if specified
+                # ========================================================================
+                # CRITICAL: NEGATIVE TIMESHIFT ARITHMETIC FOR LOOKAHEAD
+                # ========================================================================
+                # Negative timeshift allows broker to "peek ahead" for realistic fills.
+                #
+                # Example with timeshift=-2 at broker_dt=09:30:
+                #   - Arithmetic: current_dt - timeshift
+                #                = 09:30 - timedelta(minutes=-2)
+                #                = 09:30 - (-2 minutes)
+                #                = 09:30 + 2 minutes
+                #                = 09:32
+                #   - Data source returns bars up to 09:32: [..., 09:29, 09:30, 09:31, 09:32]
+                #   - Broker filters to future bars (>= 09:30): [09:30, 09:31, 09:32]
+                #   - Broker uses FIRST future bar (09:31) and its OPEN price for fills
+                #
+                # Why this is necessary:
+                #   - Real world: Order placed at 09:30:30 fills at 09:31:00 open
+                #   - Backtesting: Broker at 09:30 needs to see 09:31 bar for realistic fills
+                #
+                # DO NOT change this arithmetic! "current_dt - timeshift" with negative
+                # timeshift is CORRECT and INTENTIONAL.
+                # ========================================================================
                 shift_seconds = 0
                 if timeshift:
                     if isinstance(timeshift, int):
@@ -638,8 +659,20 @@ class DataBentoDataBacktestingPandas(PandasData):
 
                 cutoff_dt = current_dt_aware - bar_delta
 
+                # INSTRUMENTATION: Log timeshift application and filtering
+                broker_dt_orig = self.get_datetime()
+                filter_branch = "shift_seconds > 0" if shift_seconds > 0 else "shift_seconds <= 0"
+
                 # Filter data up to current backtest time (exclude current bar unless broker overrides)
                 filtered_df = df[df.index <= cutoff_dt] if shift_seconds > 0 else df[df.index < current_dt_aware]
+
+                # Log what bar we're returning
+                if not filtered_df.empty:
+                    returned_bar_dt = filtered_df.index[-1]
+                    logger.info(f"[TIMESHIFT_PANDAS] asset={asset_separated.symbol} broker_dt={broker_dt_orig} "
+                               f"timeshift={timeshift} shift_seconds={shift_seconds} "
+                               f"shifted_dt={current_dt_aware} cutoff_dt={cutoff_dt} "
+                               f"filter={filter_branch} returned_bar={returned_bar_dt}")
 
                 # Take the last 'length' bars
                 result_df = filtered_df.tail(length)

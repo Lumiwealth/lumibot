@@ -301,7 +301,25 @@ def get_price_data(
     )
 
     # Check if we need to get more data
+    logger.info(
+        "[DEBUG][CACHE][DECISION_START] asset=%s | "
+        "calling get_missing_dates(start=%s, end=%s)",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        start.isoformat() if hasattr(start, 'isoformat') else start,
+        end.isoformat() if hasattr(end, 'isoformat') else end
+    )
+
     missing_dates = get_missing_dates(df_all, asset, start, end)
+
+    logger.info(
+        "[DEBUG][CACHE][DECISION_RESULT] asset=%s | "
+        "missing_dates=%d | "
+        "decision=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        len(missing_dates),
+        "CACHE_HIT" if not missing_dates else "CACHE_MISS"
+    )
+
     cache_file = build_cache_filename(asset, timespan, datastyle)
     logger.debug(
         "[THETADATA-CACHE] asset=%s/%s timespan=%s datastyle=%s cache_file=%s exists=%s missing=%d",
@@ -339,50 +357,143 @@ def get_price_data(
                 df_all = df_all[mask]
             else:
                 # Intraday: use precise datetime filtering
-                import datetime as dt
+                import datetime as datetime_module  # RENAMED to avoid shadowing dt parameter!
+
+                # DEBUG-LOG: Entry to intraday filter
+                rows_before_any_filter = len(df_all)
+                max_ts_before_any_filter = df_all.index.max() if len(df_all) > 0 else None
+                logger.info(
+                    "[DEBUG][FILTER][INTRADAY_ENTRY] asset=%s | "
+                    "rows_before=%d max_ts_before=%s | "
+                    "start_param=%s end_param=%s dt_param=%s dt_type=%s",
+                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    rows_before_any_filter,
+                    max_ts_before_any_filter.isoformat() if max_ts_before_any_filter else None,
+                    start.isoformat() if hasattr(start, 'isoformat') else start,
+                    end.isoformat() if hasattr(end, 'isoformat') else end,
+                    dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt,
+                    type(dt).__name__ if dt else None
+                )
+
                 # Convert date to datetime if needed
-                if isinstance(start, dt.date) and not isinstance(start, dt.datetime):
-                    start = dt.datetime.combine(start, dt.time.min)
-                if isinstance(end, dt.date) and not isinstance(end, dt.datetime):
-                    end = dt.datetime.combine(end, dt.time.max)
+                if isinstance(start, datetime_module.date) and not isinstance(start, datetime_module.datetime):
+                    start = datetime_module.datetime.combine(start, datetime_module.time.min)
+                    logger.info(
+                        "[DEBUG][FILTER][DATE_CONVERSION] converted start from date to datetime: %s",
+                        start.isoformat()
+                    )
+                if isinstance(end, datetime_module.date) and not isinstance(end, datetime_module.datetime):
+                    end = datetime_module.datetime.combine(end, datetime_module.time.max)
+                    logger.info(
+                        "[DEBUG][FILTER][DATE_CONVERSION] converted end from date to datetime: %s",
+                        end.isoformat()
+                    )
 
                 # Handle datetime objects with midnight time (users often pass datetime(YYYY, MM, DD))
-                if isinstance(end, dt.datetime) and end.time() == dt.time.min:
+                if isinstance(end, datetime_module.datetime) and end.time() == datetime_module.time.min:
                     # Convert end-of-period midnight to end-of-day
-                    end = dt.datetime.combine(end.date(), dt.time.max)
+                    end = datetime_module.datetime.combine(end.date(), datetime_module.time.max)
+                    logger.info(
+                        "[DEBUG][FILTER][MIDNIGHT_FIX] converted end from midnight to end-of-day: %s",
+                        end.isoformat()
+                    )
 
                 if start.tzinfo is None:
                     start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
+                    logger.info(
+                        "[DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s",
+                        start.isoformat()
+                    )
                 if end.tzinfo is None:
                     end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
+                    logger.info(
+                        "[DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s",
+                        end.isoformat()
+                    )
 
                 # CRITICAL FIX: Use dt (current broker time) if provided, otherwise use end
                 # This prevents look-ahead bias in backtesting
                 if dt is not None:
+                    logger.info(
+                        "[DEBUG][FILTER][DT_CHECK] dt parameter provided: %s (type=%s)",
+                        dt.isoformat() if hasattr(dt, 'isoformat') else dt,
+                        type(dt).__name__
+                    )
+
                     # Convert dt to UTC for comparison
                     if isinstance(dt, datetime):
                         dt_utc = dt
                         if dt_utc.tzinfo is None:
                             dt_utc = LUMIBOT_DEFAULT_PYTZ.localize(dt_utc).astimezone(pytz.UTC)
+                            logger.info(
+                                "[DEBUG][FILTER][DT_TZ] localized dt to UTC: %s",
+                                dt_utc.isoformat()
+                            )
                         else:
                             dt_utc = dt_utc.astimezone(pytz.UTC)
+                            logger.info(
+                                "[DEBUG][FILTER][DT_TZ] converted dt to UTC: %s",
+                                dt_utc.isoformat()
+                            )
 
                         # DEBUG: Show before/after filtering
                         before_rows = len(df_all)
                         before_max = df_all.index.max() if len(df_all) > 0 else None
+                        before_min = df_all.index.min() if len(df_all) > 0 else None
+
+                        logger.info(
+                            "[DEBUG][FILTER][DT_BEFORE] asset=%s | "
+                            "rows=%d min_ts=%s max_ts=%s | "
+                            "applying_filter: (index >= %s) & (index <= %s)",
+                            asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                            before_rows,
+                            before_min.isoformat() if before_min else None,
+                            before_max.isoformat() if before_max else None,
+                            start.isoformat(),
+                            dt_utc.isoformat()
+                        )
 
                         # Use dt as the upper bound instead of end
                         df_all = df_all[(df_all.index >= start) & (df_all.index <= dt_utc)]
 
                         after_rows = len(df_all)
                         after_max = df_all.index.max() if len(df_all) > 0 else None
+                        after_min = df_all.index.min() if len(df_all) > 0 else None
+                        rows_filtered = before_rows - after_rows
+
+                        logger.info(
+                            "[DEBUG][FILTER][DT_AFTER] asset=%s | "
+                            "rows_after=%d min_ts=%s max_ts=%s | "
+                            "rows_filtered=%d future_bars_removed=%s",
+                            asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                            after_rows,
+                            after_min.isoformat() if after_min else None,
+                            after_max.isoformat() if after_max else None,
+                            rows_filtered,
+                            "YES" if rows_filtered > 0 else "NO"
+                        )
 
                         if before_rows != after_rows:
                             print(f"[FIX-WORKING] {asset}: FILTERED {before_rows} -> {after_rows} rows, broker_dt={dt_utc.isoformat()}, before_max={before_max.isoformat() if before_max else 'None'}, after_max={after_max.isoformat() if after_max else 'None'}", flush=True)
                     else:
                         # dt is a date, not datetime - use end
+                        logger.warning(
+                            "[DEBUG][FILTER][DT_NOT_DATETIME] asset=%s | "
+                            "dt=%s is type=%s (not datetime) | "
+                            "using end=%s instead of dt for upper bound",
+                            asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                            dt,
+                            type(dt).__name__,
+                            end.isoformat()
+                        )
                         df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
                 else:
+                    logger.info(
+                        "[DEBUG][FILTER][NO_DT] asset=%s | "
+                        "dt parameter is None, using end=%s for upper bound",
+                        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                        end.isoformat()
+                    )
                     df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
 
         # DEBUG-LOG: After date range filtering, before missing removal
@@ -402,13 +513,25 @@ def get_price_data(
         # Convert to polars if requested (default for polars-optimized version)
         if return_polars and df_all is not None and not df_all.empty:
             logger.info(f"[POLARS] Converting final DataFrame to polars for {asset}: {len(df_all)} rows")
+
+            # CRITICAL: Convert timezone to LUMIBOT_DEFAULT_PYTZ (America/New_York) before polars conversion
+            # This ensures polars always has the correct timezone from the beginning
+            if isinstance(df_all.index, pd.DatetimeIndex) and df_all.index.tzinfo:
+                if str(df_all.index.tz) != str(LUMIBOT_DEFAULT_PYTZ):
+                    logger.info(f"[POLARS] Converting timezone from {df_all.index.tz} to {LUMIBOT_DEFAULT_PYTZ}")
+                    df_all.index = df_all.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            elif isinstance(df_all.index, pd.DatetimeIndex) and not df_all.index.tzinfo:
+                logger.warning(f"[POLARS] Index has no timezone, localizing to {LUMIBOT_DEFAULT_PYTZ}")
+                df_all.index = df_all.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+
             # DEBUG-LOG: Before polars conversion
             logger.info(
-                "[THETA][RETURN][POLARS] asset=%s rows=%d first_ts=%s last_ts=%s",
+                "[THETA][RETURN][POLARS] asset=%s rows=%d first_ts=%s last_ts=%s tz=%s",
                 asset,
                 len(df_all),
                 df_all.index.min().isoformat() if len(df_all) > 0 else None,
-                df_all.index.max().isoformat() if len(df_all) > 0 else None
+                df_all.index.max().isoformat() if len(df_all) > 0 else None,
+                df_all.index.tz if isinstance(df_all.index, pd.DatetimeIndex) else None
             )
             df_reset = df_all.reset_index()
             if 'datetime' not in df_reset.columns and isinstance(df_all.index, pd.DatetimeIndex):
@@ -775,12 +898,34 @@ def get_missing_dates(df_all, asset, start, end):
     list[datetime.date]
         A list of dates that we need to get data for
     """
+    # DEBUG-LOG: Entry to get_missing_dates
+    logger.info(
+        "[DEBUG][CACHE][MISSING_DATES_CHECK] asset=%s | "
+        "start=%s end=%s | "
+        "cache_rows=%d",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        start.isoformat() if hasattr(start, 'isoformat') else start,
+        end.isoformat() if hasattr(end, 'isoformat') else end,
+        0 if df_all is None else len(df_all)
+    )
+
     trading_dates = get_trading_dates(asset, start, end)
+
+    logger.info(
+        "[DEBUG][CACHE][TRADING_DATES] asset=%s | "
+        "trading_dates_count=%d first=%s last=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        len(trading_dates),
+        trading_dates[0] if trading_dates else None,
+        trading_dates[-1] if trading_dates else None
+    )
+
     if df_all is None or not len(df_all):
-        logger.debug(
-            "[THETADATA-CACHE] %s cache empty -> %d trading day(s) missing",
-            asset,
-            len(trading_dates),
+        logger.info(
+            "[DEBUG][CACHE][EMPTY] asset=%s | "
+            "cache is EMPTY -> all %d trading days are missing",
+            asset.symbol if hasattr(asset, 'symbol') else str(asset),
+            len(trading_dates)
         )
         return trading_dates
 
@@ -788,25 +933,73 @@ def get_missing_dates(df_all, asset, start, end):
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
     dates = pd.Series(df_all.index.date).unique()
+    cached_dates_count = len(dates)
+    cached_first = min(dates) if len(dates) > 0 else None
+    cached_last = max(dates) if len(dates) > 0 else None
+
+    logger.info(
+        "[DEBUG][CACHE][CACHED_DATES] asset=%s | "
+        "cached_dates_count=%d first=%s last=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        cached_dates_count,
+        cached_first,
+        cached_last
+    )
+
     missing_dates = sorted(set(trading_dates) - set(dates))
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":
+        before_expiry_filter = len(missing_dates)
         missing_dates = [x for x in missing_dates if x <= asset.expiration]
+        after_expiry_filter = len(missing_dates)
 
-    logger.debug(
-        "[THETADATA-CACHE] asset=%s missing_dates=%d (from %s to %s)",
-        asset,
+        if before_expiry_filter != after_expiry_filter:
+            logger.info(
+                "[DEBUG][CACHE][OPTION_EXPIRY_FILTER] asset=%s | "
+                "filtered %d dates after expiration=%s | "
+                "missing_dates: %d -> %d",
+                asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                before_expiry_filter - after_expiry_filter,
+                asset.expiration,
+                before_expiry_filter,
+                after_expiry_filter
+            )
+
+    logger.info(
+        "[DEBUG][CACHE][MISSING_RESULT] asset=%s | "
+        "missing_dates_count=%d | "
+        "first_missing=%s last_missing=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
         len(missing_dates),
-        trading_dates[0] if trading_dates else None,
-        trading_dates[-1] if trading_dates else None,
+        missing_dates[0] if missing_dates else None,
+        missing_dates[-1] if missing_dates else None
     )
+
     return missing_dates
 
 
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
+    # DEBUG-LOG: Start loading cache
+    logger.info(
+        "[DEBUG][CACHE][LOAD_START] cache_file=%s | "
+        "exists=%s size_bytes=%d",
+        cache_file.name,
+        cache_file.exists(),
+        cache_file.stat().st_size if cache_file.exists() else 0
+    )
+
     df = pd.read_parquet(cache_file, engine='pyarrow')
+
+    rows_after_read = len(df)
+    logger.info(
+        "[DEBUG][CACHE][LOAD_READ] cache_file=%s | "
+        "rows_read=%d columns=%s",
+        cache_file.name,
+        rows_after_read,
+        list(df.columns)
+    )
 
     # Set the 'datetime' column as the index of the DataFrame
     df.set_index("datetime", inplace=True)
@@ -820,24 +1013,78 @@ def load_cache(cache_file):
     if df.index.tzinfo is None:
         # Set the timezone to UTC
         df.index = df.index.tz_localize("UTC")
+        logger.info(
+            "[DEBUG][CACHE][LOAD_TZ] cache_file=%s | "
+            "localized index to UTC",
+            cache_file.name
+        )
 
     df = ensure_missing_column(df)
+
+    min_ts = df.index.min() if len(df) > 0 else None
+    max_ts = df.index.max() if len(df) > 0 else None
+    placeholder_count = int(df["missing"].sum()) if "missing" in df.columns else 0
+
+    logger.info(
+        "[DEBUG][CACHE][LOAD_SUCCESS] cache_file=%s | "
+        "total_rows=%d real_rows=%d placeholders=%d | "
+        "min_ts=%s max_ts=%s",
+        cache_file.name,
+        len(df),
+        len(df) - placeholder_count,
+        placeholder_count,
+        min_ts.isoformat() if min_ts else None,
+        max_ts.isoformat() if max_ts else None
+    )
 
     return df
 
 
 def update_cache(cache_file, df_all, df_cached, missing_dates=None):
     """Update the cache file with the new data and optional placeholder markers."""
+    # DEBUG-LOG: Entry to update_cache
+    logger.info(
+        "[DEBUG][CACHE][UPDATE_ENTRY] cache_file=%s | "
+        "df_all_rows=%d df_cached_rows=%d missing_dates=%d",
+        cache_file.name,
+        0 if df_all is None else len(df_all),
+        0 if df_cached is None else len(df_cached),
+        0 if not missing_dates else len(missing_dates)
+    )
+
     if df_all is None or len(df_all) == 0:
         if not missing_dates:
+            logger.info(
+                "[DEBUG][CACHE][UPDATE_SKIP] cache_file=%s | "
+                "df_all is empty and no missing_dates, skipping cache update",
+                cache_file.name
+            )
             return
+        logger.info(
+            "[DEBUG][CACHE][UPDATE_PLACEHOLDERS_ONLY] cache_file=%s | "
+            "df_all is empty, writing %d placeholders",
+            cache_file.name,
+            len(missing_dates)
+        )
         df_working = append_missing_markers(None, missing_dates)
     else:
         df_working = ensure_missing_column(df_all.copy())
         if missing_dates:
+            logger.info(
+                "[DEBUG][CACHE][UPDATE_APPEND_PLACEHOLDERS] cache_file=%s | "
+                "appending %d placeholders to %d existing rows",
+                cache_file.name,
+                len(missing_dates),
+                len(df_working)
+            )
             df_working = append_missing_markers(df_working, missing_dates)
 
     if df_working is None or len(df_working) == 0:
+        logger.info(
+            "[DEBUG][CACHE][UPDATE_SKIP_EMPTY] cache_file=%s | "
+            "df_working is empty after processing, skipping write",
+            cache_file.name
+        )
         return
 
     df_cached_cmp = None
@@ -845,22 +1092,40 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None):
         df_cached_cmp = ensure_missing_column(df_cached.copy())
 
     if df_cached_cmp is not None and df_working.equals(df_cached_cmp):
-        logger.debug(
-            "[THETADATA-CACHE] No changes for %s (rows=%d); skipping write.",
-            cache_file,
-            len(df_working),
+        logger.info(
+            "[DEBUG][CACHE][UPDATE_NO_CHANGES] cache_file=%s | "
+            "df_working equals df_cached (rows=%d), skipping write",
+            cache_file.name,
+            len(df_working)
         )
         return
 
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     df_to_save = df_working.reset_index()
-    logger.debug(
-        "[THETADATA-CACHE-WRITE] %s rows=%d placeholders=%d",
-        cache_file,
+
+    placeholder_count = int(df_working["missing"].sum()) if "missing" in df_working.columns else 0
+    real_rows = len(df_working) - placeholder_count
+    min_ts = df_working.index.min() if len(df_working) > 0 else None
+    max_ts = df_working.index.max() if len(df_working) > 0 else None
+
+    logger.info(
+        "[DEBUG][CACHE][UPDATE_WRITE] cache_file=%s | "
+        "total_rows=%d real_rows=%d placeholders=%d | "
+        "min_ts=%s max_ts=%s",
+        cache_file.name,
         len(df_working),
-        int(df_working["missing"].sum()) if "missing" in df_working.columns else 0,
+        real_rows,
+        placeholder_count,
+        min_ts.isoformat() if min_ts else None,
+        max_ts.isoformat() if max_ts else None
     )
+
     df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
+
+    logger.info(
+        "[DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully",
+        cache_file.name
+    )
 
 
 def update_df(df_all, result):
@@ -1567,8 +1832,8 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     # Convert the datetime column to a datetime and localize to Eastern Time
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # Localize to Eastern Time (ThetaData returns times in ET)
-    df["datetime"] = df["datetime"].dt.tz_localize("America/New_York")
+    # Localize to LUMIBOT_DEFAULT_PYTZ (ThetaData returns times in ET)
+    df["datetime"] = df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ)
 
     # Set datetime as the index
     df = df.set_index("datetime")

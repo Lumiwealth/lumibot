@@ -3354,7 +3354,7 @@ class Strategy(_Strategy):
         asset: Union[Asset, str],
         length: int,
         timestep: str = "",
-        timeshift: datetime.timedelta = None,
+        timeshift: Union[int, datetime.timedelta, None] = None,
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
@@ -3389,10 +3389,14 @@ class Strategy(_Strategy):
             When using multi-timeframe formats, the method automatically fetches the
             underlying minute or day data and resamples it to your desired timeframe.
             Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
-        timeshift : timedelta
+        timeshift : int, timedelta, or None
             ``None`` by default. If specified indicates the time shift from
-            the present. If  backtesting in Pandas, use integer representing
-            number of bars.
+            the present. Can be either:
+
+            - **int**: Number of bars to shift (positive = past, negative = future).
+              Example: ``timeshift=-2`` means 2 bars into the future.
+            - **timedelta**: Specific time delta from the present.
+              Example: ``timeshift=timedelta(hours=-1)`` means 1 hour into the future.
         quote : Asset
             The quote currency for crypto currencies (e.g. USD, USDT, EUR, ...).
             Default is the quote asset for the strategy.

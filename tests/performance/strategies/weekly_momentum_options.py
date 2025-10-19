@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 import logging
 import uuid
+import os
 
 # DEBUG-LOG: Get logger for strategy logging
 logger = logging.getLogger(__name__)
@@ -418,6 +419,11 @@ LOOKBACK_DAYS: 63
             )
         except Exception:
             pass
+        try:
+            self.vars.rank_performance = {sym: float(perf[sym]) for sym in ranked}
+            self.vars.rank_skipped = skipped
+        except Exception:
+            pass
         return ranked
 
     # Helper: attempt to buy an option for a single symbol using allocation percent
@@ -430,6 +436,44 @@ LOOKBACK_DAYS: 63
             "allocation_pct": float(allocation_pct),
             "existing_positions": [str(asset) for asset in self.vars.trades.keys()],
         }
+        parity_enabled = bool(os.getenv("LUMIBOT_PARITY_DEBUG"))
+        run_id = getattr(self.vars, "run_id", "UNKNOWN")
+        rank_map = getattr(self.vars, "rank_performance", {}) if hasattr(self.vars, "rank_performance") else {}
+        rank_score = rank_map.get(symbol)
+        try:
+            if rank_score is not None:
+                rank_score = float(rank_score)
+        except Exception:
+            pass
+
+        def parity_log(status, **fields):
+            if not parity_enabled:
+                return
+            payload = {
+                "run_id": run_id,
+                "dt": dt.isoformat(),
+                "symbol": symbol,
+                "status": status,
+                "allocation_pct": float(allocation_pct),
+            }
+            if rank_score is not None:
+                payload["rank"] = rank_score
+            for key, value in fields.items():
+                if value is None:
+                    continue
+                payload[key] = value
+            parts = []
+            for key, value in payload.items():
+                if isinstance(value, float):
+                    parts.append(f"{key}={value:.10g}")
+                else:
+                    parts.append(f"{key}={value}")
+            message = "[PARITY][SIZE] " + " ".join(parts)
+            logger.info(message)
+            try:
+                self.log_message(message, color='white')
+            except Exception:
+                pass
 
         # Get option chains for the underlying
         chains_res = self.get_chains(underlying)
@@ -438,6 +482,7 @@ LOOKBACK_DAYS: 63
             debug_payload["status"] = "failed"
             debug_payload["reason"] = "no_option_chains"
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log("failed", reason="no_option_chains")
             return False
         try:
             debug_payload["chains_expirations"] = chains_res.expirations("CALL")
@@ -466,6 +511,7 @@ LOOKBACK_DAYS: 63
             debug_payload["status"] = "failed"
             debug_payload["reason"] = "no_expiration"
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log("failed", reason="no_expiration")
             return False
         debug_payload["chosen_expiration"] = expiry_date.isoformat()
 
@@ -476,12 +522,14 @@ LOOKBACK_DAYS: 63
             debug_payload["status"] = "failed"
             debug_payload["reason"] = "no_underlying_last_price"
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log("failed", reason="no_underlying_last_price")
             return False
+        underlying_price = float(underlying_price)
         self.log_message(
-            f'[OPTION] underlying {symbol} last_price={float(underlying_price):.4f} target_expiry={expiry_date}',
+            f'[OPTION] underlying {symbol} last_price={underlying_price:.4f} target_expiry={expiry_date}',
             color='cyan'
         )
-        debug_payload["underlying_price"] = float(underlying_price)
+        debug_payload["underlying_price"] = underlying_price
 
         rounded_price = round(float(underlying_price))
         # Prefer ATM, allow 1 strike ITM (lower strike for call) to be slightly ITM
@@ -495,6 +543,11 @@ LOOKBACK_DAYS: 63
             debug_payload["status"] = "failed"
             debug_payload["reason"] = "no_option_asset"
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log(
+                "failed",
+                reason="no_option_asset",
+                underlying_price=underlying_price,
+            )
             return False
         self.log_message(
             f'[OPTION] candidate {option_asset.symbol} strike={option_asset.strike} expiry={option_asset.expiration}',
@@ -509,6 +562,8 @@ LOOKBACK_DAYS: 63
         # Get quote for the option to estimate price (use mid price when possible)
         quote = self.get_quote(option_asset)
         quote_source = "mid"
+        quote_bid = None
+        quote_ask = None
         if quote is None or quote.mid_price is None:
             # Try last price fallback
             last = self.get_last_price(option_asset)
@@ -517,6 +572,14 @@ LOOKBACK_DAYS: 63
                 debug_payload["status"] = "failed"
                 debug_payload["reason"] = "no_option_quote"
                 self._record_debug_event("buy_attempt", debug_payload)
+                parity_log(
+                    "failed",
+                    reason="no_option_quote",
+                    underlying_price=underlying_price,
+                    option_symbol=getattr(option_asset, "symbol", None),
+                    option_strike=float(option_asset.strike) if getattr(option_asset, "strike", None) is not None else None,
+                    option_expiration=option_asset.expiration.isoformat() if getattr(option_asset, "expiration", None) else None,
+                )
                 return False
             mid = float(last)
             quote_source = "last_price_fallback"
@@ -530,6 +593,14 @@ LOOKBACK_DAYS: 63
                 f'[OPTION] {option_asset.symbol} bid={quote.bid} ask={quote.ask} mid={quote.mid_price}',
                 color='cyan'
             )
+            try:
+                quote_bid = float(quote.bid) if quote.bid is not None else None
+            except Exception:
+                quote_bid = None
+            try:
+                quote_ask = float(quote.ask) if quote.ask is not None else None
+            except Exception:
+                quote_ask = None
         debug_payload["quote_source"] = quote_source
         debug_payload["quote_mid"] = mid
         if quote is not None:
@@ -543,6 +614,16 @@ LOOKBACK_DAYS: 63
             debug_payload["status"] = "failed"
             debug_payload["reason"] = "invalid_option_price"
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log(
+                "failed",
+                reason="invalid_option_price",
+                underlying_price=underlying_price,
+                option_symbol=option_asset.symbol,
+                option_strike=float(option_asset.strike),
+                option_expiration=option_asset.expiration.isoformat() if option_asset.expiration else None,
+                quote_source=quote_source,
+                quote_mid=mid,
+            )
             return False
         self.log_message(
             f'[OPTION] {option_asset.symbol} cost_per_contract={cost_per_contract:.2f} cash={float(self.get_cash()):.2f}',
@@ -560,6 +641,21 @@ LOOKBACK_DAYS: 63
             debug_payload["reason"] = "insufficient_cash"
             debug_payload["target_cash"] = target_cash
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log(
+                "failed",
+                reason="insufficient_cash",
+                underlying_price=underlying_price,
+                option_symbol=option_asset.symbol,
+                option_strike=float(option_asset.strike),
+                option_expiration=option_asset.expiration.isoformat() if option_asset.expiration else None,
+                quote_source=quote_source,
+                quote_mid=mid,
+                quote_bid=quote_bid,
+                quote_ask=quote_ask,
+                cost_per_contract=cost_per_contract,
+                cash=cash,
+                target_cash=target_cash,
+            )
             return False
 
         # Create a limit order at mid price to reduce slippage
@@ -574,6 +670,22 @@ LOOKBACK_DAYS: 63
             debug_payload["status"] = "failed"
             debug_payload["reason"] = "order_submission_failed"
             self._record_debug_event("buy_attempt", debug_payload)
+            parity_log(
+                "failed",
+                reason="order_submission_failed",
+                underlying_price=underlying_price,
+                option_symbol=option_asset.symbol,
+                option_strike=float(option_asset.strike),
+                option_expiration=option_asset.expiration.isoformat() if option_asset.expiration else None,
+                quote_source=quote_source,
+                quote_mid=mid,
+                quote_bid=quote_bid,
+                quote_ask=quote_ask,
+                cost_per_contract=cost_per_contract,
+                cash=cash,
+                target_cash=target_cash,
+                contracts=contracts,
+            )
             return False
 
         # Store pending trade info; we'll capture fill details in on_filled_order
@@ -596,6 +708,21 @@ LOOKBACK_DAYS: 63
                 "contracts": contracts,
                 "order_limit_price": mid,
             }
+        )
+        parity_log(
+            "submitted",
+            underlying_price=underlying_price,
+            option_symbol=option_asset.symbol,
+            option_strike=float(option_asset.strike),
+            option_expiration=option_asset.expiration.isoformat() if option_asset.expiration else None,
+            quote_source=quote_source,
+            quote_mid=mid,
+            quote_bid=quote_bid,
+            quote_ask=quote_ask,
+            cost_per_contract=cost_per_contract,
+            cash=cash,
+            target_cash=target_cash,
+            contracts=contracts,
         )
         self._record_debug_event("buy_attempt", debug_payload)
         return True

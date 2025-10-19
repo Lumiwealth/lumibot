@@ -1,4 +1,6 @@
+
 import datetime
+import os
 from decimal import Decimal
 from typing import Optional, Union
 
@@ -7,7 +9,6 @@ import pandas as pd
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
-
 from .asset import Asset
 from .dataline import Dataline
 
@@ -587,11 +588,25 @@ class Data:
                 timeshift = int(timeshift.total_seconds() / 60)
 
         # Get bars.
-        end_row = self.get_iter_count(dt) - timeshift
+        end_row = self.get_iter_count(dt) - timeshift + 1
         start_row = end_row - length
+
+        data_len = len(next(iter(self.datalines.values())).dataline) if self.datalines else 0
+        if end_row > data_len:
+            end_row = data_len
+        if end_row < 0:
+            end_row = 0
+
+        recalculated_start = end_row - length
+        if recalculated_start != start_row:
+            start_row = recalculated_start
 
         if start_row < 0:
             start_row = 0
+        if start_row > end_row:
+            start_row = end_row
+        if start_row == end_row and end_row > 0:
+            start_row = max(0, end_row - 1)
 
         # Cast both start_row and end_row to int
         start_row = int(start_row)
@@ -600,6 +615,22 @@ class Data:
         dict = {}
         for dl_name, dl in self.datalines.items():
             dict[dl_name] = dl.dataline[start_row:end_row]
+
+        if os.getenv("LUMIBOT_PARITY_DEBUG"):
+            slice_len = len(dict.get("datetime", []))
+            logger.info(
+                "[PARITY][PANDAS][SLICE_META] asset=%s | dt=%s | length=%d timestep=%s "
+                "| timeshift=%s | data_len=%d | start_row=%d | end_row=%d | slice_len=%d",
+                self.asset.symbol if hasattr(self, "asset") else "UNKNOWN",
+                dt.isoformat() if hasattr(dt, "isoformat") else dt,
+                length,
+                timestep,
+                timeshift,
+                data_len,
+                start_row,
+                end_row,
+                slice_len,
+            )
 
         return dict
 

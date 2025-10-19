@@ -200,7 +200,10 @@ def run_mes_momentum_profile(mode: str) -> float:
         sell_trading_fees=[fee],
     )
 
-    trader = Trader(logfile="", backtest=True)
+    # Enable CSV trade export for parity verification
+    # The logfile parameter will create separate CSVs for pandas vs polars
+    logfile = str(OUTPUT_DIR / f"mes_diag_{mode}")
+    trader = Trader(logfile=logfile, backtest=True)
     trader.add_strategy(strat)
     results = trader.run_all(
         show_plot=False,

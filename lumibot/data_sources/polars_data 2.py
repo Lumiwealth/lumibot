@@ -35,302 +35,6 @@ class PolarsData(DataSourceBacktesting):
         self._date_supply = None
         self._timestep = "minute"
 
-        # Sliding window configuration (always-on, optimized for speed)
-        self._HISTORY_WINDOW_BARS = 5000  # Fixed window size
-        self._FUTURE_WINDOW_BARS = 1000   # Look-ahead buffer for efficiency
-        self._TRIM_FREQUENCY_BARS = 1000  # Trim every 1000 iterations
-        self._trim_iteration_count = 0    # Counter for periodic trimming
-
-        # Aggregated bars cache (separate from pandas_data)
-        # Uses existing OrderedDict infrastructure for LRU tracking
-        self._aggregated_cache = OrderedDict()
-
-        # Memory limits (1 GB hard cap)
-        self.MAX_STORAGE_BYTES = 1_000_000_000
-
-    def _trim_cached_data(self):
-        """Periodically trim cached data to maintain sliding window.
-
-        Called every _TRIM_FREQUENCY_BARS iterations to remove old bars
-        that are outside the sliding window. This keeps memory usage low
-        while maintaining enough history for lookback calculations.
-
-        This is always-on and requires no user configuration.
-        """
-        # Increment iteration counter
-        self._trim_iteration_count += 1
-
-        # Only trim every TRIM_FREQUENCY_BARS iterations
-        if self._trim_iteration_count < self._TRIM_FREQUENCY_BARS:
-            return
-
-        # Reset counter
-        self._trim_iteration_count = 0
-
-        # Get current datetime for window calculation
-        current_dt = self.get_datetime()
-
-        # Trim each DataPolars object in the data store
-        # CRITICAL: Use each data object's own timestep, not global self._timestep
-        # A backtest can have mixed timeframes (1m, 5m, 1h, 1d for same asset)
-        trimmed_count = 0
-        for asset_key, data in self._data_store.items():
-            # Only trim if data is a DataPolars object (has trim_before method)
-            if not hasattr(data, 'trim_before'):
-                continue
-
-            try:
-                # Get this data object's timestep (not the global self._timestep!)
-                data_timestep = getattr(data, 'timestep', 'minute')
-
-                # Use convert_timestep_str_to_timedelta for robust conversion
-                base_delta, _ = self.convert_timestep_str_to_timedelta(data_timestep)
-
-                # Calculate cutoff for this specific data object
-                # Keep HISTORY_WINDOW_BARS bars of this timestep before current time
-                window_delta = base_delta * self._HISTORY_WINDOW_BARS
-                cutoff_dt = current_dt - window_delta
-
-                # Trim with the correct per-asset cutoff
-                data.trim_before(cutoff_dt)
-
-                trimmed_count += 1
-
-            except Exception as e:
-                logger.warning(f"Failed to trim data for {asset_key}: {e}")
-
-        if trimmed_count > 0:
-            logger.info(f"[SLIDING WINDOW] Trimmed {trimmed_count} assets at iteration {self._TRIM_FREQUENCY_BARS}")
-
-    def _get_aggregation_cache_key(self, asset, quote, timestep):
-        """Generate a unique cache key for aggregated bars.
-
-        Parameters
-        ----------
-        asset : Asset
-            The asset
-        quote : Asset
-            The quote asset
-        timestep : str
-            The timestep (e.g., "5 minutes", "15 minutes", "hour", "day")
-
-        Returns
-        -------
-        tuple
-            Cache key (asset, quote, timestep)
-        """
-        if isinstance(asset, tuple):
-            asset, quote = asset
-        return (asset, quote, timestep)
-
-    def _aggregate_polars_bars(self, source_data, target_timestep):
-        """Aggregate minute-level polars data to higher timeframes.
-
-        This is a critical performance optimization - aggregating once and caching
-        is much faster than re-aggregating every iteration.
-
-        Parameters
-        ----------
-        source_data : DataPolars
-            Source data (typically 1-minute bars)
-        target_timestep : str
-            Target timestep ("5 minutes", "15 minutes", "hour", "day")
-
-        Returns
-        -------
-        polars.DataFrame or None
-            Aggregated data, or None if aggregation not possible
-        """
-        try:
-            import polars as pl
-
-            # Get the polars DataFrame from DataPolars
-            if not hasattr(source_data, 'polars_df'):
-                return None
-
-            df = source_data.polars_df
-            if df.height == 0:
-                return None
-
-            # Map timestep to polars interval
-            interval_mapping = {
-                "5 minutes": "5m",
-                "15 minutes": "15m",
-                "30 minutes": "30m",
-                "hour": "1h",
-                "2 hours": "2h",
-                "4 hours": "4h",
-                "day": "1d",
-            }
-
-            interval = interval_mapping.get(target_timestep)
-            if not interval:
-                logger.warning(f"Unsupported aggregation timestep: {target_timestep}")
-                return None
-
-            # Aggregate using polars group_by_dynamic (fast!)
-            # This is the core optimization - polars aggregation is 10-100x faster than pandas
-            aggregated = df.group_by_dynamic(
-                "datetime",
-                every=interval,
-                closed="left",
-                label="left"
-            ).agg([
-                pl.col("open").first(),
-                pl.col("high").max(),
-                pl.col("low").min(),
-                pl.col("close").last(),
-                pl.col("volume").sum(),
-            ])
-
-            logger.info(f"[AGGREGATION] {source_data.asset.symbol}: {df.height} rows ({source_data.timestep}) → {aggregated.height} rows ({target_timestep})")
-            return aggregated
-
-        except Exception as e:
-            logger.error(f"Error aggregating data: {e}")
-            return None
-
-    def _get_or_aggregate_bars(self, asset, quote, length, source_timestep, target_timestep):
-        """Get aggregated bars from cache or create them.
-
-        This method implements the aggregated bars cache to avoid re-aggregating
-        5m/15m/1h bars from 1-minute data on every iteration.
-
-        Parameters
-        ----------
-        asset : Asset
-            The asset
-        quote : Asset
-            The quote asset
-        length : int
-            Number of bars requested
-        source_timestep : str
-            Source timestep (typically "minute")
-        target_timestep : str
-            Target timestep (e.g., "5 minutes", "15 minutes", "hour")
-
-        Returns
-        -------
-        polars.DataFrame or None
-            Aggregated bars, or None if not available
-        """
-        # Generate cache key
-        cache_key = self._get_aggregation_cache_key(asset, quote, target_timestep)
-
-        # Check if we already have aggregated data cached
-        if cache_key in self._aggregated_cache:
-            # Move to end (LRU tracking)
-            self._aggregated_cache.move_to_end(cache_key)
-            logger.info(f"[AGG CACHE HIT] {asset.symbol} {target_timestep}")
-            return self._aggregated_cache[cache_key]
-
-        # Need to aggregate from source data
-        asset_key = self.find_asset_in_data_store(asset, quote)
-        if not asset_key or asset_key not in self._data_store:
-            return None
-
-        source_data = self._data_store[asset_key]
-
-        # Only aggregate from DataPolars objects (has polars_df)
-        if not hasattr(source_data, 'polars_df'):
-            logger.warning(f"Cannot aggregate - source data is not DataPolars: {type(source_data)}")
-            return None
-
-        # Perform aggregation
-        aggregated_df = self._aggregate_polars_bars(source_data, target_timestep)
-        if aggregated_df is None:
-            return None
-
-        # Cache the result (LRU cache)
-        self._aggregated_cache[cache_key] = aggregated_df
-        logger.info(f"[AGG CACHE MISS] {asset.symbol} {target_timestep} - cached {aggregated_df.height} rows")
-
-        # Note: Memory limits are enforced periodically in get_historical_prices()
-        # Don't enforce here to avoid immediate eviction after caching
-
-        return aggregated_df
-
-    def _enforce_memory_limits(self):
-        """Enforce memory limits using LRU eviction.
-
-        This method ensures total memory usage stays under MAX_STORAGE_BYTES (1GB)
-        by evicting least-recently-used items from both _data_store and _aggregated_cache.
-
-        Uses the proven LRU pattern from polygon_backtesting_pandas.py.
-
-        PERFORMANCE: Only checks every _TRIM_FREQUENCY_BARS iterations (same as trim).
-        Checking memory on every get_historical_prices() call is expensive!
-        """
-        # Use the same periodic counter as _trim_cached_data
-        # Only check memory limits when we actually trim (every 1000 iterations)
-        # This avoids iterating all data on every get_historical_prices call
-        if self._trim_iteration_count != 0:
-            return  # Not time to check yet
-
-        try:
-            # Calculate total memory usage
-            storage_used = 0
-
-            # Memory from _data_store (DataPolars objects)
-            for data in self._data_store.values():
-                if hasattr(data, 'polars_df'):
-                    # Estimate polars DataFrame memory
-                    df = data.polars_df
-                    if df.height > 0:
-                        # Polars estimated_size() returns bytes
-                        storage_used += df.estimated_size()
-
-            # Memory from _aggregated_cache (polars DataFrames)
-            for agg_df in self._aggregated_cache.values():
-                if agg_df is not None and hasattr(agg_df, 'estimated_size'):
-                    storage_used += agg_df.estimated_size()
-
-            if storage_used <= self.MAX_STORAGE_BYTES:
-                return  # Under limit, nothing to do
-
-            logger.info(f"[MEMORY] Storage used: {storage_used:,} bytes ({len(self._data_store)} data + {len(self._aggregated_cache)} aggregated)")
-            logger.warning(f"[MEMORY] Exceeds limit of {self.MAX_STORAGE_BYTES:,} bytes, evicting LRU items...")
-
-            # Evict from aggregated cache first (less critical than source data)
-            while storage_used > self.MAX_STORAGE_BYTES and len(self._aggregated_cache) > 0:
-                # popitem(last=False) removes oldest (LRU)
-                k, agg_df = self._aggregated_cache.popitem(last=False)
-                if agg_df is not None and hasattr(agg_df, 'estimated_size'):
-                    freed = agg_df.estimated_size()
-                    storage_used -= freed
-                    logger.info(f"[MEMORY] Evicted aggregated cache for {k}: freed {freed:,} bytes")
-                else:
-                    # Item has no size - assume 0 bytes freed but continue evicting
-                    logger.warning(f"[MEMORY] Evicted aggregated cache for {k}: no estimated_size(), assuming 0 bytes")
-
-            # If still over limit, evict from data_store (more aggressive)
-            evicted_data_items = 0
-            while storage_used > self.MAX_STORAGE_BYTES and len(self._data_store) > 0:
-                # popitem(last=False) removes oldest (LRU)
-                k, data = self._data_store.popitem(last=False)
-                if hasattr(data, 'polars_df'):
-                    df = data.polars_df
-                    if df.height > 0:
-                        freed = df.estimated_size()
-                        storage_used -= freed
-                        evicted_data_items += 1
-                        logger.warning(f"[MEMORY] Evicted data_store for {k}: freed {freed:,} bytes")
-                    else:
-                        # DataFrame is empty - assume 0 bytes
-                        evicted_data_items += 1
-                        logger.warning(f"[MEMORY] Evicted data_store for {k}: empty DataFrame, 0 bytes freed")
-                else:
-                    # Not a DataPolars object - assume 0 bytes
-                    logger.warning(f"[MEMORY] Evicted data_store for {k}: no polars_df, assuming 0 bytes")
-
-            if evicted_data_items > 0:
-                logger.warning(f"[MEMORY] Evicted {evicted_data_items} data items to stay under {self.MAX_STORAGE_BYTES:,} bytes")
-
-            logger.info(f"[MEMORY] After eviction: {storage_used:,} bytes ({len(self._data_store)} data + {len(self._aggregated_cache)} aggregated)")
-
-        except Exception as e:
-            logger.error(f"Error enforcing memory limits: {e}")
-
     @staticmethod
     def _set_pandas_data_keys(pandas_data):
         # OrderedDict tracks the LRU dataframes for when it comes time to do evictions.
@@ -521,8 +225,6 @@ class PolarsData(DataSourceBacktesting):
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
         if tuple_to_find in self._data_store:
-            # LRU tracking - mark this data as recently used
-            self._data_store.move_to_end(tuple_to_find)
             data = self._data_store[tuple_to_find]
             try:
                 dt = self.get_datetime()
@@ -572,8 +274,6 @@ class PolarsData(DataSourceBacktesting):
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
         if tuple_to_find in self._data_store:
-            # LRU tracking - mark this data as recently used
-            self._data_store.move_to_end(tuple_to_find)
             data = self._data_store[tuple_to_find]
             dt = self.get_datetime()
             ohlcv_bid_ask_dict = data.get_quote(dt)
@@ -604,56 +304,17 @@ class PolarsData(DataSourceBacktesting):
             result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
-    def _get_polars_data_entry(self, asset, quote, timestep):
-        """Retrieve a cached DataPolars entry for a specific timestep if available."""
-        polars_cache = getattr(self, "_polars_data", {})
-
-        # Build candidate quotes: exact match first, then USD fallback (default storage)
-        quote_candidates = []
-        if quote is not None:
-            quote_candidates.append(quote)
-        quote_candidates.append(Asset(symbol="USD", asset_type="forex"))
-
-        for candidate_quote in quote_candidates:
-            key = (asset, candidate_quote, timestep)
-            entry = polars_cache.get(key)
-            if entry is not None:
-                return entry
-
-        # Final attempt: linear scan to cope with differing Asset instances
-        for (cached_asset, cached_quote, cached_timestep), entry in polars_cache.items():
-            if cached_asset == asset and cached_timestep == timestep:
-                if quote is None or cached_quote == quote:
-                    return entry
-        return None
-
-    def find_asset_in_data_store(self, asset, quote=None, timestep=None):
-        """
-        Locate the cache key for an asset, preferring timestep-aware keys but
-        gracefully falling back to legacy (asset, quote) entries for backward
-        compatibility.
-        """
-        candidates = []
-
-        if timestep is not None:
-            base_quote = quote if quote is not None else Asset("USD", "forex")
-            candidates.append((asset, base_quote, timestep))
-            # If a quote was explicitly supplied, also consider the USD fallback to
-            # match historical cache entries that were stored with USD.
-            if quote is not None:
-                candidates.append((asset, Asset("USD", "forex"), timestep))
-
-        if quote is not None:
-            candidates.append((asset, quote))
-
-        if isinstance(asset, Asset):
-            candidates.append((asset, Asset("USD", "forex")))
-
-        candidates.append(asset)
-
-        for key in candidates:
-            if key in self._data_store:
-                return key
+    def find_asset_in_data_store(self, asset, quote=None):
+        if asset in self._data_store:
+            return asset
+        elif quote is not None:
+            asset = (asset, quote)
+            if asset in self._data_store:
+                return asset
+        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock", "index"]:
+            asset = (asset, Asset("USD", "forex"))
+            if asset in self._data_store:
+                return asset
         return None
 
     def _pull_source_symbol_bars(
@@ -675,11 +336,9 @@ class PolarsData(DataSourceBacktesting):
         if not timeshift:
             timeshift = 0
 
-        asset_to_find = self.find_asset_in_data_store(asset, quote, timestep)
+        asset_to_find = self.find_asset_in_data_store(asset, quote)
 
         if asset_to_find in self._data_store:
-            # LRU tracking - mark this data as recently used
-            self._data_store.move_to_end(asset_to_find)
             data = self._data_store[asset_to_find]
         else:
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
@@ -688,93 +347,7 @@ class PolarsData(DataSourceBacktesting):
                 logger.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return
 
-        desired_timestep = timestep
-
-        # Prefer a direct DataPolars match for the requested timestep (if available) to
-        # avoid aggregating from trimmed minute windows.
-        current_timestep = getattr(data, "timestep", None)
-        if desired_timestep and current_timestep != desired_timestep:
-            direct_match = self._get_polars_data_entry(asset, quote, desired_timestep)
-            if direct_match is not None:
-                data = direct_match
-                current_timestep = data.timestep
-
-        # OPTIMIZATION: Use aggregated bars cache for different timesteps
-        # This avoids re-aggregating 5m/15m/1h bars from minute data every iteration
-        source_timestep = current_timestep
-        can_aggregate = (
-            source_timestep == "minute"
-            and timestep != source_timestep
-            and hasattr(data, 'polars_df')  # Only for DataPolars objects
-            and timestep in ["5 minutes", "15 minutes", "30 minutes", "hour", "2 hours", "4 hours", "day"]
-        )
-
-        if can_aggregate:
-            # Try to get aggregated bars from cache
-            aggregated_df = self._get_or_aggregate_bars(asset, quote, length, source_timestep, timestep)
-            if aggregated_df is not None:
-                # We have aggregated data - now filter and tail it like get_bars would
-                import polars as pl
-
-                now = self.get_datetime()
-                # Apply timeshift if specified
-                # CRITICAL: Integer timeshift represents BAR offsets, not minute deltas!
-                # Must calculate adjustment based on the actual timestep being requested.
-                if timeshift:
-                    from datetime import timedelta
-                    if isinstance(timeshift, int):
-                        # Calculate timedelta for one bar of this timestep
-                        timestep_delta, _ = self.convert_timestep_str_to_timedelta(timestep)
-                        # Multiply by timeshift to get total adjustment
-                        # Example: timestep="5 minutes", timeshift=-2 → adjustment = -10 minutes
-                        now = now + (timestep_delta * timeshift)
-                    else:
-                        # Timeshift is already a timedelta - use it directly
-                        now = now + timeshift
-
-                # Filter to current time and take last 'length' bars
-                # Convert now to match polars DataFrame timezone
-                import pytz
-                if now.tzinfo is None:
-                    now_aware = pytz.utc.localize(now)
-                else:
-                    now_aware = now
-
-                polars_tz = aggregated_df["datetime"].dtype.time_zone
-                if polars_tz:
-                    import pandas as pd
-                    now_compat = pd.Timestamp(now_aware).tz_convert(polars_tz)
-                else:
-                    now_compat = now_aware
-
-                filtered = aggregated_df.filter(pl.col("datetime") <= now_compat)
-                result = filtered.tail(length)
-
-                if result.height >= length:
-                    logger.info(f"[AGG CACHE] {asset.symbol} {timestep}: returning {result.height} bars from cache")
-                    return result
-
-                # Aggregated slice is insufficient—evict this cache entry and try to fall back
-                logger.warning(
-                    "[AGG CACHE] %s %s: insufficient rows (requested=%s, filtered=%s, returning=%s); falling back",
-                    asset.symbol,
-                    timestep,
-                    length,
-                    filtered.height,
-                    result.height,
-                )
-                cache_key = self._get_aggregation_cache_key(asset, quote, timestep)
-                self._aggregated_cache.pop(cache_key, None)
-
-                direct_match = self._get_polars_data_entry(asset, quote, timestep)
-                if direct_match is not None:
-                    data = direct_match
-                    source_timestep = data.timestep
-                # Fall through to regular get_bars
-
-        # Regular path - use data.get_bars() which handles timestep conversion internally
         now = self.get_datetime()
-
         try:
             res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         # Return None if data.get_bars returns a ValueError
@@ -799,8 +372,6 @@ class PolarsData(DataSourceBacktesting):
         asset_to_find = self.find_asset_in_data_store(asset, quote)
 
         if asset_to_find in self._data_store:
-            # LRU tracking - mark this data as recently used
-            self._data_store.move_to_end(asset_to_find)
             data = self._data_store[asset_to_find]
         else:
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
@@ -956,13 +527,6 @@ class PolarsData(DataSourceBacktesting):
         return_polars: bool = False,
     ):
         """Get bars for a given asset"""
-        # Periodically trim cached data to maintain sliding window
-        self._trim_cached_data()
-
-        # Enforce memory limits after trimming (same periodic frequency)
-        # This ensures total memory usage stays under 1GB cap
-        self._enforce_memory_limits()
-
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
 

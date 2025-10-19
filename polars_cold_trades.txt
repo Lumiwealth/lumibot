@@ -1,0 +1,13 @@
+2025-10-17 23:29:47,467 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=HIMS price=1.4 side=buy qty=50.0 source=limit
+2025-10-17 23:29:47,494 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=HIMS price=0.4 side=sell qty=50.0 source=market_open
+2025-10-17 23:29:51,178 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=1.97 side=buy qty=32.0 source=limit
+2025-10-17 23:29:51,204 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=0.39 side=sell qty=32.0 source=market_open
+2025-10-17 23:30:19,002 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=2.85 side=buy qty=18.0 source=limit
+2025-10-17 23:30:21,525 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=1.85 side=buy qty=14.0 source=limit
+2025-10-17 23:30:21,596 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=1.55 side=sell qty=18.0 source=market_open
+2025-10-17 23:30:21,753 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=16.0 side=sell qty=14.0 source=market_open
+2025-10-17 23:30:41,685 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=VST price=2.7 side=buy qty=16.0 source=limit
+2025-10-17 23:30:41,961 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=VST price=3.95 side=sell qty=16.0 source=market_open
+2025-10-17 23:30:48,036 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=3.75 side=buy qty=15.0 source=limit
+2025-10-17 23:30:48,315 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=14.6 side=sell qty=15.0 source=market_open
+2025-10-17 23:30:49,226 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=13.69 side=buy qty=6.0 source=limit

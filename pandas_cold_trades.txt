@@ -1,0 +1,17 @@
+2025-10-17 23:26:21,403 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=HIMS price=1.4 side=buy qty=50.0 source=limit
+2025-10-17 23:26:21,427 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=HIMS price=0.4 side=sell qty=50.0 source=market_open
+2025-10-17 23:27:10,424 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=1.97 side=buy qty=32.0 source=limit
+2025-10-17 23:27:10,450 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=0.39 side=sell qty=32.0 source=market_open
+2025-10-17 23:27:36,420 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=1.29 side=buy qty=48.0 source=limit
+2025-10-17 23:27:36,462 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=1.6 side=sell qty=48.0 source=market_open
+2025-10-17 23:27:41,674 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=0.95 side=buy qty=56.0 source=limit
+2025-10-17 23:27:43,854 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=1.81 side=buy qty=32.0 source=limit
+2025-10-17 23:27:43,912 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=3.85 side=sell qty=56.0 source=market_open
+2025-10-17 23:27:43,921 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=4.25 side=sell qty=32.0 source=market_open
+2025-10-17 23:28:05,009 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=1.115 side=buy qty=72.0 source=limit
+2025-10-17 23:28:05,060 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=PLTR price=0.86 side=sell qty=72.0 source=market_open
+2025-10-17 23:28:19,236 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=5.35 side=buy qty=14.0 source=limit
+2025-10-17 23:28:19,274 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=13.25 side=sell qty=14.0 source=market_open
+2025-10-17 23:28:28,230 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=VST price=3.65 side=buy qty=19.0 source=limit
+2025-10-17 23:28:28,268 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=VST price=1.09 side=sell qty=19.0 source=market_open
+2025-10-17 23:28:43,225 | INFO | [BROKER_FILL_EXEC] order_id=None strategy=WeeklyMomentumOptionsStrategy asset=APP price=13.69 side=buy qty=5.0 source=limit

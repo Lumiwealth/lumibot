@@ -411,90 +411,19 @@ def get_price_data(
                         end.isoformat()
                     )
 
-                # CRITICAL FIX: Use dt (current broker time) if provided, otherwise use end
-                # This prevents look-ahead bias in backtesting
-                if dt is not None:
-                    logger.info(
-                        "[DEBUG][FILTER][DT_CHECK] dt parameter provided: %s (type=%s)",
-                        dt.isoformat() if hasattr(dt, 'isoformat') else dt,
-                        type(dt).__name__
-                    )
-
-                    # Convert dt to UTC for comparison
-                    if isinstance(dt, datetime):
-                        dt_utc = dt
-                        if dt_utc.tzinfo is None:
-                            dt_utc = LUMIBOT_DEFAULT_PYTZ.localize(dt_utc).astimezone(pytz.UTC)
-                            logger.info(
-                                "[DEBUG][FILTER][DT_TZ] localized dt to UTC: %s",
-                                dt_utc.isoformat()
-                            )
-                        else:
-                            dt_utc = dt_utc.astimezone(pytz.UTC)
-                            logger.info(
-                                "[DEBUG][FILTER][DT_TZ] converted dt to UTC: %s",
-                                dt_utc.isoformat()
-                            )
-
-                        # DEBUG: Show before/after filtering
-                        before_rows = len(df_all)
-                        before_max = df_all.index.max() if len(df_all) > 0 else None
-                        before_min = df_all.index.min() if len(df_all) > 0 else None
-
-                        logger.info(
-                            "[DEBUG][FILTER][DT_BEFORE] asset=%s | "
-                            "rows=%d min_ts=%s max_ts=%s | "
-                            "applying_filter: (index >= %s) & (index <= %s)",
-                            asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                            before_rows,
-                            before_min.isoformat() if before_min else None,
-                            before_max.isoformat() if before_max else None,
-                            start.isoformat(),
-                            dt_utc.isoformat()
-                        )
-
-                        # Use dt as the upper bound instead of end
-                        df_all = df_all[(df_all.index >= start) & (df_all.index <= dt_utc)]
-
-                        after_rows = len(df_all)
-                        after_max = df_all.index.max() if len(df_all) > 0 else None
-                        after_min = df_all.index.min() if len(df_all) > 0 else None
-                        rows_filtered = before_rows - after_rows
-
-                        logger.info(
-                            "[DEBUG][FILTER][DT_AFTER] asset=%s | "
-                            "rows_after=%d min_ts=%s max_ts=%s | "
-                            "rows_filtered=%d future_bars_removed=%s",
-                            asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                            after_rows,
-                            after_min.isoformat() if after_min else None,
-                            after_max.isoformat() if after_max else None,
-                            rows_filtered,
-                            "YES" if rows_filtered > 0 else "NO"
-                        )
-
-                        if before_rows != after_rows:
-                            print(f"[FIX-WORKING] {asset}: FILTERED {before_rows} -> {after_rows} rows, broker_dt={dt_utc.isoformat()}, before_max={before_max.isoformat() if before_max else 'None'}, after_max={after_max.isoformat() if after_max else 'None'}", flush=True)
-                    else:
-                        # dt is a date, not datetime - use end
-                        logger.warning(
-                            "[DEBUG][FILTER][DT_NOT_DATETIME] asset=%s | "
-                            "dt=%s is type=%s (not datetime) | "
-                            "using end=%s instead of dt for upper bound",
-                            asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                            dt,
-                            type(dt).__name__,
-                            end.isoformat()
-                        )
-                        df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
-                else:
-                    logger.info(
-                        "[DEBUG][FILTER][NO_DT] asset=%s | "
-                        "dt parameter is None, using end=%s for upper bound",
-                        asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                        end.isoformat()
-                    )
-                    df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
+                # REMOVED: Look-ahead bias protection was too aggressive
+                # The dt filtering was breaking negative timeshift (intentional look-ahead for fills)
+                # Look-ahead bias protection should happen at get_bars() level, not cache retrieval
+                #
+                # NEW APPROACH: Always return full [start, end] range from cache
+                # Let Data/DataPolars.get_bars() handle look-ahead bias protection
+                logger.info(
+                    "[DEBUG][FILTER][NO_DT_FILTER] asset=%s | "
+                    "using end=%s for upper bound (dt parameter ignored for cache retrieval)",
+                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    end.isoformat()
+                )
+                df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
 
         # DEBUG-LOG: After date range filtering, before missing removal
         if df_all is not None and not df_all.empty:

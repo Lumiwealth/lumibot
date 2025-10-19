@@ -304,17 +304,26 @@ class PandasData(DataSourceBacktesting):
             result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
-    def find_asset_in_data_store(self, asset, quote=None):
-        if asset in self._data_store:
-            return asset
-        elif quote is not None:
-            asset = (asset, quote)
-            if asset in self._data_store:
-                return asset
-        elif isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock", "index"]:
-            asset = (asset, Asset("USD", "forex"))
-            if asset in self._data_store:
-                return asset
+    def find_asset_in_data_store(self, asset, quote=None, timestep=None):
+        candidates = []
+
+        if timestep is not None:
+            base_quote = quote if quote is not None else Asset("USD", "forex")
+            candidates.append((asset, base_quote, timestep))
+            if quote is not None:
+                candidates.append((asset, Asset("USD", "forex"), timestep))
+
+        if quote is not None:
+            candidates.append((asset, quote))
+
+        if isinstance(asset, Asset) and asset.asset_type in ["option", "future", "stock", "index"]:
+            candidates.append((asset, Asset("USD", "forex")))
+
+        candidates.append(asset)
+
+        for key in candidates:
+            if key in self._data_store:
+                return key
         return None
 
     def _pull_source_symbol_bars(
@@ -336,7 +345,7 @@ class PandasData(DataSourceBacktesting):
         if not timeshift:
             timeshift = 0
 
-        asset_to_find = self.find_asset_in_data_store(asset, quote)
+        asset_to_find = self.find_asset_in_data_store(asset, quote, timestep)
 
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]

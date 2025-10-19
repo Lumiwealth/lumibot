@@ -12,7 +12,7 @@ API_KEY = "test_key"
 @pytest.fixture
 def mocked_polars_helper(monkeypatch):
     monkeypatch.setattr(
-        "lumibot.tools.databento_helper_polars.DataBentoClientPolars",
+        "lumibot.tools.databento_helper_polars.DataBentoClient",
         MagicMock(),
     )
 
@@ -51,7 +51,7 @@ def test_initialization_sets_properties():
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 @patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper_polars.get_price_data_from_databento_polars"
+    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
 )
 def test_prefetch_data_populates_cache(mock_get_data):
     mock_get_data.return_value = _polars_frame(0, rows=8)
@@ -76,7 +76,7 @@ def test_prefetch_data_populates_cache(mock_get_data):
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 @patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper_polars.get_price_data_from_databento_polars"
+    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
 )
 def test_get_historical_prices_returns_bars(mock_get_data):
     mock_get_data.return_value = _polars_frame(0, rows=20)
@@ -99,7 +99,7 @@ def test_get_historical_prices_returns_bars(mock_get_data):
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 @patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper_polars.get_price_data_from_databento_polars"
+    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
 )
 def test_get_last_price_returns_close(mock_get_data):
     mock_get_data.return_value = _polars_frame(0, rows=5)

@@ -494,6 +494,21 @@ class Bars:
             (self._df.height, len(self._df.columns))
         )
 
+        # PHASE 1 INSTRUMENTATION: Capture BEFORE conversion state
+        polars_columns = self._df.columns
+        polars_null_counts = {}
+        for col in polars_columns:
+            null_count = self._df[col].null_count()
+            total_count = self._df.height
+            polars_null_counts[col] = {"nulls": null_count, "total": total_count, "all_null": null_count == total_count}
+
+        logger.info(
+            "[PHASE1][BEFORE_CONVERSION] asset=%s polars_columns=%s polars_null_summary=%s",
+            self.symbol,
+            polars_columns,
+            {k: v for k, v in polars_null_counts.items() if v["nulls"] > 0}
+        )
+
         tracker = PolarsConversionTracker()
         if isinstance(self.asset, tuple):
             asset_symbol = "/".join(
@@ -502,10 +517,73 @@ class Bars:
         else:
             asset_symbol = getattr(self.asset, "symbol", str(self.asset))
         tracker.track_conversion(asset_symbol)
+
+        # THE CONVERSION: This is where corruption may occur
         pandas_df = self._df.to_pandas()
+
+        # PHASE 1 INSTRUMENTATION: Capture AFTER to_pandas() but BEFORE set_index
+        pandas_null_counts_raw = {}
+        for col in pandas_df.columns:
+            null_count = pandas_df[col].isna().sum()
+            total_count = len(pandas_df)
+            pandas_null_counts_raw[col] = {"nulls": int(null_count), "total": total_count, "all_null": null_count == total_count}
+
+        logger.info(
+            "[PHASE1][AFTER_TO_PANDAS] asset=%s pandas_columns=%s pandas_null_summary=%s",
+            self.symbol,
+            list(pandas_df.columns),
+            {k: v for k, v in pandas_null_counts_raw.items() if v["nulls"] > 0}
+        )
+
         if 'datetime' in pandas_df.columns:
             pandas_df = pandas_df.set_index('datetime')
+
+        # PHASE 1 INSTRUMENTATION: Capture AFTER set_index but BEFORE apply_timezone
+        pandas_null_counts_indexed = {}
+        for col in pandas_df.columns:
+            null_count = pandas_df[col].isna().sum()
+            total_count = len(pandas_df)
+            pandas_null_counts_indexed[col] = {"nulls": int(null_count), "total": total_count, "all_null": null_count == total_count}
+
+        logger.info(
+            "[PHASE1][AFTER_SET_INDEX] asset=%s pandas_columns=%s pandas_null_summary=%s",
+            self.symbol,
+            list(pandas_df.columns),
+            {k: v for k, v in pandas_null_counts_indexed.items() if v["nulls"] > 0}
+        )
+
         self._pandas_cache = self._apply_timezone(pandas_df)
+
+        # PHASE 1 INSTRUMENTATION: Capture FINAL state after apply_timezone
+        pandas_null_counts_final = {}
+        for col in self._pandas_cache.columns:
+            null_count = self._pandas_cache[col].isna().sum()
+            total_count = len(self._pandas_cache)
+            pandas_null_counts_final[col] = {"nulls": int(null_count), "total": total_count, "all_null": null_count == total_count}
+
+        logger.info(
+            "[PHASE1][AFTER_APPLY_TZ] asset=%s pandas_columns=%s pandas_null_summary=%s",
+            self.symbol,
+            list(self._pandas_cache.columns),
+            {k: v for k, v in pandas_null_counts_final.items() if v["nulls"] > 0}
+        )
+
+        # PHASE 1 INSTRUMENTATION: Detect corruption
+        corrupted_columns = []
+        for col in polars_columns:
+            if col in pandas_null_counts_final and col in polars_null_counts:
+                if not polars_null_counts[col]["all_null"] and pandas_null_counts_final[col]["all_null"]:
+                    corrupted_columns.append(col)
+
+        if corrupted_columns:
+            logger.error(
+                "[PHASE1][CORRUPTION_DETECTED] asset=%s corrupted_columns=%s "
+                "polars_nulls=%s pandas_final_nulls=%s",
+                self.symbol,
+                corrupted_columns,
+                {col: polars_null_counts[col] for col in corrupted_columns},
+                {col: pandas_null_counts_final[col] for col in corrupted_columns}
+            )
 
         # DEBUG-LOG: Conversion complete
         logger.info(

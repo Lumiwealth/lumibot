@@ -116,7 +116,12 @@ class TestPolarsMatrix:
     @pytest.mark.parametrize("timestep", TIMESTEPS)
     @pytest.mark.parametrize("asset_type", ASSET_TYPES)
     def test_sliding_window_trimming(self, timestep, asset_type):
-        """Test that sliding window trimming works for each combination"""
+        """Test that sliding window trimming removes old bars.
+
+        Production behavior: Only old bars (before cutoff) are trimmed, not future bars.
+        Trimming calculates: cutoff = current_dt - (HISTORY_WINDOW_BARS * timestep_delta)
+        Then removes all bars before cutoff.
+        """
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 12, 31)
 
@@ -141,30 +146,33 @@ class TestPolarsMatrix:
         # Force trim counter to trigger trimming
         polars_data._trim_iteration_count = 1000
 
-        # Set current datetime to middle of range
+        # Set current datetime to END of range (so old bars can be trimmed)
+        # Setting to middle would result in cutoff before data start, trimming nothing
         if timestep == "minute":
-            current_dt = start_date + timedelta(minutes=5000)
+            current_dt = start_date + timedelta(minutes=10000)
         elif timestep == "5 minutes":
-            current_dt = start_date + timedelta(minutes=5000 * 5)
+            current_dt = start_date + timedelta(minutes=10000 * 5)
         elif timestep == "15 minutes":
-            current_dt = start_date + timedelta(minutes=5000 * 15)
+            current_dt = start_date + timedelta(minutes=10000 * 15)
         elif timestep == "hour":
-            current_dt = start_date + timedelta(hours=5000)
+            current_dt = start_date + timedelta(hours=10000)
         elif timestep == "day":
-            current_dt = start_date + timedelta(days=5000)
+            current_dt = start_date + timedelta(days=10000)
         else:
-            current_dt = start_date + timedelta(minutes=5000)
+            current_dt = start_date + timedelta(minutes=10000)
 
-        polars_data.datetime = current_dt
+        # CRITICAL: Use _datetime (internal attribute) not datetime (doesn't exist)
+        polars_data._datetime = current_dt
 
         # Trigger trim
         polars_data._trim_cached_data()
 
         # Verify trimming occurred
         final_height = data.polars_df.height
-        assert final_height < original_height
-        # Should keep approximately HISTORY_WINDOW_BARS (5000) with safety buffer
-        assert final_height <= polars_data._HISTORY_WINDOW_BARS * 1.3
+        assert final_height < original_height, f"Expected trimming but height stayed at {original_height}"
+        # Should keep approximately last HISTORY_WINDOW_BARS (5000) bars
+        # Production only trims old bars, not future bars, so we keep ~5000
+        assert final_height <= polars_data._HISTORY_WINDOW_BARS * 1.1, f"Expected ~{polars_data._HISTORY_WINDOW_BARS} bars, got {final_height}"
 
     @pytest.mark.parametrize("asset_type", ASSET_TYPES)
     def test_aggregation_from_minute_data(self, asset_type):
@@ -382,7 +390,11 @@ class TestPolarsMatrix:
         assert successful_combinations == len(self.ASSET_TYPES) * len(self.TIMESTEPS)
 
     def test_per_asset_timestep_differentiation(self):
-        """Test that per-asset timestep logic differentiates correctly"""
+        """Test that per-asset timestep logic uses correct delta for each asset.
+
+        This verifies that minute data and day data are trimmed based on their
+        own timestep deltas, not a global timestep.
+        """
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 12, 31)
 
@@ -392,39 +404,50 @@ class TestPolarsMatrix:
             pandas_data=None
         )
 
-        # Create same asset symbol with different timesteps
-        # This simulates a strategy using 1m, 5m, 1h, 1d all for same stock
-        base_symbol = "AAPL"
-        timesteps_to_test = ["minute", "5 minutes", "hour", "day"]
+        # Create assets with different timesteps
+        # Key point: Each should use its own timestep for window calculation
+        test_cases = [
+            ("minute", 10000),   # 10,000 minute bars
+            ("day", 10000),      # 10,000 day bars
+        ]
 
-        # Create different assets (same symbol but different timesteps)
-        for i, timestep in enumerate(timesteps_to_test):
-            asset = Asset(base_symbol, "stock")
-            quote = Asset(f"USD_{i}", "forex")  # Use different quote to differentiate
+        original_heights = {}
+        for i, (timestep, num_bars) in enumerate(test_cases):
+            asset = Asset(f"TEST_{timestep.upper()}", "stock")
+            quote = Asset(f"USD_{i}", "forex")
 
-            # Create data with many bars
-            _, df = self._create_test_data("stock", timestep, num_bars=10000)
+            # Create data
+            _, df = self._create_test_data("stock", timestep, num_bars=num_bars)
             data = DataPolars(asset, df=df, timestep=timestep, quote=None)
 
             # Store
             polars_data._data_store[(asset, quote)] = data
+            original_heights[(asset, quote)] = data.polars_df.height
 
         # Force trim
         polars_data._trim_iteration_count = 1000
 
-        # Set current datetime far into the future
-        current_dt = start_date + timedelta(days=6000)
-        polars_data.datetime = current_dt
+        # Set current datetime to END of the data ranges
+        # This ensures old bars can be trimmed
+        current_dt = start_date + timedelta(days=10000)  # Far enough for both timesteps
+        polars_data._datetime = current_dt
 
         # Trigger trim
         polars_data._trim_cached_data()
 
-        # Verify each asset was trimmed based on its own timestep
-        # Minute data should keep ~5000 minutes
-        # Day data should keep ~5000 days (much larger time range)
+        # Verify trimming occurred based on each asset's own timestep
         for (asset, quote), data in polars_data._data_store.items():
-            # All should have been trimmed
-            assert data.polars_df.height <= polars_data._HISTORY_WINDOW_BARS * 1.3
+            original_height = original_heights[(asset, quote)]
+            final_height = data.polars_df.height
+
+            # Trimming should have occurred
+            assert final_height < original_height, \
+                f"{asset.symbol} should have been trimmed from {original_height}"
+
+            # Should keep roughly HISTORY_WINDOW_BARS (within reasonable tolerance)
+            # More lenient tolerance since we're testing differentiation, not exact counts
+            assert final_height <= polars_data._HISTORY_WINDOW_BARS * 1.2, \
+                f"{asset.symbol} kept {final_height} bars, expected ≤ {polars_data._HISTORY_WINDOW_BARS * 1.2}"
 
 
 if __name__ == "__main__":

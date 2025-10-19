@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Dict, Optional, Union
 
 import logging
+import os
 import pandas as pd
 import polars as pl
 import pytz
@@ -14,6 +15,12 @@ from lumibot.credentials import THETADATA_CONFIG
 from lumibot.tools import thetadata_helper
 
 logger = logging.getLogger(__name__)
+PARITY_DEBUG = os.environ.get("LUMIBOT_PARITY_DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def _parity_log(message: str, *args):
+    if PARITY_DEBUG:
+        logger.info(message, *args)
 
 
 START_BUFFER = timedelta(days=5)
@@ -23,6 +30,8 @@ class ThetaDataBacktestingPolars(PolarsData):
     """
     Backtesting implementation of ThetaData using Polars (currently identical to pandas, will be optimized incrementally)
     """
+
+    IS_BACKTESTING_BROKER = True
 
     SOURCE = "THETADATA_POLARS"
 
@@ -64,6 +73,9 @@ class ThetaDataBacktestingPolars(PolarsData):
         # Conversion counter: track polars→pandas conversions per run
         # Goal: reduce from ~13k to ~3 (like DataBento achieved)
         self._conversion_count = 0
+
+        # Set data_source to self since this class acts as both broker and data source
+        self.data_source = self
 
         self.kill_processes_by_name("ThetaTerminal.jar")
         thetadata_helper.reset_theta_terminal_tracking()
@@ -192,7 +204,17 @@ class ThetaDataBacktestingPolars(PolarsData):
         metadata["empty_fetch"] = frame is None or len(frame) == 0
 
         if frame is not None and len(frame) > 0 and "missing" in frame.columns:
-            placeholder_flags = frame["missing"].fillna(False).astype(bool)
+            if hasattr(frame, "select") and hasattr(frame, "height"):
+                placeholder_series = frame["missing"]
+                if hasattr(placeholder_series, "fill_null"):
+                    placeholder_flags = placeholder_series.fill_null(False)
+                else:
+                    placeholder_flags = placeholder_series
+                if hasattr(placeholder_flags, "to_pandas"):
+                    placeholder_flags = placeholder_flags.to_pandas()
+                placeholder_flags = pd.Series(placeholder_flags).fillna(False).astype(bool)
+            else:
+                placeholder_flags = frame["missing"].fillna(False).astype(bool)
             metadata["placeholders"] = int(placeholder_flags.sum())
             metadata["tail_placeholder"] = bool(placeholder_flags.iloc[-1])
             if placeholder_flags.shape[0] and bool(placeholder_flags.all()):
@@ -422,25 +444,26 @@ class ThetaDataBacktestingPolars(PolarsData):
             logger.info(f"\n[DEBUG STRIKE 157] _update_pandas_data called for asset: {asset}")
             logger.info(f"[DEBUG STRIKE 157] Traceback:\n{''.join(traceback.format_stack())}")
 
-        search_asset = asset
+        # Get the start datetime and timestep unit FIRST (needed for cache key)
+        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
+            length, timestep, start_dt, start_buffer=START_BUFFER
+        )
+
+        # NOW construct cache key with timestep included: (asset, quote, timestep)
         asset_separated = asset
         quote_asset = quote if quote is not None else Asset("USD", "forex")
 
-        if isinstance(search_asset, tuple):
-            asset_separated, quote_asset = search_asset
-        else:
-            search_asset = (search_asset, quote_asset)
+        if isinstance(asset, tuple):
+            asset_separated, quote_asset = asset
+
+        # FIX: Include timestep in cache key to prevent collisions
+        search_asset = (asset_separated, quote_asset, ts_unit)
 
         if asset_separated.asset_type == "option":
             expiry = asset_separated.expiration
             if self.is_weekend(expiry):
                 logger.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
                 return None
-
-        # Get the start datetime and timestep unit
-        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
-            length, timestep, start_dt, start_buffer=START_BUFFER
-        )
 
         requested_length = length
         requested_start = self._normalize_default_timezone(start_datetime)
@@ -680,9 +703,15 @@ class ThetaDataBacktestingPolars(PolarsData):
                 requested_length,
             )
 
+        # Precompute cache keys for lookups
+        legacy_cache_key = (asset_separated, quote_asset)
+
         # Check if we have data for this asset (check polars first to avoid conversion)
         check_polars = search_asset in self._polars_data
-        check_pandas = search_asset in self.pandas_data if not check_polars else False
+        if check_polars:
+            check_pandas = False
+        else:
+            check_pandas = search_asset in self.pandas_data or legacy_cache_key in self.pandas_data
 
         if check_polars or check_pandas:
             if check_polars:
@@ -702,7 +731,8 @@ class ThetaDataBacktestingPolars(PolarsData):
                 logger.debug("[CACHE CHECK] Using polars data for timestep compatibility check (no conversion)")
             else:
                 # Fallback to pandas data
-                asset_data = self.pandas_data[search_asset]
+                pandas_lookup_key = search_asset if search_asset in self.pandas_data else legacy_cache_key
+                asset_data = self.pandas_data[pandas_lookup_key]
                 asset_data_df = asset_data.df
                 data_start_datetime = asset_data_df.index[0]
                 data_timestep = asset_data.timestep
@@ -956,11 +986,45 @@ class ThetaDataBacktestingPolars(PolarsData):
         # 3. repair_times_and_fill normalizes using the sparse data's own index as template
         pass  # No normalization here - let repair_times_and_fill handle it lazily
 
+        # INSTRUMENTATION: Log cache state before write to detect collisions
+        existing_entry = self._polars_data.get(search_asset)
+        if existing_entry:
+            logger.warning(
+                "[CACHE_COLLISION_DETECT] Overwriting existing cache entry | "
+                "cache_key=(%s, %s, %s) | "
+                "existing_timestep=%s existing_rows=%d | "
+                "new_timestep=%s new_rows=%d | "
+                "COLLISION=%s",
+                asset_separated.symbol,
+                quote_asset.symbol,
+                search_asset[2],  # timestep from cache key
+                existing_entry.timestep,
+                existing_entry.polars_df.height,
+                ts_unit,
+                df.height,
+                existing_entry.timestep != ts_unit  # True if timesteps differ = collision!
+            )
+
         # Store in pandas_data (name is legacy but works for both types)
         polars_data_update = self._set_pandas_data_keys([data_polars])
         if polars_data_update is not None:
+            logger.info(
+                "[CACHE_WRITE] Storing data | "
+                "cache_key=(%s, %s, %s) | rows=%d | "
+                "TIMESTEP_NOW_IN_KEY=True",
+                asset_separated.symbol,
+                quote_asset.symbol,
+                ts_unit,
+                df.height
+            )
+            # Update legacy (asset, quote) cache entries first
             self.pandas_data.update(polars_data_update)
             self._data_store.update(polars_data_update)
+
+            # Ensure timestep-aware key co-exists for parity-sensitive lookups
+            self.pandas_data[search_asset] = data_polars
+            self._data_store[search_asset] = data_polars
+
             # Use polars df directly for metadata (no conversion)
             self._record_metadata(search_asset, df, ts_unit, asset_separated)
 
@@ -1055,27 +1119,51 @@ class ThetaDataBacktestingPolars(PolarsData):
         dt = self.get_datetime()
         self._update_pandas_data(asset, quote, sample_length, timestep, dt)
         source = None
-        tuple_key = self.find_asset_in_data_store(asset, quote)
-        if tuple_key is not None:
-            # Track missed opportunity: using pandas_data when polars_data is available
-            if tuple_key in self._polars_data:
-                self._log_conversion("MISSED_POLARS", f"asset={asset} method=get_last_price using_pandas_data=True")
 
-            data = self.pandas_data.get(tuple_key)
-            if data is not None and hasattr(data, "df"):
-                close_series = data.df.get("close")
-                if close_series is None:
-                    return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
-                closes = close_series.dropna()
-                if len(closes) == 0:
-                    logger.warning(
-                        "[THETADATA-PANDAS] get_last_price found no valid closes for %s/%s; returning None (likely expired).",
-                        asset,
-                        quote or Asset("USD", "forex"),
-                    )
-                    return None
-                closes = closes.tail(sample_length)
-                source = "pandas_dataset"
+        # FIX: Get timestep unit for cache key (need 3-tuple: asset, quote, timestep)
+        _, ts_unit = self.get_start_datetime_and_ts_unit(
+            sample_length, timestep, dt, start_buffer=START_BUFFER
+        )
+
+        # FIX: Construct 3-tuple cache key directly (instead of using find_asset_in_data_store)
+        quote_asset = quote if quote else Asset("USD", "forex")
+        tuple_key = (asset, quote_asset, ts_unit)
+        legacy_tuple_key = (asset, quote_asset)
+
+        # Track missed opportunity: using pandas_data when polars_data is available
+        if tuple_key in self._polars_data:
+            self._log_conversion("MISSED_POLARS", f"asset={asset} method=get_last_price using_pandas_data=True")
+
+        data = self.pandas_data.get(tuple_key)
+        legacy_hit = False
+        if data is None:
+            data = self.pandas_data.get(legacy_tuple_key)
+            if data is not None:
+                legacy_hit = True
+        if data is not None and hasattr(data, "df"):
+            close_series = data.df.get("close")
+            if close_series is None:
+                return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
+            closes = close_series.dropna()
+            if len(closes) == 0:
+                logger.warning(
+                    "[THETADATA-PANDAS] get_last_price found no valid closes for %s/%s; returning None (likely expired).",
+                    asset,
+                    quote or Asset("USD", "forex"),
+                )
+                return None
+            closes = closes.tail(sample_length)
+            frame_last_dt = closes.index[-1] if len(closes) else None
+            frame_last_close = closes.iloc[-1] if len(closes) else None
+            if frame_last_dt is not None:
+                try:
+                    frame_last_dt = frame_last_dt.isoformat()
+                except AttributeError:
+                    frame_last_dt = str(frame_last_dt)
+            source = "pandas_dataset"
+        else:
+            frame_last_dt = None
+            frame_last_close = None
         value = super().get_last_price(asset=asset, quote=quote, exchange=exchange)
         logger.debug(
             "[THETADATA-PANDAS] get_last_price resolved via %s for %s/%s (close=%s)",
@@ -1083,6 +1171,19 @@ class ThetaDataBacktestingPolars(PolarsData):
             asset,
             quote or Asset("USD", "forex"),
             value,
+        )
+        _parity_log(
+            "[PARITY][LAST_PRICE][POLARS] asset=%s quote=%s dt=%s value=%s source=%s tuple_key=%s legacy_key_used=%s ts_unit=%s frame_last_dt=%s frame_last_close=%s",
+            getattr(asset, "symbol", asset),
+            getattr(quote, "symbol", quote) if quote else "USD",
+            dt.isoformat() if hasattr(dt, "isoformat") else str(dt),
+            value,
+            source or "super",
+            tuple_key,
+            legacy_hit,
+            ts_unit,
+            frame_last_dt,
+            float(frame_last_close) if frame_last_close is not None else None,
         )
         return value
 
@@ -1098,6 +1199,40 @@ class ThetaDataBacktestingPolars(PolarsData):
         return_polars: bool = False,
     ):
         current_dt = self.get_datetime()
+
+        # BACKTESTER INSTRUMENTATION: Log normalization window request
+        logger.info(
+            "[BACKTESTER][NORMALIZE_REQUEST] asset=%s | "
+            "broker_cutoff=%s | requested: length=%d timestep=%s timeshift=%s return_polars=%s",
+            getattr(asset, 'symbol', asset) if hasattr(asset, 'symbol') else str(asset),
+            current_dt.isoformat() if hasattr(current_dt, 'isoformat') else str(current_dt),
+            length,
+            timestep,
+            timeshift,
+            return_polars
+        )
+
+        # FIX: Get timestep unit for cache key (need 3-tuple: asset, quote, timestep)
+        _, ts_unit = self.get_start_datetime_and_ts_unit(
+            length, timestep, current_dt, start_buffer=START_BUFFER
+        )
+
+        # BACKTESTER INSTRUMENTATION: Check data availability before calling parent
+        # FIX: Include timestep in cache key to prevent collisions
+        search_asset = (asset, quote if quote else Asset("USD", "forex"), ts_unit)
+        legacy_cache_key = (asset, quote if quote else Asset("USD", "forex"))
+        has_polars = search_asset in self._polars_data
+        has_pandas = (search_asset in self.pandas_data) or (legacy_cache_key in self.pandas_data)
+
+        logger.info(
+            "[BACKTESTER][DATA_CHECK] asset=%s | "
+            "has_polars=%s has_pandas=%s using_pandas_fallback=%s",
+            getattr(asset, 'symbol', asset) if hasattr(asset, 'symbol') else str(asset),
+            has_polars,
+            has_pandas,
+            has_pandas and not has_polars  # True if we only have pandas data
+        )
+
         bars = super().get_historical_prices(
             asset=asset,
             length=length,
@@ -1109,10 +1244,66 @@ class ThetaDataBacktestingPolars(PolarsData):
             return_polars=return_polars,
         )
 
+        if PARITY_DEBUG and timestep == "minute":
+            first_ts = None
+            last_ts = None
+            returned_rows = 0
+            frame = getattr(bars, "df", None)
+            if frame is not None:
+                try:
+                    returned_rows = len(frame)
+                except Exception:
+                    returned_rows = 0
+                try:
+                    if hasattr(frame, "columns") and "datetime" in getattr(frame, "columns", []):
+                        series = frame["datetime"]
+                        if hasattr(series, "to_list"):
+                            series_list = series.to_list()
+                        else:
+                            series_list = list(series)
+                        if series_list:
+                            first_ts = series_list[0]
+                            last_ts = series_list[-1]
+                    elif hasattr(frame, "index") and len(frame.index) > 0:
+                        first_ts = frame.index[0]
+                        last_ts = frame.index[-1]
+                except Exception:
+                    pass
+            _parity_log(
+                "[PARITY][MINUTE_RETURN] asset=%s timestep=%s requested=%d returned=%d "
+                "timeshift=%s first_ts=%s last_ts=%s return_polars=%s",
+                getattr(asset, "symbol", asset) if hasattr(asset, "symbol") else str(asset),
+                timestep,
+                length,
+                returned_rows,
+                timeshift,
+                first_ts,
+                last_ts,
+                return_polars,
+            )
+
+        # BACKTESTER INSTRUMENTATION: Log normalization result
+        if bars is not None and hasattr(bars, 'df') and bars.df is not None:
+            result_rows = len(bars.df)
+            logger.info(
+                "[BACKTESTER][NORMALIZE_RESULT] asset=%s | "
+                "returned_rows=%d expected_rows=%d row_match=%s",
+                getattr(asset, 'symbol', asset) if hasattr(asset, 'symbol') else str(asset),
+                result_rows,
+                length,
+                result_rows == length
+            )
+        else:
+            logger.info(
+                "[BACKTESTER][NORMALIZE_RESULT] asset=%s | returned_rows=0 (empty or None)",
+                getattr(asset, 'symbol', asset) if hasattr(asset, 'symbol') else str(asset)
+            )
+
         # Track missed opportunity: we have polars data but are returning pandas
         if bars is not None and not return_polars:
-            search_asset = (asset, quote if quote else Asset("USD", "forex"))
-            if search_asset in self._polars_data:
+            # FIX: Use 3-tuple cache key (already computed ts_unit above)
+            search_asset_check = (asset, quote if quote else Asset("USD", "forex"), ts_unit)
+            if search_asset_check in self._polars_data:
                 self._log_conversion("MISSED_POLARS", f"asset={asset} method=get_historical_prices return_polars=False")
 
         if bars is None or getattr(bars, "df", None) is None or len(bars.df) == 0:
@@ -1185,10 +1376,265 @@ class ThetaDataBacktestingPolars(PolarsData):
             A Quote object with the quote information.
         """
         dt = self.get_datetime()
+
+        # [INSTRUMENTATION] Log full asset details for options
+        if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION:
+            logger.info(
+                "[THETA-QUOTE][POLARS][OPTION_REQUEST] symbol=%s expiration=%s strike=%s right=%s current_dt=%s timestep=%s",
+                asset.symbol,
+                asset.expiration,
+                asset.strike,
+                asset.right,
+                dt.isoformat() if hasattr(dt, 'isoformat') else dt,
+                timestep
+            )
+        else:
+            logger.info(
+                "[THETA-QUOTE][POLARS][REQUEST] asset=%s current_dt=%s timestep=%s",
+                getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
+                dt.isoformat() if hasattr(dt, 'isoformat') else dt,
+                timestep
+            )
+
         self._update_pandas_data(asset, quote, 1, timestep, dt)
+
+        # [INSTRUMENTATION] Capture in-memory dataframe state after _update_pandas_data
+        debug_enabled = True
+
+        # FIX: Get timestep unit for cache key (need 3-tuple: asset, quote, timestep)
+        _, ts_unit = self.get_start_datetime_and_ts_unit(
+            1, timestep, dt, start_buffer=START_BUFFER
+        )
+
+        # FIX: Include timestep in cache key to prevent collisions
+        search_asset = (asset, quote if quote else Asset("USD", "forex"), ts_unit)
+
+        # Check polars data first
+        data_obj = self._polars_data.get(search_asset)
+        data_source = "POLARS"
+
+        # Fallback to pandas data if polars not found
+        if data_obj is None:
+            data_obj = self.pandas_data.get(search_asset)
+            data_source = "PANDAS_FALLBACK"
+
+        if data_obj is not None:
+            # Handle both DataPolars and Data objects
+            if hasattr(data_obj, 'polars_df'):
+                # DataPolars object
+                polars_df = data_obj.polars_df
+                if polars_df is not None and polars_df.height > 0:
+                    # Convert to pandas for logging (temporary, just for debugging)
+                    df_for_logging = polars_df.to_pandas()
+
+                    # Get first and last 5 rows
+                    head_df = df_for_logging.head(5)
+                    tail_df = df_for_logging.tail(5)
+
+                    # Format columns to show
+                    cols_to_show = ['bid', 'ask', 'mid_price', 'close'] if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION else ['close']
+                    available_cols = [col for col in cols_to_show if col in df_for_logging.columns]
+
+                    # Get timezone info from pandas df
+                    tz_info = "NO_TZ"
+                    if isinstance(df_for_logging.index, pd.DatetimeIndex) and df_for_logging.index.tz is not None:
+                        tz_info = str(df_for_logging.index.tz)
+
+                    logger.info(
+                        "[THETA-QUOTE][POLARS][DATAFRAME_STATE] asset=%s | data_source=%s | total_rows=%d | timestep=%s | timezone=%s",
+                        getattr(asset, "symbol", asset),
+                        data_source,
+                        polars_df.height,
+                        data_obj.timestep,
+                        tz_info
+                    )
+
+                    # Log datetime range from polars df with timezone
+                    if 'datetime' in polars_df.columns:
+                        first_dt = polars_df['datetime'].min()
+                        last_dt = polars_df['datetime'].max()
+                        first_dt_str = first_dt.isoformat() if hasattr(first_dt, 'isoformat') else str(first_dt)
+                        last_dt_str = last_dt.isoformat() if hasattr(last_dt, 'isoformat') else str(last_dt)
+                        logger.info(
+                            "[THETA-QUOTE][POLARS][DATETIME_RANGE] asset=%s | first_dt=%s | last_dt=%s | tz=%s",
+                            getattr(asset, "symbol", asset),
+                            first_dt_str,
+                            last_dt_str,
+                            tz_info
+                        )
+
+                        # CRITICAL: Show tail with explicit datetime index to catch time-travel bug
+                        if debug_enabled and len(available_cols) > 0:
+                            # Extract datetime values from 'datetime' column if it exists
+                            if 'datetime' in df_for_logging.columns:
+                                head_datetimes = df_for_logging['datetime'].head(5).tolist()
+                                tail_datetimes = df_for_logging['datetime'].tail(5).tolist()
+
+                                # Build display strings with datetime + values
+                                head_str = "\n".join([
+                                    f"{dt}: " + ", ".join([f"{col}={row[col]}" for col in available_cols])
+                                    for dt, (_, row) in zip(head_datetimes, head_df[available_cols].iterrows())
+                                ])
+                                tail_str = "\n".join([
+                                    f"{dt}: " + ", ".join([f"{col}={row[col]}" for col in available_cols])
+                                    for dt, (_, row) in zip(tail_datetimes, tail_df[available_cols].iterrows())
+                                ])
+
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_HEAD] asset=%s | first_5_rows:\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    head_str
+                                )
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_TAIL] asset=%s | last_5_rows:\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_str
+                                )
+
+                                # Convert tail datetimes to ISO format
+                                tail_datetimes_iso = [dt.isoformat() if hasattr(dt, 'isoformat') else str(dt) for dt in tail_datetimes]
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][TAIL_DATETIMES] asset=%s | tail_index=%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_datetimes_iso
+                                )
+                            else:
+                                # Fallback to index-based logging
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_HEAD] asset=%s | first_5_rows (with datetime index):\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    head_df[available_cols].to_string()
+                                )
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_TAIL] asset=%s | last_5_rows (with datetime index):\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_df[available_cols].to_string()
+                                )
+
+                                # Show tail datetime values explicitly
+                                tail_datetimes = [dt.isoformat() if hasattr(dt, 'isoformat') else str(dt) for dt in tail_df.index]
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][TAIL_DATETIMES] asset=%s | tail_index=%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_datetimes
+                                )
+                else:
+                    logger.info(
+                        "[THETA-QUOTE][POLARS][DATAFRAME_STATE] asset=%s | data_source=%s | EMPTY_DATAFRAME",
+                        getattr(asset, "symbol", asset),
+                        data_source
+                    )
+            elif hasattr(data_obj, 'df'):
+                # Data object (pandas)
+                df = data_obj.df
+                if df is not None and len(df) > 0:
+                    # Get first and last 5 rows
+                    head_df = df.head(5)
+                    tail_df = df.tail(5)
+
+                    # Format columns to show
+                    cols_to_show = ['bid', 'ask', 'mid_price', 'close'] if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION else ['close']
+                    available_cols = [col for col in cols_to_show if col in df.columns]
+
+                    # Get timezone info
+                    tz_info = "NO_TZ"
+                    if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
+                        tz_info = str(df.index.tz)
+
+                    logger.info(
+                        "[THETA-QUOTE][POLARS][DATAFRAME_STATE] asset=%s | data_source=%s | total_rows=%d | timestep=%s | index_type=%s | timezone=%s",
+                        getattr(asset, "symbol", asset),
+                        data_source,
+                        len(df),
+                        data_obj.timestep,
+                        type(df.index).__name__,
+                        tz_info
+                    )
+
+                    # Log datetime range with timezone
+                    if isinstance(df.index, pd.DatetimeIndex):
+                        first_dt_str = df.index[0].isoformat() if hasattr(df.index[0], 'isoformat') else str(df.index[0])
+                        last_dt_str = df.index[-1].isoformat() if hasattr(df.index[-1], 'isoformat') else str(df.index[-1])
+                        logger.info(
+                            "[THETA-QUOTE][POLARS][DATETIME_RANGE] asset=%s | first_dt=%s | last_dt=%s | tz=%s",
+                            getattr(asset, "symbol", asset),
+                            first_dt_str,
+                            last_dt_str,
+                            tz_info
+                        )
+
+                        # CRITICAL: Show tail with explicit datetime index to catch time-travel bug
+                        if debug_enabled and len(available_cols) > 0:
+                            # Extract datetime values from 'datetime' column if it exists
+                            if 'datetime' in df_for_logging.columns:
+                                head_datetimes = df_for_logging['datetime'].head(5).tolist()
+                                tail_datetimes = df_for_logging['datetime'].tail(5).tolist()
+
+                                # Build display strings with datetime + values
+                                head_str = "\n".join([
+                                    f"{dt}: " + ", ".join([f"{col}={row[col]}" for col in available_cols])
+                                    for dt, (_, row) in zip(head_datetimes, head_df[available_cols].iterrows())
+                                ])
+                                tail_str = "\n".join([
+                                    f"{dt}: " + ", ".join([f"{col}={row[col]}" for col in available_cols])
+                                    for dt, (_, row) in zip(tail_datetimes, tail_df[available_cols].iterrows())
+                                ])
+
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_HEAD] asset=%s | first_5_rows:\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    head_str
+                                )
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_TAIL] asset=%s | last_5_rows:\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_str
+                                )
+
+                                # Convert tail datetimes to ISO format
+                                tail_datetimes_iso = [dt.isoformat() if hasattr(dt, 'isoformat') else str(dt) for dt in tail_datetimes]
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][TAIL_DATETIMES] asset=%s | tail_index=%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_datetimes_iso
+                                )
+                            else:
+                                # Fallback to index-based logging
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_HEAD] asset=%s | first_5_rows (with datetime index):\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    head_df[available_cols].to_string()
+                                )
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][DATAFRAME_TAIL] asset=%s | last_5_rows (with datetime index):\n%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_df[available_cols].to_string()
+                                )
+
+                                # Show tail datetime values explicitly
+                                tail_datetimes = [dt.isoformat() if hasattr(dt, 'isoformat') else str(dt) for dt in tail_df.index]
+                                logger.info(
+                                    "[THETA-QUOTE][POLARS][TAIL_DATETIMES] asset=%s | tail_index=%s",
+                                    getattr(asset, "symbol", asset),
+                                    tail_datetimes
+                                )
+                else:
+                    logger.info(
+                        "[THETA-QUOTE][POLARS][DATAFRAME_STATE] asset=%s | data_source=%s | EMPTY_DATAFRAME",
+                        getattr(asset, "symbol", asset),
+                        data_source
+                    )
+        else:
+            logger.info(
+                "[THETA-QUOTE][POLARS][DATAFRAME_STATE] asset=%s | NO_DATA_FOUND_IN_STORE",
+                getattr(asset, "symbol", asset)
+            )
+
         quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
+
+        # [INSTRUMENTATION] Final quote result with all details
         message = (
-            "[THETA-QUOTE][PANDAS] asset=%s quote=%s current_dt=%s bid=%s ask=%s mid=%s last=%s source=%s"
+            "[THETA-QUOTE][POLARS][RESULT] asset=%s quote=%s current_dt=%s bid=%s ask=%s mid=%s last=%s source=%s"
         ) % (
             getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
             getattr(quote, "symbol", quote),

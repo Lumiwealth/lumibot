@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Dict, Optional, Union
 
 import logging
+import os
 import pandas as pd
 import pytz
 import subprocess
@@ -13,6 +14,12 @@ from lumibot.credentials import THETADATA_CONFIG
 from lumibot.tools import thetadata_helper
 
 logger = logging.getLogger(__name__)
+PARITY_DEBUG = os.environ.get("LUMIBOT_PARITY_DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def _parity_log(message: str, *args):
+    if PARITY_DEBUG:
+        logger.info(message, *args)
 
 
 START_BUFFER = timedelta(days=5)
@@ -22,6 +29,8 @@ class ThetaDataBacktestingPandas(PandasData):
     """
     Backtesting implementation of ThetaData
     """
+
+    IS_BACKTESTING_BROKER = True
 
     # Enable fallback to last_price when bid/ask quotes are unavailable for options
     option_quote_fallback_allowed = True
@@ -52,6 +61,9 @@ class ThetaDataBacktestingPandas(PandasData):
         self._use_quote_data = use_quote_data
 
         self._dataset_metadata: Dict[tuple, Dict[str, object]] = {}
+
+        # Set data_source to self since this class acts as both broker and data source
+        self.data_source = self
 
         self.kill_processes_by_name("ThetaTerminal.jar")
         thetadata_helper.reset_theta_terminal_tracking()
@@ -833,10 +845,23 @@ class ThetaDataBacktestingPandas(PandasData):
         sample_length = 5
         dt = self.get_datetime()
         self._update_pandas_data(asset, quote, sample_length, timestep, dt)
+        _, ts_unit = self.get_start_datetime_and_ts_unit(
+            sample_length, timestep, dt, start_buffer=START_BUFFER
+        )
         source = None
-        tuple_key = self.find_asset_in_data_store(asset, quote)
+        tuple_key = self.find_asset_in_data_store(asset, quote, ts_unit)
+        legacy_hit = False
+        frame_last_dt = None
+        frame_last_close = None
         if tuple_key is not None:
             data = self.pandas_data.get(tuple_key)
+            if data is None and isinstance(tuple_key, tuple) and len(tuple_key) == 3:
+                legacy_tuple_key = (tuple_key[0], tuple_key[1])
+                data = self.pandas_data.get(legacy_tuple_key)
+                if data is not None:
+                    legacy_hit = True
+            elif isinstance(tuple_key, tuple) and len(tuple_key) != 3:
+                legacy_hit = True
             if data is not None and hasattr(data, "df"):
                 close_series = data.df.get("close")
                 if close_series is None:
@@ -851,6 +876,13 @@ class ThetaDataBacktestingPandas(PandasData):
                     return None
                 closes = closes.tail(sample_length)
                 source = "pandas_dataset"
+                if len(closes):
+                    frame_last_dt = closes.index[-1]
+                    frame_last_close = closes.iloc[-1]
+                    try:
+                        frame_last_dt = frame_last_dt.isoformat()
+                    except AttributeError:
+                        frame_last_dt = str(frame_last_dt)
         value = super().get_last_price(asset=asset, quote=quote, exchange=exchange)
         logger.debug(
             "[THETADATA-PANDAS] get_last_price resolved via %s for %s/%s (close=%s)",
@@ -858,6 +890,19 @@ class ThetaDataBacktestingPandas(PandasData):
             asset,
             quote or Asset("USD", "forex"),
             value,
+        )
+        _parity_log(
+            "[PARITY][LAST_PRICE][PANDAS] asset=%s quote=%s dt=%s value=%s source=%s tuple_key=%s legacy_key_used=%s ts_unit=%s frame_last_dt=%s frame_last_close=%s",
+            getattr(asset, "symbol", asset),
+            getattr(quote, "symbol", quote) if quote else "USD",
+            dt.isoformat() if hasattr(dt, "isoformat") else str(dt),
+            value,
+            source or "super",
+            tuple_key,
+            legacy_hit,
+            ts_unit,
+            frame_last_dt,
+            float(frame_last_close) if frame_last_close is not None else None,
         )
         return value
 
@@ -950,10 +995,106 @@ class ThetaDataBacktestingPandas(PandasData):
             A Quote object with the quote information.
         """
         dt = self.get_datetime()
+
+        # [INSTRUMENTATION] Log full asset details for options
+        if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION:
+            logger.info(
+                "[THETA-QUOTE][PANDAS][OPTION_REQUEST] symbol=%s expiration=%s strike=%s right=%s current_dt=%s timestep=%s",
+                asset.symbol,
+                asset.expiration,
+                asset.strike,
+                asset.right,
+                dt.isoformat() if hasattr(dt, 'isoformat') else dt,
+                timestep
+            )
+        else:
+            logger.info(
+                "[THETA-QUOTE][PANDAS][REQUEST] asset=%s current_dt=%s timestep=%s",
+                getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
+                dt.isoformat() if hasattr(dt, 'isoformat') else dt,
+                timestep
+            )
+
         self._update_pandas_data(asset, quote, 1, timestep, dt)
+
+        # [INSTRUMENTATION] Capture in-memory dataframe state after _update_pandas_data
+        debug_enabled = True
+
+        search_asset = (asset, quote if quote else Asset("USD", "forex"))
+        data_obj = self.pandas_data.get(search_asset)
+        if data_obj is not None and hasattr(data_obj, 'df'):
+            df = data_obj.df
+            if df is not None and len(df) > 0:
+                # Get first and last 5 rows
+                head_df = df.head(5)
+                tail_df = df.tail(5)
+
+                # Format columns to show
+                cols_to_show = ['bid', 'ask', 'mid_price', 'close'] if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION else ['close']
+                available_cols = [col for col in cols_to_show if col in df.columns]
+
+                # Get timezone info
+                tz_info = "NO_TZ"
+                if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
+                    tz_info = str(df.index.tz)
+
+                logger.info(
+                    "[THETA-QUOTE][PANDAS][DATAFRAME_STATE] asset=%s | total_rows=%d | timestep=%s | index_type=%s | timezone=%s",
+                    getattr(asset, "symbol", asset),
+                    len(df),
+                    data_obj.timestep,
+                    type(df.index).__name__,
+                    tz_info
+                )
+
+                # Log datetime range with timezone
+                if isinstance(df.index, pd.DatetimeIndex):
+                    first_dt_str = df.index[0].isoformat() if hasattr(df.index[0], 'isoformat') else str(df.index[0])
+                    last_dt_str = df.index[-1].isoformat() if hasattr(df.index[-1], 'isoformat') else str(df.index[-1])
+                    logger.info(
+                        "[THETA-QUOTE][PANDAS][DATETIME_RANGE] asset=%s | first_dt=%s | last_dt=%s | tz=%s",
+                        getattr(asset, "symbol", asset),
+                        first_dt_str,
+                        last_dt_str,
+                        tz_info
+                    )
+
+                    # CRITICAL: Show tail with explicit datetime index to catch time-travel bug
+                    if debug_enabled and len(available_cols) > 0:
+                        logger.info(
+                            "[THETA-QUOTE][PANDAS][DATAFRAME_HEAD] asset=%s | first_5_rows (with datetime index):\n%s",
+                            getattr(asset, "symbol", asset),
+                            head_df[available_cols].to_string()
+                        )
+                        logger.info(
+                            "[THETA-QUOTE][PANDAS][DATAFRAME_TAIL] asset=%s | last_5_rows (with datetime index):\n%s",
+                            getattr(asset, "symbol", asset),
+                            tail_df[available_cols].to_string()
+                        )
+
+                        # Show tail datetime values explicitly
+                        tail_datetimes = [dt.isoformat() if hasattr(dt, 'isoformat') else str(dt) for dt in tail_df.index]
+                        logger.info(
+                            "[THETA-QUOTE][PANDAS][TAIL_DATETIMES] asset=%s | tail_index=%s",
+                            getattr(asset, "symbol", asset),
+                            tail_datetimes
+                        )
+            else:
+                logger.info(
+                    "[THETA-QUOTE][PANDAS][DATAFRAME_STATE] asset=%s | EMPTY_DATAFRAME",
+                    getattr(asset, "symbol", asset)
+                )
+        else:
+            logger.info(
+                "[THETA-QUOTE][PANDAS][DATAFRAME_STATE] asset=%s | NO_DATA_FOUND_IN_STORE",
+                getattr(asset, "symbol", asset)
+            )
+
         quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
+
+        # [INSTRUMENTATION] Final quote result with all details
         message = (
-            "[THETA-QUOTE][PANDAS] asset=%s quote=%s current_dt=%s bid=%s ask=%s mid=%s last=%s source=%s"
+            "[THETA-QUOTE][PANDAS][RESULT] asset=%s quote=%s current_dt=%s bid=%s ask=%s mid=%s last=%s source=%s"
         ) % (
             getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
             getattr(quote, "symbol", quote),

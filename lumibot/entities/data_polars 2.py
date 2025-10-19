@@ -1,7 +1,6 @@
 import datetime
 from decimal import Decimal
 from typing import Optional, Union
-import os
 
 import pandas as pd
 import polars as pl
@@ -118,12 +117,9 @@ class DataPolars:
                 f"The quote asset for DataPolars must be an Asset object. You provided a {type(self.quote)} object."
             )
 
-        # RELAXED: Allow any timestep for testing/storage purposes
-        # Only minute/day are fully supported for all DataPolars methods
         if timestep not in ["minute", "day"]:
-            logger.warning(
-                f"Timestep '{timestep}' is not fully supported. Only 'minute' and 'day' have complete functionality. "
-                f"Some methods like get_bars() may not work correctly with this timestep."
+            raise ValueError(
+                f"Timestep must be either 'minute' or 'day', the value you entered ({timestep}) is not currently supported."
             )
 
         self.timestep = timestep
@@ -200,35 +196,27 @@ class DataPolars:
                 self._pandas_df.set_index("datetime", inplace=True)
 
             # Apply timezone conversion: UTC → America/New_York
-            try:
-                logger.debug(f"[TZ_CONV] {self.symbol} | polars_tz={polars_tz} pandas_tz={self._pandas_df.index.tzinfo} _timezone={self._timezone}")
-
-                if self._timezone is not None:
-                    # Explicit timezone parameter takes priority
-                    if not self._pandas_df.index.tzinfo:
-                        self._pandas_df.index = self._pandas_df.index.tz_localize(self._timezone)
-                    else:
-                        self._pandas_df.index = self._pandas_df.index.tz_convert(self._timezone)
-                elif polars_tz is not None:
-                    # Polars had timezone (e.g., UTC from DataBento), convert to DEFAULT_PYTZ
-                    if not self._pandas_df.index.tzinfo:
-                        # Timezone lost during conversion, re-localize then convert
-                        self._pandas_df.index = self._pandas_df.index.tz_localize(polars_tz)
-                        self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
-                    elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
-                        # Timezone preserved, just convert
-                        self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
-                elif not self._pandas_df.index.tzinfo:
-                    # No timezone info, localize to DEFAULT_PYTZ
-                    self._pandas_df.index = self._pandas_df.index.tz_localize(DEFAULT_PYTZ)
-                elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
-                    # Different timezone, convert to DEFAULT_PYTZ
+            if self._timezone is not None:
+                # Explicit timezone parameter takes priority
+                if not self._pandas_df.index.tzinfo:
+                    self._pandas_df.index = self._pandas_df.index.tz_localize(self._timezone)
+                else:
+                    self._pandas_df.index = self._pandas_df.index.tz_convert(self._timezone)
+            elif polars_tz is not None:
+                # Polars had timezone (e.g., UTC from DataBento), convert to DEFAULT_PYTZ
+                if not self._pandas_df.index.tzinfo:
+                    # Timezone lost during conversion, re-localize then convert
+                    self._pandas_df.index = self._pandas_df.index.tz_localize(polars_tz)
                     self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
-
-                logger.debug(f"[TZ_CONV] {self.symbol} | SUCCESS final_tz={self._pandas_df.index.tz}")
-            except Exception as e:
-                logger.error(f"[TZ_CONV] {self.symbol} | FAILED polars_tz={polars_tz} pandas_tz={self._pandas_df.index.tzinfo} error={e}")
-                raise
+                elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
+                    # Timezone preserved, just convert
+                    self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
+            elif not self._pandas_df.index.tzinfo:
+                # No timezone info, localize to DEFAULT_PYTZ
+                self._pandas_df.index = self._pandas_df.index.tz_localize(DEFAULT_PYTZ)
+            elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
+                # Different timezone, convert to DEFAULT_PYTZ
+                self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
 
         return self._pandas_df
 
@@ -293,9 +281,10 @@ class DataPolars:
             date_start_aligned = pd.Timestamp(date_start).tz_localize(None) if hasattr(pd.Timestamp(date_start), 'tz') and pd.Timestamp(date_start).tz else pd.Timestamp(date_start)
             date_end_aligned = pd.Timestamp(date_end).tz_localize(None) if hasattr(pd.Timestamp(date_end), 'tz') and pd.Timestamp(date_end).tz else pd.Timestamp(date_end)
 
-        # CRITICAL FIX: Do NOT filter by date_end to preserve future bars for negative timeshift
-        # Only filter by date_start to remove old data we don't need
-        df = df.filter(pl.col("datetime") >= date_start_aligned)
+        # Filter by date range
+        df = df.filter(
+            (pl.col("datetime") >= date_start_aligned) & (pl.col("datetime") <= date_end_aligned)
+        )
 
         # Filter by trading hours if minute data
         if self.timestep == "minute":
@@ -321,91 +310,20 @@ class DataPolars:
 
         This converts to pandas for compatibility with the existing dataline system.
         """
-        # DEBUG: Log normalization entry with index template details
-        logger.info(
-            "[NORMALIZE][ENTRY] asset=%s | "
-            "template_index_size=%d template_first=%s template_last=%s | "
-            "data_range: start=%s end=%s",
-            self.asset.symbol,
-            len(idx),
-            idx[0].isoformat() if len(idx) > 0 and hasattr(idx[0], 'isoformat') else str(idx[0]) if len(idx) > 0 else 'NONE',
-            idx[-1].isoformat() if len(idx) > 0 and hasattr(idx[-1], 'isoformat') else str(idx[-1]) if len(idx) > 0 else 'NONE',
-            self.datetime_start.isoformat() if hasattr(self.datetime_start, 'isoformat') else str(self.datetime_start),
-            self.datetime_end.isoformat() if hasattr(self.datetime_end, 'isoformat') else str(self.datetime_end)
-        )
-
         # Get pandas DataFrame
         df = self.df
 
-        # DEBUG: Log DataFrame state before normalization
-        logger.info(
-            "[NORMALIZE][PRE] asset=%s | "
-            "df_shape=%s df_first=%s df_last=%s has_duplicates=%s",
-            self.asset.symbol,
-            df.shape,
-            df.index[0].isoformat() if len(df) > 0 and hasattr(df.index[0], 'isoformat') else str(df.index[0]) if len(df) > 0 else 'NONE',
-            df.index[-1].isoformat() if len(df) > 0 and hasattr(df.index[-1], 'isoformat') else str(df.index[-1]) if len(df) > 0 else 'NONE',
-            df.index.has_duplicates
-        )
-
-        # CRITICAL FIX: Do NOT trim the template to [datetime_start:datetime_end]
-        # The template must include ALL data from self.df to support negative timeshift
-        # (look-ahead bias for realistic fills). Trimming would cut off future bars.
-        #
-        # REMOVED trimming logic:
-        # start_pos = idx.searchsorted(self.datetime_start, side='left')
-        # end_pos = idx.searchsorted(self.datetime_end, side='right')
-        # idx = idx[start_pos:end_pos]
-        #
-        # Now idx contains ALL timestamps from the template, including future bars.
-
-        # DEBUG: Log that we're using the full template
-        logger.info(
-            "[NORMALIZE][NO_TRIM] asset=%s | "
-            "using_full_template=True template_size=%d | "
-            "template_range: first=%s last=%s",
-            self.asset.symbol,
-            len(idx),
-            idx[0].isoformat() if len(idx) > 0 and hasattr(idx[0], 'isoformat') else str(idx[0]) if len(idx) > 0 else 'NONE',
-            idx[-1].isoformat() if len(idx) > 0 and hasattr(idx[-1], 'isoformat') else str(idx[-1]) if len(idx) > 0 else 'NONE'
-        )
+        # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
+        start_pos = idx.searchsorted(self.datetime_start, side='left')
+        end_pos = idx.searchsorted(self.datetime_end, side='right')
+        idx = idx[start_pos:end_pos]
 
         # OPTIMIZATION: More efficient duplicate removal
         if df.index.has_duplicates:
-            pre_dedup_len = len(df)
             df = df[~df.index.duplicated(keep='first')]
-            logger.info(
-                "[NORMALIZE][DEDUP] asset=%s | "
-                "removed_duplicates=%d (from %d to %d rows)",
-                self.asset.symbol,
-                pre_dedup_len - len(df),
-                pre_dedup_len,
-                len(df)
-            )
-
-        # DEBUG: Log before reindex
-        logger.info(
-            "[NORMALIZE][REINDEX] asset=%s | "
-            "before: df_rows=%d | normalized_template_rows=%d | "
-            "will_fill_gaps=%s",
-            self.asset.symbol,
-            len(df),
-            len(idx),
-            len(idx) - len(df)
-        )
 
         # Reindex the DataFrame with the new index and forward-fill missing values.
         df = df.reindex(idx, method="ffill")
-
-        # DEBUG: Log after reindex
-        logger.info(
-            "[NORMALIZE][POST_REINDEX] asset=%s | "
-            "after: df_rows=%d df_first=%s df_last=%s",
-            self.asset.symbol,
-            len(df),
-            df.index[0].isoformat() if len(df) > 0 and hasattr(df.index[0], 'isoformat') else str(df.index[0]) if len(df) > 0 else 'NONE',
-            df.index[-1].isoformat() if len(df) > 0 and hasattr(df.index[-1], 'isoformat') else str(df.index[-1]) if len(df) > 0 else 'NONE'
-        )
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
@@ -483,37 +401,14 @@ class DataPolars:
 
         # Check if we have the iter_index_dict, if not then repair the times and fill
         if getattr(self, "iter_index_dict", None) is None:
-            logger.info(
-                "[DEBUG][GET_ITER_COUNT][BUILD] asset=%s | "
-                "iter_index_dict is None, calling repair_times_and_fill | "
-                "df.index.size=%d df.index[0]=%s df.index[-1]=%s",
-                self.asset.symbol,
-                len(self.df.index),
-                self.df.index[0].isoformat() if hasattr(self.df.index[0], 'isoformat') else str(self.df.index[0]),
-                self.df.index[-1].isoformat() if hasattr(self.df.index[-1], 'isoformat') else str(self.df.index[-1])
-            )
             self.repair_times_and_fill(self.df.index)
 
         # Search for dt in self.iter_index_dict
         if dt in self.iter_index_dict:
             i = self.iter_index_dict[dt]
-            logger.info(
-                "[DEBUG][GET_ITER_COUNT][EXACT] asset=%s | "
-                "dt=%s found_exact_match=True index=%d",
-                self.asset.symbol,
-                dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
-                i
-            )
         else:
             # If not found, get the last known data
             i = self.iter_index.asof(dt)
-            logger.info(
-                "[DEBUG][GET_ITER_COUNT][ASOF] asset=%s | "
-                "dt=%s found_exact_match=False using_asof=True index=%d",
-                self.asset.symbol,
-                dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
-                i
-            )
 
         return i
 
@@ -634,14 +529,6 @@ class DataPolars:
     @check_data
     def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):
         """Returns a dictionary of the data."""
-        # Log entry to trace the bug
-        logger.warning(
-            f"[GET_BARS_DICT][ENTRY] asset={self.symbol} | "
-            f"dt={dt.isoformat() if hasattr(dt, 'isoformat') else dt} | "
-            f"length={length} timestep={timestep} | "
-            f"timeshift={timeshift} timeshift_type={type(timeshift).__name__}"
-        )
-
         # Convert timeshift to integer if it's a timedelta
         if isinstance(timeshift, datetime.timedelta):
             logger.warning(f"[TIMESHIFT_CONVERT] asset={self.symbol} input_timeshift={timeshift} type={type(timeshift)} repr={repr(timeshift)}")
@@ -655,102 +542,20 @@ class DataPolars:
                 logger.warning(f"[TIMESHIFT_CONVERT] asset={self.symbol} timestep=minute total_seconds={timeshift.total_seconds()} converted={timeshift_converted}")
                 timeshift = timeshift_converted
 
-        # Get bars - calculate indices
-        iter_count = self.get_iter_count(dt)
-
-        # The iter_count returned above points to the index of the most recent bar
-        # that is <= dt. Because Python slicing excludes the end index, we need to add
-        # one so the slice actually includes that bar. Without this adjustment the final
-        # bar is dropped, which is exactly why our polars runs were missing the most
-        # recent daily close (e.g. CVNA on 2024-05-02).
-        end_row = iter_count - timeshift + 1
+        # Get bars.
+        end_row = self.get_iter_count(dt) - timeshift
         start_row = end_row - length
 
-        # Log the index calculation
-        logger.warning(
-            f"[GET_BARS_DICT][INDICES] asset={self.symbol} | "
-            f"iter_count={iter_count} timeshift={timeshift} | "
-            f"end_row = {iter_count} - ({timeshift}) + 1 = {end_row} | "
-            f"start_row = {end_row} - {length} = {start_row}"
-        )
-
-        # Clamp indices to available data bounds to avoid empty slices when requests
-        # extend past cached history (e.g., minute windows near the most recent bar).
-        data_len = len(next(iter(self.datalines.values())).dataline) if self.datalines else 0
-        if end_row > data_len:
-            logger.warning(
-                f"[GET_BARS_DICT][CLAMP] asset={self.symbol} | end_row {end_row} > data_len {data_len}, clamping"
-            )
-            end_row = data_len
-        if end_row < 0:
-            logger.warning(
-                f"[GET_BARS_DICT][CLAMP] asset={self.symbol} | end_row {end_row} < 0, clamping to 0"
-            )
-            end_row = 0
-
-        recalculated_start = end_row - length
-        if recalculated_start != start_row:
-            logger.warning(
-                f"[GET_BARS_DICT][CLAMP] asset={self.symbol} | recomputing start_row from {start_row} to {recalculated_start} after end clamp"
-            )
-        start_row = recalculated_start
-
         if start_row < 0:
-            logger.warning(f"[GET_BARS_DICT][CLAMP] asset={self.symbol} | start_row {start_row} < 0, clamping to 0")
             start_row = 0
-        if start_row > end_row:
-            logger.warning(
-                f"[GET_BARS_DICT][CLAMP] asset={self.symbol} | start_row {start_row} > end_row {end_row}, aligning"
-            )
-            start_row = end_row
-        if start_row == end_row and end_row > 0:
-            logger.warning(
-                f"[GET_BARS_DICT][CLAMP] asset={self.symbol} | start_row == end_row == {end_row}, stepping back one row"
-            )
-            start_row = max(0, end_row - 1)
 
         # Cast both start_row and end_row to int
         start_row = int(start_row)
         end_row = int(end_row)
 
-        # Log the actual slice range
-        logger.warning(
-            f"[GET_BARS_DICT][SLICE] asset={self.symbol} | "
-            f"slicing dataline[{start_row}:{end_row}] (length={end_row - start_row})"
-        )
-
         dict = {}
         for dl_name, dl in self.datalines.items():
             dict[dl_name] = dl.dataline[start_row:end_row]
-
-        if os.getenv("LUMIBOT_PARITY_DEBUG"):
-            slice_len = len(dict.get("datetime", []))
-            logger.info(
-                "[PARITY][POLARS][SLICE_META] asset=%s | dt=%s | length=%d timestep=%s "
-                "| timeshift=%s | data_len=%d | start_row=%d | end_row=%d | slice_len=%d",
-                self.symbol,
-                dt.isoformat() if hasattr(dt, "isoformat") else dt,
-                length,
-                timestep,
-                timeshift,
-                data_len,
-                start_row,
-                end_row,
-                slice_len,
-            )
-
-        # Log the timestamps being returned (if datetime is in dict)
-        if "datetime" in dict and len(dict["datetime"]) > 0:
-            first_ts = dict["datetime"][0]
-            last_ts = dict["datetime"][-1]
-            logger.warning(
-                f"[GET_BARS_DICT][RESULT] asset={self.symbol} | "
-                f"returning {len(dict['datetime'])} bars | "
-                f"first_ts={first_ts.isoformat() if hasattr(first_ts, 'isoformat') else first_ts} | "
-                f"last_ts={last_ts.isoformat() if hasattr(last_ts, 'isoformat') else last_ts}"
-            )
-        else:
-            logger.warning(f"[GET_BARS_DICT][RESULT] asset={self.symbol} | returning empty dict or no datetime")
 
         return dict
 
@@ -774,14 +579,6 @@ class DataPolars:
 
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
         """Returns a dataframe of the data."""
-        logger.info(
-            "[DEBUG][DATAPOLARS][GET_BARS][ENTRY] asset=%s | "
-            "dt=%s length=%d timestep=%s timeshift=%s",
-            self.asset.symbol,
-            dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
-            length, timestep, timeshift
-        )
-
         # Parse the timestep
         quantity, timestep = parse_timestep_qty_and_unit(timestep)
         num_periods = length
@@ -822,23 +619,7 @@ class DataPolars:
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
 
         # Drop any rows that have NaN values
-        if os.getenv("LUMIBOT_PARITY_DEBUG"):
-            try:
-                nan_summary = df_result.isna().sum().to_dict()
-                logger.info(
-                    "[DEBUG][DATAPOLARS][GET_BARS][NAN_SUMMARY] asset=%s | rows_before_drop=%d nan_counts=%s",
-                    self.asset.symbol,
-                    len(df_result),
-                    nan_summary,
-                )
-            except Exception:
-                pass
-
-        price_subset = [col for col in ["open", "high", "low", "close"] if col in df_result.columns]
-        if price_subset:
-            df_result = df_result.dropna(subset=price_subset)
-        else:
-            df_result = df_result.dropna()
+        df_result = df_result.dropna()
 
         # Remove partial day data from the current day
         if timestep == "day" and self.timestep == "minute":
@@ -846,29 +627,6 @@ class DataPolars:
 
         # Only return the last n rows
         df_result = df_result.tail(n=int(num_periods))
-
-        # Log the result before returning
-        if df_result is not None and not df_result.empty:
-            first_ts = df_result.index[0]
-            last_ts = df_result.index[-1]
-            future_bars = df_result[df_result.index > dt] if hasattr(dt, '__gt__') else pd.DataFrame()
-
-            logger.info(
-                "[DEBUG][DATAPOLARS][GET_BARS][RETURN] asset=%s | "
-                "rows=%d columns=%s | "
-                "first_ts=%s last_ts=%s | "
-                "future_bars=%d %s",
-                self.asset.symbol, len(df_result), list(df_result.columns),
-                first_ts.isoformat() if hasattr(first_ts, 'isoformat') else str(first_ts),
-                last_ts.isoformat() if hasattr(last_ts, 'isoformat') else str(last_ts),
-                len(future_bars),
-                "LOOK_AHEAD_BIAS!" if len(future_bars) > 0 else "OK"
-            )
-        else:
-            logger.info(
-                "[DEBUG][DATAPOLARS][GET_BARS][RETURN] asset=%s | EMPTY_RESULT",
-                self.asset.symbol
-            )
 
         return df_result
 
@@ -908,58 +666,3 @@ class DataPolars:
 
             df = pd.DataFrame(dict).set_index("datetime")
             return df
-
-    def trim_before(self, cutoff_dt):
-        """Trim polars_df to only keep bars >= cutoff_dt.
-
-        Uses 20% safety buffer to handle variable lookback lengths.
-        This is called periodically by the sliding window optimizer.
-
-        Parameters
-        ----------
-        cutoff_dt : datetime
-            Cutoff datetime - bars before this will be removed
-        """
-        if cutoff_dt is None or self.polars_df.height == 0:
-            return
-
-        # Get timezone from polars DataFrame
-        tz = self.polars_df["datetime"].dtype.time_zone
-        cutoff = pd.Timestamp(cutoff_dt)
-
-        # Align timezones: if column has timezone, convert cutoff to match
-        # If column is naive, make cutoff naive too
-        if tz:
-            # Column has timezone
-            if cutoff.tz is None:
-                # Cutoff is naive, localize it to match column timezone
-                cutoff = cutoff.tz_localize(tz)
-            else:
-                # Cutoff has timezone, convert to column timezone
-                cutoff = cutoff.tz_convert(tz)
-        else:
-            # Column is naive, make cutoff naive
-            if cutoff.tz is not None:
-                cutoff = cutoff.tz_localize(None)
-
-        # Filter with polars (fast!)
-        old_height = self.polars_df.height
-        trimmed = self.polars_df.filter(pl.col("datetime") >= cutoff)
-
-        if trimmed.height == old_height:
-            return  # No change
-
-        # Update internal state
-        self.polars_df = trimmed
-        self._pandas_df = None  # Clear cached pandas conversion
-
-        # Update metadata
-        if trimmed.height > 0:
-            first = trimmed["datetime"][0]
-            last = trimmed["datetime"][-1]
-            self.datetime_start = pd.Timestamp(first).to_pydatetime()
-            self.datetime_end = pd.Timestamp(last).to_pydatetime()
-            self.date_start = self.datetime_start
-            self.date_end = self.datetime_end
-
-            logger.info(f"[TRIM] {self.asset.symbol} trimmed {old_height} → {trimmed.height} rows")

@@ -36,7 +36,12 @@ class TestLRUEviction:
         assert polars_data.MAX_STORAGE_BYTES == 1_000_000_000
 
     def test_eviction_from_aggregated_cache_first(self):
-        """Test that eviction happens from aggregated cache first"""
+        """Test that eviction happens from aggregated cache first.
+
+        This test verifies the two-tier eviction priority:
+        1. Aggregated cache is evicted first (less critical)
+        2. Data store is evicted only if aggregated cache eviction isn't enough
+        """
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
@@ -46,8 +51,11 @@ class TestLRUEviction:
             pandas_data=None
         )
 
-        # Set a very low memory limit to force eviction
-        polars_data.MAX_STORAGE_BYTES = 100_000  # 100KB
+        # Set memory limit high enough that evicting aggregated cache is sufficient
+        # Each asset: ~48KB data + ~10KB aggregated = ~58KB total
+        # 5 assets = ~290KB total
+        # Set limit to 250KB so aggregated cache eviction (50KB) is enough
+        polars_data.MAX_STORAGE_BYTES = 250_000  # 250KB
 
         # Create 1-minute test data for 5 assets
         assets = [Asset(f"TEST{i}", "stock") for i in range(5)]
@@ -78,13 +86,18 @@ class TestLRUEviction:
         assert len(polars_data._aggregated_cache) == 5
         original_data_store_size = len(polars_data._data_store)
 
+        # CRITICAL: Set _trim_iteration_count = 0 to actually trigger enforcement
+        # (Production code only enforces when _trim_iteration_count == 0)
+        polars_data._trim_iteration_count = 0
+
         # Force memory limit enforcement
         polars_data._enforce_memory_limits()
 
-        # Aggregated cache should be evicted first
-        # Data store should still have all 5 assets
-        assert len(polars_data._aggregated_cache) < 5
-        assert len(polars_data._data_store) == original_data_store_size
+        # Aggregated cache should be partially/fully evicted
+        # Data store should still have all 5 assets (evicting agg cache was enough)
+        assert len(polars_data._aggregated_cache) < 5, "Aggregated cache should have been evicted"
+        assert len(polars_data._data_store) == original_data_store_size, \
+            f"Data store should be untouched (expected {original_data_store_size}, got {len(polars_data._data_store)})"
 
     def test_eviction_from_data_store_when_aggregated_empty(self):
         """Test that eviction happens from data_store when aggregated cache is empty"""
@@ -124,6 +137,9 @@ class TestLRUEviction:
 
         # No aggregated cache entries
         assert len(polars_data._aggregated_cache) == 0
+
+        # Set _trim_iteration_count = 0 to trigger enforcement
+        polars_data._trim_iteration_count = 0
 
         # Force memory limit enforcement
         polars_data._enforce_memory_limits()
@@ -281,6 +297,9 @@ class TestLRUEviction:
         assert initial_data_store_size == 5
         assert initial_agg_cache_size == 5
 
+        # Set _trim_iteration_count = 0 to trigger enforcement
+        polars_data._trim_iteration_count = 0
+
         # Force eviction
         polars_data._enforce_memory_limits()
 
@@ -327,6 +346,9 @@ class TestLRUEviction:
             })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
+
+            # Set _trim_iteration_count = 0 to trigger enforcement
+            polars_data._trim_iteration_count = 0
 
             # Enforce limits after each addition
             polars_data._enforce_memory_limits()
@@ -378,6 +400,9 @@ class TestLRUEviction:
         data_store_size = len(polars_data._data_store)
         agg_cache_size = len(polars_data._aggregated_cache)
 
+        # Set _trim_iteration_count = 0 to trigger enforcement
+        polars_data._trim_iteration_count = 0
+
         # Force enforcement
         polars_data._enforce_memory_limits()
 
@@ -427,6 +452,9 @@ class TestLRUEviction:
 
         # Access 4 again (should move to end)
         polars_data._get_or_aggregate_bars(assets[4], quote, 100, "minute", "5 minutes")
+
+        # Set _trim_iteration_count = 0 to trigger enforcement
+        polars_data._trim_iteration_count = 0
 
         # Force eviction
         polars_data._enforce_memory_limits()

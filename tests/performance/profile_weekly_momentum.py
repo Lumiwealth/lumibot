@@ -33,12 +33,32 @@ from lumibot.tools import thetadata_helper
 
 from tests.performance.strategies.weekly_momentum_options import WeeklyMomentumOptionsStrategy
 
+# VERIFICATION: Print which lumibot we're using
+import lumibot
+print(f"=" * 80)
+print(f"[CODE VERIFICATION] Using lumibot from: {lumibot.__file__}")
+print(f"[CODE VERIFICATION] Expected local path: {Path(__file__).parent.parent.parent}")
+print(f"=" * 80)
+
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Full 6-month backtest to see real bottlenecks
-BACKTEST_START = datetime(2024, 7, 1)
-BACKTEST_END = datetime(2024, 12, 31)  # 6 months for proper profiling
+# Default backtest window (override via env BACKTEST_START/BACKTEST_END in ISO format)
+def _env_datetime(name: str, default: datetime) -> datetime:
+    value = os.environ.get(name)
+    if not value:
+        return default
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid {name} value {value!r}; expected ISO format YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS") from exc
+
+
+BACKTEST_START = _env_datetime("BACKTEST_START", datetime(2024, 7, 1))
+BACKTEST_END = _env_datetime("BACKTEST_END", datetime(2024, 11, 1))
+if BACKTEST_END <= BACKTEST_START:
+    raise ValueError("BACKTEST_END must be later than BACKTEST_START")
+print(f"[config] BACKTEST_START={BACKTEST_START.isoformat()} BACKTEST_END={BACKTEST_END.isoformat()}")
 STRATEGY_PARAMS = {}
 
 

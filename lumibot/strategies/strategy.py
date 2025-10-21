@@ -2462,7 +2462,7 @@ class Strategy(_Strategy):
         >>> timezone = self.timezone
         >>> self.log_message(f"Timezone: {timezone}")
         """
-        return self.broker.data_source.DEFAULT_TIMEZONE
+        return self.broker.data_source.tzinfo.zone
 
     @property
     def pytz(self):

@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import QueryOrderStatus
+from alpaca.trading.enums import QueryOrderStatus, PositionSide
 from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
@@ -404,6 +404,13 @@ class Alpaca(Broker):
             avg_fill_price = None
 
         position = Position(strategy, asset, quantity, orders=orders, avg_fill_price=avg_fill_price)
+
+        position.pnl = float(broker_position.unrealized_pl) if broker_position.unrealized_pl else None
+        position.current_price = float(broker_position.current_price) if broker_position.current_price else None
+        position.side = Position.PositionSide.LONG if broker_position.side == PositionSide.LONG else Position.PositionSide.SHORT
+        position.market_value = float(broker_position.market_value) if broker_position.market_value else None
+        
+
         return position
 
     def _pull_broker_position(self, asset):

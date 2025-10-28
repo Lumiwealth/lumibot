@@ -48,3 +48,7 @@
 - Expanded test coverage exercising the new rule set.
 
 This approach gives us one authoritative roll policy, tuned per instrument, and keeps both brokers and data sources in sync while remaining extensible for future providers (Polygon futures, ThetaData, etc.).
+
+.. note::
+
+   Temporary documentation tweak to trigger a fresh CI run; no functional changes intended.

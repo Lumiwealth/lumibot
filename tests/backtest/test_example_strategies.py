@@ -311,7 +311,8 @@ class TestExampleStrategies:
         ]
 
         if cash_settled_orders.empty:
-            summary = trades_df[["time", "status", "type", "filled_quantity", "price"]].to_dict("records")
+            summary_columns = ["time", "status", "type", "filled_quantity", "price", "quantity", "fill_price"]
+            summary = trades_df.filter(items=summary_columns).to_dict("records")
             pytest.skip(f"No Polygon cash-settlement events captured; trade log snapshot: {summary}")
 
         # The first limit order should have filled at $399.71 and a quantity of 100

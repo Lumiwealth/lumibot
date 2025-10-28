@@ -2,7 +2,7 @@
 
 ## Current State
 - `Asset._determine_continuous_contract_components` applies a fixed mid-month roll: it advances to the next quarterly month when `day >= 15` within Mar/Jun/Sep/Dec. This logic feeds Polygon, Tradovate, and any code that calls `Asset.resolve_continuous_futures_contract_*`.
-- `lumibot/tools/databento_roll.py` introduces a different rule (`LUMIBOT_FUTURES_ROLL_DAYS`, default 7 calendar days before expiration) because DataBento exposes instrument expirations. Pandas and Polars helpers each call into this module.
+- `lumibot/tools/futures_roll.py` introduces a centralized rule engine (defaulting to eight business days before expiration for CME equity index futures). DataBento helpers call into this module, adapting the symbol format they need.
 - ProjectX/Tradovate helpers duplicate the mid-month rule. Tests rely on whichever helper they touch, so mismatched schedules have gone unnoticed.
 - Because asset-level logic does not consult actual expiration dates or exchange calendars, long backtests can lag the front month by weeks, while DataBento fetches hop ahead sooner. The divergence produces the pricing mismatch we observed (MESU5 vs MESZ5).
 
@@ -30,9 +30,9 @@
    - Allow overrides via config file or environment variable (e.g., `LUMIBOT_FUTURES_ROLL_OVERRIDES=MES:business,-8`).
 3. **Expiration Data**
    - Prefer instrument definitions from the data source (DataBento, Tradovate, etc.). Fallback: maintain static expirations for common CME products or derive from `asset.contract_expirations` if provided.
-   - Cache definitions per `(symbol, dataset)` as current `databento_roll` already does.
+   - Cache definitions per `(symbol, dataset)` as current adapters already do.
 4. **Integration Plan**
-   - Refactor `databento_roll.resolve_symbol_for_datetime` to call the central module.
+   - Refactor data-source adapters to call the central module helper.
    - Update `Asset.resolve_continuous_futures_contract*` to rely on the central schedule (so brokers and data sources stay aligned).
    - Remove duplicated mid-month logic from ProjectX/Tradovate helpers once the asset API respects the shared rule.
    - Provide a thin adapter for data sources that need symbol variants (e.g., single-digit year for DataBento).

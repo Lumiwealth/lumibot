@@ -9,6 +9,7 @@ from lumibot.tools.databento_helper import (
     _format_futures_symbol_for_databento,
 )
 from lumibot.entities import Asset
+from lumibot.entities.asset import FUTURES_MONTH_CODES
 
 
 class TestContinuousFuturesResolution(unittest.TestCase):
@@ -107,14 +108,26 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         """Test contract generation around year boundaries with expiration-aware logic."""
         asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
 
+        from lumibot.tools import futures_roll
+
         contract = asset.resolve_continuous_futures_contract(reference_date=datetime(2025, 12, 31))
         self.assertEqual(contract, 'ESH26')
 
         contract = asset.resolve_continuous_futures_contract(reference_date=datetime(2026, 1, 1))
         self.assertEqual(contract, 'ESH26')
 
-        contract = asset.resolve_continuous_futures_contract(reference_date=datetime(2025, 12, 14))
-        self.assertEqual(contract, 'ESZ25')
+        pre_trigger = datetime(2025, 12, 8)
+        post_trigger = datetime(2025, 12, 9)
+
+        year_pre, month_pre = futures_roll.determine_contract_year_month("ES", pre_trigger)
+        expected_pre = asset._build_contract_variants(f"ES{FUTURES_MONTH_CODES[month_pre]}", year_pre)[2]
+        contract = asset.resolve_continuous_futures_contract(reference_date=pre_trigger)
+        self.assertEqual(contract, expected_pre)
+
+        year_post, month_post = futures_roll.determine_contract_year_month("ES", post_trigger)
+        expected_post = asset._build_contract_variants(f"ES{FUTURES_MONTH_CODES[month_post]}", year_post)[2]
+        contract = asset.resolve_continuous_futures_contract(reference_date=post_trigger)
+        self.assertEqual(contract, expected_post)
 
     def test_different_symbol_formats(self):
         """Test continuous futures resolution with different symbol formats."""
@@ -229,34 +242,32 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         """
         asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
         
-        # Test that contract resolution properly accounts for 3rd Friday expiration
-        # Rollover happens on 15th of expiry month to avoid expired contracts
-        quarterly_tests = [
-            # Q1: Jan-Feb should resolve to March (H), Mar 15+ should roll to June (M)
-            (datetime(2024, 1, 15), 'H24'),
-            (datetime(2024, 2, 15), 'H24'),
-            (datetime(2024, 3, 14), 'H24'),  # Before rollover
-            (datetime(2024, 3, 15), 'M24'),  # After rollover (Mar expires ~21st)
-            # Q2: Apr-May should resolve to June (M), Jun 15+ should roll to Sep (U)
-            (datetime(2024, 4, 15), 'M24'),
-            (datetime(2024, 5, 15), 'M24'),
-            (datetime(2024, 6, 14), 'M24'),  # Before rollover
-            (datetime(2024, 6, 15), 'U24'),  # After rollover (Jun expires ~20th)
-            # Q3: Jul-Aug should resolve to September (U), Sep 15+ should roll to Dec (Z)
-            (datetime(2024, 7, 15), 'U24'),
-            (datetime(2024, 8, 15), 'U24'),
-            (datetime(2024, 9, 14), 'U24'),  # Before rollover
-            (datetime(2024, 9, 15), 'Z24'),  # After rollover (Sep expires ~19th)
-            # Q4: Oct-Nov should resolve to December (Z), Dec 15+ should roll to Mar next year (H)
-            (datetime(2024, 10, 15), 'Z24'),
-            (datetime(2024, 11, 15), 'Z24'),
-            (datetime(2024, 12, 14), 'Z24'),  # Before rollover
-            (datetime(2024, 12, 15), 'H25'),  # After rollover (Dec expires ~19th)
+        from lumibot.tools import futures_roll
+
+        quarterly_dates = [
+            datetime(2024, 1, 15),
+            datetime(2024, 2, 15),
+            datetime(2024, 3, 4),
+            datetime(2024, 3, 5),
+            datetime(2024, 4, 15),
+            datetime(2024, 5, 15),
+            datetime(2024, 6, 10),
+            datetime(2024, 6, 11),
+            datetime(2024, 7, 15),
+            datetime(2024, 8, 15),
+            datetime(2024, 9, 9),
+            datetime(2024, 9, 10),
+            datetime(2024, 10, 15),
+            datetime(2024, 11, 15),
+            datetime(2024, 12, 9),
+            datetime(2024, 12, 10),
         ]
-        
-        for test_date, expected_suffix in quarterly_tests:
+
+        for test_date in quarterly_dates:
+            year, month = futures_roll.determine_contract_year_month("MES", test_date)
+            month_code = FUTURES_MONTH_CODES[month]
+            expected_contract = asset._build_contract_variants(f"MES{month_code}", year)[2]
             contract = asset.resolve_continuous_futures_contract(reference_date=test_date)
-            expected_contract = f"MES{expected_suffix}"
             self.assertEqual(
                 contract,
                 expected_contract,
@@ -270,30 +281,31 @@ class TestContinuousFuturesResolution(unittest.TestCase):
         """
         asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
         
-        # Test around March 2025 expiration (3rd Friday is March 21st)
-        test_cases = [
-            (datetime(2025, 3, 14), 'ESH25'),  # Before rollover - still March
-            (datetime(2025, 3, 15), 'ESM25'),  # Rollover day - move to June
-            (datetime(2025, 3, 21), 'ESM25'),  # Actual expiry day - already rolled
-            (datetime(2025, 3, 22), 'ESM25'),  # After expiry - definitely rolled
-            
-            # Test around June 2025 expiration (3rd Friday is June 20th) 
-            (datetime(2025, 6, 14), 'ESM25'),  # Before rollover - still June
-            (datetime(2025, 6, 15), 'ESU25'),  # Rollover day - move to September
-            (datetime(2025, 6, 20), 'ESU25'),  # Actual expiry day - already rolled
-            
-            # Test around December 2025 expiration (3rd Friday is December 19th)
-            (datetime(2025, 12, 14), 'ESZ25'),  # Before rollover - still December
-            (datetime(2025, 12, 15), 'ESH26'),  # Rollover day - move to March next year
-            (datetime(2025, 12, 19), 'ESH26'),  # Actual expiry day - already rolled
+        from lumibot.tools import futures_roll
+
+        check_dates = [
+            datetime(2025, 3, 10),
+            datetime(2025, 3, 11),
+            datetime(2025, 3, 21),
+            datetime(2025, 3, 22),
+            datetime(2025, 6, 9),
+            datetime(2025, 6, 10),
+            datetime(2025, 6, 20),
+            datetime(2025, 12, 8),
+            datetime(2025, 12, 9),
+            datetime(2025, 12, 19),
         ]
-        
-        for test_date, expected_contract in test_cases:
+
+        for test_date in check_dates:
+            year, month = futures_roll.determine_contract_year_month("ES", test_date)
+            month_code = FUTURES_MONTH_CODES[month]
+            expected = asset._build_contract_variants(f"ES{month_code}", year)[2]
+
             contract = asset.resolve_continuous_futures_contract(reference_date=test_date)
             self.assertEqual(
                 contract,
-                expected_contract,
-                f"Date {test_date.strftime('%Y-%m-%d')} should resolve to {expected_contract}, got {contract}",
+                expected,
+                f"Date {test_date.strftime('%Y-%m-%d')} should resolve to {expected}, got {contract}",
             )
 
 

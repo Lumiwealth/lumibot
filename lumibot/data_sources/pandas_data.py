@@ -103,8 +103,8 @@ class PandasData(DataSourceBacktesting):
         df = pd.DataFrame(range(len(dt_index)), index=dt_index)
         df = df.sort_index()
 
-        # Create a column for the date portion only
-        df["dates"] = df.index.date
+        # Create a column for the date portion only (normalize to date, keeping as datetime64 type)
+        df["dates"] = df.index.normalize()
 
         # Merge with the trading calendar on the 'dates' column to get market open/close times.
         # Use a left join to keep all rows from the original index.
@@ -145,7 +145,8 @@ class PandasData(DataSourceBacktesting):
 
         else:
             pcal.columns = ["datetime"]
-            pcal["date"] = pcal["datetime"].dt.date
+            # Normalize to date but keep as datetime64 type (not date objects)
+            pcal["date"] = pcal["datetime"].dt.normalize()
             result = pcal.groupby("date").agg(
                 market_open=(
                     "datetime",
@@ -290,6 +291,8 @@ class PandasData(DataSourceBacktesting):
                 ask=ohlcv_bid_ask_dict.get('ask'),
                 volume=ohlcv_bid_ask_dict.get('volume'),
                 timestamp=dt,
+                bid_size=ohlcv_bid_ask_dict.get('bid_size'),
+                ask_size=ohlcv_bid_ask_dict.get('ask_size'),
                 raw_data=ohlcv_bid_ask_dict
             )
         else:

@@ -142,6 +142,35 @@ def get_price_data_from_polygon(
     if not missing_dates:
         if df_all is not None:
             df_all = df_all.dropna(how="all")
+            # Filter cached data to requested date range before returning
+            if not df_all.empty:
+                # For daily data, use date-based filtering (timestamps vary by provider)
+                # For intraday data, use precise datetime filtering
+                if timespan == "day":
+                    # Convert index to dates for comparison
+                    import pandas as pd
+                    df_dates = pd.to_datetime(df_all.index).date
+                    start_date = start.date() if hasattr(start, 'date') else start
+                    end_date = end.date() if hasattr(end, 'date') else end
+                    mask = (df_dates >= start_date) & (df_dates <= end_date)
+                    df_all = df_all[mask]
+                else:
+                    # Intraday: use precise datetime filtering
+                    import datetime as dt
+                    import pytz
+                    from lumibot import LUMIBOT_DEFAULT_PYTZ
+
+                    # Convert date to datetime if needed
+                    if isinstance(start, dt.date) and not isinstance(start, dt.datetime):
+                        start = dt.datetime.combine(start, dt.time.min)
+                    if isinstance(end, dt.date) and not isinstance(end, dt.datetime):
+                        end = dt.datetime.combine(end, dt.time.max)
+
+                    if start.tzinfo is None:
+                        start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
+                    if end.tzinfo is None:
+                        end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
+                    df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
         return df_all
 
     # Create a PolygonClient and get the symbol for the asset.
@@ -209,6 +238,42 @@ def get_price_data_from_polygon(
     else:
         df_all_output = df_all_full.copy()
     df_all_output = df_all_output.dropna(how="all")
+
+    # Filter cached data to requested date range before returning
+    if not df_all_output.empty:
+        # For daily data, use date-based filtering (timestamps vary by provider)
+        # For intraday data, use precise datetime filtering
+        if timespan == "day":
+            # Convert index to dates for comparison
+            import pandas as pd
+            df_dates = pd.to_datetime(df_all_output.index).date
+            start_date = start.date() if hasattr(start, 'date') else start
+            end_date = end.date() if hasattr(end, 'date') else end
+            mask = (df_dates >= start_date) & (df_dates <= end_date)
+            df_all_output = df_all_output[mask]
+        else:
+            # Intraday: use precise datetime filtering
+            import datetime as dt
+            import pytz
+            from lumibot import LUMIBOT_DEFAULT_PYTZ
+
+            # Convert date to datetime if needed
+            if isinstance(start, dt.date) and not isinstance(start, dt.datetime):
+                start = dt.datetime.combine(start, dt.time.min)
+            if isinstance(end, dt.date) and not isinstance(end, dt.datetime):
+                end = dt.datetime.combine(end, dt.time.max)
+
+            # Handle datetime objects with midnight time (users often pass datetime(YYYY, MM, DD))
+            if isinstance(end, dt.datetime) and end.time() == dt.time.min:
+                # Convert end-of-period midnight to end-of-day
+                end = dt.datetime.combine(end.date(), dt.time.max)
+
+            if start.tzinfo is None:
+                start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
+            if end.tzinfo is None:
+                end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
+            df_all_output = df_all_output[(df_all_output.index >= start) & (df_all_output.index <= end)]
+
     return df_all_output
 
 

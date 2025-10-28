@@ -249,6 +249,10 @@ class Asset:
         if asset_type == self.AssetType.OPTION:
             self.multiplier = 100
 
+        # Note: Futures multipliers should be fetched from data provider (e.g., DataBento)
+        # at the data source level, not hardcoded here. The Asset class accepts multiplier
+        # as a parameter if the data source provides it.
+
         # Make sure right is upper case
         if right is not None:
             self.right = right.upper()
@@ -706,6 +710,10 @@ class Asset:
         """Return base symbol, target year/month, and effective reference date."""
         if reference_date is None:
             reference_date = datetime.now()
+
+        # import logging
+        # logger = logging.getLogger(__name__)
+        # logger.info(f"[CONTRACT RESOLUTION] symbol={self.symbol}, reference_date={reference_date}, month={reference_date.month}, day={reference_date.day}")
 
         current_month = reference_date.month
         current_year = reference_date.year

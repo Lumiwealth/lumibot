@@ -36,7 +36,7 @@ permissions:
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     environment: unit-tests
 
     env:

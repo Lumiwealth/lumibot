@@ -107,6 +107,86 @@ DataBento supports a wide range of instruments:
     gc = Asset("GC", asset_type=Asset.AssetType.CONT_FUTURE)   # Gold
     ng = Asset("NG", asset_type=Asset.AssetType.CONT_FUTURE)   # Natural Gas
 
+Futures-Specific Features
+--------------------------
+
+When backtesting futures with DataBento, Lumibot provides several specialized features:
+
+**Automatic Multiplier Detection:**
+
+Futures contract multipliers are automatically fetched from DataBento's definition schema:
+
+.. code-block:: python
+
+    # MES multiplier is automatically detected as 5
+    mes = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    # When you trade MES:
+    # - 1 point move = $5 P&L per contract
+    # - 10 contracts at +2 points = +$100 total P&L
+
+Lumibot fetches contract specifications from DataBento including:
+
+- Contract multiplier (e.g., 5 for MES, 50 for ES)
+- Tick size and value
+- Contract unit of measure
+- Settlement type
+
+This information is cached to avoid repeated API calls.
+
+**Mark-to-Market Accounting:**
+
+DataBento backtests use mark-to-market accounting that matches real futures trading:
+
+.. code-block:: python
+
+    # Example: Trading 1 MES contract
+    # Starting capital: $100,000
+
+    # BUY 1 MES @ $5,000
+    # - Initial margin deducted: ~$1,300
+    # - Cash: $98,700
+
+    # Price moves to $5,010 (up 10 points)
+    # - Mark-to-market: +10 points × $5 = +$50
+    # - Cash: $98,750 (includes unrealized P&L)
+
+    # SELL 1 MES @ $5,010
+    # - Margin released: +$1,300
+    # - Final P&L already in cash
+    # - Cash: $100,050
+
+Key accounting features:
+
+1. **Entry**: Initial margin is deducted from cash (not full notional value)
+2. **During Trade**: Cash is updated every iteration with unrealized P&L changes
+3. **Exit**: Margin is released and final P&L settlement applied
+
+This ensures:
+
+- Cash always shows available buying power
+- Portfolio value = Cash (includes all unrealized P&L)
+- Leverage tracking is accurate
+- Results match real broker accounting
+
+For more details on futures accounting, see the :doc:`futures` documentation.
+
+**Symbol Resolution:**
+
+DataBento automatically handles symbol resolution for continuous futures:
+
+.. code-block:: python
+
+    # You specify the root symbol
+    mes = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    # DataBento resolves to actual contracts:
+    # - For Jan 2024: MESH4 (March 2024 expiry)
+    # - For Apr 2024: MESM4 (June 2024 expiry)
+    # - Seamless rollover handling
+
+This makes backtesting across multiple years seamless without managing contract expirations.
+
 **Options** (when supported)
 
 .. code-block:: python

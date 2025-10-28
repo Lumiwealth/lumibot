@@ -72,17 +72,19 @@ class PolarsMixin:
 
     def _get_data_lazy(self, asset: Asset) -> Optional[pl.LazyFrame]:
         """Get lazy frame for asset.
-        
+
         Parameters
         ----------
-        asset : Asset
-            The asset to get data for
-            
+        asset : Asset or tuple
+            The asset to get data for (can be a tuple of (asset, quote))
+
         Returns
         -------
         Optional[pl.LazyFrame]
             The lazy frame or None if not found
         """
+        # CRITICAL FIX: Handle both Asset and (Asset, quote) tuple keys
+        # The data store uses tuple keys (asset, quote), so we need to look up by that key
         return self._data_store.get(asset)
 
     def _parse_source_symbol_bars_polars(
@@ -95,7 +97,7 @@ class PolarsMixin:
         return_polars: bool = False
     ) -> Bars:
         """Parse bars from polars DataFrame.
-        
+
         Parameters
         ----------
         response : pl.DataFrame
@@ -108,7 +110,7 @@ class PolarsMixin:
             The quote asset for forex/crypto
         length : Optional[int]
             Limit the number of bars
-            
+
         Returns
         -------
         Bars
@@ -120,6 +122,21 @@ class PolarsMixin:
         # Limit length if specified
         if length and len(response) > length:
             response = response.tail(length)
+
+        # Filter to only keep OHLCV + datetime columns (remove DataBento metadata like rtype, publisher_id, etc.)
+        # Required columns for strategies
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        optional_cols = ['datetime', 'timestamp', 'date', 'time', 'dividend', 'stock_splits', 'symbol']
+
+        # Determine which columns to keep
+        keep_cols = []
+        for col in response.columns:
+            if col in required_cols or col in optional_cols:
+                keep_cols.append(col)
+
+        # Select only the relevant columns
+        if keep_cols:
+            response = response.select(keep_cols)
 
         # Create bars object
         bars = Bars(response, source, asset, raw=response, quote=quote, return_polars=return_polars)
@@ -209,22 +226,45 @@ class PolarsMixin:
         self._last_price_cache[cache_key] = price
 
     def _convert_datetime_for_filtering(self, dt: Any) -> datetime:
-        """Convert datetime to naive datetime for filtering.
-        
+        """Convert datetime to naive UTC datetime for filtering.
+
+        CRITICAL FIX: Must convert to UTC BEFORE stripping timezone!
+        If we strip timezone from ET datetime, we lose 5 hours of data.
+
+        Example:
+        - Input: 2024-01-02 18:00:00-05:00 (ET)
+        - Convert to UTC: 2024-01-02 23:00:00+00:00
+        - Strip timezone: 2024-01-02 23:00:00 (naive UTC)
+
+        OLD BUGGY CODE:
+        - Input: 2024-01-02 18:00:00-05:00 (ET)
+        - Strip timezone: 2024-01-02 18:00:00 (naive, loses timezone!)
+        - Compare to cached data in naive UTC: WRONG by 5 hours!
+
         Parameters
         ----------
         dt : Any
             Datetime-like object
-            
+
         Returns
         -------
         datetime
-            Naive datetime object
+            Naive UTC datetime object
         """
-        if hasattr(dt, 'tz_localize'):
-            return dt.tz_localize(None)
+        from datetime import timezone
+
+        # First convert to UTC if timezone-aware
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            # Convert to UTC
+            dt_utc = dt.astimezone(timezone.utc)
+            # Then strip timezone
+            return dt_utc.replace(tzinfo=None)
+        elif hasattr(dt, 'tz_localize'):
+            # Pandas Timestamp
+            return dt.tz_convert('UTC').tz_localize(None)
         elif hasattr(dt, 'replace'):
-            return dt.replace(tzinfo=None)
+            # Already naive
+            return dt
         else:
             return dt
 
@@ -283,10 +323,11 @@ class PolarsMixin:
         lazy_data: pl.LazyFrame,
         end_filter: datetime,
         length: int,
-        timestep: str = "minute"
+        timestep: str = "minute",
+        use_strict_less_than: bool = False
     ) -> Optional[pl.DataFrame]:
         """Filter data up to end_filter and return last length rows.
-        
+
         Parameters
         ----------
         asset : Asset
@@ -299,14 +340,22 @@ class PolarsMixin:
             Number of rows to return
         timestep : str
             Timestep for caching strategy
-            
+        use_strict_less_than : bool
+            If True, use < instead of <= for filtering (matches Pandas behavior without timeshift)
+
         Returns
         -------
         Optional[pl.DataFrame]
             Filtered dataframe or None
         """
+        # DEBUG
+        logger.debug(f"[POLARS FILTER] end_filter={end_filter}, tzinfo={end_filter.tzinfo if hasattr(end_filter, 'tzinfo') else 'N/A'}, length={length}")
+
         # Convert end_filter to naive
         end_filter_naive = self._convert_datetime_for_filtering(end_filter)
+
+        # DEBUG
+        logger.debug(f"[POLARS FILTER] end_filter_naive={end_filter_naive}")
 
         # For daily timestep, use caching
         if timestep == "day":
@@ -335,11 +384,37 @@ class PolarsMixin:
                 return None
 
             # Filter and collect
+            # CRITICAL FIX: Keep timezone info! Match the DataFrame's timezone
+            # Get the DataFrame column's timezone from schema
+            dt_dtype = schema[dt_col]
+
+            # Convert filter to match DataFrame's timezone
+            if hasattr(dt_dtype, 'time_zone') and dt_dtype.time_zone:
+                # DataFrame has timezone, convert filter to match
+                import pytz
+                df_tz = pytz.timezone(dt_dtype.time_zone)
+                end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
+            else:
+                # DataFrame is naive, use UTC
+                from datetime import timezone as tz
+                end_filter_with_tz = datetime.combine(
+                    end_filter_naive.date(),
+                    end_filter_naive.time(),
+                    tzinfo=tz.utc
+                )
+
+            # CRITICAL FIX: Deduplicate before caching
+            # Use < or <= based on use_strict_less_than flag
+            if use_strict_less_than:
+                filter_expr = pl.col(dt_col) < end_filter_with_tz
+            else:
+                filter_expr = pl.col(dt_col) <= end_filter_with_tz
+
             result = (
                 lazy_data
-                .with_columns(pl.col(dt_col).cast(pl.Datetime("us")))
-                .filter(pl.col(dt_col) <= end_filter_naive)
+                .filter(filter_expr)
                 .sort(dt_col)
+                .unique(subset=[dt_col], keep='last', maintain_order=True)
                 .tail(fetch_length)
                 .collect()
             )
@@ -362,11 +437,41 @@ class PolarsMixin:
                 logger.error("No datetime column found")
                 return None
 
-            return (
+            # CRITICAL FIX: Keep timezone info during filtering!
+            # Match the DataFrame's timezone to avoid comparison errors
+            # Get the DataFrame column's timezone from schema
+            dt_dtype = schema[dt_col]
+
+            # Convert filter to match DataFrame's timezone
+            if hasattr(dt_dtype, 'time_zone') and dt_dtype.time_zone:
+                # DataFrame has timezone, convert filter to match
+                import pytz
+                df_tz = pytz.timezone(dt_dtype.time_zone)
+                end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
+            else:
+                # DataFrame is naive, use UTC
+                from datetime import timezone as tz
+                end_filter_with_tz = datetime.combine(
+                    end_filter_naive.date(),
+                    end_filter_naive.time(),
+                    tzinfo=tz.utc
+                )
+
+            # CRITICAL FIX: Deduplicate before returning
+            # Sometimes lazy operations can create duplicates
+            # Use < or <= based on use_strict_less_than flag
+            if use_strict_less_than:
+                filter_expr = pl.col(dt_col) < end_filter_with_tz
+            else:
+                filter_expr = pl.col(dt_col) <= end_filter_with_tz
+
+            result = (
                 lazy_data
-                .with_columns(pl.col(dt_col).cast(pl.Datetime("us")))
-                .filter(pl.col(dt_col) <= end_filter_naive)
+                .filter(filter_expr)
                 .sort(dt_col)
+                .unique(subset=[dt_col], keep='last', maintain_order=True)
                 .tail(length)
                 .collect()
             )
+
+            return result

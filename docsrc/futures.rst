@@ -178,31 +178,226 @@ Here's a complete example of a futures trading strategy using continuous futures
                     order = self.create_order(self.asset, self.order_size, "sell")
                     self.submit_order(order)
 
+Futures Accounting and Mark-to-Market
+======================================
+
+Lumibot uses **mark-to-market accounting** for futures contracts, which accurately reflects how futures are settled in real trading. Understanding this is crucial for proper risk management and strategy development.
+
+How Futures Accounting Works
+-----------------------------
+
+Unlike stocks where you pay the full notional value, futures use a **margin-based system**:
+
+**Entry (Opening a Position):**
+
+When you buy or sell a futures contract:
+
+- **Initial margin** is deducted from your cash
+- Initial margin is typically $1,300-$13,000 depending on contract size
+- This is NOT the full contract value (which could be $100,000+)
+- Your cash decreases by the margin amount
+
+**During the Trade (Mark-to-Market):**
+
+Every trading iteration (or daily in real trading):
+
+- Your position is "marked to market" using the current price
+- Unrealized P&L changes are applied directly to your cash
+- If the position moves in your favor, cash increases
+- If the position moves against you, cash decreases
+- This happens continuously throughout the life of the trade
+
+**Exit (Closing a Position):**
+
+When you close your position:
+
+- Final mark-to-market adjustment is applied to cash
+- Initial margin is released back to your available cash
+- Most P&L is already reflected in cash from mark-to-market updates
+
+Cash Flow Example
+-----------------
+
+Here's a concrete example trading 1 contract of MES (Micro E-mini S&P 500):
+
+.. code-block:: python
+
+    # Starting capital: $100,000
+
+    # Buy 1 MES contract at $5,000
+    # - Deduct $1,300 margin
+    # Cash: $98,700
+    # Position: Long 1 MES @ $5,000
+
+    # Price moves to $5,010 (up 10 points)
+    # - Mark-to-market: +10 points × $5 multiplier = +$50
+    # Cash: $98,750
+    # Portfolio Value: $98,750
+
+    # Price moves to $5,005 (down 5 points from peak)
+    # - Mark-to-market: -5 points × $5 multiplier = -$25
+    # Cash: $98,725
+    # Portfolio Value: $98,725
+
+    # Sell 1 MES at $5,005 (exit)
+    # - Final settlement (already at $5,005 from last mark)
+    # - Release $1,300 margin
+    # Cash: $100,025
+    # Net P&L: +$25 (5 points × $5 multiplier)
+
+Key Concepts
+------------
+
+**Initial Margin:**
+
+The amount required to open a position. Typical values:
+
+- MES (Micro E-mini S&P): ~$1,300
+- MNQ (Micro E-mini NASDAQ): ~$1,700
+- ES (E-mini S&P): ~$13,000
+- NQ (E-mini NASDAQ): ~$17,000
+
+**Mark-to-Market Settlement:**
+
+- Your cash balance reflects unrealized P&L in real-time
+- No separate "unrealized P&L" tracking needed
+- Portfolio value = Cash (which includes all P&L)
+
+**Leverage Tracking:**
+
+Because margin is deducted from cash, you can easily track leverage:
+
+- Available cash = Total capital - margins in use ± unrealized P&L
+- Used margin = Number of contracts × margin per contract
+- Max contracts = Available cash ÷ margin per contract
+
+**Important Differences from Stocks:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Aspect
+     - Stocks
+     - Futures
+   * - Entry cost
+     - Full notional value
+     - Initial margin only
+   * - Cash during trade
+     - Unchanged
+     - Changes with P&L
+   * - Portfolio value
+     - Cash + position value
+     - Cash (includes P&L)
+   * - Leverage
+     - Limited
+     - High leverage possible
+
+Example: Tracking Available Buying Power
+-----------------------------------------
+
+.. code-block:: python
+
+    class MarginAwareFuturesStrategy(Strategy):
+        def initialize(self):
+            self.asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+            self.max_leverage = 0.5  # Use max 50% of capital for margins
+
+        def on_trading_iteration(self):
+            # Get current cash (includes unrealized P&L from mark-to-market)
+            available_cash = self.get_cash()
+
+            # MES requires ~$1,300 margin per contract
+            margin_per_contract = 1300
+
+            # Calculate max contracts based on leverage limit
+            portfolio_value = self.get_portfolio_value()
+            max_margin_to_use = portfolio_value * self.max_leverage
+            max_contracts = int(max_margin_to_use / margin_per_contract)
+
+            # Check current positions
+            position = self.get_position(self.asset)
+            current_contracts = abs(position.quantity) if position else 0
+
+            # Calculate available capacity
+            available_contracts = max_contracts - current_contracts
+
+            self.log_message(
+                f"Portfolio: ${portfolio_value:,.0f}, "
+                f"Available Cash: ${available_cash:,.0f}, "
+                f"Current Contracts: {current_contracts}, "
+                f"Available Capacity: {available_contracts}"
+            )
+
+            # Your trading logic using available_contracts...
+
+Why Mark-to-Market Matters
+---------------------------
+
+**Accurate Risk Management:**
+
+- You always know exactly how much buying power you have
+- Cash reflects current position value in real-time
+- Easy to calculate maximum position sizes
+
+**Margin Calls:**
+
+- If your cash falls below maintenance margin levels, you'd get a margin call
+- Mark-to-market shows this in real-time, not just at trade exit
+
+**Portfolio Tracking:**
+
+- Portfolio value accurately reflects all open positions
+- No hidden unrealized P&L that might surprise you
+- Backtesting results match real trading behavior
+
+**Multiple Positions:**
+
+- When trading multiple futures contracts, total margin usage is clear
+- Cash shows exact available capital after all positions
+
+Technical Details
+-----------------
+
+The mark-to-market implementation in Lumibot:
+
+- Runs before each ``on_trading_iteration()`` call
+- Calculates price changes since last mark-to-market
+- Applies P&L changes directly to cash
+- Tracks each position's last mark-to-market price
+- Handles position entries, exits, and adjustments correctly
+
+This ensures that your strategy's cash and portfolio value always reflect the true state of your futures positions, just like in real futures trading.
+
 Best Practices
 ==============
 
 1. **Use Continuous Futures for Backtesting**
-   
+
    Continuous futures eliminate expiration complexity and provide cleaner backtests.
 
 2. **Use Auto-Expiry for Live Trading**
-   
+
    When live trading, auto-expiry ensures you're always trading the most liquid front month contract.
 
 3. **Consider Contract Size**
-   
+
    Micro contracts (MES, MNQ, M2K) require less capital than full-size contracts (ES, NQ, RTY).
 
 4. **Monitor Margin Requirements**
-   
-   Futures require margin, which varies by contract and broker. Always check your margin requirements.
 
-5. **Handle Trading Hours**
-   
+   Futures require margin, which varies by contract and broker. Always check your margin requirements before trading.
+
+5. **Understand Mark-to-Market**
+
+   Your cash balance changes with position P&L in real-time. This is normal for futures and helps track leverage accurately.
+
+6. **Handle Trading Hours**
+
    Futures trade nearly 24 hours. Be aware of market hours and liquidity patterns.
 
-6. **Risk Management**
-   
+7. **Risk Management**
+
    Futures use leverage, so implement proper risk management with stop losses and position sizing.
 
 Example with Risk Management

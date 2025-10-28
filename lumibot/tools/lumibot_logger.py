@@ -656,11 +656,18 @@ def _ensure_handlers_configured():
 
     # Determine the effective file (root) log level and console level
     if is_backtesting:
-        console_level = logging.ERROR
         backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
         if backtesting_quiet is None:
             backtesting_quiet = "true"
-        effective_log_level = logging.ERROR if backtesting_quiet.lower() == "true" else log_level
+
+        if backtesting_quiet.lower() == "true":
+            # Quiet mode: only ERROR+ messages to console and file
+            console_level = logging.ERROR
+            effective_log_level = logging.ERROR
+        else:
+            # Verbose mode: respect LUMIBOT_LOG_LEVEL for both console and file
+            console_level = log_level
+            effective_log_level = log_level
     else:
         console_level = log_level
         effective_log_level = log_level
@@ -851,27 +858,35 @@ def set_log_level(level: str):
         # Get the actual lumibot root logger
         root_logger = logging.getLogger("lumibot")
         root_logger.setLevel(log_level)
-        
-        # Update handlers but respect console handler's ERROR level during backtesting
+
+        # Update handlers with respect to backtesting quiet logs setting
         is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-        
+
         if is_backtesting:
-            # During backtesting, we need special handling to ensure console stays quiet
-            # Set root logger to allow messages through (for file logging)
-            root_logger.setLevel(log_level)
-            
-            # But ensure ALL console handlers stay at ERROR level
-            for handler in root_logger.handlers:
-                if isinstance(handler, logging.StreamHandler):
-                    handler.setLevel(logging.ERROR)
-            
-            # Don't update individual logger levels - this would bypass handler filtering
+            # Check if quiet logs are enabled
+            backtesting_quiet = os.environ.get("BACKTESTING_QUIET_LOGS")
+            if backtesting_quiet is None:
+                backtesting_quiet = "true"
+
+            if backtesting_quiet.lower() == "true":
+                # Quiet mode: console stays at ERROR, but allow file handlers to use requested level
+                root_logger.setLevel(log_level)
+                for handler in root_logger.handlers:
+                    if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                        handler.setLevel(logging.ERROR)  # Console: quiet
+                    else:
+                        handler.setLevel(log_level)  # File handlers: verbose
+            else:
+                # Verbose mode: respect requested level for all handlers
+                root_logger.setLevel(log_level)
+                for handler in root_logger.handlers:
+                    handler.setLevel(log_level)
         else:
-            # For live trading, set everything normally
+            # Live trading: set everything normally
             root_logger.setLevel(log_level)
             for handler in root_logger.handlers:
                 handler.setLevel(log_level)
-            
+
             # Update all existing loggers in our registry
             for logger in _logger_registry.values():
                 logger.setLevel(log_level)

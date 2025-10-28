@@ -28,10 +28,10 @@ from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 
-class DataBentoDataPolars(PolarsMixin, DataSource):
+class DataBentoDataPolarsLive(PolarsMixin, DataSource):
     """
     DataBento data source optimized with Polars and proper Live API usage.
-    
+
     Uses Live API for real-time trade streaming to achieve <1 minute lag.
     Falls back to Historical API for older data.
     """

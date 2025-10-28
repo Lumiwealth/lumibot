@@ -75,15 +75,15 @@ class TestQuietLogsRequirements:
         assert console_handlers[0].level == logging.ERROR, "Console should stay ERROR after set_log_level"
     
     def test_requirement_1_console_always_error_during_backtest_quiet_false(self):
-        """Console should only show ERROR+ during backtesting when BACKTESTING_QUIET_LOGS=false"""
+        """Console should show INFO+ during backtesting when BACKTESTING_QUIET_LOGS=false"""
         os.environ["IS_BACKTESTING"] = "true"
         os.environ["BACKTESTING_QUIET_LOGS"] = "false"
-        
+
         from lumibot.tools.lumibot_logger import get_strategy_logger, _ensure_handlers_configured
-        
+
         # Ensure handlers are configured
         _ensure_handlers_configured()
-        
+
         root_logger = logging.getLogger("lumibot")
         console_handlers = [h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)]
         if not console_handlers:
@@ -91,7 +91,7 @@ class TestQuietLogsRequirements:
             sh.setLevel(root_logger.level)
             root_logger.addHandler(sh)
             console_handlers = [sh]
-        assert console_handlers[0].level == logging.ERROR, "Console should be ERROR level even with quiet_logs=false"
+        assert console_handlers[0].level == logging.INFO, "Console should be INFO level when quiet_logs=false"
     
     def test_requirement_2_file_logging_quiet_true(self):
         """File logging should be ERROR+ when BACKTESTING_QUIET_LOGS=true"""

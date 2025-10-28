@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import Union
 
+import logging
 import pandas as pd
 import subprocess
 from datetime import date, timedelta
@@ -8,6 +9,8 @@ from datetime import date, timedelta
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
+
+logger = logging.getLogger(__name__)
 
 
 START_BUFFER = timedelta(days=5)
@@ -17,6 +20,9 @@ class ThetaDataBacktesting(PandasData):
     """
     Backtesting implementation of ThetaData
     """
+
+    # Enable fallback to last_price when bid/ask quotes are unavailable for options
+    option_quote_fallback_allowed = True
 
     def __init__(
         self,
@@ -28,7 +34,9 @@ class ThetaDataBacktesting(PandasData):
         use_quote_data=True,
         **kwargs,
     ):
-        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, **kwargs)
+        # Pass allow_option_quote_fallback to parent to enable fallback mechanism
+        super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
+                         allow_option_quote_fallback=True, **kwargs)
 
         self._username       = username
         self._password       = password
@@ -83,6 +91,12 @@ class ThetaDataBacktesting(PandasData):
         dict
             A dictionary with the keys being the asset and the values being the PandasData objects.
         """
+        # DEBUG: Log when strike 157 is requested
+        if hasattr(asset, 'strike') and asset.strike == 157:
+            import traceback
+            logger.info(f"\n[DEBUG STRIKE 157] _update_pandas_data called for asset: {asset}")
+            logger.info(f"[DEBUG STRIKE 157] Traceback:\n{''.join(traceback.format_stack())}")
+
         search_asset = asset
         asset_separated = asset
         quote_asset = quote if quote is not None else Asset("USD", "forex")
@@ -160,13 +174,16 @@ class ThetaDataBacktesting(PandasData):
                 timespan=ts_unit,
                 quote_asset=quote_asset,
                 dt=date_time_now,
-                datastyle="ohlc"
+                datastyle="ohlc",
+                include_after_hours=True  # Default to True for extended hours data
             )
             if df_ohlc is None:
                 logger.info(f"\nSKIP: No OHLC data found for {asset_separated} from ThetaData")
                 return None
 
-            if self._use_quote_data:
+            # Quote data (bid/ask) is only available for intraday data (minute, hour, second)
+            # For daily+ data, only use OHLC
+            if self._use_quote_data and ts_unit in ["minute", "hour", "second"]:
                 # Get quote data from ThetaData
                 df_quote = thetadata_helper.get_price_data(
                     self._username,
@@ -177,7 +194,8 @@ class ThetaDataBacktesting(PandasData):
                     timespan=ts_unit,
                     quote_asset=quote_asset,
                     dt=date_time_now,
-                    datastyle="quote"
+                    datastyle="quote",
+                    include_after_hours=True  # Default to True for extended hours data
                 )
 
                 # Check if we have data
@@ -185,8 +203,21 @@ class ThetaDataBacktesting(PandasData):
                     logger.info(f"\nSKIP: No QUOTE data found for {quote_asset} from ThetaData")
                     return None
 
-                # Combine the ohlc and quote data
-                df = pd.concat([df_ohlc, df_quote], axis=1, join='inner')
+                # Combine the ohlc and quote data using outer join to preserve all data
+                # Use forward fill for missing quote values (ThetaData's recommended approach)
+                df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
+
+                # Forward fill missing quote values
+                quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
+                existing_quote_cols = [col for col in quote_columns if col in df.columns]
+                if existing_quote_cols:
+                    df[existing_quote_cols] = df[existing_quote_cols].fillna(method='ffill')
+
+                    # Log how much forward filling occurred
+                    if 'bid' in df.columns and 'ask' in df.columns:
+                        remaining_nulls = df[['bid', 'ask']].isna().sum().sum()
+                        if remaining_nulls > 0:
+                            logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
             else:
                 df = df_ohlc
 
@@ -288,8 +319,7 @@ class ThetaDataBacktesting(PandasData):
 
     def get_chains(self, asset):
         """
-        Integrates the ThetaData client library into the LumiBot backtest for Options Data in the same
-        structure as Interactive Brokers options chain data
+        Get option chains using cached implementation (matches Polygon pattern).
 
         Parameters
         ----------
@@ -298,40 +328,31 @@ class ThetaDataBacktesting(PandasData):
 
         Returns
         -------
-        dictionary:
-            A dictionary nested with a dictionary of ThetaData Option Contracts information broken out by Exchange,
-            with embedded lists for Expirations and Strikes.
-            {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-
-            - `TradingClass` (str) eg: `FB`
-            - `Multiplier` (str) eg: `100`
-            - `Expirations` (list of str) eg: [`20230616`, ...]
-            - `Strikes` (list of floats) eg: [`100.0`, ...]
+        Chains:
+            A Chains entity object (dict subclass) with the structure:
+            {
+                "Multiplier": 100,
+                "Exchange": "SMART",
+                "Chains": {
+                    "CALL": {
+                        "2023-07-31": [100.0, 101.0, ...],
+                        ...
+                    },
+                    "PUT": {
+                        "2023-07-31": [100.0, 101.0, ...],
+                        ...
+                    }
+                }
+            }
         """
+        from lumibot.entities import Chains
 
-        # All Option Contracts | get_chains matching IBKR |
-        # {'SMART': {'TradingClass': 'SPY', 'Multiplier': 100, 'Expirations': [], 'Strikes': []}}
-        option_contracts = {"SMART": {"TradingClass": None, "Multiplier": None, "Expirations": [], "Strikes": []}}
-        contracts = option_contracts["SMART"]  # initialize contracts
-        today = self.get_datetime().date()
+        chains_dict = thetadata_helper.get_chains_cached(
+            username=self._username,
+            password=self._password,
+            asset=asset,
+            current_date=self.get_datetime().date()
+        )
 
-        # Get expirations from thetadata_helper
-        expirations = thetadata_helper.get_expirations(self._username, self._password, asset.symbol, today)
-
-        # Get the first of the expirations and convert to datetime
-        expiration = expirations[0].replace("-", "")
-        expiration_dt = date(int(expiration[:4]), int(expiration[4:6]), int(expiration[6:8]))
-
-        # Get strikes from thetadata_helper
-        strikes = thetadata_helper.get_strikes(self._username, self._password, asset.symbol, expiration_dt)
-
-        # Add the data to the contracts dictionary
-        contracts["TradingClass"] = asset.symbol
-        contracts["Multiplier"] = 100
-        contracts["Expirations"] = expirations
-        contracts["Strikes"] = strikes
-
-        # Add the data to the option_contracts dictionary
-        option_contracts["SMART"] = contracts
-
-        return option_contracts
+        # Wrap in Chains entity for modern API
+        return Chains(chains_dict)

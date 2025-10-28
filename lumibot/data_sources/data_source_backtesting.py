@@ -68,11 +68,9 @@ class DataSourceBacktesting(DataSource, ABC):
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
         self._config = config
 
-        # If false, we don't show the progress bar
-        # Also disable progress bar if BACKTESTING_QUIET_LOGS is enabled
-        import os
-        quiet_logs_enabled = os.environ.get("BACKTESTING_QUIET_LOGS", "").lower() == "true"
-        self._show_progress_bar = show_progress_bar and not quiet_logs_enabled
+        # Progress bar should always show when enabled, regardless of quiet_logs
+        # Quiet logs only affects INFO/WARNING/ERROR logging, not progress bar
+        self._show_progress_bar = show_progress_bar
 
         self._progress_csv_path = "logs/progress.csv"
         # Add initialization for the logging timer attribute

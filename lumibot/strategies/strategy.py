@@ -374,11 +374,10 @@ class Strategy(_Strategy):
             # Send the message to Discord
             self.send_discord_message(message)
 
-        # If we are backtesting and we don't want to save the logfile, don't log (they're not displayed in the console anyway)
-        if not self.save_logfile and self.is_backtesting:
-            return
-
-        # Check if INFO level is enabled before logging
+        # Performance optimization: skip logging if INFO is not enabled
+        # This respects BACKTESTING_QUIET_LOGS via StrategyLoggerAdapter.isEnabledFor()
+        # When BACKTESTING_QUIET_LOGS=true (default), this returns False and saves CPU cycles
+        # When BACKTESTING_QUIET_LOGS=false, this returns True and logs are displayed
         if not self.logger.isEnabledFor(logging.INFO):
             return
 
@@ -4411,7 +4410,7 @@ class Strategy(_Strategy):
         save_logfile: bool = False,
         thetadata_username: str = None,
         thetadata_password: str = None,
-        use_quote_data: bool = False,
+        use_quote_data: bool = True,  # Changed to True for ThetaData options support
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
         trader_class: Type[Trader] = Trader,

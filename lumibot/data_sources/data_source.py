@@ -72,9 +72,30 @@ class DataSource(ABC):
         # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
         self._greeks_cache = {}
 
+        # Thread pool for parallel operations - reuse to avoid creation/destruction overhead
+        self._thread_pool = None
+        self._thread_pool_max_workers = kwargs.get('max_workers', 10)
+
+        # Dividend cache for backtest performance
+        self._dividend_cache = {}  # {asset: {date: dividend_value}}
+        self._dividend_cache_enabled = kwargs.get('cache_dividends', True)
+
         # Ensure the instance has an explicit attribute for fallback behaviour
         if not hasattr(self, "option_quote_fallback_allowed"):
             self.option_quote_fallback_allowed = False
+
+    def _get_or_create_thread_pool(self):
+        """Get or create the thread pool for parallel operations"""
+        if self._thread_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self._thread_pool = ThreadPoolExecutor(max_workers=self._thread_pool_max_workers)
+        return self._thread_pool
+
+    def shutdown(self):
+        """Cleanup thread pool resources"""
+        if self._thread_pool is not None:
+            self._thread_pool.shutdown(wait=True)
+            self._thread_pool = None
 
     # ========Required Implementations ======================
     @abstractmethod
@@ -396,10 +417,11 @@ class DataSource(ABC):
         chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 
         results = {}
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
-            for future in as_completed(futures):
-                results.update(future.result())
+        # Reuse thread pool to avoid creation/destruction overhead
+        executor = self._get_or_create_thread_pool()
+        futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
+        for future in as_completed(futures):
+            results.update(future.result())
 
         return results
 
@@ -432,9 +454,56 @@ class DataSource(ABC):
         return bars.get_last_dividend()
 
     def get_yesterday_dividends(self, assets, quote=None):
-        """Return dividend per share for a list of
-        assets for the day before"""
+        """Return dividend per share for a list of assets for the day before.
+
+        For backtesting, this method caches all dividend data to avoid repeated API calls.
+        On the first call for an asset, it fetches ALL historical dividend data and caches it.
+        Subsequent calls use the cache.
+        """
         result = {}
+
+        # For backtesting with dividends, use an efficient caching strategy
+        if hasattr(self, '_datetime') and self._datetime:
+            current_date = self._datetime.date() if hasattr(self._datetime, 'date') else self._datetime
+
+            # Process each asset
+            for asset in assets:
+                # Check if we've already cached ALL dividends for this asset
+                if asset not in self._dividend_cache:
+                    # First time seeing this asset - fetch ALL its historical data and cache dividends
+                    # Get enough bars to cover the entire backtest period
+                    # Most backtests are < 1000 days, fetch 2000 to be safe
+                    try:
+                        bars = self.get_bars([asset], 2000, timestep="day", quote=quote).get(asset)
+
+                        # Extract all dividends from the bars and store by date
+                        asset_dividends = {}
+                        if bars is not None and hasattr(bars, 'df') and 'dividend' in bars.df.columns:
+                            # Store dividend for each date
+                            for idx, row in bars.df.iterrows():
+                                date = idx.date() if hasattr(idx, 'date') else idx
+                                dividend_val = row.get('dividend', 0)
+                                if dividend_val and dividend_val > 0:
+                                    asset_dividends[date] = dividend_val
+
+                        # Cache the dividend dict for this asset
+                        self._dividend_cache[asset] = asset_dividends
+                    except Exception as e:
+                        # If fetching fails, cache empty dict to avoid repeated failures
+                        self._dividend_cache[asset] = {}
+
+                # Now look up the dividend for yesterday
+                asset_dividends = self._dividend_cache.get(asset, {})
+                from datetime import timedelta
+                yesterday = current_date - timedelta(days=1)
+
+                # Find dividend for yesterday (or 0 if none)
+                dividend = asset_dividends.get(yesterday, 0)
+                result[asset] = dividend
+
+            return AssetsMapping(result)
+
+        # Fallback to normal flow for non-backtesting
         assets_bars = self.get_bars(assets, 1, timestep="day", quote=quote)
         for asset, bars in assets_bars.items():
             if bars is not None:

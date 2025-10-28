@@ -555,7 +555,11 @@ class Alpaca(Broker):
 
         # Handle None quantity - skip invalid orders
         if qty_value is None:
-            logger.warning(f"Skipping order {identifier_value} - quantity is None (invalid order data from Alpaca)")
+            logger.warning(
+                f"Skipping order {identifier_value} - quantity is None (invalid order data from Alpaca). "
+                f"Order details: symbol={symbol}, side={side_value}, status={status_value}, "
+                f"order_type={order_type_value}, raw_data={resp_raw}"
+            )
             return None
 
         # Construct Order object
@@ -1170,6 +1174,11 @@ class Alpaca(Broker):
                 strategy_name = strategy.name if strategy else "default"
                 order = self._parse_broker_order(alpaca_order, strategy_name=strategy_name)
 
+                # Skip if parsing returned None (invalid order data)
+                if order is None:
+                    logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
+                    continue
+
                 logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
 
                 # Check if this order exists in our stored orders
@@ -1279,6 +1288,7 @@ class Alpaca(Broker):
                 raise ValueError(error_msg)
             else:
                 logger.error(f"OAuth Polling error: {e}")
+                logger.error(f"Full traceback: {traceback.format_exc()}")
         # No need to schedule next poll - PollingStream handles this automatically via timeout
 
     def _run_stream(self):

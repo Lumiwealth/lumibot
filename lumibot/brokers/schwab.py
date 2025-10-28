@@ -87,7 +87,7 @@ class Schwab(Broker):
         # Initialize Schwab specific attributes
         self._subscribers = []
         # Use standard logging module's logger
-        self.logger = get_logger(__name__)
+        # self.logger = get_logger(__name__)
         self.extended_trading_minutes = 0
         # self.schwab_authorization_error = False # Moved earlier
         self.client = None
@@ -526,6 +526,8 @@ class Schwab(Broker):
 
                 # Extract position-specific details
                 average_price = schwab_position.get('averagePrice', 0.0)
+                pnl = schwab_position.get('longOpenProfitLoss') or schwab_position.get('shortOpenProfitLoss') or None
+                market_value = schwab_position.get('marketValue', None)
 
                 # Only create position object if we have a valid asset
                 if asset is not None:
@@ -537,7 +539,12 @@ class Schwab(Broker):
 
                     # If we already have this asset in our dict, update the quantity
                     if key in pos_dict:
-                        pos_dict[key].quantity += net_quantity
+                        existing_position = pos_dict[key]
+                        existing_position.quantity += net_quantity
+                        if pnl is not None:
+                           existing_position.pnl += pnl
+                        if market_value is not None:
+                            existing_position.market_value += market_value
                     else:
                         # Create a new Position object
                         pos_dict[key] = Position(
@@ -546,6 +553,9 @@ class Schwab(Broker):
                             quantity=net_quantity,
                             avg_fill_price=average_price,
                         )
+                        
+                        pos_dict[key].pnl = pnl
+                        pos_dict[key].market_value = market_value
 
             # Log the number of positions found
             logger.debug(f"Pulled {len(pos_dict)} unique positions from Schwab")

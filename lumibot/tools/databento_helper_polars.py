@@ -13,7 +13,7 @@ from polars.datatypes import Datetime as PlDatetime
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
-from lumibot.tools import databento_helper, databento_roll
+from lumibot.tools import futures_roll
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
@@ -935,8 +935,17 @@ def get_price_data_from_databento_polars(
 
     if roll_asset.asset_type == Asset.AssetType.CONT_FUTURE:
         schedule_start = start
-        symbols_to_fetch = databento_roll.resolve_symbols_for_range(roll_asset, schedule_start, end)
-        front_symbol = databento_roll.resolve_symbol_for_datetime(roll_asset, reference_date or start)
+        symbols_to_fetch = futures_roll.resolve_symbols_for_range(
+            roll_asset,
+            schedule_start,
+            end,
+            year_digits=1,
+        )
+        front_symbol = futures_roll.resolve_symbol_for_datetime(
+            roll_asset,
+            reference_date or start,
+            year_digits=1,
+        )
         if front_symbol not in symbols_to_fetch:
             symbols_to_fetch.insert(0, front_symbol)
         logger.info(
@@ -1066,44 +1075,11 @@ def get_price_data_from_databento_polars(
     combined = combined.sort("datetime")
     logger.info(f"[get_price_data_from_databento_polars] AFTER concat+sort: combined shape={combined.shape}")
 
-    primary_definition_cache = databento_helper._INSTRUMENT_DEFINITION_CACHE
-    definition_client = None
-
-    def get_definition(symbol_code: str) -> Optional[Dict]:
-        nonlocal definition_client
-        cache_key = (symbol_code, dataset)
-        if cache_key in primary_definition_cache:
-            return primary_definition_cache[cache_key]
-        if cache_key in _INSTRUMENT_DEFINITION_CACHE:
-            definition = _INSTRUMENT_DEFINITION_CACHE[cache_key]
-            primary_definition_cache[cache_key] = definition
-            return definition
-        if definition_client is None:
-            try:
-                definition_client = databento_helper.DataBentoClient(api_key=api_key)
-            except Exception as exc:
-                logger.warning(f"Unable to initialize DataBento definition client: {exc}")
-                return None
-        try:
-            definition = definition_client.get_instrument_definition(
-                dataset=dataset,
-                symbol=symbol_code,
-                reference_date=reference_date or start,
-            )
-        except Exception as exc:
-            logger.warning(f"Failed to fetch definition for {symbol_code}: {exc}")
-            return None
-        if definition:
-            primary_definition_cache[cache_key] = definition
-            _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
-        return definition
-
-    schedule = databento_roll.build_roll_schedule(
+    schedule = futures_roll.build_roll_schedule(
         roll_asset,
         schedule_start,
         end,
-        definition_provider=get_definition,
-        roll_days=databento_roll.ROLL_DAYS_BEFORE_EXPIRATION,
+        year_digits=1,
     )
 
     if schedule:

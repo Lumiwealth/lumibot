@@ -124,12 +124,12 @@ def test_resolve_continuous_futures_contract_year_digits():
     assert four_digit == "MNQZ2025"
 
 
-def test_resolve_continuous_futures_contract_rolls_mid_month():
-    """Verify contracts roll to next quarter after mid-month in expiry month."""
+def test_resolve_continuous_futures_contract_rolls_on_rule_date():
+    """Verify contracts roll eight business days before the third Friday."""
     asset = Asset(symbol="MNQ", asset_type=Asset.AssetType.CONT_FUTURE)
 
-    before_roll = datetime.datetime(2025, 9, 10)
-    after_roll = datetime.datetime(2025, 9, 20)
+    before_roll = datetime.datetime(2025, 9, 8)
+    after_roll = datetime.datetime(2025, 9, 10)
 
     contract_before = asset.resolve_continuous_futures_contract(reference_date=before_roll)
     contract_after = asset.resolve_continuous_futures_contract(reference_date=after_roll)

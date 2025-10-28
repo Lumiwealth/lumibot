@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -380,37 +381,37 @@
 <div class="table-wrapper autosummary longtable docutils container">
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.create_order.html#lumibot.strategies.strategy.Strategy.create_order" title="lumibot.strategies.strategy.Strategy.create_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_order</span></code></a>(asset, quantity, side[, ...])</p></td>
-<td><p>Creates a new order for this specific strategy.</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.create_order</span></code>(asset, quantity, side)</p></td>
+<td><p>Create a new order for this strategy.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_order.html#lumibot.strategies.strategy.Strategy.submit_order" title="lumibot.strategies.strategy.Strategy.submit_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">submit_order</span></code></a>(order)</p></td>
-<td><p>Submit an order for an asset</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.submit_order</span></code>(order, **kwargs)</p></td>
+<td><p>Submit an order or a list of orders for assets</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.submit_orders.html#lumibot.strategies.strategy.Strategy.submit_orders" title="lumibot.strategies.strategy.Strategy.submit_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">submit_orders</span></code></a>(orders, **kwargs)</p></td>
-<td><p>Submit a list of orders</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.submit_orders</span></code>(orders, **kwargs)</p></td>
+<td><p>[Deprecated] Submit a list of orders</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_order.html#lumibot.strategies.strategy.Strategy.cancel_order" title="lumibot.strategies.strategy.Strategy.cancel_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cancel_order</span></code></a>(order)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.cancel_order</span></code>(order)</p></td>
 <td><p>Cancel an order.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_orders.html#lumibot.strategies.strategy.Strategy.cancel_orders" title="lumibot.strategies.strategy.Strategy.cancel_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cancel_orders</span></code></a>(orders)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.cancel_orders</span></code>(orders)</p></td>
 <td><p>Cancel orders in all strategies.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.cancel_open_orders.html#lumibot.strategies.strategy.Strategy.cancel_open_orders" title="lumibot.strategies.strategy.Strategy.cancel_open_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cancel_open_orders</span></code></a>()</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.cancel_open_orders</span></code>()</p></td>
 <td><p>Cancel all the strategy open orders.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_selling_order.html#lumibot.strategies.strategy.Strategy.get_selling_order" title="lumibot.strategies.strategy.Strategy.get_selling_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_selling_order</span></code></a>(position)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_selling_order</span></code>(position)</p></td>
 <td><p>Get the selling order for a position.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.sell_all.html#lumibot.strategies.strategy.Strategy.sell_all" title="lumibot.strategies.strategy.Strategy.sell_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sell_all</span></code></a>([cancel_open_orders])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.sell_all</span></code>([cancel_open_orders, ...])</p></td>
 <td><p>Sell all strategy positions.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_order.html#lumibot.strategies.strategy.Strategy.get_order" title="lumibot.strategies.strategy.Strategy.get_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_order</span></code></a>(identifier)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_order</span></code>(identifier)</p></td>
 <td><p>Get a tracked order given an identifier.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_orders.html#lumibot.strategies.strategy.Strategy.get_orders" title="lumibot.strategies.strategy.Strategy.get_orders"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_orders</span></code></a>()</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_orders</span></code>()</p></td>
 <td><p>Get all the current open orders.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.orders/strategies.strategy.Strategy.get_asset_potential_total.html#lumibot.strategies.strategy.Strategy.get_asset_potential_total" title="lumibot.strategies.strategy.Strategy.get_asset_potential_total"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_asset_potential_total</span></code></a>(asset)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_asset_potential_total</span></code>(asset)</p></td>
 <td><p>Get the potential total for the asset (orders + positions).</p></td>
 </tr>
 </tbody>

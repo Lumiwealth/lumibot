@@ -102,6 +102,7 @@ Documentation
 ---------------
 
 .. automodule:: lumibot.brokers.bitunix
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:

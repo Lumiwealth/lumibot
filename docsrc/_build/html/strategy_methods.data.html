@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -380,25 +381,25 @@
 <div class="table-wrapper autosummary longtable docutils container">
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html#lumibot.strategies.strategy.Strategy.get_last_price" title="lumibot.strategies.strategy.Strategy.get_last_price"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_last_price</span></code></a>(asset[, quote, exchange, ...])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_last_price</span></code>(asset[, quote, exchange])</p></td>
 <td><p>Takes an asset and returns the last known price</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html#lumibot.strategies.strategy.Strategy.get_last_prices" title="lumibot.strategies.strategy.Strategy.get_last_prices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_last_prices</span></code></a>(assets[, quote, exchange])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_last_prices</span></code>(assets[, quote, ...])</p></td>
 <td><p>Takes a list of assets and returns the last known prices</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html#lumibot.strategies.strategy.Strategy.get_historical_prices" title="lumibot.strategies.strategy.Strategy.get_historical_prices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_historical_prices</span></code></a>(asset, length[, ...])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_historical_prices</span></code>(asset, length)</p></td>
 <td><p>Get historical pricing data for a given symbol or asset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html#lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets" title="lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_historical_prices_for_assets</span></code></a>(assets, length)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_historical_prices_for_assets</span></code>(...)</p></td>
 <td><p>Get historical pricing data for the list of assets.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html#lumibot.strategies.strategy.Strategy.get_quote" title="lumibot.strategies.strategy.Strategy.get_quote"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_quote</span></code></a>(asset)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_quote</span></code>(asset[, quote, exchange])</p></td>
 <td><p>Get a quote for the asset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html#lumibot.strategies.strategy.Strategy.get_yesterday_dividend" title="lumibot.strategies.strategy.Strategy.get_yesterday_dividend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_yesterday_dividend</span></code></a>(asset)</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_yesterday_dividend</span></code>(asset)</p></td>
 <td><p>Get the dividend for the previous day.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="strategy_methods.options/strategies.strategy.Strategy.get_next_trading_day.html#lumibot.strategies.strategy.Strategy.get_next_trading_day" title="lumibot.strategies.strategy.Strategy.get_next_trading_day"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_next_trading_day</span></code></a>(date[, exchange])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Strategy.get_next_trading_day</span></code>(date[, exchange])</p></td>
 <td><p>Finds the next trading day for the given date and exchange.</p></td>
 </tr>
 </tbody>

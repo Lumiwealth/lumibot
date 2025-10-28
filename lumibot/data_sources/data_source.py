@@ -3,7 +3,7 @@ import time
 import traceback
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Union
 
@@ -27,6 +27,7 @@ class DataSource(ABC):
     TIMESTEP_MAPPING = []
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    option_quote_fallback_allowed = False
 
     def __init__(
             self,
@@ -71,6 +72,10 @@ class DataSource(ABC):
         # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
         self._greeks_cache = {}
 
+        # Ensure the instance has an explicit attribute for fallback behaviour
+        if not hasattr(self, "option_quote_fallback_allowed"):
+            self.option_quote_fallback_allowed = False
+
     # ========Required Implementations ======================
     @abstractmethod
     def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
@@ -88,14 +93,10 @@ class DataSource(ABC):
 
         Returns
         -------
-        dictionary of dictionary
-            Format:
-            - `Multiplier` (str) eg: `100`
-            - 'Chains' - paired Expiration/Strike info to guarentee that the strikes are valid for the specific
-                         expiration date.
-                         Format:
-                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-                         Expiration Date Format: 2023-07-31
+        dict
+            Mapping with keys such as ``Multiplier`` (e.g. ``"100"``) and ``Chains``.
+            ``Chains`` is a nested dictionary where expiration dates map to strike lists,
+            e.g. ``chains['Chains']['CALL']['2023-07-31'] = [strike1, strike2, ...]``.
         """
         pass
 
@@ -441,7 +442,7 @@ class DataSource(ABC):
 
         return AssetsMapping(result)
 
-    def get_chain_full_info(self, asset: Asset, expiry: str, chains=None, underlying_price=float, risk_free_rate=float,
+    def get_chain_full_info(self, asset: Asset, expiry: date | datetime, chains=None, underlying_price=float, risk_free_rate=float,
                             strike_min=None, strike_max=None) -> pd.DataFrame:
         """
         Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
@@ -452,7 +453,7 @@ class DataSource(ABC):
         ----------
         asset : Asset
             The option asset to get the chain information for.
-        expiry : str | datetime.datetime | datetime.date
+        expiry : datetime.date | datetime.datetime
             The expiry date of the option chain.
         chains : dict
             The chains dictionary created by `get_chains` method. This is used
@@ -477,7 +478,13 @@ class DataSource(ABC):
         start_t = time.perf_counter()
         # Base level DataSource assumes that the data source does not support this and the greeks will be calculated
         # locally. Subclasses can override this method to provide a more efficient implementation.
-        expiry_dt = datetime.strptime(expiry, "%Y-%m-%d") if isinstance(expiry, str) else expiry
+        if isinstance(expiry, datetime):
+            expiry_dt = expiry.date()
+        elif isinstance(expiry, date):
+            expiry_dt = expiry
+        else:
+            raise TypeError("expiry must be a datetime.date or datetime.datetime instance")
+
         expiry_str = expiry_dt.strftime("%Y-%m-%d")
         if chains is None:
             chains = self.get_chains(asset)
@@ -485,7 +492,10 @@ class DataSource(ABC):
         rows = []
         query_total = 0
         for right in chains["Chains"]:
-            for strike in chains["Chains"][right][expiry_str]:
+            expirations_map = chains["Chains"].get(right, {})
+            if expiry_str not in expirations_map:
+                raise KeyError(f"Expiry {expiry_str} not available for option type {right}")
+            for strike in expirations_map[expiry_str]:
                 # Skip strikes outside the requested range. Saves querying time.
                 if strike_min and strike < strike_min or strike_max and strike > strike_max:
                     continue

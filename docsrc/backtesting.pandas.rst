@@ -1,3 +1,5 @@
+.. _backtesting.pandas:
+
 Pandas (CSV or other data)
 ===================================
 

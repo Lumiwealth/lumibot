@@ -1,3 +1,5 @@
+.. _backtesting.polygon:
+
 Polygon.io Backtesting
 ===================================
 
@@ -155,4 +157,5 @@ Below is **the full code** that relies *entirely on environment variables*:
             PolygonDataBacktesting,
             benchmark_asset="SPY"
         )
+
 In summary, the polygon.io backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with polygon.io API, it is a versatile choice for any backtesting needs.

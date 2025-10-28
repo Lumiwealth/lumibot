@@ -1,3 +1,5 @@
+.. _backtesting.yahoo:
+
 Yahoo
 ===================================
 
@@ -49,7 +51,7 @@ Option 1: Provide Start and End in Code
     )
 
 Using Environment Variables (Optional)
--------------------------------------
+--------------------------------------
 
 You can set the following environment variables without making any changes to your code. **LumiBot will automatically use them if they are set.** If they are not set, LumiBot will default to normal behavior (i.e., you can specify the start/end in code as above).
 

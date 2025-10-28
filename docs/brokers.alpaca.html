@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -475,6 +476,46 @@
 <section id="configuration-options">
 <h2>Configuration Options<a class="headerlink" href="#configuration-options" title="Link to this heading">#</a></h2>
 <p>All configuration should be done via environment variables in your <cite>.env</cite> file:</p>
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">Alpaca Environment Variables</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 10.0%" />
+<col style="width: 10.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Environment Var</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ALPACA_API_KEY</span></code></p></td>
+<td><p>str</p></td>
+<td><p>None</p></td>
+<td><p>Your Alpaca API key (available from the Alpaca dashboard).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ALPACA_API_SECRET</span></code></p></td>
+<td><p>str</p></td>
+<td><p>None</p></td>
+<td><p>Your Alpaca API secret (download from the dashboard).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ALPACA_OAUTH_TOKEN</span></code></p></td>
+<td><p>str</p></td>
+<td><p>None</p></td>
+<td><p>OAuth token issued via <a class="reference external" href="https://botspot.trade">botspot.trade</a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ALPACA_IS_PAPER</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Toggle paper trading (<code class="docutils literal notranslate"><span class="pre">true</span></code>) versus live trading (<code class="docutils literal notranslate"><span class="pre">false</span></code>).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="usage-examples">
 <h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Link to this heading">#</a></h2>
@@ -655,16 +696,16 @@
 </dd>
 </dl>
 </section>
-<section id="module-lumibot.brokers.alpaca">
-<span id="api-reference"></span><h2>API Reference<a class="headerlink" href="#module-lumibot.brokers.alpaca" title="Link to this heading">#</a></h2>
+<section id="api-reference">
+<h2>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading">#</a></h2>
 <dl class="py class">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.alpaca.</span></span><span class="sig-name descname"><span class="pre">Alpaca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.alpaca.</span></span><span class="sig-name descname"><span class="pre">Alpaca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_stream</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polling_interval</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em><span class="sig-paren">)</span></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Broker</span></code></p>
 <p>A broker class that connects to Alpaca</p>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.api">
-<span class="sig-name descname"><span class="pre">api</span></span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.api" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">api</span></span></dt>
 <dd><p>Alpaca API object</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -674,26 +715,26 @@
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.get_timestamp">
-<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.get_timestamp" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>Returns the current UNIX timestamp representation from Alpaca</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.is_market_open">
-<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.is_market_open" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>Determines if the market is open.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.get_time_to_open">
-<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.get_time_to_open" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>How much time in seconds remains until the market next opens?</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.get_time_to_close">
-<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.get_time_to_close" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>How much time in seconds remains until the market closes?</p>
 </dd></dl>
 
@@ -705,8 +746,8 @@
 <span class="gp">... </span>    <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="c1"># Put your own Alpaca secret here:</span>
 <span class="gp">... </span>    <span class="s2">&quot;API_SECRET&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_SECRET&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="c1"># If you want to go live, you must change this</span>
-<span class="gp">... </span>    <span class="s2">&quot;ENDPOINT&quot;</span><span class="p">:</span> <span class="s2">&quot;https://paper-api.alpaca.markets&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="c1"># Set this to False to use a live account</span>
+<span class="gp">... </span>    <span class="s2">&quot;PAPER&quot;</span><span class="p">:</span> <span class="kc">True</span>
 <span class="gp">... </span><span class="p">}</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alpaca</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">alpaca</span><span class="o">.</span><span class="n">get_time_to_open</span><span class="p">())</span>
@@ -724,8 +765,8 @@
 <span class="gp">... </span>    <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_KEY&quot;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="c1"># Put your own Alpaca secret here:</span>
 <span class="gp">... </span>    <span class="s2">&quot;API_SECRET&quot;</span><span class="p">:</span> <span class="s2">&quot;YOUR_API_SECRET&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="c1"># If you want to go live, you must change this</span>
-<span class="gp">... </span>    <span class="s2">&quot;ENDPOINT&quot;</span><span class="p">:</span> <span class="s2">&quot;https://paper-api.alpaca.markets&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="c1"># Set this to False to use a live account</span>
+<span class="gp">... </span>    <span class="s2">&quot;PAPER&quot;</span><span class="p">:</span> <span class="kc">True</span>
 <span class="gp">... </span><span class="p">}</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">AlpacaStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
@@ -746,13 +787,13 @@
 </pre></div>
 </div>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.ASSET_TYPE_MAP">
-<span class="sig-name descname"><span class="pre">ASSET_TYPE_MAP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'forex':</span> <span class="pre">[],</span> <span class="pre">'future':</span> <span class="pre">[],</span> <span class="pre">'option':</span> <span class="pre">[],</span> <span class="pre">'stock':</span> <span class="pre">['us_equity']}</span></em><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.ASSET_TYPE_MAP" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">ASSET_TYPE_MAP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'crypto':</span> <span class="pre">['crypto',</span> <span class="pre">'CRYPTO'],</span> <span class="pre">'forex':</span> <span class="pre">[],</span> <span class="pre">'future':</span> <span class="pre">[],</span> <span class="pre">'option':</span> <span class="pre">['us_option'],</span> <span class="pre">'stock':</span> <span class="pre">['us_equity']}</span></em></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.cancel_order">
-<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.cancel_order" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">cancel_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">order</span></span></em><span class="sig-paren">)</span></dt>
 <dd><p>Cancel an order</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -768,14 +809,44 @@
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.get_historical_account_value">
-<span class="sig-name descname"><span class="pre">get_historical_account_value</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.get_historical_account_value" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">do_polling</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
+<dd><p>This function is called every polling_interval for OAuth-only configurations.
+It checks for new orders and dispatches them to the stream for processing.
+Similar to Tradier’s polling implementation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_historical_account_value</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>Get the historical account value of the account.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id0">
-<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_quote</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quote</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Asset</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exchange</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Quote</span></span></span></dt>
+<dd><p>Get the latest quote for an asset (stock, option, or crypto).
+Returns a Quote object with bid, ask, last, and other fields if available.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>asset</strong> (<em>Asset object</em>) – The asset for which the quote is needed.</p></li>
+<li><p><strong>quote</strong> (<em>Asset object</em><em>, </em><em>optional</em>) – The quote asset for cryptocurrency pairs.</p></li>
+<li><p><strong>exchange</strong> (<em>str</em><em>, </em><em>optional</em>) – The exchange to get the quote from.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A Quote object with the quote information.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Quote</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_time_to_close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>How much time in seconds remains until the market closes?</p>
 <p>Return the remaining time for the market to closes in seconds</p>
 <dl class="field-list simple">
@@ -795,8 +866,8 @@ seconds until the market closes.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id2">
-<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_time_to_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>How much time in seconds remains until the market next opens?</p>
 <p>Return the remaining time for the market to open in seconds</p>
 <dl class="field-list simple">
@@ -819,8 +890,8 @@ seconds until the next market open.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id3">
-<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_timestamp</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>Returns the current UNIX timestamp representation from Alpaca</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -836,8 +907,8 @@ seconds until the next market open.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="id4">
-<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">is_market_open</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>Determines if the market is open.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -858,19 +929,19 @@ seconds until the next market open.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.Alpaca.map_asset_type">
-<span class="sig-name descname"><span class="pre">map_asset_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.Alpaca.map_asset_type" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">map_asset_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpaca_type</span></span></em><span class="sig-paren">)</span></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.OrderData">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.alpaca.</span></span><span class="sig-name descname"><span class="pre">OrderData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.OrderData" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lumibot.brokers.alpaca.</span></span><span class="sig-name descname"><span class="pre">OrderData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <dl class="py method">
-<dt class="sig sig-object py" id="lumibot.brokers.alpaca.OrderData.to_request_fields">
-<span class="sig-name descname"><span class="pre">to_request_fields</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#lumibot.brokers.alpaca.OrderData.to_request_fields" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">to_request_fields</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1048,27 +1119,7 @@ seconds until the next market open.</p>
 </li>
 <li><a class="reference internal" href="#important-notes">Important Notes</a></li>
 <li><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
-<li><a class="reference internal" href="#module-lumibot.brokers.alpaca">API Reference</a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca"><code class="docutils literal notranslate"><span class="pre">Alpaca</span></code></a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.api"><code class="docutils literal notranslate"><span class="pre">Alpaca.api</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.get_timestamp"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_timestamp()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.is_market_open"><code class="docutils literal notranslate"><span class="pre">Alpaca.is_market_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.get_time_to_open"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.get_time_to_close"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_close()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.ASSET_TYPE_MAP"><code class="docutils literal notranslate"><span class="pre">Alpaca.ASSET_TYPE_MAP</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.cancel_order"><code class="docutils literal notranslate"><span class="pre">Alpaca.cancel_order()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.get_historical_account_value"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_historical_account_value()</span></code></a></li>
-<li><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_close()</span></code></a></li>
-<li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_time_to_open()</span></code></a></li>
-<li><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">Alpaca.get_timestamp()</span></code></a></li>
-<li><a class="reference internal" href="#id4"><code class="docutils literal notranslate"><span class="pre">Alpaca.is_market_open()</span></code></a></li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.Alpaca.map_asset_type"><code class="docutils literal notranslate"><span class="pre">Alpaca.map_asset_type()</span></code></a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.OrderData"><code class="docutils literal notranslate"><span class="pre">OrderData</span></code></a><ul>
-<li><a class="reference internal" href="#lumibot.brokers.alpaca.OrderData.to_request_fields"><code class="docutils literal notranslate"><span class="pre">OrderData.to_request_fields()</span></code></a></li>
-</ul>
-</li>
+<li><a class="reference internal" href="#api-reference">API Reference</a><ul>
 <li><a class="reference internal" href="#market-hours-methods">Market Hours Methods</a></li>
 </ul>
 </li>

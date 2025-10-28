@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -391,10 +392,11 @@
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
 <li><p><strong>Account</strong>: Demo or live futures trading account with a supported broker</p></li>
+<li><p><strong>API Credentials</strong>: Username and API key from your broker</p></li>
 </ol>
-<p>2. <strong>API Credentials</strong>: Username and API key from your broker
-Supported Brokers
-—————–</p>
+</section>
+<section id="supported-brokers">
+<h2>Supported Brokers<a class="headerlink" href="#supported-brokers" title="Link to this heading">#</a></h2>
 <section id="topstepx">
 <h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PROJECTX_TOPSTEPX_API_KEY</span><span class="o">=</span>your_api_key
@@ -550,13 +552,47 @@ Supported Brokers
 </section>
 <section id="supported-functionality">
 <h2>Supported Functionality<a class="headerlink" href="#supported-functionality" title="Link to this heading">#</a></h2>
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">ProjectX Capabilities</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 15.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Feature</p></th>
+<th class="head"><p>Support</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Futures trading</p></td>
+<td><p>Yes</p></td>
+<td><p>Supports CME micro and standard contracts through connected prop firms.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Order types</p></td>
+<td><p>Market, Limit, Stop</p></td>
+<td><p>Submit bracket-style risk controls directly from strategies.</p></td>
+</tr>
+<tr class="row-even"><td><p>Market data</p></td>
+<td><p>Real time</p></td>
+<td><p>Streams price updates when ProjectX is running alongside Lumibot.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Account detection</p></td>
+<td><p>Automatic</p></td>
+<td><p>Reads the configured environment variables to pick the correct broker.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
-<li><p><strong>Set Environment Variables</strong>: Configure your broker’s API credentials</p></li>
-<li><p><strong>Create Strategy</strong>: Import Lumibot and create your trading strategy</p></li>
-<li><p><strong>Run</strong>: ProjectX will auto-detect and connect</p></li>
+<li><p><strong>Set Environment Variables</strong>: Configure your broker’s API credentials.</p></li>
+<li><p><strong>Create Strategy</strong>: Import Lumibot and create your trading strategy.</p></li>
+<li><p><strong>Run</strong>: ProjectX will auto-detect and connect.</p></li>
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">lumibot.strategies</span> <span class="kn">import</span> <span class="n">Strategy</span>
 <span class="kn">from</span> <span class="nn">lumibot.entities</span> <span class="kn">import</span> <span class="n">Asset</span>
@@ -660,7 +696,8 @@ Supported Brokers
             <ul>
 <li><a class="reference internal" href="#">ProjectX</a><ul>
 <li><a class="reference internal" href="#features">Features</a></li>
-<li><a class="reference internal" href="#prerequisites">Prerequisites</a><ul>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li><a class="reference internal" href="#supported-brokers">Supported Brokers</a><ul>
 <li><a class="reference internal" href="#topstepx">TopstepX</a></li>
 <li><a class="reference internal" href="#top-one-futures">Top One Futures</a></li>
 <li><a class="reference internal" href="#tickticktrader">TickTickTrader</a></li>

@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, Order, Position
 from apscheduler.triggers.cron import CronTrigger
 
 
@@ -196,6 +196,29 @@ class TestStrategyMethods:
 
         # Check that the job ID is correct
         assert job_id == "cron_callback_test-uuid"
+
+    def test_update_portfolio_value_with_missing_price(self):
+        """_update_portfolio_value should skip assets whose prices are missing instead of raising."""
+
+        date_start = datetime(2021, 7, 10)
+        date_end = datetime(2021, 7, 13)
+        data_source = YahooDataBacktesting(date_start, date_end)
+        backtesting_broker = BacktestingBroker(data_source)
+        strategy = BuyAndHold(
+            backtesting_broker,
+            backtesting_start=date_start,
+            backtesting_end=date_end,
+        )
+
+        asset = Asset("SPY")
+        position = Position(strategy._name, asset, quantity=1, avg_fill_price=430.0)
+        strategy.broker._filled_positions.append(position)
+
+        with patch.object(strategy.broker.data_source, "get_last_price", return_value=None):
+            original_value = strategy.get_portfolio_value()
+            updated_value = strategy._update_portfolio_value()
+
+        assert updated_value == original_value
 
     @patch('uuid.uuid4')
     def test_register_cron_callback_adds_job_to_scheduler(self, mock_uuid4):

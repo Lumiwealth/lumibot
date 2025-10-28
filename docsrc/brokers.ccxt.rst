@@ -1,3 +1,5 @@
+.. _ccxt backtesting:
+
 Crypto Brokers (Using CCXT)
 ===========================
 

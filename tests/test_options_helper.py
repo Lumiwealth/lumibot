@@ -12,13 +12,16 @@ sys.path.insert(0, '/Users/robertgrzesik/Documents/Development/lumivest_bot_serv
 
 from lumibot.components.options_helper import OptionsHelper
 from lumibot.entities import Asset
-from lumibot.entities.chains import normalize_option_chains
+from lumibot.entities.chains import OptionsDataFormatError, normalize_option_chains
 from lumibot.brokers.broker import Broker
 
 
 class _StubDataSource:
     def __init__(self, payload):
         self.payload = payload
+        self.datetime_start = None
+        self.datetime_end = None
+        self.SOURCE = "STUB"
 
     def get_chains(self, asset):
         return self.payload
@@ -76,6 +79,12 @@ class TestOptionsHelper(unittest.TestCase):
         self.mock_strategy = Mock()
         self.mock_strategy.log_message = Mock()
         self.mock_strategy.get_last_price = Mock(return_value=5.0)
+        self.mock_strategy.get_quote = Mock(return_value=None)
+        data_source = Mock()
+        data_source.option_quote_fallback_allowed = False
+        broker = Mock()
+        broker.data_source = data_source
+        self.mock_strategy.broker = broker
         
         # Mock get_greeks with realistic delta values
         def mock_get_greeks(option, underlying_price=None):
@@ -247,7 +256,129 @@ class TestOptionsHelper(unittest.TestCase):
 
         normalized_partial = normalize_option_chains({"Chains": {"CALL": {"2024-01-02": [100.0, 101.0]}}})
         self.assertIn("PUT", normalized_partial["Chains"])
+        self.assertIn("2024-01-02", normalized_partial["Chains"]["CALL"])
+        self.assertEqual(normalized_partial["Chains"]["CALL"]["2024-01-02"], [100.0, 101.0])
         self.assertTrue(normalized_partial)
+
+    def test_normalize_option_chains_invalid_expiry(self):
+        with self.assertRaisesRegex(OptionsDataFormatError, "Could not parse option expiry value"):
+            normalize_option_chains({"Chains": {"CALL": {"02-01-2024": [100.0]}}})
+
+    def test_options_expiry_to_datetime_date_accepts_strings(self):
+        """Test that options_expiry_to_datetime_date accepts various string formats."""
+        from lumibot.strategies import Strategy
+
+        # Test the method directly without creating a full Strategy instance
+        # This avoids needing broker/data source setup
+        strategy_class = Strategy
+
+        # Test YYYY-MM-DD format (Polygon)
+        result = strategy_class.options_expiry_to_datetime_date(None, "2024-01-15")
+        self.assertEqual(result, date(2024, 1, 15))
+
+        # Test YYYYMMDD format (IB legacy)
+        result = strategy_class.options_expiry_to_datetime_date(None, "20240115")
+        self.assertEqual(result, date(2024, 1, 15))
+
+        # Test date object passthrough
+        test_date = date(2024, 1, 15)
+        result = strategy_class.options_expiry_to_datetime_date(None, test_date)
+        self.assertEqual(result, test_date)
+
+        # Test datetime object conversion
+        test_datetime = datetime(2024, 1, 15, 10, 30)
+        result = strategy_class.options_expiry_to_datetime_date(None, test_datetime)
+        self.assertEqual(result, date(2024, 1, 15))
+
+        # Test invalid string format raises error
+        with self.assertRaises(ValueError):
+            strategy_class.options_expiry_to_datetime_date(None, "01-15-2024")
+
+    def test_get_expiration_on_or_after_date_returns_future(self):
+        from datetime import date as _date
+
+        expiries = {
+            "Chains": {
+                "CALL": {
+                    "2024-01-02": [100.0],
+                    "2024-01-09": [101.0],
+                }
+            }
+        }
+
+        target = _date(2024, 1, 3)
+        result = self.options_helper.get_expiration_on_or_after_date(target, expiries, "call")
+        self.assertEqual(result, _date(2024, 1, 9))
+
+    def test_get_expiration_on_or_after_date_uses_latest_when_needed(self):
+        from datetime import date as _date
+
+        expiries = {
+            "Chains": {
+                "CALL": {
+                    "2024-01-02": [100.0],
+                    "2024-01-09": [101.0],
+                }
+            }
+        }
+
+        target = _date(2024, 2, 1)
+        result = self.options_helper.get_expiration_on_or_after_date(target, expiries, "call")
+        self.assertEqual(result, _date(2024, 1, 9))
+
+    def test_chains_backward_compatibility_string_access(self):
+        """Test that existing code using string keys still works."""
+        chains = normalize_option_chains({
+            "Chains": {
+                "CALL": {"2024-01-02": [100.0, 101.0]},
+                "PUT": {"2024-01-02": [95.0, 96.0]}
+            },
+            "Multiplier": 100
+        })
+
+        # String access should work (backward compatibility)
+        self.assertEqual(chains["Chains"]["CALL"]["2024-01-02"], [100.0, 101.0])
+        self.assertEqual(chains["Chains"]["PUT"]["2024-01-02"], [95.0, 96.0])
+
+        # Helper methods should also work with strings
+        self.assertIn("2024-01-02", chains.expirations())
+        self.assertEqual(chains.strikes("2024-01-02"), [100.0, 101.0])
+
+    def test_chains_date_helper_methods(self):
+        """Test new date-based internal helper methods."""
+        chains = normalize_option_chains({
+            "Chains": {
+                "CALL": {"2024-01-02": [100.0, 101.0], "2024-01-09": [102.0]},
+                "PUT": {"2024-01-02": [95.0, 96.0]}
+            }
+        })
+
+        # Test expirations_as_dates
+        expiry_dates = chains.expirations_as_dates()
+        self.assertEqual(len(expiry_dates), 2)
+        self.assertEqual(expiry_dates[0], date(2024, 1, 2))
+        self.assertEqual(expiry_dates[1], date(2024, 1, 9))
+
+        # Test get_option_chain_by_date
+        strikes = chains.get_option_chain_by_date(date(2024, 1, 2))
+        self.assertEqual(strikes, [100.0, 101.0])
+
+    def test_chains_strikes_accepts_both_string_and_date(self):
+        """Test that strikes() method accepts both string and date parameters."""
+        chains = normalize_option_chains({
+            "Chains": {
+                "CALL": {"2024-01-02": [100.0, 101.0]}
+            }
+        })
+
+        # Should work with string
+        self.assertEqual(chains.strikes("2024-01-02"), [100.0, 101.0])
+
+        # Should also work with date
+        self.assertEqual(chains.strikes(date(2024, 1, 2)), [100.0, 101.0])
+
+        # Should also work with datetime
+        self.assertEqual(chains.strikes(datetime(2024, 1, 2, 10, 30)), [100.0, 101.0])
 
     def test_broker_get_chains_handles_missing_payload(self):
         asset = Asset("TEST", asset_type=Asset.AssetType.STOCK)
@@ -264,6 +395,164 @@ class TestOptionsHelper(unittest.TestCase):
         self.assertTrue(chains_partial)
         self.assertEqual(chains_partial["Chains"]["CALL"]["2024-01-02"], [100.0])
         self.assertIn("PUT", chains_partial["Chains"])
+
+    def test_find_next_valid_option_checks_quote_first(self):
+        """Test that find_next_valid_option checks quote before last_price"""
+        underlying_asset = Asset("TEST", asset_type="stock")
+        expiry = date.today() + timedelta(days=30)
+
+        # Mock get_quote to return valid quote
+        mock_quote = Mock()
+        mock_quote.bid = 2.0
+        mock_quote.ask = 2.5
+        self.mock_strategy.get_quote = Mock(return_value=mock_quote)
+        self.mock_strategy.get_last_price = Mock(return_value=None)
+
+        result = self.options_helper.find_next_valid_option(
+            underlying_asset=underlying_asset,
+            rounded_underlying_price=200.0,
+            expiry=expiry,
+            put_or_call="call"
+        )
+
+        # Should find option based on quote, even though last_price is None
+        self.assertIsNotNone(result)
+        self.mock_strategy.get_quote.assert_called()
+
+        # Check log messages
+        log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
+        self.assertTrue(any("Found valid quote" in msg for msg in log_calls))
+
+    def test_find_next_valid_option_falls_back_to_last_price(self):
+        """Test fallback to last_price when quote has no bid/ask"""
+        underlying_asset = Asset("TEST", asset_type="stock")
+        expiry = date.today() + timedelta(days=30)
+
+        # Mock get_quote to return quote with None bid/ask
+        mock_quote = Mock()
+        mock_quote.bid = None
+        mock_quote.ask = None
+        self.mock_strategy.get_quote = Mock(return_value=mock_quote)
+        self.mock_strategy.get_last_price = Mock(return_value=2.25)
+
+        result = self.options_helper.find_next_valid_option(
+            underlying_asset=underlying_asset,
+            rounded_underlying_price=200.0,
+            expiry=expiry,
+            put_or_call="put"
+        )
+
+        # Should find option based on last_price fallback
+        self.assertIsNotNone(result)
+        self.mock_strategy.get_quote.assert_called()
+        self.mock_strategy.get_last_price.assert_called()
+
+    def test_get_expiration_validates_data_when_underlying_provided(self):
+        """Test that get_expiration_on_or_after_date validates data exists when underlying provided"""
+        underlying_asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+
+        chains = {
+            "Chains": {
+                "CALL": {
+                    "2024-01-02": [100.0, 105.0],
+                    "2024-01-09": [100.0, 105.0],
+                    "2024-01-16": [100.0, 105.0],
+                }
+            }
+        }
+
+        # Mock first expiry has no data, second has quote data
+        def mock_get_quote(option):
+            if option.expiration == date(2024, 1, 2):
+                # First expiry has no quote
+                return None
+            else:
+                # Other expiries have valid quote
+                mock_quote = Mock()
+                mock_quote.bid = 2.0
+                mock_quote.ask = 2.5
+                return mock_quote
+
+        self.mock_strategy.get_quote = Mock(side_effect=mock_get_quote)
+        self.mock_strategy.get_last_price = Mock(return_value=None)
+
+        target = date(2024, 1, 1)
+        result = self.options_helper.get_expiration_on_or_after_date(
+            target, chains, "call", underlying_asset=underlying_asset
+        )
+
+        # Should skip Jan 2 (no data) and return Jan 9 (has quote)
+        self.assertEqual(result, date(2024, 1, 9))
+
+        # Check it tried to validate options
+        self.mock_strategy.get_quote.assert_called()
+
+    def test_evaluate_option_market_with_quotes(self):
+        """evaluate_option_market returns actionable prices when quotes exist."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=1.0, ask=1.2)
+        self.mock_strategy.get_last_price.return_value = 1.1
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.5)
+
+        self.assertTrue(evaluation.has_bid_ask)
+        self.assertFalse(evaluation.spread_too_wide)
+        self.assertEqual(evaluation.buy_price, 1.2)
+        self.assertEqual(evaluation.sell_price, 1.0)
+        self.assertFalse(evaluation.used_last_price_fallback)
+
+    def test_evaluate_option_market_fallback_allowed(self):
+        """Missing quotes use last price when the data source allows fallback."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=None, ask=None)
+        self.mock_strategy.get_last_price.return_value = 2.5
+        self.mock_strategy.broker.data_source.option_quote_fallback_allowed = True
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.25)
+
+        self.assertTrue(evaluation.missing_bid_ask)
+        self.assertTrue(evaluation.used_last_price_fallback)
+        self.assertEqual(evaluation.buy_price, 2.5)
+        self.assertEqual(evaluation.sell_price, 2.5)
+        self.assertFalse(evaluation.spread_too_wide)
+
+    def test_evaluate_option_market_fallback_blocked(self):
+        """If fallback is not allowed missing quotes produce no price anchors."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=None, ask=None)
+        self.mock_strategy.get_last_price.return_value = 3.1
+        self.mock_strategy.broker.data_source.option_quote_fallback_allowed = False
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.25)
+
+        self.assertTrue(evaluation.missing_bid_ask)
+        self.assertIsNone(evaluation.buy_price)
+        self.assertIsNone(evaluation.sell_price)
+        self.assertFalse(evaluation.used_last_price_fallback)
 
 if __name__ == "__main__":
     print("🧪 Running enhanced options helper tests...")

@@ -24,8 +24,9 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, *args, pandas_data=None, auto_adjust=True, **kwargs):
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, allow_option_quote_fallback: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.option_quote_fallback_allowed = allow_option_quote_fallback
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
         self.auto_adjust = auto_adjust
@@ -81,16 +82,19 @@ class PandasData(DataSourceBacktesting):
         return pcal
 
     def clean_trading_times(self, dt_index, pcal):
-        """
-        Fill in blanks in the data on trading days within market trading hours.
+        """Fill gaps within trading days using the supplied market calendar.
 
-        Parameters:
-        dt_index (DatetimeIndex): The original datetime index.
-        pcal (DataFrame): A calendar DataFrame containing "market_open" and "market_close" columns,
-                            indexed by dates.
+        Parameters
+        ----------
+        dt_index : pandas.DatetimeIndex
+            Original datetime index.
+        pcal : pandas.DataFrame
+            Calendar with ``market_open`` and ``market_close`` columns indexed by date.
 
-        Returns:
-        DatetimeIndex: The cleaned index with one-minute frequency within the market hours.
+        Returns
+        -------
+        pandas.DatetimeIndex
+            Cleaned index with one-minute frequency during market hours.
         """
         # Ensure the datetime index is in datetime format and drop duplicate timestamps
         dt_index = pd.to_datetime(dt_index).drop_duplicates()
@@ -440,14 +444,10 @@ class PandasData(DataSourceBacktesting):
 
         Returns
         -------
-        dictionary of dictionary
-            Format:
-            - `Multiplier` (str) eg: `100`
-            - 'Chains' - paired Expiration/Strke info to guarentee that the stikes are valid for the specific
-                         expiration date.
-                         Format:
-                           chains['Chains']['CALL'][exp_date] = [strike1, strike2, ...]
-                         Expiration Date Format: 2023-07-31
+        dict
+            Mapping with keys such as ``Multiplier`` (e.g. ``"100"``) and ``Chains``.
+            ``Chains`` is a nested dictionary where expiration dates map to strike lists,
+            e.g. ``chains['Chains']['CALL']['2023-07-31'] = [strike1, strike2, ...]``.
         """
         chains = dict(
             Multiplier=100,

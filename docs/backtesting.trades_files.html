@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deployment.html#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -375,7 +376,7 @@
         </div>
         <article role="main">
           <section id="trades-files">
-<h1>Trades Files<a class="headerlink" href="#trades-files" title="Link to this heading">#</a></h1>
+<span id="backtesting-trades-files"></span><h1>Trades Files<a class="headerlink" href="#trades-files" title="Link to this heading">#</a></h1>
 <p>The <strong>Trades HTML</strong> and <strong>Trades CSV</strong> files provide detailed information about each trade executed by the strategy. This includes:</p>
 <ul class="simple">
 <li><p><strong>Buy and Sell Orders:</strong> The times and prices at which buy or sell orders were placed, along with the asset involved (e.g., option strike price or stock ticker).</p></li>
@@ -383,7 +384,7 @@
 <li><p><strong>Cash:</strong> The amount of cash available at each time point.</p></li>
 </ul>
 <figure class="align-center">
-<a class="reference internal image-reference" href="_static/images/trades_example.png"><img alt="Trades example" src="_static/images/trades_example.png" style="width: 600px;" /></a>
+<a class="reference internal image-reference" href="_images/trades_example.png"><img alt="Trades example" src="_images/trades_example.png" style="width: 600px;" /></a>
 </figure>
 </section>
 

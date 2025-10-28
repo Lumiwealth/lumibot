@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference external" href="https://discord.gg/v6asVjTCvh">Discord Community</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://lumiwealth.com/?utm_source=documentation&amp;utm_medium=referral&amp;utm_campaign=lumibot_sidebar">Get Pre-Built Profitable Strategies</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Deployment Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#secrets-configuration">Secrets Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#id4">Secrets Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#broker-configuration">Broker Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="#general-environment-variables">General Environment Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">What is Lumibot?</a></li>
@@ -281,6 +281,7 @@
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
 </ul>
 </li>
 </ul>
@@ -375,7 +376,7 @@
         </div>
         <article role="main">
           <section id="deployment-guide">
-<h1>Deployment Guide<a class="headerlink" href="#deployment-guide" title="Link to this heading">#</a></h1>
+<span id="secrets-configuration"></span><h1>Deployment Guide<a class="headerlink" href="#deployment-guide" title="Link to this heading">#</a></h1>
 <p>This guide will walk you through the deployment process for your trading strategy. We will cover the following topics:</p>
 <ul class="simple">
 <li><p><strong>Choosing Your Deployment Platform:</strong> Decide whether to deploy on <strong>Render</strong> or <strong>Replit</strong>.</p></li>
@@ -404,7 +405,7 @@
 </div><p>Render is recommended for ease of use and affordability. Replit is more expensive but great for in-browser code editing, if you want to see/edit the code directly in your browser.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p><strong>Tip:</strong> Scroll down to the <span class="xref std std-ref">Secrets Configuration</span> section for detailed information on setting up your environment variables.</p>
+<p><strong>Tip:</strong> Scroll down to the <a class="reference internal" href="#secrets-configuration"><span class="std std-ref">Secrets Configuration</span></a> section for detailed information on setting up your environment variables.</p>
 </div>
 </section>
 <section id="id1">
@@ -421,10 +422,10 @@
 <ol class="arabic">
 <li><p><strong>Click the “Deploy to Render” Button</strong></p>
 <p>Start by clicking the <strong>“Deploy to Render”</strong> button on the GitHub repository.</p>
-<figure class="align-center" id="id4">
-<img alt="Deploy to Render Button" src="_static/images/render_deploy_button.png" />
+<figure class="align-center" id="id5">
+<img alt="Deploy to Render Button" src="_images/render_deploy_button.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 1:</strong> Deploy to Render button on GitHub.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -433,10 +434,10 @@
 <li><p><strong>Choose a Blueprint Name:</strong> Enter a name for your blueprint, e.g., <strong>“Blueprint Name”</strong>.</p></li>
 <li><p><strong>Deploy Blueprint:</strong> Click the <strong>“Deploy Blueprint”</strong> button.</p></li>
 </ul>
-<figure class="align-center" id="id5">
-<img alt="Deploy Blueprint on Render" src="_static/images/render_deploy_blueprint.png" />
+<figure class="align-center" id="id6">
+<img alt="Deploy Blueprint on Render" src="_images/render_deploy_blueprint.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 2:</strong> Deploying Blueprint on Render.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -444,36 +445,36 @@
 <ul class="simple">
 <li><p><strong>Navigate to the Background Worker:</strong> Click on the name of the background worker, e.g., <strong>options-butterfly-condor-worker-afas (Starter)</strong> so you can configure this specific bot worker (we are currently in the blueprint configuration, not the bot itself).</p></li>
 </ul>
-<figure class="align-center" id="id6">
-<img alt="Worker on Render" src="_static/images/render_worker.png" />
+<figure class="align-center" id="id7">
+<img alt="Worker on Render" src="_images/render_worker.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 3:</strong> Worker on Render.</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
 <li><p><strong>Configure Environment Variables</strong></p>
 <ul class="simple">
 <li><p><strong>Select Environment:</strong> On the worker’s page, select <strong>Environment</strong> from the left sidebar.</p></li>
-<li><p><strong>Edit Environment Variables:</strong> Click <strong>Edit</strong> and fill in the required keys as detailed in the <span class="xref std std-ref">Secrets Configuration</span> section. Once you have added your values for the environment variables, click <strong>Save</strong>.</p></li>
+<li><p><strong>Edit Environment Variables:</strong> Click <strong>Edit</strong> and fill in the required keys as detailed in the <a class="reference internal" href="#secrets-configuration"><span class="std std-ref">Secrets Configuration</span></a> section. Once you have added your values for the environment variables, click <strong>Save</strong>.</p></li>
 <li><p><strong>Delete Unnecessary Variables:</strong> If you have any unnecessary environment variables, you can delete them by clicking the <strong>Delete (trashcan)</strong> button next to the variable. One example of an unnecessary variable is <cite>POLYGON_API_KEY</cite> which is only used if you are backtesting.</p></li>
 </ul>
-<figure class="align-center" id="id7">
-<img alt="Environment Settings on Render" src="_static/images/render_worker_environment.png" />
+<figure class="align-center" id="id8">
+<img alt="Environment Settings on Render" src="_images/render_worker_environment.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 4:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id7" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 4:</strong> Editing Environment Variables on Render.</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><strong>Note:</strong> Only the environment variables required for your chosen broker are mandatory. Refer to the <span class="xref std std-ref">Secrets Configuration</span> section to see which ones are mandatory and which are optional. If an optional environment variable is not needed, <strong>you can delete it.</strong></p>
+<p><strong>Note:</strong> Only the environment variables required for your chosen broker are mandatory. Refer to the <a class="reference internal" href="#secrets-configuration"><span class="std std-ref">Secrets Configuration</span></a> section to see which ones are mandatory and which are optional. If an optional environment variable is not needed, <strong>you can delete it.</strong></p>
 </div>
 </li>
 <li><p><strong>Restart the Service</strong></p>
 <p>After configuring the environment variables, navigate to the top right corner and click <strong>“Manual Deploy”</strong>, then <strong>“Deploy latest commit”</strong> to apply the changes.</p>
-<figure class="align-center" id="id8">
-<img alt="Restart Service on Render" src="_static/images/render_redeploy.png" />
+<figure class="align-center" id="id9">
+<img alt="Restart Service on Render" src="_images/render_redeploy.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 5:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 5:</strong> Redeploying the Service on Render using the latest commit.</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -481,10 +482,10 @@
 <ul class="simple">
 <li><p><strong>Check the Logs:</strong> Navigate to the <strong>Logs</strong> tab on the left to view the deployment logs and ensure that there are no errors.</p></li>
 </ul>
-<figure class="align-center" id="id9">
-<img alt="Logs on Render" src="_static/images/render_logs.png" />
+<figure class="align-center" id="id10">
+<img alt="Logs on Render" src="_images/render_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 6:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 6:</strong> Viewing Logs on Render.</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -492,10 +493,10 @@
 <ul class="simple">
 <li><p><strong>Monitor Performance:</strong> Go to your broker account to monitor the bot’s performance and ensure that it is executing trades as expected.</p></li>
 </ul>
-<figure class="align-center" id="id10">
-<img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
+<figure class="align-center" id="id11">
+<img alt="Monitor bot performance" src="_images/replit_monitor_bot.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 7:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 7:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -511,10 +512,10 @@
 <ol class="arabic">
 <li><p><strong>Click the “Deploy on Replit” Button</strong></p>
 <p>Start by clicking the <strong>“Deploy on Replit”</strong> button on the GitHub repository.</p>
-<figure class="align-center" id="id11">
-<img alt="Deploy on Replit Button" src="_static/images/deploy_replit_button.png" />
+<figure class="align-center" id="id12">
+<img alt="Deploy on Replit Button" src="_images/deploy_replit_button.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 8:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 8:</strong> Deploy on Replit button on GitHub.</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -524,35 +525,35 @@
 <li><p>Go to <strong>Tools</strong> in the sidebar.</p></li>
 <li><p>Select <strong>Secrets</strong> at the bottom left corner.</p></li>
 </ul>
-<figure class="align-center" id="id12">
-<img alt="Replit Tools -&gt; Secrets" src="_static/images/replit_tools_secrets.png" />
+<figure class="align-center" id="id13">
+<img alt="Replit Tools -&gt; Secrets" src="_images/replit_tools_secrets.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 9:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 9:</strong> Accessing Secrets in Replit.</span><a class="headerlink" href="#id13" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
 <li><p><strong>Add Required Secrets</strong></p>
-<p>In the <strong>Secrets</strong> tab, add the necessary environment variables as detailed in the <span class="xref std std-ref">Secrets Configuration</span> section.</p>
-<figure class="align-center" id="id13">
-<img alt="Adding a new secret in Replit" src="_static/images/replit_add_secret.png" />
+<p>In the <strong>Secrets</strong> tab, add the necessary environment variables as detailed in the <a class="reference internal" href="#secrets-configuration"><span class="std std-ref">Secrets Configuration</span></a> section.</p>
+<figure class="align-center" id="id14">
+<img alt="Adding a new secret in Replit" src="_images/replit_add_secret.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 10:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id13" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 10:</strong> Adding a new secret in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
 <li><p><strong>Test Run the Application</strong></p>
 <p>After adding all required secrets, click <strong>Run</strong>. This step is crucial as it installs all necessary libraries and ensures that the secrets are correctly configured.</p>
 <p>When you press <strong>Run</strong>, the application will start running in the console. You can see the logs in real-time to ensure that everything is working as expected.</p>
-<figure class="align-center" id="id14">
-<img alt="Running the application in Replit" src="_static/images/replit_run.png" />
+<figure class="align-center" id="id15">
+<img alt="Running the application in Replit" src="_images/replit_run.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 11:</strong> Running the application in Replit.</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 11:</strong> Running the application in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<figure class="align-center" id="id15">
-<img alt="Viewing logs in Replit" src="_static/images/replit_logs.png" />
+<figure class="align-center" id="id16">
+<img alt="Viewing logs in Replit" src="_images/replit_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 12:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 12:</strong> Viewing logs in Replit.</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -561,10 +562,10 @@
 <li><p><strong>Click Deploy:</strong> Navigate to <strong>Deploy</strong> located under <strong>Tools</strong> in the top right or within the <strong>Background Workers</strong> section.</p></li>
 <li><p><strong>Select Reserved VM:</strong> The strategies will only work on a <strong>Reserved VM</strong>, none of the other options will work.</p></li>
 </ul>
-<figure class="align-center" id="id16">
-<img alt="Select Reserved VM and Background Worker" src="_static/images/replit_reserved_vm.png" />
+<figure class="align-center" id="id17">
+<img alt="Select Reserved VM and Background Worker" src="_images/replit_reserved_vm.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 13:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 13:</strong> Selecting Reserved VM and Background Worker on Replit.</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -579,16 +580,16 @@
 <li><p><strong>Click Deploy:</strong> Click <strong>“Deploy”</strong> to deploy your application.</p></li>
 <li><p><strong>Wait for Deployment:</strong> The deployment process may take a few minutes. Once completed, you will see a success message.</p></li>
 </ul>
-<figure class="align-center" id="id17">
-<img alt="Deploying the application in Replit" src="_static/images/replit_deploy.png" />
+<figure class="align-center" id="id18">
+<img alt="Deploying the application in Replit" src="_images/replit_deploy.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 14:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 14:</strong> Deploying the application in Replit.</span><a class="headerlink" href="#id18" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<figure class="align-center" id="id18">
-<img alt="Deployment process" src="_static/images/replit_deploy_process.png" />
+<figure class="align-center" id="id19">
+<img alt="Deployment process" src="_images/replit_deploy_process.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 15:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id18" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 15:</strong> Deployment process in Replit.</span><a class="headerlink" href="#id19" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -596,10 +597,10 @@
 <ul class="simple">
 <li><p><strong>View Logs:</strong> Navigate to the <strong>Logs</strong> tab in <strong>Deployment</strong> to view the deployment logs and ensure that there are no errors.</p></li>
 </ul>
-<figure class="align-center" id="id19">
-<img alt="Logs on Replit" src="_static/images/replit_deploy_logs.png" />
+<figure class="align-center" id="id20">
+<img alt="Logs on Replit" src="_images/replit_deploy_logs.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 16:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id19" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 16:</strong> Viewing Logs on Replit.</span><a class="headerlink" href="#id20" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </li>
@@ -607,10 +608,10 @@
 <ul class="simple">
 <li><p><strong>Monitor Performance:</strong> Go to your broker account to monitor the bot’s performance and ensure that it is executing trades as expected.</p></li>
 </ul>
-<figure class="align-center" id="id20">
-<img alt="Monitor bot performance" src="_static/images/replit_monitor_bot.png" />
+<figure class="align-center" id="id21">
+<img alt="Monitor bot performance" src="_images/replit_monitor_bot.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure 17:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id20" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure 17:</strong> Monitoring bot performance.</span><a class="headerlink" href="#id21" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 <div class="admonition note">
@@ -621,8 +622,8 @@
 </ol>
 </section>
 </section>
-<section id="secrets-configuration">
-<h1>Secrets Configuration<a class="headerlink" href="#secrets-configuration" title="Link to this heading">#</a></h1>
+<section id="id4">
+<h1>Secrets Configuration<a class="headerlink" href="#id4" title="Link to this heading">#</a></h1>
 <p>Proper configuration of environment variables is crucial for the successful deployment of your application. The most important secrets are those related to your chosen broker. First, set up the secrets for your broker, then add any additional general secrets if needed.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -639,9 +640,9 @@
 <section id="tradier-configuration">
 <h2>Tradier Configuration<a class="headerlink" href="#tradier-configuration" title="Link to this heading">#</a></h2>
 <p>Tradier is great because they can trade stocks, options, and soon futures. Tradier also offers an incredible plan for $10/month, providing commission-free options trading. This can save a lot of money for those day trading options or engaging in similar activities. To create an account, visit the <a class="reference external" href="https://tradier.com/">Tradier</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id21">
-<table class="docutils align-default" id="id21">
-<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id21" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id22">
+<table class="docutils align-default" id="id22">
+<caption><span class="caption-text">Tradier Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -673,9 +674,9 @@
 <section id="tradovate-configuration">
 <h2>Tradovate Configuration<a class="headerlink" href="#tradovate-configuration" title="Link to this heading">#</a></h2>
 <p>Tradovate is a futures broker that provides access to CME Group markets. <strong>Important: Tradovate does not provide market data, so you must configure a separate data source</strong> (such as DataBento or ProjectX). To create an account, visit the <a class="reference external" href="https://www.tradovate.com/">Tradovate</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id22">
-<table class="docutils align-default" id="id22">
-<caption><span class="caption-text">Tradovate Configuration</span><a class="headerlink" href="#id22" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id23">
+<table class="docutils align-default" id="id23">
+<caption><span class="caption-text">Tradovate Configuration</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -727,9 +728,9 @@
 <section id="alpaca-configuration">
 <h2>Alpaca Configuration<a class="headerlink" href="#alpaca-configuration" title="Link to this heading">#</a></h2>
 <p>Alpaca is great because they’re a commission-free broker specifically designed for API trading, which aligns perfectly with our platform. Alpaca supports trading stocks, crypto, and soon options, with their APIs working seamlessly for automated trading strategies. To create an account, visit the <a class="reference external" href="https://alpaca.markets/">Alpaca</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id23">
-<table class="docutils align-default" id="id23">
-<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id23" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id24">
+<table class="docutils align-default" id="id24">
+<caption><span class="caption-text">Alpaca Configuration</span><a class="headerlink" href="#id24" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -761,9 +762,9 @@
 <section id="coinbase-configuration">
 <h2>Coinbase Configuration<a class="headerlink" href="#coinbase-configuration" title="Link to this heading">#</a></h2>
 <p>Coinbase is a cryptocurrency broker that is easy to set up and operates across all United States, including New York, which is typically challenging to find for crypto brokers. It offers a wide range of cryptocurrencies with user-friendly APIs. To create an account, visit the <a class="reference external" href="https://www.coinbase.com/">Coinbase</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id24">
-<table class="docutils align-default" id="id24">
-<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id24" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id25">
+<table class="docutils align-default" id="id25">
+<caption><span class="caption-text">Coinbase Configuration</span><a class="headerlink" href="#id25" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -799,9 +800,9 @@
 <section id="kraken-configuration">
 <h2>Kraken Configuration<a class="headerlink" href="#kraken-configuration" title="Link to this heading">#</a></h2>
 <p>Kraken is an excellent cryptocurrency broker offering very low fees and a wide range of cryptocurrencies, likely more than Coinbase. It is ideal for users focused on crypto trading with competitive pricing. To create an account, visit the <a class="reference external" href="https://www.kraken.com/">Kraken</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id25">
-<table class="docutils align-default" id="id25">
-<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id25" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id26">
+<table class="docutils align-default" id="id26">
+<caption><span class="caption-text">Kraken Configuration</span><a class="headerlink" href="#id26" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -829,9 +830,9 @@
 <section id="kucoin-configuration">
 <h2>Kucoin Configuration<a class="headerlink" href="#kucoin-configuration" title="Link to this heading">#</a></h2>
 <p>Kucoin is a popular global cryptocurrency exchange offering a wide variety of cryptocurrencies and trading pairs. To create an account, visit the <a class="reference external" href="https://www.kucoin.com/">Kucoin</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id26">
-<table class="docutils align-default" id="id26">
-<caption><span class="caption-text">Kucoin Configuration</span><a class="headerlink" href="#id26" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id27">
+<table class="docutils align-default" id="id27">
+<caption><span class="caption-text">Kucoin Configuration</span><a class="headerlink" href="#id27" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -863,9 +864,9 @@
 <section id="binance-configuration">
 <h2>Binance Configuration<a class="headerlink" href="#binance-configuration" title="Link to this heading">#</a></h2>
 <p>Binance is the world’s largest cryptocurrency exchange by trading volume, offering extensive cryptocurrency trading options. To create an account, visit the <a class="reference external" href="https://www.binance.com/">Binance</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id27">
-<table class="docutils align-default" id="id27">
-<caption><span class="caption-text">Binance Configuration</span><a class="headerlink" href="#id27" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id28">
+<table class="docutils align-default" id="id28">
+<caption><span class="caption-text">Binance Configuration</span><a class="headerlink" href="#id28" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -893,9 +894,9 @@
 <section id="bitmex-configuration">
 <h2>Bitmex Configuration<a class="headerlink" href="#bitmex-configuration" title="Link to this heading">#</a></h2>
 <p>Bitmex is a cryptocurrency derivatives exchange specializing in futures and perpetual contracts. To create an account, visit the <a class="reference external" href="https://www.bitmex.com/">Bitmex</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id28">
-<table class="docutils align-default" id="id28">
-<caption><span class="caption-text">Bitmex Configuration</span><a class="headerlink" href="#id28" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id29">
+<table class="docutils align-default" id="id29">
+<caption><span class="caption-text">Bitmex Configuration</span><a class="headerlink" href="#id29" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -923,9 +924,9 @@
 <section id="bybit-configuration">
 <h2>Bybit Configuration<a class="headerlink" href="#bybit-configuration" title="Link to this heading">#</a></h2>
 <p>Bybit is a popular derivatives exchange offering futures and perpetual contracts for cryptocurrency trading. To create an account, visit the <a class="reference external" href="https://www.bybit.com/">Bybit</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id29">
-<table class="docutils align-default" id="id29">
-<caption><span class="caption-text">Bybit Configuration</span><a class="headerlink" href="#id29" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id30">
+<table class="docutils align-default" id="id30">
+<caption><span class="caption-text">Bybit Configuration</span><a class="headerlink" href="#id30" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -953,9 +954,9 @@
 <section id="okx-configuration">
 <h2>OKX Configuration<a class="headerlink" href="#okx-configuration" title="Link to this heading">#</a></h2>
 <p>OKX is a major global cryptocurrency exchange offering spot, futures, and options trading. To create an account, visit the <a class="reference external" href="https://www.okx.com/">OKX</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id30">
-<table class="docutils align-default" id="id30">
-<caption><span class="caption-text">OKX Configuration</span><a class="headerlink" href="#id30" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id31">
+<table class="docutils align-default" id="id31">
+<caption><span class="caption-text">OKX Configuration</span><a class="headerlink" href="#id31" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -987,9 +988,9 @@
 <section id="interactive-brokers-configuration">
 <h2>Interactive Brokers Configuration<a class="headerlink" href="#interactive-brokers-configuration" title="Link to this heading">#</a></h2>
 <p>Interactive Brokers is ideal for international users as they offer a wide array of asset classes, including stocks, options, futures, forex, CFDs, and more. Their global presence makes them suitable for users around the world. To create an account, visit the <a class="reference external" href="https://www.interactivebrokers.com/">Interactive Brokers</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id31">
-<table class="docutils align-default" id="id31">
-<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id31" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id32">
+<table class="docutils align-default" id="id32">
+<caption><span class="caption-text">Interactive Brokers Configuration</span><a class="headerlink" href="#id32" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1025,9 +1026,9 @@
 <section id="interactive-brokers-legacy-configuration">
 <h2>Interactive Brokers-Legacy Configuration<a class="headerlink" href="#interactive-brokers-legacy-configuration" title="Link to this heading">#</a></h2>
 <p>This is the legacy version of our Interactive Brokers implementation, which uses their TWS API. It is maintained for compatibility purposes, but we recommend using the newer implementation.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id32">
-<table class="docutils align-default" id="id32">
-<caption><span class="caption-text">Interactive Brokers-Legacy Configuration</span><a class="headerlink" href="#id32" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id33">
+<table class="docutils align-default" id="id33">
+<caption><span class="caption-text">Interactive Brokers-Legacy Configuration</span><a class="headerlink" href="#id33" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1063,9 +1064,9 @@
 <section id="schwab-configuration">
 <h2>Schwab Configuration<a class="headerlink" href="#schwab-configuration" title="Link to this heading">#</a></h2>
 <p>Charles Schwab provides API access for automated trading and market data through its developer platform. To create an account, visit the <a class="reference external" href="https://www.schwab.com/">Charles Schwab</a> website and follow the instructions to register for a developer account at <a class="reference external" href="https://developer.schwab.com">developer.schwab.com</a>.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id33">
-<table class="docutils align-default" id="id33">
-<caption><span class="caption-text">Schwab Configuration</span><a class="headerlink" href="#id33" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id34">
+<table class="docutils align-default" id="id34">
+<caption><span class="caption-text">Schwab Configuration</span><a class="headerlink" href="#id34" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1097,9 +1098,9 @@
 <section id="bitunix-configuration">
 <h2>Bitunix Configuration<a class="headerlink" href="#bitunix-configuration" title="Link to this heading">#</a></h2>
 <p>Bitunix is a cryptocurrency derivatives exchange that supports perpetual futures trading. To create an account, visit the <a class="reference external" href="https://www.bitunix.com/">Bitunix</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id34">
-<table class="docutils align-default" id="id34">
-<caption><span class="caption-text">Bitunix Configuration</span><a class="headerlink" href="#id34" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id35">
+<table class="docutils align-default" id="id35">
+<caption><span class="caption-text">Bitunix Configuration</span><a class="headerlink" href="#id35" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1127,9 +1128,9 @@
 <section id="databento-configuration">
 <h2>DataBento Configuration<a class="headerlink" href="#databento-configuration" title="Link to this heading">#</a></h2>
 <p>DataBento provides high-quality market data for stocks, futures, and options. This is primarily used as a data source for backtesting and live trading with futures. To create an account, visit the <a class="reference external" href="https://databento.com/">DataBento</a> website.</p>
-<div class="table-wrapper colwidths-given docutils container" id="id35">
-<table class="docutils align-default" id="id35">
-<caption><span class="caption-text">DataBento Configuration</span><a class="headerlink" href="#id35" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id36">
+<table class="docutils align-default" id="id36">
+<caption><span class="caption-text">DataBento Configuration</span><a class="headerlink" href="#id36" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1155,9 +1156,9 @@
 <p>ProjectX is a futures-only broker that connects to multiple prop trading firms and futures brokers. Each broker requires its own specific environment variables. Choose the section below that matches your broker.</p>
 <section id="topstepx">
 <h3>TopstepX<a class="headerlink" href="#topstepx" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id36">
-<table class="docutils align-default" id="id36">
-<caption><span class="caption-text">TopstepX Configuration</span><a class="headerlink" href="#id36" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id37">
+<table class="docutils align-default" id="id37">
+<caption><span class="caption-text">TopstepX Configuration</span><a class="headerlink" href="#id37" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1188,9 +1189,9 @@
 </section>
 <section id="top-one-futures">
 <h3>Top One Futures<a class="headerlink" href="#top-one-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id37">
-<table class="docutils align-default" id="id37">
-<caption><span class="caption-text">Top One Futures Configuration</span><a class="headerlink" href="#id37" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id38">
+<table class="docutils align-default" id="id38">
+<caption><span class="caption-text">Top One Futures Configuration</span><a class="headerlink" href="#id38" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1221,9 +1222,9 @@
 </section>
 <section id="tickticktrader">
 <h3>TickTickTrader<a class="headerlink" href="#tickticktrader" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id38">
-<table class="docutils align-default" id="id38">
-<caption><span class="caption-text">TickTickTrader Configuration</span><a class="headerlink" href="#id38" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id39">
+<table class="docutils align-default" id="id39">
+<caption><span class="caption-text">TickTickTrader Configuration</span><a class="headerlink" href="#id39" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1254,9 +1255,9 @@
 </section>
 <section id="alphaticks">
 <h3>AlphaTicks<a class="headerlink" href="#alphaticks" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id39">
-<table class="docutils align-default" id="id39">
-<caption><span class="caption-text">AlphaTicks Configuration</span><a class="headerlink" href="#id39" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id40">
+<table class="docutils align-default" id="id40">
+<caption><span class="caption-text">AlphaTicks Configuration</span><a class="headerlink" href="#id40" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1287,9 +1288,9 @@
 </section>
 <section id="aqua-futures">
 <h3>Aqua Futures<a class="headerlink" href="#aqua-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id40">
-<table class="docutils align-default" id="id40">
-<caption><span class="caption-text">Aqua Futures Configuration</span><a class="headerlink" href="#id40" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id41">
+<table class="docutils align-default" id="id41">
+<caption><span class="caption-text">Aqua Futures Configuration</span><a class="headerlink" href="#id41" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1320,9 +1321,9 @@
 </section>
 <section id="blue-guardian-futures">
 <h3>Blue Guardian Futures<a class="headerlink" href="#blue-guardian-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id41">
-<table class="docutils align-default" id="id41">
-<caption><span class="caption-text">Blue Guardian Futures Configuration</span><a class="headerlink" href="#id41" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id42">
+<table class="docutils align-default" id="id42">
+<caption><span class="caption-text">Blue Guardian Futures Configuration</span><a class="headerlink" href="#id42" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1353,9 +1354,9 @@
 </section>
 <section id="blusky">
 <h3>Blusky<a class="headerlink" href="#blusky" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id42">
-<table class="docutils align-default" id="id42">
-<caption><span class="caption-text">Blusky Configuration</span><a class="headerlink" href="#id42" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id43">
+<table class="docutils align-default" id="id43">
+<caption><span class="caption-text">Blusky Configuration</span><a class="headerlink" href="#id43" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1386,9 +1387,9 @@
 </section>
 <section id="bulenox">
 <h3>Bulenox<a class="headerlink" href="#bulenox" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id43">
-<table class="docutils align-default" id="id43">
-<caption><span class="caption-text">Bulenox Configuration</span><a class="headerlink" href="#id43" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id44">
+<table class="docutils align-default" id="id44">
+<caption><span class="caption-text">Bulenox Configuration</span><a class="headerlink" href="#id44" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1419,9 +1420,9 @@
 </section>
 <section id="e8-futures">
 <h3>E8 Futures<a class="headerlink" href="#e8-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id44">
-<table class="docutils align-default" id="id44">
-<caption><span class="caption-text">E8 Futures Configuration</span><a class="headerlink" href="#id44" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id45">
+<table class="docutils align-default" id="id45">
+<caption><span class="caption-text">E8 Futures Configuration</span><a class="headerlink" href="#id45" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1452,9 +1453,9 @@
 </section>
 <section id="funding-futures">
 <h3>Funding Futures<a class="headerlink" href="#funding-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id45">
-<table class="docutils align-default" id="id45">
-<caption><span class="caption-text">Funding Futures Configuration</span><a class="headerlink" href="#id45" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id46">
+<table class="docutils align-default" id="id46">
+<caption><span class="caption-text">Funding Futures Configuration</span><a class="headerlink" href="#id46" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1485,9 +1486,9 @@
 </section>
 <section id="the-futures-desk">
 <h3>The Futures Desk<a class="headerlink" href="#the-futures-desk" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id46">
-<table class="docutils align-default" id="id46">
-<caption><span class="caption-text">The Futures Desk Configuration</span><a class="headerlink" href="#id46" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id47">
+<table class="docutils align-default" id="id47">
+<caption><span class="caption-text">The Futures Desk Configuration</span><a class="headerlink" href="#id47" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1518,9 +1519,9 @@
 </section>
 <section id="futures-elite">
 <h3>Futures Elite<a class="headerlink" href="#futures-elite" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id47">
-<table class="docutils align-default" id="id47">
-<caption><span class="caption-text">Futures Elite Configuration</span><a class="headerlink" href="#id47" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id48">
+<table class="docutils align-default" id="id48">
+<caption><span class="caption-text">Futures Elite Configuration</span><a class="headerlink" href="#id48" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1551,9 +1552,9 @@
 </section>
 <section id="fxify-futures">
 <h3>FXIFY Futures<a class="headerlink" href="#fxify-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id48">
-<table class="docutils align-default" id="id48">
-<caption><span class="caption-text">FXIFY Futures Configuration</span><a class="headerlink" href="#id48" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id49">
+<table class="docutils align-default" id="id49">
+<caption><span class="caption-text">FXIFY Futures Configuration</span><a class="headerlink" href="#id49" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1584,9 +1585,9 @@
 </section>
 <section id="goat-funded-futures">
 <h3>Goat Funded Futures<a class="headerlink" href="#goat-funded-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id49">
-<table class="docutils align-default" id="id49">
-<caption><span class="caption-text">Goat Funded Futures Configuration</span><a class="headerlink" href="#id49" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id50">
+<table class="docutils align-default" id="id50">
+<caption><span class="caption-text">Goat Funded Futures Configuration</span><a class="headerlink" href="#id50" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1617,9 +1618,9 @@
 </section>
 <section id="hola-prime">
 <h3>Hola Prime<a class="headerlink" href="#hola-prime" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id50">
-<table class="docutils align-default" id="id50">
-<caption><span class="caption-text">Hola Prime Configuration</span><a class="headerlink" href="#id50" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id51">
+<table class="docutils align-default" id="id51">
+<caption><span class="caption-text">Hola Prime Configuration</span><a class="headerlink" href="#id51" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1650,9 +1651,9 @@
 </section>
 <section id="nexgen-futures">
 <h3>Nexgen Futures<a class="headerlink" href="#nexgen-futures" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id51">
-<table class="docutils align-default" id="id51">
-<caption><span class="caption-text">Nexgen Futures Configuration</span><a class="headerlink" href="#id51" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id52">
+<table class="docutils align-default" id="id52">
+<caption><span class="caption-text">Nexgen Futures Configuration</span><a class="headerlink" href="#id52" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1683,9 +1684,9 @@
 </section>
 <section id="tx3-funding">
 <h3>TX3 Funding<a class="headerlink" href="#tx3-funding" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id52">
-<table class="docutils align-default" id="id52">
-<caption><span class="caption-text">TX3 Funding Configuration</span><a class="headerlink" href="#id52" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id53">
+<table class="docutils align-default" id="id53">
+<caption><span class="caption-text">TX3 Funding Configuration</span><a class="headerlink" href="#id53" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1716,9 +1717,9 @@
 </section>
 <section id="daytraders">
 <h3>DayTraders<a class="headerlink" href="#daytraders" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id53">
-<table class="docutils align-default" id="id53">
-<caption><span class="caption-text">DayTraders Configuration</span><a class="headerlink" href="#id53" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id54">
+<table class="docutils align-default" id="id54">
+<caption><span class="caption-text">DayTraders Configuration</span><a class="headerlink" href="#id54" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1749,9 +1750,9 @@
 </section>
 <section id="demo-testing">
 <h3>Demo/Testing<a class="headerlink" href="#demo-testing" title="Link to this heading">#</a></h3>
-<div class="table-wrapper colwidths-given docutils container" id="id54">
-<table class="docutils align-default" id="id54">
-<caption><span class="caption-text">Demo Configuration</span><a class="headerlink" href="#id54" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id55">
+<table class="docutils align-default" id="id55">
+<caption><span class="caption-text">Demo Configuration</span><a class="headerlink" href="#id55" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1785,9 +1786,9 @@
 <section id="general-environment-variables">
 <h1>General Environment Variables<a class="headerlink" href="#general-environment-variables" title="Link to this heading">#</a></h1>
 <p>In addition to broker-specific secrets, the following environment variables are required for the strategy to function correctly:</p>
-<div class="table-wrapper colwidths-given docutils container" id="id55">
-<table class="docutils align-default" id="id55">
-<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id55" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id56">
+<table class="docutils align-default" id="id56">
+<caption><span class="caption-text">General Environment Variables</span><a class="headerlink" href="#id56" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 50.0%" />
@@ -1941,7 +1942,7 @@
 <li><a class="reference internal" href="#id3">Deploying to Replit</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#secrets-configuration">Secrets Configuration</a></li>
+<li><a class="reference internal" href="#id4">Secrets Configuration</a></li>
 <li><a class="reference internal" href="#broker-configuration">Broker Configuration</a><ul>
 <li><a class="reference internal" href="#tradier-configuration">Tradier Configuration</a></li>
 <li><a class="reference internal" href="#tradovate-configuration">Tradovate Configuration</a></li>

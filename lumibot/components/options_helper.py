@@ -1,7 +1,28 @@
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+import warnings
 
 from lumibot.entities import Asset, Order
+from lumibot.entities.chains import Chains
+
+
+@dataclass
+class OptionMarketEvaluation:
+    """Structured result from evaluate_option_market."""
+
+    bid: Optional[float]
+    ask: Optional[float]
+    last_price: Optional[float]
+    spread_pct: Optional[float]
+    has_bid_ask: bool
+    spread_too_wide: bool
+    missing_bid_ask: bool
+    missing_last_price: bool
+    buy_price: Optional[float]
+    sell_price: Optional[float]
+    used_last_price_fallback: bool
+    max_spread_pct: Optional[float]
 
 
 class OptionsHelper:
@@ -34,6 +55,7 @@ class OptionsHelper:
         self.last_condor_prices: Optional[Dict[Order, float]] = None
         self.last_call_sell_strike: Optional[float] = None
         self.last_put_sell_strike: Optional[float] = None
+        self._liquidity_deprecation_warned = False
         self.strategy.log_message("OptionsHelper initialized.", color="blue")
 
     # ============================================================
@@ -81,6 +103,18 @@ class OptionsHelper:
                 right=put_or_call,
                 underlying_asset=underlying_asset,
             )
+
+            # First check if quote data exists (preferred)
+            try:
+                quote = self.strategy.get_quote(option)
+                has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
+                if has_valid_quote:
+                    self.strategy.log_message(f"Found valid quote for option {option.symbol} at expiry {expiry}", color="blue")
+                    return option
+            except Exception as e:
+                self.strategy.log_message(f"Error getting quote for {option.symbol}: {e}", color="yellow")
+
+            # Fallback to checking last price if no quote
             try:
                 price = self.strategy.get_last_price(option)
                 self.strategy.log_message(f"Price for option {option.symbol} at expiry {expiry} is {price}", color="blue")
@@ -340,6 +374,129 @@ class OptionsHelper:
         self.strategy.log_message(f"Calculated limit price: {limit_price}", color="green")
         return limit_price
 
+    def evaluate_option_market(
+        self,
+        option_asset: Asset,
+        max_spread_pct: Optional[float] = None,
+    ) -> OptionMarketEvaluation:
+        """Evaluate available quote data for an option and produce execution anchors.
+
+        Parameters
+        ----------
+        option_asset : Asset
+            The option to evaluate.
+        max_spread_pct : float, optional
+            Maximum acceptable bid/ask spread as a fraction (e.g. 0.25 for 25%).
+
+        Returns
+        -------
+        OptionMarketEvaluation
+            Dataclass containing quote fields, derived spread information, and
+            suggested buy/sell prices (with automatic fallback when the data
+            source allows it).
+        """
+
+        data_source = getattr(getattr(self.strategy, "broker", None), "data_source", None)
+        allow_fallback = bool(getattr(data_source, "option_quote_fallback_allowed", False))
+
+        bid: Optional[float] = None
+        ask: Optional[float] = None
+        last_price: Optional[float] = None
+        spread_pct: Optional[float] = None
+        has_bid_ask = False
+        spread_too_wide = False
+        missing_bid_ask = False
+        missing_last_price = False
+        used_last_price_fallback = False
+        buy_price: Optional[float] = None
+        sell_price: Optional[float] = None
+
+        # Attempt to get quotes first
+        quote = None
+        try:
+            quote = self.strategy.get_quote(option_asset)
+        except Exception as exc:
+            self.strategy.log_message(
+                f"Error fetching quote for {option_asset}: {exc}",
+                color="red",
+            )
+
+        if quote and quote.bid is not None and quote.ask is not None:
+            try:
+                bid = float(quote.bid)
+                ask = float(quote.ask)
+            except (TypeError, ValueError):
+                bid = quote.bid
+                ask = quote.ask
+            has_bid_ask = bid is not None and ask is not None
+
+        if has_bid_ask and bid is not None and ask is not None:
+            buy_price = ask
+            sell_price = bid
+            mid = (ask + bid) / 2 if (ask is not None and bid is not None) else None
+            if mid and mid > 0:
+                spread_pct = (ask - bid) / mid
+                if max_spread_pct is not None:
+                    spread_too_wide = spread_pct > max_spread_pct
+            else:
+                spread_pct = None
+        else:
+            missing_bid_ask = True
+
+        # Last price as secondary signal / fallback anchor
+        try:
+            last_price = self.strategy.get_last_price(option_asset)
+        except Exception as exc:
+            self.strategy.log_message(
+                f"Error fetching last price for {option_asset}: {exc}",
+                color="red",
+            )
+
+        if last_price is None:
+            missing_last_price = True
+
+        if not has_bid_ask and allow_fallback and last_price is not None:
+            buy_price = last_price
+            sell_price = last_price
+            used_last_price_fallback = True
+            self.strategy.log_message(
+                f"Using last-price fallback for {option_asset} due to missing bid/ask quotes.",
+                color="yellow",
+            )
+
+        # Compose log message
+        spread_str = f"{spread_pct:.2%}" if spread_pct is not None else "None"
+        max_spread_str = f"{max_spread_pct:.2%}" if max_spread_pct is not None else "None"
+        log_color = "red" if spread_too_wide else (
+            "yellow" if (missing_bid_ask or missing_last_price or used_last_price_fallback) else "blue"
+        )
+        self.strategy.log_message(
+            (
+                f"Option market evaluation for {option_asset}: "
+                f"bid={bid}, ask={ask}, last={last_price}, spread={spread_str}, "
+                f"max_spread={max_spread_str}, missing_bid_ask={missing_bid_ask}, "
+                f"missing_last_price={missing_last_price}, spread_too_wide={spread_too_wide}, "
+                f"used_last_price_fallback={used_last_price_fallback}, "
+                f"buy_price={buy_price}, sell_price={sell_price}"
+            ),
+            color=log_color,
+        )
+
+        return OptionMarketEvaluation(
+            bid=bid,
+            ask=ask,
+            last_price=last_price,
+            spread_pct=spread_pct,
+            has_bid_ask=has_bid_ask,
+            spread_too_wide=spread_too_wide,
+            missing_bid_ask=missing_bid_ask,
+            missing_last_price=missing_last_price,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            used_last_price_fallback=used_last_price_fallback,
+            max_spread_pct=max_spread_pct,
+        )
+
     def check_option_liquidity(self, option_asset: Asset, max_spread_pct: float) -> bool:
         """
         Check if an option's bid-ask spread is within an acceptable threshold.
@@ -356,21 +513,21 @@ class OptionsHelper:
         bool
             True if the option is sufficiently liquid; False otherwise.
         """
-        self.strategy.log_message(f"Checking liquidity for {option_asset.symbol}", color="blue")
-        try:
-            quote = self.strategy.get_quote(option_asset)
-        except Exception as e:
-            self.strategy.log_message(f"Error fetching quote for liquidity check on {option_asset.symbol}: {e}", color="red")
-            return False
-        if not quote or quote.bid is None or quote.ask is None:
-            self.strategy.log_message(f"Liquidity check: Missing quote for {option_asset.symbol}", color="red")
-            return False
-        bid = quote.bid
-        ask = quote.ask
-        mid = (bid + ask) / 2
-        spread_pct = (ask - bid) / mid
-        self.strategy.log_message(f"{option_asset.symbol} liquidity spread: {spread_pct:.2%}", color="blue")
-        return spread_pct <= max_spread_pct
+        if not self._liquidity_deprecation_warned:
+            warnings.warn(
+                "OptionsHelper.check_option_liquidity is deprecated. "
+                "Use OptionsHelper.evaluate_option_market instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self._liquidity_deprecation_warned = True
+
+        evaluation = self.evaluate_option_market(
+            option_asset=option_asset,
+            max_spread_pct=max_spread_pct,
+        )
+
+        return evaluation.has_bid_ask and not evaluation.spread_too_wide
 
     def get_order_details(self, order: Order) -> Dict[str, Optional[Union[str, float, date]]]:
         """
@@ -398,32 +555,33 @@ class OptionsHelper:
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
 
-    def get_expiration_on_or_after_date(self, dt: date, chains: dict, call_or_put: str) -> Optional[date]:
+    def get_expiration_on_or_after_date(self, dt: Union[date, datetime], chains: Union[Dict[str, Any], Chains], call_or_put: str, underlying_asset: Optional[Asset] = None) -> Optional[date]:
         """
-        Get the expiration date that is on or after a given date.
+        Get the expiration date that is on or after a given date, validating that the option has tradeable data.
 
         Parameters
         ----------
         dt : date
             The starting date. Can be a datetime.date or datetime.datetime object.
-        chains : dict
-            A dictionary containing option chains.
+        chains : dict or Chains
+            A dictionary or Chains object containing option chains.
         call_or_put : str
             One of "call" or "put".
+        underlying_asset : Asset, optional
+            The underlying asset to validate option data. If provided, will verify option has tradeable data.
 
         Returns
         -------
         date
-            The adjusted expiration date.
+            The adjusted expiration date with valid tradeable data.
         """
-        
+
         # Handle both datetime.datetime and datetime.date objects
-        from datetime import datetime, date
         if isinstance(dt, datetime):
-            dt = dt.date()  # Convert datetime to date
+            dt = dt.date()
         elif not isinstance(dt, date):
             raise TypeError(f"dt must be a datetime.date or datetime.datetime object, got {type(dt)}")
-        
+
         # Make it all caps and get the specific chain.
         call_or_put_caps = call_or_put.upper()
 
@@ -444,16 +602,82 @@ class OptionsHelper:
             )
             return None
 
-        # Get the list of expiration dates as strings.
-        expiration_dates = list(specific_chain.keys())
+        # Get underlying symbol for validation
+        underlying_symbol = None
+        if underlying_asset:
+            underlying_symbol = underlying_asset.symbol
+        elif hasattr(chains, 'underlying_symbol'):
+            underlying_symbol = chains.underlying_symbol
+        elif 'UnderlyingSymbol' in chains_map:
+            underlying_symbol = chains_map['UnderlyingSymbol']
 
-        # Since dt is a date object and expiration_dates contains strings, dt won't be found.
-        # Find the closest expiration date (as a string) and convert it back to a date.
-        if dt not in expiration_dates:
-            closest_str = min(expiration_dates, key=lambda x: abs(datetime.strptime(x, "%Y-%m-%d").date() - dt))
-            dt = datetime.strptime(closest_str, "%Y-%m-%d").date()
+        # Convert string expiries to dates for comparison
+        expiration_dates: List[Tuple[str, date]] = []
+        for expiry_str in specific_chain.keys():
+            try:
+                from lumibot.entities.chains import _normalise_expiry
+                expiry_date = _normalise_expiry(expiry_str)
+                expiration_dates.append((expiry_str, expiry_date))
+            except:
+                continue
 
-        return dt
+        expiration_dates.sort(key=lambda x: x[1])
+        future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
+
+        # Check each candidate expiry to find one with valid data
+        for exp_str, exp_date in future_candidates:
+            strikes = specific_chain.get(exp_str)
+            if strikes and len(strikes) > 0:
+                # Check if at least one strike has valid data
+                # Pick a strike near the middle (likely to be ATM and have data)
+                test_strike = strikes[len(strikes) // 2] if isinstance(strikes, list) else list(strikes)[len(strikes) // 2]
+
+                # Try to get the underlying symbol from the first available asset
+                if underlying_symbol:
+                    test_option = Asset(
+                        underlying_symbol,
+                        asset_type="option",
+                        expiration=exp_date,
+                        strike=float(test_strike),
+                        right=call_or_put,
+                    )
+
+                    # Check if this option has tradeable data
+                    try:
+                        quote = self.strategy.get_quote(test_option)
+                        has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
+                        if has_valid_quote:
+                            self.strategy.log_message(f"Found valid expiry {exp_date} with quote data for {call_or_put_caps}", color="blue")
+                            return exp_date
+                    except:
+                        pass
+
+                    # Fallback to checking last price
+                    try:
+                        price = self.strategy.get_last_price(test_option)
+                        if price is not None:
+                            self.strategy.log_message(f"Found valid expiry {exp_date} with price data for {call_or_put_caps}", color="blue")
+                            return exp_date
+                    except:
+                        pass
+                else:
+                    # If we can't determine underlying, assume the expiry is valid (backward compatibility)
+                    self.strategy.log_message(f"Cannot validate data without underlying symbol, returning {exp_date}", color="yellow")
+                    return exp_date
+
+        # No future expirations with valid data; log and check last available
+        if expiration_dates:
+            # Check the last available expiry for data
+            for exp_str, exp_date in reversed(expiration_dates):
+                strikes = specific_chain.get(exp_str)
+                if strikes and len(strikes) > 0:
+                    self.strategy.log_message(
+                        f"No valid expirations on or after {dt}; using latest available {exp_date} for {call_or_put_caps}.",
+                        color="yellow",
+                    )
+                    return exp_date
+
+        return None
 
     # ============================================================
     # Order Building Functions (Build orders without submission)

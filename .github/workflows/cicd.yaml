@@ -80,21 +80,16 @@ jobs:
           echo "Starting test execution at $(date)"
           echo "Python version: $(python --version)"
           echo "Pytest version: $(python -m pytest --version)"
-          
+
           # Run tests with explicit timeouts and in smaller chunks
           echo "=== Step 1: Running non-backtest unit tests ==="
           timeout 600 python -m pytest tests/ -m "not apitest" --ignore=tests/backtest/ --tb=short -x --durations=20 || echo "Non-backtest tests completed with status $?"
-          
+
           echo "=== Step 2: Running backtest tests ==="
           timeout 600 python -m pytest tests/backtest/ -m "not apitest" --tb=short -x --durations=20 || echo "Backtest tests completed with status $?"
-          
+
           echo "=== Step 3: Final verification run ==="
-          python -m pytest tests/ -m "not apitest" --tb=no -q
-          
-          # Create placeholder coverage files for badge generation
-          echo '<?xml version="1.0" ?><coverage version="1.0"><packages></packages></coverage>' > coverage.xml
-          mkdir -p Lumibot
-          echo "<html><body>Coverage temporarily disabled for CI performance</body></html>" > Lumibot/index.html
+          python -m pytest tests/ -m "not apitest" --tb=no -q --cov=lumibot --cov-report=xml --cov-report=html:Lumibot
 
       # Make the HTML report downloadable from the Actions artefacts tab
       - name: Upload coverage HTML

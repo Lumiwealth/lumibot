@@ -1,4 +1,7 @@
-﻿self.name
+:orphan:
+
+self.name
 =========================================================
 
 .. autoproperty:: lumibot.strategies.strategy.Strategy.name
+   :noindex:

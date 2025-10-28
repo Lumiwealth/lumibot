@@ -1,3 +1,5 @@
+.. _secrets-configuration:
+
 Deployment Guide
 ================
 
@@ -58,7 +60,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
 
    Start by clicking the **"Deploy to Render"** button on the GitHub repository.
 
-   .. figure:: _static/images/render_deploy_button.png
+   .. figure:: _html/images/render_deploy_button.png
       :alt: Deploy to Render Button
       :align: center
 
@@ -69,7 +71,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
    - **Choose a Blueprint Name:** Enter a name for your blueprint, e.g., **"Blueprint Name"**.
    - **Deploy Blueprint:** Click the **"Deploy Blueprint"** button.
 
-   .. figure:: _static/images/render_deploy_blueprint.png
+   .. figure:: _html/images/render_deploy_blueprint.png
       :alt: Deploy Blueprint on Render
       :align: center
 
@@ -79,7 +81,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
 
    - **Navigate to the Background Worker:** Click on the name of the background worker, e.g., **options-butterfly-condor-worker-afas (Starter)** so you can configure this specific bot worker (we are currently in the blueprint configuration, not the bot itself).
 
-   .. figure:: _static/images/render_worker.png
+   .. figure:: _html/images/render_worker.png
       :alt: Worker on Render
       :align: center
 
@@ -91,7 +93,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
    - **Edit Environment Variables:** Click **Edit** and fill in the required keys as detailed in the :ref:`Secrets Configuration <secrets-configuration>` section. Once you have added your values for the environment variables, click **Save**.
    - **Delete Unnecessary Variables:** If you have any unnecessary environment variables, you can delete them by clicking the **Delete (trashcan)** button next to the variable. One example of an unnecessary variable is `POLYGON_API_KEY` which is only used if you are backtesting.
 
-   .. figure:: _static/images/render_worker_environment.png
+   .. figure:: _html/images/render_worker_environment.png
       :alt: Environment Settings on Render
       :align: center
 
@@ -105,7 +107,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
 
    After configuring the environment variables, navigate to the top right corner and click **"Manual Deploy"**, then **"Deploy latest commit"** to apply the changes.
 
-   .. figure:: _static/images/render_redeploy.png
+   .. figure:: _html/images/render_redeploy.png
       :alt: Restart Service on Render
       :align: center
 
@@ -115,7 +117,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
 
    - **Check the Logs:** Navigate to the **Logs** tab on the left to view the deployment logs and ensure that there are no errors.
 
-   .. figure:: _static/images/render_logs.png
+   .. figure:: _html/images/render_logs.png
       :alt: Logs on Render
       :align: center
 
@@ -125,7 +127,7 @@ Render offers powerful deployment options with easy scalability. Follow these st
 
    - **Monitor Performance:** Go to your broker account to monitor the bot's performance and ensure that it is executing trades as expected.
 
-   .. figure:: _static/images/replit_monitor_bot.png
+   .. figure:: _html/images/replit_monitor_bot.png
       :alt: Monitor bot performance
       :align: center
 
@@ -144,7 +146,7 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
 
    Start by clicking the **"Deploy on Replit"** button on the GitHub repository.
 
-   .. figure:: _static/images/deploy_replit_button.png
+   .. figure:: _html/images/deploy_replit_button.png
       :alt: Deploy on Replit Button
       :align: center
 
@@ -157,7 +159,7 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
    - Go to **Tools** in the sidebar.
    - Select **Secrets** at the bottom left corner.
 
-   .. figure:: _static/images/replit_tools_secrets.png
+   .. figure:: _html/images/replit_tools_secrets.png
       :alt: Replit Tools -> Secrets
       :align: center
 
@@ -167,7 +169,7 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
 
    In the **Secrets** tab, add the necessary environment variables as detailed in the :ref:`Secrets Configuration <secrets-configuration>` section.
 
-   .. figure:: _static/images/replit_add_secret.png
+   .. figure:: _html/images/replit_add_secret.png
       :alt: Adding a new secret in Replit
       :align: center
 
@@ -179,13 +181,13 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
 
    When you press **Run**, the application will start running in the console. You can see the logs in real-time to ensure that everything is working as expected.
 
-   .. figure:: _static/images/replit_run.png
+   .. figure:: _html/images/replit_run.png
       :alt: Running the application in Replit
       :align: center
 
       **Figure 11:** Running the application in Replit.
 
-   .. figure:: _static/images/replit_logs.png
+   .. figure:: _html/images/replit_logs.png
       :alt: Viewing logs in Replit
       :align: center
 
@@ -196,7 +198,7 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
    - **Click Deploy:** Navigate to **Deploy** located under **Tools** in the top right or within the **Background Workers** section.
    - **Select Reserved VM:** The strategies will only work on a **Reserved VM**, none of the other options will work.
 
-   .. figure:: _static/images/replit_reserved_vm.png
+   .. figure:: _html/images/replit_reserved_vm.png
       :alt: Select Reserved VM and Background Worker
       :align: center
 
@@ -213,13 +215,13 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
    - **Click Deploy:** Click **"Deploy"** to deploy your application.
    - **Wait for Deployment:** The deployment process may take a few minutes. Once completed, you will see a success message.
 
-   .. figure:: _static/images/replit_deploy.png
+   .. figure:: _html/images/replit_deploy.png
       :alt: Deploying the application in Replit
       :align: center
 
       **Figure 14:** Deploying the application in Replit.
 
-   .. figure:: _static/images/replit_deploy_process.png
+   .. figure:: _html/images/replit_deploy_process.png
       :alt: Deployment process
       :align: center
 
@@ -229,7 +231,7 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
 
    - **View Logs:** Navigate to the **Logs** tab in **Deployment** to view the deployment logs and ensure that there are no errors.
 
-   .. figure:: _static/images/replit_deploy_logs.png
+   .. figure:: _html/images/replit_deploy_logs.png
       :alt: Logs on Replit
       :align: center
 
@@ -239,7 +241,7 @@ Replit is a versatile platform that allows you to deploy applications quickly. F
 
    - **Monitor Performance:** Go to your broker account to monitor the bot's performance and ensure that it is executing trades as expected.
 
-   .. figure:: _static/images/replit_monitor_bot.png
+   .. figure:: _html/images/replit_monitor_bot.png
       :alt: Monitor bot performance
       :align: center
 
@@ -324,8 +326,10 @@ Tradovate is a futures broker that provides access to CME Group markets. **Impor
      - 1.0
 
 .. note::
-   
+
    Since Tradovate doesn't provide market data, you must also configure a separate data source. Set ``TRADING_BROKER=tradovate`` and ``DATA_SOURCE`` to one of: ``databento``, ``projectx``, ``ibrest`` (Interactive Brokers REST), or ``ib`` (Interactive Brokers Legacy).
+
+
 Alpaca Configuration
 --------------------
 
@@ -519,7 +523,7 @@ Interactive Brokers is ideal for international users as they offer a wide array 
      - https://localhost:8000
 
 Interactive Brokers-Legacy Configuration
----------------------------------
+----------------------------------------
 
 This is the legacy version of our Interactive Brokers implementation, which uses their TWS API. It is maintained for compatibility purposes, but we recommend using the newer implementation.
 

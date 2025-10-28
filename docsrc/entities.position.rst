@@ -1,7 +1,8 @@
 Position
 --------------------------------
 
-.. automodule:: entities.position
+.. automodule:: lumibot.entities.position
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:

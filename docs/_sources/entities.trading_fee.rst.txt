@@ -1,7 +1,8 @@
 Trading Fee
 --------------------------------
 
-.. automodule:: entities.trading_fee
+.. automodule:: lumibot.entities.trading_fee
+   :noindex:
    :members:
    :undoc-members:
    :show-inheritance:

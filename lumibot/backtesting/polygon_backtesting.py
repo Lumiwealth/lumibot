@@ -21,6 +21,8 @@ class PolygonDataBacktesting(PandasData):
     Backtesting implementation of Polygon
     """
 
+    option_quote_fallback_allowed = True
+
     def __init__(
         self,
         datetime_start,
@@ -31,7 +33,8 @@ class PolygonDataBacktesting(PandasData):
         **kwargs,
     ):
         super().__init__(
-            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
+            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key,
+            allow_option_quote_fallback=True, **kwargs
         )
 
         # Memory limit, off by default

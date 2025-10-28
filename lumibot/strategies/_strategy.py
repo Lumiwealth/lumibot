@@ -124,6 +124,15 @@ class Vars:
 
 
 class _Strategy:
+    @property
+    def is_backtesting(self) -> bool:
+        """Boolean flag indicating whether the strategy is running in backtesting mode."""
+        return getattr(self, "_is_backtesting", False)
+
+    @is_backtesting.setter
+    def is_backtesting(self, value: bool) -> None:
+        self._is_backtesting = bool(value)
+
     IS_BACKTESTABLE = True
     _trader = None
 
@@ -675,6 +684,7 @@ class _Strategy:
 
             positions = self.broker.get_tracked_positions(self._name)
             assets_original = [position.asset for position in positions]
+
             # Set the base currency for crypto valuations.
 
             prices = {}
@@ -716,31 +726,60 @@ class _Strategy:
 
                 if self.is_backtesting and price is None:
                     if isinstance(asset, Asset):
-                        raise ValueError(
-                            f"A security has returned a price of None while trying "
-                            f"to set the portfolio value. This usually happens when there "
-                            f"is no data data available for the Asset or pair. "
-                            f"Please ensure data exists at "
-                            f"{self.broker.datetime} for the security: \n"
-                            f"symbol: {asset.symbol}, \n"
-                            f"type: {asset.asset_type}, \n"
-                            f"right: {asset.right}, \n"
-                            f"expiration: {asset.expiration}, \n"
-                            f"strike: {asset.strike}.\n"
+                        asset_details = (
+                            f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
+                            f"expiration: {asset.expiration}, strike: {asset.strike}"
+                        )
+                        self.logger.warning(
+                            "Skipping valuation for asset (%s) because no price was available at %s.",
+                            asset_details,
+                            self.broker.datetime,
                         )
                     elif isinstance(asset, tuple):
-                        raise ValueError(
-                            f"A security has returned a price of None while trying "
-                            f"to set the portfolio value. This usually happens when there "
-                            f"is no data data available for the Asset or pair. "
-                            f"Please ensure data exists at "
-                            f"{self.broker.datetime} for the pair: {asset}"
+                        base_asset = asset[0] if asset else None
+                        if isinstance(base_asset, Asset):
+                            asset_details = (
+                                f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
+                                f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
+                            )
+                        else:
+                            asset_details = str(asset)
+                        self.logger.warning(
+                            "Skipping valuation for pair (%s) because no price was available at %s.",
+                            asset_details,
+                            self.broker.datetime,
                         )
+                    continue
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
-                    multiplier = asset.multiplier if asset.asset_type in ["option", "future"] else 1
-                portfolio_value += float(quantity) * float(price) * multiplier
+                    multiplier = asset.multiplier if asset.asset_type in ["option", "future", "cont_future"] else 1
+
+                # BACKTESTING ONLY: Special handling for futures portfolio value
+                # In backtesting, cash has margin deducted, so we need to add it back
+                # In live trading, brokers handle this internally
+                if (
+                    self.is_backtesting
+                    and not isinstance(asset, tuple)
+                    and asset.asset_type in ["future", "cont_future"]
+                ):
+                    # Import here to avoid circular dependency
+                    from lumibot.backtesting.backtesting_broker import get_futures_margin_requirement
+
+                    # Add margin tied up in position (was deducted from cash)
+                    margin_per_contract = get_futures_margin_requirement(asset)
+                    total_margin = margin_per_contract * abs(float(quantity))
+                    portfolio_value += total_margin
+
+                    # Add unrealized P&L = (current_price - entry_price) × quantity × multiplier
+                    entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
+                    unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
+                    portfolio_value += unrealized_pnl
+                else:
+                    # All other cases (stocks, options, crypto, live trading)
+                    position_value = float(quantity) * float(price) * multiplier
+                    portfolio_value += position_value
+
             self._portfolio_value = portfolio_value
         return portfolio_value
 
@@ -759,9 +798,13 @@ class _Strategy:
             price_dec = Decimal(str(price))
             multiplier_dec = Decimal(str(multiplier))
 
-            if side == "buy":
+            if isinstance(side, Order.OrderSide):
+                side_value = str(side.value).lower()
+            else:
+                side_value = str(side).lower() if side is not None else ""
+            if side_value in ("buy", "buy_to_open", "buy_to_cover"):
                 current_cash -= quantity_dec * price_dec * multiplier_dec
-            if side == "sell":
+            if side_value in ("sell", "sell_short", "sell_to_close", "sell_to_open"):
                 current_cash += quantity_dec * price_dec * multiplier_dec
 
             self._set_cash_position(float(current_cash)) # _set_cash_position expects float
@@ -779,7 +822,12 @@ class _Strategy:
                 if position.asset != self._quote_asset and position.asset.asset_type != "option":
                     dividend_assets.append(position.asset)
 
+            # Early return if no assets - avoid expensive dividend API calls
+            if not assets:
+                return self.cash
+
             dividends_per_share = self.get_yesterday_dividends(dividend_assets)
+
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
@@ -1217,6 +1265,84 @@ class _Strategy:
         if show_indicators is None:
             show_indicators = SHOW_INDICATORS
 
+        from lumibot.credentials import BACKTESTING_DATA_SOURCE as _DEFAULT_BACKTESTING_DATA_SOURCE
+
+        # Determine whether an environment override exists. When BACKTESTING_DATA_SOURCE
+        # is set (and not blank/\"none\"), it should take precedence even if a
+        # datasource_class argument was provided.
+        env_override_raw = os.environ.get("BACKTESTING_DATA_SOURCE")
+        env_override_name = None
+
+        if env_override_raw is not None:
+            trimmed = env_override_raw.strip()
+            if trimmed and trimmed.lower() != "none":
+                env_override_name = trimmed.lower()
+        elif datasource_class is None:
+            # No override provided and no class in code – fall back to the default
+            # configured in credentials (ThetaData unless the project overrides it).
+            env_override_name = _DEFAULT_BACKTESTING_DATA_SOURCE.lower()
+
+        if env_override_name is not None:
+            from lumibot.backtesting import (
+                PolygonDataBacktesting,
+                ThetaDataBacktesting,
+                YahooDataBacktesting,
+                AlpacaBacktesting,
+                CcxtBacktesting,
+                DataBentoDataBacktesting,
+            )
+
+            datasource_map = {
+                "polygon": PolygonDataBacktesting,
+                "thetadata": ThetaDataBacktesting,
+                "yahoo": YahooDataBacktesting,
+                "alpaca": AlpacaBacktesting,
+                "ccxt": CcxtBacktesting,
+                "databento": DataBentoDataBacktesting,
+            }
+
+            if env_override_name not in datasource_map:
+                label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
+                raise ValueError(
+                    f"Unknown BACKTESTING_DATA_SOURCE: '{label}'. "
+                    f"Valid options: {list(datasource_map.keys())}"
+                )
+
+            datasource_class = datasource_map[env_override_name]
+            label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
+            get_logger(__name__).info(colored(
+                f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
+                "green"
+            ))
+        elif datasource_class is None:
+            raise ValueError(
+                "No backtesting data source provided. Set BACKTESTING_DATA_SOURCE in the environment "
+                "or pass datasource_class when calling backtest()."
+            )
+
+        # Make sure polygon_api_key is set if using PolygonDataBacktesting
+        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
+        if datasource_class.__name__ == 'PolygonDataBacktesting' and polygon_api_key is None:
+            raise ValueError(
+                "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
+                "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
+                "from https://polygon.io/."
+            )
+
+        # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
+        if thetadata_username is None or thetadata_password is None:
+            # Try getting the Theta Data credentials from credentials
+            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
+            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
+
+            # Check again if theta data username and pass are set (before checking dict)
+            if datasource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
+
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
             optionsource_class = datasource_class["OPTION"]
@@ -1226,6 +1352,14 @@ class _Strategy:
                 use_other_option_source = False
             else:
                 use_other_option_source = True
+
+            # Check ThetaData credentials for optionsource_class after dict extraction
+            if optionsource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
         else:
             optionsource_class = None
             use_other_option_source = False
@@ -1256,29 +1390,6 @@ class _Strategy:
 
         self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
-        # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
-        if datasource_class == PolygonDataBacktesting and polygon_api_key is None:
-            raise ValueError(
-                "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
-                "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
-                "from https://polygon.io/."
-            )
-
-        # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
-        if thetadata_username is None or thetadata_password is None:
-            # Try getting the Theta Data credentials from credentials
-            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
-            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
-
-            # Check again if theta data username and pass are set
-            if (thetadata_username is None or thetadata_password is None) and (datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting):
-                raise ValueError(
-                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
-                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
-                    "from https://www.thetadata.net/."
-                )
-
         if not self.IS_BACKTESTABLE:
             get_logger(__name__).warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
@@ -1302,7 +1413,7 @@ class _Strategy:
 
         self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
-        if datasource_class == PolygonDataBacktesting:
+        if datasource_class.__name__ == 'PolygonDataBacktesting':
             data_source = datasource_class(
                 backtesting_start,
                 backtesting_end,
@@ -1315,7 +1426,7 @@ class _Strategy:
                 log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
                 **kwargs,
             )
-        elif datasource_class == ThetaDataBacktesting or optionsource_class == ThetaDataBacktesting:
+        elif datasource_class.__name__ == 'ThetaDataBacktesting' or (optionsource_class and optionsource_class.__name__ == 'ThetaDataBacktesting'):
             data_source = datasource_class(
                 backtesting_start,
                 backtesting_end,

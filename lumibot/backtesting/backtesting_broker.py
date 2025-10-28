@@ -1,4 +1,5 @@
 import traceback
+import threading
 from collections import OrderedDict
 from datetime import timedelta
 from decimal import Decimal
@@ -374,25 +375,44 @@ class BacktestingBroker(Broker):
             if order.order_class == "" or order.order_class is None:
                 orders.append(order)
                 if order.stop_price:
+                    stop_limit_price = getattr(order, "stop_limit_price", None)
+                    trail_price = getattr(order, "trail_price", None)
+                    trail_percent = getattr(order, "trail_percent", None)
+
+                    if stop_limit_price is not None:
+                        child_order_type = Order.OrderType.STOP_LIMIT
+                    elif trail_price is not None or trail_percent is not None:
+                        child_order_type = Order.OrderType.TRAIL
+                    else:
+                        child_order_type = Order.OrderType.STOP
+
                     stop_loss_order = Order(
                         order.strategy,
                         order.asset,
                         order.quantity,
                         order.side,
                         stop_price=order.stop_price,
+                        stop_limit_price=stop_limit_price,
+                        trail_price=trail_price,
+                        trail_percent=trail_percent,
                         quote=order.quote,
+                        order_type=child_order_type,
                     )
                     stop_loss_order = self._parse_broker_order(stop_loss_order, order.strategy)
                     orders.append(stop_loss_order)
 
             elif order.order_class == Order.OrderClass.OCO:
+                stop_limit_price = getattr(order, "stop_limit_price", None)
+                stop_child_type = Order.OrderType.STOP_LIMIT if stop_limit_price else Order.OrderType.STOP
                 stop_loss_order = Order(
                     order.strategy,
                     order.asset,
                     order.quantity,
                     order.side,
                     stop_price=order.stop_price,
+                    stop_limit_price=stop_limit_price,
                     quote=order.quote,
+                    order_type=stop_child_type,
                 )
                 orders.append(stop_loss_order)
 
@@ -403,6 +423,7 @@ class BacktestingBroker(Broker):
                     order.side,
                     limit_price=order.limit_price,
                     quote=order.quote,
+                    order_type=Order.OrderType.LIMIT,
                 )
                 orders.append(limit_order)
 
@@ -413,16 +434,28 @@ class BacktestingBroker(Broker):
                 side = Order.OrderSide.SELL if order.is_buy_order() else Order.OrderSide.BUY
                 if (order.order_class == Order.OrderClass.BRACKET or
                         (order.order_class == Order.OrderClass.OTO and order.secondary_stop_price)):
+                    secondary_stop_limit_price = getattr(order, "secondary_stop_limit_price", None)
+                    secondary_trail_price = getattr(order, "secondary_trail_price", None)
+                    secondary_trail_percent = getattr(order, "secondary_trail_percent", None)
+
+                    if secondary_stop_limit_price is not None:
+                        child_order_type = Order.OrderType.STOP_LIMIT
+                    elif secondary_trail_price is not None or secondary_trail_percent is not None:
+                        child_order_type = Order.OrderType.TRAIL
+                    else:
+                        child_order_type = Order.OrderType.STOP
+
                     stop_loss_order = Order(
                         order.strategy,
                         order.asset,
                         order.quantity,
                         side,
                         stop_price=order.secondary_stop_price,
-                        stop_limit_price=order.secondary_stop_limit_price,
-                        trail_price=order.secondary_trail_price,
-                        trail_percent=order.secondary_trail_percent,
+                        stop_limit_price=secondary_stop_limit_price,
+                        trail_price=secondary_trail_price,
+                        trail_percent=secondary_trail_percent,
                         quote=order.quote,
+                        order_type=child_order_type,
                     )
                     orders.append(stop_loss_order)
 
@@ -435,6 +468,7 @@ class BacktestingBroker(Broker):
                         side,
                         limit_price=order.secondary_limit_price,
                         quote=order.quote,
+                        order_type=Order.OrderType.LIMIT,
                     )
                     orders.append(limit_order)
 
@@ -443,6 +477,59 @@ class BacktestingBroker(Broker):
                     limit_order.dependent_order = stop_loss_order
 
         return orders
+
+    def _cancel_open_orders_for_asset(self, strategy_name: str, asset: Asset, exclude_identifiers: set | None = None):
+        """Cancel any still-active orders for the given asset in backtesting.
+
+        When a position is force-closed (manual exit or cash settlement) we need to ensure any
+        remaining bracket/OTO child orders do not continue to execute against a zero position.
+        """
+
+        if exclude_identifiers is None:
+            exclude_identifiers = set()
+
+        if strategy_name is None or asset is None:
+            return
+
+        in_stream_thread = threading.current_thread().name.startswith(f"broker_{self.name}")
+
+        # Track which orders have been canceled to avoid duplicate processing
+        canceled_identifiers = set()
+
+        def _cancel_inline(order: Order):
+            if order.identifier in canceled_identifiers:
+                return
+            canceled_identifiers.add(order.identifier)
+            self._process_trade_event(order, self.CANCELED_ORDER)
+            for child in order.child_orders:
+                _cancel_inline(child)
+
+        open_orders = self.get_tracked_orders(strategy=strategy_name)
+
+        # Build a set of all child order identifiers to skip them in the main loop
+        # (they will be handled by their parent orders)
+        child_order_identifiers = set()
+        for tracked_order in open_orders:
+            if tracked_order.child_orders:
+                for child in tracked_order.child_orders:
+                    child_order_identifiers.add(child.identifier)
+
+        for tracked_order in open_orders:
+            if tracked_order.identifier in exclude_identifiers:
+                continue
+            if tracked_order.identifier in canceled_identifiers:
+                continue
+            # Skip child orders - they will be handled by their parent
+            if tracked_order.identifier in child_order_identifiers:
+                continue
+            if tracked_order.asset != asset:
+                continue
+            if not tracked_order.is_active():
+                continue
+            if in_stream_thread:
+                _cancel_inline(tracked_order)
+            else:
+                self.cancel_order(tracked_order)
 
     def _process_filled_order(self, order, price, quantity):
         """
@@ -453,8 +540,18 @@ class BacktestingBroker(Broker):
         if order.is_parent() and order.order_class in [Order.OrderClass.MULTILEG, Order.OrderClass.OCO]:
             order.avg_fill_price = price
             order.quantity = quantity
-            self._update_parent_order_status(order)
-            return super()._process_filled_order(order, price, quantity)  # Do not store parent order positions
+            order.add_transaction(price, quantity)
+            order.status = Order.OrderStatus.FILLED
+            order.set_filled()
+
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+
+            if order not in self._filled_orders:
+                self._filled_orders.append(order)
+
+            return None
 
         existing_position = self.get_tracked_position(order.strategy, order.asset)
 
@@ -467,6 +564,7 @@ class BacktestingBroker(Broker):
             if position.quantity == 0:
                 logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
+                self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
         else:
             self._filled_positions.append(position)  # New position, add it to the tracker
 
@@ -498,23 +596,58 @@ class BacktestingBroker(Broker):
             if existing_position.quantity == 0:
                 logger.info("Position %r liquidated" % existing_position)
                 self._filled_positions.remove(existing_position)
+                self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
 
     def _update_parent_order_status(self, order: Order):
-        """
-        Update the status of a parent order based on the status of its child orders
-        """
-        if (order.is_parent() and order.is_active() and
-                order.order_class in [Order.OrderClass.OCO]):
-            # No changes to parent order status if any of the child orders are still active
-            if any([o.is_active() for o in order.child_orders]):
-                return
-            elif any([o.is_filled() for o in order.child_orders]):
-                order.status = Order.OrderStatus.FILLED
-                order.set_filled()
-                self._new_orders.remove(order.identifier, key="identifier")
-                self._unprocessed_orders.remove(order.identifier, key="identifier")
-            elif all([o.is_cancelled() for o in order.child_orders]):
-                self.cancel_order(order)
+        """Update the status of a parent order based on the status of its child orders."""
+        if order is None or not order.is_parent():
+            return
+
+        child_states = [
+            (child.is_active(), child.is_filled(), child.is_canceled())
+            for child in order.child_orders
+        ]
+
+        if any(active for active, _, _ in child_states):
+            return
+
+        if all(cancelled for _, _, cancelled in child_states):
+            self.cancel_order(order)
+            return
+
+        if any(filled for _, filled, _ in child_states):
+            filled_children = [child for child in order.child_orders if child.is_filled()]
+
+            if filled_children:
+                # Aggregate quantity across all legs using absolute values to ensure totals remain positive.
+                aggregated_qty = sum(
+                    Decimal(str(abs(float(child.quantity)))) for child in filled_children
+                )
+
+                # Compute a net price similar to the legacy logic used when synthesising parent fills.
+                net_price = Decimal("0")
+                for child in filled_children:
+                    fill_price = child.get_fill_price()
+                    if fill_price is None:
+                        continue
+
+                    signed = Decimal(str(fill_price))
+                    if child.is_sell_order():
+                        signed *= Decimal("-1")
+                    net_price += signed
+
+                order.quantity = aggregated_qty
+                order.avg_fill_price = net_price
+                order.trade_cost = 0.0
+
+            order.status = Order.OrderStatus.FILLED
+            order.set_filled()
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+
+            if order not in self._filled_orders:
+                self._filled_orders.append(order)
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
@@ -737,35 +870,137 @@ class BacktestingBroker(Broker):
                 if position.asset.expiration == self.datetime.date() and time_to_close > seconds_before_closing:
                     continue
 
+                # Skip if there are still active orders working this asset.
+                active_orders = [
+                    o for o in self.get_tracked_orders(strategy=strategy.name)
+                    if o.asset == position.asset and o.is_active()
+                ]
+                if active_orders:
+                    continue
+
                 logger.info(f"Automatically selling expired contract for asset {position.asset}")
+
+                # Cancel any outstanding orders tied to this asset before forcing settlement.
+                self._cancel_open_orders_for_asset(strategy.name, position.asset, set())
 
                 # Cash settle the options contract
                 self.cash_settle_options_contract(position, strategy)
+
+    def _apply_trade_cost(self, strategy, trade_cost: Decimal) -> None:
+        if not trade_cost:
+            return
+
+        current_cash = strategy.cash
+        strategy._set_cash_position(current_cash - float(trade_cost))
+
+    def _execute_filled_order(
+        self,
+        order: Order,
+        price: float,
+        filled_quantity: Decimal,
+        strategy,
+    ) -> None:
+        if order.dependent_order:
+            order.dependent_order.dependent_order_filled = True
+            strategy.broker.cancel_order(order.dependent_order)
+
+        if order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
+            for child_order in order.child_orders:
+                logger.info(
+                    f"{child_order} was sent to broker {self.name} now that the parent Bracket/OTO order has been filled"
+                )
+                self._new_orders.append(child_order)
+
+        is_multileg_parent = order.is_parent() and order.order_class == Order.OrderClass.MULTILEG
+
+        trade_cost = Decimal("0") if is_multileg_parent else self.calculate_trade_cost(order, strategy, price)
+        order.trade_cost = float(trade_cost)
+
+        # Handle cash updates based on asset types
+        asset_type = getattr(order.asset, "asset_type", None)
+        quote_asset_type = getattr(order.quote, "asset_type", None) if hasattr(order, "quote") and order.quote else None
+
+        # For crypto base with forex quote (like BTC/USD where USD is forex), use cash
+        # For crypto base with crypto quote (like BTC/USDT where both are crypto), use positions
+        if (
+            not is_multileg_parent
+            and asset_type == Asset.AssetType.CRYPTO
+            and quote_asset_type == Asset.AssetType.FOREX
+        ):
+            trade_amount = float(filled_quantity) * price
+            if hasattr(order.asset, 'multiplier') and order.asset.multiplier:
+                trade_amount *= order.asset.multiplier
+
+            current_cash = strategy.cash
+
+            if order.is_buy_order():
+                # Deduct cash for buy orders (trade amount + fees)
+                new_cash = current_cash - trade_amount - float(trade_cost)
+            else:
+                # Add cash for sell orders (trade amount - fees)
+                new_cash = current_cash + trade_amount - float(trade_cost)
+
+            strategy._set_cash_position(new_cash)
+
+        multiplier = 1
+        if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
+            multiplier = order.asset.multiplier
+
+        self.stream.dispatch(
+            self.FILLED_ORDER,
+            wait_until_complete=True,
+            order=order,
+            price=price,
+            filled_quantity=filled_quantity,
+            quantity=filled_quantity,
+            multiplier=multiplier,
+        )
+
+        # Only apply trade cost if it's not crypto with forex quote (already handled above)
+        if (
+            not is_multileg_parent
+            and not (asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX)
+        ):
+            self._apply_trade_cost(strategy, trade_cost)
+
+    def _process_crypto_quote(self, order, quantity, price):
+        """Override to skip crypto quote processing for crypto+forex trades that are handled with direct cash updates."""
+        # Check if this is a crypto+forex trade
+        asset_type = getattr(order.asset, "asset_type", None)
+        quote_asset_type = getattr(order.quote, "asset_type", None) if hasattr(order, "quote") and order.quote else None
+
+        # For crypto+forex trades, skip position-based quote processing since we handle cash directly
+        if asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX:
+            return
+
+        # For crypto+crypto trades, use the original position-based processing
+        super()._process_crypto_quote(order, quantity, price)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):
         """Calculate the trade cost of an order for a given strategy"""
         trade_cost = 0
         trading_fees = []
-        if order.side == "buy":
-            trading_fees: list[TradingFee] = strategy.buy_trading_fees
-        elif order.side == "sell":
-            trading_fees: list[TradingFee] = strategy.sell_trading_fees
+        side_value = str(order.side).lower() if order.side is not None else ""
+        order_type_attr = getattr(order, "order_type", None)
+        if hasattr(order_type_attr, "value"):
+            order_type_value = str(order_type_attr.value).lower()
+        else:
+            order_type_value = str(order_type_attr).lower() if order_type_attr is not None else ""
+        if side_value in ("buy", "buy_to_open", "buy_to_cover"):
+            trading_fees = strategy.buy_trading_fees
+        elif side_value in ("sell", "sell_to_close", "sell_short", "sell_to_open"):
+            trading_fees = strategy.sell_trading_fees
 
         for trading_fee in trading_fees:
-            if trading_fee.taker == True and order.order_type in [
-                "market",
-                "stop",
-            ]:
+            if trading_fee.taker is True and order_type_value in {"market", "stop"}:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
-            elif trading_fee.maker == True and order.order_type in [
-                "limit",
-                "stop_limit",
-            ]:
+                trade_cost += Decimal(str(price)) * Decimal(str(order.quantity)) * trading_fee.percent_fee
+            elif trading_fee.maker is True and order_type_value in {"limit", "stop_limit"}:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(price) * Decimal(order.quantity) * trading_fee.percent_fee
+                trade_cost += Decimal(str(price)) * Decimal(str(order.quantity)) * trading_fee.percent_fee
 
         return trade_cost
+        
 
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
@@ -779,9 +1014,6 @@ class BacktestingBroker(Broker):
         strategy : Strategy object
 
         """
-
-        # Process expired contracts.
-        self.process_expired_option_contracts(strategy)
 
         # OPTIMIZATION: Get orders only once per list to minimize lock acquisitions
         # This function is called 179k times
@@ -872,6 +1104,8 @@ class BacktestingBroker(Broker):
                 logger.debug(f"Standard prefetching error (non-critical): {e}")
 
         for order in pending_orders:
+            if not order.is_active():
+                continue
             if order.dependent_order_filled:
                 continue
             # No need to check status since we already filtered for pending orders only
@@ -888,12 +1122,17 @@ class BacktestingBroker(Broker):
                     child_prices = [o.get_fill_price() if o.is_buy_order() else -o.get_fill_price()
                                     for o in order.child_orders]
                     parent_price = sum(child_prices)
+                    parent_multiplier = 1
+                    if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
+                        parent_multiplier = order.asset.multiplier
+
                     self.stream.dispatch(
                         self.FILLED_ORDER,
                         wait_until_complete=True,
                         order=order,
                         price=parent_price,
                         filled_quantity=parent_qty,
+                        multiplier=parent_multiplier,
                     )
 
                 continue
@@ -1056,33 +1295,17 @@ class BacktestingBroker(Broker):
 
             # If the price is set, then the order has been filled
             if price is not None:
-                if order.dependent_order:
-                    order.dependent_order.dependent_order_filled = True
-                    strategy.broker.cancel_order(order.dependent_order)
-                    # self.cancel_order(order.dependent_order)
-
-                # Child orders of Bracket and OTO are not submitted until the parent order is filled
-                if order.order_class in [Order.OrderClass.BRACKET, Order.OrderClass.OTO]:
-                    for child_order in order.child_orders:
-                        logger.info(f"{child_order} was sent to broker {self.name} now that the parent Bracket/OTO "
-                                    f"order has been filled")
-                        self._new_orders.append(child_order)
-
-                trade_cost = self.calculate_trade_cost(order, strategy, price)
-
-                new_cash = strategy.cash - float(trade_cost)
-                strategy._set_cash_position(new_cash)
-                order.trade_cost = float(trade_cost)
-
-                self.stream.dispatch(
-                    self.FILLED_ORDER,
-                    wait_until_complete=True,
+                self._execute_filled_order(
                     order=order,
                     price=price,
                     filled_quantity=filled_quantity,
+                    strategy=strategy,
                 )
             else:
                 continue
+
+        # After handling all pending orders, cash settle any residual expired contracts.
+        self.process_expired_option_contracts(strategy)
 
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""
@@ -1158,21 +1381,21 @@ class BacktestingBroker(Broker):
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
-        def on_trade_event(order, price, filled_quantity):
+        def on_trade_event(order, price, filled_quantity, quantity=None, multiplier=1):
             try:
                 broker._process_trade_event(
                     order,
                     broker.FILLED_ORDER,
                     price=price,
                     filled_quantity=filled_quantity,
-                    multiplier=order.asset.multiplier,
+                    multiplier=multiplier,
                 )
                 return True
             except:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
-        def on_trade_event(order):
+        def on_trade_event(order, **payload):
             try:
                 broker._process_trade_event(
                     order,

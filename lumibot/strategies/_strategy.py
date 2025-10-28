@@ -817,16 +817,17 @@ class _Strategy:
         with self._executor.lock:
             positions = self.broker.get_tracked_positions(self._name)
 
-            assets = []
+            dividend_assets = []
             for position in positions:
-                if position.asset != self._quote_asset:
-                    assets.append(position.asset)
+                if position.asset != self._quote_asset and position.asset.asset_type != "option":
+                    dividend_assets.append(position.asset)
 
             # Early return if no assets - avoid expensive dividend API calls
             if not assets:
                 return self.cash
 
-            dividends_per_share = self.get_yesterday_dividends(assets)
+            dividends_per_share = self.get_yesterday_dividends(dividend_assets)
+
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity

@@ -2104,3 +2104,5 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-10-08T20:23:52.408779,test_portfolio_value_comparison,Polygon,,0.576,916dd201,4.1.2,,,,,Auto-tracked from test_thetadata_vs_polygon
 2025-10-08T20:23:53.561196,test_cash_comparison,Polygon,,0.582,916dd201,4.1.2,,,,,Auto-tracked from test_thetadata_vs_polygon
 2025-10-08T20:23:54.290806,test_yahoo_last_price,Yahoo,,0.151,916dd201,4.1.2,,,,,Auto-tracked from test_yahoo
+2025-10-27T23:05:53.939424,test_options_hold_to_expiry,unknown,,1.009,1362f841,4.1.3,,,,,Auto-tracked from test_example_strategies
+2025-10-27T23:08:38.925360,test_options_hold_to_expiry,unknown,,0.759,1362f841,4.1.3,,,,,Auto-tracked from test_example_strategies

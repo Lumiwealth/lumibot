@@ -4664,3 +4664,7 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-10-28T20:48:10.720068,test_fill_price_comparison,Polygon,,0.647,08a51161,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon
 2025-10-28T20:48:11.502733,test_portfolio_value_comparison,Polygon,,0.636,08a51161,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon
 2025-10-28T20:48:12.550741,test_cash_comparison,Polygon,,0.893,08a51161,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon
+2025-10-28T22:22:15.587780,test_option_price_comparison,Polygon,,14.518,e7ce2e8f,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon
+2025-10-28T22:22:24.340280,test_stock_price_comparison,Polygon,,1.375,e7ce2e8f,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon
+2025-10-28T22:28:26.113053,test_option_price_comparison,Polygon,,14.071,e7ce2e8f,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon
+2025-10-28T22:28:36.391303,test_stock_price_comparison,Polygon,,1.357,e7ce2e8f,4.1.3,,,,,Auto-tracked from test_thetadata_vs_polygon

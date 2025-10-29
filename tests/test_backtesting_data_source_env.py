@@ -103,6 +103,9 @@ class TestBacktestingDataSourceEnv:
 
     def test_auto_select_thetadata_case_insensitive(self, clean_environment, restore_theta_credentials, caplog):
         """Test that BACKTESTING_DATA_SOURCE=THETADATA (uppercase) selects ThetaDataBacktesting."""
+        import logging
+        caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
+
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'THETADATA'}):
             # Re-import credentials to pick up env change
             from importlib import reload
@@ -243,6 +246,9 @@ class TestBacktestingDataSourceEnv:
         """Test that ThetaData is the default when BACKTESTING_DATA_SOURCE is not set."""
         # Remove BACKTESTING_DATA_SOURCE from env
         env_without_datasource = {k: v for k, v in os.environ.items() if k != 'BACKTESTING_DATA_SOURCE'}
+
+        import logging
+        caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
 
         with patch.dict(os.environ, env_without_datasource, clear=True):
             # Re-import credentials to pick up env change

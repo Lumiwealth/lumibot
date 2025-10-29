@@ -411,6 +411,14 @@ class Data:
 
             length = kwargs.get("length", 1)
             timeshift = kwargs.get("timeshift", 0)
+
+            if isinstance(timeshift, datetime.timedelta):
+                if self.timestep == "day":
+                    timeshift = int(timeshift.total_seconds() / (24 * 3600))
+                else:
+                    timeshift = int(timeshift.total_seconds() / 60)
+                kwargs["timeshift"] = timeshift
+
             data_index = i + 1 - length - timeshift
             is_data = data_index >= 0
             if not is_data:
@@ -437,8 +445,8 @@ class Data:
             The number of periods to get the last price.
         timestep : str
             The frequency of the data to get the last price.
-        timeshift : int
-            The number of periods to shift the data.
+        timeshift : int | datetime.timedelta
+            The number of periods to shift the data, or a timedelta that will be converted to periods.
 
         Returns
         -------
@@ -462,8 +470,8 @@ class Data:
             The number of periods to get the last price.
         timestep : str
             The frequency of the data to get the last price.
-        timeshift : int
-            The number of periods to shift the data.
+        timeshift : int | datetime.timedelta
+            The number of periods to shift the data, or a timedelta that will be converted to periods.
 
         Returns
         -------
@@ -547,12 +555,27 @@ class Data:
 
         """
 
-        # Get bars.
-        end_row = self.get_iter_count(dt) - timeshift
-        start_row = end_row - length
+        if isinstance(timeshift, datetime.timedelta):
+            if self.timestep == "day":
+                timeshift = int(timeshift.total_seconds() / (24 * 3600))
+            else:
+                timeshift = int(timeshift.total_seconds() / 60)
 
+        end_row = self.get_iter_count(dt) - timeshift
+
+        data_len = len(next(iter(self.datalines.values())).dataline) if self.datalines else 0
+        if end_row > data_len:
+            end_row = data_len
+        if end_row < 0:
+            end_row = 0
+
+        start_row = end_row - length
         if start_row < 0:
             start_row = 0
+        if start_row > end_row:
+            start_row = end_row
+        if start_row == end_row and end_row > 0:
+            start_row = max(0, end_row - 1)
 
         # Cast both start_row and end_row to int
         start_row = int(start_row)

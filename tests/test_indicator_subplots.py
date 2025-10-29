@@ -3,10 +3,12 @@ from datetime import datetime as DateTime
 from unittest.mock import MagicMock
 
 import pandas as pd
+import plotly.graph_objects as go
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from lumibot.entities import Asset
+from lumibot.tools.indicators import _build_trade_marker_tooltip, plot_returns
 
 from tests.fixtures import pandas_data_fixture
 
@@ -178,6 +180,105 @@ class TestIndicators:
         )
         logger.info(f"Result: {result}")
         assert result is not None
+
+
+def _make_trade_row_for_tooltip(status, trade_cost=pd.NA):
+    return pd.Series(
+        {
+            "status": status,
+            "filled_quantity": 10,
+            "price": 2.5,
+            "asset.multiplier": 100,
+            "trade_cost": trade_cost,
+            "symbol": "WDC",
+            "asset.asset_type": "option",
+            "asset.right": "CALL",
+            "asset.strike": 86,
+            "asset.expiration": "2025-09-19",
+            "type": "limit",
+        }
+    )
+
+
+def test_cash_settled_tooltip_generated_without_trade_cost():
+    tooltip = _build_trade_marker_tooltip(_make_trade_row_for_tooltip("cash_settled", trade_cost=pd.NA))
+    assert tooltip is not None
+    assert "cash_settled" in tooltip
+
+
+def test_non_terminal_status_filtered_out():
+    assert _build_trade_marker_tooltip(_make_trade_row_for_tooltip("new", trade_cost=pd.NA)) is None
+
+
+def test_plot_returns_preserves_cash_settled_status(tmp_path, monkeypatch):
+    plot_path = tmp_path / "plot.html"
+
+    def _fake_write_html(self, file, auto_open=True, **kwargs):
+        # Prevent plotly from opening a browser during the test
+        return file
+
+    monkeypatch.setattr(go.Figure, "write_html", _fake_write_html, raising=False)
+
+    idx = pd.to_datetime(
+        ["2025-09-04 00:00:00-04:00", "2025-09-20 00:00:00-04:00"]
+    ).tz_convert("UTC")
+
+    strategy_df = pd.DataFrame(
+        {
+            "return": [0.0, 0.0],
+            "cash": [100000, 120000],
+            "positions": [
+                [{"asset": "WDC", "quantity": 25}],
+                [],
+            ],
+        },
+        index=idx,
+    )
+
+    benchmark_df = pd.DataFrame(
+        {
+            "return": [0.0, 0.0],
+            "open": [1.0, 1.0],
+            "high": [1.0, 1.0],
+            "low": [1.0, 1.0],
+            "close": [1.0, 1.0],
+        },
+        index=idx,
+    )
+
+    trades_df = pd.DataFrame(
+        [
+            {
+                "time": "2025-09-20 00:00:00-04:00",
+                "side": "sell",
+                "status": "cash_settled",
+                "filled_quantity": 25,
+                "symbol": "WDC",
+                "asset.asset_type": "option",
+                "asset.right": "CALL",
+                "asset.strike": 86,
+                "asset.expiration": "2025-09-19",
+                "price": 20.86,
+                "type": "cash_settled",
+                "asset.multiplier": 100,
+                "trade_cost": pd.NA,
+            }
+        ]
+    )
+
+    plot_returns(
+        strategy_df,
+        "Strategy",
+        benchmark_df,
+        "Benchmark",
+        plot_file_html=str(plot_path),
+        trades_df=trades_df,
+        show_plot=True,
+        initial_budget=1,
+    )
+
+    trades_csv = pd.read_csv(plot_path.with_suffix(".csv"))
+    assert "cash_settled" in trades_csv["status"].tolist()
 
     def test_named_lines(self, pandas_data_fixture):
         """Test the named lines"""

@@ -72,11 +72,12 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
-    mock_get_historical_data.return_value = pd.DataFrame({
-        "datetime": pd.date_range("2023-07-01", periods=5, freq="min"),
+    raw_df = pd.DataFrame({
+        "datetime": pd.date_range("2023-07-01 09:30:00", periods=5, freq="min", tz="UTC"),
         "price": [100, 101, 102, 103, 104]
-    })
-    mock_update_df.return_value = mock_get_historical_data.return_value
+    }).set_index("datetime")
+    mock_get_historical_data.return_value = raw_df.reset_index()
+    mock_update_df.return_value = raw_df
     
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = datetime.datetime(2025, 9, 2)
@@ -106,17 +107,20 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
                                           mock_get_historical_data, mock_update_df, mock_update_cache):
     # Arrange
     cached_data = pd.DataFrame({
-        "datetime": pd.date_range("2023-07-01", periods=5, freq='min'),
-        "price": [100, 101, 102, 103, 104]
-    })
+        "datetime": pd.date_range("2023-07-01 09:30:00", periods=5, freq='min', tz="UTC"),
+        "price": [100, 101, 102, 103, 104],
+        "missing": [False] * 5,
+    }).set_index("datetime")
     mock_build_cache_filename.return_value.exists.return_value = True
     mock_load_cache.return_value = cached_data
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 3)]
-    mock_get_historical_data.return_value = pd.DataFrame({
-        "datetime": pd.date_range("2023-07-02", periods=5, freq='min'),
-        "price": [110, 111, 112, 113, 114]
-    })
-    updated_data = pd.concat([cached_data, mock_get_historical_data.return_value])
+    new_chunk = pd.DataFrame({
+        "datetime": pd.date_range("2023-07-02 09:30:00", periods=5, freq='min', tz="UTC"),
+        "price": [110, 111, 112, 113, 114],
+        "missing": [False] * 5,
+    }).set_index("datetime")
+    mock_get_historical_data.return_value = new_chunk.reset_index()
+    updated_data = pd.concat([cached_data, new_chunk]).sort_index()
     mock_update_df.return_value = updated_data
     
     asset = Asset(asset_type="stock", symbol="AAPL")
@@ -132,9 +136,83 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     assert df is not None
     assert len(df) == 10  # Combined cached and fetched data
     mock_get_historical_data.assert_called_once()
-    assert mock_update_df.return_value.equals(df)
+    pd.testing.assert_frame_equal(df, updated_data.drop(columns="missing"))
     mock_update_cache.assert_called_once()
 
+
+def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path):
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+    cache_root = tmp_path / "cache_root"
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+    thetadata_helper.reset_connection_diagnostics()
+
+    asset = Asset(asset_type="stock", symbol="PLTR")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 1))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 3))
+    trading_days = [
+        datetime.date(2024, 1, 1),
+        datetime.date(2024, 1, 2),
+        datetime.date(2024, 1, 3),
+    ]
+
+    partial_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-01", "2024-01-02"], utc=True),
+            "open": [10.0, 11.0],
+            "high": [11.0, 12.0],
+            "low": [9.5, 10.5],
+            "close": [10.5, 11.5],
+            "volume": [1_000, 1_200],
+        }
+    )
+
+    progress_stub = MagicMock()
+    progress_stub.update.return_value = None
+    progress_stub.close.return_value = None
+
+    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+         patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+        eod_mock = MagicMock(return_value=partial_df)
+        with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
+            first = thetadata_helper.get_price_data(
+                "user",
+                "pass",
+                asset,
+                start,
+                end,
+                "day",
+            )
+
+            assert eod_mock.call_count == 1
+            assert len(first) == 2
+            assert set(first.index.date) == {datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)}
+
+            cache_file = thetadata_helper.build_cache_filename(asset, "day", "ohlc")
+            loaded = thetadata_helper.load_cache(cache_file)
+            assert len(loaded) == 3
+            assert "missing" in loaded.columns
+            assert int(loaded["missing"].sum()) == 1
+            missing_dates = {idx.date() for idx, flag in loaded["missing"].items() if flag}
+            assert missing_dates == {datetime.date(2024, 1, 3)}
+
+        # Second run should reuse cache entirely
+        eod_second_mock = MagicMock(return_value=partial_df)
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days), \
+             patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_second_mock):
+            second = thetadata_helper.get_price_data(
+                "user",
+                "pass",
+                asset,
+                start,
+                end,
+                "day",
+            )
+
+            assert eod_second_mock.call_count == 0
+            assert len(second) == 2
+            assert set(second.index.date) == {datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)}
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
@@ -158,7 +236,8 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
     df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan, dt=dt)
 
     # Assert
-    assert df is None  # Expect None due to empty data returned
+    assert df is not None
+    assert df.empty
     mock_update_df.assert_not_called()
 
 
@@ -406,9 +485,8 @@ def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
     mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
     cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
 
-    # No cache file
-    with pytest.raises(FileNotFoundError):
-        thetadata_helper.load_cache(cache_file)
+    # No cache file should return None (not raise)
+    assert thetadata_helper.load_cache(cache_file) is None
 
     # Cache file exists
     cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -543,7 +621,7 @@ def test_update_df_with_overlapping_data():
     assert len(df_new) == 5
     assert df_new["c"].iloc[0] == 2
     assert df_new["c"].iloc[2] == 10
-    assert df_new["c"].iloc[3] == 14 # This is the overlapping row, should keep the first value from df_all
+    assert df_new["c"].iloc[3] == 18  # Overlap prefers latest data
     assert df_new["c"].iloc[4] == 22
     # Note: The -1 minute adjustment was removed from implementation
     assert df_new.index[0] == pd.DatetimeIndex(["2025-09-02 13:30:00+00:00"])[0]
@@ -725,8 +803,12 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
 
     # Assert
     mock_get.assert_called_with(url, headers=headers, params=querystring)
-    mock_check_connection.assert_called_with(username="test_user", password="test_password")
-    assert mock_check_connection.call_count == 2
+    mock_check_connection.assert_called_with(
+        username="test_user",
+        password="test_password",
+        wait_for_connection=True,
+    )
+    assert mock_check_connection.call_count == 5
 
 
 @patch('lumibot.tools.thetadata_helper.check_connection')
@@ -744,8 +826,12 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
 
     # Assert
     mock_get.assert_called_with(url, headers=headers, params=querystring)
-    mock_check_connection.assert_called_with(username="test_user", password="test_password")
-    assert mock_check_connection.call_count == 2
+    mock_check_connection.assert_called_with(
+        username="test_user",
+        password="test_password",
+        wait_for_connection=True,
+    )
+    assert mock_check_connection.call_count == 3
 
 
 @patch('lumibot.tools.thetadata_helper.get_request')

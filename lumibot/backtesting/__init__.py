@@ -6,6 +6,7 @@ from .interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktest
 from .pandas_backtesting import PandasDataBacktesting
 from .polygon_backtesting import PolygonDataBacktesting
 from .thetadata_backtesting import ThetaDataBacktesting
+from .thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from .yahoo_backtesting import YahooDataBacktesting
 
 # Import DataBento backtesting

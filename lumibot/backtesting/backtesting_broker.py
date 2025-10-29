@@ -1354,10 +1354,10 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
-            if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO"]:
+            if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"]:
                 # Default to backing up one minute so fills use the next bar, consistent with other sources.
                 timeshift = timedelta(minutes=-1)
-                if data_source_name == "DATABENTO":
+                if data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
                     # DataBento mimics Polygon by requesting two bars to guard against gaps.
                     timeshift = timedelta(minutes=-2)
                 elif data_source_name == "YAHOO":

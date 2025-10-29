@@ -117,7 +117,11 @@ class DataBentoDataPandas(DataSource):
         # Validate asset type - DataBento primarily supports futures
         supported_asset_types = [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]
         if asset.asset_type not in supported_asset_types:
-            error_msg = f"DataBento data source only supports futures assets. Received asset type '{asset.asset_type}' for symbol '{asset.symbol}'. Supported types: {[t.value for t in supported_asset_types]}"
+            error_msg = (
+                "DataBento data source only supports futures assets. "
+                f"Received asset type '{asset.asset_type}' for symbol '{asset.symbol}'. "
+                f"Supported types: {[t.value for t in supported_asset_types]}"
+            )
             logger.error(error_msg)
             return None
 

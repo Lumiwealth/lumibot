@@ -2,6 +2,8 @@
 Tests for DataBento asset type validation
 """
 import pytest
+import pandas as pd
+import polars as pl
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
@@ -26,8 +28,19 @@ class TestDataBentoAssetValidation:
         for asset in future_assets:
             # Should not raise an exception during validation
             # (We'll mock the actual API call)
-            with patch('lumibot.data_sources.databento_data.databento_helper.get_price_data_from_databento') as mock_get_data:
-                mock_get_data.return_value = Mock()
+            with patch(
+                'lumibot.data_sources.databento_data_pandas.databento_helper_polars.get_price_data_from_databento_polars'
+            ) as mock_get_data:
+                mock_get_data.return_value = pl.DataFrame(
+                    {
+                        "datetime": [datetime.now()],
+                        "open": [100.0],
+                        "high": [101.0],
+                        "low": [99.0],
+                        "close": [100.5],
+                        "volume": [1000],
+                    }
+                )
                 try:
                     data_source.get_historical_prices(asset, 10, "minute")
                     # If we get here, validation passed
@@ -49,9 +62,14 @@ class TestDataBentoAssetValidation:
             Asset("SPY", "stock"),  # string format
         ]
         
-        for asset in equity_assets:
-            with pytest.raises(ValueError, match="only supports futures assets"):
-                data_source.get_historical_prices(asset, 10, "minute")
+        with patch(
+            'lumibot.data_sources.databento_data_pandas.databento_helper_polars.get_price_data_from_databento_polars'
+        ) as mock_get_data:
+            for asset in equity_assets:
+                result = data_source.get_historical_prices(asset, 10, "minute")
+                assert result is None
+
+        mock_get_data.assert_not_called()
     
     def test_helper_function_allows_all_assets(self):
         """Test that helper function allows all asset types (validation is only in live data source)"""

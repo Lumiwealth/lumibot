@@ -1,6 +1,7 @@
 # This file contains helper functions for getting data from Polygon.io
 import time
 import os
+import signal
 from typing import List, Optional
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -257,6 +258,10 @@ def get_price_data(
     if return_polars:
         raise ValueError("ThetaData polars output is not available; pass return_polars=False.")
 
+    # Preserve original bounds for final filtering
+    requested_start = start
+    requested_end = end
+
     # Check if we already have data for this asset in the cache file
     df_all = None
     df_cached = None
@@ -466,11 +471,11 @@ def get_price_data(
     )
 
 
-    start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
-    end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
+    fetch_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
+    fetch_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
 
     # Initialize tqdm progress bar
-    total_days = (end - start).days + 1
+    total_days = (fetch_end - fetch_start).days + 1
     total_queries = (total_days // MAX_DAYS) + 1
     description = f"\nDownloading '{datastyle}' data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
     logger.info(description)
@@ -488,15 +493,15 @@ def get_price_data(
             "[THETA][DEBUG][THETADATA-EOD] requesting %d trading day(s) for %s from %s to %s",
             len(requested_dates),
             asset,
-            start,
-            end,
+            fetch_start,
+            fetch_end,
         )
 
         # Use EOD endpoint for official daily OHLC
         result_df = get_historical_eod_data(
             asset=asset,
-            start_dt=start,
-            end_dt=end,
+            start_dt=fetch_start,
+            end_dt=fetch_end,
             username=username,
             password=password,
             datastyle=datastyle
@@ -519,15 +524,15 @@ def get_price_data(
                     "[THETA][DEBUG][THETADATA-EOD] Option %s expired on %s; cache reuse for range %s -> %s.",
                     asset,
                     asset.expiration,
-                    start,
-                    end,
+                    fetch_start,
+                    fetch_end,
                 )
             else:
                 logger.warning(
                     "[THETA][DEBUG][THETADATA-EOD] No rows returned for %s between %s and %s; recording placeholders.",
                     asset,
-                    start,
-                    end,
+                    fetch_start,
+                    fetch_end,
                 )
             df_all = append_missing_markers(df_all, requested_dates)
             update_cache(
@@ -548,6 +553,12 @@ def get_price_data(
                 len(requested_dates),
             )
 
+            if df_clean is not None and not df_clean.empty and timespan == "day":
+                start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
+                end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
+                dates = pd.to_datetime(df_clean.index).date
+                df_clean = df_clean[(dates >= start_date) & (dates <= end_date)]
+
             return df_clean if df_clean is not None else pd.DataFrame()
 
         df_all = update_df(df_all, result_df)
@@ -558,7 +569,7 @@ def get_price_data(
             len(result_df),
         )
 
-        trading_days = get_trading_dates(asset, start, end)
+        trading_days = get_trading_dates(asset, fetch_start, fetch_end)
         if "datetime" in result_df.columns:
             covered_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
         else:
@@ -595,6 +606,12 @@ def get_price_data(
             placeholder_count,
         )
 
+        if df_clean is not None and not df_clean.empty and timespan == "day":
+            start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
+            end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
+            dates = pd.to_datetime(df_clean.index).date
+            df_clean = df_clean[(dates >= start_date) & (dates <= end_date)]
+
         return df_clean if df_clean is not None else pd.DataFrame()
 
     # Map timespan to milliseconds for intraday intervals
@@ -617,15 +634,20 @@ def get_price_data(
             f"Supported values: {list(TIMESPAN_TO_MS.keys())} or 'day'"
         )
 
-    while start <= missing_dates[-1]:
+    current_start = fetch_start
+    current_end = fetch_start + delta
+
+    while current_start <= fetch_end:
         # If we don't have a paid subscription, we need to wait 1 minute between requests because of
         # the rate limit. Wait every other query so that we don't spend too much time waiting.
 
-        if end > start + delta:
-            end = start + delta
+        if current_end > fetch_end:
+            current_end = fetch_end
+        if current_end > current_start + delta:
+            current_end = current_start + delta
 
-        result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle, include_after_hours=include_after_hours)
-        chunk_end = _clamp_option_end(asset, end)
+        result_df = get_historical_data(asset, current_start, current_end, interval_ms, username, password, datastyle=datastyle, include_after_hours=include_after_hours)
+        chunk_end = _clamp_option_end(asset, current_end)
 
         if result_df is None or len(result_df) == 0:
             expired_chunk = (
@@ -638,20 +660,20 @@ def get_price_data(
                     "[THETA][DEBUG][THETADATA] Option %s considered expired on %s; reusing cached data between %s and %s.",
                     asset,
                     asset.expiration,
-                    start,
+                    current_start,
                     chunk_end,
                 )
             else:
                 logger.warning(
-                    f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
+                    f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {current_start} and {current_end}"
                 )
-            missing_chunk = get_trading_dates(asset, start, chunk_end)
+            missing_chunk = get_trading_dates(asset, current_start, chunk_end)
             df_all = append_missing_markers(df_all, missing_chunk)
             pbar.update(1)
 
         else:
             df_all = update_df(df_all, result_df)
-            available_chunk = get_trading_dates(asset, start, chunk_end)
+            available_chunk = get_trading_dates(asset, current_start, chunk_end)
             df_all = remove_missing_markers(df_all, available_chunk)
             if "datetime" in result_df.columns:
                 chunk_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
@@ -667,10 +689,10 @@ def get_price_data(
                 df_all = append_missing_markers(df_all, missing_within_chunk)
             pbar.update(1)
 
-        start = end + timedelta(days=1)
-        end = start + delta
+        current_start = current_end + timedelta(days=1)
+        current_end = current_start + delta
 
-        if asset.expiration and start > asset.expiration:
+        if asset.expiration and current_start > asset.expiration:
             break
 
     update_cache(cache_file, df_all, df_cached)
@@ -683,6 +705,12 @@ def get_price_data(
     if df_all is not None and not df_all.empty and "missing" in df_all.columns:
         df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
         df_all = restore_numeric_dtypes(df_all)
+
+    if df_all is not None and not df_all.empty and timespan == "day":
+        start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
+        end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
+        dates = pd.to_datetime(df_all.index).date
+        df_all = df_all[(dates >= start_date) & (dates <= end_date)]
 
     return df_all
 
@@ -1118,10 +1146,36 @@ def start_theta_data_client(username: str, password: str):
     CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
 
     # First try shutting down any existing connection
+    graceful_shutdown_requested = False
     try:
-        requests.get(f"{BASE_URL}/v2/system/terminal/shutdown")
+        requests.get(f"{BASE_URL}/v2/system/terminal/shutdown", timeout=1)
+        graceful_shutdown_requested = True
     except Exception:
         pass
+
+    shutdown_deadline = time.time() + 15
+    while True:
+        process_alive = is_process_alive()
+        status_alive = False
+        try:
+            status_text = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=0.5).text
+            status_alive = status_text in ("CONNECTED", "DISCONNECTED")
+        except Exception:
+            status_alive = False
+
+        if not process_alive and not status_alive:
+            break
+
+        if time.time() >= shutdown_deadline:
+            if process_alive and THETA_DATA_PID:
+                kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
+                try:
+                    os.kill(THETA_DATA_PID, kill_signal)
+                except Exception as kill_exc:
+                    logger.warning("Failed to force kill ThetaTerminal PID %s: %s", THETA_DATA_PID, kill_exc)
+            break
+
+        time.sleep(0.5)
 
     # Create creds.txt file to avoid passing password with special characters on command line
     # This is the official ThetaData method and avoids shell escaping issues
@@ -1276,13 +1330,28 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
     if not wait_for_connection:
         status_text = probe_status()
         if status_text == "CONNECTED":
+            if THETA_DATA_PROCESS is None and THETA_DATA_PID is None:
+                logger.debug("ThetaTerminal reports CONNECTED but no process is tracked; restarting to capture handle.")
+                client = start_theta_data_client(username=username, password=password)
+                new_client, connected = check_connection(
+                    username=username,
+                    password=password,
+                    wait_for_connection=True,
+                )
+                return client or new_client, connected
+
             logger.debug("ThetaTerminal already connected.")
             return None, True
 
         if not is_process_alive():
             logger.debug("ThetaTerminal process not running; launching background restart.")
             client = start_theta_data_client(username=username, password=password)
-            return client, False
+            new_client, connected = check_connection(
+                username=username,
+                password=password,
+                wait_for_connection=True,
+            )
+            return client or new_client, connected
 
         logger.debug("ThetaTerminal running but not yet CONNECTED; waiting for status.")
         return check_connection(username=username, password=password, wait_for_connection=True)

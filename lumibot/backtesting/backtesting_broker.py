@@ -1380,9 +1380,12 @@ class BacktestingBroker(Broker):
                 ):
                     if strategy is not None:
                         display_symbol = getattr(order.asset, "symbol", order.asset)
+                        order_identifier = getattr(order, "identifier", None)
+                        if order_identifier is None:
+                            order_identifier = getattr(order, "id", "<unknown>")
                         strategy.log_message(
                             f"[DIAG] No historical bars returned for {display_symbol} at {self.datetime}; "
-                            f"pending {order.order_type} id={order.id}",
+                            f"pending {order.order_type} id={order_identifier}",
                             color="yellow",
                         )
                     continue
@@ -1422,9 +1425,12 @@ class BacktestingBroker(Broker):
                 if ohlc is None or ohlc.empty:
                     if strategy is not None:
                         display_symbol = getattr(order.asset, "symbol", order.asset)
+                        order_identifier = getattr(order, "identifier", None)
+                        if order_identifier is None:
+                            order_identifier = getattr(order, "id", "<unknown>")
                         strategy.log_message(
                             f"[DIAG] No pandas bars for {display_symbol} at {self.datetime}; "
-                            f"canceling {order.order_type} id={order.id}",
+                            f"canceling {order.order_type} id={order_identifier}",
                             color="yellow",
                         )
                     self.cancel_order(order)
@@ -1525,13 +1531,17 @@ class BacktestingBroker(Broker):
             else:
                 if strategy is not None:
                     display_symbol = getattr(order.asset, "symbol", order.asset)
+                    order_identifier = getattr(order, "identifier", None)
+                    if order_identifier is None:
+                        order_identifier = getattr(order, "id", "<unknown>")
                     detail = (
                         f"limit={order.limit_price}, high={high}, low={low}"
                         if order.order_type == Order.OrderType.LIMIT
                         else f"type={order.order_type}, high={high}, low={low}, stop={getattr(order, 'stop_price', None)}"
                     )
                     strategy.log_message(
-                        f"[DIAG] Order remained open for {display_symbol} ({detail}) at {self.datetime}",
+                        f"[DIAG] Order remained open for {display_symbol} ({detail}) "
+                        f"id={order_identifier} at {self.datetime}",
                         color="yellow",
                     )
                 continue

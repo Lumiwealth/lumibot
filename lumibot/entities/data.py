@@ -561,8 +561,7 @@ class Data:
             else:
                 timeshift = int(timeshift.total_seconds() / 60)
 
-        end_row = self.get_iter_count(dt) - timeshift + 1
-        start_row = end_row - length
+        end_row = self.get_iter_count(dt) - timeshift
 
         data_len = len(next(iter(self.datalines.values())).dataline) if self.datalines else 0
         if end_row > data_len:
@@ -570,10 +569,7 @@ class Data:
         if end_row < 0:
             end_row = 0
 
-        recalculated_start = end_row - length
-        if recalculated_start != start_row:
-            start_row = recalculated_start
-
+        start_row = end_row - length
         if start_row < 0:
             start_row = 0
         if start_row > end_row:

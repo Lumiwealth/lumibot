@@ -15,8 +15,7 @@ How To Enable
 
 Guaranteed Parity
 -----------------
-- `tests/test_data_polars_parity.py`: validates row counts and slicing against pandas.  
-- `tests/test_databento_backtesting_polars.py`: ensures the polars backtester matches pandas behaviour for futures contracts.  
+- `pytest tests/test_data_polars_parity.py tests/test_databento_backtesting_polars.py tests/test_databento_data.py tests/backtest/test_databento_parity.py` (2025‑10‑29): pandas vs polars frames match exactly, including live API parity when a `DATABENTO_API_KEY` is present.  
 - `tests/test_polars_resample.py`: covers resampling logic shared across strategy functions.  
 - `tests/backtest/test_polars_lru_eviction.py`: exercises cache eviction so repeated runs match pandas memory footprints.
 
@@ -25,7 +24,7 @@ Performance Notes
 - Polars caching keeps a rolling window (~5k bars) per asset and trims automatically.  
 - Aggregated timeframe bars reuse an LRU cache to avoid redundant grouping.  
 - Conversion guardrails in `Bars` track pandas ⇄ polars conversions to avoid accidental slow paths.  
-- Representative benchmark: MES futures minute bars, 1-year range — pandas ~48s vs polars ~20s on Apple M3 Pro (cold cache, single run).
+- Benchmark command: ``PYTHONPATH=. python3.12 tests/performance/profile_databento_comprehensive.py --mode both`` (Apple M3 Pro, cold cache) produced `pandas 24.76s`, `polars 7.14s`, yielding a `3.47×` speedup. Profile artefacts land in `tests/performance/logs/`.
 
 Migration Checklist
 -------------------

@@ -18,7 +18,141 @@ from plotly.subplots import make_subplots
 from .yahoo_helper import YahooHelper as yh
 
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
+
+TERMINAL_TRADE_STATUSES_FOR_MARKERS = {
+    "fill",
+    "filled",
+    "partial_fill",
+    "cash_settled",
+    "assigned",
+    "assignment",
+    "exercise",
+    "exercised",
+    "expired",
+    "expire",
+}
+
+
+def _build_trade_marker_tooltip(row: pd.Series):
+    """Return tooltip text for a trade marker; None when the row lacks required data."""
+    status_value = row.get("status")
+    if pd.isna(status_value) or str(status_value).strip() == "":
+        return None
+
+    status_text = str(status_value)
+    if status_text.lower() not in TERMINAL_TRADE_STATUSES_FOR_MARKERS:
+        return None
+
+    for key in ("filled_quantity", "price"):
+        value = row.get(key)
+        if pd.isna(value):
+            return None
+
+    try:
+        filled_quantity_dec = Decimal(str(row["filled_quantity"]))
+        price_dec = Decimal(str(row["price"]))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    multiplier_value = row.get("asset.multiplier")
+    if pd.isna(multiplier_value) or multiplier_value == "":
+        return None
+    try:
+        multiplier_dec = Decimal(str(multiplier_value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    try:
+        amount_transacted_dec = price_dec * filled_quantity_dec * multiplier_dec
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    trade_cost_value = row.get("trade_cost")
+    trade_cost_dec = None
+    if not (pd.isna(trade_cost_value) or trade_cost_value == ""):
+        try:
+            trade_cost_dec = Decimal(str(trade_cost_value))
+        except (InvalidOperation, TypeError, ValueError):
+            trade_cost_dec = None
+
+    if trade_cost_dec is None:
+        trade_cost_dec = amount_transacted_dec
+
+    if row.get("asset.asset_type") == "option":
+        try:
+            return (
+                status_text
+                + "<br>"
+                + str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
+                + " "
+                + str(row.get("symbol"))
+                + " "
+                + str(row.get("asset.right"))
+                + " Option"
+                + "<br>"
+                + "Strike: "
+                + str(row.get("asset.strike"))
+                + "<br>"
+                + "Expiration: "
+                + str(row.get("asset.expiration"))
+                + "<br>"
+                + "Price: "
+                + str(price_dec.quantize(Decimal("0.0001")).__format__(",f"))
+                + "<br>"
+                + "Order Type: "
+                + str(row.get("type"))
+                + "<br>"
+                + "Amount Transacted: "
+                + str(
+                    (
+                        price_dec
+                        * filled_quantity_dec
+                        * (multiplier_dec if multiplier_dec != Decimal("0") else Decimal("1"))
+                    )
+                    .quantize(Decimal("0.01"))
+                    .__format__(",f")
+                )
+                + "<br>"
+                + "Trade Cost: "
+                + str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
+                + "<br>"
+            )
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+    if multiplier_dec == Decimal("0"):
+        return None
+
+    try:
+        amount_transacted = amount_transacted_dec.quantize(Decimal("0.01")).__format__(",f")
+        price_text = str(price_dec.quantize(Decimal("0.0001")).__format__(",f"))
+        filled_qty_text = str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
+        trade_cost_text = str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    return (
+        status_text
+        + "<br>"
+        + filled_qty_text
+        + " "
+        + str(row.get("symbol"))
+        + "<br>"
+        + "Price: "
+        + price_text
+        + "<br>"
+        + "Order Type: "
+        + str(row.get("type"))
+        + "<br>"
+        + "Amount Transacted: "
+        + amount_transacted
+        + "<br>"
+        + "Trade Cost: "
+        + trade_cost_text
+        + "<br>"
+    )
 
 
 def total_return(_df):
@@ -669,110 +803,7 @@ def plot_returns(
     buys = buys.loc[df_final["side"].isin(["buy", "buy_to_open", "buy_to_cover", "buy_to_close"])]
 
     def generate_buysell_plotly_text(row):
-        if row["status"] not in ("fill", "partial_fill"):
-            return None
-
-        for key in ("filled_quantity", "price"):
-            value = row.get(key)
-            if pd.isna(value):
-                return None
-
-        try:
-            filled_quantity_dec = Decimal(str(row["filled_quantity"]))
-            price_dec = Decimal(str(row["price"]))
-        except (InvalidOperation, TypeError, ValueError):
-            return None
-
-        multiplier_value = row.get("asset.multiplier")
-        if pd.isna(multiplier_value) or multiplier_value == "":
-            return None
-        try:
-            multiplier_dec = Decimal(str(multiplier_value))
-        except (InvalidOperation, TypeError, ValueError):
-            return None
-
-        trade_cost_value = row.get("trade_cost")
-        if pd.isna(trade_cost_value) or trade_cost_value == "":
-            return None
-        try:
-            trade_cost_dec = Decimal(str(trade_cost_value))
-        except (InvalidOperation, TypeError, ValueError):
-            return None
-
-        if row["asset.asset_type"] == "option":
-            try:
-                return (
-                    row["status"]
-                    + "<br>"
-                    + str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
-                    + " "
-                    + row["symbol"]
-                    + " "
-                    + row["asset.right"]
-                    + " Option"
-                    + "<br>"
-                    + "Strike: "
-                    + str(row["asset.strike"])
-                    + "<br>"
-                    + "Expiration: "
-                    + str(row["asset.expiration"])
-                    + "<br>"
-                    + "Price: "
-                    + str(price_dec.quantize(Decimal("0.0001")).__format__(",f"))
-                    + "<br>"
-                    + "Order Type: "
-                    + row["type"]
-                    + "<br>"
-                    + "Amount Transacted: "
-                    + str(
-                        (
-                            price_dec
-                            * filled_quantity_dec
-                            * (multiplier_dec if multiplier_dec != Decimal("0") else Decimal("1"))
-                        )
-                        .quantize(Decimal("0.01"))
-                        .__format__(",f")
-                    )
-                    + "<br>"
-                    + "Trade Cost: "
-                    + str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
-                    + "<br>"
-                )
-            except (InvalidOperation, TypeError, ValueError):
-                return None
-
-        if multiplier_dec == Decimal("0"):
-            return None
-        try:
-            amount_transacted = (
-                price_dec * filled_quantity_dec * multiplier_dec
-            ).quantize(Decimal("0.01")).__format__(",f")
-            price_text = str(price_dec.quantize(Decimal("0.0001")).__format__(",f"))
-            filled_qty_text = str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
-            trade_cost_text = str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
-        except (InvalidOperation, TypeError, ValueError):
-            return None
-
-        return (
-            row["status"]
-            + "<br>"
-            + filled_qty_text
-            + " "
-            + row["symbol"]
-            + "<br>"
-            + "Price: "
-            + price_text
-            + "<br>"
-            + "Order Type: "
-            + row["type"]
-            + "<br>"
-            + "Amount Transacted: "
-            + amount_transacted
-            + "<br>"
-            + "Trade Cost: "
-            + trade_cost_text
-            + "<br>"
-        )
+        return _build_trade_marker_tooltip(row)
 
     buy_ticks_df = buys.apply(generate_buysell_plotly_text, axis=1)
 

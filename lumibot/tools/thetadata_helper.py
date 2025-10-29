@@ -1,7 +1,8 @@
 # This file contains helper functions for getting data from Polygon.io
 import time
 import os
-from datetime import date, datetime, timedelta
+from typing import List, Optional
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import pytz
 import pandas as pd
@@ -18,10 +19,172 @@ WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = "http://127.0.0.1:25510"
+CONNECTION_RETRY_SLEEP = 1.0
+CONNECTION_MAX_RETRIES = 60
+BOOT_GRACE_PERIOD = 5.0
+MAX_RESTART_ATTEMPTS = 3
 
 # Global process tracking for ThetaTerminal
 THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
+THETA_DATA_LOG_HANDLE = None
+
+def reset_connection_diagnostics():
+    """Reset ThetaData connection counters (useful for tests)."""
+    CONNECTION_DIAGNOSTICS.update({
+        "check_connection_calls": 0,
+        "start_terminal_calls": 0,
+        "network_requests": 0,
+        "placeholder_writes": 0,
+    })
+
+
+def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Ensure the dataframe includes a `missing` flag column (True for placeholders)."""
+    if df is None or len(df) == 0:
+        return df
+    if "missing" not in df.columns:
+        df["missing"] = False
+        logger.debug(
+            "[THETA][DEBUG][THETADATA-CACHE] added 'missing' column to frame (rows=%d)",
+            len(df),
+        )
+    return df
+
+
+def restore_numeric_dtypes(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Try to convert object columns back to numeric types after placeholder removal."""
+    if df is None or len(df) == 0:
+        return df
+    for column in df.columns:
+        if df[column].dtype == object:
+            try:
+                df[column] = pd.to_numeric(df[column])
+            except (ValueError, TypeError):
+                continue
+    return df
+
+
+def append_missing_markers(
+    df_all: Optional[pd.DataFrame],
+    missing_dates: List[datetime.date],
+) -> Optional[pd.DataFrame]:
+    """Append placeholder rows for dates that returned no data."""
+    if not missing_dates:
+        if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+            df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+            df_all = restore_numeric_dtypes(df_all)
+        return df_all
+
+    base_columns = ["open", "high", "low", "close", "volume"]
+
+    if df_all is None or len(df_all) == 0:
+        df_all = pd.DataFrame(columns=base_columns + ["missing"])
+        df_all.index = pd.DatetimeIndex([], name="datetime")
+
+    df_all = ensure_missing_column(df_all)
+
+    rows = []
+    for d in missing_dates:
+        dt = datetime(d.year, d.month, d.day, tzinfo=pytz.UTC)
+        row = {col: pd.NA for col in df_all.columns if col != "missing"}
+        row["datetime"] = dt
+        row["missing"] = True
+        rows.append(row)
+
+    if rows:
+        CONNECTION_DIAGNOSTICS["placeholder_writes"] = CONNECTION_DIAGNOSTICS.get("placeholder_writes", 0) + len(rows)
+
+        # DEBUG-LOG: Placeholder injection
+        logger.info(
+            "[THETA][DEBUG][PLACEHOLDER][INJECT] count=%d dates=%s",
+            len(rows),
+            ", ".join(sorted({d.isoformat() for d in missing_dates}))
+        )
+
+        placeholder_df = pd.DataFrame(rows).set_index("datetime")
+        for col in df_all.columns:
+            if col not in placeholder_df.columns:
+                placeholder_df[col] = pd.NA if col != "missing" else True
+        placeholder_df = placeholder_df[df_all.columns]
+        if len(df_all) == 0:
+            df_all = placeholder_df
+        else:
+            df_all = pd.concat([df_all, placeholder_df]).sort_index()
+        df_all = df_all[~df_all.index.duplicated(keep="last")]
+        logger.info(
+            "[THETA][DEBUG][THETADATA-CACHE] recorded %d placeholder day(s): %s",
+            len(rows),
+            ", ".join(sorted({d.isoformat() for d in missing_dates})),
+        )
+
+    return df_all
+
+
+def remove_missing_markers(
+    df_all: Optional[pd.DataFrame],
+    available_dates: List[datetime.date],
+) -> Optional[pd.DataFrame]:
+    """Drop placeholder rows when real data becomes available."""
+    if df_all is None or len(df_all) == 0 or not available_dates:
+        return df_all
+
+    df_all = ensure_missing_column(df_all)
+    available_set = set(available_dates)
+
+    mask = df_all["missing"].eq(True) & df_all.index.map(
+        lambda ts: ts.date() in available_set
+    )
+    if mask.any():
+        removed_dates = sorted({ts.date().isoformat() for ts in df_all.index[mask]})
+        df_all = df_all.loc[~mask]
+        logger.info(
+            "[THETA][DEBUG][THETADATA-CACHE] cleared %d placeholder row(s) for dates: %s",
+            mask.sum(),
+            ", ".join(removed_dates),
+        )
+
+    return df_all
+
+
+def _clamp_option_end(asset: Asset, dt: datetime) -> datetime:
+    """Ensure intraday pulls for options never extend beyond expiration."""
+    if isinstance(dt, datetime):
+        end_dt = dt
+    else:
+        end_dt = datetime.combine(dt, datetime.max.time())
+
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=pytz.UTC)
+
+    if asset.asset_type == "option" and asset.expiration:
+        expiration_dt = datetime.combine(asset.expiration, datetime.max.time())
+        expiration_dt = expiration_dt.replace(tzinfo=end_dt.tzinfo)
+        if end_dt > expiration_dt:
+            return expiration_dt
+
+    return end_dt
+
+
+def reset_theta_terminal_tracking():
+    """Clear cached ThetaTerminal process references."""
+    global THETA_DATA_PROCESS, THETA_DATA_PID, THETA_DATA_LOG_HANDLE
+    THETA_DATA_PROCESS = None
+    THETA_DATA_PID = None
+    if THETA_DATA_LOG_HANDLE is not None:
+        try:
+            THETA_DATA_LOG_HANDLE.close()
+        except Exception:
+            pass
+    THETA_DATA_LOG_HANDLE = None
+
+
+CONNECTION_DIAGNOSTICS = {
+    "check_connection_calls": 0,
+    "start_terminal_calls": 0,
+    "network_requests": 0,
+    "placeholder_writes": 0,
+}
 
 
 def get_price_data(
@@ -34,12 +197,16 @@ def get_price_data(
     quote_asset: Asset = None,
     dt=None,
     datastyle: str = "ohlc",
-    include_after_hours: bool = True
-):
+    include_after_hours: bool = True,
+    return_polars: bool = False
+) -> Optional[pd.DataFrame]:
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
     cached in the LUMIBOT_CACHE_FOLDER/{CACHE_SUBFOLDER} folder so that it can be reused later and we don't have to query
     ThetaData every time we run a backtest.
+
+    Returns pandas DataFrames for backwards compatibility. Polars output is not
+    currently supported; callers requesting polars will receive a ValueError.
 
     Parameters
     ----------
@@ -62,35 +229,128 @@ def get_price_data(
         The style of data to retrieve ("ohlc" or "quote")
     include_after_hours : bool
         Whether to include after-hours trading data (default True)
+    return_polars : bool
+        ThetaData currently supports pandas output only. Passing True raises a ValueError.
 
     Returns
     -------
-    pd.DataFrame
-        A DataFrame with the pricing data for the asset
+    Optional[pd.DataFrame]
+        A pandas DataFrame with the pricing data for the asset
 
     """
     import pytz  # Import at function level to avoid scope issues in nested calls
+
+    # DEBUG-LOG: Entry point for ThetaData request
+    logger.debug(
+        "[THETA][DEBUG][REQUEST][ENTRY] asset=%s quote=%s start=%s end=%s dt=%s timespan=%s datastyle=%s include_after_hours=%s return_polars=%s",
+        asset,
+        quote_asset,
+        start.isoformat() if hasattr(start, 'isoformat') else start,
+        end.isoformat() if hasattr(end, 'isoformat') else end,
+        dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt,
+        timespan,
+        datastyle,
+        include_after_hours,
+        return_polars
+    )
+
+    if return_polars:
+        raise ValueError("ThetaData polars output is not available; pass return_polars=False.")
 
     # Check if we already have data for this asset in the cache file
     df_all = None
     df_cached = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
+
+    # DEBUG-LOG: Cache file check
+    logger.info(
+        "[THETA][DEBUG][CACHE][CHECK] asset=%s timespan=%s datastyle=%s cache_file=%s exists=%s",
+        asset,
+        timespan,
+        datastyle,
+        cache_file,
+        cache_file.exists()
+    )
+
     if cache_file.exists():
         logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
             df_all = df_cached.copy() # Make a copy so we can check the original later for differences
 
+    cached_rows = 0 if df_all is None else len(df_all)
+    placeholder_rows = 0
+    if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+        placeholder_rows = int(df_all["missing"].sum())
+
+    # DEBUG-LOG: Cache load result
+    logger.info(
+        "[THETA][DEBUG][CACHE][LOADED] asset=%s cached_rows=%d placeholder_rows=%d real_rows=%d",
+        asset,
+        cached_rows,
+        placeholder_rows,
+        cached_rows - placeholder_rows
+    )
+
+    logger.debug(
+        "[THETA][DEBUG][THETADATA-CACHE] pre-fetch rows=%d placeholders=%d for %s %s %s",
+        cached_rows,
+        placeholder_rows,
+        asset,
+        timespan,
+        datastyle,
+    )
+
     # Check if we need to get more data
+    logger.info(
+        "[THETA][DEBUG][CACHE][DECISION_START] asset=%s | "
+        "calling get_missing_dates(start=%s, end=%s)",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        start.isoformat() if hasattr(start, 'isoformat') else start,
+        end.isoformat() if hasattr(end, 'isoformat') else end
+    )
+
     missing_dates = get_missing_dates(df_all, asset, start, end)
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
+        "missing_dates=%d | "
+        "decision=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        len(missing_dates),
+        "CACHE_HIT" if not missing_dates else "CACHE_MISS"
+    )
+
+    cache_file = build_cache_filename(asset, timespan, datastyle)
+    logger.debug(
+        "[THETA][DEBUG][THETADATA-CACHE] asset=%s/%s timespan=%s datastyle=%s cache_file=%s exists=%s missing=%d",
+        asset,
+        quote_asset.symbol if quote_asset else None,
+        timespan,
+        datastyle,
+        cache_file,
+        cache_file.exists(),
+        len(missing_dates),
+    )
     if not missing_dates:
+        if df_all is not None and not df_all.empty:
+            logger.info("ThetaData cache HIT for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
+            # DEBUG-LOG: Cache hit
+            logger.info(
+                "[THETA][DEBUG][CACHE][HIT] asset=%s timespan=%s datastyle=%s rows=%d start=%s end=%s",
+                asset,
+                timespan,
+                datastyle,
+                len(df_all),
+                start.isoformat() if hasattr(start, 'isoformat') else start,
+                end.isoformat() if hasattr(end, 'isoformat') else end
+            )
         # Filter cached data to requested date range before returning
         if df_all is not None and not df_all.empty:
             # For daily data, use date-based filtering (timestamps vary by provider)
             # For intraday data, use precise datetime filtering
             if timespan == "day":
                 # Convert index to dates for comparison
-                import pandas as pd
                 df_dates = pd.to_datetime(df_all.index).date
                 start_date = start.date() if hasattr(start, 'date') else start
                 end_date = end.date() if hasattr(end, 'date') else end
@@ -98,24 +358,113 @@ def get_price_data(
                 df_all = df_all[mask]
             else:
                 # Intraday: use precise datetime filtering
-                import datetime as dt
+                import datetime as datetime_module  # RENAMED to avoid shadowing dt parameter!
+
+                # DEBUG-LOG: Entry to intraday filter
+                rows_before_any_filter = len(df_all)
+                max_ts_before_any_filter = df_all.index.max() if len(df_all) > 0 else None
+                logger.info(
+                    "[THETA][DEBUG][FILTER][INTRADAY_ENTRY] asset=%s | "
+                    "rows_before=%d max_ts_before=%s | "
+                    "start_param=%s end_param=%s dt_param=%s dt_type=%s",
+                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    rows_before_any_filter,
+                    max_ts_before_any_filter.isoformat() if max_ts_before_any_filter else None,
+                    start.isoformat() if hasattr(start, 'isoformat') else start,
+                    end.isoformat() if hasattr(end, 'isoformat') else end,
+                    dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt,
+                    type(dt).__name__ if dt else None
+                )
+
                 # Convert date to datetime if needed
-                if isinstance(start, dt.date) and not isinstance(start, dt.datetime):
-                    start = dt.datetime.combine(start, dt.time.min)
-                if isinstance(end, dt.date) and not isinstance(end, dt.datetime):
-                    end = dt.datetime.combine(end, dt.time.max)
+                if isinstance(start, datetime_module.date) and not isinstance(start, datetime_module.datetime):
+                    start = datetime_module.datetime.combine(start, datetime_module.time.min)
+                    logger.info(
+                        "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted start from date to datetime: %s",
+                        start.isoformat()
+                    )
+                if isinstance(end, datetime_module.date) and not isinstance(end, datetime_module.datetime):
+                    end = datetime_module.datetime.combine(end, datetime_module.time.max)
+                    logger.info(
+                        "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted end from date to datetime: %s",
+                        end.isoformat()
+                    )
 
                 # Handle datetime objects with midnight time (users often pass datetime(YYYY, MM, DD))
-                if isinstance(end, dt.datetime) and end.time() == dt.time.min:
+                if isinstance(end, datetime_module.datetime) and end.time() == datetime_module.time.min:
                     # Convert end-of-period midnight to end-of-day
-                    end = dt.datetime.combine(end.date(), dt.time.max)
+                    end = datetime_module.datetime.combine(end.date(), datetime_module.time.max)
+                    logger.info(
+                        "[THETA][DEBUG][FILTER][MIDNIGHT_FIX] converted end from midnight to end-of-day: %s",
+                        end.isoformat()
+                    )
 
                 if start.tzinfo is None:
                     start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
+                    logger.info(
+                        "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s",
+                        start.isoformat()
+                    )
                 if end.tzinfo is None:
                     end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
+                    logger.info(
+                        "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s",
+                        end.isoformat()
+                    )
+
+                # REMOVED: Look-ahead bias protection was too aggressive
+                # The dt filtering was breaking negative timeshift (intentional look-ahead for fills)
+                # Look-ahead bias protection should happen at get_bars() level, not cache retrieval
+                #
+                # NEW APPROACH: Always return full [start, end] range from cache
+                # Let Data/DataPolars.get_bars() handle look-ahead bias protection
+                logger.info(
+                    "[THETA][DEBUG][FILTER][NO_DT_FILTER] asset=%s | "
+                    "using end=%s for upper bound (dt parameter ignored for cache retrieval)",
+                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    end.isoformat()
+                )
                 df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
+
+        # DEBUG-LOG: After date range filtering, before missing removal
+        if df_all is not None and not df_all.empty:
+            logger.info(
+                "[THETA][DEBUG][FILTER][AFTER] asset=%s rows=%d first_ts=%s last_ts=%s dt_filter=%s",
+                asset,
+                len(df_all),
+                df_all.index.min().isoformat() if len(df_all) > 0 else None,
+                df_all.index.max().isoformat() if len(df_all) > 0 else None,
+                dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt
+            )
+
+        if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+            df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+
+
+        # DEBUG-LOG: Before pandas return
+        if df_all is not None and not df_all.empty:
+            logger.info(
+                "[THETA][DEBUG][RETURN][PANDAS] asset=%s rows=%d first_ts=%s last_ts=%s",
+                asset,
+                len(df_all),
+                df_all.index.min().isoformat() if len(df_all) > 0 else None,
+                df_all.index.max().isoformat() if len(df_all) > 0 else None
+            )
         return df_all
+
+    logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
+
+    # DEBUG-LOG: Cache miss
+    logger.info(
+        "[THETA][DEBUG][CACHE][MISS] asset=%s timespan=%s datastyle=%s missing_intervals=%d first=%s last=%s",
+        asset,
+        timespan,
+        datastyle,
+        len(missing_dates),
+        missing_dates[0] if missing_dates else None,
+        missing_dates[-1] if missing_dates else None
+    )
+
 
     start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
@@ -133,7 +482,15 @@ def get_price_data(
     # The EOD endpoint includes the 16:00 closing auction and follows SIP sale-condition rules
     # This matches Polygon and Yahoo Finance EXACTLY (zero tolerance)
     if timespan == "day":
-        logger.info(f"Daily bars: using EOD endpoint for official close prices")
+        requested_dates = list(missing_dates)
+        logger.info("Daily bars: using EOD endpoint for official close prices")
+        logger.debug(
+            "[THETA][DEBUG][THETADATA-EOD] requesting %d trading day(s) for %s from %s to %s",
+            len(requested_dates),
+            asset,
+            start,
+            end,
+        )
 
         # Use EOD endpoint for official daily OHLC
         result_df = get_historical_eod_data(
@@ -144,8 +501,101 @@ def get_price_data(
             password=password,
             datastyle=datastyle
         )
+        logger.debug(
+            "[THETA][DEBUG][THETADATA-EOD] fetched rows=%s for %s",
+            0 if result_df is None else len(result_df),
+            asset,
+        )
 
-        return result_df
+        if result_df is None or result_df.empty:
+            expired_range = (
+                asset.asset_type == "option"
+                and asset.expiration is not None
+                and requested_dates
+                and all(day > asset.expiration for day in requested_dates)
+            )
+            if expired_range:
+                logger.info(
+                    "[THETA][DEBUG][THETADATA-EOD] Option %s expired on %s; cache reuse for range %s -> %s.",
+                    asset,
+                    asset.expiration,
+                    start,
+                    end,
+                )
+            else:
+                logger.warning(
+                    "[THETA][DEBUG][THETADATA-EOD] No rows returned for %s between %s and %s; recording placeholders.",
+                    asset,
+                    start,
+                    end,
+                )
+            df_all = append_missing_markers(df_all, requested_dates)
+            update_cache(
+                cache_file,
+                df_all,
+                df_cached,
+                missing_dates=requested_dates,
+            )
+            df_clean = df_all.copy() if df_all is not None else None
+            if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
+                df_clean = df_clean[~df_clean["missing"].astype(bool)].drop(columns=["missing"])
+                df_clean = restore_numeric_dtypes(df_clean)
+            logger.info(
+                "ThetaData cache updated for %s %s %s with placeholders only (missing=%d).",
+                asset,
+                timespan,
+                datastyle,
+                len(requested_dates),
+            )
+
+            return df_clean if df_clean is not None else pd.DataFrame()
+
+        df_all = update_df(df_all, result_df)
+        logger.debug(
+            "[THETA][DEBUG][THETADATA-EOD] merged cache rows=%d (cached=%d new=%d)",
+            0 if df_all is None else len(df_all),
+            0 if df_cached is None else len(df_cached),
+            len(result_df),
+        )
+
+        trading_days = get_trading_dates(asset, start, end)
+        if "datetime" in result_df.columns:
+            covered_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
+        else:
+            covered_index = pd.DatetimeIndex(result_df.index)
+        if covered_index.tz is None:
+            covered_index = covered_index.tz_localize(pytz.UTC)
+        else:
+            covered_index = covered_index.tz_convert(pytz.UTC)
+        covered_days = set(covered_index.date)
+
+        df_all = remove_missing_markers(df_all, list(covered_days))
+        missing_within_range = [day for day in trading_days if day not in covered_days]
+        placeholder_count = len(missing_within_range)
+        df_all = append_missing_markers(df_all, missing_within_range)
+
+        update_cache(
+            cache_file,
+            df_all,
+            df_cached,
+            missing_dates=missing_within_range,
+        )
+
+        df_clean = df_all.copy() if df_all is not None else None
+        if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
+            df_clean = df_clean[~df_clean["missing"].astype(bool)].drop(columns=["missing"])
+            df_clean = restore_numeric_dtypes(df_clean)
+
+        logger.info(
+            "ThetaData cache updated for %s %s %s (rows=%d placeholders=%d).",
+            asset,
+            timespan,
+            datastyle,
+            0 if df_all is None else len(df_all),
+            placeholder_count,
+        )
+
+        return df_clean if df_clean is not None else pd.DataFrame()
 
     # Map timespan to milliseconds for intraday intervals
     TIMESPAN_TO_MS = {
@@ -175,14 +625,46 @@ def get_price_data(
             end = start + delta
 
         result_df = get_historical_data(asset, start, end, interval_ms, username, password, datastyle=datastyle, include_after_hours=include_after_hours)
+        chunk_end = _clamp_option_end(asset, end)
 
         if result_df is None or len(result_df) == 0:
-            logger.warning(
-                f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
+            expired_chunk = (
+                asset.asset_type == "option"
+                and asset.expiration is not None
+                and chunk_end.date() >= asset.expiration
             )
+            if expired_chunk:
+                logger.info(
+                    "[THETA][DEBUG][THETADATA] Option %s considered expired on %s; reusing cached data between %s and %s.",
+                    asset,
+                    asset.expiration,
+                    start,
+                    chunk_end,
+                )
+            else:
+                logger.warning(
+                    f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {start} and {end}"
+                )
+            missing_chunk = get_trading_dates(asset, start, chunk_end)
+            df_all = append_missing_markers(df_all, missing_chunk)
+            pbar.update(1)
 
         else:
             df_all = update_df(df_all, result_df)
+            available_chunk = get_trading_dates(asset, start, chunk_end)
+            df_all = remove_missing_markers(df_all, available_chunk)
+            if "datetime" in result_df.columns:
+                chunk_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
+            else:
+                chunk_index = pd.DatetimeIndex(result_df.index)
+            if chunk_index.tz is None:
+                chunk_index = chunk_index.tz_localize(pytz.UTC)
+            else:
+                chunk_index = chunk_index.tz_convert(pytz.UTC)
+            covered_days = {ts.date() for ts in chunk_index}
+            missing_within_chunk = [day for day in available_chunk if day not in covered_days]
+            if missing_within_chunk:
+                df_all = append_missing_markers(df_all, missing_within_chunk)
             pbar.update(1)
 
         start = end + timedelta(days=1)
@@ -192,8 +674,16 @@ def get_price_data(
             break
 
     update_cache(cache_file, df_all, df_cached)
+    if df_all is not None:
+        logger.debug("[THETA][DEBUG][THETADATA-CACHE-WRITE] wrote %s rows=%d", cache_file, len(df_all))
+    if df_all is not None:
+        logger.info("ThetaData cache updated for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
     # Close the progress bar when done
     pbar.close()
+    if df_all is not None and not df_all.empty and "missing" in df_all.columns:
+        df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
+        df_all = restore_numeric_dtypes(df_all)
+
     return df_all
 
 
@@ -283,26 +773,115 @@ def get_missing_dates(df_all, asset, start, end):
     list[datetime.date]
         A list of dates that we need to get data for
     """
+    # DEBUG-LOG: Entry to get_missing_dates
+    logger.info(
+        "[THETA][DEBUG][CACHE][MISSING_DATES_CHECK] asset=%s | "
+        "start=%s end=%s | "
+        "cache_rows=%d",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        start.isoformat() if hasattr(start, 'isoformat') else start,
+        end.isoformat() if hasattr(end, 'isoformat') else end,
+        0 if df_all is None else len(df_all)
+    )
+
     trading_dates = get_trading_dates(asset, start, end)
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][TRADING_DATES] asset=%s | "
+        "trading_dates_count=%d first=%s last=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        len(trading_dates),
+        trading_dates[0] if trading_dates else None,
+        trading_dates[-1] if trading_dates else None
+    )
+
     if df_all is None or not len(df_all):
+        logger.info(
+            "[THETA][DEBUG][CACHE][EMPTY] asset=%s | "
+            "cache is EMPTY -> all %d trading days are missing",
+            asset.symbol if hasattr(asset, 'symbol') else str(asset),
+            len(trading_dates)
+        )
         return trading_dates
 
     # It is possible to have full day gap in the data if previous queries were far apart
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
     dates = pd.Series(df_all.index.date).unique()
+    cached_dates_count = len(dates)
+    cached_first = min(dates) if len(dates) > 0 else None
+    cached_last = max(dates) if len(dates) > 0 else None
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][CACHED_DATES] asset=%s | "
+        "cached_dates_count=%d first=%s last=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        cached_dates_count,
+        cached_first,
+        cached_last
+    )
+
     missing_dates = sorted(set(trading_dates) - set(dates))
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":
+        before_expiry_filter = len(missing_dates)
         missing_dates = [x for x in missing_dates if x <= asset.expiration]
+        after_expiry_filter = len(missing_dates)
+
+        if before_expiry_filter != after_expiry_filter:
+            logger.info(
+                "[THETA][DEBUG][CACHE][OPTION_EXPIRY_FILTER] asset=%s | "
+                "filtered %d dates after expiration=%s | "
+                "missing_dates: %d -> %d",
+                asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                before_expiry_filter - after_expiry_filter,
+                asset.expiration,
+                before_expiry_filter,
+                after_expiry_filter
+            )
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][MISSING_RESULT] asset=%s | "
+        "missing_dates_count=%d | "
+        "first_missing=%s last_missing=%s",
+        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        len(missing_dates),
+        missing_dates[0] if missing_dates else None,
+        missing_dates[-1] if missing_dates else None
+    )
 
     return missing_dates
 
 
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
+    # DEBUG-LOG: Start loading cache
+    logger.info(
+        "[THETA][DEBUG][CACHE][LOAD_START] cache_file=%s | "
+        "exists=%s size_bytes=%d",
+        cache_file.name,
+        cache_file.exists(),
+        cache_file.stat().st_size if cache_file.exists() else 0
+    )
+
+    if not cache_file.exists():
+        logger.info(
+            "[THETA][DEBUG][CACHE][LOAD_MISSING] cache_file=%s | returning=None",
+            cache_file.name,
+        )
+        return None
+
     df = pd.read_parquet(cache_file, engine='pyarrow')
+
+    rows_after_read = len(df)
+    logger.info(
+        "[THETA][DEBUG][CACHE][LOAD_READ] cache_file=%s | "
+        "rows_read=%d columns=%s",
+        cache_file.name,
+        rows_after_read,
+        list(df.columns)
+    )
 
     # Set the 'datetime' column as the index of the DataFrame
     df.set_index("datetime", inplace=True)
@@ -316,26 +895,124 @@ def load_cache(cache_file):
     if df.index.tzinfo is None:
         # Set the timezone to UTC
         df.index = df.index.tz_localize("UTC")
+        logger.info(
+            "[THETA][DEBUG][CACHE][LOAD_TZ] cache_file=%s | "
+            "localized index to UTC",
+            cache_file.name
+        )
+
+    df = ensure_missing_column(df)
+
+    min_ts = df.index.min() if len(df) > 0 else None
+    max_ts = df.index.max() if len(df) > 0 else None
+    placeholder_count = int(df["missing"].sum()) if "missing" in df.columns else 0
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][LOAD_SUCCESS] cache_file=%s | "
+        "total_rows=%d real_rows=%d placeholders=%d | "
+        "min_ts=%s max_ts=%s",
+        cache_file.name,
+        len(df),
+        len(df) - placeholder_count,
+        placeholder_count,
+        min_ts.isoformat() if min_ts else None,
+        max_ts.isoformat() if max_ts else None
+    )
 
     return df
 
 
-def update_cache(cache_file, df_all, df_cached):
-    """Update the cache file with the new data"""
-    # Check if df_all is different from df_cached (if df_cached exists)
-    if df_all is not None and len(df_all) > 0:
-        # Check if the dataframes are the same
-        if df_all.equals(df_cached):
+def update_cache(cache_file, df_all, df_cached, missing_dates=None):
+    """Update the cache file with the new data and optional placeholder markers."""
+    # DEBUG-LOG: Entry to update_cache
+    logger.info(
+        "[THETA][DEBUG][CACHE][UPDATE_ENTRY] cache_file=%s | "
+        "df_all_rows=%d df_cached_rows=%d missing_dates=%d",
+        cache_file.name,
+        0 if df_all is None else len(df_all),
+        0 if df_cached is None else len(df_cached),
+        0 if not missing_dates else len(missing_dates)
+    )
+
+    if df_all is None or len(df_all) == 0:
+        if not missing_dates:
+            logger.info(
+                "[THETA][DEBUG][CACHE][UPDATE_SKIP] cache_file=%s | "
+                "df_all is empty and no missing_dates, skipping cache update",
+                cache_file.name
+            )
             return
+        logger.info(
+            "[THETA][DEBUG][CACHE][UPDATE_PLACEHOLDERS_ONLY] cache_file=%s | "
+            "df_all is empty, writing %d placeholders",
+            cache_file.name,
+            len(missing_dates)
+        )
+        df_working = append_missing_markers(None, missing_dates)
+    else:
+        df_working = ensure_missing_column(df_all.copy())
+        if missing_dates:
+            logger.info(
+                "[THETA][DEBUG][CACHE][UPDATE_APPEND_PLACEHOLDERS] cache_file=%s | "
+                "appending %d placeholders to %d existing rows",
+                cache_file.name,
+                len(missing_dates),
+                len(df_working)
+            )
+            df_working = append_missing_markers(df_working, missing_dates)
 
-        # Create the directory if it doesn't exist
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
+    if df_working is None or len(df_working) == 0:
+        logger.info(
+            "[THETA][DEBUG][CACHE][UPDATE_SKIP_EMPTY] cache_file=%s | "
+            "df_working is empty after processing, skipping write",
+            cache_file.name
+        )
+        return
 
-        # Reset the index to convert DatetimeIndex to a regular column
-        df_all_reset = df_all.reset_index()
+    df_cached_cmp = None
+    if df_cached is not None and len(df_cached) > 0:
+        df_cached_cmp = ensure_missing_column(df_cached.copy())
 
-        # Save the data to a parquet file
-        df_all_reset.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+    if df_cached_cmp is not None and df_working.equals(df_cached_cmp):
+        logger.info(
+            "[THETA][DEBUG][CACHE][UPDATE_NO_CHANGES] cache_file=%s | "
+            "df_working equals df_cached (rows=%d), skipping write",
+            cache_file.name,
+            len(df_working)
+        )
+        return
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    df_to_save = df_working.reset_index()
+
+    placeholder_count = int(df_working["missing"].sum()) if "missing" in df_working.columns else 0
+    real_rows = len(df_working) - placeholder_count
+    min_ts = df_working.index.min() if len(df_working) > 0 else None
+    max_ts = df_working.index.max() if len(df_working) > 0 else None
+
+    def _format_ts(value):
+        if value is None:
+            return None
+        return value.isoformat() if hasattr(value, "isoformat") else value
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][UPDATE_WRITE] cache_file=%s | "
+        "total_rows=%d real_rows=%d placeholders=%d | "
+        "min_ts=%s max_ts=%s",
+        cache_file.name,
+        len(df_working),
+        real_rows,
+        placeholder_count,
+        _format_ts(min_ts),
+        _format_ts(max_ts)
+        )
+
+    df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
+
+    logger.info(
+        "[THETA][DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully",
+        cache_file.name
+    )
 
 
 def update_df(df_all, result):
@@ -366,6 +1043,7 @@ def update_df(df_all, result):
     ny_tz = LUMIBOT_DEFAULT_PYTZ
     df = pd.DataFrame(result)
     if not df.empty:
+        df["missing"] = False
         if "datetime" not in df.index.names:
             # check if df has a column named "datetime", if not raise key error
             if "datetime" not in df.columns:
@@ -398,44 +1076,46 @@ def update_df(df_all, result):
             df_all = df
         else:
             df_all = pd.concat([df_all, df]).sort_index()
-            df_all = df_all[~df_all.index.duplicated(keep="first")]  # Remove any duplicate rows
+            df_all = df_all[~df_all.index.duplicated(keep="last")]  # Keep newest data over placeholders
 
         # NOTE: Timestamp correction is now done in get_historical_data() at line 569
         # Do NOT subtract 1 minute here as it would double-correct
         # df_all.index = df_all.index - pd.Timedelta(minutes=1)
+        df_all = ensure_missing_column(df_all)
     return df_all
 
 
 def is_process_alive():
     """Check if ThetaTerminal Java process is still running"""
+    import os
     import subprocess
-    global THETA_DATA_PROCESS
 
-    # First check if we have a process handle and it's still alive
+    global THETA_DATA_PROCESS, THETA_DATA_PID, THETA_DATA_LOG_HANDLE
+
+    # If we have a subprocess handle, trust it first
     if THETA_DATA_PROCESS is not None:
-        # poll() returns None if process is still running, otherwise returns exit code
         if THETA_DATA_PROCESS.poll() is None:
             return True
+        # Process exited—clear cached handle and PID
+        reset_theta_terminal_tracking()
 
-    # If we don't have a process handle or it died, check if any ThetaTerminal process is running
-    # This handles cases where the process was started by a previous Python session
-    try:
-        result = subprocess.run(
-            ["pgrep", "-f", "ThetaTerminal.jar"],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-        # pgrep returns 0 if processes found, 1 if none found
-        return result.returncode == 0
-    except Exception:
-        return False
+    # If we know the PID, probe it directly
+    if THETA_DATA_PID:
+        try:
+            # Sending signal 0 simply tests liveness
+            os.kill(THETA_DATA_PID, 0)
+            return True
+        except OSError:
+            reset_theta_terminal_tracking()
+
+    return False
 
 
 def start_theta_data_client(username: str, password: str):
     import subprocess
     import shutil
     global THETA_DATA_PROCESS, THETA_DATA_PID
+    CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
 
     # First try shutting down any existing connection
     try:
@@ -451,37 +1131,43 @@ def start_theta_data_client(username: str, password: str):
     theta_dir.mkdir(parents=True, exist_ok=True)
     creds_file = theta_dir / "creds.txt"
 
-    # IDEMPOTENT WRITE: Only write credentials if file doesn't exist or username changed
-    # This prevents overwriting production credentials with test credentials
-    should_write = False
-    if not creds_file.exists():
-        logger.info(f"Creating new creds.txt file at {creds_file}")
-        should_write = True
-    else:
-        # Check if username changed
+    # Read previous credentials if they exist so we can decide whether to overwrite
+    existing_username = None
+    existing_password = None
+    if creds_file.exists():
         try:
             with open(creds_file, 'r') as f:
-                existing_username = f.readline().strip()
-            if existing_username != username:
-                logger.info(f"Username changed from {existing_username} to {username}, updating creds.txt")
-                should_write = True
-            else:
-                logger.debug(f"Using existing creds.txt for {username}")
-        except Exception as e:
-            logger.warning(f"Could not read existing creds.txt: {e}, will recreate")
-            should_write = True
+                existing_username = (f.readline().strip() or None)
+                existing_password = (f.readline().strip() or None)
+        except Exception as exc:
+            logger.warning(f"Could not read existing creds.txt: {exc}; will recreate the file.")
+            existing_username = None
+            existing_password = None
+
+    if username is None:
+        username = existing_username
+    if password is None:
+        password = existing_password
+
+    if username is None or password is None:
+        raise ValueError(
+            "ThetaData credentials are required to start ThetaTerminal. Provide them via backtest() or configure THETADATA_USERNAME/THETADATA_PASSWORD."
+        )
+
+    should_write = (
+        not creds_file.exists()
+        or existing_username != username
+        or existing_password != password
+    )
 
     if should_write:
-        # Write credentials to creds.txt (format: email on first line, password on second line)
+        logger.info(f"Writing creds.txt file for user: {username}")
         with open(creds_file, 'w') as f:
             f.write(f"{username}\n")
             f.write(f"{password}\n")
-
-        # Set restrictive permissions on creds file (owner read/write only)
-        # This prevents other users on the system from reading the credentials
         os.chmod(creds_file, 0o600)
-
-        logger.info(f"Updated creds.txt file for user: {username}")
+    else:
+        logger.debug(f"Reusing existing creds.txt for {username}")
 
     # Launch ThetaTerminal directly with --creds-file to avoid shell escaping issues
     # We bypass the thetadata library's launcher which doesn't support this option
@@ -526,68 +1212,114 @@ def start_theta_data_client(username: str, password: str):
 
     logger.info(f"Launching ThetaTerminal with creds file: {cmd}")
 
-    # Launch in background and store process handle
-    THETA_DATA_PROCESS = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(theta_dir)
-    )
+    reset_theta_terminal_tracking()
+
+    log_path = theta_dir / "lumibot_launch.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_handle = open(log_path, "ab")
+    launch_ts = datetime.now(timezone.utc)
+    log_handle.write(f"\n---- Launch {launch_ts.isoformat()} ----\n".encode())
+    log_handle.flush()
+
+    global THETA_DATA_LOG_HANDLE
+    THETA_DATA_LOG_HANDLE = log_handle
+
+    try:
+        THETA_DATA_PROCESS = subprocess.Popen(
+            cmd,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            cwd=str(theta_dir)
+        )
+    except Exception:
+        THETA_DATA_LOG_HANDLE = None
+        log_handle.close()
+        raise
+
     THETA_DATA_PID = THETA_DATA_PROCESS.pid
     logger.info(f"ThetaTerminal started with PID: {THETA_DATA_PID}")
-
-    # Give it a moment to start
-    time.sleep(2)
 
     # We don't return a ThetaClient object since we're launching manually
     # The connection will be established via HTTP/WebSocket to localhost:25510
     return THETA_DATA_PROCESS
 
 
-def check_connection(username: str, password: str):
-    # Do endless while loop and check if connected every 100 milliseconds
-    MAX_RETRIES = 15
-    counter = 0
-    client = None
-    connected = False
+def check_connection(username: str, password: str, wait_for_connection: bool = False):
+    """Ensure the local ThetaTerminal is running. Optionally block until it is connected.
 
-    while True:
-        # FIRST: Check if already connected (most important check!)
-        # This prevents unnecessary restarts that would overwrite creds.txt
+    Parameters
+    ----------
+    username : str
+        ThetaData username.
+    password : str
+        ThetaData password.
+    wait_for_connection : bool, optional
+        If True, block and retry until the terminal reports CONNECTED (or retries are exhausted).
+        If False, perform a lightweight liveness check and return immediately.
+    """
+
+    CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
+
+    max_retries = CONNECTION_MAX_RETRIES
+    sleep_interval = CONNECTION_RETRY_SLEEP
+    restart_attempts = 0
+    client = None
+
+    def probe_status() -> Optional[str]:
         try:
             res = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=1)
-            con_text = res.text
+            return res.text
+        except Exception as exc:
+            logger.debug(f"Cannot reach ThetaTerminal status endpoint: {exc}")
+            return None
 
-            if con_text == "CONNECTED":
-                logger.debug("Already connected to Theta Data!")
-                connected = True
-                break
-            elif con_text == "DISCONNECTED":
-                logger.debug("Disconnected from Theta Data, will attempt to start...")
-                # Fall through to process check and restart logic
-            else:
-                logger.debug(f"Unknown connection status: {con_text}")
-                # Fall through to process check and restart logic
-        except Exception as e:
-            # Connection endpoint not responding - process might be dead
-            logger.debug(f"Cannot reach ThetaData status endpoint: {e}")
-            # Fall through to process check and restart logic
+    if not wait_for_connection:
+        status_text = probe_status()
+        if status_text == "CONNECTED":
+            logger.debug("ThetaTerminal already connected.")
+            return None, True
 
-        # SECOND: Check if the Java process is still alive
         if not is_process_alive():
-            logger.warning("ThetaTerminal process is not running, starting...")
+            logger.debug("ThetaTerminal process not running; launching background restart.")
             client = start_theta_data_client(username=username, password=password)
-            counter += 1
-            time.sleep(0.5)
+            return client, False
+
+        logger.debug("ThetaTerminal running but not yet CONNECTED; waiting for status.")
+        return check_connection(username=username, password=password, wait_for_connection=True)
+
+    counter = 0
+    connected = False
+
+    while counter < max_retries:
+        status_text = probe_status()
+        if status_text == "CONNECTED":
+            if counter:
+                logger.info("ThetaTerminal connected after %s attempt(s).", counter + 1)
+            connected = True
+            break
+        elif status_text == "DISCONNECTED":
+            logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
+        elif status_text is not None:
+            logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
+
+        if not is_process_alive():
+            if restart_attempts >= MAX_RESTART_ATTEMPTS:
+                logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
+                break
+            restart_attempts += 1
+            logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
+            client = start_theta_data_client(username=username, password=password)
+            time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
+            counter = 0
             continue
 
-        # THIRD: Process is alive but not connected - wait and retry
-        time.sleep(0.5)
         counter += 1
+        if counter % 10 == 0:
+            logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
+        time.sleep(sleep_interval)
 
-        if counter > MAX_RETRIES:
-            logger.error("Cannot connect to Theta Data!")
-            break
+    if not connected and counter >= max_retries:
+        logger.error("Cannot connect to Theta Data after %s attempts.", counter)
 
     return client, connected
 
@@ -597,6 +1329,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     next_page_url = None
     page_count = 0
 
+    # Lightweight liveness probe before issuing the request
+    check_connection(username=username, password=password, wait_for_connection=False)
+
     while True:
         counter = 0
         # Use next_page URL if available, otherwise use original URL with querystring
@@ -605,17 +1340,43 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
         while True:
             try:
+                CONNECTION_DIAGNOSTICS["network_requests"] += 1
+
+                # DEBUG-LOG: API request
+                logger.info(
+                    "[THETA][DEBUG][API][REQUEST] url=%s params=%s",
+                    request_url if next_page_url else url,
+                    request_params if request_params else querystring
+                )
+
                 response = requests.get(request_url, headers=headers, params=request_params)
                 # Status code 472 means "No data" - this is valid, return None
                 if response.status_code == 472:
                     logger.warning(f"No data available for request: {response.text[:200]}")
+                    # DEBUG-LOG: API response - no data
+                    logger.info(
+                        "[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA"
+                    )
                     return None
                 # If status code is not 200, then we are not connected
                 elif response.status_code != 200:
                     logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
-                    check_connection(username=username, password=password)
+                    # DEBUG-LOG: API response - error
+                    logger.info(
+                        "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR",
+                        response.status_code
+                    )
+                    check_connection(username=username, password=password, wait_for_connection=True)
                 else:
                     json_resp = response.json()
+
+                    # DEBUG-LOG: API response - success
+                    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
+                    logger.info(
+                        "[THETA][DEBUG][API][RESPONSE] status=200 rows=%d has_next_page=%s",
+                        response_rows,
+                        bool(json_resp.get("header", {}).get("next_page"))
+                    )
 
                     # Check if json_resp has error_type inside of header
                     if "error_type" in json_resp["header"] and json_resp["header"]["error_type"] != "null":
@@ -625,18 +1386,19 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                                 f"No data returned for querystring: {querystring}")
                             return None
                         else:
+                            error_label = json_resp["header"].get("error_type")
                             logger.error(
-                                f"Error getting data from Theta Data: {json_resp['header']['error_type']},\nquerystring: {querystring}")
-                            check_connection(username=username, password=password)
+                                f"Error getting data from Theta Data: {error_label},\nquerystring: {querystring}")
+                            check_connection(username=username, password=password, wait_for_connection=True)
+                            raise ValueError(f"ThetaData returned error_type={error_label}")
                     else:
                         break
 
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
-                check_connection(username=username, password=password)
-                # Give the process time to start after restart
+                check_connection(username=username, password=password, wait_for_connection=True)
                 if counter == 0:
-                    logger.info("Waiting 5 seconds for ThetaTerminal to initialize...")
+                    logger.info("[THETA][DEBUG][API][WAIT] Allowing ThetaTerminal to initialize for 5s before retry.")
                     time.sleep(5)
 
             counter += 1
@@ -720,11 +1482,33 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
 
     headers = {"Accept": "application/json"}
 
+    # DEBUG-LOG: EOD data request
+    logger.info(
+        "[THETA][DEBUG][EOD][REQUEST] asset=%s start=%s end=%s datastyle=%s",
+        asset,
+        start_date,
+        end_date,
+        datastyle
+    )
+
     # Send the request
     json_resp = get_request(url=url, headers=headers, querystring=querystring,
                             username=username, password=password)
     if json_resp is None:
+        # DEBUG-LOG: EOD data response - no data
+        logger.info(
+            "[THETA][DEBUG][EOD][RESPONSE] asset=%s result=NO_DATA",
+            asset
+        )
         return None
+
+    # DEBUG-LOG: EOD data response - success
+    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
+    logger.info(
+        "[THETA][DEBUG][EOD][RESPONSE] asset=%s rows=%d",
+        asset,
+        response_rows
+    )
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
@@ -875,12 +1659,36 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
 
     headers = {"Accept": "application/json"}
 
+    # DEBUG-LOG: Intraday data request
+    logger.info(
+        "[THETA][DEBUG][INTRADAY][REQUEST] asset=%s start=%s end=%s ivl=%d datastyle=%s include_after_hours=%s",
+        asset,
+        start_date,
+        end_date,
+        ivl,
+        datastyle,
+        include_after_hours
+    )
+
     # Send the request
 
     json_resp = get_request(url=url, headers=headers, querystring=querystring,
                             username=username, password=password)
     if json_resp is None:
+        # DEBUG-LOG: Intraday data response - no data
+        logger.info(
+            "[THETA][DEBUG][INTRADAY][RESPONSE] asset=%s result=NO_DATA",
+            asset
+        )
         return None
+
+    # DEBUG-LOG: Intraday data response - success
+    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
+    logger.info(
+        "[THETA][DEBUG][INTRADAY][RESPONSE] asset=%s rows=%d",
+        asset,
+        response_rows
+    )
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
@@ -916,8 +1724,8 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     # Convert the datetime column to a datetime and localize to Eastern Time
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # Localize to Eastern Time (ThetaData returns times in ET)
-    df["datetime"] = df["datetime"].dt.tz_localize("America/New_York")
+    # Localize to LUMIBOT_DEFAULT_PYTZ (ThetaData returns times in ET)
+    df["datetime"] = df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ)
 
     # Set datetime as the index
     df = df.set_index("datetime")

@@ -15,6 +15,7 @@ from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 
 
+@patch('lumibot.tools.thetadata_helper._ensure_remote_cache_file', return_value=False)
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
 @patch('lumibot.tools.thetadata_helper.get_historical_data')
@@ -22,7 +23,7 @@ from lumibot.tools import thetadata_helper
 @patch('lumibot.tools.thetadata_helper.load_cache')
 @patch('lumibot.tools.thetadata_helper.build_cache_filename')
 @patch('lumibot.tools.thetadata_helper.tqdm')
-def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, mock_load_cache, mock_get_missing_dates, mock_get_historical_data, mock_update_df, mock_update_cache):
+def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, mock_load_cache, mock_get_missing_dates, mock_get_historical_data, mock_update_df, mock_update_cache, mock_remote_cache):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = True
     # Create DataFrame with proper datetime objects with Lumibot default timezone
@@ -62,13 +63,14 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     mock_get_historical_data.assert_not_called()  # No need to fetch new data
 
 
+@patch('lumibot.tools.thetadata_helper._ensure_remote_cache_file', return_value=False)
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
 @patch('lumibot.tools.thetadata_helper.get_historical_data')
 @patch('lumibot.tools.thetadata_helper.get_missing_dates')
 @patch('lumibot.tools.thetadata_helper.build_cache_filename')
 def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_missing_dates, 
-                                            mock_get_historical_data, mock_update_df, mock_update_cache):
+                                            mock_get_historical_data, mock_update_df, mock_update_cache, mock_remote_cache):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
@@ -95,6 +97,7 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     mock_update_df.assert_called_once()
 
 
+@patch('lumibot.tools.thetadata_helper._ensure_remote_cache_file', return_value=False)
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
 @patch('lumibot.tools.thetadata_helper.get_historical_data')
@@ -103,7 +106,7 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
 @patch('lumibot.tools.thetadata_helper.build_cache_filename')
 
 def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_cache, mock_get_missing_dates, 
-                                          mock_get_historical_data, mock_update_df, mock_update_cache):
+                                          mock_get_historical_data, mock_update_df, mock_update_cache, mock_remote_cache):
     # Arrange
     cached_data = pd.DataFrame({
         "datetime": pd.date_range("2023-07-01", periods=5, freq='min'),
@@ -136,13 +139,14 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     mock_update_cache.assert_called_once()
 
 
+@patch('lumibot.tools.thetadata_helper._ensure_remote_cache_file', return_value=False)
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
 @patch('lumibot.tools.thetadata_helper.get_historical_data')
 @patch('lumibot.tools.thetadata_helper.get_missing_dates')
 @patch('lumibot.tools.thetadata_helper.build_cache_filename')
 def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missing_dates, 
-                                       mock_get_historical_data, mock_update_df, mock_update_cache):
+                                       mock_get_historical_data, mock_update_df, mock_update_cache, mock_remote_cache):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_historical_data.return_value = pd.DataFrame()

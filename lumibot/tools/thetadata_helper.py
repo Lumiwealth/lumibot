@@ -3,6 +3,8 @@ import time
 import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
 import pytz
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -11,6 +13,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset
 from tqdm import tqdm
+from lumibot.tools.backtest_cache import get_backtest_cache
 
 logger = get_logger(__name__)
 
@@ -22,6 +25,121 @@ BASE_URL = "http://127.0.0.1:25510"
 # Global process tracking for ThetaTerminal
 THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
+
+
+DatetimeLike = Union[datetime, date]
+
+
+def _normalize_datetime_for_payload(value: DatetimeLike) -> str:
+    """Return a UTC ISO-8601 string for the provided date/datetime."""
+    if isinstance(value, datetime):
+        dt_value = value
+    else:
+        dt_value = datetime.combine(value, datetime.min.time())
+
+    if dt_value.tzinfo is None:
+        dt_value = LUMIBOT_DEFAULT_PYTZ.localize(dt_value)
+
+    return dt_value.astimezone(pytz.UTC).isoformat()
+
+
+def _build_asset_payload(asset: Asset) -> Dict[str, Any]:
+    """Serialize an Asset into a JSON-friendly payload for Lambda calls."""
+    payload: Dict[str, Any] = {
+        "symbol": asset.symbol,
+        "asset_type": asset.asset_type,
+    }
+
+    if asset.asset_type == "option":
+        if asset.expiration is not None:
+            payload["expiration"] = asset.expiration.isoformat()
+        payload["strike"] = asset.strike
+        payload["right"] = asset.right
+    elif asset.asset_type == "future" and asset.expiration is not None:
+        payload["expiration"] = asset.expiration.isoformat()
+
+    if hasattr(asset, "multiplier") and asset.multiplier != 1:
+        payload["multiplier"] = asset.multiplier
+
+    if hasattr(asset, "precision") and asset.precision:
+        payload["precision"] = asset.precision
+
+    return payload
+
+
+def _build_lambda_payload(
+    remote_key: str,
+    asset: Asset,
+    start: DatetimeLike,
+    end: DatetimeLike,
+    timespan: str,
+    datastyle: str,
+    include_after_hours: bool,
+    quote_asset: Optional[Asset] = None,
+) -> Dict[str, Any]:
+    """Construct the payload for the cache population Lambda."""
+    payload: Dict[str, Any] = {
+        "provider": "thetadata",
+        "cache_key": remote_key,
+        "asset": _build_asset_payload(asset),
+        "start": _normalize_datetime_for_payload(start),
+        "end": _normalize_datetime_for_payload(end),
+        "timespan": timespan,
+        "datastyle": datastyle,
+        "include_after_hours": include_after_hours,
+    }
+
+    if quote_asset is not None:
+        payload["quote_asset"] = _build_asset_payload(quote_asset)
+
+    return payload
+
+
+def _ensure_remote_cache_file(
+    cache_file: Path,
+    asset: Asset,
+    start: DatetimeLike,
+    end: DatetimeLike,
+    timespan: str,
+    datastyle: str,
+    include_after_hours: bool,
+    quote_asset: Optional[Asset] = None,
+    *,
+    force_download: bool = False,
+) -> bool:
+    """Attempt to ensure that the local cache file is populated via S3/Lambda."""
+    cache_manager = get_backtest_cache()
+    if not cache_manager.enabled:
+        return False
+
+    remote_key = cache_manager.remote_key_for(cache_file)
+    if not remote_key:
+        return False
+
+    lambda_payload = _build_lambda_payload(
+        remote_key,
+        asset,
+        start,
+        end,
+        timespan,
+        datastyle,
+        include_after_hours,
+        quote_asset,
+    )
+
+    try:
+        return cache_manager.ensure_local_file(
+            cache_file,
+            lambda_payload=lambda_payload,
+            force_download=force_download,
+        )
+    except Exception as exc:  # pragma: no cover - boto3/network errors
+        logger.warning(
+            "[THETADATA][CACHE] Remote cache request failed for %s: %s",
+            cache_file,
+            exc,
+        )
+        return False
 
 
 def get_price_data(
@@ -75,6 +193,17 @@ def get_price_data(
     df_all = None
     df_cached = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
+    if not cache_file.exists():
+        _ensure_remote_cache_file(
+            cache_file,
+            asset,
+            start,
+            end,
+            timespan,
+            datastyle,
+            include_after_hours,
+            quote_asset,
+        )
     if cache_file.exists():
         logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
         df_cached = load_cache(cache_file)
@@ -83,6 +212,26 @@ def get_price_data(
 
     # Check if we need to get more data
     missing_dates = get_missing_dates(df_all, asset, start, end)
+    if missing_dates:
+        missing_start = datetime.combine(missing_dates[0], datetime.min.time())
+        missing_end = datetime.combine(missing_dates[-1], datetime.max.time())
+        refreshed = _ensure_remote_cache_file(
+            cache_file,
+            asset,
+            missing_start,
+            missing_end,
+            timespan,
+            datastyle,
+            include_after_hours,
+            quote_asset,
+            force_download=True,
+        )
+        if refreshed and cache_file.exists():
+            df_cached = load_cache(cache_file)
+            if df_cached is not None and not df_cached.empty:
+                df_all = df_cached.copy()
+            missing_dates = get_missing_dates(df_all, asset, start, end)
+
     if not missing_dates:
         # Filter cached data to requested date range before returning
         if df_all is not None and not df_all.empty:

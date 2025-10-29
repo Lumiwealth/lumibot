@@ -179,8 +179,9 @@ class Bars:
         self.quote = quote
         self._raw = raw
         self._return_polars = return_polars
-        # Cache for on-demand conversions to avoid repeated expensive copies
+        # Caches for on-demand conversions to avoid repeated expensive copies
         self._polars_cache = None
+        self._pandas_cache = None
         self._tzinfo = self._normalize_tzinfo(tzinfo)
         
         # Check if empty
@@ -204,9 +205,20 @@ class Bars:
                     pl.col("close").pct_change().alias("return")
                 ])
             
+            if "datetime" in df.columns and self._tzinfo is not None:
+                target_tz = getattr(self._tzinfo, "zone", None) or getattr(self._tzinfo, "key", None)
+                if target_tz:
+                    current_dtype = df.schema.get("datetime")
+                    current_tz = getattr(current_dtype, "time_zone", None)
+                    if current_tz != target_tz:
+                        df = df.with_columns(
+                            pl.col("datetime").dt.convert_time_zone(target_tz)
+                        )
+
             if return_polars:
                 # Keep as polars
                 self._df = df
+                self._pandas_cache = None
             else:
                 # Convert to pandas and track the conversion
                 tracker = PolarsConversionTracker()
@@ -219,6 +231,7 @@ class Bars:
                         self._df = self._df.set_index(col_name)
                         break
                 self._apply_timezone()
+                self._pandas_cache = None
         else:
             # Already pandas, keep it as is
             self._df = df
@@ -231,19 +244,38 @@ class Bars:
                 self._df["return"] = df["close"].pct_change()
 
             self._apply_timezone()
+            if self._return_polars:
+                self._pandas_cache = self._df
+                self._df = self._convert_pandas_to_polars(self._df)
+                self._polars_cache = None
 
     @property
     def df(self):
-        """Return the DataFrame"""
-        return self._df
+        """Return the active DataFrame representation based on return_polars flag."""
+        return self.polars_df if self._return_polars else self.pandas_df
 
     @df.setter
     def df(self, value):
-        """Allow setting the DataFrame"""
+        """Allow setting the DataFrame while keeping caches in sync."""
         self._df = value
-        # Invalidate cached converted forms when df changes
         self._polars_cache = None
-        self._apply_timezone()
+        self._pandas_cache = None
+
+        if isinstance(value, pd.DataFrame):
+            self._apply_timezone()
+            if self._return_polars:
+                self._pandas_cache = value
+                self._df = self._convert_pandas_to_polars(value)
+        elif isinstance(value, pl.DataFrame) and not self._return_polars:
+            tracker = PolarsConversionTracker()
+            tracker.track_conversion(self.asset.symbol if hasattr(self.asset, 'symbol') else str(self.asset))
+            pandas_df = value.to_pandas()
+            for col_name in ['datetime', 'timestamp', 'date', 'time']:
+                if col_name in pandas_df.columns:
+                    pandas_df = pandas_df.set_index(col_name)
+                    break
+            self._df = pandas_df
+            self._apply_timezone()
 
     @property
     def polars_df(self):
@@ -254,11 +286,28 @@ class Bars:
             # Convert pandas to polars once and cache
             if self._polars_cache is not None:
                 return self._polars_cache
-            if hasattr(self._df, 'index') and getattr(self._df.index, 'name', None):
-                self._polars_cache = pl.from_pandas(self._df.reset_index())
-            else:
-                self._polars_cache = pl.from_pandas(self._df)
+            self._polars_cache = self._convert_pandas_to_polars(self._df)
             return self._polars_cache
+
+    @property
+    def pandas_df(self):
+        """Return as Pandas DataFrame, converting on demand if required."""
+        if isinstance(self._df, pd.DataFrame):
+            return self._df
+        if self._pandas_cache is not None:
+            return self._pandas_cache
+
+        tracker = PolarsConversionTracker()
+        tracker.track_conversion(self.asset.symbol if hasattr(self.asset, 'symbol') else str(self.asset))
+
+        pandas_df = self._df.to_pandas()
+        for col_name in ['datetime', 'timestamp', 'date', 'time']:
+            if col_name in pandas_df.columns:
+                pandas_df = pandas_df.set_index(col_name)
+                break
+
+        self._pandas_cache = self._apply_timezone(pandas_df)
+        return self._pandas_cache
 
     def __repr__(self):
         return repr(self.df)
@@ -268,7 +317,12 @@ class Bars:
 
     def __len__(self):
         """Return the number of bars (rows) in the DataFrame"""
-        return len(self.df)
+        if isinstance(self._df, pl.DataFrame):
+            return self._df.height
+        if isinstance(self._df, pd.DataFrame):
+            return len(self._df)
+        df = self.df
+        return df.height if isinstance(df, pl.DataFrame) else len(df)
 
     @property
     def empty(self):
@@ -285,24 +339,39 @@ class Bars:
             return pytz.timezone(tzinfo)
         return tzinfo
 
-    def _apply_timezone(self):
-        if not isinstance(self._df, pd.DataFrame):
-            return
-        if not isinstance(self._df.index, pd.DatetimeIndex):
-            return
+    def _apply_timezone(self, df=None):
+        target_df = self._df if df is None else df
+        if not isinstance(target_df, pd.DataFrame):
+            return target_df
+        if not isinstance(target_df.index, pd.DatetimeIndex):
+            return target_df
 
         tz = self._tzinfo or LUMIBOT_DEFAULT_PYTZ
         if isinstance(tz, str):
             tz = pytz.timezone(tz)
 
         try:
-            if self._df.index.tz is None:
-                self._df.index = self._df.index.tz_localize(tz)
+            if target_df.index.tz is None:
+                target_df.index = target_df.index.tz_localize(tz)
             else:
-                self._df.index = self._df.index.tz_convert(tz)
+                target_df.index = target_df.index.tz_convert(tz)
             self._tzinfo = tz
         except Exception:
-            pass
+            return target_df
+
+        if df is None:
+            self._df = target_df
+        return target_df
+
+    def _convert_pandas_to_polars(self, pandas_df: pd.DataFrame) -> pl.DataFrame:
+        """Convert a pandas DataFrame (possibly with datetime index) to Polars."""
+        df_to_convert = pandas_df.copy()
+        if isinstance(df_to_convert.index, pd.DatetimeIndex):
+            df_to_convert = df_to_convert.reset_index()
+            first_col = df_to_convert.columns[0]
+            if first_col != "datetime":
+                df_to_convert = df_to_convert.rename(columns={first_col: "datetime"})
+        return pl.from_pandas(df_to_convert)
 
     @classmethod
     def parse_bar_list(cls, bar_list, source, asset):

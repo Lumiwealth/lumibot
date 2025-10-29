@@ -19,6 +19,7 @@ from termcolor import colored, COLORS
 from ..data_sources import DataSource
 from ..entities import Asset, Data, Order, Position, Quote, TradingFee
 from ..tools import get_risk_free_rate
+from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
 from ..traders import Trader
 from ._strategy import _Strategy
 
@@ -3353,7 +3354,7 @@ class Strategy(_Strategy):
         asset: Union[Asset, str],
         length: int,
         timestep: str = "",
-        timeshift: datetime.timedelta = None,
+        timeshift: Union[int, datetime.timedelta, None] = None,
         quote: Asset = None,
         exchange: str = None,
         include_after_hours: bool = True,
@@ -3388,10 +3389,12 @@ class Strategy(_Strategy):
             When using multi-timeframe formats, the method automatically fetches the
             underlying minute or day data and resamples it to your desired timeframe.
             Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
-        timeshift : timedelta
-            ``None`` by default. If specified indicates the time shift from
-            the present. If  backtesting in Pandas, use integer representing
-            number of bars.
+        timeshift : int, timedelta, or None
+            ``None`` by default. When provided it shifts the data window relative to
+            the current backtest time.
+
+            - Passing an ``int`` shifts by bars (positive = past, negative = future).
+            - Passing a ``timedelta`` shifts by wall-clock time (e.g. ``timedelta(hours=-1)``).
         quote : Asset
             The quote currency for crypto currencies (e.g. USD, USDT, EUR, ...).
             Default is the quote asset for the strategy.
@@ -3517,6 +3520,7 @@ class Strategy(_Strategy):
         asset = self.crypto_assets_to_tuple(asset, quote)
         if not actual_timestep:
             actual_timestep = self.broker.data_source.get_timestep()
+        effective_return_polars = return_polars
         # Call through to the appropriate data source. Only pass `return_polars` if supported
         # to maintain compatibility with live data sources that don't yet accept it.
         import inspect
@@ -3540,7 +3544,7 @@ class Strategy(_Strategy):
                 return fn(
                     asset,
                     actual_length,  # Use the actual length for fetching
-                    return_polars=return_polars,
+                    return_polars=effective_return_polars,
                     **common_kwargs,
                 )
             else:
@@ -3557,49 +3561,57 @@ class Strategy(_Strategy):
             bars = _call_get_hist(self.broker.data_source)
 
         # If we need to resample the data
-        if needs_resampling and bars and bars.df is not None and not bars.df.empty:
-            try:
-                # Import pandas for resampling
-                import pandas as pd
-                from lumibot.entities import Bars
+        if needs_resampling and bars and len(bars) > 0:
+            resampled_with_polars = False
+            if return_polars:
+                try:
+                    polars_frame = bars.polars_df
+                    resampled_frame = resample_polars_ohlc(polars_frame, multiplier, base_unit, length)
+                    if resampled_frame is not None and not resampled_frame.is_empty():
+                        bars.df = resampled_frame
+                        resampled_with_polars = True
+                except PolarsResampleError as exc:
+                    self.logger.debug(
+                        "Unsupported polars resample for %s (%s); falling back to pandas.",
+                        asset,
+                        exc,
+                    )
+                except Exception as exc:
+                    self.logger.warning(
+                        "Polars resample failed for %s; falling back to pandas. Error: %s",
+                        asset,
+                        exc,
+                    )
+            if not resampled_with_polars:
+                try:
+                    import pandas as pd
 
-                # Get the dataframe
-                df = bars.df.copy()
+                    df = bars.pandas_df.copy()
+                    if not isinstance(df.index, pd.DatetimeIndex):
+                        df.index = pd.to_datetime(df.index)
 
-                # Ensure datetime index
-                if not isinstance(df.index, pd.DatetimeIndex):
-                    # Try to convert the index to datetime
-                    df.index = pd.to_datetime(df.index)
+                    if base_unit == "minute":
+                        resample_rule = f"{multiplier}min"
+                    elif base_unit == "day":
+                        resample_rule = f"{multiplier}D"
+                    else:
+                        return bars
 
-                # Determine resampling rule
-                if base_unit == "minute":
-                    resample_rule = f'{multiplier}min'  # 'min' for minutes (pandas 2.0+ compatible)
-                elif base_unit == "day":
-                    resample_rule = f'{multiplier}D'  # D for days
-                else:
-                    # Fallback to original if we can't determine the rule
-                    return bars
+                    resampled_df = df.resample(resample_rule, label='left', closed='left').agg({
+                        'open': 'first',
+                        'high': 'max',
+                        'low': 'min',
+                        'close': 'last',
+                        'volume': 'sum'
+                    }).dropna()
 
-                # Perform resampling with proper aggregation
-                resampled = df.resample(resample_rule, label='left', closed='left').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna()
+                    if len(resampled_df) > length:
+                        resampled_df = resampled_df.iloc[-length:]
 
-                # Limit to requested length
-                if len(resampled) > length:
-                    resampled = resampled.iloc[-length:]
-
-                # Create new Bars object with resampled data
-                bars.df = resampled
-                bars.raw_data = resampled  # Update raw_data as well if it exists
-
-            except Exception as e:
-                # If resampling fails, log warning and return original data
-                self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
+                    bars.df = resampled_df
+                except Exception as e:
+                    # If resampling fails, log warning and return original data
+                    self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
         return bars
 

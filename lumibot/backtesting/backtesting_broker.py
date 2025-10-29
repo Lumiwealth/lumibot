@@ -1,3 +1,4 @@
+import math
 import traceback
 import threading
 from collections import OrderedDict
@@ -1549,36 +1550,69 @@ class BacktestingBroker(Broker):
         # After handling all pending orders, cash settle any residual expired contracts.
         self.process_expired_option_contracts(strategy)
 
+    def _coerce_price(self, value):
+        """Convert numeric inputs to float when possible for safe comparisons."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return value
+
+    def _is_invalid_price(self, value):
+        """Determine whether a price is unusable (None or NaN)."""
+        if value is None:
+            return True
+        if isinstance(value, float) and math.isnan(value):
+            return True
+        return False
+
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""
+        open_val = self._coerce_price(open_)
+        high_val = self._coerce_price(high)
+        low_val = self._coerce_price(low)
+        limit_val = self._coerce_price(limit_price)
+
+        if any(self._is_invalid_price(val) for val in (open_val, high_val, low_val, limit_val)):
+            return None
+
         # Gap Up case: Limit wasn't triggered by previous candle but current candle opens higher, fill it now
-        if side == "sell" and limit_price <= open_:
-            return open_
+        if side == "sell" and limit_val <= open_val:
+            return open_val
 
         # Gap Down case: Limit wasn't triggered by previous candle but current candle opens lower, fill it now
-        if side == "buy" and limit_price >= open_:
-            return open_
+        if side == "buy" and limit_val >= open_val:
+            return open_val
 
         # Current candle triggered limit normally
-        if low <= limit_price <= high:
-            return limit_price
+        if low_val <= limit_val <= high_val:
+            return limit_val
 
         # Limit has not been met
         return None
 
     def stop_order(self, stop_price, side, open_, high, low):
         """Stop order logic."""
+        open_val = self._coerce_price(open_)
+        high_val = self._coerce_price(high)
+        low_val = self._coerce_price(low)
+        stop_val = self._coerce_price(stop_price)
+
+        if any(self._is_invalid_price(val) for val in (open_val, high_val, low_val, stop_val)):
+            return None
+
         # Gap Down case: Stop wasn't triggered by previous candle but current candle opens lower, fill it now
-        if side == "sell" and stop_price >= open_:
-            return open_
+        if side == "sell" and stop_val >= open_val:
+            return open_val
 
         # Gap Up case: Stop wasn't triggered by previous candle but current candle opens higher, fill it now
-        if side == "buy" and stop_price <= open_:
-            return open_
+        if side == "buy" and stop_val <= open_val:
+            return open_val
 
         # Current candle triggered stop normally
-        if low <= stop_price <= high:
-            return stop_price
+        if low_val <= stop_val <= high_val:
+            return stop_val
 
         # Stop has not been met
         return None

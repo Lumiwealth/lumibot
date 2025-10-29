@@ -19,7 +19,7 @@ from pathlib import Path
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
 from lumibot.backtesting.databento_backtesting import (
     DataBentoDataBacktesting as DataBentoDataBacktestingPandas,
 )

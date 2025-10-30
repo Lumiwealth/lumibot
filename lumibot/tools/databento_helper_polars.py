@@ -14,10 +14,16 @@ import polars as pl
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot.tools import futures_roll
+from termcolor import colored
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
+
+
+class DataBentoAuthenticationError(RuntimeError):
+    """Raised when DataBento rejects authentication credentials."""
+    pass
 
 # DataBento imports (will be installed as dependency)
 try:
@@ -165,11 +171,16 @@ class DataBentoClient:
                         continue
                     else:
                         logger.error(f"DataBento authentication failed after {self.max_retries} retries")
+                        raise DataBentoAuthenticationError(
+                            f"DataBento authentication failed after {self.max_retries} retries: {str(e)}"
+                        ) from e
 
                 # For non-auth errors, don't retry - fail fast
-                logger.error("DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s",
-                            str(e), symbols, start, end)
-                raise e
+                logger.error(
+                    "DATABENTO_API_ERROR: DataBento API error: %s | Symbols: %s, Start: %s, End: %s",
+                    str(e), symbols, start, end
+                )
+                raise
 
         # This should never be reached, but just in case
         raise Exception(f"DataBento request failed after {self.max_retries} retries")
@@ -973,6 +984,13 @@ def get_price_data_from_databento(
                     end=end_naive,
                     **kwargs,
                 )
+            except DataBentoAuthenticationError as exc:
+                auth_msg = colored(
+                    f"❌ DataBento authentication failed while requesting {symbol}: {exc}",
+                    "red"
+                )
+                logger.error(auth_msg)
+                raise
             except Exception as exc:
                 logger.warning(f"Error fetching {symbol} from DataBento: {exc}")
                 continue

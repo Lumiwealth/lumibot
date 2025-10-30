@@ -13,6 +13,7 @@ from lumibot.backtesting.databento_backtesting_pandas import (
 from lumibot.backtesting.databento_backtesting_polars import (
     DataBentoDataBacktestingPolars,
 )
+from lumibot.tools.databento_helper import DataBentoAuthenticationError
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -20,6 +21,31 @@ from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
+
+
+
+def test_databento_auth_failure_propagates(monkeypatch):
+    start = datetime.datetime(2025, 1, 6, tzinfo=pytz.UTC)
+    end = datetime.datetime(2025, 1, 7, tzinfo=pytz.UTC)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    def boom(*args, **kwargs):
+        raise DataBentoAuthenticationError("401 auth_authentication_failed")
+
+    monkeypatch.setattr(
+        "lumibot.tools.databento_helper.get_price_data_from_databento",
+        boom,
+    )
+
+    data_source = DataBentoDataBacktestingPandas(
+        datetime_start=start,
+        datetime_end=end,
+        api_key="dummy",
+        show_progress_bar=False,
+    )
+
+    with pytest.raises(DataBentoAuthenticationError):
+        data_source.get_historical_prices(asset, length=1, timestep="minute")
 
 class SimpleContinuousFutures(Strategy):
     """Simple strategy for testing continuous futures with minute-level data"""

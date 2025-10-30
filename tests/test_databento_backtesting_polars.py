@@ -4,6 +4,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
+from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
 from lumibot.entities import Asset
 
@@ -253,9 +254,38 @@ def test_get_historical_prices_reuses_cache(monkeypatch, tmp_path):
     assert list(cache_dir.glob("*.parquet")), "Cache directory should contain parquet artifacts"
 
 
+@pytest.mark.usefixtures("mocked_polars_helper")
+def test_auth_failure_propagates(monkeypatch):
+    start = datetime(2025, 1, 6, tzinfo=timezone.utc)
+    end = datetime(2025, 1, 7, tzinfo=timezone.utc)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    def boom(*args, **kwargs):
+        raise DataBentoAuthenticationError("401 auth_authentication_failed")
+
+    monkeypatch.setattr(
+        "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento",
+        boom,
+    )
+    monkeypatch.setattr(
+        "lumibot.tools.databento_helper_polars.get_price_data_from_databento",
+        boom,
+    )
+
+    backtester = DataBentoDataBacktestingPolars(
+        datetime_start=start,
+        datetime_end=end,
+        api_key=API_KEY,
+        show_progress_bar=False,
+    )
+
+    with pytest.raises(DataBentoAuthenticationError):
+        backtester.get_historical_prices(asset, length=1, timestep="minute", return_polars=True)
+
 @patch(
     "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
 )
+@pytest.mark.usefixtures("mocked_polars_helper")
 def test_polars_no_future_minutes(mock_get_data, mocked_polars_helper):
     base = datetime(2025, 1, 6, 14, 30, tzinfo=timezone.utc)
     frame = pl.DataFrame(

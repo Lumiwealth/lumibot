@@ -9,7 +9,9 @@ from lumibot.data_sources import PolarsData
 from lumibot.entities import Asset, Data, Quote
 from lumibot.entities.data_polars import DataPolars
 from lumibot.tools import databento_helper_polars as databento_helper
+from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 from lumibot.tools.helpers import to_datetime_aware
+from termcolor import colored
 
 from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
@@ -169,6 +171,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
             logger.debug(f"Successfully set multiplier for {asset.symbol}: {asset.multiplier}")
 
+        except DataBentoAuthenticationError as e:
+            logger.error(colored(f"DataBento authentication failed while fetching multiplier for {asset.symbol}: {e}", "red"))
+            raise
         except Exception as e:
             logger.warning(f"Could not fetch multiplier for {asset.symbol}: {e}")
 
@@ -256,6 +261,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 # Mark as prefetched
                 self._prefetched_assets.add(search_asset)
                 
+            except DataBentoAuthenticationError as e:
+                logger.error(colored(f"DataBento authentication failed while prefetching {asset.symbol}: {e}", "red"))
+                raise
             except Exception as e:
                 logger.error(f"Error prefetching data for {asset.symbol}: {str(e)}")
                 logger.error(traceback.format_exc())
@@ -471,6 +479,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
             self.pandas_data[search_asset] = data_obj
 
+        except DataBentoAuthenticationError as e:
+            logger.error(colored(f"DataBento authentication failed for {asset_separated.symbol}: {e}", "red"))
+            raise
         except Exception as e:
             logger.error(f"Error updating pandas data for {asset_separated.symbol}: {str(e)}")
             logger.error(traceback.format_exc())
@@ -603,6 +614,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 venue=exchange
             )
             
+        except DataBentoAuthenticationError as e:
+            logger.error(colored(f"DataBento authentication failed while getting last price for {asset.symbol}: {e}", "red"))
+            raise
         except Exception as e:
             logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
@@ -667,6 +681,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
             )
             quote_obj.source = "polars"
             return quote_obj
+        except DataBentoAuthenticationError as exc:
+            logger.error(colored(f"DataBento authentication failed while getting quote for {asset}: {exc}", "red"))
+            raise
         except Exception as exc:
             logger.error(f"Error getting quote for {asset}: {exc}")
             return Quote(asset if not isinstance(asset, tuple) else asset[0], raw_data={})
@@ -743,6 +760,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     logger.warning(f"No data found for {asset.symbol}")
                     result[asset] = None
                     
+            except DataBentoAuthenticationError as e:
+                logger.error(colored(f"DataBento authentication failed while getting bars for {asset}: {e}", "red"))
+                raise
             except Exception as e:
                 logger.error(f"Error getting bars for {asset}: {e}")
                 result[asset] = None

@@ -2,7 +2,7 @@
 import time
 import os
 import signal
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import pytz
@@ -13,6 +13,7 @@ from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset
 from tqdm import tqdm
+from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
 
 logger = get_logger(__name__)
 
@@ -266,6 +267,27 @@ def get_price_data(
     df_all = None
     df_cached = None
     cache_file = build_cache_filename(asset, timespan, datastyle)
+    remote_payload = build_remote_cache_payload(asset, timespan, datastyle)
+    cache_manager = get_backtest_cache()
+
+    if cache_manager.enabled:
+        try:
+            fetched_remote = cache_manager.ensure_local_file(cache_file, payload=remote_payload)
+            if fetched_remote:
+                logger.info(
+                    "[THETA][DEBUG][CACHE][REMOTE_DOWNLOAD] asset=%s timespan=%s datastyle=%s cache_file=%s",
+                    asset,
+                    timespan,
+                    datastyle,
+                    cache_file,
+                )
+        except Exception as exc:
+            logger.exception(
+                "[THETA][DEBUG][CACHE][REMOTE_DOWNLOAD_ERROR] asset=%s cache_file=%s error=%s",
+                asset,
+                cache_file,
+                exc,
+            )
 
     # DEBUG-LOG: Cache file check
     logger.info(
@@ -540,6 +562,7 @@ def get_price_data(
                 df_all,
                 df_cached,
                 missing_dates=requested_dates,
+                remote_payload=remote_payload,
             )
             df_clean = df_all.copy() if df_all is not None else None
             if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
@@ -590,6 +613,7 @@ def get_price_data(
             df_all,
             df_cached,
             missing_dates=missing_within_range,
+            remote_payload=remote_payload,
         )
 
         df_clean = df_all.copy() if df_all is not None else None
@@ -695,7 +719,7 @@ def get_price_data(
         if asset.expiration and current_start > asset.expiration:
             break
 
-    update_cache(cache_file, df_all, df_cached)
+    update_cache(cache_file, df_all, df_cached, remote_payload=remote_payload)
     if df_all is not None:
         logger.debug("[THETA][DEBUG][THETADATA-CACHE-WRITE] wrote %s rows=%d", cache_file, len(df_all))
     if df_all is not None:
@@ -777,6 +801,28 @@ def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
     cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}_{datastyle}.parquet"
     cache_file = lumibot_cache_folder / cache_filename
     return cache_file
+
+
+def build_remote_cache_payload(asset: Asset, timespan: str, datastyle: str = "ohlc") -> Dict[str, object]:
+    """Generate metadata describing the cache entry for remote storage."""
+    payload: Dict[str, object] = {
+        "provider": "thetadata",
+        "timespan": timespan,
+        "datastyle": datastyle,
+        "asset_type": getattr(asset, "asset_type", None),
+        "symbol": getattr(asset, "symbol", str(asset)),
+    }
+
+    if getattr(asset, "asset_type", None) == "option":
+        payload.update(
+            {
+                "expiration": getattr(asset, "expiration", None),
+                "strike": getattr(asset, "strike", None),
+                "right": getattr(asset, "right", None),
+            }
+        )
+
+    return payload
 
 
 def get_missing_dates(df_all, asset, start, end):
@@ -950,7 +996,7 @@ def load_cache(cache_file):
     return df
 
 
-def update_cache(cache_file, df_all, df_cached, missing_dates=None):
+def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_payload=None):
     """Update the cache file with the new data and optional placeholder markers."""
     # DEBUG-LOG: Entry to update_cache
     logger.info(
@@ -1041,6 +1087,17 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None):
         "[THETA][DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully",
         cache_file.name
     )
+
+    cache_manager = get_backtest_cache()
+    if cache_manager.mode == CacheMode.S3_READWRITE:
+        try:
+            cache_manager.on_local_update(cache_file, payload=remote_payload)
+        except Exception as exc:
+            logger.exception(
+                "[THETA][DEBUG][CACHE][REMOTE_UPLOAD_ERROR] cache_file=%s error=%s",
+                cache_file,
+                exc,
+            )
 
 
 def update_df(df_all, result):

@@ -60,6 +60,7 @@ setuptools.setup(
         "Flask>=2.3",
         "free-proxy",
         "requests-oauthlib",
+        "boto3>=1.28.0",
     ],
     package_data={
         "lumibot": ["resources/ThetaTerminal.jar"],

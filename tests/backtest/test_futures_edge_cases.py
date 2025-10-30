@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting import (
-    DataBentoDataBacktesting as DataBentoDataBacktestingPandas,
+from lumibot.backtesting.databento_backtesting_pandas import (
+    DataBentoDataBacktestingPandas,
 )
 from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
 from lumibot.entities import Asset, TradingFee

@@ -345,7 +345,7 @@ class PandasData(DataSourceBacktesting):
         if not timeshift:
             timeshift = 0
 
-        asset_to_find = self.find_asset_in_data_store(asset, quote)
+        asset_to_find = self.find_asset_in_data_store(asset, quote, timestep)
 
         if asset_to_find in self._data_store:
             data = self._data_store[asset_to_find]

@@ -19,9 +19,11 @@ from pathlib import Path
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
-from lumibot.backtesting.databento_backtesting import (
-    DataBentoDataBacktesting as DataBentoDataBacktestingPandas,
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.backtesting.databento_backtesting_pandas import (
+    DataBentoDataBacktestingPandas,
 )
 from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 from lumibot.entities import Asset, TradingFee
@@ -472,7 +474,9 @@ class TestDatabentoComprehensiveTradingDaily:
         Verifies: multipliers, P&L calculations, portfolio value changes.
         """
         # Import the Pandas version explicitly
-        from lumibot.backtesting import DataBentoDataBacktesting
+        from lumibot.backtesting.databento_backtesting_pandas import (
+            DataBentoDataBacktestingPandas as DataBentoDataBacktesting,
+        )
 
         print("\n" + "="*80)
         print("PANDAS VERSION TEST - Should expose multiplier bug")

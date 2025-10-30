@@ -6,8 +6,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktesting
-from lumibot.data_sources import DataBentoDataBacktesting as DataBentoDataBacktestingPolars
+from lumibot.backtesting import BacktestingBroker
+from lumibot.backtesting.databento_backtesting_pandas import (
+    DataBentoDataBacktestingPandas,
+)
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars,
+)
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -67,10 +72,10 @@ class TestDatabentoBacktestFull:
         backtesting_start = tzinfo.localize(datetime.datetime(2025, 1, 2, 9, 30))
         backtesting_end = tzinfo.localize(datetime.datetime(2025, 1, 3, 16, 0))
 
-        data_source = DataBentoDataBacktesting(
+        data_source = DataBentoDataBacktestingPandas(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            databento_key=DATABENTO_API_KEY,
+            api_key=DATABENTO_API_KEY,
         )
 
         broker = BacktestingBroker(data_source=data_source)
@@ -184,10 +189,10 @@ class TestDatabentoBacktestFull:
                     order = self.create_order(asset, 1, "buy")
                     self.submit_order(order)
 
-        data_source = DataBentoDataBacktesting(
+        data_source = DataBentoDataBacktestingPandas(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            databento_key=DATABENTO_API_KEY,
+            api_key=DATABENTO_API_KEY,
         )
 
         broker = BacktestingBroker(data_source=data_source)

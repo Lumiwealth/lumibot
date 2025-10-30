@@ -91,7 +91,7 @@ def test_ultra_simple_buy_hold_sell():
     data_source = DataBentoDataPolarsBacktesting(
         datetime_start=backtesting_start,
         datetime_end=backtesting_end,
-        databento_key=DATABENTO_API_KEY,
+        api_key=DATABENTO_API_KEY,
     )
 
     broker = BacktestingBroker(data_source=data_source)

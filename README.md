@@ -81,6 +81,13 @@ To run an individual test file, you can run the following command:
 pytest tests/test_asset.py
 ```
 
+## Remote Cache Configuration
+
+Lumibot can mirror its local parquet caches to AWS S3 when you enable the new
+backtest cache manager. The feature is optional and defaults to local storage.
+To configure the environment variables, understand the key naming convention,
+and follow the manual validation checklist, review `docs/remote_cache.md`.
+
 ### Showing Code Coverage
 
 To show code coverage, you can run the following command:

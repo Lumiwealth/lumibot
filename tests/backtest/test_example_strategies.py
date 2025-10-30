@@ -184,6 +184,9 @@ class TestExampleStrategies:
         assert isinstance(strat_obj, BuyAndHold)
 
         # Check that the results are correct (based on QQQ July 10-13, 2023)
+        # Regression anchor: these values come from the legacy pandas pipeline.
+        # If this assertion fails, investigate data accuracy or look-ahead bias instead of
+        # adjusting the expected numbers.
         assert round(results["cagr"] * 100, 1) == 51.0  # ~51% annualized
         assert round(results["volatility"] * 100, 1) == 7.7  # 7.7% volatility
         assert round(results["sharpe"], 1) == 6.0  # Sharpe ratio ~6.0

@@ -1,3 +1,4 @@
+import pandas as pd
 import polars as pl
 import pytest
 from datetime import datetime, timezone, timedelta
@@ -187,3 +188,104 @@ def test_databento_polars_quote_midpoint(monkeypatch):
     assert quote.price == pytest.approx(expected_mid)
     assert getattr(quote, "source", None) == "polars"
 
+
+@pytest.mark.usefixtures("mocked_polars_helper")
+def test_get_historical_prices_reuses_cache(monkeypatch, tmp_path):
+    """Second identical request should hit disk cache instead of refetching."""
+
+    cache_dir = tmp_path / "databento_cache"
+    cache_dir.mkdir()
+
+    monkeypatch.setattr(
+        "lumibot.tools.databento_helper_polars.LUMIBOT_DATABENTO_CACHE_FOLDER",
+        str(cache_dir),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "lumibot.backtesting.databento_backtesting_polars.databento_helper.LUMIBOT_DATABENTO_CACHE_FOLDER",
+        str(cache_dir),
+        raising=False,
+    )
+
+    fetch_calls = 0
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_historical_data(self, dataset, symbols, schema, start, end, **kwargs):
+            nonlocal fetch_calls
+            fetch_calls += 1
+            index = pd.date_range(start=start, periods=5, freq="1min", tz="UTC")
+            return pd.DataFrame(
+                {
+                    "ts_event": index,
+                    "open": [100.0 + i for i in range(5)],
+                    "high": [100.5 + i for i in range(5)],
+                    "low": [99.5 + i for i in range(5)],
+                    "close": [100.2 + i for i in range(5)],
+                    "volume": [1_000 + 10 * i for i in range(5)],
+                }
+            )
+
+    monkeypatch.setattr(
+        "lumibot.tools.databento_helper_polars.DataBentoClient",
+        FakeClient,
+    )
+
+    start = datetime(2025, 7, 1, tzinfo=timezone.utc)
+    end = datetime(2025, 7, 2, tzinfo=timezone.utc)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    backtester = DataBentoDataBacktestingPolars(
+        datetime_start=start,
+        datetime_end=end,
+        api_key=API_KEY,
+        show_progress_bar=False,
+    )
+
+    first_bars = backtester.get_historical_prices(asset, length=5, timestep="minute", return_polars=True)
+    second_bars = backtester.get_historical_prices(asset, length=5, timestep="minute", return_polars=True)
+
+    assert first_bars is not None and second_bars is not None
+    pd.testing.assert_frame_equal(second_bars.pandas_df, first_bars.pandas_df)
+    assert fetch_calls == 1, "Expected cached response on second call"
+    assert list(cache_dir.glob("*.parquet")), "Cache directory should contain parquet artifacts"
+
+
+@patch(
+    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
+)
+def test_polars_no_future_minutes(mock_get_data, mocked_polars_helper):
+    base = datetime(2025, 1, 6, 14, 30, tzinfo=timezone.utc)
+    frame = pl.DataFrame(
+        {
+            "datetime": [base - timedelta(minutes=1), base + timedelta(minutes=1)],
+            "open": [4300.0, 4302.0],
+            "high": [4300.5, 4302.5],
+            "low": [4299.5, 4301.5],
+            "close": [4300.2, 4302.2],
+            "volume": [1500, 1510],
+        }
+    )
+    mock_get_data.return_value = frame
+
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+    backtester = DataBentoDataBacktestingPolars(
+        datetime_start=base - timedelta(days=1),
+        datetime_end=base + timedelta(days=1),
+        api_key=API_KEY,
+        show_progress_bar=False,
+    )
+    backtester._datetime = base
+
+    bars = backtester.get_historical_prices(
+        asset,
+        length=1,
+        timestep="minute",
+        return_polars=True,
+    )
+
+    assert bars is not None
+    # Ensure we never look past the current iteration timestamp.
+    assert bars.polars_df["datetime"][-1] <= base

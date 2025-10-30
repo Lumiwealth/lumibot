@@ -16,11 +16,16 @@ STATUS: ✅ FIXED - ES futures now complete normally (1 restart vs infinite)
 
 import unittest
 from unittest.mock import patch
-from datetime import datetime
+from datetime import datetime, timedelta
 
+import pandas as pd
+
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.strategies import Strategy
-from lumibot.entities import Asset, TradingFee
-from lumibot.backtesting import DataBentoDataBacktesting
+from lumibot.entities import Asset, TradingFee, Bars, Order
+from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktesting
+
+DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
 
 class ESFuturesTestStrategy(Strategy):
@@ -39,10 +44,13 @@ class TestESFuturesHangBug(unittest.TestCase):
     """Test that ES futures strategies no longer hang/restart infinitely"""
     
     def setUp(self):
+        if not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>":
+            self.skipTest("DataBento API key required for DataBento backtesting tests")
         self.backtesting_params = {
             'datasource_class': DataBentoDataBacktesting,
             'backtesting_start': datetime(2025, 6, 5),
             'backtesting_end': datetime(2025, 6, 6),
+            'api_key': DATABENTO_API_KEY,
             'show_plot': False,
             'show_tearsheet': False,
             'show_indicators': False,
@@ -299,3 +307,69 @@ class TestESFuturesHangBug(unittest.TestCase):
 if __name__ == '__main__':
     print("🧪 Testing ES Futures hang bug fix...")
     unittest.main(verbosity=2)
+
+
+def test_broker_timeshift_guard():
+    captured = []
+
+    class StubDataSource:
+        SOURCE = "DATABENTO_POLARS"
+        IS_BACKTESTING_DATA_SOURCE = True
+
+        def __init__(self):
+            self._datetime = datetime(2025, 6, 5, 14, 30)
+
+        def get_historical_prices(self, asset, length, quote=None, timeshift=None, **kwargs):
+            captured.append(timeshift)
+            index = pd.DatetimeIndex([self._datetime - timedelta(minutes=1)])
+            frame = pd.DataFrame(
+                {
+                    'open': [4300.0],
+                    'high': [4301.0],
+                    'low': [4299.5],
+                    'close': [4300.5],
+                    'volume': [1500],
+                },
+                index=index,
+            )
+            target_asset = asset[0] if isinstance(asset, tuple) else asset
+            return Bars(frame, self.SOURCE, target_asset, raw=frame)
+
+        def get_datetime(self):
+            return self._datetime
+
+    broker = BacktestingBroker(data_source=StubDataSource())
+    broker._datetime = broker.data_source.get_datetime()
+
+    order = Order(
+        strategy="stub",
+        asset=Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+    )
+    order.order_type = Order.OrderType.MARKET
+    order.quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    broker._new_orders.append(order)
+
+    class StubStrategy:
+        name = "stub"
+        buy_trading_fees = []
+        sell_trading_fees = []
+        timestep = 'minute'
+        bars_lookback = 1
+
+        def __init__(self, broker):
+            self.broker = broker
+            self.cash = 100000.0
+            self.quote_asset = Asset('USD', asset_type=Asset.AssetType.FOREX)
+
+        def log_message(self, *args, **kwargs):
+            return None
+
+        def _set_cash_position(self, value):
+            self.cash = value
+
+    broker.process_pending_orders(strategy=StubStrategy(broker))
+
+    assert captured, "BacktestingBroker did not request historical data"
+    assert captured[0] == timedelta(minutes=-2)

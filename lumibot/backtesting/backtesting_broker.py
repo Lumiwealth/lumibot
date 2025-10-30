@@ -1355,16 +1355,20 @@ class BacktestingBroker(Broker):
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
             if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"]:
-                # Default to backing up one minute so fills use the next bar, consistent with other sources.
+                # Negative deltas here are intentional: _pull_source_symbol_bars subtracts the offset, so
+                # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
+                # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
                 if data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
-                    # DataBento mimics Polygon by requesting two bars to guard against gaps.
+                    # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
+                    # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
                     timeshift = timedelta(minutes=-2)
                 elif data_source_name == "YAHOO":
-                    # Yahoo uses day bars; shift one day instead to mirror legacy behavior.
+                    # Yahoo daily bars are stamped at the close (16:00). A one-day backstep keeps fills on
+                    # the previous session so we never peek at the in-progress bar.
                     timeshift = timedelta(days=-1)
                 elif data_source_name == "ALPACA":
-                    # Alpaca minute bars are aligned to the current iteration already.
+                    # Alpaca minute bars line up with our clock already; no offset needed.
                     timeshift = None
 
                 ohlc = self.data_source.get_historical_prices(

@@ -13,6 +13,7 @@ import time
 from unittest.mock import patch, MagicMock
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
+from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.tools.backtest_cache import CacheMode
 
 
@@ -1432,3 +1433,48 @@ class TestThetaDataChainsCaching:
 
 if __name__ == '__main__':
     pytest.main()
+
+
+def test_thetadata_no_future_minutes(monkeypatch):
+    tz = pytz.timezone('America/New_York')
+    now = tz.localize(datetime.datetime(2025, 1, 6, 9, 30))
+    frame = pd.DataFrame(
+        {
+            'datetime': [
+                tz.localize(datetime.datetime(2025, 1, 6, 9, 29)),
+                tz.localize(datetime.datetime(2025, 1, 6, 9, 31)),
+            ],
+            'open': [4330.0, 4332.0],
+            'high': [4331.0, 4333.0],
+            'low': [4329.5, 4331.5],
+            'close': [4330.5, 4332.5],
+            'volume': [1_200, 1_250],
+            'missing': [False, False],
+        }
+    )
+
+    monkeypatch.setattr(thetadata_helper, 'get_price_data', lambda *args, **kwargs: frame.copy())
+    monkeypatch.setattr(thetadata_helper, 'reset_theta_terminal_tracking', lambda: None)
+
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=now - datetime.timedelta(days=1),
+        datetime_end=now + datetime.timedelta(days=1),
+        username='user',
+        password='pass',
+        use_quote_data=False,
+    )
+    data_source._datetime = now
+
+    asset = Asset('MES', asset_type=Asset.AssetType.CONT_FUTURE)
+
+    bars = data_source.get_historical_prices(
+        asset,
+        length=1,
+        timestep='minute',
+        quote=Asset('USD', asset_type=Asset.AssetType.FOREX),
+        timeshift=datetime.timedelta(minutes=-1),
+    )
+
+    assert bars is not None
+    assert len(bars.df) == 1
+    assert bars.df.index[-1].tz_convert(tz) <= now

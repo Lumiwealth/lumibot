@@ -7,6 +7,11 @@ This implementation:
 4. Efficient caching with parquet files
 5. Vectorized operations only
 """
+# NOTE: This module is intentionally disabled. The DataBento Polars migration only
+# supports Polars for DataBento; other data sources must use the pandas implementations.
+raise RuntimeError('Yahoo/Polygon Polars backends are not production-ready; use the pandas data sources instead.')
+
+
 
 import traceback
 from datetime import timedelta

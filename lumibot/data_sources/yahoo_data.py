@@ -382,8 +382,15 @@ class YahooData(DataSourceBacktesting):
         if cache_key in self._last_price_cache:
             return self._last_price_cache[cache_key]
 
-        # Use -1 timeshift to get the price for the current bar (otherwise gets yesterdays prices)
-        bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timedelta(days=-1))
+        # Daily bars are stamped at the session close. Leaving the timeshift unset for daily
+        # requests ensures we only reference the most recent fully closed bar (no lookahead).
+        # Intraday paths still step back one interval to avoid peeking ahead.
+        if isinstance(timestep, str) and 'day' in timestep.lower():
+            timeshift_delta = None
+        else:
+            timeshift_delta = timedelta(days=-1)
+
+        bars = self.get_historical_prices(asset, 1, timestep=timestep, quote=quote, timeshift=timeshift_delta)
 
         if isinstance(bars, float):
             return bars

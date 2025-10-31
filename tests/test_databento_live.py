@@ -27,13 +27,13 @@ load_dotenv()
 def test_symbol_resolution():
     """Test that symbols are properly resolved to contract codes"""
     from lumibot.entities import Asset
-    from lumibot.data_sources.databento_data_polars_live import DataBentoDataPolarsLive
+    from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
     
     print("\n" + "="*60)
     print("TEST 1: Symbol Resolution")
     print("="*60)
     
-    data_source = DataBentoDataPolarsLive(
+    data_source = DataBentoDataPolars(
         api_key=os.getenv('DATABENTO_API_KEY'),
         has_paid_subscription=True,
         enable_live_stream=False  # Don't need streaming for this test
@@ -97,14 +97,14 @@ def test_live_api_connection():
 def test_minute_bar_aggregation():
     """Test minute bar aggregation with <1 minute lag"""
     from lumibot.entities import Asset
-    from lumibot.data_sources.databento_data_polars_live import DataBentoDataPolarsLive
+    from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
     
     print("\n" + "="*60)
     print("TEST 3: Minute Bar Aggregation & Latency")
     print("="*60)
     
     # Initialize with Live API
-    data_source = DataBentoDataPolarsLive(
+    data_source = DataBentoDataPolars(
         api_key=os.getenv('DATABENTO_API_KEY'),
         has_paid_subscription=True,
         enable_live_stream=True
@@ -175,13 +175,13 @@ def test_minute_bar_aggregation():
 )
 def test_api_routing():
     """Test that correct API is used based on time range"""
-    from lumibot.data_sources.databento_data_polars_live import DataBentoDataPolarsLive
+    from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
     
     print("\n" + "="*60)
     print("TEST 4: API Routing (Live vs Historical)")
     print("="*60)
     
-    data_source = DataBentoDataPolarsLive(
+    data_source = DataBentoDataPolars(
         api_key=os.getenv('DATABENTO_API_KEY'),
         has_paid_subscription=True,
         enable_live_stream=True
@@ -219,13 +219,13 @@ def test_api_routing():
 def test_long_time_periods():
     """Test different time periods including long periods (500+ bars)"""
     from lumibot.entities import Asset
-    from lumibot.data_sources.databento_data_polars_live import DataBentoDataPolarsLive
+    from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
     
     print("\n" + "="*60)
     print("TEST 5: Long Time Period Handling (500+ bars)")
     print("="*60)
     
-    data_source = DataBentoDataPolarsLive(
+    data_source = DataBentoDataPolars(
         api_key=os.getenv('DATABENTO_API_KEY'),
         has_paid_subscription=True,
         enable_live_stream=True
@@ -324,14 +324,14 @@ def test_long_time_periods():
 def test_continuous_latency_monitoring():
     """Run continuous tests to verify consistent <1 minute lag"""
     from lumibot.entities import Asset
-    from lumibot.data_sources.databento_data_polars_live import DataBentoDataPolarsLive
+    from lumibot.data_sources.databento_data_polars import DataBentoDataPolars
     
     print("\n" + "="*60)
     print("TEST 6: Continuous Latency Monitoring")
     print("="*60)
     print("Running 5 consecutive tests to verify consistent low latency...")
     
-    data_source = DataBentoDataPolarsLive(
+    data_source = DataBentoDataPolars(
         api_key=os.getenv('DATABENTO_API_KEY'),
         has_paid_subscription=True,
         enable_live_stream=True

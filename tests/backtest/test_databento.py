@@ -6,8 +6,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktesting
-from lumibot.data_sources import DataBentoDataBacktesting as DataBentoDataBacktestingPolars
+from lumibot.backtesting import BacktestingBroker
+from lumibot.backtesting.databento_backtesting_pandas import (
+    DataBentoDataBacktestingPandas,
+)
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars,
+)
+from lumibot.tools.databento_helper import DataBentoAuthenticationError
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -15,6 +21,31 @@ from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
+
+
+
+def test_databento_auth_failure_propagates(monkeypatch):
+    start = datetime.datetime(2025, 1, 6, tzinfo=pytz.UTC)
+    end = datetime.datetime(2025, 1, 7, tzinfo=pytz.UTC)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    def boom(*args, **kwargs):
+        raise DataBentoAuthenticationError("401 auth_authentication_failed")
+
+    monkeypatch.setattr(
+        "lumibot.tools.databento_helper.get_price_data_from_databento",
+        boom,
+    )
+
+    data_source = DataBentoDataBacktestingPandas(
+        datetime_start=start,
+        datetime_end=end,
+        api_key="dummy",
+        show_progress_bar=False,
+    )
+
+    with pytest.raises(DataBentoAuthenticationError):
+        data_source.get_historical_prices(asset, length=1, timestep="minute")
 
 class SimpleContinuousFutures(Strategy):
     """Simple strategy for testing continuous futures with minute-level data"""
@@ -67,10 +98,10 @@ class TestDatabentoBacktestFull:
         backtesting_start = tzinfo.localize(datetime.datetime(2025, 1, 2, 9, 30))
         backtesting_end = tzinfo.localize(datetime.datetime(2025, 1, 3, 16, 0))
 
-        data_source = DataBentoDataBacktesting(
+        data_source = DataBentoDataBacktestingPandas(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            databento_key=DATABENTO_API_KEY,
+            api_key=DATABENTO_API_KEY,
         )
 
         broker = BacktestingBroker(data_source=data_source)
@@ -184,10 +215,10 @@ class TestDatabentoBacktestFull:
                     order = self.create_order(asset, 1, "buy")
                     self.submit_order(order)
 
-        data_source = DataBentoDataBacktesting(
+        data_source = DataBentoDataBacktestingPandas(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            databento_key=DATABENTO_API_KEY,
+            api_key=DATABENTO_API_KEY,
         )
 
         broker = BacktestingBroker(data_source=data_source)

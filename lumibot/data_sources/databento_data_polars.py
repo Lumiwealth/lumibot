@@ -16,10 +16,13 @@ import queue
 from collections import defaultdict
 
 import polars as pl
-import databento as db
+try:
+    import databento as db
+except ImportError:  # pragma: no cover - optional dependency
+    db = None
 
-from lumibot.data_sources import DataSource
-from lumibot.data_sources.polars_mixin import PolarsMixin
+from .data_source import DataSource
+from .polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools import databento_helper_polars
 from lumibot.tools.databento_helper_polars import _ensure_polars_datetime_timezone as _ensure_polars_tz
@@ -28,7 +31,7 @@ from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 
-class DataBentoDataPolarsLive(PolarsMixin, DataSource):
+class DataBentoDataPolars(PolarsMixin, DataSource):
     """
     DataBento data source optimized with Polars and proper Live API usage.
 
@@ -56,6 +59,9 @@ class DataBentoDataPolarsLive(PolarsMixin, DataSource):
     ):
         """Initialize DataBento data source with Live API support"""
         super().__init__(api_key=api_key, has_paid_subscription=has_paid_subscription)
+
+        if db is None:
+            raise ImportError("DataBento package not available. Please install with: pip install databento")
 
         # Core configuration
         self._api_key = api_key
@@ -212,7 +218,7 @@ class DataBentoDataPolarsLive(PolarsMixin, DataSource):
                         logger.warning(f"[DATABENTO][PRODUCER] Queue full, dropping record")
                 
                 # Clean exit
-                logger.info(f"[DATABENTO][PRODUCER] {symbol} stopped after {record_count} records")
+                logger.debug(f"[DATABENTO][PRODUCER] {symbol} stopped after {record_count} records")
                 break  # Successful completion
                 
             except Exception as e:
@@ -221,7 +227,7 @@ class DataBentoDataPolarsLive(PolarsMixin, DataSource):
                 
                 if reconnect_attempts < max_reconnect_attempts:
                     sleep_time = backoff_seconds * (2 ** reconnect_attempts)
-                    logger.info(f"[DATABENTO][PRODUCER] Reconnecting {symbol} in {sleep_time}s (attempt {reconnect_attempts})")
+                    logger.debug(f"[DATABENTO][PRODUCER] Reconnecting {symbol} in {sleep_time}s (attempt {reconnect_attempts})")
                     time.sleep(sleep_time)
                     
                     # Update start time for reconnection to avoid duplicate data
@@ -230,7 +236,7 @@ class DataBentoDataPolarsLive(PolarsMixin, DataSource):
                         ts_ns = self._last_ts_event[symbol]
                         if ts_ns > 0:
                             start_time = datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc)
-                        logger.info(f"[DATABENTO][PRODUCER] Resuming from last event: {start_time.isoformat()}")
+                        logger.debug(f"[DATABENTO][PRODUCER] Resuming from last event: {start_time.isoformat()}")
                 else:
                     logger.error(f"[DATABENTO][PRODUCER] {symbol} max reconnection attempts reached")
     
@@ -342,7 +348,7 @@ class DataBentoDataPolarsLive(PolarsMixin, DataSource):
             except Exception as e:
                 logger.error(f"[DATABENTO][CONSUMER] Error processing record: {e}")
         
-        logger.info(f"[DATABENTO][CONSUMER] Stopped after {trade_count} trades")
+        logger.debug(f"[DATABENTO][CONSUMER] Stopped after {trade_count} trades")
     
     def _finalizer_loop(self):
         """Finalizer thread that marks old bars as complete"""
@@ -378,7 +384,7 @@ class DataBentoDataPolarsLive(PolarsMixin, DataSource):
             except Exception as e:
                 logger.error(f"[DATABENTO][FINALIZER] Error: {e}")
         
-        logger.info("[DATABENTO][FINALIZER] Stopped")
+        logger.debug("[DATABENTO][FINALIZER] Stopped")
     
     def _aggregate_trade(self, symbol: str, price: float, size: float, trade_time: datetime):
         """Aggregate a trade into minute bars"""

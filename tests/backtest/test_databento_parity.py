@@ -9,8 +9,10 @@ import pandas as pd
 import pytest
 import pytz
 
-from lumibot.backtesting.databento_backtesting import DataBentoDataBacktesting as DataBentoPandas
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBacktestingPandas as DataBentoPandas
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
 from lumibot.entities import Asset
 from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.tools import databento_helper, databento_helper_polars

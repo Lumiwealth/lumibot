@@ -9,9 +9,22 @@ from .thetadata_backtesting import ThetaDataBacktesting
 from .thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from .yahoo_backtesting import YahooDataBacktesting
 
-# Import DataBento backtesting
-# Polars version (NEW DEFAULT - faster performance)
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting as DataBentoDataBacktesting
+from .databento_backtesting import DataBentoDataBacktesting
+from .databento_backtesting_pandas import DataBentoDataBacktestingPandas
+from .databento_backtesting_polars import DataBentoDataBacktestingPolars
 
-# Pandas version (stable fallback, kept for compatibility)
-from .databento_backtesting import DataBentoDataBacktesting as DataBentoDataBacktestingPandas
+__all__ = [
+    "AlpacaBacktesting",
+    "AlphaVantageBacktesting",
+    "BacktestingBroker",
+    "CcxtBacktesting",
+    "InteractiveBrokersRESTBacktesting",
+    "PandasDataBacktesting",
+    "PolygonDataBacktesting",
+    "ThetaDataBacktesting",
+    "ThetaDataBacktestingPandas",
+    "YahooDataBacktesting",
+    "DataBentoDataBacktesting",
+    "DataBentoDataBacktestingPandas",
+    "DataBentoDataBacktestingPolars",
+]

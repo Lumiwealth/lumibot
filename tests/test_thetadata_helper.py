@@ -13,6 +13,8 @@ import time
 from unittest.mock import patch, MagicMock
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
+from lumibot.backtesting import ThetaDataBacktestingPandas
+from lumibot.tools.backtest_cache import CacheMode
 
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
@@ -441,6 +443,72 @@ def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
     assert cache_file.exists()
 
+
+def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
+    asset = Asset(asset_type="stock", symbol="AAPL")
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    cache_file = thetadata_helper.build_cache_filename(asset, "minute", "ohlc")
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+    df = pd.DataFrame(
+        {
+            "datetime": pd.date_range("2024-01-01 09:30:00", periods=2, freq="T", tz=pytz.UTC),
+            "open": [100.0, 101.0],
+            "high": [101.0, 102.0],
+            "low": [99.5, 100.5],
+            "close": [100.5, 101.5],
+            "volume": [1_000, 1_200],
+            "missing": [False, False],
+        }
+    )
+    df.to_parquet(cache_file, engine="pyarrow", compression="snappy", index=False)
+
+    class DummyManager:
+        def __init__(self):
+            self.ensure_calls = []
+            self.upload_calls = []
+            self.enabled = True
+            self._mode = CacheMode.S3_READWRITE
+
+        @property
+        def mode(self):
+            return self._mode
+
+        def ensure_local_file(self, local_path, payload=None, force_download=False):
+            self.ensure_calls.append((Path(local_path), payload))
+            return False
+
+        def on_local_update(self, local_path, payload=None):
+            self.upload_calls.append((Path(local_path), payload))
+            return True
+
+    dummy_manager = DummyManager()
+    monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: dummy_manager)
+    monkeypatch.setattr(thetadata_helper, "get_missing_dates", lambda df_all, *_args, **_kwargs: [])
+
+    start = datetime.datetime(2024, 1, 1, 9, 30, tzinfo=pytz.UTC)
+    end = datetime.datetime(2024, 1, 1, 9, 31, tzinfo=pytz.UTC)
+
+    result = thetadata_helper.get_price_data(
+        username="user",
+        password="pass",
+        asset=asset,
+        start=start,
+        end=end,
+        timespan="minute",
+        quote_asset=None,
+        dt=None,
+        datastyle="ohlc",
+        include_after_hours=True,
+        return_polars=False,
+    )
+
+    assert dummy_manager.ensure_calls, "Expected remote cache ensure call"
+    ensure_path, ensure_payload = dummy_manager.ensure_calls[0]
+    assert ensure_path == cache_file
+    assert ensure_payload["provider"] == "thetadata"
+    assert isinstance(result, pd.DataFrame)
+    assert not dummy_manager.upload_calls, "Cache hit should not trigger upload"
 
 
 @pytest.mark.parametrize(
@@ -1365,3 +1433,48 @@ class TestThetaDataChainsCaching:
 
 if __name__ == '__main__':
     pytest.main()
+
+
+def test_thetadata_no_future_minutes(monkeypatch):
+    tz = pytz.timezone('America/New_York')
+    now = tz.localize(datetime.datetime(2025, 1, 6, 9, 30))
+    frame = pd.DataFrame(
+        {
+            'datetime': [
+                tz.localize(datetime.datetime(2025, 1, 6, 9, 29)),
+                tz.localize(datetime.datetime(2025, 1, 6, 9, 31)),
+            ],
+            'open': [4330.0, 4332.0],
+            'high': [4331.0, 4333.0],
+            'low': [4329.5, 4331.5],
+            'close': [4330.5, 4332.5],
+            'volume': [1_200, 1_250],
+            'missing': [False, False],
+        }
+    )
+
+    monkeypatch.setattr(thetadata_helper, 'get_price_data', lambda *args, **kwargs: frame.copy())
+    monkeypatch.setattr(thetadata_helper, 'reset_theta_terminal_tracking', lambda: None)
+
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=now - datetime.timedelta(days=1),
+        datetime_end=now + datetime.timedelta(days=1),
+        username='user',
+        password='pass',
+        use_quote_data=False,
+    )
+    data_source._datetime = now
+
+    asset = Asset('MES', asset_type=Asset.AssetType.CONT_FUTURE)
+
+    bars = data_source.get_historical_prices(
+        asset,
+        length=1,
+        timestep='minute',
+        quote=Asset('USD', asset_type=Asset.AssetType.FOREX),
+        timeshift=datetime.timedelta(minutes=-1),
+    )
+
+    assert bars is not None
+    assert len(bars.df) == 1
+    assert bars.df.index[-1].tz_convert(tz) <= now

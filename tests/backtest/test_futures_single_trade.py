@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.data_sources.databento_data_polars_backtesting import DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -124,7 +124,7 @@ class TestFuturesSingleTrade:
         data_source = DataBentoDataPolarsBacktesting(
             datetime_start=backtesting_start,
             datetime_end=backtesting_end,
-            databento_key=DATABENTO_API_KEY,
+            api_key=DATABENTO_API_KEY,
         )
 
         broker = BacktestingBroker(data_source=data_source)

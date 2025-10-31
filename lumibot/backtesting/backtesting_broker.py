@@ -1,3 +1,4 @@
+import math
 import traceback
 import threading
 from collections import OrderedDict
@@ -1353,17 +1354,21 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             data_source_name = self.data_source.SOURCE.upper()
-            if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO"]:
-                # Default to backing up one minute so fills use the next bar, consistent with other sources.
+            if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"]:
+                # Negative deltas here are intentional: _pull_source_symbol_bars subtracts the offset, so
+                # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
+                # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
-                if data_source_name == "DATABENTO":
-                    # DataBento mimics Polygon by requesting two bars to guard against gaps.
+                if data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
+                    # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
+                    # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
                     timeshift = timedelta(minutes=-2)
                 elif data_source_name == "YAHOO":
-                    # Yahoo uses day bars; shift one day instead to mirror legacy behavior.
+                    # Yahoo daily bars are stamped at the close (16:00). A one-day backstep keeps fills on
+                    # the previous session so we never peek at the in-progress bar.
                     timeshift = timedelta(days=-1)
                 elif data_source_name == "ALPACA":
-                    # Alpaca minute bars are aligned to the current iteration already.
+                    # Alpaca minute bars line up with our clock already; no offset needed.
                     timeshift = None
 
                 ohlc = self.data_source.get_historical_prices(
@@ -1549,36 +1554,69 @@ class BacktestingBroker(Broker):
         # After handling all pending orders, cash settle any residual expired contracts.
         self.process_expired_option_contracts(strategy)
 
+    def _coerce_price(self, value):
+        """Convert numeric inputs to float when possible for safe comparisons."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return value
+
+    def _is_invalid_price(self, value):
+        """Determine whether a price is unusable (None or NaN)."""
+        if value is None:
+            return True
+        if isinstance(value, float) and math.isnan(value):
+            return True
+        return False
+
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""
+        open_val = self._coerce_price(open_)
+        high_val = self._coerce_price(high)
+        low_val = self._coerce_price(low)
+        limit_val = self._coerce_price(limit_price)
+
+        if any(self._is_invalid_price(val) for val in (open_val, high_val, low_val, limit_val)):
+            return None
+
         # Gap Up case: Limit wasn't triggered by previous candle but current candle opens higher, fill it now
-        if side == "sell" and limit_price <= open_:
-            return open_
+        if side == "sell" and limit_val <= open_val:
+            return open_val
 
         # Gap Down case: Limit wasn't triggered by previous candle but current candle opens lower, fill it now
-        if side == "buy" and limit_price >= open_:
-            return open_
+        if side == "buy" and limit_val >= open_val:
+            return open_val
 
         # Current candle triggered limit normally
-        if low <= limit_price <= high:
-            return limit_price
+        if low_val <= limit_val <= high_val:
+            return limit_val
 
         # Limit has not been met
         return None
 
     def stop_order(self, stop_price, side, open_, high, low):
         """Stop order logic."""
+        open_val = self._coerce_price(open_)
+        high_val = self._coerce_price(high)
+        low_val = self._coerce_price(low)
+        stop_val = self._coerce_price(stop_price)
+
+        if any(self._is_invalid_price(val) for val in (open_val, high_val, low_val, stop_val)):
+            return None
+
         # Gap Down case: Stop wasn't triggered by previous candle but current candle opens lower, fill it now
-        if side == "sell" and stop_price >= open_:
-            return open_
+        if side == "sell" and stop_val >= open_val:
+            return open_val
 
         # Gap Up case: Stop wasn't triggered by previous candle but current candle opens higher, fill it now
-        if side == "buy" and stop_price <= open_:
-            return open_
+        if side == "buy" and stop_val <= open_val:
+            return open_val
 
         # Current candle triggered stop normally
-        if low <= stop_price <= high:
-            return stop_price
+        if low_val <= stop_val <= high_val:
+            return stop_val
 
         # Stop has not been met
         return None

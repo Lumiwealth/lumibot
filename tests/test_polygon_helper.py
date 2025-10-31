@@ -7,6 +7,7 @@ import pytest
 import pytz
 
 from lumibot.entities import Asset
+from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.entities.chains import normalize_option_chains
 from lumibot.tools import polygon_helper as ph
 
@@ -131,6 +132,8 @@ class TestPolygonHelpers:
         assert datetime.date(2023, 7, 10) in trading_dates
 
     def test_get_polygon_symbol(self, mocker):
+
+
         polygon_client = mocker.MagicMock()
 
         # ------- Unsupported Asset Type
@@ -568,3 +571,46 @@ class TestPolygonPriceData:
         # Should return identical data once normalized
         assert normalize_option_chains(result_second) == normalized_first
         assert mock_polyclient.list_options_contracts.call_count == 0
+
+    def test_polygon_no_future_bars_before_open(self, monkeypatch):
+        tz = pytz.timezone('America/New_York')
+        now = tz.localize(datetime.datetime(2023, 11, 1, 9, 30))
+        frame = pd.DataFrame(
+            {
+                'open': [377.0, 378.5],
+                'high': [377.5, 379.0],
+                'low': [376.8, 378.2],
+                'close': [377.2, 378.9],
+                'volume': [10_000, 10_500],
+            },
+            index=pd.DatetimeIndex([
+                tz.localize(datetime.datetime(2023, 11, 1, 9, 29)),
+                tz.localize(datetime.datetime(2023, 11, 1, 9, 31)),
+            ]),
+        )
+
+        monkeypatch.setattr(
+            'lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon',
+            lambda *args, **kwargs: frame,
+        )
+
+        data_source = PolygonDataBacktesting(
+            datetime_start=now - datetime.timedelta(days=1),
+            datetime_end=now + datetime.timedelta(days=1),
+            api_key='dummy',
+        )
+        data_source._datetime = now
+        asset = Asset('SPY')
+        quote = Asset('USD', 'forex')
+
+        bars = data_source.get_historical_prices(
+            asset,
+            length=1,
+            timestep='minute',
+            quote=quote,
+            timeshift=datetime.timedelta(minutes=-1),
+        )
+
+        assert bars.df.index[-1] <= now
+
+

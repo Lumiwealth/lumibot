@@ -182,6 +182,19 @@ DATABENTO_CONFIG = {
     "MAX_RETRIES": int(os.environ.get("DATABENTO_MAX_RETRIES", "3")),
 }
 
+# Remote cache configuration (disabled by default)
+CACHE_REMOTE_CONFIG = {
+    "backend": os.environ.get("LUMIBOT_CACHE_BACKEND", "local"),
+    "mode": os.environ.get("LUMIBOT_CACHE_MODE", "disabled"),
+    "s3_bucket": os.environ.get("LUMIBOT_CACHE_S3_BUCKET"),
+    "s3_prefix": os.environ.get("LUMIBOT_CACHE_S3_PREFIX", ""),
+    "s3_region": os.environ.get("LUMIBOT_CACHE_S3_REGION"),
+    "s3_access_key_id": os.environ.get("LUMIBOT_CACHE_S3_ACCESS_KEY_ID"),
+    "s3_secret_access_key": os.environ.get("LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY"),
+    "s3_session_token": os.environ.get("LUMIBOT_CACHE_S3_SESSION_TOKEN"),
+    "s3_version": os.environ.get("LUMIBOT_CACHE_S3_VERSION", "v1"),
+}
+
 # Alpaca Configuration
 ALPACA_CONFIG = {
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_OAUTH_TOKEN, and ALPACA_IS_PAPER to your .env file or set them as secrets

@@ -98,7 +98,7 @@ def append_missing_markers(
         CONNECTION_DIAGNOSTICS["placeholder_writes"] = CONNECTION_DIAGNOSTICS.get("placeholder_writes", 0) + len(rows)
 
         # DEBUG-LOG: Placeholder injection
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][PLACEHOLDER][INJECT] count=%d dates=%s",
             len(rows),
             ", ".join(sorted({d.isoformat() for d in missing_dates}))
@@ -114,7 +114,7 @@ def append_missing_markers(
         else:
             df_all = pd.concat([df_all, placeholder_df]).sort_index()
         df_all = df_all[~df_all.index.duplicated(keep="last")]
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][THETADATA-CACHE] recorded %d placeholder day(s): %s",
             len(rows),
             ", ".join(sorted({d.isoformat() for d in missing_dates})),
@@ -140,7 +140,7 @@ def remove_missing_markers(
     if mask.any():
         removed_dates = sorted({ts.date().isoformat() for ts in df_all.index[mask]})
         df_all = df_all.loc[~mask]
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][THETADATA-CACHE] cleared %d placeholder row(s) for dates: %s",
             mask.sum(),
             ", ".join(removed_dates),
@@ -274,7 +274,7 @@ def get_price_data(
         try:
             fetched_remote = cache_manager.ensure_local_file(cache_file, payload=remote_payload)
             if fetched_remote:
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][CACHE][REMOTE_DOWNLOAD] asset=%s timespan=%s datastyle=%s cache_file=%s",
                     asset,
                     timespan,
@@ -282,7 +282,7 @@ def get_price_data(
                     cache_file,
                 )
         except Exception as exc:
-            logger.exception(
+            logger.debug(
                 "[THETA][DEBUG][CACHE][REMOTE_DOWNLOAD_ERROR] asset=%s cache_file=%s error=%s",
                 asset,
                 cache_file,
@@ -290,7 +290,7 @@ def get_price_data(
             )
 
     # DEBUG-LOG: Cache file check
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][CHECK] asset=%s timespan=%s datastyle=%s cache_file=%s exists=%s",
         asset,
         timespan,
@@ -311,7 +311,7 @@ def get_price_data(
         placeholder_rows = int(df_all["missing"].sum())
 
     # DEBUG-LOG: Cache load result
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][LOADED] asset=%s cached_rows=%d placeholder_rows=%d real_rows=%d",
         asset,
         cached_rows,
@@ -329,7 +329,7 @@ def get_price_data(
     )
 
     # Check if we need to get more data
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_START] asset=%s | "
         "calling get_missing_dates(start=%s, end=%s)",
         asset.symbol if hasattr(asset, 'symbol') else str(asset),
@@ -339,7 +339,7 @@ def get_price_data(
 
     missing_dates = get_missing_dates(df_all, asset, start, end)
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
         "missing_dates=%d | "
         "decision=%s",
@@ -363,7 +363,7 @@ def get_price_data(
         if df_all is not None and not df_all.empty:
             logger.info("ThetaData cache HIT for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
             # DEBUG-LOG: Cache hit
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][CACHE][HIT] asset=%s timespan=%s datastyle=%s rows=%d start=%s end=%s",
                 asset,
                 timespan,
@@ -390,7 +390,7 @@ def get_price_data(
                 # DEBUG-LOG: Entry to intraday filter
                 rows_before_any_filter = len(df_all)
                 max_ts_before_any_filter = df_all.index.max() if len(df_all) > 0 else None
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][FILTER][INTRADAY_ENTRY] asset=%s | "
                     "rows_before=%d max_ts_before=%s | "
                     "start_param=%s end_param=%s dt_param=%s dt_type=%s",
@@ -406,13 +406,13 @@ def get_price_data(
                 # Convert date to datetime if needed
                 if isinstance(start, datetime_module.date) and not isinstance(start, datetime_module.datetime):
                     start = datetime_module.datetime.combine(start, datetime_module.time.min)
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted start from date to datetime: %s",
                         start.isoformat()
                     )
                 if isinstance(end, datetime_module.date) and not isinstance(end, datetime_module.datetime):
                     end = datetime_module.datetime.combine(end, datetime_module.time.max)
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted end from date to datetime: %s",
                         end.isoformat()
                     )
@@ -421,20 +421,20 @@ def get_price_data(
                 if isinstance(end, datetime_module.datetime) and end.time() == datetime_module.time.min:
                     # Convert end-of-period midnight to end-of-day
                     end = datetime_module.datetime.combine(end.date(), datetime_module.time.max)
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][FILTER][MIDNIGHT_FIX] converted end from midnight to end-of-day: %s",
                         end.isoformat()
                     )
 
                 if start.tzinfo is None:
                     start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s",
                         start.isoformat()
                     )
                 if end.tzinfo is None:
                     end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s",
                         end.isoformat()
                     )
@@ -445,7 +445,7 @@ def get_price_data(
                 #
                 # NEW APPROACH: Always return full [start, end] range from cache
                 # Let Data/DataPolars.get_bars() handle look-ahead bias protection
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][FILTER][NO_DT_FILTER] asset=%s | "
                     "using end=%s for upper bound (dt parameter ignored for cache retrieval)",
                     asset.symbol if hasattr(asset, 'symbol') else str(asset),
@@ -455,7 +455,7 @@ def get_price_data(
 
         # DEBUG-LOG: After date range filtering, before missing removal
         if df_all is not None and not df_all.empty:
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][FILTER][AFTER] asset=%s rows=%d first_ts=%s last_ts=%s dt_filter=%s",
                 asset,
                 len(df_all),
@@ -470,7 +470,7 @@ def get_price_data(
 
         # DEBUG-LOG: Before pandas return
         if df_all is not None and not df_all.empty:
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][RETURN][PANDAS] asset=%s rows=%d first_ts=%s last_ts=%s",
                 asset,
                 len(df_all),
@@ -482,7 +482,7 @@ def get_price_data(
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
 
     # DEBUG-LOG: Cache miss
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][MISS] asset=%s timespan=%s datastyle=%s missing_intervals=%d first=%s last=%s",
         asset,
         timespan,
@@ -542,7 +542,7 @@ def get_price_data(
                 and all(day > asset.expiration for day in requested_dates)
             )
             if expired_range:
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][THETADATA-EOD] Option %s expired on %s; cache reuse for range %s -> %s.",
                     asset,
                     asset.expiration,
@@ -550,7 +550,7 @@ def get_price_data(
                     fetch_end,
                 )
             else:
-                logger.warning(
+                logger.debug(
                     "[THETA][DEBUG][THETADATA-EOD] No rows returned for %s between %s and %s; recording placeholders.",
                     asset,
                     fetch_start,
@@ -680,7 +680,7 @@ def get_price_data(
                 and chunk_end.date() >= asset.expiration
             )
             if expired_chunk:
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][THETADATA] Option %s considered expired on %s; reusing cached data between %s and %s.",
                     asset,
                     asset.expiration,
@@ -848,7 +848,7 @@ def get_missing_dates(df_all, asset, start, end):
         A list of dates that we need to get data for
     """
     # DEBUG-LOG: Entry to get_missing_dates
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][MISSING_DATES_CHECK] asset=%s | "
         "start=%s end=%s | "
         "cache_rows=%d",
@@ -860,7 +860,7 @@ def get_missing_dates(df_all, asset, start, end):
 
     trading_dates = get_trading_dates(asset, start, end)
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][TRADING_DATES] asset=%s | "
         "trading_dates_count=%d first=%s last=%s",
         asset.symbol if hasattr(asset, 'symbol') else str(asset),
@@ -870,7 +870,7 @@ def get_missing_dates(df_all, asset, start, end):
     )
 
     if df_all is None or not len(df_all):
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][CACHE][EMPTY] asset=%s | "
             "cache is EMPTY -> all %d trading days are missing",
             asset.symbol if hasattr(asset, 'symbol') else str(asset),
@@ -886,7 +886,7 @@ def get_missing_dates(df_all, asset, start, end):
     cached_first = min(dates) if len(dates) > 0 else None
     cached_last = max(dates) if len(dates) > 0 else None
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][CACHED_DATES] asset=%s | "
         "cached_dates_count=%d first=%s last=%s",
         asset.symbol if hasattr(asset, 'symbol') else str(asset),
@@ -904,7 +904,7 @@ def get_missing_dates(df_all, asset, start, end):
         after_expiry_filter = len(missing_dates)
 
         if before_expiry_filter != after_expiry_filter:
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][CACHE][OPTION_EXPIRY_FILTER] asset=%s | "
                 "filtered %d dates after expiration=%s | "
                 "missing_dates: %d -> %d",
@@ -915,7 +915,7 @@ def get_missing_dates(df_all, asset, start, end):
                 after_expiry_filter
             )
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][MISSING_RESULT] asset=%s | "
         "missing_dates_count=%d | "
         "first_missing=%s last_missing=%s",
@@ -931,7 +931,7 @@ def get_missing_dates(df_all, asset, start, end):
 def load_cache(cache_file):
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex"""
     # DEBUG-LOG: Start loading cache
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][LOAD_START] cache_file=%s | "
         "exists=%s size_bytes=%d",
         cache_file.name,
@@ -940,7 +940,7 @@ def load_cache(cache_file):
     )
 
     if not cache_file.exists():
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][CACHE][LOAD_MISSING] cache_file=%s | returning=None",
             cache_file.name,
         )
@@ -949,7 +949,7 @@ def load_cache(cache_file):
     df = pd.read_parquet(cache_file, engine='pyarrow')
 
     rows_after_read = len(df)
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][LOAD_READ] cache_file=%s | "
         "rows_read=%d columns=%s",
         cache_file.name,
@@ -969,7 +969,7 @@ def load_cache(cache_file):
     if df.index.tzinfo is None:
         # Set the timezone to UTC
         df.index = df.index.tz_localize("UTC")
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][CACHE][LOAD_TZ] cache_file=%s | "
             "localized index to UTC",
             cache_file.name
@@ -981,7 +981,7 @@ def load_cache(cache_file):
     max_ts = df.index.max() if len(df) > 0 else None
     placeholder_count = int(df["missing"].sum()) if "missing" in df.columns else 0
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][LOAD_SUCCESS] cache_file=%s | "
         "total_rows=%d real_rows=%d placeholders=%d | "
         "min_ts=%s max_ts=%s",
@@ -999,7 +999,7 @@ def load_cache(cache_file):
 def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_payload=None):
     """Update the cache file with the new data and optional placeholder markers."""
     # DEBUG-LOG: Entry to update_cache
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][UPDATE_ENTRY] cache_file=%s | "
         "df_all_rows=%d df_cached_rows=%d missing_dates=%d",
         cache_file.name,
@@ -1010,13 +1010,13 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
 
     if df_all is None or len(df_all) == 0:
         if not missing_dates:
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][CACHE][UPDATE_SKIP] cache_file=%s | "
                 "df_all is empty and no missing_dates, skipping cache update",
                 cache_file.name
             )
             return
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][CACHE][UPDATE_PLACEHOLDERS_ONLY] cache_file=%s | "
             "df_all is empty, writing %d placeholders",
             cache_file.name,
@@ -1026,7 +1026,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
     else:
         df_working = ensure_missing_column(df_all.copy())
         if missing_dates:
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][CACHE][UPDATE_APPEND_PLACEHOLDERS] cache_file=%s | "
                 "appending %d placeholders to %d existing rows",
                 cache_file.name,
@@ -1036,7 +1036,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
             df_working = append_missing_markers(df_working, missing_dates)
 
     if df_working is None or len(df_working) == 0:
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][CACHE][UPDATE_SKIP_EMPTY] cache_file=%s | "
             "df_working is empty after processing, skipping write",
             cache_file.name
@@ -1048,7 +1048,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         df_cached_cmp = ensure_missing_column(df_cached.copy())
 
     if df_cached_cmp is not None and df_working.equals(df_cached_cmp):
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][CACHE][UPDATE_NO_CHANGES] cache_file=%s | "
             "df_working equals df_cached (rows=%d), skipping write",
             cache_file.name,
@@ -1069,7 +1069,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
             return None
         return value.isoformat() if hasattr(value, "isoformat") else value
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][UPDATE_WRITE] cache_file=%s | "
         "total_rows=%d real_rows=%d placeholders=%d | "
         "min_ts=%s max_ts=%s",
@@ -1083,7 +1083,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
 
     df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
 
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully",
         cache_file.name
     )
@@ -1093,7 +1093,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         try:
             cache_manager.on_local_update(cache_file, payload=remote_payload)
         except Exception as exc:
-            logger.exception(
+            logger.debug(
                 "[THETA][DEBUG][CACHE][REMOTE_UPLOAD_ERROR] cache_file=%s error=%s",
                 cache_file,
                 exc,
@@ -1469,7 +1469,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 CONNECTION_DIAGNOSTICS["network_requests"] += 1
 
                 # DEBUG-LOG: API request
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][API][REQUEST] url=%s params=%s",
                     request_url if next_page_url else url,
                     request_params if request_params else querystring
@@ -1480,7 +1480,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 if response.status_code == 472:
                     logger.warning(f"No data available for request: {response.text[:200]}")
                     # DEBUG-LOG: API response - no data
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA"
                     )
                     return None
@@ -1488,7 +1488,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 elif response.status_code != 200:
                     logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
                     # DEBUG-LOG: API response - error
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR",
                         response.status_code
                     )
@@ -1498,7 +1498,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
                     # DEBUG-LOG: API response - success
                     response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
-                    logger.info(
+                    logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=200 rows=%d has_next_page=%s",
                         response_rows,
                         bool(json_resp.get("header", {}).get("next_page"))
@@ -1524,7 +1524,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
                 check_connection(username=username, password=password, wait_for_connection=True)
                 if counter == 0:
-                    logger.info("[THETA][DEBUG][API][WAIT] Allowing ThetaTerminal to initialize for 5s before retry.")
+                    logger.debug("[THETA][DEBUG][API][WAIT] Allowing ThetaTerminal to initialize for 5s before retry.")
                     time.sleep(5)
 
             counter += 1
@@ -1609,7 +1609,7 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     headers = {"Accept": "application/json"}
 
     # DEBUG-LOG: EOD data request
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][EOD][REQUEST] asset=%s start=%s end=%s datastyle=%s",
         asset,
         start_date,
@@ -1622,7 +1622,7 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
                             username=username, password=password)
     if json_resp is None:
         # DEBUG-LOG: EOD data response - no data
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][EOD][RESPONSE] asset=%s result=NO_DATA",
             asset
         )
@@ -1630,7 +1630,7 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
 
     # DEBUG-LOG: EOD data response - success
     response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][EOD][RESPONSE] asset=%s rows=%d",
         asset,
         response_rows
@@ -1786,7 +1786,7 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     headers = {"Accept": "application/json"}
 
     # DEBUG-LOG: Intraday data request
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][INTRADAY][REQUEST] asset=%s start=%s end=%s ivl=%d datastyle=%s include_after_hours=%s",
         asset,
         start_date,
@@ -1802,7 +1802,7 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
                             username=username, password=password)
     if json_resp is None:
         # DEBUG-LOG: Intraday data response - no data
-        logger.info(
+        logger.debug(
             "[THETA][DEBUG][INTRADAY][RESPONSE] asset=%s result=NO_DATA",
             asset
         )
@@ -1810,7 +1810,7 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
 
     # DEBUG-LOG: Intraday data response - success
     response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
-    logger.info(
+    logger.debug(
         "[THETA][DEBUG][INTRADAY][RESPONSE] asset=%s rows=%d",
         asset,
         response_rows

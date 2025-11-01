@@ -1408,6 +1408,46 @@ class TestThetaDataChainsCaching:
         assert time2 < time1 * 0.1, f"Cache not working: time1={time1:.2f}s, time2={time2:.2f}s (should be 10x faster)"
         print(f"✓ Cache speedup: {time1/time2:.1f}x faster ({time1:.2f}s -> {time2:.4f}s)")
 
+
+def test_finalize_day_frame_handles_dst_fallback():
+    tz = pytz.timezone("America/New_York")
+    utc = pytz.UTC
+    frame_index = pd.date_range(
+        end=tz.localize(datetime.datetime(2024, 10, 31, 16, 0)),
+        periods=5,
+        freq="D",
+    )
+    frame = pd.DataFrame(
+        {
+            "open": [100 + i for i in range(len(frame_index))],
+            "high": [101 + i for i in range(len(frame_index))],
+            "low": [99 + i for i in range(len(frame_index))],
+            "close": [100.5 + i for i in range(len(frame_index))],
+            "volume": [1000 + i for i in range(len(frame_index))],
+        },
+        index=frame_index,
+    )
+
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=utc.localize(datetime.datetime(2024, 10, 1)),
+        datetime_end=utc.localize(datetime.datetime(2024, 11, 5)),
+        username="user",
+        password="pass",
+        use_quote_data=False,
+    )
+
+    current_dt = utc.localize(datetime.datetime(2024, 11, 4, 13, 30))
+    result = data_source._finalize_day_frame(
+        frame,
+        current_dt,
+        requested_length=len(frame_index),
+        timeshift=None,
+        asset=Asset("TSLA"),
+    )
+
+    assert result is not None
+    assert len(result) == len(frame_index)
+
     def test_chains_strike_format(self):
         """Test strikes are floats (not integers) and properly converted."""
         username = os.environ.get("THETADATA_USERNAME")

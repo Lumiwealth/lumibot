@@ -26,6 +26,17 @@ CONNECTION_MAX_RETRIES = 60
 BOOT_GRACE_PERIOD = 5.0
 MAX_RESTART_ATTEMPTS = 3
 
+
+def _resolve_asset_folder(asset_obj: Asset) -> str:
+    asset_type = getattr(asset_obj, "asset_type", None) or "stock"
+    asset_key = str(asset_type).strip().lower()
+    return asset_key
+
+
+def _normalize_folder_component(value: str, fallback: str) -> str:
+    normalized = str(value or "").strip().lower().replace(" ", "_")
+    return normalized or fallback
+
 # Global process tracking for ThetaTerminal
 THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
@@ -785,7 +796,11 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
 def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
     """Helper function to create the cache filename for a given asset and timespan"""
 
-    lumibot_cache_folder = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
+    provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
+    asset_folder = _resolve_asset_folder(asset)
+    timespan_folder = _normalize_folder_component(timespan, "unknown")
+    datastyle_folder = _normalize_folder_component(datastyle, "default")
+    base_folder = provider_root / asset_folder / timespan_folder / datastyle_folder
 
     # If It's an option then also add the expiration date, strike price and right to the filename
     if asset.asset_type == "option":
@@ -799,7 +814,7 @@ def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
         uniq_str = asset.symbol
 
     cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}_{datastyle}.parquet"
-    cache_file = lumibot_cache_folder / cache_filename
+    cache_file = base_folder / cache_filename
     return cache_file
 
 
@@ -1969,7 +1984,7 @@ def get_chains_cached(
     Retrieve option chain with caching (MATCHES POLYGON PATTERN).
 
     This function follows the EXACT same caching strategy as Polygon:
-    1. Check cache: LUMIBOT_CACHE_FOLDER/thetadata/option_chains/{symbol}_{date}.parquet
+    1. Check cache: LUMIBOT_CACHE_FOLDER/thetadata/<asset-type>/option_chains/{symbol}_{date}.parquet
     2. Reuse files within RECENT_FILE_TOLERANCE_DAYS (default 7 days)
     3. If not found, fetch from ThetaData and save to cache
     4. Use pyarrow engine with snappy compression
@@ -2006,7 +2021,7 @@ def get_chains_cached(
         return None
 
     # 2) Build cache folder path
-    chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option_chains"
+    chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / _resolve_asset_folder(asset) / "option_chains"
     chain_folder.mkdir(parents=True, exist_ok=True)
 
     # 3) Check for recent cached file (within RECENT_FILE_TOLERANCE_DAYS)

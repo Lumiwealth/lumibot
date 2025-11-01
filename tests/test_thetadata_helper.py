@@ -324,13 +324,13 @@ def test_get_trading_dates():
 def test_build_cache_filename(mocker, tmpdir, datastyle):
     asset = Asset("SPY")
     timespan = "1D"
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    expected = tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet"
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    expected = tmpdir / "thetadata" / "stock" / "1d" / datastyle / f"stock_SPY_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(asset, timespan, datastyle) == expected
 
     expire_date = datetime.date(2023, 8, 1)
     option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-    expected = tmpdir / "thetadata" / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
+    expected = tmpdir / "thetadata" / "option" / "1d" / datastyle / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(option_asset, timespan, datastyle) == expected
 
     # Bad option asset with no expiration
@@ -427,8 +427,8 @@ def test_missing_dates():
     ],
 )
 def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    cache_file = thetadata_helper.build_cache_filename(Asset("SPY"), "1D", datastyle)
     
     # Empty DataFrame of df_all, don't write cache file
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
@@ -550,8 +550,9 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
 )
 def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
     # Setup some basics
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    asset = Asset("SPY")
+    cache_file = thetadata_helper.build_cache_filename(asset, "1D", datastyle)
 
     # No cache file should return None (not raise)
     assert thetadata_helper.load_cache(cache_file) is None
@@ -1371,8 +1372,8 @@ class TestThetaDataChainsCaching:
 
         # CLEAR CACHE to ensure first call downloads fresh data
         # This prevents cache pollution from previous tests in the suite
-        # Chains are stored in: LUMIBOT_CACHE_FOLDER / "thetadata" / "option_chains"
-        chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option_chains"
+        # Chains are stored in: LUMIBOT_CACHE_FOLDER / "thetadata" / "option" / "option_chains"
+        chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option" / "option_chains"
         if chain_folder.exists():
             # Delete all AAPL chain cache files
             for cache_file in chain_folder.glob("AAPL_*.parquet"):

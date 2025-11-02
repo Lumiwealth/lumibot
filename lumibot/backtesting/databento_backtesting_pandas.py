@@ -410,6 +410,7 @@ class DataBentoDataBacktestingPandas(PandasData):
             # OPTIMIZATION: Check cache first
             self._check_and_clear_cache()
             current_dt = self.get_datetime()
+            current_dt_aware = to_datetime_aware(current_dt)
 
             # Try to get data from our cached pandas_data first
             search_asset = asset
@@ -435,8 +436,6 @@ class DataBentoDataBacktestingPandas(PandasData):
 
                 if not df.empty and 'close' in df.columns:
                         # Ensure current_dt is timezone-aware for comparison
-                        current_dt_aware = to_datetime_aware(current_dt)
-
                         # Step back one bar so only fully closed bars are visible
                         bar_delta = timedelta(minutes=1)
                         if asset_data.timestep == "hour":
@@ -461,12 +460,38 @@ class DataBentoDataBacktestingPandas(PandasData):
                                 self._last_price_cache[cache_key] = price
                                 return price
             
-            # If no cached data, try to get recent data
+            # If no cached data, try to load it for the backtest window
+            try:
+                fetched_bars = self.get_historical_prices(
+                    asset_separated,
+                    length=1,
+                    quote=quote_asset,
+                    timestep="minute",
+                )
+                if fetched_bars is not None:
+                    asset_data = self.pandas_data.get(search_asset)
+                    if asset_data is not None:
+                        df = asset_data.df
+                        if not df.empty and 'close' in df.columns:
+                            valid_closes = df[df.index <= current_dt_aware]['close'].dropna()
+                            if not valid_closes.empty:
+                                price = float(valid_closes.iloc[-1])
+                                self._last_price_cache[cache_key] = price
+                                return price
+            except Exception as exc:
+                logger.debug(
+                    "Attempted to hydrate Databento cache for %s but hit error: %s",
+                    asset.symbol,
+                    exc,
+                )
+
+            # If still no data, fall back to direct fetch (live-style)
             logger.warning(f"No cached data for {asset.symbol}, attempting direct fetch")
             return databento_helper.get_last_price_from_databento(
                 api_key=self._api_key,
                 asset=asset_separated,
-                venue=exchange
+                venue=exchange,
+                reference_date=current_dt_aware
             )
             
         except DataBentoAuthenticationError as e:

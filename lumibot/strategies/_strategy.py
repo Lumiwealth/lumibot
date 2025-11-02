@@ -126,14 +126,14 @@ class Vars:
 class _Strategy:
     @staticmethod
     def _normalize_backtest_datetime(value):
-        """Convert backtest boundary datetimes to the LumiBot default timezone."""
+        """Return timezone-aware datetime for backtest boundaries.
+
+        Naive datetimes are localized to the LumiBot default timezone; timezone-aware
+        values are preserved as-is so downstream data sources receive the intended tz.
+        """
         if value is None:
             return None
-        aware = to_datetime_aware(value)
-        tzinfo = getattr(aware, "tzinfo", None)
-        if tzinfo is not None and tzinfo != LUMIBOT_DEFAULT_PYTZ:
-            return aware.astimezone(LUMIBOT_DEFAULT_PYTZ)
-        return aware
+        return to_datetime_aware(value)
 
     @property
     def is_backtesting(self) -> bool:

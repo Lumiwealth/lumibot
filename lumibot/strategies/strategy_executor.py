@@ -13,8 +13,6 @@ import pandas_market_calendars as mcal
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored
-
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
 from lumibot.entities import Asset
@@ -1166,7 +1164,7 @@ class StrategyExecutor(Thread):
                 # For live trading, stop when market closes
                 return False
 
-        self.strategy.log_message(colored(f"Sleeping for {strategy_sleeptime} seconds", color="blue"))
+        self.strategy.logger.debug("Sleeping for %s seconds", strategy_sleeptime)
 
         # Run process orders at the market close time first (if not continuous market)
         if not is_continuous_market:

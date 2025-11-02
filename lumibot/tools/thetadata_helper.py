@@ -311,7 +311,13 @@ def get_price_data(
     )
 
     if cache_file.exists():
-        logger.info(f"\nLoading '{datastyle}' pricing data for {asset} / {quote_asset} with '{timespan}' timespan from cache file...")
+        logger.debug(
+            "\nLoading '%s' pricing data for %s / %s with '%s' timespan from cache file...",
+            datastyle,
+            asset,
+            quote_asset,
+            timespan,
+        )
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
             df_all = df_cached.copy() # Make a copy so we can check the original later for differences
@@ -372,7 +378,7 @@ def get_price_data(
     )
     if not missing_dates:
         if df_all is not None and not df_all.empty:
-            logger.info("ThetaData cache HIT for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
+            logger.debug("ThetaData cache HIT for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
             # DEBUG-LOG: Cache hit
             logger.debug(
                 "[THETA][DEBUG][CACHE][HIT] asset=%s timespan=%s datastyle=%s rows=%d start=%s end=%s",

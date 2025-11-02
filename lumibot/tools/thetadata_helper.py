@@ -123,7 +123,8 @@ def append_missing_markers(
         if len(df_all) == 0:
             df_all = placeholder_df
         else:
-            df_all = pd.concat([df_all, placeholder_df]).sort_index()
+            # combine_first preserves existing data and fills gaps with placeholders
+            df_all = df_all.combine_first(placeholder_df).sort_index()
         df_all = df_all[~df_all.index.duplicated(keep="last")]
         logger.debug(
             "[THETA][DEBUG][THETADATA-CACHE] recorded %d placeholder day(s): %s",

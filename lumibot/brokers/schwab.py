@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import re
@@ -254,12 +255,15 @@ class Schwab(Broker):
             # Build kwargs for token refresh – only include client_secret if it actually exists
             refresh_kwargs = {
                 "client_id": api_key,
-                "grant_type": "refresh_token",
+                # "grant_type": "refresh_token",  #breaks refresh in oauth2session as it creates a dupe param type error
             }
             client_secret_env = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")
             if client_secret_env:
                 refresh_kwargs["client_secret"] = client_secret_env
 
+            #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
+            token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
+            
             oauth_session = _OAS(
                 client_id=api_key,
                 token=token_dict_for_session,
@@ -267,6 +271,15 @@ class Schwab(Broker):
                 auto_refresh_kwargs=refresh_kwargs,
                 token_updater=_update_token,
             )
+
+            def _refresh_token_hook(token_url, headers, body):
+                headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
+                logger.info(f"[Schwab] Refreshing token with auth headers")
+                return token_url, headers, body
+
+            #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
+            oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
+
             # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.
             # The secret is only needed when REFRESHING a token via the auth helpers, not when we already
@@ -1119,10 +1132,10 @@ class Schwab(Broker):
 
     def _run_stream(self):
         self._stream_established()
-        logger.info(colored("Starting Schwab stream...", "green"))
         try:
             # Add check to ensure self.stream is initialized
             if self.stream:
+                logger.info(colored("Starting Schwab stream...", "green"))
                 self.stream._run()
             else:
                 # Log that the stream object wasn't created, likely due to init failure
@@ -1299,15 +1312,16 @@ class Schwab(Broker):
             order_id = None
             try:
                 # Use the Schwab utility function to extract order ID if available
-                try:
-                    from schwab.utils import Utils
-                    # Create a Utils instance with required client and account_hash parameters
-                    utils_instance = Utils(self.client, self.hash_value)
-                    order_id = utils_instance.extract_order_id(response)
-                    if order_id:
-                        logger.info(colored(f"Extracted order ID using Utils.extract_order_id: {order_id}", "green"))
-                except (ImportError, Exception) as e:
-                    logger.warning(colored(f"Could not use Utils.extract_order_id: {e}", "yellow"))
+                #this fails because we are using Oauth2Session which uses Requests which uses "ok", whereas schwab-py uses HTTPX which has (undocumented) "is_error" to check the response. 
+                # try:
+                #     from schwab.utils import Utils
+                #     # Create a Utils instance with required client and account_hash parameters
+                #     utils_instance = Utils(self.client, self.hash_value)
+                #     order_id = utils_instance.extract_order_id(response)
+                #     if order_id:
+                #         logger.info(colored(f"Extracted order ID using Utils.extract_order_id: {order_id}", "green"))
+                # except (ImportError, Exception) as e:
+                #     logger.warning(colored(f"Could not use Utils.extract_order_id: {e}", "yellow"))
 
                 # Fallback methods if Utils.extract_order_id fails
                 if not order_id and hasattr(response, 'headers') and 'Location' in response.headers:

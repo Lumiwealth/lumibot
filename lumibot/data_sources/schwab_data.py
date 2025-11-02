@@ -89,7 +89,7 @@ class SchwabData(DataSource):
             os.makedirs(os.path.dirname(token_path), exist_ok=True)
 
             # Create Schwab API client
-            client = easy_client(api_key, secret, 'https://127.0.0.1:8182', token_path)
+            client = easy_client(api_key, secret, os.environ.get( 'SCHWAB_BACKEND_CALLBACK_URL', 'https://127.0.0.1:8182'), token_path)
 
             logger.info(colored("Successfully created Schwab client", "green"))
             return client

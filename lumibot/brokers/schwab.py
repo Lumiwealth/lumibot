@@ -272,13 +272,14 @@ class Schwab(Broker):
                 token_updater=_update_token,
             )
 
-            def _refresh_token_hook(token_url, headers, body):
-                headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
-                logger.info(f"[Schwab] Refreshing token with auth headers")
-                return token_url, headers, body
+            if api_key and client_secret_env:
+                def _refresh_token_hook(token_url, headers, body):
+                    headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
+                    logger.info(f"[Schwab] Refreshing token with auth headers")
+                    return token_url, headers, body
 
-            #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
-            oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
+                #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
+                oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
 
             # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.

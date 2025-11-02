@@ -75,6 +75,9 @@ class TestBacktestingDataSourceEnv:
         # Configure caplog to capture INFO level logs from lumibot.strategies._strategy
         import logging
         caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
+        polygon_key = os.environ.get("POLYGON_API_KEY")
+        if not polygon_key:
+            pytest.skip("Polygon API key not configured")
 
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'polygon'}):
             # Re-import credentials to pick up env change

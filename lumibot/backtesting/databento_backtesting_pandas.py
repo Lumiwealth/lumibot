@@ -454,9 +454,9 @@ class DataBentoDataBacktestingPandas(PandasData):
                             filtered_df = df[df.index <= current_dt_aware]
 
                         if not filtered_df.empty:
-                            last_price = filtered_df['close'].iloc[-1]
-                            if not pd.isna(last_price):
-                                price = float(last_price)
+                            valid_closes = filtered_df['close'].dropna()
+                            if not valid_closes.empty:
+                                price = float(valid_closes.iloc[-1])
                                 # OPTIMIZATION: Cache the result
                                 self._last_price_cache[cache_key] = price
                                 return price

@@ -1047,10 +1047,10 @@ def get_last_price_from_databento(
                         df = pd.DataFrame(data)
                     
                     if not df.empty:
-                        # Get the last available price (close price of most recent bar)
                         if 'close' in df.columns:
-                            price = df['close'].iloc[-1]
-                            if pd.notna(price):
+                            closes = df['close'].dropna()
+                            if not closes.empty:
+                                price = closes.iloc[-1]
                                 logger.info(f"✓ SUCCESS: Got last price for {symbol_to_use}: {price}")
                                 return float(price)
                         

@@ -38,4 +38,4 @@ schwab-py>=1.5.0
 Flask>=2.3
 free-proxy
 requests-oauthlib
-boto3>=1.28.0
+boto3>=1.40.64

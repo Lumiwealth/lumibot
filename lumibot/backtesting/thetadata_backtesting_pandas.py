@@ -771,7 +771,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
                 existing_quote_cols = [col for col in quote_columns if col in df.columns]
                 if existing_quote_cols:
-                    df[existing_quote_cols] = df[existing_quote_cols].fillna(method='ffill')
+                    df[existing_quote_cols] = df[existing_quote_cols].ffill()
 
                     # Log how much forward filling occurred
                     if 'bid' in df.columns and 'ask' in df.columns:

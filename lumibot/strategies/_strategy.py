@@ -124,6 +124,17 @@ class Vars:
 
 
 class _Strategy:
+    @staticmethod
+    def _normalize_backtest_datetime(value):
+        """Convert backtest boundary datetimes to the LumiBot default timezone."""
+        if value is None:
+            return None
+        aware = to_datetime_aware(value)
+        tzinfo = getattr(aware, "tzinfo", None)
+        if tzinfo is not None and tzinfo != LUMIBOT_DEFAULT_PYTZ:
+            return aware.astimezone(LUMIBOT_DEFAULT_PYTZ)
+        return aware
+
     @property
     def is_backtesting(self) -> bool:
         """Boolean flag indicating whether the strategy is running in backtesting mode."""
@@ -1389,8 +1400,8 @@ class _Strategy:
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
         try:
-            backtesting_start = to_datetime_aware(backtesting_start)
-            backtesting_end = to_datetime_aware(backtesting_end)
+            backtesting_start = self._normalize_backtest_datetime(backtesting_start)
+            backtesting_end = self._normalize_backtest_datetime(backtesting_end)
         except AttributeError:
             get_logger(__name__).error(
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
@@ -1628,8 +1639,8 @@ class _Strategy:
         if not isinstance(backtesting_end, datetime.datetime):
             raise ValueError(f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}")
 
-        start_dt = to_datetime_aware(backtesting_start)
-        end_dt = to_datetime_aware(backtesting_end)
+        start_dt = cls._normalize_backtest_datetime(backtesting_start)
+        end_dt = cls._normalize_backtest_datetime(backtesting_end)
 
         # Check that backtesting end is after backtesting start
         if end_dt <= start_dt:

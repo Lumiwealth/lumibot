@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from decimal import Decimal
+import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
@@ -23,6 +25,7 @@ class OptionMarketEvaluation:
     sell_price: Optional[float]
     used_last_price_fallback: bool
     max_spread_pct: Optional[float]
+    data_quality_flags: List[str]
 
 
 class OptionsHelper:
@@ -57,6 +60,54 @@ class OptionsHelper:
         self.last_put_sell_strike: Optional[float] = None
         self._liquidity_deprecation_warned = False
         self.strategy.log_message("OptionsHelper initialized.", color="blue")
+
+    @staticmethod
+    def _coerce_price(value: Any, field_name: str, flags: List[str], notes: List[str]) -> Optional[float]:
+        """Normalize quote values and record data quality issues."""
+        raw_value = value
+
+        if value is None:
+            flags.append(f"{field_name}_missing")
+            return None
+
+        try:
+            if isinstance(value, Decimal):
+                value = float(value)
+            else:
+                value = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            flags.append(f"{field_name}_non_numeric")
+            notes.append(f"{field_name} value {raw_value!r} is non-numeric; dropping.")
+            return None
+
+        if math.isnan(value) or math.isinf(value):
+            flags.append(f"{field_name}_non_finite")
+            notes.append(f"{field_name} value {value!r} is not finite; dropping.")
+            return None
+
+        if value <= 0:
+            flags.append(f"{field_name}_non_positive")
+            notes.append(f"{field_name} value {value!r} is non-positive; dropping.")
+            return None
+
+        return value
+
+    @staticmethod
+    def has_actionable_price(evaluation: Optional["OptionMarketEvaluation"]) -> bool:
+        """Return True when the evaluation contains a usable buy price."""
+        if evaluation is None:
+            return False
+
+        price = evaluation.buy_price
+        if price is None:
+            return False
+
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            return False
+
+        return math.isfinite(price) and price > 0 and not evaluation.spread_too_wide
 
     # ============================================================
     # Basic Utility Functions
@@ -467,6 +518,9 @@ class OptionsHelper:
         buy_price: Optional[float] = None
         sell_price: Optional[float] = None
 
+        data_quality_flags: List[str] = []
+        sanitization_notes: List[str] = []
+
         # Attempt to get quotes first
         quote = None
         try:
@@ -478,24 +532,20 @@ class OptionsHelper:
             )
 
         if quote and quote.bid is not None and quote.ask is not None:
-            try:
-                bid = float(quote.bid)
-                ask = float(quote.ask)
-            except (TypeError, ValueError):
-                bid = quote.bid
-                ask = quote.ask
+            bid = self._coerce_price(quote.bid, "bid", data_quality_flags, sanitization_notes)
+            ask = self._coerce_price(quote.ask, "ask", data_quality_flags, sanitization_notes)
             has_bid_ask = bid is not None and ask is not None
 
         if has_bid_ask and bid is not None and ask is not None:
             buy_price = ask
             sell_price = bid
-            mid = (ask + bid) / 2 if (ask is not None and bid is not None) else None
-            if mid and mid > 0:
+            mid = (ask + bid) / 2
+            if not math.isfinite(mid) or mid <= 0:
+                spread_pct = None
+            else:
                 spread_pct = (ask - bid) / mid
                 if max_spread_pct is not None:
                     spread_too_wide = spread_pct > max_spread_pct
-            else:
-                spread_pct = None
         else:
             missing_bid_ask = True
 
@@ -510,6 +560,10 @@ class OptionsHelper:
 
         if last_price is None:
             missing_last_price = True
+        else:
+            last_price = self._coerce_price(last_price, "last_price", data_quality_flags, sanitization_notes)
+            if last_price is None:
+                missing_last_price = True
 
         if not has_bid_ask and allow_fallback and last_price is not None:
             buy_price = last_price
@@ -519,6 +573,14 @@ class OptionsHelper:
                 f"Using last-price fallback for {option_asset} due to missing bid/ask quotes.",
                 color="yellow",
             )
+        elif not has_bid_ask and allow_fallback and last_price is None:
+            data_quality_flags.append("last_price_unusable")
+
+        if buy_price is not None and (not math.isfinite(buy_price) or buy_price <= 0):
+            sanitization_notes.append(f"buy_price {buy_price!r} is not actionable; clearing.")
+            data_quality_flags.append("buy_price_non_finite")
+            buy_price = None
+            sell_price = None
 
         # Compose log message
         spread_str = f"{spread_pct:.2%}" if spread_pct is not None else "None"
@@ -526,6 +588,12 @@ class OptionsHelper:
         log_color = "red" if spread_too_wide else (
             "yellow" if (missing_bid_ask or missing_last_price or used_last_price_fallback) else "blue"
         )
+        if sanitization_notes:
+            note_summary = "; ".join(sanitization_notes)
+            self.strategy.log_message(
+                f"Option data sanitization for {option_asset}: {note_summary}",
+                color="yellow",
+            )
         self.strategy.log_message(
             (
                 f"Option market evaluation for {option_asset}: "
@@ -533,7 +601,8 @@ class OptionsHelper:
                 f"max_spread={max_spread_str}, missing_bid_ask={missing_bid_ask}, "
                 f"missing_last_price={missing_last_price}, spread_too_wide={spread_too_wide}, "
                 f"used_last_price_fallback={used_last_price_fallback}, "
-                f"buy_price={buy_price}, sell_price={sell_price}"
+                f"buy_price={buy_price}, sell_price={sell_price}, "
+                f"data_quality_flags={data_quality_flags}"
             ),
             color=log_color,
         )
@@ -551,6 +620,7 @@ class OptionsHelper:
             sell_price=sell_price,
             used_last_price_fallback=used_last_price_fallback,
             max_spread_pct=max_spread_pct,
+            data_quality_flags=data_quality_flags,
         )
 
     def check_option_liquidity(self, option_asset: Asset, max_spread_pct: float) -> bool:

@@ -11,7 +11,7 @@ import pytest
 # Add the lumibot path
 sys.path.insert(0, '/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot')
 
-from lumibot.components.options_helper import OptionsHelper
+from lumibot.components.options_helper import OptionsHelper, OptionMarketEvaluation
 from lumibot.entities import Asset
 from lumibot.entities.chains import OptionsDataFormatError, normalize_option_chains
 from lumibot.brokers.broker import Broker
@@ -675,6 +675,48 @@ class TestOptionsHelper(unittest.TestCase):
         self.assertIsNone(evaluation.buy_price)
         self.assertIsNone(evaluation.sell_price)
         self.assertFalse(evaluation.used_last_price_fallback)
+
+    def test_evaluate_option_market_rejects_non_finite_quotes(self):
+        """NaN or infinite quotes are treated as missing to prevent crashes."""
+        option_asset = Asset(
+            "TEST",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date.today() + timedelta(days=7),
+            strike=200,
+            right="call",
+            underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        )
+
+        self.mock_strategy.get_quote.return_value = Mock(bid=float("nan"), ask=float("inf"))
+        self.mock_strategy.get_last_price.return_value = float("nan")
+        self.mock_strategy.broker.data_source.option_quote_fallback_allowed = True
+
+        evaluation = self.options_helper.evaluate_option_market(option_asset, max_spread_pct=0.25)
+
+        self.assertIsNone(evaluation.buy_price)
+        self.assertIn("bid_non_finite", evaluation.data_quality_flags)
+        self.assertIn("ask_non_finite", evaluation.data_quality_flags)
+        self.assertTrue(evaluation.missing_bid_ask)
+        self.assertFalse(OptionsHelper.has_actionable_price(evaluation))
+
+    def test_has_actionable_price_requires_positive_finite_value(self):
+        """has_actionable_price returns False for zero or negative values."""
+        evaluation = OptionMarketEvaluation(
+            bid=0.5,
+            ask=0.6,
+            last_price=0.55,
+            spread_pct=0.18,
+            has_bid_ask=True,
+            spread_too_wide=False,
+            missing_bid_ask=False,
+            missing_last_price=False,
+            buy_price=0.0,
+            sell_price=0.4,
+            used_last_price_fallback=False,
+            max_spread_pct=0.25,
+            data_quality_flags=["buy_price_non_positive"],
+        )
+        self.assertFalse(OptionsHelper.has_actionable_price(evaluation))
 
 if __name__ == "__main__":
     print("🧪 Running enhanced options helper tests...")

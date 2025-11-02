@@ -311,7 +311,7 @@ class TestOptionsHelper(unittest.TestCase):
         result = self.options_helper.get_expiration_on_or_after_date(target, expiries, "call")
         self.assertEqual(result, _date(2024, 1, 9))
 
-    def test_get_expiration_on_or_after_date_uses_latest_when_needed(self):
+    def test_get_expiration_on_or_after_date_returns_none_when_no_future_available(self):
         from datetime import date as _date
 
         expiries = {
@@ -325,7 +325,7 @@ class TestOptionsHelper(unittest.TestCase):
 
         target = _date(2024, 2, 1)
         result = self.options_helper.get_expiration_on_or_after_date(target, expiries, "call")
-        self.assertEqual(result, _date(2024, 1, 9))
+        self.assertIsNone(result)
 
     def test_chains_backward_compatibility_string_access(self):
         """Test that existing code using string keys still works."""

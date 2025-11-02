@@ -324,13 +324,13 @@ def test_get_trading_dates():
 def test_build_cache_filename(mocker, tmpdir, datastyle):
     asset = Asset("SPY")
     timespan = "1D"
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    expected = tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet"
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    expected = tmpdir / "thetadata" / "stock" / "1d" / datastyle / f"stock_SPY_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(asset, timespan, datastyle) == expected
 
     expire_date = datetime.date(2023, 8, 1)
     option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-    expected = tmpdir / "thetadata" / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
+    expected = tmpdir / "thetadata" / "option" / "1d" / datastyle / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(option_asset, timespan, datastyle) == expected
 
     # Bad option asset with no expiration
@@ -427,8 +427,8 @@ def test_missing_dates():
     ],
 )
 def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    cache_file = thetadata_helper.build_cache_filename(Asset("SPY"), "1D", datastyle)
     
     # Empty DataFrame of df_all, don't write cache file
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
@@ -550,8 +550,9 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
 )
 def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
     # Setup some basics
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
-    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    asset = Asset("SPY")
+    cache_file = thetadata_helper.build_cache_filename(asset, "1D", datastyle)
 
     # No cache file should return None (not raise)
     assert thetadata_helper.load_cache(cache_file) is None
@@ -1371,8 +1372,8 @@ class TestThetaDataChainsCaching:
 
         # CLEAR CACHE to ensure first call downloads fresh data
         # This prevents cache pollution from previous tests in the suite
-        # Chains are stored in: LUMIBOT_CACHE_FOLDER / "thetadata" / "option_chains"
-        chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option_chains"
+        # Chains are stored in: LUMIBOT_CACHE_FOLDER / "thetadata" / "option" / "option_chains"
+        chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option" / "option_chains"
         if chain_folder.exists():
             # Delete all AAPL chain cache files
             for cache_file in chain_folder.glob("AAPL_*.parquet"):
@@ -1406,6 +1407,46 @@ class TestThetaDataChainsCaching:
         # Second call should be MUCH faster (cached)
         assert time2 < time1 * 0.1, f"Cache not working: time1={time1:.2f}s, time2={time2:.2f}s (should be 10x faster)"
         print(f"✓ Cache speedup: {time1/time2:.1f}x faster ({time1:.2f}s -> {time2:.4f}s)")
+
+
+def test_finalize_day_frame_handles_dst_fallback():
+    tz = pytz.timezone("America/New_York")
+    utc = pytz.UTC
+    frame_index = pd.date_range(
+        end=tz.localize(datetime.datetime(2024, 10, 31, 16, 0)),
+        periods=5,
+        freq="D",
+    )
+    frame = pd.DataFrame(
+        {
+            "open": [100 + i for i in range(len(frame_index))],
+            "high": [101 + i for i in range(len(frame_index))],
+            "low": [99 + i for i in range(len(frame_index))],
+            "close": [100.5 + i for i in range(len(frame_index))],
+            "volume": [1000 + i for i in range(len(frame_index))],
+        },
+        index=frame_index,
+    )
+
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=utc.localize(datetime.datetime(2024, 10, 1)),
+        datetime_end=utc.localize(datetime.datetime(2024, 11, 5)),
+        username="user",
+        password="pass",
+        use_quote_data=False,
+    )
+
+    current_dt = utc.localize(datetime.datetime(2024, 11, 4, 13, 30))
+    result = data_source._finalize_day_frame(
+        frame,
+        current_dt,
+        requested_length=len(frame_index),
+        timeshift=None,
+        asset=Asset("TSLA"),
+    )
+
+    assert result is not None
+    assert len(result) == len(frame_index)
 
     def test_chains_strike_format(self):
         """Test strikes are floats (not integers) and properly converted."""

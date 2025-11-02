@@ -288,7 +288,8 @@ class ThetaDataBacktestingPandas(PandasData):
         )
 
         expected_last_dt = self.to_default_timezone(current_dt).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
-        target_index = pd.date_range(end=expected_last_dt, periods=requested_length, freq="D", tz=self.tzinfo)
+        expected_last_dt_utc = expected_last_dt.astimezone(pytz.UTC)
+        target_index = pd.date_range(end=expected_last_dt_utc, periods=requested_length, freq="D", tz=pytz.UTC).tz_convert(self.tzinfo)
 
         # DEBUG-LOG: Target index details
         logger.debug(

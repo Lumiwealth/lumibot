@@ -44,7 +44,7 @@ def count_cache_files():
     cache_dir = get_cache_dir()
     if not cache_dir.exists():
         return 0
-    return len(list(cache_dir.glob("*.parquet")))
+    return sum(1 for _ in cache_dir.rglob("*.parquet"))
 
 
 class WeeklyMomentumOptionsStrategy(Strategy):

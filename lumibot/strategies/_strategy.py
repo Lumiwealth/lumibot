@@ -124,6 +124,21 @@ class Vars:
 
 
 class _Strategy:
+    @staticmethod
+    def _normalize_backtest_datetime(value):
+        """Ensure backtest boundary datetimes are timezone-aware.
+
+        Naive datetimes are localized to the LumiBot default timezone; timezone-aware
+        inputs are returned unchanged so their original offsets are preserved.
+        """
+        if value is None:
+            return None
+        if isinstance(value, datetime.datetime) and (
+            value.tzinfo is None or value.tzinfo.utcoffset(value) is None
+        ):
+            return to_datetime_aware(value)
+        return value
+
     @property
     def is_backtesting(self) -> bool:
         """Boolean flag indicating whether the strategy is running in backtesting mode."""
@@ -1389,8 +1404,8 @@ class _Strategy:
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
         try:
-            backtesting_start = to_datetime_aware(backtesting_start)
-            backtesting_end = to_datetime_aware(backtesting_end)
+            backtesting_start = self._normalize_backtest_datetime(backtesting_start)
+            backtesting_end = self._normalize_backtest_datetime(backtesting_end)
         except AttributeError:
             get_logger(__name__).error(
                 "`backtesting_start` and `backtesting_end` must be datetime objects. \n"
@@ -1398,6 +1413,9 @@ class _Strategy:
                 "the original positional arguments for backtesting. \n\n"
             )
             return None
+
+        get_logger(__name__).info("Backtest start = %s", backtesting_start)
+        get_logger(__name__).info("Backtest end = %s", backtesting_end)
 
         self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
@@ -1628,8 +1646,8 @@ class _Strategy:
         if not isinstance(backtesting_end, datetime.datetime):
             raise ValueError(f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}")
 
-        start_dt = to_datetime_aware(backtesting_start)
-        end_dt = to_datetime_aware(backtesting_end)
+        start_dt = cls._normalize_backtest_datetime(backtesting_start)
+        end_dt = cls._normalize_backtest_datetime(backtesting_end)
 
         # Check that backtesting end is after backtesting start
         if end_dt <= start_dt:

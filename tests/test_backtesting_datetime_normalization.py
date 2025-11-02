@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.strategies import Strategy
 from lumibot.strategies._strategy import _Strategy
 
@@ -88,3 +89,6 @@ def test_run_backtest_normalizes_mixed_timezones():
 
     assert "start" in captured and captured["start"].tzinfo is not None
     assert "end" in captured and captured["end"].tzinfo is not None
+    assert captured["start"].tzinfo.zone == LUMIBOT_DEFAULT_PYTZ.zone
+    assert captured["end"].tzinfo.zone == LUMIBOT_DEFAULT_PYTZ.zone
+    assert captured["start"].tzinfo.zone == captured["end"].tzinfo.zone

@@ -1399,11 +1399,8 @@ class _Strategy:
         if use_other_option_source and not isinstance(optionsource_class, type):
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
-        get_logger(__name__).info(
-            "Backtest requested window %s → %s",
-            backtesting_start,
-            backtesting_end,
-        )
+        get_logger(__name__).info("Backtest start (raw) = %s", backtesting_start)
+        get_logger(__name__).info("Backtest end (raw) = %s", backtesting_end)
 
         try:
             backtesting_start = self._normalize_backtest_datetime(backtesting_start)
@@ -1416,12 +1413,8 @@ class _Strategy:
             )
             return None
 
-        get_logger(__name__).info(
-            "Backtest window set to %s → %s (tz=%s)",
-            backtesting_start,
-            backtesting_end,
-            getattr(backtesting_start, "tzinfo", None) or getattr(backtesting_end, "tzinfo", None),
-        )
+        get_logger(__name__).info("Backtest start = %s", backtesting_start)
+        get_logger(__name__).info("Backtest end = %s", backtesting_end)
 
         self.verify_backtest_inputs(backtesting_start, backtesting_end)
 

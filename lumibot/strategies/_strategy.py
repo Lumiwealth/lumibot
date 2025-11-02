@@ -1410,6 +1410,13 @@ class _Strategy:
             )
             return None
 
+        get_logger(__name__).info(
+            "Backtest window set to %s → %s (tz=%s)",
+            backtesting_start,
+            backtesting_end,
+            getattr(backtesting_start, "tzinfo", None) or getattr(backtesting_end, "tzinfo", None),
+        )
+
         self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
         if not self.IS_BACKTESTABLE:

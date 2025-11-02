@@ -1374,6 +1374,10 @@ class Broker(ABC):
         if hasattr(self, '_submit_orders'):
             return self._submit_orders(orders, **kwargs)
         else:
+            #if kwargs indicates multileg orders with a limit price, we should error out instead of submitting legs individually
+            if kwargs.get('is_multileg') and kwargs.get('order_type') == Order.OrderType.LIMIT:
+                raise NotImplementedError("Multileg limit orders are not supported by this broker")
+
             with ThreadPoolExecutor(
                 max_workers=self.max_workers,
                 thread_name_prefix=f"{self.name}_submitting_orders",

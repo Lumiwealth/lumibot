@@ -1388,12 +1388,6 @@ class _Strategy:
         if use_other_option_source and not isinstance(optionsource_class, type):
             raise ValueError(f"`optionsource_class` must be a class. You passed in {optionsource_class}")
 
-        self.verify_backtest_inputs(backtesting_start, backtesting_end)
-
-        if not self.IS_BACKTESTABLE:
-            get_logger(__name__).warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
-            return None
-
         try:
             backtesting_start = to_datetime_aware(backtesting_start)
             backtesting_end = to_datetime_aware(backtesting_end)
@@ -1403,6 +1397,12 @@ class _Strategy:
                 "You are receiving this error most likely because you are using \n"
                 "the original positional arguments for backtesting. \n\n"
             )
+            return None
+
+        self.verify_backtest_inputs(backtesting_start, backtesting_end)
+
+        if not self.IS_BACKTESTABLE:
+            get_logger(__name__).warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
             return None
 
         if BACKTESTING_QUIET_LOGS is not None:
@@ -1628,18 +1628,21 @@ class _Strategy:
         if not isinstance(backtesting_end, datetime.datetime):
             raise ValueError(f"`backtesting_end` must be a datetime object. You passed in {backtesting_end}")
 
+        start_dt = to_datetime_aware(backtesting_start)
+        end_dt = to_datetime_aware(backtesting_end)
+
         # Check that backtesting end is after backtesting start
-        if backtesting_end <= backtesting_start:
+        if end_dt <= start_dt:
             raise ValueError(
                 f"`backtesting_end` must be after `backtesting_start`. You passed in "
-                f"{backtesting_end} and {backtesting_start}"
+                f"{end_dt} and {start_dt}"
             )
 
         # Check that backtesting_end is not in the future
-        now = datetime.datetime.now(backtesting_end.tzinfo) if backtesting_end.tzinfo else datetime.datetime.now()
-        if backtesting_end > now:
+        now = datetime.datetime.now(end_dt.tzinfo) if end_dt.tzinfo else datetime.datetime.now()
+        if end_dt > now:
             raise ValueError(
-                f"`backtesting_end` cannot be in the future. You passed in {backtesting_end}, now is {now}"
+                f"`backtesting_end` cannot be in the future. You passed in {end_dt}, now is {now}"
             )
 
     def send_update_to_cloud(self):

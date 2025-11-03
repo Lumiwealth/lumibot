@@ -343,9 +343,10 @@ class LiveEquityCurveViewer:
                 dd_range = abs(min_drawdown - max_drawdown)
                 dd_padding = max(dd_range * 0.1, 1.0)  # At least 1% padding
 
-                # Y-axis: min_drawdown - padding to max_drawdown + padding
+                # Y-axis: min_drawdown - padding to 0 (capped at 0)
                 # (inverted, so this appears as downward from 0)
-                new_dd_ylim = (min_drawdown - dd_padding, max_drawdown + dd_padding)
+                # Upper limit is always 0 since drawdown cannot be positive
+                new_dd_ylim = (min_drawdown - dd_padding, 0)
 
                 self.ax_drawdown.set_xlim(new_xlim)  # Match equity x-axis
                 self.ax_drawdown.set_ylim(new_dd_ylim)

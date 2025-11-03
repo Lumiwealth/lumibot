@@ -22,7 +22,10 @@
 ## Commands
 
 ```bash
-# Merge a pushed branch
+# 🔥 INTERACTIVE MERGE (recommended)
+./merge
+
+# Merge a specific branch
 ./scripts/merge_gitbutler_branch.sh gui-forward-drawdown-flag
 
 # Sync from public repo (weekly)

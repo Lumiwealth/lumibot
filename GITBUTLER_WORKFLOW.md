@@ -13,15 +13,24 @@ This repo is a private fork (`txtr99/lumibot-private`) of the public `Lumiwealth
 
 ### 2. Merge Pushed Branch to Dev (No PR)
 ```bash
-# After GitButler pushes a branch, merge it directly:
-./scripts/merge_gitbutler_branch.sh <branch-name>
+# 🔥 EASIEST: Interactive merge tool
+./merge
 
-# Example:
-./scripts/merge_gitbutler_branch.sh gui-forward-drawdown-flag
+# This will:
+# ✓ Auto-detect unmerged GitButler branches
+# ✓ Let you select which to merge (or auto-select if only one)
+# ✓ Show commits to be merged
+# ✓ Handle uncommitted changes (offers to stash)
+# ✓ Merge to dev
+# ✓ Push to origin
+# ✓ Optionally delete merged branch
 ```
 
 **Or manually:**
 ```bash
+./scripts/merge_gitbutler_branch.sh <branch-name>
+
+# Or completely manual:
 git checkout dev
 git pull origin dev
 git merge --no-ff origin/<branch-name>

@@ -129,8 +129,8 @@ class GCFuturesMT4Replica(Strategy):
         # Position sizing
         self.position_size = 1  # Fixed 1 contract
 
-        # Date filter
-        self.START_DATE = datetime(2025, 1, 2)  # Only trade after this date
+        # Date filter (MT4 had 2025-01-02, but adjusting for backtest period)
+        self.START_DATE = datetime(2024, 1, 2)  # Only trade after this date
 
         # =================================================================
         # STATE TRACKING
@@ -364,8 +364,10 @@ class GCFuturesMT4Replica(Strategy):
         atr = self._calculate_atr(df, period)
 
         # Upper and lower bands
-        upper_band = middle_band + (multiplier * atr)
-        lower_band = middle_band + (multiplier * atr)  # Note: multiplier can be negative
+        # For MT4 replica: we only use lower band with negative multiplier
+        # multiplier is -1.5, so lower_band = middle_band + (-1.5 * atr)
+        upper_band = middle_band + (abs(multiplier) * atr)  # Positive for upper
+        lower_band = middle_band + (multiplier * atr)  # Negative for lower
 
         return middle_band, upper_band, lower_band
 
@@ -670,7 +672,7 @@ class GCFuturesMT4Replica(Strategy):
         else:
             self.log_message(f"Iterations with insufficient data: {self.insufficient_data_count}")
 
-        self.log_message(f"Total crossover signals generated: {self.signal_count}")
+        self.log_message(f"Total entry signals generated: {self.signal_count}")
 
         # Write summary to iteration log
         with open(self.iteration_log_file, "a") as f:
@@ -797,7 +799,7 @@ if __name__ == "__main__":
     print("Strategy: MT4 EA Replica - 5-Condition LONG Only")
     print("")
     print("Entry Conditions (ALL must be met):")
-    print("  1. Date >= 2025-01-02")
+    print("  1. Date >= 2024-01-02")
     print("  2. Current low <= Previous close")
     print("  3. RSI(14) <= 30")
     print("  4. SMA(8) declining")

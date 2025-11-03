@@ -123,7 +123,7 @@ class LiveEquityCurveViewer:
             [],
             [],
             c="lime",
-            s=25,
+            s=12.5,
             marker="o",
             label="New Peak",
             zorder=5,

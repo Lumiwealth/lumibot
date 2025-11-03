@@ -35,7 +35,7 @@ PLOT_SAVE_PATH = "logs/gc_futures_price_data.png"  # Where to save the plot
 SHOW_LIVE_EQUITY_CURVE = (
     True  # Set to True to show live-updating equity curve during backtest
 )
-SHOW_DRAWDOWN = False  # Set to True to show drawdown subplot on live equity curve
+SHOW_DRAWDOWN = True  # Set to True to show drawdown subplot on live equity curve
 
 # =============================================================================
 

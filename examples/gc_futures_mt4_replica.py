@@ -129,8 +129,8 @@ class GCFuturesMT4Replica(Strategy):
         # Position sizing
         self.position_size = 1  # Fixed 1 contract
 
-        # Date filter (MT4 had 2025-01-02, but adjusting for backtest period)
-        self.START_DATE = datetime(2024, 1, 2)  # Only trade after this date
+        # Date filter (MT4 had 2025-01-02, adjusted to match backtest start)
+        self.START_DATE = datetime(2025, 1, 1)  # Only trade after this date
 
         # =================================================================
         # STATE TRACKING
@@ -170,6 +170,9 @@ class GCFuturesMT4Replica(Strategy):
         self.iteration_count = 0
         self.insufficient_data_count = 0
         self.signal_count = 0
+
+        # SIGNAL ANALYSIS: Track condition states for every iteration
+        self.signal_analysis_data = []
 
         # Diagnostic: Track iteration timestamps for debugging
         self.iteration_timestamps = []
@@ -549,41 +552,73 @@ class GCFuturesMT4Replica(Strategy):
             entry_valid = True
             entry_reasons = []
 
+            # Track each condition state for analysis
+            cond_date = current_time.date() >= self.START_DATE.date()
+            cond_price_action = current_low <= prev_close
+            cond_rsi = pd.notna(current_rsi) and current_rsi <= self.RSI_THRESHOLD
+            cond_sma = pd.notna(current_sma) and pd.notna(sma_2bars_ago) and current_sma < sma_2bars_ago
+            cond_keltner = (
+                pd.notna(current_keltner_lower)
+                and pd.notna(prev_keltner_lower)
+                and current_price < current_keltner_lower
+                and prev_close >= prev_keltner_lower
+            )
+
+            # Record analysis data every 10 iterations to avoid memory bloat
+            if self.iteration_count % 10 == 0:
+                self.signal_analysis_data.append(
+                    {
+                        "timestamp": current_time,
+                        "price": current_price,
+                        "rsi": current_rsi if pd.notna(current_rsi) else None,
+                        "sma_current": current_sma if pd.notna(current_sma) else None,
+                        "sma_2bars_ago": sma_2bars_ago if pd.notna(sma_2bars_ago) else None,
+                        "keltner_lower": current_keltner_lower if pd.notna(current_keltner_lower) else None,
+                        "prev_close": prev_close,
+                        "current_low": current_low,
+                        "cond_date": cond_date,
+                        "cond_price_action": cond_price_action,
+                        "cond_rsi": cond_rsi,
+                        "cond_sma": cond_sma,
+                        "cond_keltner": cond_keltner,
+                        "all_conditions_met": cond_date
+                        and cond_price_action
+                        and cond_rsi
+                        and cond_sma
+                        and cond_keltner,
+                    }
+                )
+
             # Condition 1: Date filter
-            if current_time.date() < self.START_DATE.date():
+            if not cond_date:
                 entry_valid = False
             else:
                 entry_reasons.append(f"✓ Date >= {self.START_DATE.date()}")
 
             # Condition 2: Price action - current low <= previous close
             if entry_valid:
-                if current_low <= prev_close:
+                if cond_price_action:
                     entry_reasons.append(f"✓ Low ({current_low:.2f}) <= Prev Close ({prev_close:.2f})")
                 else:
                     entry_valid = False
 
             # Condition 3: RSI <= 30
             if entry_valid:
-                if pd.notna(current_rsi) and current_rsi <= self.RSI_THRESHOLD:
+                if cond_rsi:
                     entry_reasons.append(f"✓ RSI ({current_rsi:.2f}) <= {self.RSI_THRESHOLD}")
                 else:
                     entry_valid = False
 
             # Condition 4: SMA declining (current < 2 bars ago)
             if entry_valid:
-                if pd.notna(current_sma) and pd.notna(sma_2bars_ago) and current_sma < sma_2bars_ago:
+                if cond_sma:
                     entry_reasons.append(f"✓ SMA declining ({current_sma:.2f} < {sma_2bars_ago:.2f})")
                 else:
                     entry_valid = False
 
             # Condition 5: Keltner cross - close crosses below lower band
             if entry_valid:
-                if (
-                    pd.notna(current_keltner_lower)
-                    and pd.notna(prev_keltner_lower)
-                    and current_price < current_keltner_lower
-                    and prev_close >= prev_keltner_lower
-                ):
+                if cond_keltner:
                     entry_reasons.append(
                         f"✓ Keltner cross (Close: {current_price:.2f} < Lower: {current_keltner_lower:.2f})"
                     )
@@ -673,6 +708,88 @@ class GCFuturesMT4Replica(Strategy):
             self.log_message(f"Iterations with insufficient data: {self.insufficient_data_count}")
 
         self.log_message(f"Total entry signals generated: {self.signal_count}")
+
+        # =================================================================
+        # SIGNAL ANALYSIS - Create DataFrame and Analyze Conditions
+        # =================================================================
+
+        if len(self.signal_analysis_data) > 0:
+            self.log_message("")
+            self.log_message("=" * 80)
+            self.log_message("📊 SIGNAL CONDITION ANALYSIS")
+            self.log_message("=" * 80)
+
+            # Create DataFrame
+            df_signals = pd.DataFrame(self.signal_analysis_data)
+
+            # Save to CSV for detailed inspection
+            csv_path = "logs/signal_analysis.csv"
+            df_signals.to_csv(csv_path, index=False)
+            self.log_message(f"📁 Signal analysis saved to: {csv_path}")
+            self.log_message("")
+
+            # Calculate success rates for each condition
+            total_samples = len(df_signals)
+            self.log_message(f"Total samples analyzed: {total_samples}")
+            self.log_message("")
+            self.log_message("Condition Pass Rates:")
+            self.log_message("-" * 60)
+
+            cond_cols = ["cond_date", "cond_price_action", "cond_rsi", "cond_sma", "cond_keltner"]
+            cond_names = ["Date Filter", "Price Action", "RSI <= 30", "SMA Declining", "Keltner Cross"]
+
+            for col, name in zip(cond_cols, cond_names):
+                pass_count = df_signals[col].sum()
+                pass_rate = 100 * pass_count / total_samples
+                self.log_message(f"  {name:20s}: {pass_count:5d} / {total_samples:5d} ({pass_rate:5.1f}%)")
+
+            self.log_message("")
+            all_met = df_signals["all_conditions_met"].sum()
+            all_met_rate = 100 * all_met / total_samples
+            self.log_message(f"  {'ALL CONDITIONS MET':20s}: {all_met:5d} / {total_samples:5d} ({all_met_rate:5.1f}%)")
+
+            # Show sample data where conditions were closest to being met
+            self.log_message("")
+            self.log_message("=" * 80)
+            self.log_message("🔍 CLOSEST TO ENTRY (samples with most conditions met)")
+            self.log_message("=" * 80)
+
+            # Count how many conditions were met for each row
+            df_signals["num_conditions_met"] = (
+                df_signals["cond_date"].astype(int)
+                + df_signals["cond_price_action"].astype(int)
+                + df_signals["cond_rsi"].astype(int)
+                + df_signals["cond_sma"].astype(int)
+                + df_signals["cond_keltner"].astype(int)
+            )
+
+            # Get top 10 closest to entry
+            top_closest = df_signals.nlargest(10, "num_conditions_met")
+
+            for _, row in top_closest.iterrows():
+                self.log_message(f"\n{row['timestamp']} - {row['num_conditions_met']}/5 conditions met:")
+                self.log_message(f"  Price: {row['price']:.2f}, RSI: {row['rsi']:.1f}")
+                self.log_message(f"  {'✓' if row['cond_date'] else '✗'} Date")
+                check = "✓" if row["cond_price_action"] else "✗"
+                self.log_message(
+                    f"  {check} Price Action " f"(Low: {row['current_low']:.2f} <= Prev Close: {row['prev_close']:.2f})"
+                )
+                self.log_message(f"  {'✓' if row['cond_rsi'] else '✗'} RSI ({row['rsi']:.1f} <= 30)")
+                check = "✓" if row["cond_sma"] else "✗"
+                self.log_message(
+                    f"  {check} SMA Declining "
+                    f"(Current: {row['sma_current']:.2f} < 2-bars-ago: {row['sma_2bars_ago']:.2f})"
+                )
+                check = "✓" if row["cond_keltner"] else "✗"
+                self.log_message(
+                    f"  {check} Keltner Cross " f"(Price: {row['price']:.2f} < Lower: {row['keltner_lower']:.2f})"
+                )
+
+            self.log_message("")
+            self.log_message("=" * 80)
+        else:
+            self.log_message("")
+            self.log_message("⚠️ No signal analysis data collected")
 
         # Write summary to iteration log
         with open(self.iteration_log_file, "a") as f:
@@ -773,13 +890,12 @@ if __name__ == "__main__":
     - Log lines: ~50 (vs 15,000+ without optimization)
     """
 
-    # Define backtest parameters for 2025
-    # Testing with 1 month to verify fixes (change to full period when ready)
-    backtest_start = datetime(2024, 1, 1)
-    backtest_end = datetime(2025, 10, 31)  # January only for verification
+    # Define backtest parameters - January 2025 only for testing
+    backtest_start = datetime(2025, 1, 1)
+    backtest_end = datetime(2025, 1, 31)
 
-    # Full backtest period (will take ~7+ hours with 24/7 calendar and 5-min intervals):
-    # backtest_start = datetime(2025, 1, 1)
+    # Full backtest period (uncomment when ready):
+    # backtest_start = datetime(2024, 1, 1)
     # backtest_end = datetime(2025, 10, 31)
 
     # Load DataBento API key from environment (.env file)
@@ -799,7 +915,7 @@ if __name__ == "__main__":
     print("Strategy: MT4 EA Replica - 5-Condition LONG Only")
     print("")
     print("Entry Conditions (ALL must be met):")
-    print("  1. Date >= 2024-01-02")
+    print("  1. Date >= 2025-01-01")
     print("  2. Current low <= Previous close")
     print("  3. RSI(14) <= 30")
     print("  4. SMA(8) declining")

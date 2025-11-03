@@ -1539,6 +1539,73 @@ def test_build_historical_chain_empty_response(monkeypatch, caplog):
     assert "returned no expirations" in caplog.text
 
 
+class TestThetaDataConnectionSupervision:
+
+    def setup_method(self):
+        thetadata_helper.reset_connection_diagnostics()
+
+    def test_check_connection_recovers_after_restart(self, monkeypatch):
+        statuses = iter(["DISCONNECTED", "DISCONNECTED", "CONNECTED"])
+
+        class FakeResponse:
+            def __init__(self, text):
+                self.text = text
+
+        def fake_get(url, timeout):
+            try:
+                text = next(statuses)
+            except StopIteration:
+                text = "CONNECTED"
+            return FakeResponse(text)
+
+        start_calls = []
+
+        def fake_start(username, password):
+            start_calls.append((username, password))
+            return object()
+
+        monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+        monkeypatch.setattr(thetadata_helper, "start_theta_data_client", fake_start)
+        monkeypatch.setattr(thetadata_helper, "is_process_alive", lambda: True)
+        monkeypatch.setattr(thetadata_helper, "CONNECTION_MAX_RETRIES", 2, raising=False)
+        monkeypatch.setattr(thetadata_helper, "MAX_TERMINAL_RESTART_CYCLES", 2, raising=False)
+        monkeypatch.setattr(thetadata_helper, "BOOT_GRACE_PERIOD", 0, raising=False)
+        monkeypatch.setattr(thetadata_helper, "CONNECTION_RETRY_SLEEP", 0, raising=False)
+        monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *args, **kwargs: None)
+
+        client, connected = thetadata_helper.check_connection("user", "pass", wait_for_connection=True)
+
+        assert connected is True
+        assert len(start_calls) == 1
+        assert thetadata_helper.CONNECTION_DIAGNOSTICS["terminal_restarts"] >= 1
+
+    def test_check_connection_raises_after_restart_cycles(self, monkeypatch):
+        statuses = iter(["DISCONNECTED"] * 10)
+
+        class FakeResponse:
+            def __init__(self, text):
+                self.text = text
+
+        def fake_get(url, timeout):
+            try:
+                text = next(statuses)
+            except StopIteration:
+                text = "DISCONNECTED"
+            return FakeResponse(text)
+
+        monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+        monkeypatch.setattr(thetadata_helper, "start_theta_data_client", lambda *args, **kwargs: object())
+        monkeypatch.setattr(thetadata_helper, "is_process_alive", lambda: True)
+        monkeypatch.setattr(thetadata_helper, "CONNECTION_MAX_RETRIES", 1, raising=False)
+        monkeypatch.setattr(thetadata_helper, "MAX_TERMINAL_RESTART_CYCLES", 1, raising=False)
+        monkeypatch.setattr(thetadata_helper, "BOOT_GRACE_PERIOD", 0, raising=False)
+        monkeypatch.setattr(thetadata_helper, "CONNECTION_RETRY_SLEEP", 0, raising=False)
+        monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *args, **kwargs: None)
+
+        with pytest.raises(thetadata_helper.ThetaDataConnectionError):
+            thetadata_helper.check_connection("user", "pass", wait_for_connection=True)
+
+
 def test_finalize_day_frame_handles_dst_fallback():
     tz = pytz.timezone("America/New_York")
     utc = pytz.UTC

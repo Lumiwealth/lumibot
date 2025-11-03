@@ -26,6 +26,7 @@ CONNECTION_RETRY_SLEEP = 1.0
 CONNECTION_MAX_RETRIES = 60
 BOOT_GRACE_PERIOD = 5.0
 MAX_RESTART_ATTEMPTS = 3
+MAX_TERMINAL_RESTART_CYCLES = 3
 
 
 def _resolve_asset_folder(asset_obj: Asset) -> str:
@@ -43,6 +44,12 @@ THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
 THETA_DATA_LOG_HANDLE = None
 
+
+class ThetaDataConnectionError(RuntimeError):
+    """Raised when ThetaTerminal cannot reconnect to Theta Data after multiple restarts."""
+
+    pass
+
 def reset_connection_diagnostics():
     """Reset ThetaData connection counters (useful for tests)."""
     CONNECTION_DIAGNOSTICS.update({
@@ -50,6 +57,7 @@ def reset_connection_diagnostics():
         "start_terminal_calls": 0,
         "network_requests": 0,
         "placeholder_writes": 0,
+        "terminal_restarts": 0,
     })
 
 
@@ -198,6 +206,7 @@ CONNECTION_DIAGNOSTICS = {
     "start_terminal_calls": 0,
     "network_requests": 0,
     "placeholder_writes": 0,
+    "terminal_restarts": 0,
 }
 
 
@@ -1395,8 +1404,6 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     max_retries = CONNECTION_MAX_RETRIES
     sleep_interval = CONNECTION_RETRY_SLEEP
-    restart_attempts = 0
-    proactive_restart_attempts = 0
     client = None
 
     def probe_status() -> Optional[str]:
@@ -1436,58 +1443,64 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
         logger.debug("ThetaTerminal running but not yet CONNECTED; waiting for status.")
         return check_connection(username=username, password=password, wait_for_connection=True)
 
-    counter = 0
-    connected = False
+    total_restart_cycles = 0
 
-    while counter < max_retries:
-        status_text = probe_status()
-        if status_text == "CONNECTED":
-            if counter:
-                logger.info("ThetaTerminal connected after %s attempt(s).", counter + 1)
-            connected = True
-            break
-        elif status_text == "DISCONNECTED":
-            logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
-        elif status_text is not None:
-            logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
+    while True:
+        counter = 0
+        restart_attempts = 0
 
-        if not is_process_alive():
-            if restart_attempts >= MAX_RESTART_ATTEMPTS:
-                logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
-                break
-            restart_attempts += 1
-            logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
-            client = start_theta_data_client(username=username, password=password)
-            time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
-            counter = 0
-            continue
+        while counter < max_retries:
+            status_text = probe_status()
+            if status_text == "CONNECTED":
+                if counter or total_restart_cycles:
+                    logger.info(
+                        "ThetaTerminal connected after %s attempt(s) (restart cycles=%s).",
+                        counter + 1,
+                        total_restart_cycles,
+                    )
+                return client, True
+            elif status_text == "DISCONNECTED":
+                logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
+            elif status_text is not None:
+                logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
 
-        counter += 1
-        if counter % 10 == 0:
-            logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
-        if counter and counter % 15 == 0:
-            if proactive_restart_attempts >= MAX_RESTART_ATTEMPTS:
-                logger.error(
-                    "ThetaTerminal still disconnected after %s attempts; restart limit reached.",
-                    counter,
-                )
-                break
-            proactive_restart_attempts += 1
-            logger.warning(
-                "ThetaTerminal disconnected for %s consecutive probes; restarting (proactive #%s).",
-                counter,
-                proactive_restart_attempts,
+            if not is_process_alive():
+                if restart_attempts >= MAX_RESTART_ATTEMPTS:
+                    logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
+                    break
+                restart_attempts += 1
+                logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
+                client = start_theta_data_client(username=username, password=password)
+                CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
+                counter = 0
+                continue
+
+            counter += 1
+            if counter % 10 == 0:
+                logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
+            time.sleep(sleep_interval)
+
+        total_restart_cycles += 1
+        if total_restart_cycles > MAX_TERMINAL_RESTART_CYCLES:
+            logger.error(
+                "Unable to connect to Theta Data after %s restart cycle(s) (%s attempts each).",
+                MAX_TERMINAL_RESTART_CYCLES,
+                max_retries,
             )
-            client = start_theta_data_client(username=username, password=password)
-            time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
-            counter = 0
-            continue
-        time.sleep(sleep_interval)
+            raise ThetaDataConnectionError(
+                f"Unable to connect to Theta Data after {MAX_TERMINAL_RESTART_CYCLES} restart cycle(s)."
+            )
 
-    if not connected and counter >= max_retries:
-        logger.error("Cannot connect to Theta Data after %s attempts.", counter)
-
-    return client, connected
+        logger.warning(
+            "ThetaTerminal still disconnected after %s attempts; restarting (cycle %s/%s).",
+            max_retries,
+            total_restart_cycles,
+            MAX_TERMINAL_RESTART_CYCLES,
+        )
+        client = start_theta_data_client(username=username, password=password)
+        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+        time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
 
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
@@ -1542,6 +1555,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         )
                         restart_budget -= 1
                         start_theta_data_client(username=username, password=password)
+                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
                         check_connection(username=username, password=password, wait_for_connection=True)
                         time.sleep(max(BOOT_GRACE_PERIOD, CONNECTION_RETRY_SLEEP))
                         consecutive_disconnects = 0
@@ -1588,6 +1602,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     else:
                         break
 
+            except ThetaDataConnectionError as exc:
+                logger.error("Theta Data connection failed after supervised restarts: %s", exc)
+                raise
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
                 check_connection(username=username, password=password, wait_for_connection=True)
@@ -1597,7 +1614,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
             counter += 1
             if counter > 1:
-                raise ValueError("Cannot connect to Theta Data!")
+                raise ThetaDataConnectionError("Unable to connect to Theta Data after repeated retries.")
 
         # Store this page's response data
         page_count += 1

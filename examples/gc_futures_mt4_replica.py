@@ -2,14 +2,13 @@
 Gold (GC) Futures Trading Strategy - MT4 Replica
 
 This strategy replicates an MT4 Expert Advisor for Gold futures trading.
-It implements a 5-condition long-only entry system with multiple exit mechanisms.
+It implements a 4-condition long-only entry system with multiple exit mechanisms.
 
 Entry Logic (ALL conditions must be met):
-1. Date filter: Only trade after 2025-01-02
-2. Price action: Current bar low <= Previous bar close
-3. RSI oversold: RSI(14) <= 30
-4. SMA trend: SMA(8) declining (current < 2 bars ago)
-5. Keltner cross: Close crosses below lower Keltner Channel(3, -1.5)
+1. Price action: Current bar low <= Previous bar close
+2. RSI oversold: RSI(14) <= 30
+3. SMA trend: SMA(8) declining (current < 2 bars ago)
+4. Keltner cross: Close crosses below lower Keltner Channel(3, -1.5)
 
 Exit Logic (ANY can trigger):
 1. Standard SL: 3.5 × ATR below entry
@@ -55,14 +54,13 @@ class GCFuturesMT4Replica(Strategy):
     """
     MT4 Expert Advisor Replica for Gold (GC) Futures
 
-    This strategy exactly replicates an MT4 EA with a 5-condition long-only entry system.
+    This strategy exactly replicates an MT4 EA with a 4-condition long-only entry system.
 
     Entry System (LONG only, ALL conditions must be met):
-    1. Date >= 2025-01-02
-    2. Current bar low <= Previous bar close (price action filter)
-    3. RSI(14) <= 30 (oversold condition)
-    4. SMA(8) declining: SMA[0] < SMA[2]
-    5. Keltner cross: Close crosses below lower band (period=3, multiplier=-1.5)
+    1. Current bar low <= Previous bar close (price action filter)
+    2. RSI(14) <= 30 (oversold condition)
+    3. SMA(8) declining: SMA[0] < SMA[2]
+    4. Keltner cross: Close crosses below lower band (period=3, multiplier=-1.5)
 
     Exit System (ANY can trigger):
     1. Stop Loss: Entry - 3.5 × ATR(20)
@@ -129,9 +127,6 @@ class GCFuturesMT4Replica(Strategy):
         # Position sizing
         self.position_size = 1  # Fixed 1 contract
 
-        # Date filter (MT4 had 2025-01-02, adjusted to match backtest start)
-        self.START_DATE = datetime(2025, 1, 1)  # Only trade after this date
-
         # =================================================================
         # STATE TRACKING
         # =================================================================
@@ -154,8 +149,8 @@ class GCFuturesMT4Replica(Strategy):
         self.log_message("🎯 MT4 Gold (GC) Futures Strategy - REPLICA")
         self.log_message("=" * 60)
         self.log_message(f"Trading asset: {self.asset.symbol} continuous futures")
-        self.log_message("Entry System: 5-condition LONG only")
-        self.log_message(f"  - Date filter: >= {self.START_DATE.date()}")
+        self.log_message("Entry System: 4-condition LONG only")
+        self.log_message("  - Price action: Low <= Previous Close")
         self.log_message(f"  - RSI({self.RSI_PERIOD}) <= {self.RSI_THRESHOLD}")
         self.log_message(f"  - SMA({self.SMA_PERIOD}) declining")
         self.log_message(f"  - Keltner({self.KELTNER_PERIOD}, {self.KELTNER_MULTIPLIER}) cross")
@@ -553,7 +548,6 @@ class GCFuturesMT4Replica(Strategy):
             entry_reasons = []
 
             # Track each condition state for analysis
-            cond_date = current_time.date() >= self.START_DATE.date()
             cond_price_action = current_low <= prev_close
             cond_rsi = pd.notna(current_rsi) and current_rsi <= self.RSI_THRESHOLD
             cond_sma = pd.notna(current_sma) and pd.notna(sma_2bars_ago) and current_sma < sma_2bars_ago
@@ -576,47 +570,35 @@ class GCFuturesMT4Replica(Strategy):
                         "keltner_lower": current_keltner_lower if pd.notna(current_keltner_lower) else None,
                         "prev_close": prev_close,
                         "current_low": current_low,
-                        "cond_date": cond_date,
                         "cond_price_action": cond_price_action,
                         "cond_rsi": cond_rsi,
                         "cond_sma": cond_sma,
                         "cond_keltner": cond_keltner,
-                        "all_conditions_met": cond_date
-                        and cond_price_action
-                        and cond_rsi
-                        and cond_sma
-                        and cond_keltner,
+                        "all_conditions_met": cond_price_action and cond_rsi and cond_sma and cond_keltner,
                     }
                 )
 
-            # Condition 1: Date filter
-            if not cond_date:
-                entry_valid = False
+            # Condition 1: Price action - current low <= previous close
+            if cond_price_action:
+                entry_reasons.append(f"✓ Low ({current_low:.2f}) <= Prev Close ({prev_close:.2f})")
             else:
-                entry_reasons.append(f"✓ Date >= {self.START_DATE.date()}")
+                entry_valid = False
 
-            # Condition 2: Price action - current low <= previous close
-            if entry_valid:
-                if cond_price_action:
-                    entry_reasons.append(f"✓ Low ({current_low:.2f}) <= Prev Close ({prev_close:.2f})")
-                else:
-                    entry_valid = False
-
-            # Condition 3: RSI <= 30
+            # Condition 2: RSI <= 30
             if entry_valid:
                 if cond_rsi:
                     entry_reasons.append(f"✓ RSI ({current_rsi:.2f}) <= {self.RSI_THRESHOLD}")
                 else:
                     entry_valid = False
 
-            # Condition 4: SMA declining (current < 2 bars ago)
+            # Condition 3: SMA declining (current < 2 bars ago)
             if entry_valid:
                 if cond_sma:
                     entry_reasons.append(f"✓ SMA declining ({current_sma:.2f} < {sma_2bars_ago:.2f})")
                 else:
                     entry_valid = False
 
-            # Condition 5: Keltner cross - close crosses below lower band
+            # Condition 4: Keltner cross - close crosses below lower band
             if entry_valid:
                 if cond_keltner:
                     entry_reasons.append(
@@ -735,8 +717,8 @@ class GCFuturesMT4Replica(Strategy):
             self.log_message("Condition Pass Rates:")
             self.log_message("-" * 60)
 
-            cond_cols = ["cond_date", "cond_price_action", "cond_rsi", "cond_sma", "cond_keltner"]
-            cond_names = ["Date Filter", "Price Action", "RSI <= 30", "SMA Declining", "Keltner Cross"]
+            cond_cols = ["cond_price_action", "cond_rsi", "cond_sma", "cond_keltner"]
+            cond_names = ["Price Action", "RSI <= 30", "SMA Declining", "Keltner Cross"]
 
             for col, name in zip(cond_cols, cond_names):
                 pass_count = df_signals[col].sum()
@@ -756,8 +738,7 @@ class GCFuturesMT4Replica(Strategy):
 
             # Count how many conditions were met for each row
             df_signals["num_conditions_met"] = (
-                df_signals["cond_date"].astype(int)
-                + df_signals["cond_price_action"].astype(int)
+                df_signals["cond_price_action"].astype(int)
                 + df_signals["cond_rsi"].astype(int)
                 + df_signals["cond_sma"].astype(int)
                 + df_signals["cond_keltner"].astype(int)
@@ -767,9 +748,8 @@ class GCFuturesMT4Replica(Strategy):
             top_closest = df_signals.nlargest(10, "num_conditions_met")
 
             for _, row in top_closest.iterrows():
-                self.log_message(f"\n{row['timestamp']} - {row['num_conditions_met']}/5 conditions met:")
+                self.log_message(f"\n{row['timestamp']} - {row['num_conditions_met']}/4 conditions met:")
                 self.log_message(f"  Price: {row['price']:.2f}, RSI: {row['rsi']:.1f}")
-                self.log_message(f"  {'✓' if row['cond_date'] else '✗'} Date")
                 check = "✓" if row["cond_price_action"] else "✗"
                 self.log_message(
                     f"  {check} Price Action " f"(Low: {row['current_low']:.2f} <= Prev Close: {row['prev_close']:.2f})"
@@ -912,14 +892,13 @@ if __name__ == "__main__":
     print("=" * 80)
     print(f"Period: {backtest_start.date()} to {backtest_end.date()}")
     print("Contract: GC continuous futures (COMEX Gold)")
-    print("Strategy: MT4 EA Replica - 5-Condition LONG Only")
+    print("Strategy: MT4 EA Replica - 4-Condition LONG Only")
     print("")
     print("Entry Conditions (ALL must be met):")
-    print("  1. Date >= 2025-01-01")
-    print("  2. Current low <= Previous close")
-    print("  3. RSI(14) <= 30")
-    print("  4. SMA(8) declining")
-    print("  5. Keltner(3, -1.5) cross below")
+    print("  1. Current low <= Previous close")
+    print("  2. RSI(14) <= 30")
+    print("  3. SMA(8) declining")
+    print("  4. Keltner(3, -1.5) cross below")
     print("")
     print("Exit Conditions (ANY can trigger):")
     print("  1. Stop Loss: Entry - 3.5 × ATR(20)")

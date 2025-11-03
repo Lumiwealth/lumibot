@@ -18,17 +18,17 @@ Arguments:
     --file    Path to equity JSONL file (default: logs/backtest_live_equity.jsonl)
 """
 
-import sys
-import json
 import argparse
-from pathlib import Path
-from datetime import datetime
+import json
+import logging
+import sys
 from collections import deque
+from datetime import datetime
+from pathlib import Path
 
 import matplotlib
 
 # Use MacOSX native backend on macOS, fallback to TkAgg on other platforms
-import sys
 
 if sys.platform == "darwin":
     matplotlib.use("MacOSX")  # Native macOS backend
@@ -36,10 +36,12 @@ else:
     matplotlib.use("TkAgg")  # Tk backend for Windows/Linux
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import matplotlib.dates as mdates
 
 # Configure matplotlib for better window behavior
 plt.rcParams["figure.raise_window"] = True  # Bring window to front
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
 
 
 class LiveEquityCurveViewer:
@@ -50,6 +52,7 @@ class LiveEquityCurveViewer:
         data_file="logs/backtest_live_equity.jsonl",
         max_points=None,
         show_drawdown=False,
+        dark_mode=False,
     ):
         """
         Initialize the live equity curve viewer
@@ -64,10 +67,14 @@ class LiveEquityCurveViewer:
         show_drawdown : bool, optional
             If True, displays a second subplot showing percentage drawdown from peak.
             Default False for backward compatibility.
+        dark_mode : bool, optional
+            If True, uses dark mode theme with dark background and light colors.
+            Default False for light mode.
         """
         self.data_file = Path(data_file)
         self.max_points = max_points
         self.show_drawdown = show_drawdown
+        self.dark_mode = dark_mode
 
         # Data storage - NO LIMIT to prevent scrolling after 10k points
         # Memory usage: ~50 bytes per point = 5MB for 100k points (negligible)
@@ -84,13 +91,27 @@ class LiveEquityCurveViewer:
 
         # Track drawdown data if enabled
         if self.show_drawdown:
-            self.drawdown_values = (
-                [] if max_points is None else deque(maxlen=max_points)
-            )
+            self.drawdown_values = [] if max_points is None else deque(maxlen=max_points)
 
         # Track if file exists and has data
         self.file_exists = False
         self.has_data = False
+
+        # Define color scheme based on mode
+        if self.dark_mode:
+            self.bg_color = "#1e1e1e"  # Dark background
+            self.fg_color = "#ffffff"  # White text
+            self.grid_color = "#404040"  # Dark gray grid
+            self.line_color = "#00d4ff"  # Bright cyan for equity line
+            self.peak_color = "#00ff00"  # Bright green for peaks
+            self.drawdown_color = "#ff4444"  # Bright red for drawdown
+        else:
+            self.bg_color = "#ffffff"  # White background
+            self.fg_color = "#000000"  # Black text
+            self.grid_color = "#cccccc"  # Light gray grid
+            self.line_color = "darkblue"  # Dark blue for equity line
+            self.peak_color = "lime"  # Lime green for peaks
+            self.drawdown_color = "red"  # Red for drawdown
 
         # Setup the plot with conditional subplot layout
         if self.show_drawdown:
@@ -113,35 +134,54 @@ class LiveEquityCurveViewer:
         # Disable the navigation toolbar to prevent manual pan/zoom
         self.fig.canvas.toolbar_visible = False
 
-        # Configure equity plot
-        (self.line,) = self.ax_equity.plot(
-            [], [], color="darkblue", linewidth=2, label="Portfolio Value"
-        )
+        # Apply dark mode styling to figure and axes if enabled
+        if self.dark_mode:
+            self.fig.patch.set_facecolor(self.bg_color)
+            self.ax_equity.set_facecolor(self.bg_color)
+            self.ax_equity.spines["bottom"].set_color(self.fg_color)
+            self.ax_equity.spines["top"].set_color(self.fg_color)
+            self.ax_equity.spines["left"].set_color(self.fg_color)
+            self.ax_equity.spines["right"].set_color(self.fg_color)
+            self.ax_equity.tick_params(colors=self.fg_color, which="both")
+            if self.show_drawdown:
+                self.ax_drawdown.set_facecolor(self.bg_color)
+                self.ax_drawdown.spines["bottom"].set_color(self.fg_color)
+                self.ax_drawdown.spines["top"].set_color(self.fg_color)
+                self.ax_drawdown.spines["left"].set_color(self.fg_color)
+                self.ax_drawdown.spines["right"].set_color(self.fg_color)
+                self.ax_drawdown.tick_params(colors=self.fg_color, which="both")
 
-        # Add scatter plot for equity peaks (bright green dots with thin black border)
+        # Configure equity plot
+        (self.line,) = self.ax_equity.plot([], [], color=self.line_color, linewidth=2, label="Portfolio Value")
+
+        # Add scatter plot for equity peaks
+        edge_color = self.bg_color if self.dark_mode else "black"
         self.peak_scatter = self.ax_equity.scatter(
             [],
             [],
-            c="lime",
+            c=self.peak_color,
             s=25,
             marker="o",
             label="New Peak",
             zorder=5,
-            edgecolors="black",
+            edgecolors=edge_color,
             linewidths=0.5,
         )
 
         # Configure equity plot styling
         if not self.show_drawdown:
-            self.ax_equity.set_xlabel("Time", fontsize=12)
-        self.ax_equity.set_ylabel("Portfolio Value ($)", fontsize=12)
-        self.ax_equity.grid(True, alpha=0.3, linestyle="--")
-        self.ax_equity.legend(loc="upper left", fontsize=10)
+            self.ax_equity.set_xlabel("Time", fontsize=12, color=self.fg_color)
+        self.ax_equity.set_ylabel("Portfolio Value ($)", fontsize=12, color=self.fg_color)
+        self.ax_equity.grid(True, alpha=0.3, linestyle="--", color=self.grid_color)
+        legend = self.ax_equity.legend(loc="upper left", fontsize=10)
+        if self.dark_mode:
+            legend.get_frame().set_facecolor(self.bg_color)
+            legend.get_frame().set_edgecolor(self.fg_color)
+            for text in legend.get_texts():
+                text.set_color(self.fg_color)
 
         # Format y-axis as currency
-        self.ax_equity.yaxis.set_major_formatter(
-            plt.FuncFormatter(lambda x, p: f"${x:,.0f}")
-        )
+        self.ax_equity.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
 
         # CRITICAL: Disable autoscaling to prevent scrolling
         self.ax_equity.set_autoscale_on(False)
@@ -157,19 +197,20 @@ class LiveEquityCurveViewer:
         # Configure drawdown plot if enabled
         if self.show_drawdown:
             (self.drawdown_line,) = self.ax_drawdown.plot(
-                [], [], color="red", linewidth=2, label="Drawdown %"
+                [], [], color=self.drawdown_color, linewidth=2, label="Drawdown %"
             )
             # Add filled area for drawdown visualization
-            self.drawdown_fill = self.ax_drawdown.fill_between(
-                [], [], 0, color="red", alpha=0.3
-            )
-            self.ax_drawdown.set_xlabel("Time", fontsize=12)
-            self.ax_drawdown.set_ylabel("Drawdown (%)", fontsize=12)
-            self.ax_drawdown.grid(True, alpha=0.3, linestyle="--")
-            self.ax_drawdown.legend(loc="upper left", fontsize=10)
-            self.ax_drawdown.yaxis.set_major_formatter(
-                plt.FuncFormatter(lambda x, p: f"{x:.1f}%")
-            )
+            self.drawdown_fill = self.ax_drawdown.fill_between([], [], 0, color=self.drawdown_color, alpha=0.3)
+            self.ax_drawdown.set_xlabel("Time", fontsize=12, color=self.fg_color)
+            self.ax_drawdown.set_ylabel("Drawdown (%)", fontsize=12, color=self.fg_color)
+            self.ax_drawdown.grid(True, alpha=0.3, linestyle="--", color=self.grid_color)
+            dd_legend = self.ax_drawdown.legend(loc="upper left", fontsize=10)
+            if self.dark_mode:
+                dd_legend.get_frame().set_facecolor(self.bg_color)
+                dd_legend.get_frame().set_edgecolor(self.fg_color)
+                for text in dd_legend.get_texts():
+                    text.set_color(self.fg_color)
+            self.ax_drawdown.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x:.1f}%"))
             self.ax_drawdown.set_autoscale_on(False)
             self.ax_drawdown.autoscale(enable=False, axis="both")
             self.ax_drawdown.set_navigate(False)
@@ -204,9 +245,9 @@ class LiveEquityCurveViewer:
 
         # Place title on top subplot (equity) when using dual-plot mode
         if self.show_drawdown:
-            self.ax_equity.set_title(" | ".join(title_parts), fontsize=14, pad=15)
+            self.ax_equity.set_title(" | ".join(title_parts), fontsize=14, pad=15, color=self.fg_color)
         else:
-            self.ax.set_title(" | ".join(title_parts), fontsize=14, pad=15)
+            self.ax.set_title(" | ".join(title_parts), fontsize=14, pad=15, color=self.fg_color)
 
     def read_new_data(self):
         """Read new data from JSONL file since last read"""
@@ -249,8 +290,11 @@ class LiveEquityCurveViewer:
                             # Parse timestamp
                             try:
                                 timestamp = datetime.fromisoformat(timestamp_str)
-                            except:
+                            except (ValueError, TypeError) as e:
                                 # Fallback to using data count as x-axis
+                                # Log the error for debugging (only for first few occurrences to avoid spam)
+                                if self.data_count < 3:
+                                    logger.warning("Failed to parse timestamp, using data count as fallback: %s", e)
                                 timestamp = self.data_count
 
                             # Add to data (lists by default = unlimited storage)
@@ -328,23 +372,18 @@ class LiveEquityCurveViewer:
 
             # Update peak markers
             if self.peak_indices and self.peak_values:
-                self.peak_scatter.set_offsets(
-                    list(zip(self.peak_indices, self.peak_values))
-                )
+                self.peak_scatter.set_offsets(list(zip(self.peak_indices, self.peak_values)))
 
             # Update drawdown plot if enabled
             if self.show_drawdown and self.drawdown_values:
                 # Update drawdown line data
-                self.drawdown_line.set_data(
-                    range(num_points), list(self.drawdown_values)
-                )
+                self.drawdown_line.set_data(range(num_points), list(self.drawdown_values))
 
                 # Update the filled area
                 # Remove old fill and create new one (fill_between doesn't support set_data)
                 self.drawdown_fill.remove()
                 self.drawdown_fill = self.ax_drawdown.fill_between(
-                    range(num_points), list(self.drawdown_values), 0,
-                    color="red", alpha=0.3
+                    range(num_points), list(self.drawdown_values), 0, color=self.drawdown_color, alpha=0.3
                 )
 
                 # Calculate drawdown axis limits
@@ -439,6 +478,9 @@ class LiveEquityCurveViewer:
 
 def main():
     """Main entry point"""
+    # Configure logging for standalone execution
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
     parser = argparse.ArgumentParser(
         description="Live Backtest Equity Curve Viewer",
         formatter_class=argparse.RawDescriptionHelpFormatter,

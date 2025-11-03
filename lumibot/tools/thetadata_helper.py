@@ -1605,6 +1605,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
             except ThetaDataConnectionError as exc:
                 logger.error("Theta Data connection failed after supervised restarts: %s", exc)
                 raise
+            except ValueError:
+                # Preserve deliberate ValueError signals (e.g., ThetaData error_type responses)
+                raise
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
                 check_connection(username=username, password=password, wait_for_connection=True)
@@ -1614,7 +1617,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
             counter += 1
             if counter > 1:
-                raise ThetaDataConnectionError("Unable to connect to Theta Data after repeated retries.")
+                raise ValueError("Cannot connect to Theta Data!")
 
         # Store this page's response data
         page_count += 1

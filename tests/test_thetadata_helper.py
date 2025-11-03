@@ -881,7 +881,13 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
         password="test_password",
         wait_for_connection=True,
     )
-    assert mock_check_connection.call_count == 5
+    assert mock_check_connection.call_count == 2
+    first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
+    assert first_call_kwargs == {
+        "username": "test_user",
+        "password": "test_password",
+        "wait_for_connection": False,
+    }
 
 
 @patch('lumibot.tools.thetadata_helper.check_connection')
@@ -905,6 +911,44 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
         wait_for_connection=True,
     )
     assert mock_check_connection.call_count == 3
+
+
+
+@patch('lumibot.tools.thetadata_helper.start_theta_data_client')
+@patch('lumibot.tools.thetadata_helper.check_connection')
+def test_get_request_consecutive_474_triggers_restarts(mock_check_connection, mock_start_client, monkeypatch):
+    mock_check_connection.return_value = (object(), True)
+
+    responses = [MagicMock(status_code=474, text='Connection lost to Theta Data MDDS.') for _ in range(9)]
+
+    def fake_get(*args, **kwargs):
+        if not responses:
+            raise AssertionError('Test exhausted mock responses unexpectedly')
+        return responses.pop(0)
+
+    monkeypatch.setattr(thetadata_helper.requests, 'get', fake_get)
+    monkeypatch.setattr(thetadata_helper.time, 'sleep', lambda *args, **kwargs: None)
+    monkeypatch.setattr(thetadata_helper, 'BOOT_GRACE_PERIOD', 0, raising=False)
+    monkeypatch.setattr(thetadata_helper, 'CONNECTION_RETRY_SLEEP', 0, raising=False)
+
+    with pytest.raises(ValueError, match='Cannot connect to Theta Data!'):
+        thetadata_helper.get_request(
+            url='http://test.com',
+            headers={'Authorization': 'Bearer test_token'},
+            querystring={'param1': 'value1'},
+            username='test_user',
+            password='test_password',
+        )
+
+    assert mock_start_client.call_count == 3
+    # Initial liveness probe plus retry coordination checks
+    assert mock_check_connection.call_count > 3
+    first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
+    assert first_call_kwargs == {
+        'username': 'test_user',
+        'password': 'test_password',
+        'wait_for_connection': False,
+    }
 
 
 @patch('lumibot.tools.thetadata_helper.get_request')

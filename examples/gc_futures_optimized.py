@@ -32,7 +32,10 @@ PLOT_PRICE = True  # Set to True to plot close prices after prefetch for data va
 PLOT_SAVE_PATH = "logs/gc_futures_price_data.png"  # Where to save the plot
 
 # Live Equity Curve GUI
-SHOW_LIVE_EQUITY_CURVE = True  # Set to True to show live-updating equity curve during backtest
+SHOW_LIVE_EQUITY_CURVE = (
+    True  # Set to True to show live-updating equity curve during backtest
+)
+SHOW_DRAWDOWN = False  # Set to True to show drawdown subplot on live equity curve
 
 # =============================================================================
 
@@ -526,12 +529,19 @@ if __name__ == "__main__":
 
         # Launch GUI in separate process
         try:
+            # Build command with optional flags
+            gui_cmd = [sys.executable, "show_live_backtest_progress.py"]
+            if SHOW_DRAWDOWN:
+                gui_cmd.append("--show-drawdown")
+
             gui_process = subprocess.Popen(
-                [sys.executable, "show_live_backtest_progress.py"],
+                gui_cmd,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
             )
             print("📈 Launched live equity curve GUI")
+            if SHOW_DRAWDOWN:
+                print("   Drawdown display: ENABLED")
             print(f"   GUI PID: {gui_process.pid}")
             print()
         except Exception as e:

@@ -1,0 +1,3 @@
+#!/bin/bash
+# Quick launcher for interactive GitButler branch merger
+exec "$(dirname "$0")/scripts/interactive_merge.sh" "$@"

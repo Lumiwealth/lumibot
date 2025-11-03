@@ -3,42 +3,38 @@
 ## Overview
 This repo is a private fork (`txtr99/lumibot-private`) of the public `Lumiwealth/lumibot` repo, managed with GitButler for virtual branching.
 
-## Daily Development
+## Daily Workflow (The Simple Version)
 
-### 1. Sync Upstream Changes (Weekly/As Needed)
+### 1. Work in GitButler GUI
+- Open GitButler
+- Create virtual branches for features
+- Make commits in GitButler
+- **Click PUSH in GitButler GUI** when ready → goes to `origin` (your private repo) ✅
+
+### 2. Merge Pushed Branch to Dev (No PR)
 ```bash
-# Fetch latest from public repo
-./scripts/fetch_upstream.sh
+# After GitButler pushes a branch, merge it directly:
+./scripts/merge_gitbutler_branch.sh <branch-name>
 
-# This will:
-# - Fetch from upstream (public Lumiwealth/lumibot)
-# - Rebase your gitbutler/workspace onto upstream/dev
-# - Keep your private changes on top
+# Example:
+./scripts/merge_gitbutler_branch.sh gui-forward-drawdown-flag
 ```
 
-### 2. Work in GitButler
-- Open GitButler GUI
-- Create virtual branches for different features
-- Commit changes to appropriate branches
-- GitButler will manage the `gitbutler/workspace` branch automatically
-
-### 3. Push Private Work to Origin
+**Or manually:**
 ```bash
-# Push your GitButler workspace to private repo
-git push origin gitbutler/workspace
-
-# Or push other branches
-git push origin <branch-name>
-```
-
-### 4. Merge Completed Features to Dev
-```bash
-# When a feature is complete, merge to dev
 git checkout dev
 git pull origin dev
-git merge --no-ff gitbutler/workspace  # or specific branch
+git merge --no-ff origin/<branch-name>
 git push origin dev
 ```
+
+### 3. Sync Upstream Changes (Weekly/As Needed)
+```bash
+./scripts/fetch_upstream.sh
+# Pulls latest from public Lumiwealth/lumibot without pushing anything back
+```
+
+**That's it!** GitButler → PUSH → Merge → Done.
 
 ## Safety Checklist
 

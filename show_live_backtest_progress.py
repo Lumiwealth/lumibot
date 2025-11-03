@@ -159,6 +159,10 @@ class LiveEquityCurveViewer:
             (self.drawdown_line,) = self.ax_drawdown.plot(
                 [], [], color="red", linewidth=2, label="Drawdown %"
             )
+            # Add filled area for drawdown visualization
+            self.drawdown_fill = self.ax_drawdown.fill_between(
+                [], [], 0, color="red", alpha=0.3
+            )
             self.ax_drawdown.set_xlabel("Time", fontsize=12)
             self.ax_drawdown.set_ylabel("Drawdown (%)", fontsize=12)
             self.ax_drawdown.grid(True, alpha=0.3, linestyle="--")
@@ -333,6 +337,14 @@ class LiveEquityCurveViewer:
                 # Update drawdown line data
                 self.drawdown_line.set_data(
                     range(num_points), list(self.drawdown_values)
+                )
+
+                # Update the filled area
+                # Remove old fill and create new one (fill_between doesn't support set_data)
+                self.drawdown_fill.remove()
+                self.drawdown_fill = self.ax_drawdown.fill_between(
+                    range(num_points), list(self.drawdown_values), 0,
+                    color="red", alpha=0.3
                 )
 
                 # Calculate drawdown axis limits

@@ -105,6 +105,9 @@ echo ""
 echo -e "${BLUE}🔄 Starting merge process...${NC}"
 echo ""
 
+# Refresh git index to avoid false positives from stale cache
+git update-index --refresh -q 2>/dev/null || true
+
 # Check for uncommitted changes
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
     echo -e "${YELLOW}⚠️  You have uncommitted changes.${NC}"

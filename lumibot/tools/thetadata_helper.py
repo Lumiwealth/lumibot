@@ -1396,6 +1396,7 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
     max_retries = CONNECTION_MAX_RETRIES
     sleep_interval = CONNECTION_RETRY_SLEEP
     restart_attempts = 0
+    proactive_restart_attempts = 0
     client = None
 
     def probe_status() -> Optional[str]:
@@ -1464,6 +1465,23 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
         counter += 1
         if counter % 10 == 0:
             logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
+        if counter and counter % 15 == 0:
+            if proactive_restart_attempts >= MAX_RESTART_ATTEMPTS:
+                logger.error(
+                    "ThetaTerminal still disconnected after %s attempts; restart limit reached.",
+                    counter,
+                )
+                break
+            proactive_restart_attempts += 1
+            logger.warning(
+                "ThetaTerminal disconnected for %s consecutive probes; restarting (proactive #%s).",
+                counter,
+                proactive_restart_attempts,
+            )
+            client = start_theta_data_client(username=username, password=password)
+            time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
+            counter = 0
+            continue
         time.sleep(sleep_interval)
 
     if not connected and counter >= max_retries:
@@ -1476,6 +1494,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     all_responses = []
     next_page_url = None
     page_count = 0
+    consecutive_disconnects = 0
+    restart_budget = 3
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -1498,25 +1518,51 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 )
 
                 response = requests.get(request_url, headers=headers, params=request_params)
+                status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None
-                if response.status_code == 472:
+                if status_code == 472:
                     logger.warning(f"No data available for request: {response.text[:200]}")
                     # DEBUG-LOG: API response - no data
                     logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA"
                     )
+                    consecutive_disconnects = 0
                     return None
+                elif status_code == 474:
+                    consecutive_disconnects += 1
+                    logger.warning("Received 474 from Theta Data (attempt %s): %s", counter + 1, response.text[:200])
+                    if consecutive_disconnects >= 2:
+                        if restart_budget <= 0:
+                            logger.error("Restart budget exhausted after repeated 474 responses.")
+                            raise ValueError("Cannot connect to Theta Data!")
+                        logger.warning(
+                            "Restarting ThetaTerminal after %s consecutive 474 responses (restart budget remaining %s).",
+                            consecutive_disconnects,
+                            restart_budget - 1,
+                        )
+                        restart_budget -= 1
+                        start_theta_data_client(username=username, password=password)
+                        check_connection(username=username, password=password, wait_for_connection=True)
+                        time.sleep(max(BOOT_GRACE_PERIOD, CONNECTION_RETRY_SLEEP))
+                        consecutive_disconnects = 0
+                        counter = 0
+                    else:
+                        check_connection(username=username, password=password, wait_for_connection=True)
+                        time.sleep(CONNECTION_RETRY_SLEEP)
+                    continue
                 # If status code is not 200, then we are not connected
-                elif response.status_code != 200:
-                    logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
+                elif status_code != 200:
+                    logger.warning(f"Non-200 status code {status_code}: {response.text[:200]}")
                     # DEBUG-LOG: API response - error
                     logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR",
-                        response.status_code
+                        status_code
                     )
                     check_connection(username=username, password=password, wait_for_connection=True)
+                    consecutive_disconnects = 0
                 else:
                     json_resp = response.json()
+                    consecutive_disconnects = 0
 
                     # DEBUG-LOG: API response - success
                     response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0

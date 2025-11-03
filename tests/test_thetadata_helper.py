@@ -1426,8 +1426,10 @@ class TestThetaDataChainsCaching:
 
         monkeypatch.setattr(thetadata_helper, "build_historical_chain", lambda **kwargs: None)
         monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+        monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
+        caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
             result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
 
         cache_folder = Path(tmp_path) / "thetadata" / "stock" / "option_chains"
@@ -1508,8 +1510,10 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
         raise AssertionError(f"Unexpected URL {url}")
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+    monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
+    caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
         result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
 
     assert result is None
@@ -1525,8 +1529,10 @@ def test_build_historical_chain_empty_response(monkeypatch, caplog):
         raise AssertionError("Unexpected call after empty expirations")
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+    monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
+    caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
         result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
 
     assert result is None

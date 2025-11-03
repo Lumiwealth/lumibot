@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="lumibot",
-    version="4.2.9",
+    version="4.2.8",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -60,7 +60,7 @@ setuptools.setup(
         "Flask>=2.3",
         "free-proxy",
         "requests-oauthlib",
-        "boto3>=1.28.0",
+        "boto3>=1.40.64",
     ],
     package_data={
         "lumibot": ["resources/ThetaTerminal.jar"],

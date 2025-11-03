@@ -32,10 +32,9 @@ PLOT_PRICE = True  # Set to True to plot close prices after prefetch for data va
 PLOT_SAVE_PATH = "logs/gc_futures_price_data.png"  # Where to save the plot
 
 # Live Equity Curve GUI
-SHOW_LIVE_EQUITY_CURVE = (
-    True  # Set to True to show live-updating equity curve during backtest
-)
+SHOW_LIVE_EQUITY_CURVE = True  # Set to True to show live-updating equity curve during backtest
 SHOW_DRAWDOWN = True  # Set to True to show drawdown subplot on live equity curve
+EQUITY_CURVE_DARK_MODE = True  # Set to True to use dark mode theme for equity curve
 
 # =============================================================================
 
@@ -368,8 +367,14 @@ class GCFuturesOptimized(Strategy):
 
             self.log_message(f"Average time between iterations: {avg_minutes_between:.1f} minutes")
             self.log_message(f"Iterations per day: {iterations_per_day:.1f}")
-            self.log_message(f"Expected if 24/7 market (5min intervals): {expected_24_7:.0f} iterations ({expected_24_7/total_days:.1f}/day)")
-            self.log_message(f"Expected if NYSE hours (5min intervals): {expected_nyse:.0f} iterations ({expected_nyse/total_days:.1f}/day)")
+            self.log_message(
+                f"Expected if 24/7 market (5min intervals): {expected_24_7:.0f} iterations "
+                f"({expected_24_7/total_days:.1f}/day)"
+            )
+            self.log_message(
+                f"Expected if NYSE hours (5min intervals): {expected_nyse:.0f} iterations "
+                f"({expected_nyse/total_days:.1f}/day)"
+            )
 
             if iterations_per_day < 20:
                 self.log_message("⚠️ WARNING: Very few iterations per day - likely using stock market hours!")
@@ -533,6 +538,8 @@ if __name__ == "__main__":
             gui_cmd = [sys.executable, "show_live_backtest_progress.py"]
             if SHOW_DRAWDOWN:
                 gui_cmd.append("--show-drawdown")
+            if EQUITY_CURVE_DARK_MODE:
+                gui_cmd.append("--dark-mode")
 
             gui_process = subprocess.Popen(
                 gui_cmd,
@@ -542,6 +549,8 @@ if __name__ == "__main__":
             print("📈 Launched live equity curve GUI")
             if SHOW_DRAWDOWN:
                 print("   Drawdown display: ENABLED")
+            if EQUITY_CURVE_DARK_MODE:
+                print("   Dark mode: ENABLED")
             print(f"   GUI PID: {gui_process.pid}")
             print()
         except Exception as e:

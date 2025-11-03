@@ -2,7 +2,8 @@
 import time
 import os
 import signal
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import pytz
@@ -25,6 +26,7 @@ CONNECTION_RETRY_SLEEP = 1.0
 CONNECTION_MAX_RETRIES = 60
 BOOT_GRACE_PERIOD = 5.0
 MAX_RESTART_ATTEMPTS = 3
+MAX_TERMINAL_RESTART_CYCLES = 3
 
 
 def _resolve_asset_folder(asset_obj: Asset) -> str:
@@ -42,6 +44,12 @@ THETA_DATA_PROCESS = None
 THETA_DATA_PID = None
 THETA_DATA_LOG_HANDLE = None
 
+
+class ThetaDataConnectionError(RuntimeError):
+    """Raised when ThetaTerminal cannot reconnect to Theta Data after multiple restarts."""
+
+    pass
+
 def reset_connection_diagnostics():
     """Reset ThetaData connection counters (useful for tests)."""
     CONNECTION_DIAGNOSTICS.update({
@@ -49,6 +57,7 @@ def reset_connection_diagnostics():
         "start_terminal_calls": 0,
         "network_requests": 0,
         "placeholder_writes": 0,
+        "terminal_restarts": 0,
     })
 
 
@@ -197,6 +206,7 @@ CONNECTION_DIAGNOSTICS = {
     "start_terminal_calls": 0,
     "network_requests": 0,
     "placeholder_writes": 0,
+    "terminal_restarts": 0,
 }
 
 
@@ -1394,7 +1404,6 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     max_retries = CONNECTION_MAX_RETRIES
     sleep_interval = CONNECTION_RETRY_SLEEP
-    restart_attempts = 0
     client = None
 
     def probe_status() -> Optional[str]:
@@ -1434,47 +1443,72 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
         logger.debug("ThetaTerminal running but not yet CONNECTED; waiting for status.")
         return check_connection(username=username, password=password, wait_for_connection=True)
 
-    counter = 0
-    connected = False
+    total_restart_cycles = 0
 
-    while counter < max_retries:
-        status_text = probe_status()
-        if status_text == "CONNECTED":
-            if counter:
-                logger.info("ThetaTerminal connected after %s attempt(s).", counter + 1)
-            connected = True
-            break
-        elif status_text == "DISCONNECTED":
-            logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
-        elif status_text is not None:
-            logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
+    while True:
+        counter = 0
+        restart_attempts = 0
 
-        if not is_process_alive():
-            if restart_attempts >= MAX_RESTART_ATTEMPTS:
-                logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
-                break
-            restart_attempts += 1
-            logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
-            client = start_theta_data_client(username=username, password=password)
-            time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
-            counter = 0
-            continue
+        while counter < max_retries:
+            status_text = probe_status()
+            if status_text == "CONNECTED":
+                if counter or total_restart_cycles:
+                    logger.info(
+                        "ThetaTerminal connected after %s attempt(s) (restart cycles=%s).",
+                        counter + 1,
+                        total_restart_cycles,
+                    )
+                return client, True
+            elif status_text == "DISCONNECTED":
+                logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
+            elif status_text is not None:
+                logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
 
-        counter += 1
-        if counter % 10 == 0:
-            logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
-        time.sleep(sleep_interval)
+            if not is_process_alive():
+                if restart_attempts >= MAX_RESTART_ATTEMPTS:
+                    logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
+                    break
+                restart_attempts += 1
+                logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
+                client = start_theta_data_client(username=username, password=password)
+                CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
+                counter = 0
+                continue
 
-    if not connected and counter >= max_retries:
-        logger.error("Cannot connect to Theta Data after %s attempts.", counter)
+            counter += 1
+            if counter % 10 == 0:
+                logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
+            time.sleep(sleep_interval)
 
-    return client, connected
+        total_restart_cycles += 1
+        if total_restart_cycles > MAX_TERMINAL_RESTART_CYCLES:
+            logger.error(
+                "Unable to connect to Theta Data after %s restart cycle(s) (%s attempts each).",
+                MAX_TERMINAL_RESTART_CYCLES,
+                max_retries,
+            )
+            raise ThetaDataConnectionError(
+                f"Unable to connect to Theta Data after {MAX_TERMINAL_RESTART_CYCLES} restart cycle(s)."
+            )
+
+        logger.warning(
+            "ThetaTerminal still disconnected after %s attempts; restarting (cycle %s/%s).",
+            max_retries,
+            total_restart_cycles,
+            MAX_TERMINAL_RESTART_CYCLES,
+        )
+        client = start_theta_data_client(username=username, password=password)
+        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+        time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
 
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     all_responses = []
     next_page_url = None
     page_count = 0
+    consecutive_disconnects = 0
+    restart_budget = 3
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -1497,25 +1531,52 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 )
 
                 response = requests.get(request_url, headers=headers, params=request_params)
+                status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None
-                if response.status_code == 472:
+                if status_code == 472:
                     logger.warning(f"No data available for request: {response.text[:200]}")
                     # DEBUG-LOG: API response - no data
                     logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA"
                     )
+                    consecutive_disconnects = 0
                     return None
+                elif status_code == 474:
+                    consecutive_disconnects += 1
+                    logger.warning("Received 474 from Theta Data (attempt %s): %s", counter + 1, response.text[:200])
+                    if consecutive_disconnects >= 2:
+                        if restart_budget <= 0:
+                            logger.error("Restart budget exhausted after repeated 474 responses.")
+                            raise ValueError("Cannot connect to Theta Data!")
+                        logger.warning(
+                            "Restarting ThetaTerminal after %s consecutive 474 responses (restart budget remaining %s).",
+                            consecutive_disconnects,
+                            restart_budget - 1,
+                        )
+                        restart_budget -= 1
+                        start_theta_data_client(username=username, password=password)
+                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                        check_connection(username=username, password=password, wait_for_connection=True)
+                        time.sleep(max(BOOT_GRACE_PERIOD, CONNECTION_RETRY_SLEEP))
+                        consecutive_disconnects = 0
+                        counter = 0
+                    else:
+                        check_connection(username=username, password=password, wait_for_connection=True)
+                        time.sleep(CONNECTION_RETRY_SLEEP)
+                    continue
                 # If status code is not 200, then we are not connected
-                elif response.status_code != 200:
-                    logger.warning(f"Non-200 status code {response.status_code}: {response.text[:200]}")
+                elif status_code != 200:
+                    logger.warning(f"Non-200 status code {status_code}: {response.text[:200]}")
                     # DEBUG-LOG: API response - error
                     logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR",
-                        response.status_code
+                        status_code
                     )
                     check_connection(username=username, password=password, wait_for_connection=True)
+                    consecutive_disconnects = 0
                 else:
                     json_resp = response.json()
+                    consecutive_disconnects = 0
 
                     # DEBUG-LOG: API response - success
                     response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
@@ -1541,6 +1602,12 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     else:
                         break
 
+            except ThetaDataConnectionError as exc:
+                logger.error("Theta Data connection failed after supervised restarts: %s", exc)
+                raise
+            except ValueError:
+                # Preserve deliberate ValueError signals (e.g., ThetaData error_type responses)
+                raise
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
                 check_connection(username=username, password=password, wait_for_connection=True)
@@ -1883,55 +1950,242 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     return df
 
 
-def get_expirations(username: str, password: str, ticker: str, after_date: date):
-    """
-    Get a list of expiration dates for the given ticker
+def _normalize_expiration_value(raw_value: object) -> Optional[str]:
+    """Convert ThetaData expiration payloads to ISO date strings."""
+    if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
+        return None
 
-    Parameters
-    ----------
-    username : str
-        Your ThetaData username
-    password : str
-        Your ThetaData password
-    ticker : str
-        The ticker for the asset we are getting data for
+    if isinstance(raw_value, (int, float)):
+        try:
+            digits = int(raw_value)
+        except (TypeError, ValueError):
+            return None
+        if digits <= 0:
+            return None
+        text = f"{digits:08d}"
+        return f"{text[0:4]}-{text[4:6]}-{text[6:8]}"
 
-    Returns
-    -------
-    list[str]
-        A list of expiration dates for the given ticker
-    """
-    # Use v2 API endpoint
-    url = f"{BASE_URL}/v2/list/expirations"
+    text_value = str(raw_value).strip()
+    if not text_value:
+        return None
+    if text_value.isdigit() and len(text_value) == 8:
+        return f"{text_value[0:4]}-{text_value[4:6]}-{text_value[6:8]}"
+    if len(text_value.split("-")) == 3:
+        return text_value
+    return None
 
-    querystring = {"root": ticker}
+
+def _normalize_strike_value(raw_value: object) -> Optional[float]:
+    """Convert ThetaData strike payloads to float strikes in dollars."""
+    if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
+        return None
+
+    try:
+        strike = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+
+    if strike <= 0:
+        return None
+
+    # ThetaData encodes strikes in thousandths of a dollar for integer payloads
+    if strike > 10000:
+        strike /= 1000.0
+
+    return round(strike, 4)
+
+
+def _detect_column(df: pd.DataFrame, candidates: Tuple[str, ...]) -> Optional[str]:
+    """Find the first column name matching the provided candidates (case-insensitive)."""
+    normalized = {str(col).strip().lower(): col for col in df.columns}
+    for candidate in candidates:
+        lookup = candidate.lower()
+        if lookup in normalized:
+            return normalized[lookup]
+    return None
+
+
+def build_historical_chain(
+    username: str,
+    password: str,
+    asset: Asset,
+    as_of_date: date,
+    max_expirations: int = 120,
+    max_consecutive_misses: int = 10,
+) -> Dict[str, Dict[str, List[float]]]:
+    """Build an as-of option chain by filtering live expirations against quote availability."""
+
+    if as_of_date is None:
+        raise ValueError("as_of_date must be provided to build a historical chain")
 
     headers = {"Accept": "application/json"}
+    expirations_resp = get_request(
+        url=f"{BASE_URL}/v2/list/expirations",
+        headers=headers,
+        querystring={"root": asset.symbol},
+        username=username,
+        password=password,
+    )
 
-    # Send the request
+    if not expirations_resp or not expirations_resp.get("response"):
+        logger.warning(
+            "ThetaData returned no expirations for %s; cannot build chain for %s.",
+            asset.symbol,
+            as_of_date,
+        )
+        return None
+
+    exp_df = pd.DataFrame(expirations_resp["response"], columns=expirations_resp["header"]["format"])
+    if exp_df.empty:
+        logger.warning(
+            "ThetaData returned empty expiration list for %s; cannot build chain for %s.",
+            asset.symbol,
+            as_of_date,
+        )
+        return None
+
+    expiration_values: List[int] = sorted(int(value) for value in exp_df.iloc[:, 0].tolist())
+    as_of_int = int(as_of_date.strftime("%Y%m%d"))
+
+    chains: Dict[str, Dict[str, List[float]]] = {"CALL": {}, "PUT": {}}
+    expirations_added = 0
+    consecutive_misses = 0
+
+    def expiration_has_data(expiration_str: str, strike_thousandths: int, right: str) -> bool:
+        querystring = {
+            "root": asset.symbol,
+            "exp": expiration_str,
+            "strike": strike_thousandths,
+            "right": right,
+        }
+        resp = get_request(
+            url=f"{BASE_URL}/list/dates/option/quote",
+            headers=headers,
+            querystring=querystring,
+            username=username,
+            password=password,
+        )
+        if not resp or resp.get("header", {}).get("error_type") == "NO_DATA":
+            return False
+        dates = resp.get("response", [])
+        return as_of_int in dates if dates else False
+
+    for exp_value in expiration_values:
+        if exp_value < as_of_int:
+            continue
+
+        expiration_iso = _normalize_expiration_value(exp_value)
+        if not expiration_iso:
+            continue
+
+        strike_resp = get_request(
+            url=f"{BASE_URL}/v2/list/strikes",
+            headers=headers,
+            querystring={"root": asset.symbol, "exp": str(exp_value)},
+            username=username,
+            password=password,
+        )
+        if not strike_resp or not strike_resp.get("response"):
+            logger.debug(
+                "No strikes for %s exp %s; skipping.",
+                asset.symbol,
+                expiration_iso,
+            )
+            consecutive_misses += 1
+            if consecutive_misses >= max_consecutive_misses:
+                break
+            continue
+
+        strike_df = pd.DataFrame(strike_resp["response"], columns=strike_resp["header"]["format"])
+        if strike_df.empty:
+            consecutive_misses += 1
+            if consecutive_misses >= max_consecutive_misses:
+                break
+            continue
+
+        strike_values = sorted({round(value / 1000.0, 4) for value in strike_df.iloc[:, 0].tolist()})
+        if not strike_values:
+            consecutive_misses += 1
+            if consecutive_misses >= max_consecutive_misses:
+                break
+            continue
+
+        # Use the median strike to validate whether the expiration existed on the backtest date
+        median_index = len(strike_values) // 2
+        probe_strike = strike_values[median_index]
+        probe_thousandths = int(round(probe_strike * 1000))
+
+        has_call_data = expiration_has_data(str(exp_value), probe_thousandths, "C")
+        has_put_data = has_call_data or expiration_has_data(str(exp_value), probe_thousandths, "P")
+
+        if not (has_call_data or has_put_data):
+            logger.debug(
+                "Expiration %s for %s not active on %s; skipping.",
+                expiration_iso,
+                asset.symbol,
+                as_of_date,
+            )
+            consecutive_misses += 1
+            if consecutive_misses >= max_consecutive_misses:
+                logger.debug(
+                    "Encountered %d consecutive inactive expirations for %s; stopping scan.",
+                    max_consecutive_misses,
+                    asset.symbol,
+                )
+                break
+            continue
+
+        chains["CALL"][expiration_iso] = strike_values
+        chains["PUT"][expiration_iso] = list(strike_values)
+        expirations_added += 1
+        consecutive_misses = 0
+
+        if expirations_added >= max_expirations:
+            break
+
+    logger.debug(
+        "Built ThetaData historical chain for %s on %s (expirations=%d)",
+        asset.symbol,
+        as_of_date,
+        expirations_added,
+    )
+
+    if not chains["CALL"] and not chains["PUT"]:
+        logger.warning(
+            "No expirations with data found for %s on %s.",
+            asset.symbol,
+            as_of_date,
+        )
+        return None
+
+    return {
+        "Multiplier": 100,
+        "Exchange": "SMART",
+        "Chains": chains,
+    }
+
+
+def get_expirations(username: str, password: str, ticker: str, after_date: date):
+    """Legacy helper retained for backward compatibility; prefer build_historical_chain."""
+    logger.warning(
+        "get_expirations is deprecated and provides live expirations only. "
+        "Use build_historical_chain for historical backtests (ticker=%s, after=%s).",
+        ticker,
+        after_date,
+    )
+
+    url = f"{BASE_URL}/v2/list/expirations"
+    querystring = {"root": ticker}
+    headers = {"Accept": "application/json"}
     json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
-
-    # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
-
-    # Convert df to a list of the first (and only) column
     expirations = df.iloc[:, 0].tolist()
-
-    # Convert after_date to a number
     after_date_int = int(after_date.strftime("%Y%m%d"))
-
-    # Filter out any dates before after_date
     expirations = [x for x in expirations if x >= after_date_int]
-
-    # Convert from "YYYYMMDD" (an int) to "YYYY-MM-DD" (a string)
     expirations_final = []
     for expiration in expirations:
         expiration_str = str(expiration)
-        # Add the dashes to the string
-        expiration_str = f"{expiration_str[:4]}-{expiration_str[4:6]}-{expiration_str[6:]}"
-        # Add the string to the list
-        expirations_final.append(expiration_str)
-
+        expirations_final.append(f"{expiration_str[:4]}-{expiration_str[4:6]}-{expiration_str[6:]}")
     return expirations_final
 
 
@@ -2017,8 +2271,6 @@ def get_chains_cached(
         }
     }
     """
-    from collections import defaultdict
-
     logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
 
     # 1) If current_date is None => bail out
@@ -2063,28 +2315,32 @@ def get_chains_cached(
 
             return data
 
-    # 4) No suitable file => fetch from ThetaData
-    logger.debug(f"No suitable file found for {asset.symbol} on {current_date}. Downloading...")
-    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use.")
+    # 4) No suitable file => fetch from ThetaData using exp=0 chain builder
+    logger.debug(
+        f"No suitable cache file found for {asset.symbol} on {current_date}; building historical chain."
+    )
+    print(
+        f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use."
+    )
 
-    # Get expirations and strikes using existing functions
-    expirations = get_expirations(username, password, asset.symbol, current_date)
+    chains_dict = build_historical_chain(
+        username=username,
+        password=password,
+        asset=asset,
+        as_of_date=current_date,
+    )
 
-    chains_dict = {
-        "Multiplier": 100,
-        "Exchange": "SMART",
-        "Chains": {
-            "CALL": defaultdict(list),
-            "PUT": defaultdict(list)
+    if chains_dict is None:
+        logger.warning(
+            "ThetaData returned no option data for %s on %s; skipping cache write.",
+            asset.symbol,
+            current_date,
+        )
+        return {
+            "Multiplier": 100,
+            "Exchange": "SMART",
+            "Chains": {"CALL": {}, "PUT": {}},
         }
-    }
-
-    for expiration_str in expirations:
-        expiration = date.fromisoformat(expiration_str)
-        strikes = get_strikes(username, password, asset.symbol, expiration)
-
-        chains_dict["Chains"]["CALL"][expiration_str] = sorted(strikes)
-        chains_dict["Chains"]["PUT"][expiration_str] = sorted(strikes)
 
     # 5) Save to cache file for future reuse
     cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"

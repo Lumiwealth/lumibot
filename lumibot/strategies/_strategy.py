@@ -133,10 +133,12 @@ class _Strategy:
         """
         if value is None:
             return None
-        if isinstance(value, datetime.datetime) and (
-            value.tzinfo is None or value.tzinfo.utcoffset(value) is None
-        ):
-            return to_datetime_aware(value)
+        if isinstance(value, datetime.datetime):
+            tzinfo = value.tzinfo
+            if tzinfo is None or tzinfo.utcoffset(value) is None:
+                return to_datetime_aware(value)
+            if not hasattr(tzinfo, "zone"):
+                return value.astimezone(LUMIBOT_DEFAULT_PYTZ)
         return value
 
     @property

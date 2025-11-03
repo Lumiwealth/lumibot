@@ -791,18 +791,11 @@ class OptionsHelper:
                     self.strategy.log_message(f"Cannot validate data without underlying symbol, returning {exp_date}", color="yellow")
                     return exp_date
 
-        # No future expirations with valid data; log and check last available
-        if expiration_dates:
-            # Check the last available expiry for data
-            for exp_str, exp_date in reversed(expiration_dates):
-                strikes = specific_chain.get(exp_str)
-                if strikes and len(strikes) > 0:
-                    self.strategy.log_message(
-                        f"No valid expirations on or after {dt}; using latest available {exp_date} for {call_or_put_caps}.",
-                        color="yellow",
-                    )
-                    return exp_date
-
+        # No future expirations with tradeable data; let the caller skip entries gracefully.
+        self.strategy.log_message(
+            f"No valid expirations on or after {dt} with tradeable data for {call_or_put_caps}; skipping.",
+            color="yellow",
+        )
         return None
 
     # ============================================================

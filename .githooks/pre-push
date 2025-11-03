@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "$1" = "upstream" ]; then
+  echo "Blocked: refusing to push to upstream (public)."
+  exit 1
+fi
+exit 0

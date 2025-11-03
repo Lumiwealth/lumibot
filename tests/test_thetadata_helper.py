@@ -138,11 +138,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     assert df is not None
     assert len(df) == 10  # Combined cached and fetched data
     mock_get_historical_data.assert_called_once()
-    pd.testing.assert_frame_equal(
-        df,
-        updated_data.drop(columns="missing"),
-        check_dtype=False,
-    )
+    pd.testing.assert_frame_equal(df, updated_data.drop(columns="missing"))
     mock_update_cache.assert_called_once()
 
 
@@ -328,13 +324,13 @@ def test_get_trading_dates():
 def test_build_cache_filename(mocker, tmpdir, datastyle):
     asset = Asset("SPY")
     timespan = "1D"
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
-    expected = tmpdir / "thetadata" / "stock" / "1d" / datastyle / f"stock_SPY_1D_{datastyle}.parquet"
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
+    expected = tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(asset, timespan, datastyle) == expected
 
     expire_date = datetime.date(2023, 8, 1)
     option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-    expected = tmpdir / "thetadata" / "option" / "1d" / datastyle / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
+    expected = tmpdir / "thetadata" / f"option_SPY_230801_100_CALL_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(option_asset, timespan, datastyle) == expected
 
     # Bad option asset with no expiration
@@ -431,8 +427,8 @@ def test_missing_dates():
     ],
 )
 def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
-    cache_file = thetadata_helper.build_cache_filename(Asset("SPY"), "1D", datastyle)
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
+    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
     
     # Empty DataFrame of df_all, don't write cache file
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
@@ -456,7 +452,7 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
 
     df = pd.DataFrame(
         {
-            "datetime": pd.date_range("2024-01-01 09:30:00", periods=2, freq="min", tz=pytz.UTC),
+            "datetime": pd.date_range("2024-01-01 09:30:00", periods=2, freq="T", tz=pytz.UTC),
             "open": [100.0, 101.0],
             "high": [101.0, 102.0],
             "low": [99.5, 100.5],
@@ -554,9 +550,8 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
 )
 def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
     # Setup some basics
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
-    asset = Asset("SPY")
-    cache_file = thetadata_helper.build_cache_filename(asset, "1D", datastyle)
+    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", tmpdir)
+    cache_file = Path(tmpdir / "thetadata" / f"stock_SPY_1D_{datastyle}.parquet")
 
     # No cache file should return None (not raise)
     assert thetadata_helper.load_cache(cache_file) is None
@@ -881,13 +876,7 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
         password="test_password",
         wait_for_connection=True,
     )
-    assert mock_check_connection.call_count == 2
-    first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
-    assert first_call_kwargs == {
-        "username": "test_user",
-        "password": "test_password",
-        "wait_for_connection": False,
-    }
+    assert mock_check_connection.call_count == 5
 
 
 @patch('lumibot.tools.thetadata_helper.check_connection')
@@ -911,44 +900,6 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
         wait_for_connection=True,
     )
     assert mock_check_connection.call_count == 3
-
-
-
-@patch('lumibot.tools.thetadata_helper.start_theta_data_client')
-@patch('lumibot.tools.thetadata_helper.check_connection')
-def test_get_request_consecutive_474_triggers_restarts(mock_check_connection, mock_start_client, monkeypatch):
-    mock_check_connection.return_value = (object(), True)
-
-    responses = [MagicMock(status_code=474, text='Connection lost to Theta Data MDDS.') for _ in range(9)]
-
-    def fake_get(*args, **kwargs):
-        if not responses:
-            raise AssertionError('Test exhausted mock responses unexpectedly')
-        return responses.pop(0)
-
-    monkeypatch.setattr(thetadata_helper.requests, 'get', fake_get)
-    monkeypatch.setattr(thetadata_helper.time, 'sleep', lambda *args, **kwargs: None)
-    monkeypatch.setattr(thetadata_helper, 'BOOT_GRACE_PERIOD', 0, raising=False)
-    monkeypatch.setattr(thetadata_helper, 'CONNECTION_RETRY_SLEEP', 0, raising=False)
-
-    with pytest.raises(ValueError, match='Cannot connect to Theta Data!'):
-        thetadata_helper.get_request(
-            url='http://test.com',
-            headers={'Authorization': 'Bearer test_token'},
-            querystring={'param1': 'value1'},
-            username='test_user',
-            password='test_password',
-        )
-
-    assert mock_start_client.call_count == 3
-    # Initial liveness probe plus retry coordination checks
-    assert mock_check_connection.call_count > 3
-    first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
-    assert first_call_kwargs == {
-        'username': 'test_user',
-        'password': 'test_password',
-        'wait_for_connection': False,
-    }
 
 
 @patch('lumibot.tools.thetadata_helper.get_request')
@@ -1378,316 +1329,83 @@ class TestThetaDataProcessHealthCheck:
         assert thetadata_helper.is_process_alive() is True, "New process should be alive"
 
 
+@pytest.mark.apitest
 class TestThetaDataChainsCaching:
-    """Unit coverage for historical chain caching and normalization."""
-
-    def test_chains_cached_basic_structure(self, tmp_path, monkeypatch):
-        asset = Asset("TEST", asset_type="stock")
-        test_date = date(2024, 11, 7)
-
-        sample_chain = {
-            "Multiplier": 100,
-            "Exchange": "SMART",
-            "Chains": {
-                "CALL": {"2024-11-15": [100.0, 105.0]},
-                "PUT": {"2024-11-15": [90.0, 95.0]},
-            },
-        }
-
-        calls = []
-
-        def fake_builder(**kwargs):
-            calls.append(kwargs)
-            return sample_chain
-
-        monkeypatch.setattr(thetadata_helper, "build_historical_chain", fake_builder)
-        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
-
-        result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
-
-        assert result == sample_chain
-        assert len(calls) == 1
-        builder_call = calls[0]
-        assert builder_call["asset"] == asset
-        assert builder_call["as_of_date"] == test_date
-
-    def test_chains_cache_reuse(self, tmp_path, monkeypatch):
-        asset = Asset("REUSE", asset_type="stock")
-        test_date = date(2024, 11, 8)
-
-        sample_chain = {
-            "Multiplier": 100,
-            "Exchange": "SMART",
-            "Chains": {"CALL": {"2024-11-22": [110.0]}, "PUT": {"2024-11-22": [95.0]}},
-        }
-
-        call_count = {"total": 0}
-
-        def fake_builder(**kwargs):
-            call_count["total"] += 1
-            return sample_chain
-
-        monkeypatch.setattr(thetadata_helper, "build_historical_chain", fake_builder)
-        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
-
-        first = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
-        second = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
-
-        assert first == sample_chain
-        assert second == sample_chain
-        assert call_count["total"] == 1, "Builder should only run once due to cache reuse"
-
-    def test_chain_cache_respects_recent_file(self, tmp_path, monkeypatch):
-        asset = Asset("RECENT", asset_type="stock")
-        test_date = date(2024, 11, 30)
-
-        sample_chain = {
-            "Multiplier": 100,
-            "Exchange": "SMART",
-            "Chains": {"CALL": {"2024-12-06": [120.0]}, "PUT": {"2024-12-06": [80.0]}},
-        }
-
-        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
-
-        cache_folder = Path(tmp_path) / "thetadata" / "stock" / "option_chains"
-        cache_folder.mkdir(parents=True, exist_ok=True)
-
-        cache_file = cache_folder / f"{asset.symbol}_{test_date.isoformat()}.parquet"
-        pd.DataFrame({"data": [sample_chain]}).to_parquet(cache_file, compression="snappy", engine="pyarrow")
-
-        # Builder should not be invoked because cache hit satisfies tolerance window
-        def fail_builder(**kwargs):
-            raise AssertionError("build_historical_chain should not be called when cache is fresh")
-
-        monkeypatch.setattr(thetadata_helper, "build_historical_chain", fail_builder)
-
-        result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
-        assert result == sample_chain
-
-    def test_chains_cached_handles_none_builder(self, tmp_path, monkeypatch, caplog):
-        asset = Asset("NONE", asset_type="stock")
-        test_date = date(2024, 11, 28)
-
-        monkeypatch.setattr(thetadata_helper, "build_historical_chain", lambda **kwargs: None)
-        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
-        monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
-        caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
-
-        with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-            result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
-
-        cache_folder = Path(tmp_path) / "thetadata" / "stock" / "option_chains"
-        assert not cache_folder.exists() or not list(cache_folder.glob("*.parquet"))
-
-        assert result == {
-            "Multiplier": 100,
-            "Exchange": "SMART",
-            "Chains": {"CALL": {}, "PUT": {}},
-        }
-        assert "ThetaData returned no option data" in caplog.text
-
-
-def test_build_historical_chain_parses_quote_payload(monkeypatch):
-    asset = Asset("CVNA", asset_type="stock")
-    as_of_date = date(2024, 11, 7)
-    as_of_int = int(as_of_date.strftime("%Y%m%d"))
-
-    def fake_get_request(url, headers, querystring, username, password):
-        if url.endswith("/v2/list/expirations"):
-            return {
-                "header": {"format": ["date"]},
-                "response": [[20241115], [20241205], [20250124]],
-            }
-        if url.endswith("/v2/list/strikes"):
-            exp = querystring["exp"]
-            if exp == "20241115":
-                return {
-                    "header": {"format": ["strike"]},
-                    "response": [[100000], [105000]],
-                }
-            if exp == "20241205":
-                return {
-                    "header": {"format": ["strike"]},
-                    "response": [[110000]],
-                }
-            return {
-                "header": {"format": ["strike"]},
-                "response": [[120000]],
-            }
-        if url.endswith("/list/dates/option/quote"):
-            exp = querystring["exp"]
-            if exp == "20241115":
-                return {
-                    "header": {"format": None, "error_type": "null"},
-                    "response": [as_of_int, as_of_int + 1],
-                }
-            return {
-                "header": {"format": None, "error_type": "NO_DATA"},
-                "response": [],
-            }
-        raise AssertionError(f"Unexpected URL {url}")
-
-    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
-
-    result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
-
-    assert result["Multiplier"] == 100
-    assert set(result["Chains"].keys()) == {"CALL", "PUT"}
-    assert list(result["Chains"]["CALL"].keys()) == ["2024-11-15"]
-    assert result["Chains"]["CALL"]["2024-11-15"] == [100.0, 105.0]
-    assert result["Chains"]["PUT"]["2024-11-15"] == [100.0, 105.0]
-
-
-def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
-    asset = Asset("NONE", asset_type="stock")
-    as_of_date = date(2024, 11, 28)
-
-    as_of_int = int(as_of_date.strftime("%Y%m%d"))
-
-    def fake_get_request(url, headers, querystring, username, password):
-        if url.endswith("/v2/list/expirations"):
-            return {"header": {"format": ["date"]}, "response": [[20241129], [20241206]]}
-        if url.endswith("/v2/list/strikes"):
-            return {"header": {"format": ["strike"]}, "response": [[150000], [155000]]}
-        if url.endswith("/list/dates/option/quote"):
-            return {"header": {"format": None, "error_type": "NO_DATA"}, "response": []}
-        raise AssertionError(f"Unexpected URL {url}")
-
-    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
-    monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
-    caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
-
-    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-        result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
-
-    assert result is None
-    assert f"No expirations with data found for {asset.symbol}" in caplog.text
-
-def test_build_historical_chain_empty_response(monkeypatch, caplog):
-    asset = Asset("EMPTY", asset_type="stock")
-    as_of_date = date(2024, 11, 9)
-
-    def fake_get_request(url, headers, querystring, username, password):
-        if url.endswith("/v2/list/expirations"):
-            return {"header": {"format": ["date"]}, "response": []}
-        raise AssertionError("Unexpected call after empty expirations")
-
-    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
-    monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
-    caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
-
-    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-        result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
-
-    assert result is None
-    assert "returned no expirations" in caplog.text
-
-
-class TestThetaDataConnectionSupervision:
-
-    def setup_method(self):
-        thetadata_helper.reset_connection_diagnostics()
-
-    def test_check_connection_recovers_after_restart(self, monkeypatch):
-        statuses = iter(["DISCONNECTED", "DISCONNECTED", "CONNECTED"])
-
-        class FakeResponse:
-            def __init__(self, text):
-                self.text = text
-
-        def fake_get(url, timeout):
-            try:
-                text = next(statuses)
-            except StopIteration:
-                text = "CONNECTED"
-            return FakeResponse(text)
-
-        start_calls = []
-
-        def fake_start(username, password):
-            start_calls.append((username, password))
-            return object()
-
-        monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
-        monkeypatch.setattr(thetadata_helper, "start_theta_data_client", fake_start)
-        monkeypatch.setattr(thetadata_helper, "is_process_alive", lambda: True)
-        monkeypatch.setattr(thetadata_helper, "CONNECTION_MAX_RETRIES", 2, raising=False)
-        monkeypatch.setattr(thetadata_helper, "MAX_TERMINAL_RESTART_CYCLES", 2, raising=False)
-        monkeypatch.setattr(thetadata_helper, "BOOT_GRACE_PERIOD", 0, raising=False)
-        monkeypatch.setattr(thetadata_helper, "CONNECTION_RETRY_SLEEP", 0, raising=False)
-        monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *args, **kwargs: None)
-
-        client, connected = thetadata_helper.check_connection("user", "pass", wait_for_connection=True)
-
-        assert connected is True
-        assert len(start_calls) == 1
-        assert thetadata_helper.CONNECTION_DIAGNOSTICS["terminal_restarts"] >= 1
-
-    def test_check_connection_raises_after_restart_cycles(self, monkeypatch):
-        statuses = iter(["DISCONNECTED"] * 10)
-
-        class FakeResponse:
-            def __init__(self, text):
-                self.text = text
-
-        def fake_get(url, timeout):
-            try:
-                text = next(statuses)
-            except StopIteration:
-                text = "DISCONNECTED"
-            return FakeResponse(text)
-
-        monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
-        monkeypatch.setattr(thetadata_helper, "start_theta_data_client", lambda *args, **kwargs: object())
-        monkeypatch.setattr(thetadata_helper, "is_process_alive", lambda: True)
-        monkeypatch.setattr(thetadata_helper, "CONNECTION_MAX_RETRIES", 1, raising=False)
-        monkeypatch.setattr(thetadata_helper, "MAX_TERMINAL_RESTART_CYCLES", 1, raising=False)
-        monkeypatch.setattr(thetadata_helper, "BOOT_GRACE_PERIOD", 0, raising=False)
-        monkeypatch.setattr(thetadata_helper, "CONNECTION_RETRY_SLEEP", 0, raising=False)
-        monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *args, **kwargs: None)
-
-        with pytest.raises(thetadata_helper.ThetaDataConnectionError):
-            thetadata_helper.check_connection("user", "pass", wait_for_connection=True)
-
-
-def test_finalize_day_frame_handles_dst_fallback():
-    tz = pytz.timezone("America/New_York")
-    utc = pytz.UTC
-    frame_index = pd.date_range(
-        end=tz.localize(datetime.datetime(2024, 10, 31, 16, 0)),
-        periods=5,
-        freq="D",
-    )
-    frame = pd.DataFrame(
-        {
-            "open": [100 + i for i in range(len(frame_index))],
-            "high": [101 + i for i in range(len(frame_index))],
-            "low": [99 + i for i in range(len(frame_index))],
-            "close": [100.5 + i for i in range(len(frame_index))],
-            "volume": [1000 + i for i in range(len(frame_index))],
-        },
-        index=frame_index,
-    )
-
-    data_source = ThetaDataBacktestingPandas(
-        datetime_start=utc.localize(datetime.datetime(2024, 10, 1)),
-        datetime_end=utc.localize(datetime.datetime(2024, 11, 5)),
-        username="user",
-        password="pass",
-        use_quote_data=False,
-    )
-
-    current_dt = utc.localize(datetime.datetime(2024, 11, 4, 13, 30))
-    result = data_source._finalize_day_frame(
-        frame,
-        current_dt,
-        requested_length=len(frame_index),
-        timeshift=None,
-        asset=Asset("TSLA"),
-    )
-
-    assert result is not None
-    assert len(result) == len(frame_index)
+    """Test option chain caching matches Polygon pattern - ZERO TOLERANCE."""
+
+    def test_chains_cached_basic_structure(self):
+        """Test chain caching returns correct structure."""
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        asset = Asset("SPY", asset_type="stock")
+        test_date = date(2025, 9, 15)
+
+        chains = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+
+        assert chains is not None, "Chains should not be None"
+        assert "Multiplier" in chains, "Missing Multiplier"
+        assert chains["Multiplier"] == 100, f"Multiplier should be 100, got {chains['Multiplier']}"
+        assert "Exchange" in chains, "Missing Exchange"
+        assert "Chains" in chains, "Missing Chains"
+        assert "CALL" in chains["Chains"], "Missing CALL chains"
+        assert "PUT" in chains["Chains"], "Missing PUT chains"
+
+        # Verify at least one expiration exists
+        assert len(chains["Chains"]["CALL"]) > 0, "Should have at least one CALL expiration"
+        assert len(chains["Chains"]["PUT"]) > 0, "Should have at least one PUT expiration"
+
+        print(f"✓ Chain structure valid: {len(chains['Chains']['CALL'])} expirations")
+
+    def test_chains_cache_reuse(self):
+        """Test that second call reuses cached data (no API call)."""
+        import time
+        from pathlib import Path
+        from lumibot.constants import LUMIBOT_CACHE_FOLDER
+
+        username = os.environ.get("THETADATA_USERNAME")
+        password = os.environ.get("THETADATA_PASSWORD")
+
+        asset = Asset("AAPL", asset_type="stock")
+        test_date = date(2025, 9, 15)
+
+        # CLEAR CACHE to ensure first call downloads fresh data
+        # This prevents cache pollution from previous tests in the suite
+        # Chains are stored in: LUMIBOT_CACHE_FOLDER / "thetadata" / "option_chains"
+        chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / "option_chains"
+        if chain_folder.exists():
+            # Delete all AAPL chain cache files
+            for cache_file in chain_folder.glob("AAPL_*.parquet"):
+                try:
+                    cache_file.unlink()
+                except Exception:
+                    pass
+
+        # Restart ThetaData Terminal to ensure fresh connection after cache clearing
+        # This is necessary because cache clearing may interfere with active connections
+        thetadata_helper.start_theta_data_client(username, password)
+        time.sleep(3)  # Give Terminal time to fully connect
+
+        # Verify connection is established
+        _, connected = thetadata_helper.check_connection(username, password)
+        assert connected, "ThetaData Terminal failed to connect"
+
+        # First call - downloads (now guaranteed to be fresh)
+        start1 = time.time()
+        chains1 = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+        time1 = time.time() - start1
+
+        # Second call - should use cache
+        start2 = time.time()
+        chains2 = thetadata_helper.get_chains_cached(username, password, asset, test_date)
+        time2 = time.time() - start2
+
+        # Verify same data
+        assert chains1 == chains2, "Cached chains should match original"
+
+        # Second call should be MUCH faster (cached)
+        assert time2 < time1 * 0.1, f"Cache not working: time1={time1:.2f}s, time2={time2:.2f}s (should be 10x faster)"
+        print(f"✓ Cache speedup: {time1/time2:.1f}x faster ({time1:.2f}s -> {time2:.4f}s)")
 
     def test_chains_strike_format(self):
         """Test strikes are floats (not integers) and properly converted."""

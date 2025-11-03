@@ -1,0 +1,104 @@
+================================================================================
+DATE RANGES FOR PHASE 1 PROFILING - LUMIBOT GC FUTURES
+================================================================================
+
+PHASE 0 (Already Cached):
+--------------------------------------------------------------------------------
+2025-01-01 to 2025-01-31  (cache_probe_cold)
+2025-01-01 to 2025-01-31  (cache_probe_warm)
+
+PHASE 1 (To Pre-Cache):
+================================================================================
+
+1-WEEK WINDOWS (4):
+--------------------------------------------------------------------------------
+1. 2025-01-20 to 2025-01-26  (Jan week)
+2. 2025-03-10 to 2025-03-16  (Mar week)
+3. 2025-07-14 to 2025-07-20  (Jul week)
+4. 2025-10-13 to 2025-10-19  (Oct week)
+
+1-MONTH WINDOWS (3):
+--------------------------------------------------------------------------------
+5. 2025-02-01 to 2025-02-28  (February)
+6. 2025-05-01 to 2025-05-31  (May)
+7. 2025-09-01 to 2025-09-30  (September)
+
+3-MONTH WINDOW (1):
+--------------------------------------------------------------------------------
+8. 2025-04-01 to 2025-06-30  (Q2-like: Apr-Jun)
+
+FULL RANGE (1):
+--------------------------------------------------------------------------------
+9. 2025-01-01 to 2025-10-31  (Full 10 months)
+
+================================================================================
+IMPORTANT NOTES:
+================================================================================
+
+1. **Full Range Optimization:**
+   The full range (2025-01-01 to 2025-10-31) encompasses ALL other date ranges.
+   If you pre-cache the full range, all smaller windows are automatically cached.
+
+   Recommended approach: Cache just the full range!
+
+2. **Data Source:**
+   - Asset: GC (Gold Futures, continuous contract)
+   - Exchange: COMEX
+   - Timestep: 1-minute bars
+   - Data provider: DataBento
+
+3. **Cache Location:**
+   DataBento data is cached in the Lumibot cache directory.
+   Check: lumibot/cache/ or the configured LUMIBOT_CACHE_FOLDER
+
+4. **Pre-Caching Method:**
+   To pre-cache, run the gc_futures_optimized.py strategy with:
+   - backtesting_start = datetime(2025, 1, 1)
+   - backtesting_end = datetime(2025, 10, 31)
+   - This will download all data once
+
+5. **Total Data:**
+   - Full range: ~304 days (Jan 1 - Oct 31)
+   - Expected download time: ~1-2 minutes (first time)
+   - Cache size: ~500 MB - 1 GB (estimated)
+
+================================================================================
+QUICK PRE-CACHE COMMAND:
+================================================================================
+
+You can pre-cache by running the strategy once with the full date range:
+
+    cd /Users/marvin/repos/lumibot
+    source venv/bin/activate
+
+    python -c "
+    from datetime import datetime
+    from examples.gc_futures_optimized import GCFuturesOptimized
+    from lumibot.backtesting import DataBentoDataBacktesting
+    import os
+
+    # Run a quick backtest to cache data
+    GCFuturesOptimized.run_backtest(
+        datasource_class=DataBentoDataBacktesting,
+        backtesting_start=datetime(2025, 1, 1),
+        backtesting_end=datetime(2025, 10, 31),
+        api_key=os.getenv('DATABENTO_API_KEY'),
+        show_plot=False,
+        show_tearsheet=False,
+        show_progress_bar=True
+    )
+    "
+
+This will download and cache all 2025 data (Jan-Oct) in one go.
+
+================================================================================
+AFTER PRE-CACHING:
+================================================================================
+
+Once data is cached, run the profiler:
+
+    python -u -m profiler.runner --phase 1
+
+All 9 runs will use cached data and complete much faster!
+
+================================================================================

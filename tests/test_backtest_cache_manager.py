@@ -67,7 +67,7 @@ def _build_settings(prefix: str = "prod/cache") -> BacktestCacheSettings:
 def test_remote_key_uses_relative_cache_path(tmp_path, monkeypatch):
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
-    local_file = cache_root / "thetadata" / "stock" / "minute" / "ohlc" / "stock_SPY_minute_ohlc.parquet"
+    local_file = cache_root / "thetadata" / "bars" / "spy.parquet"
     local_file.parent.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", cache_root)
@@ -76,17 +76,17 @@ def test_remote_key_uses_relative_cache_path(tmp_path, monkeypatch):
     manager = BacktestCacheManager(settings, client_factory=lambda settings: StubS3Client())
 
     remote_key = manager.remote_key_for(local_file)
-    assert remote_key == "stage/cache/v3/thetadata/stock/minute/ohlc/stock_SPY_minute_ohlc.parquet"
+    assert remote_key == "stage/cache/v3/thetadata/bars/spy.parquet"
 
 
 def test_ensure_local_file_downloads_from_s3(tmp_path, monkeypatch):
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
-    local_file = cache_root / "thetadata" / "stock" / "minute" / "ohlc" / "stock_SPY_minute_ohlc.parquet"
+    local_file = cache_root / "thetadata" / "bars" / "spy.parquet"
 
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", cache_root)
 
-    remote_key = "stage/cache/v3/thetadata/stock/minute/ohlc/stock_SPY_minute_ohlc.parquet"
+    remote_key = "stage/cache/v3/thetadata/bars/spy.parquet"
     objects = {("test-bucket", remote_key): b"cached-data"}
 
     stub = StubS3Client(objects)
@@ -101,7 +101,7 @@ def test_ensure_local_file_downloads_from_s3(tmp_path, monkeypatch):
 def test_ensure_local_file_handles_missing_remote(tmp_path, monkeypatch):
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
-    local_file = cache_root / "thetadata" / "stock" / "minute" / "ohlc" / "stock_SPY_minute_ohlc.parquet"
+    local_file = cache_root / "thetadata" / "bars" / "spy.parquet"
 
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", cache_root)
 
@@ -116,13 +116,13 @@ def test_ensure_local_file_handles_missing_remote(tmp_path, monkeypatch):
 def test_on_local_update_uploads_file(tmp_path, monkeypatch):
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
-    local_file = cache_root / "thetadata" / "stock" / "minute" / "ohlc" / "stock_SPY_minute_ohlc.parquet"
+    local_file = cache_root / "thetadata" / "bars" / "spy.parquet"
     local_file.parent.mkdir(parents=True, exist_ok=True)
     local_file.write_bytes(b"new-data")
 
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", cache_root)
 
-    remote_key = "stage/cache/v3/thetadata/stock/minute/ohlc/stock_SPY_minute_ohlc.parquet"
+    remote_key = "stage/cache/v3/thetadata/bars/spy.parquet"
     stub = StubS3Client({("test-bucket", remote_key): b"old"})
     manager = BacktestCacheManager(_build_settings(prefix="stage/cache"), client_factory=lambda s: stub)
 

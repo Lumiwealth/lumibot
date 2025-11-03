@@ -947,7 +947,6 @@ def get_last_price_from_databento(
     api_key: str,
     asset: Asset,
     venue: Optional[str] = None,
-    reference_date: Optional[datetime] = None,
     **kwargs
 ) -> Optional[Union[float, Decimal]]:
     """
@@ -979,14 +978,12 @@ def get_last_price_from_databento(
         
         # For continuous futures, resolve to the current active contract
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-            # Resolve based on reference date when backtesting so we match the contract in use
-            resolved_symbol = _format_futures_symbol_for_databento(
-                asset,
-                reference_date=reference_date,
-            )
+            # Use Asset class method to resolve continuous futures to actual contract (returns string)
+            resolved_symbol = asset.resolve_continuous_futures_contract(year_digits=1)
             if resolved_symbol is None:
                 logger.error(f"Could not resolve continuous futures contract for {asset.symbol}")
                 return None
+            # Generate the correct DataBento symbol format (should be single result)
             symbols_to_try = _generate_databento_symbol_alternatives(asset.symbol, resolved_symbol)
             logger.info(f"Resolved continuous future {asset.symbol} to specific contract: {resolved_symbol}")
             logger.info(f"DataBento symbol format for last price: {symbols_to_try[0]}")
@@ -1003,17 +1000,12 @@ def get_last_price_from_databento(
             if hasattr(range_result, 'end') and range_result.end:
                 if hasattr(range_result.end, 'tz_localize'):
                     # Already a pandas Timestamp
-                    if range_result.end.tz is not None:
-                        available_end = range_result.end.tz_convert('UTC')
-                    else:
-                        available_end = range_result.end.tz_localize('UTC')
+                    available_end = range_result.end if range_result.end.tz else range_result.end.tz_localize('UTC')
                 else:
                     # Convert to pandas Timestamp
-                    ts = pd.to_datetime(range_result.end)
-                    available_end = ts if ts.tz is not None else ts.tz_localize('UTC')
+                    available_end = pd.to_datetime(range_result.end).tz_localize('UTC')
             elif isinstance(range_result, dict) and 'end' in range_result:
-                ts = pd.to_datetime(range_result['end'])
-                available_end = ts if ts.tz is not None else ts.tz_localize('UTC')
+                available_end = pd.to_datetime(range_result['end']).tz_localize('UTC')
             else:
                 logger.warning(f"Could not parse dataset range for {dataset}: {range_result}")
                 # Fallback: use a recent date that's likely to have data
@@ -1055,10 +1047,10 @@ def get_last_price_from_databento(
                         df = pd.DataFrame(data)
                     
                     if not df.empty:
+                        # Get the last available price (close price of most recent bar)
                         if 'close' in df.columns:
-                            closes = df['close'].dropna()
-                            if not closes.empty:
-                                price = closes.iloc[-1]
+                            price = df['close'].iloc[-1]
+                            if pd.notna(price):
                                 logger.info(f"✓ SUCCESS: Got last price for {symbol_to_use}: {price}")
                                 return float(price)
                         

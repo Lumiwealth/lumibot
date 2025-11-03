@@ -1011,12 +1011,13 @@ class ProjectXClient:
                 self.logger.warning(f"⚠️ Asset class method failed: {asset_error}, falling back to API search")
             
             # Fallback: Use hardcoded mapping for immediate compatibility
+            # Updated to Z25 (December 2025) - U25 (September 2025) is expired
             common_futures_fallback = {
-                'MES': 'CON.F.US.MES.U25',
-                'ES': 'CON.F.US.ES.U25',    
-                'NQ': 'CON.F.US.NQ.U25',    
-                'YM': 'CON.F.US.YM.U25',    
-                'RTY': 'CON.F.US.RTY.U25',  
+                'MES': 'CON.F.US.MES.Z25',
+                'ES': 'CON.F.US.ES.Z25',
+                'NQ': 'CON.F.US.NQ.Z25',
+                'YM': 'CON.F.US.YM.Z25',
+                'RTY': 'CON.F.US.RTY.Z25',
             }
             
             if symbol_upper in common_futures_fallback:

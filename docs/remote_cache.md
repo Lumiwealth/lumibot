@@ -48,19 +48,18 @@ Notes:
 Example ThetaData quote cache on macOS:
 
 ```
-/Users/<user>/Library/Caches/lumibot/1.0/thetadata/stock/minute/ohlc/stock_SPY_minute_ohlc.parquet
+/Users/<user>/Library/Caches/lumibot/1.0/thetadata/stock_SPY_minute_ohlc.parquet
 ```
 
 With the example configuration above the remote key becomes:
 
 ```
-prod/cache/v1/thetadata/stock/minute/ohlc/stock_SPY_minute_ohlc.parquet
+prod/cache/v1/thetadata/stock_SPY_minute_ohlc.parquet
 ```
 
-This format aligns with the intended IAM policy layout (provider → asset class →
-timespan → datastyle) and keeps migration straightforward for other data sources
-such as Polygon or DataBento. Option-chain caches now live at
-`thetadata/option/option_chains/<symbol>_<date>.parquet`.
+This format aligns with the intended IAM policy layout (provider/asset class
+segments) and keeps migration straightforward for other data sources such as
+Polygon or DataBento.
 
 ## Implementation Overview
 

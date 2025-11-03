@@ -28,6 +28,7 @@ class DataSourceBacktesting(DataSource, ABC):
             api_key: str | None = None,
             show_progress_bar: bool = True,
             log_backtest_progress_to_file = False,
+            write_live_equity_file: bool = False,
             delay: int | None = None,
             pandas_data: dict | list = None,
             **kwargs
@@ -76,6 +77,12 @@ class DataSourceBacktesting(DataSource, ABC):
         # Add initialization for the logging timer attribute
         self._last_logging_time = None
         self._portfolio_value = None
+
+        # Live equity curve file writing
+        self.write_live_equity_file = write_live_equity_file
+        self._live_equity_path = "logs/backtest_live_equity.jsonl"
+        if self.write_live_equity_file:
+            self._clear_live_equity_file()
 
     @staticmethod
     def estimate_requested_length(length=None, start_date=None, end_date=None, timestep="minute"):
@@ -201,6 +208,10 @@ class DataSourceBacktesting(DataSource, ABC):
                     log_portfolio_value = ""
                 self.log_backtest_progress_to_csv(percent, elapsed, log_eta, log_portfolio_value)
 
+        # Write live equity data for GUI visualization (JSONL format)
+        if self.write_live_equity_file and portfolio_value is not None:
+            self._write_live_equity_data(new_datetime, portfolio_value, percent)
+
     def log_backtest_progress_to_csv(self, percent, elapsed, log_eta, portfolio_value):
         # If portfolio_value is None, use the last known value if available.
         if portfolio_value is None and hasattr(self, "_portfolio_value") and self._portfolio_value is not None:
@@ -225,3 +236,46 @@ class DataSourceBacktesting(DataSource, ABC):
             writer = csv.writer(csvfile)
             writer.writerow(["timestamp", "percent", "elapsed", "eta", "portfolio_value"])
             writer.writerow(row)
+
+    def _clear_live_equity_file(self):
+        """Clear the live equity file at the start of a new backtest"""
+        import os
+        from pathlib import Path
+
+        equity_path = Path(self._live_equity_path)
+
+        # Create logs directory if it doesn't exist
+        equity_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Remove existing file if present
+        if equity_path.exists():
+            equity_path.unlink()
+
+    def _write_live_equity_data(self, new_datetime, portfolio_value, percent):
+        """Write equity curve data to JSONL file for live GUI visualization"""
+        import json
+        from pathlib import Path
+
+        if not self.write_live_equity_file:
+            return
+
+        # Skip if no portfolio value
+        if portfolio_value is None:
+            return
+
+        equity_path = Path(self._live_equity_path)
+
+        # Create data point
+        data = {
+            "timestamp": new_datetime.isoformat(),
+            "portfolio_value": float(portfolio_value) if portfolio_value else None,
+            "percent": float(percent)
+        }
+
+        # Append to JSONL file
+        try:
+            with open(equity_path, "a") as f:
+                f.write(json.dumps(data) + "\n")
+        except Exception as e:
+            # Don't let logging errors stop the backtest
+            print(f"Warning: Failed to write live equity data: {e}")

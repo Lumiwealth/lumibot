@@ -288,8 +288,7 @@ class ThetaDataBacktestingPandas(PandasData):
         )
 
         expected_last_dt = self.to_default_timezone(current_dt).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
-        expected_last_dt_utc = expected_last_dt.astimezone(pytz.UTC)
-        target_index = pd.date_range(end=expected_last_dt_utc, periods=requested_length, freq="D", tz=pytz.UTC).tz_convert(self.tzinfo)
+        target_index = pd.date_range(end=expected_last_dt, periods=requested_length, freq="D", tz=self.tzinfo)
 
         # DEBUG-LOG: Target index details
         logger.debug(
@@ -771,7 +770,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
                 existing_quote_cols = [col for col in quote_columns if col in df.columns]
                 if existing_quote_cols:
-                    df[existing_quote_cols] = df[existing_quote_cols].ffill()
+                    df[existing_quote_cols] = df[existing_quote_cols].fillna(method='ffill')
 
                     # Log how much forward filling occurred
                     if 'bid' in df.columns and 'ask' in df.columns:

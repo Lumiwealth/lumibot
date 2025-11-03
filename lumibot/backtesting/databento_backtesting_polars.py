@@ -43,11 +43,12 @@ class DataBentoDataBacktestingPolars(PolarsData):
         api_key=None,
         timeout=30,
         max_retries=3,
+        write_live_equity_file=False,
         **kwargs,
     ):
         """
         Initialize DataBento backtesting data source
-        
+
         Parameters
         ----------
         datetime_start : datetime
@@ -62,6 +63,8 @@ class DataBentoDataBacktestingPolars(PolarsData):
             API request timeout in seconds, default 30
         max_retries : int, optional
             Maximum number of API retry attempts, default 3
+        write_live_equity_file : bool, optional
+            Write equity curve data to JSONL file for live GUI visualization, default False
         **kwargs
             Additional parameters passed to parent class
         """
@@ -70,6 +73,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             datetime_end=datetime_end,
             pandas_data=pandas_data,
             api_key=api_key,
+            write_live_equity_file=write_live_equity_file,
             **kwargs
         )
 
@@ -246,16 +250,33 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     )
                     self.pandas_data[search_asset] = data_obj
                 else:
-                    pandas_df = df.to_pandas() if hasattr(df, "to_pandas") else df
-                    # Create Data object and store
-                    data_obj = Data(
-                        asset,
-                        df=pandas_df,
-                        timestep=timestep,
-                        quote=quote_asset,
-                    )
+                    # Check if polars DataFrame or pandas DataFrame
+                    if isinstance(df, pl.DataFrame):
+                        # Create DataPolars object to keep polars end-to-end
+                        data_obj = DataPolars(
+                            asset,
+                            df=df,
+                            timestep=timestep,
+                            quote=quote_asset,
+                            date_start=self.datetime_start,
+                            date_end=self.datetime_end,
+                        )
+                        cached_len = df.height
+                    else:
+                        # Convert to pandas if needed
+                        pandas_df = df.to_pandas() if hasattr(df, "to_pandas") else df
+                        # Create Data object and store
+                        data_obj = Data(
+                            asset,
+                            df=pandas_df,
+                            timestep=timestep,
+                            quote=quote_asset,
+                            date_start=self.datetime_start,
+                            date_end=self.datetime_end,
+                        )
+                        cached_len = len(pandas_df) if hasattr(pandas_df, "__len__") else 0
+
                     self.pandas_data[search_asset] = data_obj
-                    cached_len = len(pandas_df) if hasattr(pandas_df, "__len__") else 0
                     logger.debug(f"Cached {cached_len} rows for {asset.symbol}")
                 
                 # Mark as prefetched
@@ -342,21 +363,16 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         data_start_tz = data_start_datetime
                         data_end_tz = data_end_datetime
 
-                        start_datetime, _ = self.get_start_datetime_and_ts_unit(
-                            length, timestep, start_dt, start_buffer=START_BUFFER
-                        )
-                        start_tz = to_datetime_aware(start_datetime)
+                        # FIX: Cache check should only verify current iteration time is within cached range
+                        # Don't re-check the full lookback buffer on every iteration (that causes cache misses)
+                        current_time = to_datetime_aware(self.get_datetime())
 
-                        # start_tz already includes START_BUFFER from get_start_datetime_and_ts_unit
-                        needed_start = start_tz
-                        needed_end = self.datetime_end
-
-                        if data_start_tz <= needed_start and data_end_tz >= needed_end:
-                            # Data is already sufficient - return without converting to pandas!
+                        if data_start_tz <= current_time <= data_end_tz:
+                            # Current iteration is within cached range - use cache!
                             logger.debug(f"[CACHE HIT] Data sufficient for {asset_separated.symbol}, returning early")
                             return
                         else:
-                            logger.debug(f"[CACHE MISS] Data insufficient - need: {needed_start} to {needed_end}, have: {data_start_tz} to {data_end_tz}")
+                            logger.debug(f"[CACHE MISS] Current time {current_time} outside cached range {data_start_tz} to {data_end_tz}")
             else:
                 # For pandas Data objects, use the regular .df property
                 asset_data_df = asset_data.df
@@ -375,18 +391,12 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         data_start_tz = to_datetime_aware(data_start_datetime)
                         data_end_tz = to_datetime_aware(data_end_datetime)
 
-                        # Get the start datetime with buffer
-                        start_datetime, _ = self.get_start_datetime_and_ts_unit(
-                            length, timestep, start_dt, start_buffer=START_BUFFER
-                        )
-                        start_tz = to_datetime_aware(start_datetime)
+                        # FIX: Cache check should only verify current iteration time is within cached range
+                        # Don't re-check the full lookback buffer on every iteration (that causes cache misses)
+                        current_time = to_datetime_aware(self.get_datetime())
 
-                        # start_tz already includes START_BUFFER from get_start_datetime_and_ts_unit
-                        needed_start = start_tz
-                        needed_end = self.datetime_end
-
-                        if data_start_tz <= needed_start and data_end_tz >= needed_end:
-                            # Data is already sufficient - return silently
+                        if data_start_tz <= current_time <= data_end_tz:
+                            # Current iteration is within cached range - use cache!
                             return
 
         # We need to fetch new data from DataBento
@@ -460,6 +470,8 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     df=df,
                     timestep=ts_unit,
                     quote=quote_asset,
+                    date_start=self.datetime_start,
+                    date_end=self.datetime_end,
                 )
             elif isinstance(df, pd.DataFrame):
                 # Ensure the pandas DataFrame has a datetime index
@@ -790,6 +802,10 @@ class DataBentoDataBacktestingPolars(PolarsData):
         # OPTIMIZATION: Check iteration cache first
         self._check_and_clear_cache()
         current_dt = self.get_datetime()
+
+        # CRITICAL FIX: Periodically trim cached data to prevent O(n²) memory growth
+        # This calls the PolarsData._trim_cached_data() method every 1000 iterations
+        self._trim_cached_data()
 
         # Get data from our cached pandas_data
         search_asset = asset

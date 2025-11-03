@@ -51,3 +51,38 @@ data/SRNE_Minute.csv
 .env
 token.json
 schwab_token.json
+
+
+.cursor/rules/kluster-code-verify.mdc
+.kluster
+
+# Profiler outputs (keep profiling_plan.json in git)
+profiling/*.csv
+profiling/*.pstat
+profiling/*.json
+reports/
+# >>> txtr99-private-ignore >>>
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+*.env
+.eggs/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+databento_exports/
+profiler/
+profiling/
+*.bak
+*.log
+logs/
+.backups/
+# <<< txtr99-private-ignore <<<

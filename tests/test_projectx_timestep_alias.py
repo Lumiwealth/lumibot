@@ -9,7 +9,7 @@ from lumibot.data_sources.projectx_data import ProjectXData
 class DummyClient:
     def history_retrieve_bars(self, contract_id, start_datetime, end_datetime, unit, unit_number, limit, include_partial_bar, live, is_est):
         # Return a minimal DataFrame resembling expected structure
-        idx = pd.date_range(end=end_datetime, periods=unit_number, freq='min')
+        idx = pd.date_range(end=end_datetime, periods=unit_number, freq='T')
         data = {
             'open': [1.0]*len(idx),
             'high': [1.1]*len(idx),
@@ -51,3 +51,4 @@ def test_projectx_get_bars_accepts_timestep_alias(projectx):
     bars_map2 = projectx.get_bars(asset, 1, timestep='minute')
     bars2 = list(bars_map2.values())[0]
     assert bars2 is not None and not bars2.df.empty
+

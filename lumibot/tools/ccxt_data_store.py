@@ -445,7 +445,7 @@ class CcxtCacheDB:
         if freq == "1d":
             dt_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="D")
         else:
-            dt_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="min")
+            dt_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="T")
 
         df_complete = df.reindex(dt_range).ffill()
         df_complete['missing'] = np.where(df_complete.index.isin(df.index), 0, 1)

@@ -745,3 +745,70 @@ class Data:
 
             df = pd.DataFrame(dict).set_index("datetime")
             return df
+
+    def trim_before(self, cutoff_dt):
+        """Remove data before cutoff_dt to maintain sliding window.
+
+        Called periodically during backtesting to prevent unbounded memory growth
+        while maintaining enough history for lookback calculations.
+
+        Parameters
+        ----------
+        cutoff_dt : datetime
+            Remove all data before this datetime (exclusive)
+        """
+        if cutoff_dt is None:
+            return
+
+        from lumibot.tools.lumibot_logger import get_logger
+
+        logger = get_logger(__name__)
+
+        # For pandas Data class, we work with self.df
+        if not hasattr(self, 'df') or self.df is None or self.df.empty:
+            return
+
+        original_count = len(self.df)
+
+        # Align timezone if needed
+        if self.df.index.tz is not None:
+            if cutoff_dt.tzinfo is None:
+                import pytz
+                cutoff_aligned = pytz.timezone(str(self.df.index.tz)).localize(cutoff_dt)
+            else:
+                cutoff_aligned = cutoff_dt.astimezone(self.df.index.tz)
+        else:
+            cutoff_aligned = cutoff_dt.replace(tzinfo=None) if cutoff_dt.tzinfo else cutoff_dt
+
+        # Trim DataFrame
+        trimmed_df = self.df[self.df.index >= cutoff_aligned]
+
+        # Safety check - don't delete all data
+        if trimmed_df.empty:
+            logger.warning(
+                f"[TRIM] {self.symbol}: Trim would delete all data "
+                f"(cutoff={cutoff_dt}, original_count={original_count}), skipping trim"
+            )
+            return
+
+        # Apply the trim
+        self.df = trimmed_df
+        trimmed_count = original_count - len(self.df)
+
+        if trimmed_count > 0:
+            # Invalidate cached data
+            if hasattr(self, 'datalines'):
+                self.datalines = None
+            if hasattr(self, 'iter_index_dict'):
+                self.iter_index_dict = None
+            if hasattr(self, 'iter_index'):
+                self.iter_index = None
+
+            # Update datetime_start
+            if len(self.df) > 0:
+                self.datetime_start = self.df.index[0].to_pydatetime()
+
+            logger.debug(
+                f"[TRIM] {self.symbol}: Removed {trimmed_count} bars before {cutoff_dt}, "
+                f"{len(self.df)} bars remaining"
+            )

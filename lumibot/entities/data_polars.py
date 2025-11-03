@@ -666,3 +666,90 @@ class DataPolars:
 
             df = pd.DataFrame(dict).set_index("datetime")
             return df
+
+    def trim_before(self, cutoff_dt):
+        """Remove data before cutoff_dt to maintain sliding window.
+
+        Called periodically during backtesting to prevent unbounded memory growth
+        while maintaining enough history for lookback calculations.
+
+        Parameters
+        ----------
+        cutoff_dt : datetime
+            Remove all data before this datetime (exclusive)
+        """
+        import polars as pl
+        from lumibot.tools.lumibot_logger import get_logger
+
+        logger = get_logger(__name__)
+
+        if cutoff_dt is None:
+            return
+
+        # Safety: Keep reference to original in case we need to restore
+        original_polars_df = self.polars_df
+        original_count = self.polars_df.height
+
+        # CRITICAL FIX #1: Timezone alignment
+        # (Copied from trim_data() logic in data.py lines 272-282)
+        datetime_tz = self.polars_df["datetime"].dtype.time_zone if "datetime" in self.polars_df.columns else None
+
+        if datetime_tz is not None:
+            # Column has timezone, align cutoff_dt to it
+            import pandas as pd
+            cutoff_ts = pd.Timestamp(cutoff_dt)
+            if cutoff_ts.tz is not None:
+                cutoff_aligned = cutoff_ts.tz_convert(datetime_tz)
+            else:
+                cutoff_aligned = cutoff_ts.tz_localize(datetime_tz)
+        else:
+            # Column is naive, make cutoff_dt naive too
+            import pandas as pd
+            cutoff_ts = pd.Timestamp(cutoff_dt)
+            if cutoff_ts.tz is not None:
+                cutoff_aligned = cutoff_ts.tz_localize(None)
+            else:
+                cutoff_aligned = cutoff_ts
+
+        # Trim polars DataFrame (keep data >= cutoff)
+        self.polars_df = self.polars_df.filter(pl.col("datetime") >= cutoff_aligned)
+
+        # CRITICAL FIX #2: Safety guard against deleting all data
+        if self.polars_df.height == 0:
+            logger.warning(
+                f"[TRIM] {self.symbol}: Trim would delete all data "
+                f"(cutoff={cutoff_dt}, original_count={original_count}), skipping trim"
+            )
+            self.polars_df = original_polars_df
+            return
+
+        # Calculate how much was trimmed
+        trimmed_count = original_count - self.polars_df.height
+
+        if trimmed_count > 0:
+            # CRITICAL FIX #3: Invalidate cached pandas DataFrame
+            self._pandas_df = None
+
+            # CRITICAL FIX #4: Invalidate datalines (stale row numbers)
+            if hasattr(self, 'datalines'):
+                self.datalines = None
+
+            # CRITICAL FIX #5: Invalidate index tracking (stale row numbers)
+            if hasattr(self, 'iter_index_dict'):
+                self.iter_index_dict = None
+            if hasattr(self, 'iter_index'):
+                self.iter_index = None
+
+            # Update datetime_start since we trimmed beginning
+            if self.polars_df.height > 0:
+                new_start = self.polars_df["datetime"][0]
+                # Convert polars datetime to python datetime
+                if hasattr(new_start, 'to_pydatetime'):
+                    self.datetime_start = new_start.to_pydatetime()
+                else:
+                    self.datetime_start = new_start
+
+            logger.debug(
+                f"[TRIM] {self.symbol}: Removed {trimmed_count} bars before {cutoff_dt}, "
+                f"{self.polars_df.height} bars remaining"
+            )

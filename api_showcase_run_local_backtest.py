@@ -57,6 +57,14 @@ def load_strategy_from_file(filepath: str):
             f"Expected parent: {expected_dir}"
         ) from e
 
+    # Check for symlink attacks
+    if filepath_obj.is_symlink():
+        raise ValueError(
+            f"Security: Strategy file cannot be a symlink.\n"
+            f"File: {filepath_obj}\n"
+            f"Symlinks could point to malicious code outside the strategies directory."
+        )
+
     # Warn user about code execution
     print(f"  ⚠️  Loading and executing code from: {filepath_obj.name}")
     print("     (Only run files you trust)")

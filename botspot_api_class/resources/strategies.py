@@ -5,6 +5,7 @@ Methods for managing AI-generated trading strategies.
 """
 
 import json
+import logging
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
@@ -12,6 +13,8 @@ import requests
 from ..base import BaseResource
 from ..exceptions import APIError
 from ..prompt_cache import PromptUsageCache
+
+logger = logging.getLogger(__name__)
 
 
 class StrategiesResource(BaseResource):
@@ -26,6 +29,99 @@ class StrategiesResource(BaseResource):
         """Initialize strategies resource with prompt usage tracking."""
         super().__init__(client)
         self._prompt_cache = PromptUsageCache()
+
+    def _validate_generated_code(self, code: str) -> tuple[bool, list[str]]:
+        """
+        Validate generated code for security issues using AST analysis.
+
+        Scans code for potentially dangerous imports and patterns that could
+        indicate malicious code execution.
+
+        Args:
+            code: Python code string to validate
+
+        Returns:
+            Tuple of (is_safe, warnings) where:
+            - is_safe: True if no critical issues found
+            - warnings: List of warning messages for suspicious patterns
+
+        Example:
+            >>> is_safe, warnings = self._validate_generated_code(strategy_code)
+            >>> if not is_safe:
+            ...     logger.warning(f"Code validation warnings: {warnings}")
+        """
+        import ast
+
+        # Dangerous modules that should raise warnings
+        dangerous_modules = {
+            "os": "System operations (file/process access)",
+            "subprocess": "Command execution",
+            "socket": "Network communication",
+            "eval": "Dynamic code execution",
+            "exec": "Dynamic code execution",
+            "__import__": "Dynamic imports",
+            "compile": "Code compilation",
+            "open": "Direct file access (use strategy methods instead)",
+        }
+
+        # Allowed safe modules commonly used in strategies
+        safe_modules = {
+            "lumibot",
+            "pandas",
+            "numpy",
+            "datetime",
+            "math",
+            "statistics",
+            "decimal",
+            "collections",
+            "typing",
+            "dataclasses",
+        }
+
+        warnings = []
+
+        try:
+            tree = ast.parse(code)
+
+            # Check for dangerous imports
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        module_name = alias.name.split(".")[0]
+                        if module_name in dangerous_modules:
+                            warnings.append(
+                                f"⚠️  Potentially dangerous import: {alias.name} " f"({dangerous_modules[module_name]})"
+                            )
+                        elif module_name not in safe_modules and not module_name.startswith("_"):
+                            warnings.append(f"ℹ️  Unknown module imported: {alias.name}")
+
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        module_name = node.module.split(".")[0]
+                        if module_name in dangerous_modules:
+                            warnings.append(
+                                f"⚠️  Potentially dangerous import: from {node.module} "
+                                f"({dangerous_modules[module_name]})"
+                            )
+
+                # Check for eval/exec/compile calls
+                elif isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name):
+                        if node.func.id in ["eval", "exec", "compile", "__import__"]:
+                            warnings.append(f"🚨 CRITICAL: Dynamic code execution via {node.func.id}()")
+
+            # Determine if code is safe
+            critical_warnings = [w for w in warnings if "CRITICAL" in w]
+            is_safe = len(critical_warnings) == 0
+
+            return is_safe, warnings
+
+        except SyntaxError as e:
+            warnings.append(f"❌ Syntax error in generated code: {e}")
+            return False, warnings
+        except Exception as e:
+            warnings.append(f"❌ Failed to parse code: {e}")
+            return False, warnings
 
     def _check_and_display_prompt_usage(self):
         """
@@ -452,12 +548,25 @@ class StrategiesResource(BaseResource):
                 except (ValueError, AttributeError):
                     pass
 
+            # Validate generated code for security issues
+            is_safe, validation_warnings = self._validate_generated_code(generated_code)
+            if validation_warnings:
+                logger.warning(f"Code validation found {len(validation_warnings)} issue(s):")
+                for warning in validation_warnings:
+                    logger.warning(f"  {warning}")
+
+            if not is_safe:
+                logger.error("Generated code contains critical security issues!")
+                logger.error("Review the code carefully before executing.")
+
             return {
                 "generated_code": generated_code,
                 "strategy_name": strategy_name,
                 "description": description,
                 "events": events,
                 "usage": usage_info or {},
+                "validation_warnings": validation_warnings,
+                "is_safe": is_safe,
             }
 
         except requests.exceptions.Timeout as e:
@@ -535,9 +644,21 @@ class StrategiesResource(BaseResource):
                 f"Use overwrite=True to replace it, or choose a different filename."
             )
 
+        # Validate code for security issues before saving
+        is_safe, validation_warnings = self._validate_generated_code(code)
+        if validation_warnings:
+            logger.warning(f"Code validation found {len(validation_warnings)} issue(s) before saving:")
+            for warning in validation_warnings:
+                logger.warning(f"  {warning}")
+
+        if not is_safe:
+            logger.error("⚠️  Code contains critical security issues!")
+            logger.error("The code will be saved, but review carefully before executing.")
+
         # Write code to file
         try:
             filepath.write_text(code, encoding="utf-8")
+            logger.info(f"Strategy saved to: {filepath}")
             return str(filepath.absolute())
         except OSError as e:
             raise OSError(f"Failed to write strategy file: {e}") from e

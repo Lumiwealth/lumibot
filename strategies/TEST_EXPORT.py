@@ -5,7 +5,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from lumibot.backtesting import DataBentoDataBacktesting
+from lumibot.backtesting import DataBentoDataBacktestingPolars
 from lumibot.credentials import IS_BACKTESTING
 from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies.strategy import Strategy
@@ -363,10 +363,10 @@ if __name__ == "__main__":
                 "export DATABENTO_API_KEY='your_api_key_here'"
             )
 
-        # Backtesting: uses DataBentoDataBacktesting for GC futures data (same as example)
+        # Backtesting: uses DataBentoDataBacktestingPolars for GC futures data (Polars = faster!)
         # Must pass api_key as keyword argument for DataBento to work
         results = AxiomPortStrategy.backtest(
-            datasource_class=DataBentoDataBacktesting,
+            datasource_class=DataBentoDataBacktestingPolars,
             benchmark_asset=Asset("GC", Asset.AssetType.CONT_FUTURE),  # Compare to GC
             buy_trading_fees=[trading_fee],
             sell_trading_fees=[trading_fee],

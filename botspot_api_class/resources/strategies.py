@@ -7,6 +7,7 @@ Methods for managing AI-generated trading strategies.
 from typing import Any, Dict, List, Optional
 
 from ..base import BaseResource
+from ..prompt_cache import PromptUsageCache
 
 
 class StrategiesResource(BaseResource):
@@ -16,6 +17,40 @@ class StrategiesResource(BaseResource):
     Provides methods for generating, listing, and managing AI trading strategies.
     Supports real-time strategy generation via Server-Sent Events (SSE).
     """
+
+    def __init__(self, client):
+        """Initialize strategies resource with prompt usage tracking."""
+        super().__init__(client)
+        self._prompt_cache = PromptUsageCache()
+
+    def _check_and_display_prompt_usage(self):
+        """
+        Check current prompt usage and display if changed.
+
+        This method fetches the current usage from the API and compares it
+        to the cached state. If usage has changed (or no cache exists),
+        displays a color-coded message:
+        - Green: Normal (≥ 50 remaining)
+        - Yellow: Warning (< 50 remaining)
+        - Red: Critical (< 10 remaining)
+
+        Called automatically before AI generation operations.
+        """
+        try:
+            usage_data = self.get_usage_limits()
+
+            # Extract usage info (API response format may vary)
+            prompts_used = usage_data.get("promptsUsed", 0)
+            max_prompts = usage_data.get("maxPrompts", 500)
+
+            # Check and display if changed
+            self._prompt_cache.check_and_display_if_changed(prompts_used, max_prompts)
+
+        except Exception as e:
+            # Don't fail the operation if usage check fails
+            import logging
+
+            logging.getLogger(__name__).warning(f"Failed to check prompt usage: {e}")
 
     def list(self) -> List[Dict[str, Any]]:
         """
@@ -218,9 +253,11 @@ class StrategiesResource(BaseResource):
         """
         Generate a new AI strategy from natural language prompt.
 
+        **Automatically checks and displays prompt usage before generation.**
+
         NOTE: This method uses Server-Sent Events (SSE) for real-time generation.
         The full SSE implementation requires streaming support, which is not yet
-        implemented in this SDK. For now, this returns a simple POST response.
+        implemented in this SDK.
 
         To use SSE streaming for real-time progress updates, use the SSE endpoint
         directly: POST /sse/stream with Accept: text/event-stream header.
@@ -234,7 +271,7 @@ class StrategiesResource(BaseResource):
 
         Example:
             >>> client = BotSpot()
-            >>> # Note: This will not stream progress in real-time yet
+            >>> # Automatically displays: "AI Prompt Usage: 3/500 used (497 remaining)"
             >>> result = client.strategies.generate(
             ...     "Create a simple moving average crossover strategy for SPY"
             ... )
@@ -245,9 +282,18 @@ class StrategiesResource(BaseResource):
             Body: {"type": "generate_strategy", "prompt": "...", "aiStrategyId": "", "message": "...", "files": []}
 
         Generation takes approximately 2-3 minutes and uses GPT-5 (OpenAI).
+
+        Prompt usage warnings:
+        - Green: Normal (≥ 50 remaining)
+        - Yellow: Warning (< 50 remaining)
+        - Red: Critical (< 10 remaining)
         """
+        # Check and display prompt usage BEFORE attempting generation
+        # This shows current usage and warns if running low
+        self._check_and_display_prompt_usage()
+
         # TODO: Implement SSE client for streaming support
-        # For now, this provides a placeholder method
+        # When implemented, the usage check above will run before each generation
 
         raise NotImplementedError(
             "SSE streaming not yet implemented in SDK. "

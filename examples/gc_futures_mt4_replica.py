@@ -87,8 +87,8 @@ class GCFuturesMT4Replica(Strategy):
 
         # Set the sleep time between iterations
         # NOTE: Due to a lumibot bug, integer sleeptime is multiplied by 60 (treated as minutes)
-        # Use string format to specify seconds explicitly: "300S" = 300 seconds = 5 minutes
-        self.sleeptime = "300S"  # 300 seconds = 5 minutes
+        # Use string format to specify seconds explicitly: "60S" = 60 seconds = 1 minute (MT4 PERIOD_M1)
+        self.sleeptime = "60S"  # 60 seconds = 1 minute (matches MT4 PERIOD_M1)
 
         # Define the futures contract we want to trade
         # Using continuous Gold futures (no expiration needed)
@@ -558,25 +558,24 @@ class GCFuturesMT4Replica(Strategy):
                 and prev_close >= prev_keltner_lower
             )
 
-            # Record analysis data every 10 iterations to avoid memory bloat
-            if self.iteration_count % 10 == 0:
-                self.signal_analysis_data.append(
-                    {
-                        "timestamp": current_time,
-                        "price": current_price,
-                        "rsi": current_rsi if pd.notna(current_rsi) else None,
-                        "sma_current": current_sma if pd.notna(current_sma) else None,
-                        "sma_2bars_ago": sma_2bars_ago if pd.notna(sma_2bars_ago) else None,
-                        "keltner_lower": current_keltner_lower if pd.notna(current_keltner_lower) else None,
-                        "prev_close": prev_close,
-                        "current_low": current_low,
-                        "cond_price_action": cond_price_action,
-                        "cond_rsi": cond_rsi,
-                        "cond_sma": cond_sma,
-                        "cond_keltner": cond_keltner,
-                        "all_conditions_met": cond_price_action and cond_rsi and cond_sma and cond_keltner,
-                    }
-                )
+            # Record analysis data every iteration for complete diagnosis
+            self.signal_analysis_data.append(
+                {
+                    "timestamp": current_time,
+                    "price": current_price,
+                    "rsi": current_rsi if pd.notna(current_rsi) else None,
+                    "sma_current": current_sma if pd.notna(current_sma) else None,
+                    "sma_2bars_ago": sma_2bars_ago if pd.notna(sma_2bars_ago) else None,
+                    "keltner_lower": current_keltner_lower if pd.notna(current_keltner_lower) else None,
+                    "prev_close": prev_close,
+                    "current_low": current_low,
+                    "cond_price_action": cond_price_action,
+                    "cond_rsi": cond_rsi,
+                    "cond_sma": cond_sma,
+                    "cond_keltner": cond_keltner,
+                    "all_conditions_met": cond_price_action and cond_rsi and cond_sma and cond_keltner,
+                }
+            )
 
             # Condition 1: Price action - current low <= previous close
             if cond_price_action:

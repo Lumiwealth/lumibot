@@ -21,9 +21,9 @@
       "id": "TC-001",
       "name": "Authentication Flow",
       "description": "Complete authentication workflow including login, token extraction, user data fetch, and logout",
-      "status": "in_progress",
+      "status": "completed",
       "startedAt": "2025-11-03T20:38:52.839812",
-      "completedAt": null,
+      "completedAt": "2025-11-03T21:18:21.138740",
       "steps": [
         {
           "id": "TC-001-01",
@@ -103,13 +103,15 @@
         {
           "id": "TC-001-06",
           "description": "Logout",
-          "status": "pending",
+          "status": "completed",
           "userAction": "Click logout button",
-          "myObservations": "",
-          "apiCallsCaptured": [],
-          "uiState": "",
-          "timestamp": null,
-          "notes": "Document logout endpoint and token invalidation"
+          "myObservations": "Client-side logout: localStorage cleared, redirected to Auth0 login page",
+          "apiCallsCaptured": [
+            "GET /u/login (Auth0) - redirect after logout"
+          ],
+          "uiState": "Redirected to Auth0 login page",
+          "timestamp": "2025-11-03T21:18:21.138732",
+          "notes": "No explicit logout API call. Token remains valid until expiration (24h). Client-side only."
         }
       ]
     },
@@ -344,8 +346,8 @@
   "summary": {
     "totalTestCases": 5,
     "totalSteps": 23,
-    "completedTestCases": 0,
-    "completedSteps": 5,
+    "completedTestCases": 1,
+    "completedSteps": 6,
     "totalEndpointsDiscovered": 10,
     "totalEndpointsVerified": 3
   }

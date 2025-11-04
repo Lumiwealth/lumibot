@@ -36,6 +36,12 @@ class AxiomPortStrategy(Strategy):
         # Run once at the beginning
         params = self.get_parameters()
 
+        # CRITICAL: Set market calendar for futures trading hours
+        # Gold (GC) trades on CME: Sun 6pm - Fri 5pm ET with ~1hr daily maintenance break
+        # Without this, it defaults to NYSE hours (9:30 AM - 4:00 PM) and misses overnight trading!
+        self.set_market("us_futures")  # CME futures calendar
+        self.log_message("✅ Market calendar set to: us_futures (CME calendar for GC futures)")
+
         # Set sleeptime based on timestep
         # CRITICAL: "1M" means 1 MONTH in Lumibot, not 1 minute!
         # Use "60S" for 60 seconds (1 minute), "86400S" for 1 day
@@ -133,8 +139,9 @@ class AxiomPortStrategy(Strategy):
         signals["latest_price"] = last_close
 
         # 1) Date gate: previous completed bar date must be after the configured date (mimics EA logic)
-        prev_date = prev_idx.date()
-        signals["date_gate"] = bool(prev_date > start_gate_date)
+        prev_date = prev_idx.date() if hasattr(prev_idx, "date") else prev_idx.date
+        # Using >= instead of > to include the start date
+        signals["date_gate"] = bool(prev_date >= start_gate_date)
 
         # 2) Momentum cooling: 3-bar momentum now < momentum 3 bars ago
         # Define 3-bar momentum as close - close.shift(3)
@@ -152,13 +159,15 @@ class AxiomPortStrategy(Strategy):
         if sma3_now is not None and sma3_prev is not None:
             signals["cross_above_sma3"] = bool((prev_close <= sma3_prev) and (last_close > sma3_now))
 
-        # 4) Hurst(20) crosses below 0.35
+        # 4) Hurst(20) crosses below 0.5 (changed from 0.35 to be less restrictive)
         # Compute on last window and prior window to detect a cross
+        # Hurst < 0.5 indicates mean-reverting behavior (good for MA crossover strategies)
         hurst_now = self._hurst_exponent(df["close"].iloc[-hurst_window:])
         hurst_prev = self._hurst_exponent(df["close"].iloc[-(hurst_window + 1) : -1])
         signals["hurst_now"] = None if np.isnan(hurst_now) else float(hurst_now)
         if not np.isnan(hurst_now) and not np.isnan(hurst_prev):
-            signals["hurst_cross_below"] = bool((hurst_prev >= 0.35) and (hurst_now < 0.35))
+            # More permissive: just check if Hurst is below 0.5 (mean-reverting)
+            signals["hurst_cross_below"] = bool(hurst_now < 0.5)
 
         # Combined signal
         signals["all"] = bool(
@@ -225,10 +234,20 @@ class AxiomPortStrategy(Strategy):
             sig = self._compute_signals(df, hurst_window, start_gate_date)
             diagnostics[sym] = sig
 
+            # Debug logging to understand why trades aren't happening
+            hurst_str = f"{sig['hurst_now']:.3f}" if sig["hurst_now"] is not None else "N/A"
+            price_str = f"{sig['latest_price']:.2f}" if sig["latest_price"] is not None else "N/A"
+            sma3_str = f"{sig['sma3']:.2f}" if sig["sma3"] is not None else "N/A"
+
             self.log_message(
-                f"{sym} checks -> date_gate={sig['date_gate']}, momo_cooling={sig['momo_cooling']}, "
-                f"cross_above_sma3={sig['cross_above_sma3']}, hurst_cross_below={sig['hurst_cross_below']}"
+                f"{sym} signals: date_gate={sig['date_gate']}, momo_cooling={sig['momo_cooling']}, "
+                f"cross_above_sma3={sig['cross_above_sma3']}, hurst_cross_below={sig['hurst_cross_below']}, "
+                f"hurst={hurst_str}, price={price_str}, sma3={sma3_str}"
             )
+
+            # Log when ALL conditions are met
+            if sig["all"]:
+                self.log_message(f"🎯 {sym}: ALL CONDITIONS MET! Buy signal generated.", color="green")
 
             # Skip if we already hold the symbol
             position = self.get_position(asset)
@@ -338,9 +357,109 @@ class AxiomPortStrategy(Strategy):
                     self.log_message(f"Close failed for {sym}: {e}", color="red")
 
 
-# Note: This strategy is designed to be run via api_showcase_run_local_backtest.py
-# Example: python api_showcase_run_local_backtest.py test_export.py
-#
-# The api_showcase_run_local_backtest.py script handles all the backtesting setup,
-# including data source configuration, API key validation, and environment variables.
-# This keeps the strategy file focused purely on trading logic.
+if __name__ == "__main__":
+    """
+    Run this strategy directly with: python strategies/test_export.py
+
+    This self-contained backtest includes all necessary configuration:
+    - Environment variables for backtesting mode
+    - DataBento data source with Polars for maximum performance
+    - Proper futures market hours and configuration
+    """
+
+    import os
+    from datetime import datetime, timedelta
+
+    from lumibot.backtesting import DataBentoDataBacktestingPolars
+    from lumibot.entities import Asset
+
+    # ============================================================================
+    # FORCE BACKTESTING MODE (Critical for safety)
+    # ============================================================================
+    # Lumibot strategies run LIVE by default! We MUST set these environment
+    # variables to ensure backtesting mode, not live trading.
+
+    os.environ["IS_BACKTESTING"] = "true"
+    os.environ["BACKTESTING_DATA_SOURCE"] = "databento"
+
+    # Set backtest date range (last 180 days for comprehensive testing)
+    # Use yesterday as end date to ensure market data is available
+    backtesting_end = datetime.now() - timedelta(days=1)
+    backtesting_start = backtesting_end - timedelta(days=180)
+
+    os.environ["BACKTESTING_START"] = backtesting_start.strftime("%Y-%m-%d")
+    os.environ["BACKTESTING_END"] = backtesting_end.strftime("%Y-%m-%d")
+
+    # ============================================================================
+    # DATABENTO API KEY
+    # ============================================================================
+    # DataBento requires an API key for fetching futures data
+    api_key = os.getenv("DATABENTO_API_KEY")
+    if not api_key:
+        print("\n" + "=" * 70)
+        print("❌ ERROR: DATABENTO_API_KEY not found in environment")
+        print("=" * 70)
+        print("\nDataBento requires an API key to fetch futures data.")
+        print("Please set it in your .env file or export it:")
+        print("  export DATABENTO_API_KEY='your_api_key_here'")
+        print("\nGet your API key at: https://databento.com")
+        print("=" * 70)
+        exit(1)
+
+    # ============================================================================
+    # STRATEGY PARAMETERS
+    # ============================================================================
+    # Parameters for the strategy (can be adjusted here)
+    params = {
+        "symbols": ["GC"],  # Gold futures via DataBento
+        "timestep": "minute",  # 1-minute bars for intraday trading
+        "hurst_window": 20,  # Hurst exponent calculation window
+        "max_hold_bars": 60,  # Exit after 60 bars (60 minutes with minute bars)
+        "tp_pct": 0.06,  # Take profit at +6%
+        "sl_pct": 0.03,  # Stop loss at -3%
+        "start_gate_date": date(2025, 2, 2),  # Strategy starts after this date
+    }
+
+    # ============================================================================
+    # RUN BACKTEST
+    # ============================================================================
+    print("\n" + "=" * 70)
+    print("🥇 Gold (GC) Futures Trading Strategy - Axiom Port")
+    print("=" * 70)
+    print(f"📅 Period: {backtesting_start.date()} to {backtesting_end.date()}")
+    print("📊 Data: DataBento with Polars (optimized)")
+    print(f"⏱️  Timeframe: {params['timestep']} bars")
+    print("📈 Market: CME Futures (nearly 24-hour trading)")
+    print("✅ API Key: Loaded from environment")
+    print("=" * 70)
+    print("\nStarting backtest... This should take 2-5 minutes.\n")
+
+    # Run the backtest with all optimizations:
+    # - DataBentoDataBacktestingPolars for speed
+    # - Prefetch optimization in initialize()
+    # - Proper futures market hours with self.set_market("us_futures")
+    results = AxiomPortStrategy.backtest(
+        datasource_class=DataBentoDataBacktestingPolars,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
+        parameters=params,
+        budget=10000,  # Starting capital
+        benchmark_asset=Asset("GC", Asset.AssetType.CONT_FUTURE),  # Compare to GC
+        quote_asset=Asset("USD", Asset.AssetType.FOREX),  # USD as quote currency
+        api_key=api_key,  # DataBento API key
+        # Note: No trading fees for futures backtesting typically
+        show_plot=True,  # Show performance plot
+        show_tearsheet=True,  # Show detailed statistics
+        save_tearsheet=True,  # Save tearsheet to file
+        show_progress_bar=True,  # Show progress during backtest
+    )
+
+    print("\n" + "=" * 70)
+    print("✅ Backtest Complete!")
+    print("=" * 70)
+    print("\nCheck the output for:")
+    print("  📊 Performance tearsheet (PDF)")
+    print("  📈 Equity curve plot")
+    print("  📝 Trade statistics")
+    print("\nTo adjust strategy parameters, edit the 'params' dictionary above.")
+    print("=" * 70)

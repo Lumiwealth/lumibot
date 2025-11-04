@@ -3,12 +3,23 @@ Pytest configuration and fixtures for BotSpot API tests
 """
 
 import os
+import sys
 
 import pytest
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Add botspot_api_class to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+
+try:
+    from botspot_api_class import BotSpot
+
+    HAS_BOTSPOT_CLIENT = True
+except ImportError:
+    HAS_BOTSPOT_CLIENT = False
 
 
 @pytest.fixture(scope="session")
@@ -25,13 +36,36 @@ def api_config():
 def access_token():
     """
     Access token fixture
-    NOTE: Token must be set in environment variable ACCESS_TOKEN
+
+    Priority:
+    1. Use ACCESS_TOKEN environment variable if set
+    2. Use BotSpot API client for automatic authentication
+
     Token expires after 24 hours
     """
+    # Try environment variable first
     token = os.getenv("ACCESS_TOKEN")
-    if not token:
-        pytest.skip("ACCESS_TOKEN not set in environment")
-    return token
+    if token:
+        return token
+
+    # Fall back to BotSpot API client
+    if not HAS_BOTSPOT_CLIENT:
+        pytest.skip("ACCESS_TOKEN not set and botspot_api_class not available")
+
+    # Check if credentials are available
+    username = os.getenv("BOTSPOT_USERNAME")
+    password = os.getenv("BOTSPOT_PASSWORD")
+
+    if not username or not password:
+        pytest.skip("BOTSPOT_USERNAME/BOTSPOT_PASSWORD not set in .env")
+
+    # Authenticate and get token
+    try:
+        client = BotSpot()
+        token = client._get_access_token()
+        return token
+    except Exception as e:
+        pytest.skip(f"Failed to authenticate with BotSpot API: {e}")
 
 
 @pytest.fixture(scope="session")

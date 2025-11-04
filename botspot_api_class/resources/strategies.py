@@ -215,18 +215,58 @@ class StrategiesResource(BaseResource):
         """
         Get all versions/revisions of an AI strategy.
 
+        **Primary endpoint for viewing strategy results** - returns complete strategy data
+        including generated code, Mermaid diagrams, descriptions, and metadata.
+
         Args:
             ai_strategy_id: AI Strategy ID (UUID)
 
         Returns:
-            Dictionary with user_id, aiStrategyId, strategy info, and versions array
+            Dictionary with complete strategy data:
+            {
+                "user_id": str,              # User UUID
+                "aiStrategyId": str,         # AI Strategy UUID
+                "strategy": {                # Strategy metadata
+                    "id": str,               # Strategy UUID
+                    "name": str,             # Strategy name (editable)
+                    "description": str | None,
+                    "strategyType": "AI",
+                    "isPublic": bool,
+                    "createdAt": str,        # ISO-8601 timestamp
+                    "updatedAt": str         # ISO-8601 timestamp
+                },
+                "versions": [                # All revisions
+                    {
+                        "version": int,      # Version number (1-indexed)
+                        "code_in": None,     # (Reserved for future use)
+                        "code_out": str,     # Full Python Lumibot strategy code
+                        "comments": str | None,  # AI-generated description
+                        "mermaidDiagram": str | None,  # Flowchart syntax
+                        "backtestMetrics": dict | None  # (If backtested)
+                    }
+                ]
+            }
 
         Example:
             >>> client = BotSpot()
-            >>> versions_data = client.strategies.get_versions("372cd38b-6d0d-43eb-8035-4701ab2a1692")
-            >>> for version in versions_data['versions']:
-            ...     print(f"Version {version['version']}: {len(version['code_out'])} chars")
-            Version 1: 6789 chars
+            >>> # Get complete strategy data (code, diagram, metadata)
+            >>> data = client.strategies.get_versions("372cd38b-6d0d-43eb-8035-4701ab2a1692")
+            >>>
+            >>> # Extract strategy name and metadata
+            >>> strategy_name = data['strategy']['name']
+            >>> print(f"Strategy: {strategy_name}")
+            >>>
+            >>> # Get latest version code
+            >>> latest = data['versions'][0]
+            >>> code = latest['code_out']
+            >>> print(f"Version {latest['version']}: {len(code)} characters")
+            >>>
+            >>> # Get Mermaid diagram (if available)
+            >>> if latest['mermaidDiagram']:
+            ...     print("Diagram available:", latest['mermaidDiagram'][:50])
+            Strategy: SMA Crossover
+            Version 1: 8313 characters
+            Diagram available: flowchart TB\\n  start[Start] --> check_position...
         """
         return self._get("/ai-bot-builder/list-versions", params={"aiStrategyId": ai_strategy_id})
 

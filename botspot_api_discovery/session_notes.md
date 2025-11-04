@@ -171,18 +171,76 @@
 ---
 
 ### TC-003: Strategy Results
-**Status**: Pending
+**Status**: COMPLETED ✓
+**Completed**: 2025-11-04
 
 #### Steps:
-- [ ] TC-003-01: View generated strategy code
-- [ ] TC-003-02: Download Mermaid diagram/chart
-- [ ] TC-003-03: Get strategy metadata/details
+- [x] TC-003-01: View generated strategy code
+- [x] TC-003-02: Download Mermaid diagram/chart
+- [x] TC-003-03: Get strategy metadata/details
 
 **Key Observations**:
-(To be filled during session)
+- Strategy results page displays complete generated code, diagram, and metadata
+- **No separate "get code" or "get diagram" endpoints** - everything comes from `list-versions`
+- Code editor includes Copy/Expand/Hide/Save Changes buttons
+- Code displayed in multiline textbox with syntax highlighting
+- Mermaid diagram displayed in modal with zoom controls (+/-/Reset)
+- Diagram shows strategy flow: start → decision nodes → actions → end
+- User rating system (1-5 stars) for feedback on each revision
+- "Prompt History" button shows all refinement attempts
+- Refinement section allows natural language requests for changes
+- "START TRADING" and "Run Backtest" links available for next steps
+- Strategy metadata includes: name (editable), description, type, visibility, timestamps
+
+**UI Structure**:
+- Strategy name with pencil edit icon
+- Strategy description text
+- Code editor section:
+  - "Click here to show the code" toggle
+  - Multiline textbox (read/write)
+  - Toolbar: Copy | Expand | Hide | Save Changes
+- Diagram section:
+  - Diagram button (opens modal)
+  - Modal with Mermaid flowchart
+  - Zoom controls: +/- buttons, Reset button
+- Rating section: 1-5 star buttons
+- Prompt History: Shows previous refinement attempts
+- Refinement section:
+  - Multiline textbox for new prompt
+  - "Refine Strategy" button
+
+**Data Structure** (from `GET /ai-bot-builder/list-versions`):
+```json
+{
+  "user_id": "uuid",
+  "aiStrategyId": "uuid",
+  "strategy": {
+    "id": "uuid",
+    "name": "SMA Crossover",
+    "description": null,
+    "strategyType": "AI",
+    "isPublic": false,
+    "createdAt": "ISO-8601",
+    "updatedAt": "ISO-8601"
+  },
+  "versions": [
+    {
+      "version": 1,
+      "code_in": null,
+      "code_out": "full Python Lumibot strategy code (8000+ chars)",
+      "comments": "AI-generated plain English description",
+      "mermaidDiagram": "flowchart TB\n  start --> ...",
+      "backtestMetrics": null
+    }
+  ]
+}
+```
 
 **Endpoints Discovered**:
-(To be filled during session)
+- `GET /ai-bot-builder/list-versions?aiStrategyId={id}` - **Primary endpoint for all strategy data**
+  - Returns: full code, Mermaid diagram, metadata, all versions
+  - Response size: ~11KB for typical strategy
+  - No pagination (returns all versions in single response)
 
 ---
 
@@ -247,10 +305,12 @@
 
 ## Session Summary
 
-- **Total Time**: Phase 1: ~2 hours, Phase 2: ~2 hours
-- **Endpoints Discovered**: 15 total (8 from TC-001, 7 from TC-002)
+- **Total Time**: Phase 1: ~2 hours, Phase 2: ~2 hours, Phase 3: ~1 hour
+- **Endpoints Discovered**: 15 total (8 from TC-001, 7 from TC-002, 0 new from TC-003*)
 - **Endpoints Verified**: 8
-- **Test Cases Completed**: 2/5 (TC-001 ✓, TC-002 ✓)
+- **Test Cases Completed**: 3/5 (TC-001 ✓, TC-002 ✓, TC-003 ✓)
 - **Issues Encountered**: None - smooth execution
 - **Key Achievement**: Successfully discovered SSE-based strategy generation system
-- **Next Phase**: TC-003 (Strategy Results - viewing code, diagrams, metadata)
+- **Next Phase**: TC-004 (Backtesting - running backtests, retrieving results)
+
+*TC-003 reuses `GET /ai-bot-builder/list-versions` from TC-002 - no new endpoints needed

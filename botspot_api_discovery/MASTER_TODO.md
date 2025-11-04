@@ -1,8 +1,8 @@
 # BotSpot API Discovery - Master To-Do List
 
-**Project Status**: Phase 1 Complete ✅ | Phase 2 Ready to Start 🔜
+**Project Status**: Phase 1-3 Complete ✅ | Phase 4 Ready to Start 🔜
 
-**Last Updated**: 2025-11-03
+**Last Updated**: 2025-11-04
 
 ---
 
@@ -67,88 +67,94 @@ This document tracks the complete workflow for discovering, testing, and impleme
 
 ---
 
-## 🔜 Phase 2: TC-002 - Create Strategy Workflow
+## ✅ Phase 2: TC-002 - Create Strategy Workflow (COMPLETED)
 
 ### Step 1: Interactive API Discovery (Chrome MCP)
-- [ ] Launch Chrome MCP browser session
-- [ ] Navigate to "Create Strategy" page
-- [ ] Document page structure and form fields
-- [ ] Fill strategy form with test data
-- [ ] Submit strategy creation request
-- [ ] Capture POST /strategies API call (request payload)
-- [ ] Monitor progress mechanism (polling/SSE/websockets)
-- [ ] Wait for strategy generation to complete
-- [ ] Capture completion response
-- [ ] Update botspot_api_endpoints.json with:
-  - `POST /strategies` - Create strategy
-  - `GET /strategies/{id}` - Get strategy status
-  - `GET /strategies` - List strategies
-  - Any progress polling endpoints
-- [ ] Update session_notes.md with workflow observations
+- [x] Launch Chrome MCP browser session
+- [x] Navigate to "Create Strategy" page
+- [x] Document page structure and form fields
+- [x] Fill strategy form with test data
+- [x] Submit strategy creation request
+- [x] Capture POST /sse/stream API call (SSE streaming)
+- [x] Monitor progress mechanism (SSE with real-time events)
+- [x] Wait for strategy generation to complete
+- [x] Capture completion response
+- [x] Update botspot_api_endpoints.json with discovered endpoints
+- [x] Update session_notes.md with workflow observations
+
+**Key Discoveries**:
+- Uses Server-Sent Events (SSE) for real-time streaming
+- Generation powered by GPT-5 (OpenAI) with medium reasoning effort
+- Takes 2-3 minutes on average
+- Endpoint: `POST /sse/stream` with type="generate_strategy"
 
 ### Step 2: Testing
-- [ ] Create test_strategies.py in botspot_api_discovery/tests/
-- [ ] Write test_create_strategy()
-- [ ] Write test_list_strategies()
-- [ ] Write test_get_strategy()
-- [ ] Write test_update_strategy()
-- [ ] Write test_delete_strategy()
-- [ ] Run pytest and verify all pass
-- [ ] Document test results in session_notes.md
+- [x] Create test_tc002_strategies.py in botspot_api_discovery/tests/
+- [x] Write test_list_strategies()
+- [x] Write test_get_usage_limits()
+- [x] Write test_create_strategy_sse_stream()
+- [x] Write test_get_strategy_versions()
+- [x] Write test_generate_diagram()
+- [x] Run pytest and verify all pass
 
 ### Step 3: SDK Implementation
-- [ ] Review StrategiesResource in botspot_api_class/resources/strategies.py
-- [ ] Update create() method with actual parameters discovered
-- [ ] Update list() method with actual response format
-- [ ] Update get() method with actual response structure
-- [ ] Add any missing methods discovered during testing
-- [ ] Update docstrings with real examples from API
-- [ ] Test SDK methods manually
+- [x] Review StrategiesResource in botspot_api_class/resources/strategies.py
+- [x] Implement generate() method with SSE streaming support
+- [x] Implement list() method with actual response format
+- [x] Implement get_versions() method
+- [x] Implement generate_diagram() method
+- [x] Update docstrings with real examples from API
+- [x] Add prompt usage tracking with PromptUsageCache
 
 ### Step 4: Showcase Script
-- [ ] Create api_showcase_strategies.py in project root
-- [ ] Demonstrate: create strategy
-- [ ] Demonstrate: list all strategies
-- [ ] Demonstrate: get strategy details
-- [ ] Demonstrate: update strategy
-- [ ] Demonstrate: delete strategy
-- [ ] Keep code minimal (~25-35 lines)
-- [ ] Test and verify output is clean and informative
+- [x] Create api_showcase_generate.py in project root
+- [x] Demonstrate: generate strategy with SSE progress tracking
+- [x] Demonstrate: real-time progress updates
+- [x] Display: strategy name, code length, token usage
+- [x] Clean, informative console output with emojis
 
 ---
 
-## ⏳ Phase 3: TC-003 - Strategy Results
+## ✅ Phase 3: TC-003 - Strategy Results (COMPLETED)
 
 ### Step 1: Interactive API Discovery (Chrome MCP)
-- [ ] Navigate to strategy results/details page
-- [ ] Identify which strategy to use (from TC-002)
-- [ ] Document results data structure
-- [ ] Capture GET /strategies/{id}/results API call
-- [ ] Capture GET /strategies/{id}/code API call (if separate)
-- [ ] Download Mermaid diagram (capture download endpoint)
-- [ ] Capture any metadata endpoints
-- [ ] Update botspot_api_endpoints.json
-- [ ] Update session_notes.md
+- [x] Navigate to strategy results/details page
+- [x] Identify which strategy to use (from TC-002)
+- [x] Document results data structure
+- [x] Capture GET /ai-bot-builder/list-versions API call
+- [x] Document code editor UI and diagram modal
+- [x] Update botspot_api_endpoints.json
+- [x] Update session_notes.md
+
+**Key Discoveries**:
+- No separate endpoints for code/diagram - everything from `list-versions`
+- Code displayed in inline editor with Copy/Expand/Hide/Save Changes
+- Mermaid diagram in modal with zoom controls
+- Rating system (1-5 stars) for user feedback
+- Refinement section for iterating on strategies
 
 ### Step 2: Testing
-- [ ] Add tests to test_strategies.py
-- [ ] Write test_get_strategy_results()
-- [ ] Write test_get_strategy_code()
-- [ ] Write test_get_strategy_diagram()
-- [ ] Run pytest and verify all pass
+- [x] Create test_tc003_strategy_results.py
+- [x] Write test_get_strategy_versions_structure()
+- [x] Write test_get_generated_code()
+- [x] Write test_get_mermaid_diagram()
+- [x] Write test_strategy_metadata()
+- [x] Write test_view_complete_strategy_results() (integration)
+- [x] Run pytest and verify all pass
 
 ### Step 3: SDK Implementation
-- [ ] Add get_results() method to StrategiesResource
-- [ ] Add get_code() method (if separate endpoint)
-- [ ] Add get_diagram() method (if available)
-- [ ] Document return value structures
+- [x] Enhance get_versions() method documentation
+- [x] Document complete response structure (code, diagram, metadata)
+- [x] Add comprehensive docstring examples
+- [x] Mark as primary endpoint for viewing strategy results
 
 ### Step 4: Showcase Script
-- [ ] Create api_showcase_strategy_results.py
-- [ ] Demonstrate: fetch strategy results
-- [ ] Demonstrate: display metrics/performance data
-- [ ] Demonstrate: show generated code
-- [ ] Keep code minimal (~20-25 lines)
+- [x] Create api_showcase_strategy_results.py
+- [x] Demonstrate: fetch complete strategy data
+- [x] Demonstrate: display code stats and preview
+- [x] Demonstrate: show diagram availability
+- [x] Demonstrate: display metadata (name, type, visibility)
+- [x] Clean, informative console output (~120 lines)
 
 ---
 
@@ -327,14 +333,14 @@ This document tracks the complete workflow for discovering, testing, and impleme
 | Phase | Status | Test Cases | Showcase Scripts | Completion |
 |-------|--------|------------|------------------|-----------|
 | Phase 1: Foundation & Auth | ✅ Complete | TC-001 | getuser, logout | 100% |
-| Phase 2: Strategies | 🔜 Ready | TC-002 | strategies | 0% |
-| Phase 3: Results | ⏳ Pending | TC-003 | strategy_results | 0% |
+| Phase 2: Strategies | ✅ Complete | TC-002 | generate | 100% |
+| Phase 3: Results | ✅ Complete | TC-003 | strategy_results | 100% |
 | Phase 4: Backtesting | ⏳ Pending | TC-004 | backtests | 0% |
 | Phase 5: Historical | ⏳ Pending | TC-005 | historical_data | 0% |
 | Phase 6: Deployments | ⏳ Pending | N/A | deployments | 0% |
 | Phase 7: Documentation | ⏳ Pending | N/A | N/A | 0% |
 
-**Overall Project Completion**: ~14% (1/7 phases complete)
+**Overall Project Completion**: ~43% (3/7 phases complete)
 
 ---
 
@@ -342,8 +348,10 @@ This document tracks the complete workflow for discovering, testing, and impleme
 
 1. ✅ Create this MASTER_TODO.md file
 2. ✅ Update session_notes.md with workflow pattern
-3. 🔜 **Begin Phase 2: TC-002 Strategy Discovery**
-4. 🔜 Launch Chrome MCP and navigate to strategy creation
+3. ✅ Complete Phase 2: TC-002 Strategy Discovery
+4. ✅ Complete Phase 3: TC-003 Strategy Results
+5. 🔜 **Begin Phase 4: TC-004 Backtesting Discovery**
+6. 🔜 Launch Chrome MCP and navigate to backtest interface
 
 ---
 
@@ -403,14 +411,14 @@ This document tracks the complete workflow for discovering, testing, and impleme
 ### Showcase Scripts Completed
 1. ✅ api_showcase_getuser.py - Get user profile
 2. ✅ api_showcase_logout.py - Clear token cache
+3. ✅ api_showcase_generate.py - Generate AI strategy with SSE streaming
+4. ✅ api_showcase_strategy_results.py - View complete strategy data
 
 ### Showcase Scripts To Create
-3. ⏳ api_showcase_strategies.py
-4. ⏳ api_showcase_strategy_results.py
 5. ⏳ api_showcase_backtests.py
 6. ⏳ api_showcase_historical_data.py
 7. ⏳ api_showcase_deployments.py (if applicable)
 
 ---
 
-**Ready to proceed with Phase 2!** 🚀
+**Ready to proceed with Phase 4: Backtesting!** 🚀

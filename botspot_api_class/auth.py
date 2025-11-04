@@ -183,20 +183,13 @@ class AuthManager:
             if not access_token:
                 raise AuthenticationError("Access token not found in localStorage data")
 
-            # Log refresh token availability
+            # Log refresh token availability (without exposing token value)
             if refresh_token:
-                logger.info(f"✅ REFRESH TOKEN FOUND: {refresh_token[:50]}...")
-                logger.info("Refresh tokens are ENABLED - can implement auto-refresh!")
+                logger.info("Authentication successful with extended session support")
             else:
-                # Print bright yellow TODO reminder
-                print("\n" + "\033[93m\033[1m" + "=" * 80)
-                print("  ⚠️  TODO: Ask Rob if the OAuth timing can be extended longer than 24h?")
-                print("  Currently: Tokens expire after 24 hours → requires daily re-login")
-                print("  Ideal: Enable 'Refresh Token Rotation' in Auth0 for indefinite sessions")
-                print("=" * 80 + "\033[0m\n")
-
-                logger.warning("❌ NO REFRESH TOKEN - Rotation not enabled by BotSpot")
-                logger.warning("Contact Rob to enable 'Refresh Token Rotation' for longer sessions")
+                logger.warning("Authentication successful (standard session)")
+                logger.warning("Tokens expire after ~24 hours - will require re-authentication")
+                logger.info("Extended sessions can be enabled via 'Refresh Token Rotation' in Auth0")
 
             return access_token, expires_in or 86400, refresh_token
 

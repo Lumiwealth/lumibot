@@ -510,6 +510,19 @@ class StrategiesResource(BaseResource):
 
         # Create output directory if it doesn't exist
         output_path = Path(output_dir)
+
+        # Validate path to prevent directory traversal attacks
+        output_path_resolved = output_path.resolve()
+        cwd = Path.cwd().resolve()
+        try:
+            output_path_resolved.relative_to(cwd)
+        except ValueError as e:
+            raise ValueError(
+                f"Security: output_dir must be within current directory.\n"
+                f"Attempted path: {output_path_resolved}\n"
+                f"Current directory: {cwd}"
+            ) from e
+
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Full file path

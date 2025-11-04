@@ -5,8 +5,7 @@ Each resource class provides methods for interacting with a specific API endpoin
 """
 
 from .backtests import BacktestsResource
-from .deployments import DeploymentsResource
 from .strategies import StrategiesResource
 from .users import UsersResource
 
-__all__ = ["UsersResource", "StrategiesResource", "BacktestsResource", "DeploymentsResource"]
+__all__ = ["UsersResource", "StrategiesResource", "BacktestsResource"]

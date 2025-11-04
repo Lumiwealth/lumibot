@@ -4,9 +4,13 @@ BotSpot API Client - Strategies Resource
 Methods for managing AI-generated trading strategies.
 """
 
-from typing import Any, Dict, List, Optional
+import json
+from typing import Any, Callable, Dict, List, Optional
+
+import requests
 
 from ..base import BaseResource
+from ..exceptions import APIError
 from ..prompt_cache import PromptUsageCache
 
 
@@ -249,53 +253,174 @@ class StrategiesResource(BaseResource):
 
         return self._post("/ai-bot-builder/generate-diagram", data=data)
 
-    def generate(self, prompt: str, files: Optional[List] = None) -> Dict[str, Any]:
+    def generate(
+        self, prompt: str, files: Optional[List] = None, progress_callback: Optional[Callable[[Dict], None]] = None
+    ) -> Dict[str, Any]:
         """
-        Generate a new AI strategy from natural language prompt.
+        Generate a new AI strategy from natural language prompt via SSE streaming.
 
         **Automatically checks and displays prompt usage before generation.**
 
-        NOTE: This method uses Server-Sent Events (SSE) for real-time generation.
-        The full SSE implementation requires streaming support, which is not yet
-        implemented in this SDK.
-
-        To use SSE streaming for real-time progress updates, use the SSE endpoint
-        directly: POST /sse/stream with Accept: text/event-stream header.
+        Uses Server-Sent Events (SSE) to stream real-time progress updates during
+        the 2-3 minute generation process powered by GPT-5 (OpenAI).
 
         Args:
             prompt: Natural language strategy description
             files: Optional list of file attachments
+            progress_callback: Optional callback function called for each SSE event
+                              Receives event dict with keys: action, phase, content, etc.
 
         Returns:
-            Strategy generation response (simplified, not streaming)
+            Dictionary with generation results:
+            {
+                "generated_code": str,  # Full Python Lumibot strategy code
+                "strategy_name": str,   # AI-generated strategy name
+                "description": str,     # Strategy description
+                "events": List[Dict],   # All SSE events received
+                "usage": Dict          # Token usage info (model, tokens, etc.)
+            }
+
+        Raises:
+            APIError: If generation fails or API returns error
 
         Example:
             >>> client = BotSpot()
             >>> # Automatically displays: "AI Prompt Usage: 3/500 used (497 remaining)"
+            >>>
+            >>> def on_progress(event):
+            ...     print(f"Progress: {event.get('action')} - {event.get('content', '')[:50]}")
+            >>>
             >>> result = client.strategies.generate(
-            ...     "Create a simple moving average crossover strategy for SPY"
+            ...     prompt="Create a simple moving average crossover strategy for SPY",
+            ...     progress_callback=on_progress
             ... )
+            >>> print(f"Generated: {result['strategy_name']}")
+            >>> print(f"Code length: {len(result['generated_code'])} characters")
 
-        For real-time streaming, use:
-            POST https://api.botspot.trade/sse/stream
-            Headers: Accept: text/event-stream
-            Body: {"type": "generate_strategy", "prompt": "...", "aiStrategyId": "", "message": "...", "files": []}
-
-        Generation takes approximately 2-3 minutes and uses GPT-5 (OpenAI).
+        Generation details:
+        - Takes approximately 2-3 minutes
+        - Uses GPT-5 (OpenAI) with medium reasoning effort
+        - Streams progress events: prompt_to_ai → thinking → code_generation_started →
+          code_generation_completed → validation_started → strategy_generated
+        - Includes :heartbeat messages during long operations
 
         Prompt usage warnings:
         - Green: Normal (≥ 50 remaining)
         - Yellow: Warning (< 50 remaining)
         - Red: Critical (< 10 remaining)
         """
-        # Check and display prompt usage BEFORE attempting generation
-        # This shows current usage and warns if running low
+
+        # Check and display prompt usage BEFORE generation
         self._check_and_display_prompt_usage()
 
-        # TODO: Implement SSE client for streaming support
-        # When implemented, the usage check above will run before each generation
+        # Prepare SSE request
+        url = f"{self.API_BASE}/sse/stream"
+        headers = self._get_headers()
+        headers["Accept"] = "text/event-stream"
 
-        raise NotImplementedError(
-            "SSE streaming not yet implemented in SDK. "
-            "Use POST /sse/stream directly with Accept: text/event-stream header for real-time generation."
-        )
+        payload = {
+            "type": "generate_strategy",
+            "prompt": prompt,
+            "aiStrategyId": "",  # Empty for new strategy
+            "message": prompt,
+            "files": files or [],
+        }
+
+        # Stream SSE response
+        try:
+            response = requests.post(url, headers=headers, json=payload, stream=True, timeout=300)
+
+            if response.status_code != 200:
+                raise APIError(
+                    f"Strategy generation failed with status {response.status_code}",
+                    status_code=response.status_code,
+                    response_data=response.text,
+                )
+
+            # Parse SSE events
+            events = []
+            generated_code = None
+            usage_info = None
+            conversation_id = None
+
+            for line in response.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+
+                # Skip heartbeat messages
+                if line == ":heartbeat":
+                    continue
+
+                # Parse data events
+                if line.startswith("data: "):
+                    event_data = line[6:]  # Remove "data: " prefix
+                    try:
+                        event = json.loads(event_data)
+                        events.append(event)
+
+                        # Capture conversation ID from first event for potential recovery
+                        if conversation_id is None and "conversationId" in event:
+                            conversation_id = event["conversationId"]
+
+                        # Call progress callback if provided
+                        if progress_callback:
+                            progress_callback(event)
+
+                        # Capture final generated code
+                        if event.get("action") == "strategy_generated" and event.get("phase") == "complete":
+                            generated_code = event.get("generatedCode")
+                            usage_info = event.get("usage", {})
+                            break  # Stop after final event
+
+                    except json.JSONDecodeError:
+                        # Skip invalid JSON lines
+                        pass
+
+            # Verify we got the generated code
+            if generated_code is None:
+                # If we captured a conversation ID, provide it for recovery
+                error_msg = "Strategy generation stream ended without returning code."
+                if conversation_id:
+                    error_msg += (
+                        f"\n\nConversation ID: {conversation_id}\n"
+                        f"The generation may still be in progress server-side.\n"
+                        f"Check client.strategies.list() in a few minutes to see if it completed."
+                    )
+
+                raise APIError(
+                    error_msg,
+                    status_code=response.status_code,
+                    response_data=f"Events captured: {len(events)}",
+                )
+
+            # Extract strategy name from code (parse class name)
+            strategy_name = "Generated Strategy"
+            if "class " in generated_code:
+                try:
+                    class_line = [line for line in generated_code.split("\n") if line.strip().startswith("class ")][0]
+                    strategy_name = class_line.split("class ")[1].split("(")[0].strip()
+                except (IndexError, AttributeError):
+                    pass
+
+            # Extract description from comments
+            description = ""
+            if '"""' in generated_code:
+                try:
+                    desc_start = generated_code.find('"""') + 3
+                    desc_end = generated_code.find('"""', desc_start)
+                    description = generated_code[desc_start:desc_end].strip()
+                except (ValueError, AttributeError):
+                    pass
+
+            return {
+                "generated_code": generated_code,
+                "strategy_name": strategy_name,
+                "description": description,
+                "events": events,
+                "usage": usage_info or {},
+            }
+
+        except requests.exceptions.Timeout as e:
+            raise APIError("Strategy generation timed out after 5 minutes", status_code=408) from e
+        except requests.exceptions.RequestException as e:
+            raise APIError(f"Request failed during strategy generation: {e}") from e

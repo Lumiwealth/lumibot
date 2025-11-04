@@ -1,0 +1,168 @@
+{
+  "apiVersion": "unknown",
+  "baseUrl": "https://api.botspot.trade",
+  "authentication": {
+    "type": "OAuth2",
+    "authorizationUrl": "https://botspot.us.auth0.com/authorize",
+    "tokenUrl": "https://botspot.us.auth0.com/oauth/token",
+    "flow": "authorization_code",
+    "scopes": []
+  },
+  "endpoints": [
+    {
+      "endpoint": "/oauth/token",
+      "method": "POST",
+      "baseUrl": "https://botspot.us.auth0.com",
+      "description": "Exchange authorization code for access token",
+      "authentication": "client_id + code_verifier (PKCE)",
+      "requestBody": {
+        "client_id": "sys7COPgURwmEVYFi5Wc5U9rXJEsx55d",
+        "code_verifier": "string (PKCE verifier)",
+        "grant_type": "authorization_code",
+        "code": "string (authorization code from callback)",
+        "redirect_uri": "https://botspot.trade"
+      },
+      "responses": {
+        "200": {
+          "description": "Token exchange successful",
+          "schema": {
+            "access_token": "JWT",
+            "id_token": "JWT",
+            "scope": "openid profile email",
+            "expires_in": 86400,
+            "token_type": "Bearer"
+          }
+        }
+      },
+      "capturedFrom": "TC-001-03",
+      "verified": false
+    },
+    {
+      "endpoint": "/users/user_profile",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Get current user profile with subscription and onboarding status",
+      "authentication": "Bearer token required",
+      "headers": {
+        "Authorization": "Bearer {access_token}",
+        "Content-Type": "application/json"
+      },
+      "responses": {
+        "200": {
+          "description": "User profile retrieved successfully",
+          "schema": {
+            "success": "boolean",
+            "profile": {
+              "id": "uuid",
+              "email": "string",
+              "nickname": "string",
+              "firstName": "string",
+              "lastName": "string",
+              "phone": "string",
+              "location": "string",
+              "tradingExperience": "string",
+              "bio": "string",
+              "role": "string",
+              "activeProducts": "array",
+              "hasSetPassword": "boolean",
+              "hasDismissedOnboarding": "boolean",
+              "hasDeployedBot": "boolean",
+              "hasCreatedStrategy": "boolean",
+              "hasRunBacktest": "boolean",
+              "hasRunningBot": "boolean",
+              "hasWatchedVideo": "boolean",
+              "loginCount": "integer",
+              "lastLoginAt": "datetime"
+            }
+          }
+        }
+      },
+      "capturedFrom": "TC-001-05",
+      "verified": true
+    },
+    {
+      "endpoint": "/users/profile",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Alternative endpoint for user profile (returns same data)",
+      "authentication": "Bearer token required",
+      "capturedFrom": "TC-001-05",
+      "verified": true
+    },
+    {
+      "endpoint": "/auth/ensure-user",
+      "method": "POST",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Ensure user exists in database (called on login)",
+      "authentication": "Bearer token required",
+      "requestBody": {
+        "email": "string"
+      },
+      "responses": {
+        "200": {
+          "description": "User verified/created",
+          "schema": {
+            "success": "boolean",
+            "user": "object (full user details)"
+          }
+        }
+      },
+      "capturedFrom": "TC-001-05",
+      "verified": false
+    },
+    {
+      "endpoint": "/checkout/cart",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Get user shopping cart",
+      "authentication": "Bearer token required",
+      "capturedFrom": "TC-001-05",
+      "verified": false
+    },
+    {
+      "endpoint": "/stripe/is-paying-customer",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Check if user is a paying customer",
+      "authentication": "Bearer token required",
+      "capturedFrom": "TC-001-05",
+      "verified": false
+    },
+    {
+      "endpoint": "/strategies/onboarding",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Get onboarding/example strategies for new users",
+      "authentication": "Bearer token required (optional)",
+      "responses": {
+        "200": {
+          "description": "List of onboarding strategies",
+          "schema": {
+            "strategies": "array of strategy objects with full code, backtest results, etc."
+          }
+        }
+      },
+      "capturedFrom": "TC-001-05",
+      "verified": true
+    },
+    {
+      "endpoint": "/users/login-stats",
+      "method": "PUT",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Update user login statistics (called on each login)",
+      "authentication": "Bearer token required",
+      "capturedFrom": "TC-001-05",
+      "verified": false
+    }
+  ],
+  "models": {},
+  "discoveryMetadata": {
+    "discoveredAt": "2025-11-03T20:39:19.717963",
+    "totalEndpoints": 8,
+    "verifiedEndpoints": 3,
+    "toolsUsed": [
+      "Chrome MCP DevTools",
+      "Python requests library"
+    ]
+  }
+}

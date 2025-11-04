@@ -11,6 +11,15 @@ Prerequisites:
 - Run api_showcase_save_and_run.py first to save a strategy
 - Install Lumibot: pip install lumibot
 
+IMPORTANT - BACKTESTING vs LIVE TRADING:
+⚠️  Lumibot strategies are designed to run LIVE by default!
+⚠️  This script sets environment variables to force BACKTESTING mode.
+
+To run backtests from command line, you MUST set these environment variables:
+    IS_BACKTESTING=true BACKTESTING_START=2025-01-01 BACKTESTING_END=2025-01-31 python strategies/your_strategy.py
+
+This script automatically sets these variables in code to ensure safe backtesting.
+
 SECURITY WARNING:
 This script dynamically loads and executes Python code from local files.
 Only run strategy files from trusted sources that you have created or reviewed.
@@ -21,6 +30,7 @@ Usage:
 """
 
 import importlib.util
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -102,8 +112,31 @@ def run_backtest(strategy_file: Path):
     Args:
         strategy_file: Path to strategy Python file
     """
+    # ============================================================================
+    # CRITICAL: Set environment variables to force BACKTESTING mode
+    # ============================================================================
+    # Lumibot strategies run LIVE by default. We MUST set these environment
+    # variables BEFORE importing/loading the strategy to ensure backtesting mode.
+    #
+    # These correspond to the command-line approach:
+    #   IS_BACKTESTING=true BACKTESTING_START=2025-01-01 BACKTESTING_END=2025-01-31 python strategies/strategy.py
+
+    os.environ["IS_BACKTESTING"] = "true"
+
+    # Set backtest date range (last 90 days for quick testing)
+    backtesting_end = datetime.now()
+    backtesting_start = backtesting_end - timedelta(days=90)
+
+    os.environ["BACKTESTING_START"] = backtesting_start.strftime("%Y-%m-%d")
+    os.environ["BACKTESTING_END"] = backtesting_end.strftime("%Y-%m-%d")
+
     print("\n" + "=" * 70)
     print("  🚀 Running Local Backtest")
+    print("=" * 70)
+
+    print("\n" + "🔧 BACKTESTING MODE ENABLED" + " " * 39 + "🔧")
+    print(f"  IS_BACKTESTING={os.environ['IS_BACKTESTING']}")
+    print(f"  Date Range: {os.environ['BACKTESTING_START']} → {os.environ['BACKTESTING_END']}")
     print("=" * 70)
 
     print("\n" + "⚠️  SECURITY WARNING" + " " * 46 + "⚠️")

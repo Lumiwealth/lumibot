@@ -24,7 +24,7 @@ class AxiomPortStrategy(Strategy):
     # Parameters allow basic tuning without touching the code
     parameters = {
         "symbols": ["GC"],  # You can use any liquid stocks/ETFs
-        "timestep": "minute",  # Use daily bars (simple, robust)
+        "timestep": "minute",  # Using 1-minute bars for intraday trading
         "hurst_window": 20,  # Window for Hurst exponent
         "max_hold_bars": 60,  # Exit if held this many bars
         "tp_pct": 0.06,  # Take profit as +6% from entry
@@ -36,14 +36,20 @@ class AxiomPortStrategy(Strategy):
         # Run once at the beginning
         params = self.get_parameters()
 
-        # Set sleeptime based on timestep: "1D" for daily bars, "1M" for minute bars (matches example)
-        self.sleeptime = "1D" if params.get("timestep", "day") == "day" else "1M"
+        # Set sleeptime based on timestep
+        # CRITICAL: "1M" means 1 MONTH in Lumibot, not 1 minute!
+        # Use "60S" for 60 seconds (1 minute), "86400S" for 1 day
+        # Due to a Lumibot bug, integer sleeptime is multiplied by 60
+        if params.get("timestep", "day") == "day":
+            self.sleeptime = "86400S"  # 86400 seconds = 1 day
+        else:  # minute bars
+            self.sleeptime = "60S"  # 60 seconds = 1 minute
 
         # CRITICAL PERFORMANCE OPTIMIZATION: Prefetch all data upfront for backtesting
         # This reduces API calls from thousands to just a few and speeds up backtesting by 1000x+
         if hasattr(self, "_data_source") and hasattr(self._data_source, "initialize_data_for_backtest"):
             symbols = params.get("symbols", [])
-            timestep = params.get("timestep", "day")
+            timestep = params.get("timestep", "minute")  # Default should match parameters above
 
             # Create assets list for prefetch
             strategy_assets = [Asset(sym, asset_type=self._get_asset_type(sym)) for sym in symbols]
@@ -164,10 +170,10 @@ class AxiomPortStrategy(Strategy):
         return signals
 
     def on_trading_iteration(self):
-        # This runs on each iteration (e.g., once per day with daily bars)
+        # This runs on each iteration (e.g., once per minute with minute bars)
         params = self.get_parameters()
         symbols = params.get("symbols", [])
-        timestep = params.get("timestep", "day")
+        timestep = params.get("timestep", "minute")  # Default should match parameters above
         hurst_window = int(params.get("hurst_window", 20))
         max_hold_bars = int(params.get("max_hold_bars", 60))
         tp_pct = float(params.get("tp_pct", 0.06))
@@ -313,7 +319,13 @@ class AxiomPortStrategy(Strategy):
             if entry_dt is None:
                 continue
 
-            bars_held_est = (self.get_datetime().date() - entry_dt.date()).days
+            # Calculate bars held based on timestep
+            time_diff = self.get_datetime() - entry_dt
+            if timestep == "minute":
+                bars_held_est = int(time_diff.total_seconds() / 60)  # Minutes held
+            else:  # daily bars
+                bars_held_est = time_diff.days  # Days held
+
             if bars_held_est >= max_hold_bars:
                 # Close due to max holding period
                 self.log_message(

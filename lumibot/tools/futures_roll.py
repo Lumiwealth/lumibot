@@ -38,8 +38,6 @@ ROLL_RULES: dict[str, RollRule] = {
         symbol: RollRule(offset_business_days=8, anchor="third_friday", contract_months=(3, 6, 9, 12))
         for symbol in {"ES", "MES", "NQ", "MNQ", "YM", "MYM"}
     },
-    # Gold - trades on Feb/Apr/Jun/Aug/Dec cycle, rolls 3 business days before month end
-    "GC": RollRule(offset_business_days=3, anchor="month_end", contract_months=(2, 4, 6, 8, 12)),
 }
 
 YearMonth = Tuple[int, int]

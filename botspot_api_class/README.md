@@ -1,22 +1,20 @@
 # BotSpot API Client
 
-A simple, elegant Python client for the BotSpot trading platform API.
+Python client library for the BotSpot API - AI-powered trading strategy generation and backtesting platform.
 
 ## Features
 
-- **World-class simplicity**: `client = BotSpot()` → `client.users.get_profile()`
-- **Automatic authentication**: Uses Selenium for OAuth, then pure API calls
-- **Token caching**: Avoids re-login with persistent token storage
-- **Lazy authentication**: Only authenticates on first API call
-- **Resource-based API**: Intuitive organization (users, strategies, backtests, deployments)
-- **Comprehensive error handling**: Specific exceptions with helpful messages
-- **Thread-safe**: Token management with locks for concurrent access
+- 🤖 **AI Strategy Generation** - Generate trading strategies using GPT-5 with natural language prompts
+- 📊 **Backtesting** - Run comprehensive backtests on historical data via BotSpot API
+- 💾 **Local Execution** - Save and run strategies locally with Lumibot
+- 🔐 **Automatic Authentication** - Token caching with auto re-authentication
+- ⚡ **Real-time Updates** - Server-Sent Events (SSE) for strategy generation progress
+- 📝 **Full Type Hints** - Complete IDE autocomplete support
 
 ## Installation
 
-The dependencies are listed in `requirements_api_class.txt` at the root level:
-
 ```bash
+# Install dependencies
 cd /Users/marvin/repos/lumibot
 pip install -r requirements_api_class.txt
 ```
@@ -25,277 +23,365 @@ Dependencies:
 - `requests>=2.31.0` - HTTP client
 - `selenium>=4.15.0` - Browser automation for OAuth
 - `python-dotenv>=1.0.0` - Environment variable management
-
-## Configuration
-
-Credentials are loaded from `/Users/marvin/repos/lumibot/.env`:
-
-```bash
-BOTSPOT_USERNAME=your@email.com
-BOTSPOT_PASSWORD=your_password
-```
+- `webdriver-manager>=4.0.0` - Automatic ChromeDriver management
 
 ## Quick Start
 
-```python
-from botspot_api_class import BotSpot
+### 1. Configure Credentials
 
-# Initialize client (loads from .env automatically)
-client = BotSpot()
+Create `.env` file in `/Users/marvin/repos/lumibot/`:
 
-# Get user profile (triggers authentication on first call)
-profile = client.users.get_profile()
-print(f"Logged in as: {profile['firstName']} {profile['lastName']}")
-
-# List strategies
-strategies = client.strategies.list()
-for strategy in strategies:
-    print(f"{strategy['name']}: {strategy['status']}")
+```bash
+BOTSPOT_USERNAME=your_email@example.com
+BOTSPOT_PASSWORD=your_password
 ```
 
-## Context Manager Support
+### 2. Initialize Client
 
 ```python
 from botspot_api_class import BotSpot
 
+# Simple usage
+client = BotSpot()
+profile = client.users.get_profile()
+print(f"Welcome, {profile['email']}")
+
+# Or use context manager (recommended)
 with BotSpot() as client:
-    profile = client.users.get_profile()
     strategies = client.strategies.list()
+    print(f"You have {len(strategies)} strategies")
+```
+
+### 3. Generate a Strategy
+
+```python
+with BotSpot() as client:
+    # Generate with real-time progress
+    def on_progress(event):
+        if event.get('action') == 'thinking':
+            print("AI is thinking...")
+
+    result = client.strategies.generate(
+        prompt="Create a simple moving average crossover strategy for SPY",
+        progress_callback=on_progress
+    )
+
+    print(f"Generated: {result['strategy_name']}")
+    print(f"Code: {len(result['generated_code'])} characters")
+```
+
+### 4. Save & Run Locally
+
+```python
+# Save to local file
+filepath = client.strategies.save_to_file(
+    code=result['generated_code'],
+    filename="sma_crossover",
+    output_dir="strategies"
+)
+
+print(f"Saved to: {filepath}")
 ```
 
 ## API Reference
 
+### Client Initialization
+
+```python
+client = BotSpot(
+    username=None,          # Or from BOTSPOT_USERNAME env var
+    password=None,          # Or from BOTSPOT_PASSWORD env var
+    env_path=None,          # Path to .env file (default: project root)
+    cache_tokens=True,      # Enable token caching
+    headless=True           # Run browser in headless mode
+)
+```
+
 ### Users Resource
 
 ```python
-# Get current user profile
+# Get user profile
 profile = client.users.get_profile()
-
-# Update profile
-profile = client.users.update_profile(
-    firstName="John",
-    lastName="Doe",
-    phone="+1234567890"
-)
+# Returns: {"user_id": "...", "email": "...", "firstName": "...", ...}
 ```
 
 ### Strategies Resource
 
 ```python
 # List all strategies
-strategies = client.strategies.list(limit=10)
+strategies = client.strategies.list()
 
-# Get specific strategy
-strategy = client.strategies.get("strategy_id")
+# Get strategy versions (includes code, diagram, metadata)
+data = client.strategies.get_versions("ai_strategy_id")
+code = data['versions'][0]['code_out']
+diagram = data['versions'][0]['mermaidDiagram']
 
-# Create strategy
-strategy = client.strategies.create(
-    name="My Strategy",
-    description="A simple strategy",
-    code="# Python code here"
+# Generate new strategy with AI (takes 2-3 minutes)
+result = client.strategies.generate(
+    prompt="Create a momentum trading strategy",
+    progress_callback=lambda event: print(event.get('content', ''))
 )
 
-# Update strategy
-strategy = client.strategies.update(
-    "strategy_id",
-    name="Updated Name"
+# Check usage limits (X/500 prompts)
+limits = client.strategies.get_usage_limits()
+print(f"Prompts used: {limits['promptsUsed']}/{limits['maxPrompts']}")
+
+# Save strategy to local file
+filepath = client.strategies.save_to_file(
+    code=code,
+    filename="my_strategy",      # .py added automatically
+    output_dir="strategies",      # Created if doesn't exist
+    overwrite=False               # Raises FileExistsError if file exists
 )
 
-# Delete strategy
-client.strategies.delete("strategy_id")
+# Generate Mermaid diagram from code
+diagram = client.strategies.generate_diagram(
+    python_code=code,
+    revision_id="revision_uuid"
+)
 ```
 
 ### Backtests Resource
 
 ```python
-# List backtests
-backtests = client.backtests.list(strategy_id="strategy_id")
-
-# Get backtest details
-backtest = client.backtests.get("backtest_id")
-
-# Run backtest
-backtest = client.backtests.run(
-    strategy_id="strategy_id",
-    start_date="2023-01-01",
-    end_date="2023-12-31",
-    initial_capital=10000
+# Submit backtest (returns immediately with backtestId)
+# Note: Backtests take 10-30+ minutes to complete
+result = client.backtests.run(
+    bot_id="ai_strategy_id",
+    code=strategy_code,
+    start_date="2024-01-01T00:00:00.000Z",
+    end_date="2024-12-31T00:00:00.000Z",
+    revision_id="revision_uuid",
+    data_provider="theta_data",
+    requirements="lumibot"
 )
 
-# Get detailed results
-results = client.backtests.get_results("backtest_id")
+backtest_id = result['backtestId']
 
-# Delete backtest
-client.backtests.delete("backtest_id")
-```
+# Poll for status (call every 2-5 seconds while running)
+status = client.backtests.get_status(backtest_id)
+print(f"Running: {status['running']}, Stage: {status['stage']}")
 
-### Deployments Resource
-
-```python
-# List deployments
-deployments = client.deployments.list(status="running")
-
-# Get deployment details
-deployment = client.deployments.get("deployment_id")
-
-# Create deployment
-deployment = client.deployments.create(
-    strategy_id="strategy_id",
-    name="My Live Bot",
-    broker="alpaca"
+# Wait for completion (blocking with optional callback)
+final_status = client.backtests.wait_for_completion(
+    backtest_id,
+    poll_interval=5,        # Check every 5 seconds
+    timeout=1800,           # Wait up to 30 minutes
+    callback=lambda s: print(f"Stage: {s['stage']}")
 )
 
-# Start/stop deployment
-client.deployments.start("deployment_id")
-client.deployments.stop("deployment_id")
-
-# Get deployment logs
-logs = client.deployments.get_logs("deployment_id", level="error")
-
-# Delete deployment
-client.deployments.delete("deployment_id")
+# Get backtest history for a strategy
+stats = client.backtests.get_stats("strategy_id")
+print(f"Total backtests: {len(stats['backtests'])}")
 ```
 
-## Token Caching
-
-Tokens are automatically cached in `~/.config/botspot/tokens.json` with:
-- **Secure permissions**: 0600 (read/write for owner only)
-- **Auto-refresh**: Re-authenticates 5 minutes before expiration
-- **Thread-safe**: Lock-based access for concurrent use
+### Token Management
 
 ```python
-# Check cache info
-cache_info = client.get_cache_info()
-if cache_info:
-    print(f"Expires: {cache_info['expires_at']}")
-    print(f"Time remaining: {cache_info['time_remaining']}")
+# Clear cached tokens (forces re-authentication)
+client.clear_cache()
 
-# Clear cache (forces re-authentication)
+# Get cache info
+info = client.get_cache_info()
+if info:
+    print(f"Token expires in: {info['expires_in_seconds']}s")
+```
+
+## Complete Workflow Example
+
+```python
+from botspot_api_class import BotSpot
+
+with BotSpot() as client:
+    # 1. Generate strategy
+    print("Generating strategy...")
+    result = client.strategies.generate(
+        "Create a RSI-based strategy for QQQ"
+    )
+
+    # 2. Save locally
+    filepath = client.strategies.save_to_file(
+        code=result['generated_code'],
+        filename="rsi_qqq"
+    )
+    print(f"Saved to: {filepath}")
+
+    # 3. Get the AI strategy ID
+    strategies = client.strategies.list()
+    ai_strategy_id = strategies[0]['id']
+
+    # 4. Run backtest via API
+    backtest = client.backtests.run(
+        bot_id=ai_strategy_id,
+        code=result['generated_code'],
+        start_date="2024-01-01T00:00:00.000Z",
+        end_date="2024-03-31T00:00:00.000Z",
+        revision_id="1",
+        data_provider="theta_data"
+    )
+
+    print(f"Backtest submitted: {backtest['backtestId']}")
+```
+
+## Showcase Scripts
+
+The repository includes 8 complete example scripts in the project root:
+
+1. **`api_showcase_getuser.py`** - Get user profile and token info
+2. **`api_showcase_logout.py`** - Clear token cache
+3. **`api_showcase_generate.py`** - Generate AI strategy with progress tracking
+4. **`api_showcase_strategy_results.py`** - View strategy code and metadata
+5. **`api_showcase_backtests.py`** - Submit and monitor API backtest
+6. **`api_showcase_historical_data.py`** - List strategies and backtest history
+7. **`api_showcase_save_and_run.py`** - Save strategy locally and validate
+8. **`api_showcase_run_local_backtest.py`** - Run local backtest with Lumibot
+
+Run any script:
+```bash
+cd /Users/marvin/repos/lumibot
+python api_showcase_generate.py
+```
+
+## Authentication
+
+The client uses **Selenium-based authentication** with Auth0:
+
+1. On first use, opens Chrome browser (headless by default)
+2. Logs in via Auth0 Universal Login
+3. Extracts tokens from browser localStorage
+4. Caches tokens to `~/.botspot_tokens.json`
+5. Auto re-authenticates when tokens expire (~24 hours)
+
+### Token Cache Location
+
+```
+~/.botspot_tokens.json
+```
+
+Clear cache programmatically:
+```python
 client.clear_cache()
 ```
 
-## Exception Handling
+Or delete manually:
+```bash
+rm ~/.botspot_tokens.json
+```
+
+## Error Handling
 
 ```python
-from botspot_api_class import (
-    BotSpot,
-    AuthenticationError,
-    APIError,
-    NetworkError,
-    RateLimitError,
-    ResourceNotFoundError
-)
+from botspot_api_class import BotSpot, AuthenticationError, APIError
 
 try:
-    client = BotSpot()
-    profile = client.users.get_profile()
-
+    with BotSpot() as client:
+        result = client.strategies.generate("Create a strategy")
 except AuthenticationError as e:
     print(f"Login failed: {e}")
-
-except ResourceNotFoundError as e:
-    print(f"Not found: {e.resource_type} {e.resource_id}")
-
-except RateLimitError as e:
-    print(f"Rate limited. Retry after {e.retry_after}s")
-
 except APIError as e:
-    print(f"API error: {e.message} (status: {e.status_code})")
-
-except NetworkError as e:
-    print(f"Network error: {e}")
+    print(f"API error: {e}")
+    print(f"Status code: {e.status_code}")
 ```
 
-## Custom Configuration
+## Troubleshooting
 
-```python
-# Custom credentials (instead of .env)
-client = BotSpot(
-    username="user@example.com",
-    password="secret"
-)
+### Authentication Issues
 
-# Custom .env path
-client = BotSpot(env_path="/path/to/.env")
+**Problem**: "Authentication failed"
+- Check credentials in `.env` file
+- Ensure Chrome/Chromium is installed
+- Try with `headless=False` to see browser:
+  ```python
+  client = BotSpot(headless=False)
+  ```
 
-# Disable token caching
-client = BotSpot(cache_tokens=False)
+### Token Expiration
 
-# Visible browser (for debugging)
-client = BotSpot(headless=False)
-```
+**Problem**: 401 errors after 24 hours
+- Client auto re-authenticates automatically
+- If issues persist:
+  ```python
+  client.clear_cache()
+  ```
 
-## Architecture
+### Backtest Timeouts
+
+**Problem**: Backtests take 10-30+ minutes
+- This is normal behavior
+- Use `wait_for_completion()` with callback for progress:
+  ```python
+  client.backtests.wait_for_completion(
+      backtest_id,
+      callback=lambda s: print(f"Stage: {s['stage']}")
+  )
+  ```
+
+## API Endpoints Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/users/profile` | GET | Get user profile |
+| `/ai-bot-builder/list-strategies` | GET | List all strategies |
+| `/ai-bot-builder/list-versions` | GET | Get strategy versions (code, diagram) |
+| `/ai-bot-builder/usage-limits` | GET | Check prompt usage (X/500) |
+| `/sse/stream` | POST | Generate strategy via SSE (streaming) |
+| `/ai-bot-builder/generate-diagram` | POST | Generate Mermaid flowchart |
+| `/backtests` | POST | Submit backtest (returns 202) |
+| `/backtests/{id}/status` | GET | Poll backtest status |
+| `/backtests/{strategyId}/stats` | GET | Get backtest history |
+| `/data-providers` | GET | List available data providers |
+| `/data-providers/access` | GET | Check provider access |
+
+## Project Structure
 
 ```
 botspot_api_class/
-├── __init__.py              # Public API exports
-├── client.py                # Main BotSpot client
-├── auth.py                  # Selenium authentication manager
-├── token_cache.py           # Token persistence & validation
-├── exceptions.py            # Exception hierarchy
-├── base.py                  # BaseResource with HTTP methods
+├── __init__.py               # Public API exports
+├── auth.py                   # Selenium-based authentication
+├── base.py                   # BaseResource with HTTP methods
+├── client.py                 # Main BotSpot client
+├── exceptions.py             # Custom exceptions
+├── token_cache.py            # Token persistence & validation
+├── prompt_cache.py           # Prompt usage tracking
 └── resources/
-    ├── __init__.py
-    ├── users.py             # UsersResource
-    ├── strategies.py        # StrategiesResource
-    ├── backtests.py         # BacktestsResource
-    └── deployments.py       # DeploymentsResource
+    ├── users.py              # User profile API
+    ├── strategies.py         # Strategy generation & management
+    └── backtests.py          # Backtesting API
+```
+
+## Testing
+
+Run the test suite:
+```bash
+cd botspot_api_discovery
+pytest tests/
 ```
 
 ## Design Principles
 
 1. **Simplicity**: Stripe-inspired API - minimal code to accomplish tasks
-2. **Lazy evaluation**: Only authenticate when needed, not on init
-3. **Resource organization**: Logical grouping (users, strategies, etc.)
-4. **Error transparency**: Specific exceptions with helpful messages
-5. **Performance**: Token caching avoids repeated authentication
-6. **Thread safety**: Safe for concurrent use
-7. **No surprises**: Sensible defaults, explicit overrides
-
-## Example: From 267 Lines to 30 Lines
-
-**Before (automated_login_test.py - 267 lines):**
-```python
-# Selenium setup, browser management, localStorage extraction,
-# manual API calls with requests, token handling, etc.
-```
-
-**After (test_api_client.py - 30 lines):**
-```python
-from botspot_api_class import BotSpot
-
-with BotSpot() as client:
-    profile = client.users.get_profile()
-    print(f"Logged in as: {profile['firstName']} {profile['lastName']}")
-```
-
-## Logging
-
-The client uses Python's `logging` module with INFO level by default:
-
-```python
-import logging
-
-# Customize logging
-logging.getLogger("botspot_api_class").setLevel(logging.DEBUG)
-
-# Disable client logging
-logging.getLogger("botspot_api_class").setLevel(logging.WARNING)
-```
-
-## Testing
-
-See `test_api_client.py` in the `botspot_api_discovery/` directory for a complete example.
+2. **Lazy Authentication**: Only authenticates when needed, not on init
+3. **Resource Organization**: Logical grouping (users, strategies, backtests)
+4. **Error Transparency**: Specific exceptions with helpful messages
+5. **Token Caching**: Avoids repeated authentication
+6. **Real-time Updates**: SSE for strategy generation progress
+7. **Local Execution**: Save and run strategies outside BotSpot
 
 ## Notes
 
-- This is an **internal project module**, not a redistributable package
-- No `setup.py` - just import directly from the project
-- Uses root `.env` for credentials
-- Works with existing project virtual environment
-- Designed for simplicity and maintainability within the Lumibot project
+- BotSpot API scope: **AI strategy generation + backtesting only**
+- No live trading/deployment endpoints (strategies run locally with Lumibot)
+- Token expiration: ~24 hours (auto re-authentication enabled)
+- Strategy generation: 2-3 minutes via GPT-5
+- Backtests: 10-30+ minutes depending on date range
+- Prompt limit: 500 prompts per account
 
 ## Version
 
-**1.0.0** - Initial release
+**1.0.0** - Initial release with complete BotSpot API coverage
+
+## Support
+
+- BotSpot Documentation: [https://botspot.trade](https://botspot.trade)
+- Lumibot Documentation: [https://lumibot.lumiwealth.com](https://lumibot.lumiwealth.com)
+- Email: support@lumiwealth.com

@@ -175,12 +175,6 @@ class AuthManager:
             # Parse token data
             token_data = json.loads(token_data_str)
 
-            # DIAGNOSTIC: Log full token structure to check for refresh_token
-            logger.info("=" * 60)
-            logger.info("FULL TOKEN DATA STRUCTURE:")
-            logger.info(json.dumps(token_data, indent=2))
-            logger.info("=" * 60)
-
             body = token_data.get("body", {})
             access_token = body.get("access_token")
             expires_in = body.get("expires_in")

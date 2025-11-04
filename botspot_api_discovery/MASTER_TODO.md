@@ -251,35 +251,46 @@ This document tracks the complete workflow for discovering, testing, and impleme
 
 ---
 
-## ✅ Phase 6: Deployments (N/A - Feature Not Accessible)
+## ✅ Phase 6: Local Execution & Validation (COMPLETED)
 
-### Step 1: Interactive API Discovery (Chrome MCP)
+**Note**: Repurposed from "Deployments" after determining BotSpot deployment features are not accessible.
+
+### Step 1: Investigation & Decision
 - [x] Navigate to deployment interface - NOT FOUND
 - [x] Check if deployment feature is available - NOT ACCESSIBLE
-- [x] Investigation completed:
-  - No deployment menu options in navigation
-  - "START TRADING" buttons not accessible in current UI
-  - "Use" buttons on strategy list do not navigate to deployment pages
-  - DeploymentsResource exists as placeholder only
-- [x] Mark phase as N/A
-- [x] Update session_notes.md
+- [x] Determine BotSpot scope: AI generation + backtesting only
+- [x] Remove DeploymentsResource from SDK
+- [x] Pivot to local execution functionality
 
 **Findings**:
-- BotSpot appears focused on AI strategy generation and backtesting
-- Live trading/deployment may be:
-  - Premium feature requiring additional broker setup
-  - External integration outside BotSpot UI
-  - Future feature not yet implemented
-- DeploymentsResource kept as placeholder for future implementation
+- BotSpot focused on AI strategy generation and backtesting
+- No live trading/deployment endpoints in BotSpot API
+- Users need ability to save and run strategies locally
 
-### Step 2: Testing
-- N/A - No deployment endpoints discovered
+### Step 2: SDK Implementation
+- [x] Remove DeploymentsResource from client.py
+- [x] Add save_to_file() method to StrategiesResource
+- [x] Implement file validation and security checks
+- [x] Add comprehensive docstrings with examples
 
-### Step 3: SDK Implementation
-- [x] DeploymentsResource remains as placeholder for future use
+### Step 3: Showcase Scripts
+- [x] Create api_showcase_save_and_run.py
+  - Fetch strategy from BotSpot
+  - Save to local file
+  - Validate syntax and imports
+  - Test import capability
+- [x] Create api_showcase_run_local_backtest.py
+  - Load strategy from file
+  - Run local backtest with Lumibot
+  - Display performance results
+  - Security warnings and path validation
 
-### Step 4: Showcase Script
-- N/A - No deployment functionality accessible
+### Step 4: Security & Validation
+- [x] Implement path validation (strategies/ directory only)
+- [x] Add security warnings in docstrings
+- [x] Add runtime warnings before code execution
+- [x] Exception handling for file operations
+- [x] Kluster verification with security review
 
 ---
 
@@ -336,7 +347,7 @@ This document tracks the complete workflow for discovering, testing, and impleme
 | Phase 3: Results | ✅ Complete | TC-003 | strategy_results | 100% |
 | Phase 4: Backtesting | ✅ Complete | TC-004 | backtests | 100% |
 | Phase 5: Historical | ✅ Complete | TC-005 | historical_data | 100% |
-| Phase 6: Deployments | ✅ N/A | TC-006 | N/A | 100% |
+| Phase 6: Local Execution | ✅ Complete | TC-006 | save_and_run, run_local_backtest | 100% |
 | Phase 7: Documentation | ⏳ Pending | N/A | N/A | 0% |
 
 **Overall Project Completion**: ~86% (6/7 phases complete)
@@ -416,10 +427,9 @@ This document tracks the complete workflow for discovering, testing, and impleme
 4. ✅ api_showcase_strategy_results.py - View complete strategy data
 5. ✅ api_showcase_backtests.py - Submit and monitor backtest
 6. ✅ api_showcase_historical_data.py - List strategies and backtest history
-
-### Showcase Scripts To Create
-7. ⏳ api_showcase_deployments.py (if applicable)
+7. ✅ api_showcase_save_and_run.py - Save strategy locally and validate
+8. ✅ api_showcase_run_local_backtest.py - Run saved strategy with local backtest
 
 ---
 
-**Ready to proceed with Phase 6: Deployments (or Phase 7: Documentation)!** 🚀
+**Ready to proceed with Phase 7: Documentation & Polish!** 🚀

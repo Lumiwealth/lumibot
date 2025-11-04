@@ -16,7 +16,6 @@ from .token_cache import TokenManager
 
 if TYPE_CHECKING:
     from .resources.backtests import BacktestsResource
-    from .resources.deployments import DeploymentsResource
     from .resources.strategies import StrategiesResource
     from .resources.users import UsersResource
 
@@ -98,7 +97,6 @@ class BotSpot:
         self._users: Optional[UsersResource] = None
         self._strategies: Optional[StrategiesResource] = None
         self._backtests: Optional[BacktestsResource] = None
-        self._deployments: Optional[DeploymentsResource] = None
 
         logger.info("BotSpot client initialized (lazy authentication enabled)")
 
@@ -128,15 +126,6 @@ class BotSpot:
 
             self._backtests = BacktestsResource(self)
         return self._backtests
-
-    @property
-    def deployments(self) -> "DeploymentsResource":
-        """Access deployments API resource."""
-        if self._deployments is None:
-            from .resources.deployments import DeploymentsResource
-
-            self._deployments = DeploymentsResource(self)
-        return self._deployments
 
     def _get_access_token(self, force_refresh: bool = False) -> str:
         """

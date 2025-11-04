@@ -464,3 +464,67 @@ class StrategiesResource(BaseResource):
             raise APIError("Strategy generation timed out after 5 minutes", status_code=408) from e
         except requests.exceptions.RequestException as e:
             raise APIError(f"Request failed during strategy generation: {e}") from e
+
+    def save_to_file(
+        self,
+        code: str,
+        filename: str,
+        output_dir: str = "strategies",
+        overwrite: bool = False,
+    ) -> str:
+        """
+        Save strategy code to a local Python file.
+
+        Args:
+            code: The Python strategy code to save
+            filename: Base filename (e.g., "my_strategy" or "my_strategy.py")
+            output_dir: Directory to save to (default: "strategies" in current directory)
+            overwrite: If True, overwrite existing file (default: False)
+
+        Returns:
+            Absolute path to the saved file
+
+        Raises:
+            FileExistsError: If file exists and overwrite=False
+            OSError: If directory creation or file write fails
+
+        Example:
+            >>> client = BotSpot()
+            >>> result = client.strategies.generate("Create a SMA crossover strategy")
+            >>> code = result['generated_code']
+            >>> strategy_name = result['strategy_name']
+            >>>
+            >>> # Save to strategies/sma_crossover.py
+            >>> filepath = client.strategies.save_to_file(
+            ...     code=code,
+            ...     filename=strategy_name.lower().replace(" ", "_")
+            ... )
+            >>> print(f"Strategy saved to: {filepath}")
+            Strategy saved to: /Users/marvin/repos/lumibot/strategies/smacrossoverstrategy.py
+        """
+        from pathlib import Path
+
+        # Ensure filename has .py extension
+        if not filename.endswith(".py"):
+            filename = f"{filename}.py"
+
+        # Create output directory if it doesn't exist
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # Full file path
+        filepath = output_path / filename
+
+        # Check if file exists
+        if filepath.exists() and not overwrite:
+            raise FileExistsError(
+                f"File already exists: {filepath}\n"
+                f"Use overwrite=True to replace it, or choose a different filename."
+            )
+
+        # Write code to file
+        try:
+            filepath.write_text(code, encoding="utf-8")
+            return str(filepath.absolute())
+        except OSError as e:
+            raise OSError(f"Failed to write strategy file: {e}") from e

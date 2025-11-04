@@ -406,28 +406,52 @@
 
 ---
 
-### TC-006: Deployments
-**Status**: NOT APPLICABLE (Feature Limited/Inaccessible)
+### TC-006: Local Execution & Validation
+**Status**: COMPLETED ✓
 **Completed**: 2025-11-04
 
-#### Investigation Results:
-- Navigation menu contains no deployment or live trading options
-- "START TRADING" buttons mentioned in TC-002/TC-003 notes not accessible in current session
-- Strategy list page "Use" buttons do not navigate to deployment interface
-- DeploymentsResource exists in SDK as placeholder but no endpoints discovered
+**Note**: Originally planned as "Deployments", this test case was repurposed for local execution functionality after determining that BotSpot deployment features are not accessible.
+
+#### Implementation:
+- Removed DeploymentsResource (not applicable for BotSpot API)
+- Added `save_to_file()` method to StrategiesResource
+- Created showcase scripts for saving and running strategies locally
+- Implemented validation and security measures
+
+**SDK Enhancements**:
+- `strategies.save_to_file()`: Save generated code to local Python file
+  - Creates strategies/ directory automatically
+  - Validates filename (.py extension)
+  - Optional overwrite protection
+  - Returns absolute filepath
+
+**Showcase Scripts Created**:
+1. `api_showcase_save_and_run.py`:
+   - Fetches strategy from BotSpot
+   - Saves to local strategies/ directory
+   - Validates file (syntax check, imports, class definition)
+   - Tests import capability
+
+2. `api_showcase_run_local_backtest.py`:
+   - Loads saved strategy file dynamically
+   - Runs local backtest with Lumibot
+   - Validates execution
+   - Displays performance results
+
+**Security Measures**:
+- Path validation (restricts to strategies/ directory only)
+- Warning messages in docstrings and during execution
+- Security disclaimers about trusted sources only
+- Exception handling for file operations
 
 **Key Observations**:
-- BotSpot appears primarily focused on AI strategy generation and backtesting
-- Live trading/deployment functionality may be:
-  - Premium feature requiring additional setup
-  - External integration (not directly in BotSpot UI)
-  - Future feature not yet fully implemented
-  - Requires broker connection setup first
-
-**Recommendation**:
-- Mark TC-006 as N/A for this discovery session
-- DeploymentsResource can remain as placeholder for future implementation
-- Focus on completing documentation and polish (TC-007)
+- BotSpot focused on AI strategy generation and backtesting
+- Live trading/deployment not part of BotSpot API scope
+- Local execution enables users to:
+  - Save AI-generated strategies
+  - Run backtests locally (without API limits)
+  - Modify and customize strategy code
+  - Deploy to their own trading infrastructure
 
 ---
 
@@ -457,10 +481,10 @@
 
 ## Session Summary
 
-- **Total Time**: Phase 1: ~2 hours, Phase 2: ~2 hours, Phase 3: ~1 hour, Phase 4: ~1 hour, Phase 5: ~30 minutes, Phase 6: ~15 minutes
+- **Total Time**: Phase 1: ~2 hours, Phase 2: ~2 hours, Phase 3: ~1 hour, Phase 4: ~1 hour, Phase 5: ~30 minutes, Phase 6: ~45 minutes
 - **Endpoints Discovered**: 21 total (8 from TC-001, 7 from TC-002, 0 from TC-003*, 6 from TC-004, 0 from TC-005*, 0 from TC-006*)
 - **Endpoints Verified**: 21 (all discovered endpoints tested)
-- **Test Cases Completed**: 5/6 (TC-001 ✓, TC-002 ✓, TC-003 ✓, TC-004 ✓**, TC-005 ✓, TC-006 N/A)
+- **Test Cases Completed**: 6/6 (TC-001 ✓, TC-002 ✓, TC-003 ✓, TC-004 ✓**, TC-005 ✓, TC-006 ✓)
 - **Issues Encountered**: None - smooth execution
 - **Key Achievements**:
   - Successfully discovered SSE-based strategy generation system
@@ -469,6 +493,8 @@
   - Completed all historical data listing tests
   - Full SDK implementation with comprehensive documentation
   - Identified scope: BotSpot focused on AI generation + backtesting
+  - Implemented local strategy save and execution functionality
+  - Created validation and security measures for local execution
 - **Next Phase**: TC-007 (Documentation & Polish)
 
 *TC-003, TC-005, and TC-006 reuse endpoints from previous test cases - no new endpoints needed

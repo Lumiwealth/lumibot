@@ -47,14 +47,27 @@ def print_name(name):
     print(f"{'=' * 60}{RESET}\n")
 
 
+def print_browser_view(title, content):
+    """Print ASCII art representation of browser view"""
+    width = 70
+    print(f"\n{CYAN}┌{'─' * (width - 2)}┐")
+    print(f"│ {BOLD}{title}{RESET}{CYAN}{' ' * (width - len(title) - 3)}│")
+    print(f"├{'─' * (width - 2)}┤{RESET}")
+    for line in content:
+        padding = width - len(line) - 3
+        print(f"{CYAN}│{RESET} {line}{' ' * padding}{CYAN}│{RESET}")
+    print(f"{CYAN}└{'─' * (width - 2)}┘{RESET}\n")
+
+
 def capture_tokens_with_browser(username, password):
     """Use Selenium to login and capture OAuth tokens from localStorage"""
 
     print_step(1, "Launch browser for authentication (Selenium)")
+    print(f"{CYAN}Mode: Headless (no visible window){RESET}")
 
     # Setup Chrome options
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # Run in background
+    options.add_argument("--headless")  # Run in background - NO VISIBLE WINDOW
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
@@ -63,14 +76,38 @@ def capture_tokens_with_browser(username, password):
     driver = None
     try:
         driver = webdriver.Chrome(options=options)
-        print_success("Browser launched (headless mode)")
+        print_success("✓ Browser launched in background (invisible)")
 
         print_step(2, "Navigate to BotSpot login page")
+        print(f"{CYAN}Loading: https://botspot.trade/login{RESET}")
         driver.get("https://botspot.trade/login")
-        print_success("Login page loaded")
+        time.sleep(1)
+
+        # Show what the browser sees
+        page_title = driver.title
+        print_browser_view(
+            f"🌐 {page_title}",
+            [
+                "",
+                "   ┌──────────────────────────────┐",
+                "   │  Welcome to BotSpot          │",
+                "   │  ─────────────────────       │",
+                "   │                              │",
+                "   │  📧 Email address:           │",
+                "   │  [____________________]      │",
+                "   │                              │",
+                "   │  🔒 Password:                │",
+                "   │  [____________________]      │",
+                "   │                              │",
+                "   │     [ Continue Button ]      │",
+                "   └──────────────────────────────┘",
+                "",
+            ],
+        )
+        print_success("✓ Auth0 login page rendered")
 
         # Wait for Auth0 login form
-        print_step(3, "Wait for Auth0 form and submit credentials")
+        print_step(3, "Fill out login form")
         wait = WebDriverWait(driver, 10)
 
         # Wait for email field
@@ -78,20 +115,80 @@ def capture_tokens_with_browser(username, password):
         password_field = driver.find_element(By.NAME, "password")
         submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
 
-        # Fill credentials
+        # Show filling email
+        print(f"{CYAN}⌨️  Typing username: {username[:10]}...{RESET}")
         email_field.send_keys(username)
+        time.sleep(0.5)
+
+        print_browser_view(
+            "🌐 Filling Email Field",
+            [
+                "",
+                "   ┌──────────────────────────────┐",
+                "   │  Welcome to BotSpot          │",
+                "   │  ─────────────────────       │",
+                "   │                              │",
+                "   │  📧 Email address:           │",
+                f"   │  [{username[:20]:<20}]  ✓   │",
+                "   │                              │",
+                "   │  🔒 Password:                │",
+                "   │  [____________________]      │",
+                "   │                              │",
+                "   │     [ Continue Button ]      │",
+                "   └──────────────────────────────┘",
+                "",
+            ],
+        )
+
+        # Fill password
+        print(f"{CYAN}⌨️  Typing password: {'*' * 12}{RESET}")
         password_field.send_keys(password)
-        print_success("Credentials filled")
+        time.sleep(0.5)
+
+        print_browser_view(
+            "🌐 Filling Password Field",
+            [
+                "",
+                "   ┌──────────────────────────────┐",
+                "   │  Welcome to BotSpot          │",
+                "   │  ─────────────────────       │",
+                "   │                              │",
+                "   │  📧 Email address:           │",
+                f"   │  [{username[:20]:<20}]  ✓   │",
+                "   │                              │",
+                "   │  🔒 Password:                │",
+                "   │  [********************]  ✓   │",
+                "   │                              │",
+                "   │     [ Continue Button ]      │",
+                "   └──────────────────────────────┘",
+                "",
+            ],
+        )
 
         # Submit form
+        print(f"{CYAN}🖱️  Clicking 'Continue' button...{RESET}")
         submit_button.click()
-        print_success("Login form submitted")
+        print_success("✓ Form submitted to Auth0")
 
         # Wait for redirect to BotSpot (OAuth complete)
         print_step(4, "Wait for OAuth flow to complete")
+        print(f"{CYAN}⏳ Waiting for redirect...{RESET}")
         wait.until(lambda d: "botspot.trade" in d.current_url and "auth0" not in d.current_url)
         time.sleep(2)  # Extra wait for localStorage to populate
-        print_success(f"Redirected to: {driver.current_url}")
+
+        print_browser_view(
+            f"🌐 {driver.title}",
+            [
+                "",
+                "   ╔═══════════════════════════════╗",
+                "   ║   ✓ LOGIN SUCCESSFUL!         ║",
+                "   ╚═══════════════════════════════╝",
+                "",
+                f"   URL: {driver.current_url[:40]}...",
+                "",
+            ],
+        )
+        print_success("✓ Redirected to BotSpot application")
 
         print_step(5, "Extract tokens from browser localStorage")
 

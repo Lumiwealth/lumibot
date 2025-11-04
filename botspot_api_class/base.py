@@ -51,13 +51,14 @@ class BaseResource:
             "User-Agent": "BotSpot-Python-Client/1.0",
         }
 
-    def _get(self, path: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+    def _get(self, path: str, params: Optional[Dict] = None, _retry: bool = True) -> Dict[str, Any]:
         """
-        Perform GET request.
+        Perform GET request with auto-retry on 401.
 
         Args:
             path: API endpoint path (e.g., "/users/profile")
             params: Optional query parameters
+            _retry: Internal flag to prevent infinite retry loop
 
         Returns:
             Response data as dictionary
@@ -71,6 +72,19 @@ class BaseResource:
         try:
             logger.debug(f"GET {url}")
             response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
+
+            # Handle 401 Unauthorized with auto re-auth
+            if response.status_code == 401 and _retry:
+                logger.warning("Received 401 Unauthorized - token may have expired")
+                print("\n\033[93m⚠️  Token expired (401) - automatically re-authenticating...\033[0m")
+
+                # Force fresh authentication
+                self.client._get_access_token(force_refresh=True)
+
+                # Retry request with new token (only once)
+                logger.info("Retrying request with fresh token")
+                return self._get(path, params=params, _retry=False)
+
             return self._handle_response(response)
 
         except requests.exceptions.Timeout as e:
@@ -80,14 +94,17 @@ class BaseResource:
         except requests.exceptions.RequestException as e:
             raise NetworkError(f"Request failed: {e}") from e
 
-    def _post(self, path: str, data: Optional[Dict] = None, params: Optional[Dict] = None) -> Dict[str, Any]:
+    def _post(
+        self, path: str, data: Optional[Dict] = None, params: Optional[Dict] = None, _retry: bool = True
+    ) -> Dict[str, Any]:
         """
-        Perform POST request.
+        Perform POST request with auto-retry on 401.
 
         Args:
             path: API endpoint path (e.g., "/strategies")
             data: Optional request body data
             params: Optional query parameters
+            _retry: Internal flag to prevent infinite retry loop
 
         Returns:
             Response data as dictionary
@@ -101,6 +118,15 @@ class BaseResource:
         try:
             logger.debug(f"POST {url}")
             response = requests.post(url, headers=self._get_headers(), json=data, params=params, timeout=30)
+
+            # Handle 401 Unauthorized with auto re-auth
+            if response.status_code == 401 and _retry:
+                logger.warning("Received 401 Unauthorized - token may have expired")
+                print("\n\033[93m⚠️  Token expired (401) - automatically re-authenticating...\033[0m")
+                self.client._get_access_token(force_refresh=True)
+                logger.info("Retrying request with fresh token")
+                return self._post(path, data=data, params=params, _retry=False)
+
             return self._handle_response(response)
 
         except requests.exceptions.Timeout as e:

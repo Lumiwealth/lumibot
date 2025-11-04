@@ -138,7 +138,7 @@ class BotSpot:
             self._deployments = DeploymentsResource(self)
         return self._deployments
 
-    def _get_access_token(self) -> str:
+    def _get_access_token(self, force_refresh: bool = False) -> str:
         """
         Get valid access token, authenticating if necessary.
 
@@ -147,6 +147,10 @@ class BotSpot:
         1. Checking if already authenticated in this session
         2. Loading cached tokens if available
         3. Performing fresh authentication if needed
+        4. Auto re-authentication on expiration
+
+        Args:
+            force_refresh: If True, force fresh authentication even if token exists
 
         Returns:
             Valid access token
@@ -154,8 +158,19 @@ class BotSpot:
         Raises:
             AuthenticationError: If authentication fails
         """
-        # If already authenticated in this session, return token
+        # Force refresh if requested (e.g., after 401 error)
+        if force_refresh:
+            logger.info("Forcing fresh authentication (token may have expired)")
+            self._authenticate()
+            return self._access_token
+
+        # If already authenticated in this session, check if still valid
         if self._authenticated and self._access_token:
+            # Check if cached token is still valid
+            if self.token_manager and not self.token_manager.is_valid():
+                logger.info("Token has expired, re-authenticating...")
+                print("\n\033[93m⚠️  Token expired - automatically re-authenticating...\033[0m")
+                self._authenticate()
             return self._access_token
 
         # Try to load cached tokens

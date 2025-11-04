@@ -194,8 +194,15 @@ class AuthManager:
                 logger.info(f"✅ REFRESH TOKEN FOUND: {refresh_token[:50]}...")
                 logger.info("Refresh tokens are ENABLED - can implement auto-refresh!")
             else:
+                # Print bright yellow TODO reminder
+                print("\n" + "\033[93m\033[1m" + "=" * 80)
+                print("  ⚠️  TODO: Ask Rob if the OAuth timing can be extended longer than 24h?")
+                print("  Currently: Tokens expire after 24 hours → requires daily re-login")
+                print("  Ideal: Enable 'Refresh Token Rotation' in Auth0 for indefinite sessions")
+                print("=" * 80 + "\033[0m\n")
+
                 logger.warning("❌ NO REFRESH TOKEN - Rotation not enabled by BotSpot")
-                logger.warning("Contact BotSpot to enable 'Refresh Token Rotation' for longer sessions")
+                logger.warning("Contact Rob to enable 'Refresh Token Rotation' for longer sessions")
 
             return access_token, expires_in or 86400, refresh_token
 

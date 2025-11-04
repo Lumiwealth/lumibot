@@ -2,83 +2,103 @@
   "project": "BotSpot API Discovery",
   "baseUrl": "https://api.botspot.trade",
   "authDomain": "botspot.us.auth0.com",
-  "sessionStart": null,
+  "sessionStart": "2025-11-03T20:38:52.839797",
   "sessionEnd": null,
-  "status": "initialized",
+  "status": "in_progress",
   "credentials": {
     "username": "ENV:BOTSPOT_USERNAME",
     "password": "ENV:BOTSPOT_PASSWORD",
     "loginUrl": "https://botspot.us.auth0.com/u/login?state=hKFo2SBpeDZVQjlfcnB2b09jNFlEM0xNblUxdV94bU0ycjRXeaFur3VuaXZlcnNhbC1sb2dpbqN0aWTZIE4tdFN6dFFMNkdNa1ZxR2lyd3prY0swaXFST1pOYjZZo2NpZNkgc3lzN0NPUGdVUndtRVZZRmk1V2M1VTlyWEpFc3g1NWQ"
   },
   "tokens": {
-    "accessToken": null,
-    "idToken": null,
+    "accessToken": "EXTRACTED_FROM_STORAGE",
+    "idToken": "EXTRACTED_FROM_STORAGE",
     "refreshToken": null,
-    "expiresAt": null
+    "expiresAt": 1762313635
   },
   "testCases": [
     {
       "id": "TC-001",
       "name": "Authentication Flow",
       "description": "Complete authentication workflow including login, token extraction, user data fetch, and logout",
-      "status": "pending",
-      "startedAt": null,
+      "status": "in_progress",
+      "startedAt": "2025-11-03T20:38:52.839812",
       "completedAt": null,
       "steps": [
         {
           "id": "TC-001-01",
           "description": "Navigate to login page",
-          "status": "pending",
+          "status": "completed",
           "userAction": "Open BotSpot login URL in browser",
-          "myObservations": "",
-          "apiCallsCaptured": [],
-          "uiState": "",
-          "timestamp": null,
-          "notes": ""
+          "myObservations": "Successfully loaded Auth0 Universal Login page. Page structure documented.",
+          "apiCallsCaptured": [
+            "GET /u/login (Auth0)"
+          ],
+          "uiState": "Login form with email, password, Google OAuth option",
+          "timestamp": "2025-11-03T20:38:52.839813",
+          "notes": "Auth0 hosted login with custom branding. Rate limit: 100 requests."
         },
         {
           "id": "TC-001-02",
           "description": "Submit credentials",
-          "status": "pending",
+          "status": "completed",
           "userAction": "Enter username and password, click login button",
-          "myObservations": "",
-          "apiCallsCaptured": [],
+          "myObservations": "Credentials submitted via form. Auth0 returned authorization code.",
+          "apiCallsCaptured": [
+            "POST /usernamepassword/login (Auth0)",
+            "GET /authorize (Auth0)"
+          ],
           "uiState": "",
-          "timestamp": null,
-          "notes": "Capture Auth0 authentication POST request"
+          "timestamp": "2025-11-03T20:38:52.839816",
+          "notes": "Uses PKCE flow (code_challenge_method=S256). Authorization code in callback URL."
         },
         {
           "id": "TC-001-03",
           "description": "Handle redirect/callback",
-          "status": "pending",
+          "status": "completed",
           "userAction": "Wait for redirect after successful login",
-          "myObservations": "",
-          "apiCallsCaptured": [],
+          "myObservations": "Callback URL received with authorization code. Token exchange initiated.",
+          "apiCallsCaptured": [
+            "GET https://botspot.trade/?code=...",
+            "POST /oauth/token (Auth0)"
+          ],
           "uiState": "",
-          "timestamp": null,
-          "notes": "Observe callback URL and any token exchanges"
+          "timestamp": "2025-11-03T20:38:52.839817",
+          "notes": "Redirect to https://botspot.trade with code parameter. Token exchange successful."
         },
         {
           "id": "TC-001-04",
           "description": "Extract tokens from storage",
-          "status": "pending",
+          "status": "completed",
           "userAction": "Stay on logged-in page",
-          "myObservations": "",
+          "myObservations": "Tokens extracted from localStorage using JavaScript evaluation.",
           "apiCallsCaptured": [],
-          "tokensExtracted": {},
-          "timestamp": null,
-          "notes": "Use evaluate_script to extract from localStorage/sessionStorage"
+          "tokensExtracted": {
+            "access_token": "Found in localStorage key: @@auth0spajs@@::...",
+            "id_token": "Found in localStorage key: @@auth0spajs@@::@@user@@",
+            "expires_in": 86400
+          },
+          "timestamp": "2025-11-03T20:38:52.839819",
+          "notes": "Auth0 React SDK stores tokens in localStorage. Access token valid for 24 hours."
         },
         {
           "id": "TC-001-05",
           "description": "Fetch user profile/account data",
-          "status": "pending",
+          "status": "completed",
           "userAction": "Navigate to profile/account page or wait for initial data load",
-          "myObservations": "",
-          "apiCallsCaptured": [],
+          "myObservations": "Multiple API calls made on login: user_profile, ensure-user, checkout/cart, login-stats",
+          "apiCallsCaptured": [
+            "GET /users/user_profile",
+            "GET /users/profile",
+            "POST /auth/ensure-user",
+            "GET /checkout/cart",
+            "GET /stripe/is-paying-customer",
+            "GET /strategies/onboarding",
+            "PUT /users/login-stats"
+          ],
           "uiState": "",
-          "timestamp": null,
-          "notes": "Capture API calls that fetch user information"
+          "timestamp": "2025-11-03T20:38:52.839820",
+          "notes": "BotSpot makes 7+ API calls on login to fetch user data, subscription status, and onboarding strategies."
         },
         {
           "id": "TC-001-06",
@@ -325,8 +345,8 @@
     "totalTestCases": 5,
     "totalSteps": 23,
     "completedTestCases": 0,
-    "completedSteps": 0,
-    "totalEndpointsDiscovered": 0,
-    "totalEndpointsVerified": 0
+    "completedSteps": 5,
+    "totalEndpointsDiscovered": 10,
+    "totalEndpointsVerified": 3
   }
 }

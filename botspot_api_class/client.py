@@ -182,7 +182,9 @@ class BotSpot:
             AuthenticationError: If authentication fails
         """
         try:
-            access_token, id_token, expires_in = self.auth_manager.authenticate(self.username, self.password)
+            access_token, id_token, expires_in, refresh_token = self.auth_manager.authenticate(
+                self.username, self.password
+            )
 
             self._access_token = access_token
             self._id_token = id_token
@@ -194,6 +196,7 @@ class BotSpot:
                     access_token=access_token,
                     expires_in=expires_in,
                     id_token=id_token,
+                    refresh_token=refresh_token,
                 )
 
             logger.info("Authentication successful")

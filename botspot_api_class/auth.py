@@ -43,7 +43,7 @@ class AuthManager:
         """
         self.headless = headless
 
-    def authenticate(self, username: str, password: str) -> Tuple[str, Optional[str]]:
+    def authenticate(self, username: str, password: str) -> Tuple[str, Optional[str], int, Optional[str]]:
         """
         Authenticate with BotSpot and capture OAuth tokens.
 
@@ -52,7 +52,7 @@ class AuthManager:
             password: BotSpot password
 
         Returns:
-            Tuple of (access_token, id_token)
+            Tuple of (access_token, id_token, expires_in, refresh_token)
 
         Raises:
             AuthenticationError: If login fails or tokens cannot be extracted
@@ -115,15 +115,15 @@ class AuthManager:
 
             logger.info("OAuth flow completed, extracting tokens")
 
-            # Extract access token from localStorage
-            access_token, expires_in = self._extract_access_token(driver)
+            # Extract access token and refresh token from localStorage
+            access_token, expires_in, refresh_token = self._extract_access_token(driver)
 
             # Extract ID token from localStorage
             id_token = self._extract_id_token(driver)
 
             logger.info(f"Authentication successful (token expires in {expires_in}s)")
 
-            return access_token, id_token, expires_in
+            return access_token, id_token, expires_in, refresh_token
 
         except AuthenticationError:
             raise
@@ -134,15 +134,15 @@ class AuthManager:
                 driver.quit()
                 logger.info("Browser closed")
 
-    def _extract_access_token(self, driver) -> Tuple[str, int]:
+    def _extract_access_token(self, driver) -> Tuple[str, int, Optional[str]]:
         """
-        Extract access token from browser localStorage.
+        Extract access token and refresh token from browser localStorage.
 
         Args:
             driver: Selenium WebDriver instance
 
         Returns:
-            Tuple of (access_token, expires_in)
+            Tuple of (access_token, expires_in, refresh_token)
 
         Raises:
             AuthenticationError: If token cannot be extracted
@@ -174,13 +174,30 @@ class AuthManager:
 
             # Parse token data
             token_data = json.loads(token_data_str)
-            access_token = token_data.get("body", {}).get("access_token")
-            expires_in = token_data.get("body", {}).get("expires_in")
+
+            # DIAGNOSTIC: Log full token structure to check for refresh_token
+            logger.info("=" * 60)
+            logger.info("FULL TOKEN DATA STRUCTURE:")
+            logger.info(json.dumps(token_data, indent=2))
+            logger.info("=" * 60)
+
+            body = token_data.get("body", {})
+            access_token = body.get("access_token")
+            expires_in = body.get("expires_in")
+            refresh_token = body.get("refresh_token")
 
             if not access_token:
                 raise AuthenticationError("Access token not found in localStorage data")
 
-            return access_token, expires_in or 86400  # Default to 24 hours if not specified
+            # Log refresh token availability
+            if refresh_token:
+                logger.info(f"✅ REFRESH TOKEN FOUND: {refresh_token[:50]}...")
+                logger.info("Refresh tokens are ENABLED - can implement auto-refresh!")
+            else:
+                logger.warning("❌ NO REFRESH TOKEN - Rotation not enabled by BotSpot")
+                logger.warning("Contact BotSpot to enable 'Refresh Token Rotation' for longer sessions")
+
+            return access_token, expires_in or 86400, refresh_token
 
         except json.JSONDecodeError as e:
             raise AuthenticationError(f"Failed to parse token data: {e}") from e

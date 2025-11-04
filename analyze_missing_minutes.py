@@ -225,6 +225,12 @@ def create_visualization(df: pd.DataFrame, daily_missing: pd.DataFrame, filepath
     plt.tight_layout()
 
     print("  ✓ Visualization created")
+
+    # Save plot to file
+    output_path = Path(filepath).parent / f"{Path(filepath).stem}_analysis.png"
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    print(f"  ✓ Plot saved to: {output_path}")
+
     print("\nDisplaying plot...")
     plt.show()
 

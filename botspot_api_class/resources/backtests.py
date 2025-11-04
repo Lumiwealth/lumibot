@@ -278,6 +278,31 @@ class BacktestsResource(BaseResource):
 
         return response
 
+    def get_stats(self, strategy_id: str) -> Dict[str, Any]:
+        """
+        Get backtest statistics for a specific strategy.
+
+        Returns a list of all backtests run for the given strategy with their results.
+
+        Args:
+            strategy_id: Strategy ID (UUID)
+
+        Returns:
+            Dictionary with:
+            {
+                "backtests": List[Dict],  # List of backtest results
+                "updated_count": int      # Number of backtests updated
+            }
+
+        Example:
+            >>> client = BotSpot()
+            >>> stats = client.backtests.get_stats("strategy-uuid")
+            >>> print(f"Found {len(stats['backtests'])} backtests")
+            >>> for backtest in stats['backtests']:
+            ...     print(f"  - {backtest.get('id')}: {backtest.get('status')}")
+        """
+        return self._get(f"/backtests/{strategy_id}/stats")
+
     def delete(self, backtest_id: str) -> Dict[str, Any]:
         """
         Delete a backtest.

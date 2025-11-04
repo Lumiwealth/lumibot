@@ -88,20 +88,85 @@
 ---
 
 ### TC-002: Create Strategy Workflow
-**Status**: Pending
+**Status**: COMPLETED ✓
+**Completed**: 2025-11-04
 
 #### Steps:
-- [ ] TC-002-01: Navigate to 'Create Strategy' page
-- [ ] TC-002-02: Fill strategy form/prompt
-- [ ] TC-002-03: Submit strategy generation request
-- [ ] TC-002-04: Monitor generation progress
-- [ ] TC-002-05: Capture completion notification
+- [x] TC-002-01: Navigate to 'Create Strategy' page
+- [x] TC-002-02: Fill strategy form/prompt
+- [x] TC-002-03: Submit strategy generation request
+- [x] TC-002-04: Monitor generation progress
+- [x] TC-002-05: Capture completion notification
 
 **Key Observations**:
-(To be filled during session)
+- Uses **Server-Sent Events (SSE)** for real-time streaming during generation
+- Generation powered by **GPT-5** (OpenAI) with "medium" reasoning effort
+- Average generation time: **2-3 minutes**
+- UI shows "⏱️ Generation typically takes 2-3 minutes" message
+- Form disables during generation to prevent multiple submissions
+- Prompt counter updates after submission (2/500 → 3/500)
+- Strategies automatically named by AI (e.g., "SMA Crossover")
+- Each strategy gets unique `aiStrategyId` and `strategyId` (UUIDs)
+- Revisions tracked separately with `revisionId` (UUID)
+- Generated code includes full Lumibot strategy class with:
+  - `initialize()` method
+  - `on_trading_iteration()` method
+  - Backtesting configuration
+  - Live trading setup
+  - Comprehensive comments and logging
+- Mermaid diagram auto-generated from code (separate POST request)
+- Success UI includes options: "START TRADING" and "Run Backtest"
+- User feedback system (1-5 stars rating) for each generation
+- "Prompt History" shows all refinement attempts
+
+**UI Structure**:
+- Multiline textbox for natural language strategy description
+- "Attach files" button (for additional context/data)
+- "Generate Strategy" button (disabled when empty)
+- Prompt counter: "X/500 prompts" (usage tracking)
+- Existing strategies list with:
+  - Strategy name
+  - Status badge (e.g., "Active")
+  - Creation time
+  - Revision count
+  - "Use" button
+
+**SSE Event Flow**:
+1. `prompt_to_ai` (phase: "sending") - Prompt sent to AI
+2. `thinking` (phase: "code_generation") - Processing started
+3. `code_generation_started` - Generation begins
+4. `:heartbeat` messages (keep-alive during long operation)
+5. `code_generation_completed` - Code finished
+6. `validation_started` (phase: "validation") - Validating code
+7. `strategy_generated` (phase: "complete") - **Final event with full code**
+
+**Token Usage Example**:
+```json
+{
+  "model": "gpt-5",
+  "provider": "openai",
+  "reasoning_effort": "medium",
+  "input_tokens": 24070,
+  "output_tokens": 4932,
+  "total_tokens": 29002
+}
+```
 
 **Endpoints Discovered**:
-(To be filled during session)
+- `POST /sse/stream` - Generate strategy via SSE (streaming)
+- `GET /ai-bot-builder/list-strategies` - List user's strategies
+- `GET /ai-bot-builder/usage-limits` - Check remaining prompts (X/500)
+- `POST /ai-bot-builder/generate-diagram` - Generate Mermaid flowchart
+- `GET /ai-bot-builder/list-versions?aiStrategyId={id}` - Get strategy versions
+- `GET /ai-bot-builder/feedback?revisionId={id}` - Get user feedback/rating
+- `GET /marketplace/check-published/{strategyId}` - Check marketplace publication status
+
+**Generated Strategy Example**:
+- Prompt: "Create a simple moving average crossover strategy..."
+- Output: Full `SMACrossoverStrategy` class (~200 lines)
+- Includes: SMA20/SMA50 crossover logic, buy/sell signals, chart markers
+- Backtesting: YahooDataBacktesting with $10,000 budget
+- Live trading: Broker-agnostic setup
 
 ---
 
@@ -181,10 +246,11 @@
 ---
 
 ## Session Summary
-(To be completed at end of session)
 
-- **Total Time**: TBD
-- **Endpoints Discovered**: 0
-- **Endpoints Verified**: 0
-- **Test Cases Completed**: 0/5
-- **Issues Encountered**: TBD
+- **Total Time**: Phase 1: ~2 hours, Phase 2: ~2 hours
+- **Endpoints Discovered**: 15 total (8 from TC-001, 7 from TC-002)
+- **Endpoints Verified**: 8
+- **Test Cases Completed**: 2/5 (TC-001 ✓, TC-002 ✓)
+- **Issues Encountered**: None - smooth execution
+- **Key Achievement**: Successfully discovered SSE-based strategy generation system
+- **Next Phase**: TC-003 (Strategy Results - viewing code, diagrams, metadata)

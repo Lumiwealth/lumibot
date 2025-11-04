@@ -1,0 +1,22 @@
+{
+  "apiVersion": "unknown",
+  "baseUrl": "https://api.botspot.trade",
+  "authentication": {
+    "type": "OAuth2",
+    "authorizationUrl": "https://botspot.us.auth0.com/authorize",
+    "tokenUrl": "https://botspot.us.auth0.com/oauth/token",
+    "flow": "authorization_code",
+    "scopes": []
+  },
+  "endpoints": [],
+  "models": {},
+  "discoveryMetadata": {
+    "discoveredAt": null,
+    "totalEndpoints": 0,
+    "verifiedEndpoints": 0,
+    "toolsUsed": [
+      "Chrome MCP DevTools",
+      "Python requests library"
+    ]
+  }
+}

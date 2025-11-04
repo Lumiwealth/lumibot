@@ -1,0 +1,332 @@
+{
+  "project": "BotSpot API Discovery",
+  "baseUrl": "https://api.botspot.trade",
+  "authDomain": "botspot.us.auth0.com",
+  "sessionStart": null,
+  "sessionEnd": null,
+  "status": "initialized",
+  "credentials": {
+    "username": "ENV:BOTSPOT_USERNAME",
+    "password": "ENV:BOTSPOT_PASSWORD",
+    "loginUrl": "https://botspot.us.auth0.com/u/login?state=hKFo2SBpeDZVQjlfcnB2b09jNFlEM0xNblUxdV94bU0ycjRXeaFur3VuaXZlcnNhbC1sb2dpbqN0aWTZIE4tdFN6dFFMNkdNa1ZxR2lyd3prY0swaXFST1pOYjZZo2NpZNkgc3lzN0NPUGdVUndtRVZZRmk1V2M1VTlyWEpFc3g1NWQ"
+  },
+  "tokens": {
+    "accessToken": null,
+    "idToken": null,
+    "refreshToken": null,
+    "expiresAt": null
+  },
+  "testCases": [
+    {
+      "id": "TC-001",
+      "name": "Authentication Flow",
+      "description": "Complete authentication workflow including login, token extraction, user data fetch, and logout",
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "steps": [
+        {
+          "id": "TC-001-01",
+          "description": "Navigate to login page",
+          "status": "pending",
+          "userAction": "Open BotSpot login URL in browser",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": ""
+        },
+        {
+          "id": "TC-001-02",
+          "description": "Submit credentials",
+          "status": "pending",
+          "userAction": "Enter username and password, click login button",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Capture Auth0 authentication POST request"
+        },
+        {
+          "id": "TC-001-03",
+          "description": "Handle redirect/callback",
+          "status": "pending",
+          "userAction": "Wait for redirect after successful login",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Observe callback URL and any token exchanges"
+        },
+        {
+          "id": "TC-001-04",
+          "description": "Extract tokens from storage",
+          "status": "pending",
+          "userAction": "Stay on logged-in page",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "tokensExtracted": {},
+          "timestamp": null,
+          "notes": "Use evaluate_script to extract from localStorage/sessionStorage"
+        },
+        {
+          "id": "TC-001-05",
+          "description": "Fetch user profile/account data",
+          "status": "pending",
+          "userAction": "Navigate to profile/account page or wait for initial data load",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Capture API calls that fetch user information"
+        },
+        {
+          "id": "TC-001-06",
+          "description": "Logout",
+          "status": "pending",
+          "userAction": "Click logout button",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Document logout endpoint and token invalidation"
+        }
+      ]
+    },
+    {
+      "id": "TC-002",
+      "name": "Create Strategy Workflow",
+      "description": "Complete strategy creation process from navigation to generation completion",
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "steps": [
+        {
+          "id": "TC-002-01",
+          "description": "Navigate to 'Create Strategy' page",
+          "status": "pending",
+          "userAction": "Click on 'Create Strategy' menu item or button",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Document page load and any initial API calls"
+        },
+        {
+          "id": "TC-002-02",
+          "description": "Fill strategy form/prompt",
+          "status": "pending",
+          "userAction": "Enter strategy description/requirements in the form",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Note form fields and validation"
+        },
+        {
+          "id": "TC-002-03",
+          "description": "Submit strategy generation request",
+          "status": "pending",
+          "userAction": "Click submit/generate button",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Capture POST request with strategy parameters"
+        },
+        {
+          "id": "TC-002-04",
+          "description": "Monitor generation progress",
+          "status": "pending",
+          "userAction": "Wait and observe progress indicators",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "progressMechanism": "",
+          "timestamp": null,
+          "notes": "Identify if using polling, websockets, or SSE for progress updates"
+        },
+        {
+          "id": "TC-002-05",
+          "description": "Capture completion notification",
+          "status": "pending",
+          "userAction": "Wait for generation to complete",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Document completion event and any messages/errors"
+        }
+      ]
+    },
+    {
+      "id": "TC-003",
+      "name": "Strategy Results",
+      "description": "View and download generated strategy artifacts",
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "steps": [
+        {
+          "id": "TC-003-01",
+          "description": "View generated strategy code",
+          "status": "pending",
+          "userAction": "Click to view generated code or navigate to code view",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Capture API endpoint that returns strategy code"
+        },
+        {
+          "id": "TC-003-02",
+          "description": "Download Mermaid diagram/chart",
+          "status": "pending",
+          "userAction": "Click download button for Mermaid diagram",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "downloadUrl": "",
+          "timestamp": null,
+          "notes": "Document download endpoint and file format"
+        },
+        {
+          "id": "TC-003-03",
+          "description": "Get strategy metadata/details",
+          "status": "pending",
+          "userAction": "View strategy details page",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Capture metadata API call (name, created date, description, etc.)"
+        }
+      ]
+    },
+    {
+      "id": "TC-004",
+      "name": "Backtesting",
+      "description": "Configure and run backtest with custom parameters",
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "steps": [
+        {
+          "id": "TC-004-01",
+          "description": "Navigate to backtest interface",
+          "status": "pending",
+          "userAction": "Click backtest button or navigate to backtest page",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Document backtest configuration UI"
+        },
+        {
+          "id": "TC-004-02",
+          "description": "Configure custom date ranges",
+          "status": "pending",
+          "userAction": "Set start date and end date for backtest",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "configParams": {},
+          "timestamp": null,
+          "notes": "Note date format and any other configuration options"
+        },
+        {
+          "id": "TC-004-03",
+          "description": "Submit backtest request",
+          "status": "pending",
+          "userAction": "Click run backtest button",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "uiState": "",
+          "timestamp": null,
+          "notes": "Capture POST request with backtest parameters"
+        },
+        {
+          "id": "TC-004-04",
+          "description": "Monitor backtest execution progress",
+          "status": "pending",
+          "userAction": "Observe progress indicators during backtest",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "progressMechanism": "",
+          "timestamp": null,
+          "notes": "Document progress polling or streaming mechanism"
+        },
+        {
+          "id": "TC-004-05",
+          "description": "Retrieve/analyze backtest results",
+          "status": "pending",
+          "userAction": "View completed backtest results",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "resultsFormat": "",
+          "timestamp": null,
+          "notes": "Capture results API endpoint and data structure"
+        }
+      ]
+    },
+    {
+      "id": "TC-005",
+      "name": "Historical Data",
+      "description": "Access previously created strategies and backtests",
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "steps": [
+        {
+          "id": "TC-005-01",
+          "description": "List existing strategies",
+          "status": "pending",
+          "userAction": "Navigate to strategies list page",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "listFormat": "",
+          "timestamp": null,
+          "notes": "Document GET endpoint for strategies list, pagination, filters"
+        },
+        {
+          "id": "TC-005-02",
+          "description": "List existing backtests",
+          "status": "pending",
+          "userAction": "Navigate to backtests list page",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "listFormat": "",
+          "timestamp": null,
+          "notes": "Document GET endpoint for backtests list"
+        },
+        {
+          "id": "TC-005-03",
+          "description": "View specific strategy details",
+          "status": "pending",
+          "userAction": "Click on a strategy from the list",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "strategyId": "",
+          "timestamp": null,
+          "notes": "Capture GET /strategies/{id} endpoint"
+        },
+        {
+          "id": "TC-005-04",
+          "description": "View specific backtest results",
+          "status": "pending",
+          "userAction": "Click on a backtest from the list",
+          "myObservations": "",
+          "apiCallsCaptured": [],
+          "backtestId": "",
+          "timestamp": null,
+          "notes": "Capture GET /backtests/{id} endpoint"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "totalTestCases": 5,
+    "totalSteps": 23,
+    "completedTestCases": 0,
+    "completedSteps": 0,
+    "totalEndpointsDiscovered": 0,
+    "totalEndpointsVerified": 0
+  }
+}

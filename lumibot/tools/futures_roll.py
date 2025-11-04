@@ -30,23 +30,30 @@ _FUTURES_MONTH_CODES: Dict[int, str] = {
 class RollRule:
     offset_business_days: int
     anchor: str
+    contract_months: tuple[int, ...] | None = None  # None means quarterly [3, 6, 9, 12]
 
 
-ROLL_RULES: Dict[str, RollRule] = {
-    symbol: RollRule(offset_business_days=8, anchor="third_friday")
-    for symbol in {"ES", "MES", "NQ", "MNQ", "YM", "MYM"}
+ROLL_RULES: dict[str, RollRule] = {
+    **{
+        symbol: RollRule(offset_business_days=8, anchor="third_friday", contract_months=(3, 6, 9, 12))
+        for symbol in {"ES", "MES", "NQ", "MNQ", "YM", "MYM"}
+    },
+    # Gold - monthly contracts, rolls 3 business days before month end
+    "GC": RollRule(offset_business_days=3, anchor="month_end", contract_months=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
 }
 
 YearMonth = Tuple[int, int]
 
 
-def _to_timezone(dt: datetime, tz=pytz.timezone("America/New_York")) -> datetime:
+def _to_timezone(dt: datetime, tz=None) -> datetime:
+    if tz is None:
+        tz = pytz.timezone("America/New_York")
     if dt.tzinfo is None:
         return tz.localize(dt)
     return dt.astimezone(tz)
 
 
-def _normalize_reference_date(reference_date: Optional[datetime]) -> datetime:
+def _normalize_reference_date(reference_date: datetime | None) -> datetime:
     if reference_date is None:
         reference_date = datetime.utcnow()
     return _to_timezone(reference_date, LUMIBOT_DEFAULT_PYTZ)
@@ -62,6 +69,26 @@ def _third_friday(year: int, month: int) -> datetime:
     return third_friday.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def _last_day_of_month(year: int, month: int) -> datetime:
+    """Get the last day of the specified month."""
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1)
+    else:
+        next_month = datetime(year, month + 1, 1)
+    last_day = next_month - timedelta(days=1)
+    last_day = _to_timezone(last_day)
+    return last_day.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _last_business_day_of_month(year: int, month: int) -> datetime:
+    """Get the last business day (Mon-Fri) of the specified month."""
+    last_day = _last_day_of_month(year, month)
+    # Walk backwards until we hit a weekday
+    while last_day.weekday() >= 5:  # 5=Saturday, 6=Sunday
+        last_day -= timedelta(days=1)
+    return last_day
+
+
 def _subtract_business_days(dt: datetime, days: int) -> datetime:
     result = dt
     remaining = days
@@ -75,6 +102,8 @@ def _subtract_business_days(dt: datetime, days: int) -> datetime:
 def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
     if rule.anchor == "third_friday":
         anchor = _third_friday(year, month)
+    elif rule.anchor == "month_end":
+        anchor = _last_business_day_of_month(year, month)
     else:
         anchor = _to_timezone(datetime(year, month, 15))
     if rule.offset_business_days <= 0:
@@ -114,30 +143,52 @@ def _legacy_mid_month(reference_date: datetime) -> YearMonth:
     return year, 3
 
 
-def determine_contract_year_month(symbol: str, reference_date: Optional[datetime] = None) -> YearMonth:
+def _advance_month_in_cycle(current_month: int, current_year: int, cycle: tuple[int, ...]) -> YearMonth:
+    """Advance to the next month in the given cycle."""
+    cycle_list = list(cycle)
+    try:
+        idx = cycle_list.index(current_month)
+        next_idx = (idx + 1) % len(cycle_list)
+        next_month = cycle_list[next_idx]
+        next_year = current_year + (1 if next_idx == 0 else 0)
+        return next_year, next_month
+    except ValueError:
+        # Current month not in cycle - find next month in cycle
+        candidates = [m for m in cycle_list if m > current_month]
+        if candidates:
+            return current_year, candidates[0]
+        return current_year + 1, cycle_list[0]
+
+
+def determine_contract_year_month(symbol: str, reference_date: datetime | None = None) -> YearMonth:
     ref = _normalize_reference_date(reference_date)
     symbol_upper = symbol.upper()
     rule = ROLL_RULES.get(symbol_upper)
 
-    quarter_months = [3, 6, 9, 12]
     year = ref.year
     month = ref.month
 
     if rule is None:
         return _legacy_mid_month(ref)
 
-    if month in quarter_months:
+    # Get contract cycle from rule (default to quarterly)
+    contract_cycle = rule.contract_months if rule.contract_months is not None else (3, 6, 9, 12)
+
+    # Check if current month is in the contract cycle
+    if month in contract_cycle:
         target_year, target_month = year, month
         roll_point = _calculate_roll_trigger(target_year, target_month, rule)
         if ref >= roll_point:
-            target_year, target_month = _advance_quarter(target_month, target_year)
+            # Roll to next contract in cycle
+            target_year, target_month = _advance_month_in_cycle(target_month, target_year, contract_cycle)
     else:
-        candidates = [m for m in quarter_months if m > month]
+        # Current month not in cycle - find next month in cycle
+        candidates = [m for m in contract_cycle if m > month]
         if candidates:
             target_month = candidates[0]
             target_year = year
         else:
-            target_month = quarter_months[0]
+            target_month = contract_cycle[0]
             target_year = year + 1
 
     return target_year, target_month

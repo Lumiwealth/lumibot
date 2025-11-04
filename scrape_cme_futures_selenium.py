@@ -12,6 +12,7 @@ Data source: CME Group official contract specifications pages (JavaScript-render
 """
 
 import json
+import re
 import time
 from typing import Dict, Optional
 
@@ -21,6 +22,137 @@ from selenium.webdriver.common.by import By
 
 # Import symbol list and URL builder from original scraper
 from scrape_cme_futures_specs import TOPSTEP_SYMBOLS, get_cme_contract_specs_url
+
+
+def is_trading_rule(text: str) -> bool:
+    """
+    Check if text looks like a trading rule explanation (TAS/TAM/TMAC) rather than a contract spec.
+
+    Returns True if this appears to be a trading rule, not a contract specification.
+    """
+    text_lower = text.lower()
+
+    # If it starts with contract spec phrases, it's NOT a trading rule (even if long)
+    if text_lower.startswith(("monthly contracts", "quarterly contracts", "trading terminates")):
+        return False
+
+    # Direct mentions of trading mechanisms that indicate a rule explanation
+    trading_rule_phrases = [
+        "tas is",
+        "tam is",
+        "tmac is",
+        "tas trades",
+        "tam trades",
+        "analogous to",
+        "differential to a not-yet-known price",
+        "base price",
+        "clearing price equals",
+        "rule 524",
+        "subject to the requirements of rule",
+    ]
+
+    if any(phrase in text_lower for phrase in trading_rule_phrases):
+        return True
+
+    # Very long explanatory text (>200 chars) without contract indicators is likely a rule
+    if len(text) > 200 and not any(
+        phrase in text_lower for phrase in ["contract", "month", "terminates", "business day"]
+    ):
+        return True
+
+    return False
+
+
+def is_valid_listed_contracts(text: str) -> bool:
+    """
+    Check if text looks like a valid "Listed Contracts" specification.
+
+    Should mention months, years, or specific contract patterns.
+    """
+    if not text or len(text) < 10:
+        return False
+
+    text_lower = text.lower()
+
+    # Should NOT be a trading rule
+    if is_trading_rule(text):
+        return False
+
+    # Strong indicators it's a listed contracts spec
+    if text_lower.startswith(("monthly contracts", "quarterly contracts")):
+        return True
+
+    # Should mention months or contract cycles
+    month_indicators = [
+        "monthly",
+        "quarterly",
+        "consecutive months",
+        "consecutive quarters",
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "may",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "oct",
+        "nov",
+        "dec",
+        "march",
+        "june",
+        "september",
+        "december",
+        "nearest",
+        "contract month",
+        "listed for",
+    ]
+
+    has_month_reference = any(indicator in text_lower for indicator in month_indicators)
+
+    # Should have year references or "months"/"quarters" count
+    has_time_reference = bool(re.search(r"\d+\s*(month|year|quarter)", text_lower))
+
+    return has_month_reference or has_time_reference
+
+
+def is_valid_termination(text: str) -> bool:
+    """
+    Check if text looks like a valid termination/last trading day rule.
+    """
+    if not text or len(text) < 10:
+        return False
+
+    text_lower = text.lower()
+
+    # Should NOT be a trading rule
+    if is_trading_rule(text):
+        return False
+
+    # Strong indicator it's a termination rule
+    if text_lower.startswith("trading terminates"):
+        return True
+
+    # Should mention trading termination or last day
+    termination_indicators = [
+        "trading terminates",
+        "trading ceases",
+        "last trading day",
+        "final settlement",
+        "business day of the",
+        "3rd friday",
+        "third friday",
+        "friday of",
+        "a.m. et",
+        "a.m. ct",
+        "p.m. et",
+        "p.m. ct",
+        "prior to",
+        "last business day",
+    ]
+
+    return any(indicator in text_lower for indicator in termination_indicators)
 
 
 def setup_driver():
@@ -41,6 +173,10 @@ def scrape_cme_contract_specs_selenium(driver, symbol: str, url: str) -> Optiona
     """
     Scrape CME contract specifications using Selenium for JS rendering.
 
+    CME pages use a single-column table structure where:
+    - Headers like "LISTED CONTRACTS" appear as text
+    - Values appear in subsequent single-cell table rows
+
     Returns dict with:
     - contract_months: Listed contract months
     - last_trading_day: Last trading day rule
@@ -52,8 +188,7 @@ def scrape_cme_contract_specs_selenium(driver, symbol: str, url: str) -> Optiona
     try:
         driver.get(url)
 
-        # Wait for page to load - CME uses various div/table structures
-        # Give time for JavaScript to render content
+        # Wait for page to load - CME uses JavaScript-rendered pages
         time.sleep(3)
 
         specs = {
@@ -67,56 +202,43 @@ def scrape_cme_contract_specs_selenium(driver, symbol: str, url: str) -> Optiona
             "settlement_method": None,
         }
 
-        # Try to find contract specs table
-        # CME typically has tables or divs with contract information
         try:
-            # Look for all table rows
-            rows = driver.find_elements(By.TAG_NAME, "tr")
+            # Get all table cells (single-column structure on CME pages)
+            cells = driver.find_elements(By.TAG_NAME, "td")
+            cell_texts = [cell.text.strip() for cell in cells if cell.text.strip()]
 
-            for row in rows:
-                try:
-                    cells = row.find_elements(By.TAG_NAME, "td")
-                    if len(cells) >= 2:
-                        header = cells[0].text.strip().lower()
-                        value = cells[1].text.strip()
-
-                        if "listed contract" in header or "contract month" in header:
-                            specs["listed_contracts"] = value
-                            specs["contract_months"] = value
-                        elif "termination of trading" in header:
-                            specs["termination_of_trading"] = value
-                            if not specs["last_trading_day"]:
-                                specs["last_trading_day"] = value
-                        elif "last trading day" in header:
-                            specs["last_trading_day"] = value
-                            if not specs["termination_of_trading"]:
-                                specs["termination_of_trading"] = value
-                        elif "settlement method" in header:
-                            specs["settlement_method"] = value
-                except Exception:
+            # Match cells to headers by finding the value that appears after each header
+            for cell_text in cell_texts:
+                # Skip if it's a header itself or too short
+                if cell_text.upper() in ["LISTED CONTRACTS", "TERMINATION OF TRADING", "SETTLEMENT METHOD"]:
+                    continue
+                if len(cell_text) < 5:
                     continue
 
-            # If nothing found in tables, try looking for divs or spans
-            if not specs["listed_contracts"]:
-                # Try alternative selectors
-                page_text = driver.find_element(By.TAG_NAME, "body").text
+                # Skip trading rules
+                if is_trading_rule(cell_text):
+                    continue
 
-                # Look for common patterns
-                if "third friday" in page_text.lower():
-                    if not specs["termination_of_trading"]:
-                        specs["termination_of_trading"] = "Third Friday of contract month"
+                # Check if this looks like a listed contracts value
+                if is_valid_listed_contracts(cell_text) and not specs["listed_contracts"]:
+                    specs["listed_contracts"] = cell_text
+                    specs["contract_months"] = cell_text
 
-                # Try to extract contract months from text
-                for line in page_text.split("\n"):
-                    line_lower = line.lower().strip()
-                    if "listed contract" in line_lower or "contract month" in line_lower:
-                        # Next line might have the value
-                        if line_lower != line.strip():
-                            specs["listed_contracts"] = line.strip()
-                            specs["contract_months"] = line.strip()
+                # Check if this looks like a termination rule
+                elif is_valid_termination(cell_text) and not specs["termination_of_trading"]:
+                    specs["termination_of_trading"] = cell_text
+                    if not specs["last_trading_day"]:
+                        specs["last_trading_day"] = cell_text
+
+                # Check for settlement method (short text)
+                elif (
+                    cell_text in ["Deliverable", "Financially Settled", "Cash Settled"]
+                    and not specs["settlement_method"]
+                ):
+                    specs["settlement_method"] = cell_text
 
         except Exception as e:
-            print(f"   ⚠️  Error parsing tables: {e}")
+            print(f"   ⚠️  Error parsing page: {e}")
 
         return specs
 

@@ -1,15 +1,11 @@
 import math
-import os
 from datetime import date
 
 import numpy as np
 import pandas as pd
 
-from lumibot.backtesting import DataBentoDataBacktestingPolars
-from lumibot.credentials import IS_BACKTESTING
-from lumibot.entities import Asset, Order, TradingFee
+from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
 
 """
 Strategy Description
@@ -330,56 +326,9 @@ class AxiomPortStrategy(Strategy):
                     self.log_message(f"Close failed for {sym}: {e}", color="red")
 
 
-if __name__ == "__main__":
-    # Configure fees (example: 0.10% each side)
-    trading_fee = TradingFee(percent_fee=0.001)
-
-    # Default parameters for both backtesting and live; adjust via environment or config as needed
-    params = {
-        "symbols": ["GC"],  # GC futures via DataBento
-        "timestep": "minute",  # Minute bars like the example
-        "hurst_window": 20,
-        "max_hold_bars": 60,
-        "tp_pct": 0.06,
-        "sl_pct": 0.03,
-        "start_gate_date": date(2025, 2, 2),
-    }
-
-    if IS_BACKTESTING:
-        # Check if BACKTESTING_DATA_SOURCE environment variable might override datasource
-        env_data_source = os.getenv("BACKTESTING_DATA_SOURCE", "").lower()
-        if env_data_source and env_data_source not in ("", "none", "databento"):
-            print(f"⚠️  WARNING: BACKTESTING_DATA_SOURCE is set to '{env_data_source}', which may override DataBento.")
-            print("   To use DataBento, either unset BACKTESTING_DATA_SOURCE or set it to 'databento'")
-            print("   Example: export BACKTESTING_DATA_SOURCE=databento")
-            print()
-
-        # Load DataBento API key from environment (same as example)
-        api_key = os.getenv("DATABENTO_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "DATABENTO_API_KEY not found in environment. "
-                "Please set it in your .env file or export it: "
-                "export DATABENTO_API_KEY='your_api_key_here'"
-            )
-
-        # Backtesting: uses DataBentoDataBacktestingPolars for GC futures data (Polars = faster!)
-        # Must pass api_key as keyword argument for DataBento to work
-        results = AxiomPortStrategy.backtest(
-            datasource_class=DataBentoDataBacktestingPolars,
-            benchmark_asset=Asset("GC", Asset.AssetType.CONT_FUTURE),  # Compare to GC
-            buy_trading_fees=[trading_fee],
-            sell_trading_fees=[trading_fee],
-            parameters=params,
-            quote_asset=Asset("USD", Asset.AssetType.FOREX),
-            api_key=api_key,  # Required for DataBentoDataBacktesting
-        )
-    else:
-        # Live trading: broker is selected via environment; no broker-specific code here
-        trader = Trader()
-        strategy = AxiomPortStrategy(
-            quote_asset=Asset("USD", Asset.AssetType.FOREX),
-            parameters=params,
-        )
-        trader.add_strategy(strategy)
-        trader.run_all()
+# Note: This strategy is designed to be run via api_showcase_run_local_backtest.py
+# Example: python api_showcase_run_local_backtest.py test_export.py
+#
+# The api_showcase_run_local_backtest.py script handles all the backtesting setup,
+# including data source configuration, API key validation, and environment variables.
+# This keeps the strategy file focused purely on trading logic.

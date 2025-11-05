@@ -4,7 +4,7 @@ import threading
 import time
 import traceback
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 import requests
@@ -49,6 +49,8 @@ class Tradovate(Broker):
         self.cid = config.get("CID")
         self.sec = config.get("SECRET")
         self.polling_interval = float(config.get("POLLING_INTERVAL", 5.0))
+        self._seen_fill_ids: set[int] = set()
+        self._fill_bootstrap_cutoff = datetime.now(timezone.utc)
 
         # Configure lightweight in-process rate limiter for REST calls
         self._rate_limit_per_minute = max(int(config.get("RATE_LIMIT_PER_MINUTE", 60)), 1)
@@ -796,6 +798,17 @@ class Tradovate(Broker):
     def _extract_fill_details(self, raw_order: dict, order: Order) -> tuple[Optional[float], Optional[float]]:
         """Attempt to derive fill price and quantity from a Tradovate order payload."""
 
+        def _normalize_number(value):
+            try:
+                if value in (None, "", "null"):
+                    return None
+                numeric = float(value)
+                if numeric == 0:
+                    return None
+                return numeric
+            except (TypeError, ValueError):
+                return None
+
         def _to_float(value):
             try:
                 if value in (None, "", "null"):
@@ -834,7 +847,101 @@ class Tradovate(Broker):
             None,
         )
 
+        order_identifier = raw_order.get("id") or getattr(order, "identifier", None)
+        needs_fill_lookup = (
+            order_identifier
+            and (
+                price is None
+                or quantity in (None, 0, 0.0)
+            )
+        )
+        if needs_fill_lookup:
+            fill_price, fill_qty = self._fetch_recent_fill_details(order_identifier)
+            if fill_qty is not None:
+                quantity = _normalize_number(fill_qty)
+            if price is None and fill_price is not None:
+                price = _normalize_number(fill_price)
+
         return price, quantity
+
+    def _fetch_recent_fill_details(self, order_identifier) -> tuple[Optional[float], Optional[float]]:
+        """Fallback to /fill/list when Tradovate omits fill price/quantity in order payloads."""
+        if not order_identifier:
+            return None, None
+
+        try:
+            params = {"accountId": self.account_id, "orderId": order_identifier}
+            response = self._request(
+                "GET",
+                f"{self.trading_api_url}/fill/list",
+                params=params,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            fills = response.json()
+        except requests.exceptions.RequestException as exc:
+            logger.debug("Tradovate fill lookup failed for order %s: %s", order_identifier, exc)
+            return None, None
+
+        if not isinstance(fills, list):
+            return None, None
+
+        new_fills = []
+        for fill in fills:
+            if str(fill.get("orderId")) != str(order_identifier):
+                continue
+
+            fill_id = fill.get("id")
+            if fill_id in self._seen_fill_ids:
+                continue
+
+            timestamp_str = fill.get("timestamp")
+            fill_dt = None
+            if timestamp_str:
+                try:
+                    fill_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                except ValueError:
+                    fill_dt = None
+
+            if fill_dt and fill_dt < self._fill_bootstrap_cutoff:
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            qty = fill.get("qty")
+            price = fill.get("price")
+            if qty in (None, "", "null"):
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            try:
+                qty_val = float(qty)
+            except (TypeError, ValueError):
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            if qty_val == 0:
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            price_val = None
+            try:
+                price_val = float(price) if price is not None else None
+            except (TypeError, ValueError):
+                price_val = None
+
+            new_fills.append((fill_id, price_val, qty_val))
+            self._seen_fill_ids.add(fill_id)
+
+        if not new_fills:
+            return None, None
+
+        total_qty = sum(qty for _, _, qty in new_fills)
+        if total_qty <= 0:
+            return None, None
+
+        weighted_price = sum((price or 0.0) * qty for _, price, qty in new_fills)
+        avg_price = weighted_price / total_qty if weighted_price else None
+        return avg_price, total_qty
 
     def do_polling(self):
         """Poll Tradovate REST endpoints to keep order state synchronized."""

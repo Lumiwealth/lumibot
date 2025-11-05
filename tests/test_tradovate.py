@@ -753,6 +753,27 @@ class TestTradovateLifecycle:
         assert any(event == broker.FILLED_ORDER for event, _ in events)
         assert not any(event == broker.NEW_ORDER for event, _ in events)
 
+    def test_extract_fill_details_uses_fill_list_fallback(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+
+        raw_order = {"id": "900", "ordStatus": "Filled"}
+        parsed_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=0,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+        parsed_order.set_identifier("900")
+
+        with patch.object(broker, "_fetch_recent_fill_details", return_value=(6788.5, 1)):
+            price, qty = broker._extract_fill_details(raw_order, parsed_order)
+
+        assert qty == 1
+        assert price == 6788.5
+
 
 class TestTradovateTokenRenewal:
     """Test the token renewal functionality."""

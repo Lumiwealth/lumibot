@@ -863,6 +863,22 @@ def _fetch_and_update_futures_multiplier(
             logger.debug(f"[MULTIPLIER] AFTER update: asset.multiplier = {asset.multiplier}")
         else:
             logger.error(f"[MULTIPLIER] ✗ Definition missing unit_of_measure_qty field! Fields: {list(definition.keys())}")
+
+        if (
+            asset.asset_type == Asset.AssetType.FUTURE
+            and getattr(asset, "expiration", None) in (None, "")
+        ):
+            expiration_value = definition.get('expiration')
+            if expiration_value:
+                try:
+                    expiration_ts = pd.to_datetime(expiration_value, utc=True, errors='coerce')
+                except Exception as exc:
+                    logger.debug(f"[MULTIPLIER] Unable to parse expiration '{expiration_value}' for {asset.symbol}: {exc}")
+                    expiration_ts = None
+
+                if expiration_ts is not None and not pd.isna(expiration_ts):
+                    asset.expiration = expiration_ts.date()
+                    logger.debug(f"[MULTIPLIER] ✓ Captured expiration for {asset.symbol}: {asset.expiration}")
     else:
         logger.error(f"[MULTIPLIER] ✗ Failed to get definition from DataBento for {resolved_symbol}")
 

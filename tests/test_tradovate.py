@@ -804,6 +804,44 @@ class TestTradovateLifecycle:
         assert any(event == broker.FILLED_ORDER for event, _ in events)
         assert not any(event == broker.CANCELED_ORDER for event, _ in events)
 
+    def test_cancel_open_orders_prunes_stale_locals(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+
+        stale_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+        stale_order.set_identifier("111")
+        stale_order.status = Order.OrderStatus.NEW
+
+        live_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="sell",
+            order_type=Order.OrderType.MARKET,
+        )
+        live_order.set_identifier("222")
+        live_order.status = Order.OrderStatus.NEW
+
+        broker._new_orders.append(stale_order)
+        broker._new_orders.append(live_order)
+        broker._active_broker_identifiers = {"222"}
+
+        with patch.object(broker, "cancel_orders") as mock_cancel:
+            broker.cancel_open_orders("Strategy")
+
+        mock_cancel.assert_called_once()
+        args, _ = mock_cancel.call_args
+        assert args[0] == [live_order]
+        assert stale_order.status == broker.CANCELED_ORDER
+        assert not stale_order.is_active()
+
 
 class TestTradovateTokenRenewal:
     """Test the token renewal functionality."""

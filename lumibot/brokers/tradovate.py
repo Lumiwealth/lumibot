@@ -51,6 +51,7 @@ class Tradovate(Broker):
         self.polling_interval = float(config.get("POLLING_INTERVAL", 5.0))
         self._seen_fill_ids: set[int] = set()
         self._fill_bootstrap_cutoff = datetime.now(timezone.utc)
+        self._active_broker_identifiers: set[str] = set()
 
         # Configure lightweight in-process rate limiter for REST calls
         self._rate_limit_per_minute = max(int(config.get("RATE_LIMIT_PER_MINUTE", 60)), 1)
@@ -966,6 +967,7 @@ class Tradovate(Broker):
             if getattr(order, "identifier", None) is not None
         }
         seen_identifiers: set[str] = set()
+        active_identifiers: set[str] = set()
 
         for raw_order in raw_orders:
             try:
@@ -990,6 +992,8 @@ class Tradovate(Broker):
                 status in {Order.OrderStatus.NEW, Order.OrderStatus.OPEN}
                 or status_str in {"new", "submitted", "open", "working", "pending"}
             )
+            if is_active_status:
+                active_identifiers.add(identifier)
 
             if stored_order is None:
                 logger.debug(f"Tradovate polling: discovered new order {identifier} (status={parsed_order.status})")
@@ -1084,6 +1088,84 @@ class Tradovate(Broker):
 
         if self._first_iteration:
             self._first_iteration = False
+
+        self._active_broker_identifiers = active_identifiers
+
+    # ------------------------------------------------------------------
+    # Order management overrides
+    # ------------------------------------------------------------------
+    def _mark_order_inactive_locally(self, order: Order, status: str):
+        """Update internal tracking lists without dispatching noisy lifecycle logs."""
+        identifier = getattr(order, "identifier", None)
+        if not identifier:
+            return
+
+        safe_lists = (
+            self._new_orders,
+            self._unprocessed_orders,
+            self._partially_filled_orders,
+            self._placeholder_orders,
+        )
+        for safe_list in safe_lists:
+            safe_list.remove(identifier, key="identifier")
+
+        if status == self.CANCELED_ORDER:
+            self._canceled_orders.remove(identifier, key="identifier")
+            order.status = self.CANCELED_ORDER
+            order.set_canceled()
+            self._canceled_orders.append(order)
+        elif status == self.FILLED_ORDER:
+            self._filled_orders.remove(identifier, key="identifier")
+            order.status = self.FILLED_ORDER
+            order.set_filled()
+            self._filled_orders.append(order)
+        else:
+            order.status = status
+
+    def cancel_open_orders(self, strategy):
+        """Cancel only the orders that are still active on Tradovate; prune the rest silently."""
+        tracked_orders = [order for order in self.get_tracked_orders(strategy) if order.is_active()]
+        if not tracked_orders:
+            self.logger.info("cancel_open_orders(strategy=%s) -> no active orders tracked", strategy)
+            return
+
+        active_ids = getattr(self, "_active_broker_identifiers", set()) or set()
+        orders_to_cancel: list[Order] = []
+        stale_count = 0
+
+        for order in tracked_orders:
+            identifier = getattr(order, "identifier", None)
+            identifier_str = str(identifier) if identifier is not None else None
+            if active_ids and identifier_str not in active_ids:
+                stale_count += 1
+                self._mark_order_inactive_locally(order, self.CANCELED_ORDER)
+                continue
+            orders_to_cancel.append(order)
+
+        if stale_count:
+            self.logger.debug(
+                "Tradovate cancel_open_orders removed %d stale local orders not present at broker for strategy=%s",
+                stale_count,
+                strategy,
+            )
+
+        if not orders_to_cancel:
+            self.logger.info("cancel_open_orders(strategy=%s) -> nothing to cancel after pruning", strategy)
+            return
+
+        order_ids = [
+            getattr(order, "identifier", None)
+            or getattr(order, "id", None)
+            or getattr(order, "order_id", None)
+            for order in orders_to_cancel
+        ]
+        self.logger.info(
+            "cancel_open_orders(strategy=%s) -> active=%d ids=%s",
+            strategy,
+            len(orders_to_cancel),
+            order_ids,
+        )
+        self.cancel_orders(orders_to_cancel)
 
     def _submit_order(self, order: Order) -> Order:
         """

@@ -23,6 +23,15 @@ import logging
 import time
 import requests
 from datetime import datetime
+from types import SimpleNamespace
+
+from lumibot.brokers.broker import Broker
+
+
+@pytest.fixture(autouse=True)
+def disable_tradovate_stream(monkeypatch):
+    """Prevent background polling threads during unit tests."""
+    monkeypatch.setattr(Broker, "_launch_stream", lambda self: None)
 
 
 class TestTradovateImports:
@@ -574,6 +583,175 @@ class TestTradovateAPIPayload:
                 assert payload['orderType'] == 'Stop'
                     
         print("✅ Stop order payload format test passed")
+
+
+class TestTradovateLifecycle:
+    """Tests for Tradovate order lifecycle wiring (polling, submit, cancel)."""
+
+    def _make_broker(self):
+        from lumibot.brokers import Tradovate
+        base_config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        tokens = {
+            "accessToken": "token",
+            "marketToken": "market",
+            "hasMarketData": True,
+        }
+        account_info = {"accountSpec": "TEST", "accountId": 123}
+        user_info = "user"
+
+        with patch.object(Tradovate, "_get_tokens", return_value=tokens), \
+             patch.object(Tradovate, "_get_account_info", return_value=account_info), \
+             patch.object(Tradovate, "_get_user_info", return_value=user_info):
+            broker = Tradovate(config=base_config)
+        return broker
+
+    def test_submit_order_emits_new_event(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+        asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+        strategy_name = "Strategy"
+        order = Order(
+            strategy=strategy_name,
+            asset=asset,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"orderId": 999}
+
+        with patch.object(broker, "_request", return_value=mock_response), \
+             patch.object(broker, "_process_trade_event") as mock_process:
+            broker._submit_order(order)
+
+        mock_process.assert_called_once_with(order, broker.NEW_ORDER)
+
+    def test_do_polling_dispatches_fill_event(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+        broker.stream = SimpleNamespace(dispatch=lambda event, **payload: broker._dispatched.append((event, payload)))
+        broker._dispatched = []
+
+        filled_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=2,
+            side="sell",
+            order_type=Order.OrderType.MARKET,
+        )
+        filled_order.set_identifier("321")
+        filled_order.status = Order.OrderStatus.FILLED
+
+        with patch.object(broker, "sync_positions", return_value=None), \
+             patch.object(broker, "_pull_broker_all_orders", return_value=[{"id": "321"}]), \
+             patch.object(broker, "_parse_broker_order", return_value=filled_order), \
+             patch.object(broker, "_extract_fill_details", return_value=(100.0, 2)):
+            broker.do_polling()
+
+        events = broker._dispatched
+        assert any(event == broker.FILLED_ORDER for event, _ in events)
+
+    def test_cancel_order_dispatches_cancel_event(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+        dispatched = []
+        broker.stream = SimpleNamespace(dispatch=lambda event, **payload: dispatched.append((event, payload)))
+
+        order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="sell",
+            order_type=Order.OrderType.MARKET,
+        )
+        order.set_identifier("654")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}
+
+        with patch.object(broker, "_request", return_value=mock_response):
+            broker.cancel_order(order)
+
+        assert any(event == broker.CANCELED_ORDER for event, _ in dispatched)
+
+    def test_pull_all_orders_skips_first_iteration(self):
+        broker = self._make_broker()
+        broker._first_iteration = True
+        result = broker._pull_all_orders("Strategy", None)
+        assert result == []
+
+        broker._first_iteration = False
+        with patch("lumibot.brokers.broker.Broker._pull_all_orders", return_value=["order"]) as mock_super:
+            result = broker._pull_all_orders("Strategy", None)
+            mock_super.assert_called_once()
+        assert result == ["order"]
+
+    def test_do_polling_dispatches_new_for_active_order(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+        broker.stream = SimpleNamespace(dispatch=lambda event, **payload: broker._dispatched.append((event, payload)))
+        broker._dispatched = []
+
+        active_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+        active_order.set_identifier("999")
+        active_order.status = Order.OrderStatus.NEW
+
+        with patch.object(broker, "sync_positions", return_value=None), \
+             patch.object(broker, "_pull_broker_all_orders", return_value=[{"id": "999"}]), \
+             patch.object(broker, "_parse_broker_order", return_value=active_order), \
+             patch.object(broker, "_extract_fill_details", return_value=(None, None)):
+            broker.do_polling()
+
+        events = broker._dispatched
+        assert any(event == broker.NEW_ORDER for event, _ in events)
+
+    def test_do_polling_skips_new_for_closed_order_even_after_startup(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+        broker.stream = SimpleNamespace(dispatch=lambda event, **payload: broker._dispatched.append((event, payload)))
+        broker._dispatched = []
+
+        closed_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="sell",
+            order_type=Order.OrderType.MARKET,
+        )
+        closed_order.set_identifier("777")
+        closed_order.status = Order.OrderStatus.FILLED
+
+        broker._first_iteration = False
+
+        with patch.object(broker, "sync_positions", return_value=None), \
+             patch.object(broker, "_pull_broker_all_orders", return_value=[{"id": "777"}]), \
+             patch.object(broker, "_parse_broker_order", return_value=closed_order), \
+             patch.object(broker, "_extract_fill_details", return_value=(100.0, 1)):
+            broker.do_polling()
+
+        events = broker._dispatched
+        assert any(event == broker.FILLED_ORDER for event, _ in events)
+        assert not any(event == broker.NEW_ORDER for event, _ in events)
 
 
 class TestTradovateTokenRenewal:

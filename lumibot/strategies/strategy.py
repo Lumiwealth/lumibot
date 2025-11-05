@@ -1839,10 +1839,11 @@ class Strategy(_Strategy):
                 or getattr(order, "order_id", None)
                 for order in active_orders
             ]
-            self.log_message(
-                f"cancel_open_orders -> active={len(active_orders)} ids={order_ids}",
-                color="yellow",
-            )
+            if order_ids:
+                self.log_message(
+                    f"cancel_open_orders -> active={len(active_orders)} ids={order_ids}",
+                    color="yellow",
+                )
         except Exception as exc:  # pragma: no cover - defensive logging
             self.logger.exception("Failed to enumerate open orders before cancellation: %s", exc)
         return self.broker.cancel_open_orders(self.name)

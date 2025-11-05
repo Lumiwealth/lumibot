@@ -1,10 +1,12 @@
+import datetime as dt
 import pytest
+import pytz
 from unittest.mock import MagicMock, patch, Mock
 import requests
 import json
 import pandas as pd
 
-from lumibot.tools.projectx_helpers import ProjectXAuth, ProjectXClient, ProjectX
+from lumibot.tools.projectx_helpers import ProjectXAuth, ProjectXClient, ProjectX, _to_utc_iso
 from lumibot.entities import Asset
 
 
@@ -584,4 +586,24 @@ class TestProjectXErrorHandling:
                 
                 # Should handle all error codes gracefully
                 assert result["success"] is False
-                assert f"HTTP {status_code}" in result["error"] 
+                assert f"HTTP {status_code}" in result["error"]
+
+
+class TestProjectXDatetime:
+    def test_to_utc_iso_from_z_string(self):
+        res = _to_utc_iso("2025-01-02T09:30:00Z", is_est=True)
+        assert res == "2025-01-02T14:30:00+00:00"
+
+    def test_to_utc_iso_from_naive_dt(self):
+        start_dt = dt.datetime(2025, 1, 2, 9, 30)
+        res = _to_utc_iso(start_dt, is_est=True)
+        assert res == "2025-01-02T14:30:00+00:00"
+
+    def test_to_utc_iso_from_aware_utc_no_est(self):
+        start_dt = pytz.utc.localize(dt.datetime(2025, 1, 2, 14, 30))
+        res = _to_utc_iso(start_dt, is_est=False)
+        assert res == "2025-01-02T14:30:00+00:00"
+
+    def test_to_utc_iso_string_without_z(self):
+        res = _to_utc_iso("2025-01-02T09:30:00", is_est=True)
+        assert res == "2025-01-02T14:30:00+00:00"

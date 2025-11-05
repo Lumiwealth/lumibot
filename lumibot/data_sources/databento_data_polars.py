@@ -25,7 +25,10 @@ from .data_source import DataSource
 from .polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools import databento_helper_polars
-from lumibot.tools.databento_helper_polars import _ensure_polars_datetime_timezone as _ensure_polars_tz
+from lumibot.tools.databento_helper_polars import (
+    _ensure_polars_datetime_timezone as _ensure_polars_tz,
+    _ensure_polars_datetime_precision as _ensure_polars_precision,
+)
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -455,6 +458,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         
         df = pl.DataFrame(tail_bars).sort('datetime')
         df = _ensure_polars_tz(df)
+        df = _ensure_polars_precision(df)
         logger.debug(f"[DATABENTO][LIVE] Collected {len(df)} tail bars after {after_dt}")
         return df
 
@@ -633,6 +637,8 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                             
                             df = _ensure_polars_tz(df)
                             tail_df = _ensure_polars_tz(tail_df)
+                            df = _ensure_polars_precision(df)
+                            tail_df = _ensure_polars_precision(tail_df)
 
                             # Only keep columns that exist in both dataframes
                             common_columns = [col for col in df.columns if col in tail_df.columns]
@@ -678,9 +684,10 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 except Exception as e:
                     logger.warning(f"[DATABENTO][MERGE] Failed to merge live tail: {e}")
             
-            # Trim to requested length
+            # Trim to requested length and normalize datetime metadata
             df = df.tail(length)
             df = _ensure_polars_tz(df)
+            df = _ensure_polars_precision(df)
             return Bars(
                 df=df,
                 source=self.SOURCE,

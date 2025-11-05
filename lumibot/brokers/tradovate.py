@@ -1057,6 +1057,26 @@ class Tradovate(Broker):
             if not identifier:
                 continue
             if str(identifier) not in seen_identifiers and order.is_active():
+                fill_price, fill_qty = self._fetch_recent_fill_details(identifier)
+                if fill_qty:
+                    if fill_price is None:
+                        fill_price = getattr(order, "avg_fill_price", None)
+                    if fill_price is None:
+                        try:
+                            quote = self.get_quote(order.asset)
+                            fill_price = getattr(quote, "last", None)
+                        except Exception:  # pragma: no cover - defensive
+                            fill_price = None
+
+                    if fill_price is not None:
+                        self.stream.dispatch(
+                            self.FILLED_ORDER,
+                            order=order,
+                            price=float(fill_price),
+                            filled_quantity=float(fill_qty),
+                        )
+                        continue
+
                 logger.debug(
                     f"Tradovate polling: order {identifier} missing from broker response; dispatching CANCEL to reconcile."
                 )

@@ -774,6 +774,36 @@ class TestTradovateLifecycle:
         assert qty == 1
         assert price == 6788.5
 
+    def test_missing_order_reconciles_to_fill_instead_of_cancel(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+        broker.stream = SimpleNamespace(dispatch=lambda event, **payload: broker._dispatched.append((event, payload)))
+        broker._dispatched = []
+
+        missing_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+        missing_order.set_identifier("555")
+        missing_order.status = Order.OrderStatus.NEW
+
+        quote = SimpleNamespace(last=6788.25)
+
+        with patch.object(broker, "sync_positions", return_value=None), \
+             patch.object(broker, "_pull_broker_all_orders", return_value=[]), \
+             patch.object(broker, "get_all_orders", return_value=[missing_order]), \
+             patch.object(broker, "_fetch_recent_fill_details", return_value=(6788.5, 1)), \
+             patch.object(broker, "get_quote", return_value=quote):
+            broker.do_polling()
+
+        events = broker._dispatched
+        assert any(event == broker.FILLED_ORDER for event, _ in events)
+        assert not any(event == broker.CANCELED_ORDER for event, _ in events)
+
 
 class TestTradovateTokenRenewal:
     """Test the token renewal functionality."""

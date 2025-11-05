@@ -702,6 +702,17 @@ class Asset:
             if c not in seen:
                 seen.add(c)
                 unique.append(c)
+
+        # Ensure the resolved primary contract appears first so downstream
+        # consumers try the preferred contract before fallbacks.
+        try:
+            primary = self.resolve_continuous_futures_contract(reference_date)
+        except ValueError:
+            primary = None
+        if primary and primary in unique:
+            unique.remove(primary)
+            unique.insert(0, primary)
+
         return unique
 
     def _determine_continuous_contract_components(

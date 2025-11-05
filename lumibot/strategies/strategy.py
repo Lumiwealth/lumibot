@@ -1830,6 +1830,21 @@ class Strategy(_Strategy):
         >>> self.cancel_open_orders()
 
         """
+        try:
+            tracked_orders = self.broker.get_tracked_orders(self.name)
+            active_orders = [order for order in tracked_orders if order.is_active()]
+            order_ids = [
+                getattr(order, "identifier", None)
+                or getattr(order, "id", None)
+                or getattr(order, "order_id", None)
+                for order in active_orders
+            ]
+            self.log_message(
+                f"cancel_open_orders -> active={len(active_orders)} ids={order_ids}",
+                color="yellow",
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.exception("Failed to enumerate open orders before cancellation: %s", exc)
         return self.broker.cancel_open_orders(self.name)
 
     def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None):
@@ -1917,7 +1932,37 @@ class Strategy(_Strategy):
             - If no open position exists, this method does nothing.
         """
         asset_obj = self._sanitize_user_asset(asset)
-        result = self.broker.close_position(self.name, asset_obj, fraction)
+
+        try:
+            position = self.get_position(asset_obj)
+            qty = getattr(position, "quantity", 0) if position else 0
+            self.log_message(
+                f"close_position -> asset={asset_obj.symbol if hasattr(asset_obj, 'symbol') else asset_obj}, "
+                f"fraction={fraction}, current_qty={qty}",
+                color="yellow",
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.exception("Unable to inspect position prior to close_position: %s", exc)
+
+        target_asset = getattr(position, "asset", asset_obj) if position is not None else asset_obj
+        if target_asset is not asset_obj:
+            try:
+                self.log_message(
+                    f"close_position -> resolved continuous asset {asset_obj.symbol if hasattr(asset_obj, 'symbol') else asset_obj} "
+                    f"to contract {target_asset.symbol if hasattr(target_asset, 'symbol') else target_asset}",
+                    color="yellow",
+                )
+            except Exception:  # pragma: no cover - best effort logging
+                pass
+        result = self.broker.close_position(self.name, target_asset, fraction)
+        if result is None:
+            self.log_message("close_position -> broker returned None (no order submitted)", color="yellow")
+        else:
+            order_id = getattr(result, "identifier", None) or getattr(result, "id", None) or getattr(result, "order_id", None)
+            self.log_message(
+                f"close_position -> broker submitted order {order_id} (type={type(result).__name__})",
+                color="yellow",
+            )
         if result is not None:
             return result
 

@@ -1415,6 +1415,18 @@ class Broker(ABC):
     def cancel_open_orders(self, strategy):
         """cancel all open orders for a given strategy"""
         orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
+        order_ids = [
+            getattr(order, "identifier", None)
+            or getattr(order, "id", None)
+            or getattr(order, "order_id", None)
+            for order in orders
+        ]
+        self.logger.info(
+            "cancel_open_orders(strategy=%s) -> active=%d ids=%s",
+            strategy,
+            len(orders),
+            order_ids,
+        )
         self.cancel_orders(orders)
 
     def wait_orders_clear(self, strategy, max_loop=5):
@@ -1487,10 +1499,31 @@ class Broker(ABC):
         """
         pos = self.get_tracked_position(strategy_name, asset)
         if pos and pos.quantity != 0:
+            self.logger.info(
+                "close_position(strategy=%s, asset=%s, fraction=%s) -> qty=%s",
+                strategy_name,
+                getattr(asset, "symbol", asset),
+                fraction,
+                pos.quantity,
+            )
             order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
             if fraction != 1.00:
                 order.quantity = order.quantity * fraction
+            order_id = getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
+            self.logger.info(
+                "close_position(strategy=%s) submitting order %s qty=%s side=%s type=%s",
+                strategy_name,
+                order_id,
+                getattr(order, "quantity", None),
+                getattr(order, "side", None),
+                getattr(order, "order_type", None),
+            )
             return self.submit_order(order)
+        self.logger.info(
+            "close_position(strategy=%s, asset=%s) -> no tracked position or zero quantity",
+            strategy_name,
+            getattr(asset, "symbol", asset),
+        )
         return None
 
     # =========Subscribers/Strategies functions==============

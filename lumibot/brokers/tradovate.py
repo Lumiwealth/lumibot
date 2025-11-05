@@ -2,8 +2,9 @@ import random
 import re
 import threading
 import time
+import traceback
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 import requests
@@ -12,6 +13,7 @@ from termcolor import colored
 from .broker import Broker
 from lumibot.data_sources import TradovateData
 from lumibot.entities import Asset, Order, Position
+from lumibot.trading_builtins import PollingStream
 
 # Set up module-specific logger for enhanced logging
 from lumibot.tools.lumibot_logger import get_logger
@@ -31,6 +33,7 @@ class Tradovate(Broker):
     Tradovate broker that implements connection to the Tradovate API.
     """
     NAME = "Tradovate"
+    POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(self, config=None, data_source=None):
         if config is None:
@@ -45,6 +48,10 @@ class Tradovate(Broker):
         self.app_version = config.get("APP_VERSION", "1.0")
         self.cid = config.get("CID")
         self.sec = config.get("SECRET")
+        self.polling_interval = float(config.get("POLLING_INTERVAL", 5.0))
+        self._seen_fill_ids: set[int] = set()
+        self._fill_bootstrap_cutoff = datetime.now(timezone.utc)
+        self._active_broker_identifiers: Optional[set[str]] = None
 
         # Configure lightweight in-process rate limiter for REST calls
         self._rate_limit_per_minute = max(int(config.get("RATE_LIMIT_PER_MINUTE", 60)), 1)
@@ -520,9 +527,10 @@ class Tradovate(Broker):
                                      original_exception=final_exception)
 
         raise TradovateAPIError("Failed to retrieve account financials")
+
     def _get_stream_object(self):
-        logger.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
-        return None  # Return None as a placeholder
+        """Return a polling stream to monitor Tradovate orders."""
+        return PollingStream(self.polling_interval)
 
     def check_token_expiry(self):
         """
@@ -705,12 +713,482 @@ class Tradovate(Broker):
                                      original_exception=e)
 
     def _register_stream_events(self):
-        logger.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))
-        return None
+        """Register polling callbacks that mirror the standard lifecycle pipeline."""
+        stream = getattr(self, "stream", None)
+        if stream is None:
+            return
+
+        broker = self
+
+        @stream.add_action(self.POLL_EVENT)
+        def on_trade_event_poll():
+            try:
+                self.do_polling()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.exception("Tradovate polling failure: %s", exc)
+
+        @stream.add_action(self.NEW_ORDER)
+        def on_trade_event_new(order):
+            logger.info(f"Tradovate processing NEW order event: {order}")
+            try:
+                broker._process_trade_event(order, broker.NEW_ORDER)
+            except Exception:  # pragma: no cover
+                logger.error(traceback.format_exc())
+
+        @stream.add_action(self.FILLED_ORDER)
+        def on_trade_event_fill(order, price, filled_quantity):
+            logger.info(
+                f"Tradovate processing FILLED event: {order} price={price} qty={filled_quantity}"
+            )
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier if order.asset else 1,
+                )
+            except Exception:  # pragma: no cover
+                logger.error(traceback.format_exc())
+
+        @stream.add_action(self.PARTIALLY_FILLED_ORDER)
+        def on_trade_event_partial(order, price, filled_quantity):
+            logger.info(
+                f"Tradovate processing PARTIAL event: {order} price={price} qty={filled_quantity}"
+            )
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.PARTIALLY_FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier if order.asset else 1,
+                )
+            except Exception:  # pragma: no cover
+                logger.error(traceback.format_exc())
+
+        @stream.add_action(self.CANCELED_ORDER)
+        def on_trade_event_cancel(order):
+            logger.info(f"Tradovate processing CANCEL event: {order}")
+            try:
+                broker._process_trade_event(order, broker.CANCELED_ORDER)
+            except Exception:  # pragma: no cover
+                logger.error(traceback.format_exc())
+
+        @stream.add_action(self.ERROR_ORDER)
+        def on_trade_event_error(order, error_msg=None):
+            logger.error(f"Tradovate processing ERROR event: {order} msg={error_msg}")
+            try:
+                broker._process_trade_event(order, broker.ERROR_ORDER, error=error_msg)
+            except Exception:  # pragma: no cover
+                logger.error(traceback.format_exc())
 
     def _run_stream(self):
-        logger.error(colored("Method '_run_stream' is not yet implemented.", "red"))
-        return None
+        """Start the polling loop and mark the connection as established."""
+        self._stream_established()
+        if getattr(self, "stream", None) is None:
+            return
+        try:
+            self.stream._run()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Tradovate polling stream terminated unexpectedly: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Polling helpers
+    # ------------------------------------------------------------------
+    def _extract_fill_details(self, raw_order: dict, order: Order) -> tuple[Optional[float], Optional[float]]:
+        """Attempt to derive fill price and quantity from a Tradovate order payload."""
+
+        def _normalize_number(value):
+            try:
+                if value in (None, "", "null"):
+                    return None
+                numeric = float(value)
+                if numeric == 0:
+                    return None
+                return numeric
+            except (TypeError, ValueError):
+                return None
+
+        def _to_float(value):
+            try:
+                if value in (None, "", "null"):
+                    return None
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        price_candidates = [
+            raw_order.get("avgFillPrice"),
+            raw_order.get("filledPrice"),
+            raw_order.get("tradePrice"),
+            raw_order.get("price"),
+            raw_order.get("stopPrice"),
+            raw_order.get("lastPrice"),
+            getattr(order, "avg_fill_price", None),
+            getattr(order, "limit_price", None),
+        ]
+        price = next((val for val in (_to_float(candidate) for candidate in price_candidates) if val is not None), None)
+
+        quantity_candidates = [
+            raw_order.get("filledQuantity"),
+            raw_order.get("filledQty"),
+            raw_order.get("execQuantity"),
+            raw_order.get("tradeQuantity"),
+            raw_order.get("quantity"),
+            getattr(order, "quantity", None),
+        ]
+
+        if getattr(order, "child_orders", None):
+            for child in order.child_orders:
+                quantity_candidates.append(getattr(child, "quantity", None))
+                price_candidates.append(getattr(child, "avg_fill_price", None))
+        quantity = next(
+            (val for val in (_to_float(candidate) for candidate in quantity_candidates) if val is not None),
+            None,
+        )
+
+        order_identifier = raw_order.get("id") or getattr(order, "identifier", None)
+        needs_fill_lookup = (
+            order_identifier
+            and (
+                price is None
+                or quantity in (None, 0, 0.0)
+            )
+        )
+        if needs_fill_lookup:
+            fill_price, fill_qty = self._fetch_recent_fill_details(order_identifier)
+            if fill_qty is not None:
+                quantity = _normalize_number(fill_qty)
+            if price is None and fill_price is not None:
+                price = _normalize_number(fill_price)
+
+        return price, quantity
+
+    def _fetch_recent_fill_details(self, order_identifier) -> tuple[Optional[float], Optional[float]]:
+        """Fallback to /fill/list when Tradovate omits fill price/quantity in order payloads."""
+        if not order_identifier:
+            return None, None
+
+        try:
+            params = {"accountId": self.account_id, "orderId": order_identifier}
+            response = self._request(
+                "GET",
+                f"{self.trading_api_url}/fill/list",
+                params=params,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            fills = response.json()
+        except requests.exceptions.RequestException as exc:
+            logger.debug("Tradovate fill lookup failed for order %s: %s", order_identifier, exc)
+            return None, None
+
+        if not isinstance(fills, list):
+            return None, None
+
+        new_fills = []
+        for fill in fills:
+            if str(fill.get("orderId")) != str(order_identifier):
+                continue
+
+            fill_id = fill.get("id")
+            if fill_id in self._seen_fill_ids:
+                continue
+
+            timestamp_str = fill.get("timestamp")
+            fill_dt = None
+            if timestamp_str:
+                try:
+                    fill_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                except ValueError:
+                    fill_dt = None
+
+            if fill_dt and fill_dt < self._fill_bootstrap_cutoff:
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            qty = fill.get("qty")
+            price = fill.get("price")
+            if qty in (None, "", "null"):
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            try:
+                qty_val = float(qty)
+            except (TypeError, ValueError):
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            if qty_val == 0:
+                self._seen_fill_ids.add(fill_id)
+                continue
+
+            price_val = None
+            try:
+                price_val = float(price) if price is not None else None
+            except (TypeError, ValueError):
+                price_val = None
+
+            new_fills.append((fill_id, price_val, qty_val))
+            self._seen_fill_ids.add(fill_id)
+
+        if not new_fills:
+            return None, None
+
+        total_qty = sum(qty for _, _, qty in new_fills)
+        if total_qty <= 0:
+            return None, None
+
+        weighted_price = sum((price or 0.0) * qty for _, price, qty in new_fills)
+        avg_price = weighted_price / total_qty if weighted_price else None
+        return avg_price, total_qty
+
+    def do_polling(self):
+        """Poll Tradovate REST endpoints to keep order state synchronized."""
+        # Sync positions so position lookups remain accurate.
+        try:
+            self.sync_positions(None)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.debug("Tradovate position sync failed during polling: %s", exc)
+
+        try:
+            raw_orders = self._pull_broker_all_orders() or []
+        except TradovateAPIError as exc:
+            logger.error(colored(f"Tradovate polling: failed to retrieve orders ({exc})", "red"))
+            return
+        except Exception as exc:  # pragma: no cover
+            logger.exception("Tradovate polling: unexpected error retrieving orders: %s", exc)
+            return
+
+        stored_orders = {
+            order.identifier: order
+            for order in self.get_all_orders()
+            if getattr(order, "identifier", None) is not None
+        }
+        seen_identifiers: set[str] = set()
+        active_identifiers: set[str] = set()
+
+        for raw_order in raw_orders:
+            try:
+                parsed_order = self._parse_broker_order(
+                    raw_order,
+                    strategy_name=self._strategy_name or (self.NAME if isinstance(self.NAME, str) else "Tradovate"),
+                )
+            except Exception as exc:  # pragma: no cover
+                logger.debug("Tradovate polling: unable to parse order payload: %s", exc)
+                continue
+
+            if parsed_order is None or not parsed_order.identifier:
+                continue
+
+            identifier = str(parsed_order.identifier)
+            seen_identifiers.add(identifier)
+            stored_order = stored_orders.get(parsed_order.identifier)
+
+            status = parsed_order.status
+            status_str = status.value if isinstance(status, Order.OrderStatus) else str(status).lower()
+            is_active_status = (
+                status in {Order.OrderStatus.NEW, Order.OrderStatus.OPEN}
+                or status_str in {"new", "submitted", "open", "working", "pending"}
+            )
+            if is_active_status:
+                active_identifiers.add(identifier)
+
+            if stored_order is None:
+                logger.debug(f"Tradovate polling: discovered new order {identifier} (status={parsed_order.status})")
+                if is_active_status:
+                    self.stream.dispatch(self.NEW_ORDER, order=parsed_order)
+                price, quantity = self._extract_fill_details(raw_order, parsed_order)
+
+                if (status == Order.OrderStatus.FILLED or status_str == "filled") and price is not None and quantity is not None:
+                    self.stream.dispatch(self.FILLED_ORDER, order=parsed_order, price=price, filled_quantity=quantity)
+                elif (status == Order.OrderStatus.PARTIALLY_FILLED or status_str in {"partialfill", "partial_fill", "partially_filled"}) and price is not None and quantity is not None:
+                    self.stream.dispatch(
+                        self.PARTIALLY_FILLED_ORDER,
+                        order=parsed_order,
+                        price=price,
+                        filled_quantity=quantity,
+                    )
+                elif status == Order.OrderStatus.CANCELED or status_str in {"canceled", "cancelled", "cancel"}:
+                    self.stream.dispatch(self.CANCELED_ORDER, order=parsed_order)
+                elif status == Order.OrderStatus.ERROR or status_str in {"error", "rejected"}:
+                    error_msg = raw_order.get("failureText") or raw_order.get("failureReason")
+                    self.stream.dispatch(self.ERROR_ORDER, order=parsed_order, error_msg=error_msg)
+                continue
+
+            # Refresh stored order attributes for downstream consumers.
+            if parsed_order.limit_price is not None:
+                stored_order.limit_price = parsed_order.limit_price
+            if parsed_order.stop_price is not None:
+                stored_order.stop_price = parsed_order.stop_price
+            if parsed_order.avg_fill_price:
+                stored_order.avg_fill_price = parsed_order.avg_fill_price
+            if parsed_order.quantity:
+                stored_order.quantity = parsed_order.quantity
+
+            if not parsed_order.equivalent_status(stored_order):
+                price, quantity = self._extract_fill_details(raw_order, parsed_order)
+
+                if status == Order.OrderStatus.FILLED or status_str == "filled":
+                    if price is not None and quantity is not None:
+                        self.stream.dispatch(
+                            self.FILLED_ORDER,
+                            order=stored_order,
+                            price=price,
+                            filled_quantity=quantity,
+                        )
+                elif status == Order.OrderStatus.PARTIALLY_FILLED or status_str in {"partialfill", "partial_fill", "partially_filled"}:
+                    if price is not None and quantity is not None:
+                        self.stream.dispatch(
+                            self.PARTIALLY_FILLED_ORDER,
+                            order=stored_order,
+                            price=price,
+                            filled_quantity=quantity,
+                        )
+                elif status == Order.OrderStatus.CANCELED or status_str in {"canceled", "cancelled", "cancel"}:
+                    self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                elif status == Order.OrderStatus.ERROR or status_str in {"error", "rejected"}:
+                    error_msg = raw_order.get("failureText") or raw_order.get("failureReason")
+                    self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=error_msg)
+                else:
+                    if is_active_status:
+                        self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+
+        # Any active order missing from the broker response likely completed; reconcile as canceled.
+        for order in list(self.get_all_orders()):
+            identifier = getattr(order, "identifier", None)
+            if not identifier:
+                continue
+            if str(identifier) not in seen_identifiers and order.is_active():
+                fill_price, fill_qty = self._fetch_recent_fill_details(identifier)
+                if fill_qty:
+                    if fill_price is None:
+                        fill_price = getattr(order, "avg_fill_price", None)
+                    if fill_price is None:
+                        try:
+                            quote = self.get_quote(order.asset)
+                            fill_price = getattr(quote, "last", None)
+                        except Exception:  # pragma: no cover - defensive
+                            fill_price = None
+
+                    if fill_price is not None:
+                        self.stream.dispatch(
+                            self.FILLED_ORDER,
+                            order=order,
+                            price=float(fill_price),
+                            filled_quantity=float(fill_qty),
+                        )
+                        continue
+
+                logger.debug(
+                    f"Tradovate polling: order {identifier} missing from broker response; dispatching CANCEL to reconcile."
+                )
+                self.stream.dispatch(self.CANCELED_ORDER, order=order)
+
+        if self._first_iteration:
+            self._first_iteration = False
+
+        self._active_broker_identifiers = active_identifiers
+
+    # ------------------------------------------------------------------
+    # Order management overrides
+    # ------------------------------------------------------------------
+    def _mark_order_inactive_locally(self, order: Order, status: str):
+        """Update internal tracking lists without dispatching noisy lifecycle logs."""
+        identifier = getattr(order, "identifier", None)
+        if not identifier:
+            return
+
+        safe_lists = (
+            self._new_orders,
+            self._unprocessed_orders,
+            self._partially_filled_orders,
+            self._placeholder_orders,
+        )
+        for safe_list in safe_lists:
+            safe_list.remove(identifier, key="identifier")
+
+        if status == self.CANCELED_ORDER:
+            self._canceled_orders.remove(identifier, key="identifier")
+            order.status = self.CANCELED_ORDER
+            order.set_canceled()
+            self._canceled_orders.append(order)
+        elif status == self.FILLED_ORDER:
+            self._filled_orders.remove(identifier, key="identifier")
+            order.status = self.FILLED_ORDER
+            order.set_filled()
+            self._filled_orders.append(order)
+        else:
+            order.status = status
+
+    def cancel_open_orders(self, strategy):
+        """Cancel only the orders that are still active on Tradovate; prune the rest silently."""
+        tracked_orders = [order for order in self.get_tracked_orders(strategy) if order.is_active()]
+        if not tracked_orders:
+            self.logger.info("cancel_open_orders(strategy=%s) -> no active orders tracked", strategy)
+            return
+
+        active_ids = getattr(self, "_active_broker_identifiers", None)
+        if active_ids is None:
+            active_ids = self._refresh_active_identifiers_snapshot()
+        orders_to_cancel: list[Order] = []
+        stale_count = 0
+
+        for order in tracked_orders:
+            identifier = getattr(order, "identifier", None)
+            identifier_str = str(identifier) if identifier is not None else None
+            if identifier_str is not None and identifier_str not in active_ids:
+                stale_count += 1
+                self._mark_order_inactive_locally(order, self.CANCELED_ORDER)
+                continue
+            orders_to_cancel.append(order)
+
+        if stale_count:
+            self.logger.debug(
+                "Tradovate cancel_open_orders removed %d stale local orders not present at broker for strategy=%s",
+                stale_count,
+                strategy,
+            )
+
+        if not orders_to_cancel:
+            self.logger.info("cancel_open_orders(strategy=%s) -> nothing to cancel after pruning", strategy)
+            return
+
+        order_ids = [
+            getattr(order, "identifier", None)
+            or getattr(order, "id", None)
+            or getattr(order, "order_id", None)
+            for order in orders_to_cancel
+        ]
+        self.logger.info(
+            "cancel_open_orders(strategy=%s) -> active=%d ids=%s",
+            strategy,
+            len(orders_to_cancel),
+            order_ids,
+        )
+        self.cancel_orders(orders_to_cancel)
+
+    def _refresh_active_identifiers_snapshot(self) -> set[str]:
+        """Retrieve latest open orders from Tradovate to seed the active-id cache."""
+        active_ids: set[str] = set()
+        try:
+            payloads = self._pull_broker_all_orders() or []
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.debug("Tradovate active id refresh failed: %s", exc)
+            self._active_broker_identifiers = active_ids
+            return active_ids
+
+        for payload in payloads:
+            order_id = payload.get("id")
+            if order_id is None:
+                continue
+            status = str(payload.get("ordStatus", "")).lower()
+            if status in {"working", "pending", "submitted", "new", "open"}:
+                active_ids.add(str(order_id))
+
+        self._active_broker_identifiers = active_ids
+        return active_ids
 
     def _submit_order(self, order: Order) -> Order:
         """
@@ -807,6 +1285,20 @@ class Tradovate(Broker):
                 # Order was successful
                 order.status = Order.OrderStatus.SUBMITTED
                 order.update_raw(data)
+                order_id = (
+                    data.get("orderId")
+                    or data.get("id")
+                    or (data.get("order") or {}).get("id")
+                    or (data.get("orders") or {}).get("id")
+                )
+                if order_id is not None:
+                    order.set_identifier(str(order_id))
+
+                if hasattr(self, "_new_orders"):
+                    try:
+                        self._process_trade_event(order, self.NEW_ORDER)
+                    except Exception:  # pragma: no cover - defensive
+                        logger.error(traceback.format_exc())
                 return order
 
         except requests.exceptions.RequestException as e:
@@ -815,9 +1307,63 @@ class Tradovate(Broker):
             order.set_error(error_message)
             return order
 
-    def cancel_order(self, order_id) -> None:
-        logger.error(colored(f"Method 'cancel_order' for order_id {order_id} is not yet implemented.", "red"))
-        return None
+    def cancel_order(self, order) -> None:
+        """Cancel an order at Tradovate and propagate lifecycle events."""
+        target_order = None
+        identifier = None
+
+        if isinstance(order, Order):
+            target_order = order
+            identifier = order.identifier
+        else:
+            identifier = order
+
+        if not identifier:
+            raise ValueError("Order identifier is not set; unable to cancel order.")
+
+        try:
+            order_id_value = int(identifier)
+        except (TypeError, ValueError):
+            order_id_value = identifier
+
+        payload = {
+            "accountSpec": self.account_spec,
+            "accountId": self.account_id,
+            "orderId": order_id_value,
+        }
+        url = f"{self.trading_api_url}/order/cancelorder"
+        headers = self._get_headers(with_content_type=True)
+
+        try:
+            response = self._request("POST", url, json=payload, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as exc:
+            logger.error(
+                colored(
+                    f"Tradovate cancel failed for order {identifier}: "
+                    f"{getattr(exc.response, 'status_code', None)} {getattr(exc.response, 'text', None)}",
+                    "red",
+                )
+            )
+            raise TradovateAPIError(
+                "Failed to cancel Tradovate order",
+                status_code=getattr(exc.response, "status_code", None),
+                response_text=getattr(exc.response, "text", None),
+                original_exception=exc,
+            ) from exc
+
+        if target_order is None:
+            target_order = self.get_tracked_order(identifier, use_placeholders=True)
+
+        if target_order is not None and hasattr(self, "stream"):
+            self.stream.dispatch(self.CANCELED_ORDER, order=target_order)
+
+    def _pull_all_orders(self, strategy_name, strategy_object) -> list[Order]:
+        """Skip returning legacy orders during the initial sync to avoid duplicate NEW events."""
+        if getattr(self, "_first_iteration", False):
+            logger.debug("Tradovate initial order sync skipped to allow polling to reconcile legacy orders")
+            return []
+        return super()._pull_all_orders(strategy_name, strategy_object)
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):

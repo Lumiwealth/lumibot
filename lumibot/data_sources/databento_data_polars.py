@@ -24,10 +24,12 @@ except ImportError:  # pragma: no cover - optional dependency
 from .data_source import DataSource
 from .polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools import databento_helper_polars
+from lumibot.tools import databento_helper_polars, futures_roll
 from lumibot.tools.databento_helper_polars import (
     _ensure_polars_datetime_timezone as _ensure_polars_tz,
     _ensure_polars_datetime_precision as _ensure_polars_precision,
+    _format_futures_symbol_for_databento,
+    _generate_databento_symbol_alternatives,
 )
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -516,38 +518,30 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
     
     def _resolve_futures_symbol(self, asset: Asset, reference_date: datetime = None) -> str:
         """Resolve asset to specific futures contract symbol"""
-        if asset.asset_type in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
-            # For continuous futures, resolve to specific contract
-            if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-                if hasattr(asset, 'resolve_continuous_futures_contract'):
-                    return asset.resolve_continuous_futures_contract(
-                        reference_date=reference_date,
-                        year_digits=1,
-                    )
-            
-            # Manual resolution for common futures
-            symbol = asset.symbol.upper()
-            month = reference_date.month if reference_date else datetime.now().month
-            year = reference_date.year if reference_date else datetime.now().year
-            
-            # Quarterly contracts
-            if month <= 3:
-                month_code = 'H'
-            elif month <= 6:
-                month_code = 'M'
-            elif month <= 9:
-                month_code = 'U'
-            else:
-                month_code = 'Z'
-            
-            year_digit = year % 10
-            
-            if symbol in ["ES", "NQ", "RTY", "YM", "MES", "MNQ", "MYM", "M2K", "CL", "GC", "SI"]:
-                return f"{symbol}{month_code}{year_digit}"
-            
+        if asset.asset_type not in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
             return asset.symbol
-        
-        return asset.symbol
+
+        ref_dt = reference_date or datetime.now(timezone.utc)
+
+        if asset.asset_type == Asset.AssetType.FUTURE and asset.expiration:
+            return _format_futures_symbol_for_databento(asset, reference_date=reference_date)
+
+        if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+            resolved_contract = futures_roll.resolve_symbol_for_datetime(
+                asset,
+                ref_dt,
+                year_digits=2,
+            )
+        else:
+            temp_asset = Asset(asset.symbol, Asset.AssetType.CONT_FUTURE)
+            resolved_contract = futures_roll.resolve_symbol_for_datetime(
+                temp_asset,
+                ref_dt,
+                year_digits=2,
+            )
+
+        databento_symbol = _generate_databento_symbol_alternatives(asset.symbol, resolved_contract)
+        return databento_symbol[0] if databento_symbol else resolved_contract
     
     def get_historical_prices(
         self,

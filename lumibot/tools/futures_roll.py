@@ -30,12 +30,31 @@ _FUTURES_MONTH_CODES: Dict[int, str] = {
 class RollRule:
     offset_business_days: int
     anchor: str
+    contract_months: Optional[Tuple[int, ...]] = None
+
+
+_DEFAULT_CONTRACT_MONTHS: Tuple[int, ...] = (3, 6, 9, 12)
 
 
 ROLL_RULES: Dict[str, RollRule] = {
-    symbol: RollRule(offset_business_days=8, anchor="third_friday")
+    symbol: RollRule(offset_business_days=8, anchor="third_friday", contract_months=_DEFAULT_CONTRACT_MONTHS)
     for symbol in {"ES", "MES", "NQ", "MNQ", "YM", "MYM"}
 }
+
+ROLL_RULES.update(
+    {
+        "GC": RollRule(
+            offset_business_days=7,
+            anchor="third_last_business_day",
+            contract_months=(2, 4, 6, 8, 10, 12),
+        ),
+        "SI": RollRule(
+            offset_business_days=7,
+            anchor="third_last_business_day",
+            contract_months=(1, 3, 5, 7, 9, 12),
+        ),
+    }
+)
 
 YearMonth = Tuple[int, int]
 
@@ -72,9 +91,32 @@ def _subtract_business_days(dt: datetime, days: int) -> datetime:
     return result
 
 
+def _third_last_business_day(year: int, month: int) -> datetime:
+    if month == 12:
+        next_month = 1
+        next_year = year + 1
+    else:
+        next_month = month + 1
+        next_year = year
+
+    last_day = _to_timezone(datetime(next_year, next_month, 1)) - timedelta(days=1)
+
+    remaining = 3
+    cursor = last_day
+    while remaining > 0:
+        if cursor.weekday() < 5:
+            remaining -= 1
+            if remaining == 0:
+                break
+        cursor -= timedelta(days=1)
+    return cursor.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
     if rule.anchor == "third_friday":
         anchor = _third_friday(year, month)
+    elif rule.anchor == "third_last_business_day":
+        anchor = _third_last_business_day(year, month)
     else:
         anchor = _to_timezone(datetime(year, month, 15))
     if rule.offset_business_days <= 0:
@@ -82,13 +124,26 @@ def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
     return _subtract_business_days(anchor, rule.offset_business_days)
 
 
-def _advance_quarter(current_month: int, current_year: int) -> YearMonth:
-    quarter_months = [3, 6, 9, 12]
-    idx = quarter_months.index(current_month)
-    next_idx = (idx + 1) % len(quarter_months)
-    next_month = quarter_months[next_idx]
-    next_year = current_year + (1 if next_idx == 0 else 0)
+def _get_contract_months(rule: Optional[RollRule]) -> Tuple[int, ...]:
+    if rule and rule.contract_months:
+        return tuple(sorted(rule.contract_months))
+    return _DEFAULT_CONTRACT_MONTHS
+
+
+def _advance_contract(current_month: int, current_year: int, months: Tuple[int, ...]) -> YearMonth:
+    months_sorted = tuple(sorted(months))
+    idx = months_sorted.index(current_month)
+    next_idx = (idx + 1) % len(months_sorted)
+    next_month = months_sorted[next_idx]
+    next_year = current_year + (1 if next_idx <= idx else 0)
     return next_year, next_month
+
+
+def _select_contract(year: int, month: int, months: Tuple[int, ...]) -> YearMonth:
+    for candidate in sorted(months):
+        if month <= candidate:
+            return year, candidate
+    return year + 1, sorted(months)[0]
 
 
 def _legacy_mid_month(reference_date: datetime) -> YearMonth:
@@ -118,27 +173,22 @@ def determine_contract_year_month(symbol: str, reference_date: Optional[datetime
     ref = _normalize_reference_date(reference_date)
     symbol_upper = symbol.upper()
     rule = ROLL_RULES.get(symbol_upper)
-
-    quarter_months = [3, 6, 9, 12]
     year = ref.year
     month = ref.month
 
     if rule is None:
         return _legacy_mid_month(ref)
 
-    if month in quarter_months:
+    contract_months = _get_contract_months(rule)
+
+    if month in contract_months:
         target_year, target_month = year, month
-        roll_point = _calculate_roll_trigger(target_year, target_month, rule)
-        if ref >= roll_point:
-            target_year, target_month = _advance_quarter(target_month, target_year)
     else:
-        candidates = [m for m in quarter_months if m > month]
-        if candidates:
-            target_month = candidates[0]
-            target_year = year
-        else:
-            target_month = quarter_months[0]
-            target_year = year + 1
+        target_year, target_month = _select_contract(year, month, contract_months)
+
+    roll_point = _calculate_roll_trigger(target_year, target_month, rule)
+    if ref >= roll_point:
+        target_year, target_month = _advance_contract(target_month, target_year, contract_months)
 
     return target_year, target_month
 
@@ -201,6 +251,7 @@ def build_roll_schedule(asset, start: datetime, end: datetime, year_digits: int 
 
     symbol_upper = asset.symbol.upper()
     rule = ROLL_RULES.get(symbol_upper)
+    contract_months = _get_contract_months(rule)
 
     schedule = []
     cursor = start

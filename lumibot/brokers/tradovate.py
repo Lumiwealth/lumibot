@@ -51,7 +51,7 @@ class Tradovate(Broker):
         self.polling_interval = float(config.get("POLLING_INTERVAL", 5.0))
         self._seen_fill_ids: set[int] = set()
         self._fill_bootstrap_cutoff = datetime.now(timezone.utc)
-        self._active_broker_identifiers: set[str] = set()
+        self._active_broker_identifiers: Optional[set[str]] = None
 
         # Configure lightweight in-process rate limiter for REST calls
         self._rate_limit_per_minute = max(int(config.get("RATE_LIMIT_PER_MINUTE", 60)), 1)
@@ -1129,14 +1129,16 @@ class Tradovate(Broker):
             self.logger.info("cancel_open_orders(strategy=%s) -> no active orders tracked", strategy)
             return
 
-        active_ids = getattr(self, "_active_broker_identifiers", set()) or set()
+        active_ids = getattr(self, "_active_broker_identifiers", None)
+        if active_ids is None:
+            active_ids = self._refresh_active_identifiers_snapshot()
         orders_to_cancel: list[Order] = []
         stale_count = 0
 
         for order in tracked_orders:
             identifier = getattr(order, "identifier", None)
             identifier_str = str(identifier) if identifier is not None else None
-            if active_ids and identifier_str not in active_ids:
+            if identifier_str is not None and identifier_str not in active_ids:
                 stale_count += 1
                 self._mark_order_inactive_locally(order, self.CANCELED_ORDER)
                 continue
@@ -1166,6 +1168,27 @@ class Tradovate(Broker):
             order_ids,
         )
         self.cancel_orders(orders_to_cancel)
+
+    def _refresh_active_identifiers_snapshot(self) -> set[str]:
+        """Retrieve latest open orders from Tradovate to seed the active-id cache."""
+        active_ids: set[str] = set()
+        try:
+            payloads = self._pull_broker_all_orders() or []
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.debug("Tradovate active id refresh failed: %s", exc)
+            self._active_broker_identifiers = active_ids
+            return active_ids
+
+        for payload in payloads:
+            order_id = payload.get("id")
+            if order_id is None:
+                continue
+            status = str(payload.get("ordStatus", "")).lower()
+            if status in {"working", "pending", "submitted", "new", "open"}:
+                active_ids.add(str(order_id))
+
+        self._active_broker_identifiers = active_ids
+        return active_ids
 
     def _submit_order(self, order: Order) -> Order:
         """

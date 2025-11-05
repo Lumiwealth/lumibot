@@ -833,14 +833,40 @@ class TestTradovateLifecycle:
         broker._new_orders.append(live_order)
         broker._active_broker_identifiers = {"222"}
 
-        with patch.object(broker, "cancel_orders") as mock_cancel:
+        with patch.object(broker, "_refresh_active_identifiers_snapshot", return_value={"222"}) as mock_refresh, \
+             patch.object(broker, "cancel_orders") as mock_cancel:
             broker.cancel_open_orders("Strategy")
 
+        mock_refresh.assert_not_called()
         mock_cancel.assert_called_once()
         args, _ = mock_cancel.call_args
         assert args[0] == [live_order]
         assert stale_order.status == broker.CANCELED_ORDER
         assert not stale_order.is_active()
+
+    def test_cancel_open_orders_refreshes_cache_when_missing(self):
+        from lumibot.entities import Asset, Order
+
+        broker = self._make_broker()
+
+        live_order = Order(
+            strategy="Strategy",
+            asset=Asset("ESZ5", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="sell",
+            order_type=Order.OrderType.MARKET,
+        )
+        live_order.set_identifier("333")
+        live_order.status = Order.OrderStatus.NEW
+        broker._new_orders.append(live_order)
+        broker._active_broker_identifiers = None
+
+        with patch.object(broker, "_refresh_active_identifiers_snapshot", return_value={"333"}) as mock_refresh, \
+             patch.object(broker, "cancel_orders") as mock_cancel:
+            broker.cancel_open_orders("Strategy")
+
+        mock_refresh.assert_called_once()
+        mock_cancel.assert_called_once()
 
 
 class TestTradovateTokenRenewal:

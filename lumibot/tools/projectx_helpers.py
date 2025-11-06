@@ -624,34 +624,28 @@ class ProjectX:
                 (df["t"] >= pd.to_datetime(start_datetime))
                 & (df["t"] <= pd.to_datetime(end_datetime))
             ]
-            
-            # Add date and time columns
-            df["date"] = df["t"].dt.date
-            df["time"] = df["t"].dt.time
-            
+
             # Map ProjectX column names to standard OHLCV format
             column_mapping = {
                 'o': 'open',
                 'h': 'high', 
                 'l': 'low',
                 'c': 'close',
-                'v': 'volume'
+                'v': 'volume',
+                't': 'datetime',
             }
             
             # Rename columns to standard format
             df.rename(columns=column_mapping, inplace=True)
             
             # Reorder columns to standard format
-            standard_columns = ["date", "time", "open", "high", "low", "close", "volume"]
+            standard_columns = ["datetime", "open", "high", "low", "close", "volume"]
             available_columns = [col for col in standard_columns if col in df.columns]
             extra_columns = [col for col in df.columns if col not in standard_columns]
             df = df[available_columns + extra_columns]
-            
-            # Drop timestamp column
-            df.drop(columns=["t"], inplace=True)
-            
+
             # Sort and reset index
-            df.sort_values(by=["date", "time"], inplace=True)
+            df.sort_values(by=["datetime"], inplace=True)
             df.reset_index(drop=True, inplace=True)
             
             return df

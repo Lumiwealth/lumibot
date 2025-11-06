@@ -240,8 +240,8 @@ class ProjectXData(DataSource):
             else:
                 start_datetime = end_datetime - timedelta(days=length)
 
-            start_datetime.replace(second=0, microsecond=0)
-            end_datetime.replace(second=59, microsecond=999999)
+            start_datetime = start_datetime.replace(second=0, microsecond=0)
+            end_datetime = end_datetime.replace(second=59, microsecond=999999)
             df = self.client.history_retrieve_bars(
                 contract_id=contract_id,
                 start_datetime=start_datetime,

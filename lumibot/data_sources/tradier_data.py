@@ -257,7 +257,7 @@ class TradierData(DataSource):
             # For minute bars, calculate additional days needed accounting for weekends/holidays
             # minutes_per_day = 390  # ~6.5 hours of trading per day
             minutes_per_day = 24 * 60 / timestep_qty  # Need to include premarket and after hours
-            days_needed = (length // minutes_per_day) + 1
+            days_needed = int(length // minutes_per_day) + 1
 
         start_date = date_n_trading_days_from_date(
             n_days=days_needed,

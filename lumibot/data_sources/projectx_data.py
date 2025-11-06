@@ -113,12 +113,12 @@ class ProjectXData(DataSource):
             if not contract_id:
                 return None
 
-            end_dt = datetime.now()
-            start_dt = end_dt - timedelta(minutes=1)
+            end_dt = datetime.now().replace(second=59, microsecond=999999)
+            start_dt = (end_dt - timedelta(minutes=1)).replace(second=0, microsecond=0)
             df = self.client.history_retrieve_bars(
                 contract_id=contract_id,
-                start_datetime=start_dt.isoformat(),
-                end_datetime=end_dt.isoformat(),
+                start_datetime=start_dt,
+                end_datetime=end_dt,
                 unit=self.TIME_UNIT_MAPPING["minute"],
                 unit_number=1,
                 limit=1,
@@ -225,10 +225,12 @@ class ProjectXData(DataSource):
             else:
                 start_datetime = end_datetime - timedelta(days=length)
 
+            start_datetime.replace(second=0, microsecond=0)
+            end_datetime.replace(second=59, microsecond=999999)
             df = self.client.history_retrieve_bars(
                 contract_id=contract_id,
-                start_datetime=start_datetime.isoformat(),
-                end_datetime=end_datetime.isoformat(),
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
                 unit=unit,
                 unit_number=unit_number,
                 limit=length + 100,

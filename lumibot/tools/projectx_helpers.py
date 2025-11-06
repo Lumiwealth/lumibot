@@ -576,26 +576,20 @@ class ProjectX:
             self.logger.error(f"Error getting contract details: {e}")
             return {"success": False, "error": str(e)}
     
-    def history_retrieve_bars(self, contract_id: str, start_datetime: str, end_datetime: str,
+    def history_retrieve_bars(self, contract_id: str, start_datetime: str | datetime, end_datetime: str | datetime,
                              unit: int, unit_number: int, limit: int = 1000,
                              include_partial_bar: bool = True, live: bool = False,
                              is_est: bool = True) -> pd.DataFrame:
         """Retrieve historical bars for a contract"""
         url = f"{self.base_url}api/history/retrievebars"
-        
-        # Convert timezone if needed
+
+        # Convert timezone if needed (handle both str and datetime inputs)
         if is_est:
-            est = pytz.timezone("America/New_York")
-            start_datetime = (
-                est.localize(datetime.fromisoformat(start_datetime[:-1]))
-                .astimezone(pytz.utc)
-                .isoformat()
-            )
-            end_datetime = (
-                est.localize(datetime.fromisoformat(end_datetime[:-1]))
-                .astimezone(pytz.utc)
-                .isoformat()
-            )
+            start_datetime = _to_utc_iso(start_datetime, is_est=True)
+            end_datetime = _to_utc_iso(end_datetime, is_est=True)
+        else:
+            start_datetime = _to_utc_iso(start_datetime, is_est=False)
+            end_datetime = _to_utc_iso(end_datetime, is_est=False)
         
         payload = {
             "contractId": contract_id,
@@ -874,7 +868,7 @@ class ProjectXClient:
         
         return df
     
-    def history_retrieve_bars(self, contract_id: str, start_datetime: str, end_datetime: str,
+    def history_retrieve_bars(self, contract_id: str, start_datetime: str | datetime, end_datetime: str | datetime,
                              unit: int, unit_number: int, limit: int = 1000,
                              include_partial_bar: bool = True, live: bool = False,
                              is_est: bool = True) -> pd.DataFrame:
@@ -1109,6 +1103,44 @@ class ProjectXClient:
         except Exception as e:
             self.logger.error(f"Error in order_cancel wrapper: {e}")
             return {"success": False, "error": str(e)}
+
+
+def _to_utc_iso(dt_or_str, is_est: bool = True) -> str:
+    """
+    Normalize input (datetime or ISO string) to a UTC ISO formatted string.
+    - If input is a string it accepts ISO formats with or without trailing 'Z'.
+    - If input is a naive datetime and is_est is True, localize to America/New_York.
+      If is_est is False and naive, assume UTC.
+    - If input is timezone-aware, convert to UTC.
+    Returns ISO string with +00:00 timezone.
+    """
+    if isinstance(dt_or_str, datetime):
+        dt = dt_or_str
+    elif isinstance(dt_or_str, str):
+        s = dt_or_str
+        if s.endswith('Z'):
+            s = s[:-1]
+        # fromisoformat handles YYYY-MM-DDTHH:MM:SS[.ffffff][+HH:MM]
+        dt = datetime.fromisoformat(s)
+    else:
+        raise TypeError("start/end datetime must be a str or datetime")
+
+    if is_est:
+        est = pytz.timezone("America/New_York")
+        # If naive, localize to EST; if aware, convert to EST first (keeps DST correctness)
+        if dt.tzinfo is None:
+            dt = est.localize(dt)
+        else:
+            dt = dt.astimezone(est)
+        dt_utc = dt.astimezone(pytz.utc)
+    else:
+        # Assume UTC for naive datetimes when is_est is False
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=pytz.utc)
+        dt_utc = dt.astimezone(pytz.utc)
+
+    return dt_utc.isoformat()
+
 
 # ================= Bracket Helpers Overview =================
 # The bracket-related helpers below encapsulate pure or minimally stateful logic

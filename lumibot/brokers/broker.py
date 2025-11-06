@@ -1421,7 +1421,7 @@ class Broker(ABC):
             or getattr(order, "order_id", None)
             for order in orders
         ]
-        self.logger.info(
+        self.logger.debug(
             "cancel_open_orders(strategy=%s) -> active=%d ids=%s",
             strategy,
             len(orders),

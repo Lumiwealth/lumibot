@@ -2,7 +2,7 @@
 import time
 import os
 import signal
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -2012,6 +2012,7 @@ def build_historical_chain(
     as_of_date: date,
     max_expirations: int = 120,
     max_consecutive_misses: int = 10,
+    chain_constraints: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Dict[str, List[float]]]:
     """Build an as-of option chain by filtering live expirations against quote availability."""
 
@@ -2047,9 +2048,43 @@ def build_historical_chain(
     expiration_values: List[int] = sorted(int(value) for value in exp_df.iloc[:, 0].tolist())
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
+    constraints = chain_constraints or {}
+    min_hint_date = constraints.get("min_expiration_date")
+    max_hint_date = constraints.get("max_expiration_date")
+
+    min_hint_int = (
+        int(min_hint_date.strftime("%Y%m%d"))
+        if isinstance(min_hint_date, date)
+        else None
+    )
+    max_hint_int = (
+        int(max_hint_date.strftime("%Y%m%d"))
+        if isinstance(max_hint_date, date)
+        else None
+    )
+
+    effective_start_int = as_of_int
+    if min_hint_int:
+        effective_start_int = max(effective_start_int, min_hint_int)
+
+    logger.info(
+        "[ThetaData] Building chain for %s @ %s (min_hint=%s, max_hint=%s, expirations=%d)",
+        asset.symbol,
+        as_of_date,
+        min_hint_date,
+        max_hint_date,
+        len(expiration_values),
+    )
+
+    allowed_misses = max_consecutive_misses
+    if min_hint_int:
+        # Allow a deeper scan when callers request far-dated expirations (LEAPS).
+        allowed_misses = max(max_consecutive_misses, 50)
+
     chains: Dict[str, Dict[str, List[float]]] = {"CALL": {}, "PUT": {}}
     expirations_added = 0
     consecutive_misses = 0
+    hint_reached = False
 
     def expiration_has_data(expiration_str: str, strike_thousandths: int, right: str) -> bool:
         querystring = {
@@ -2071,8 +2106,17 @@ def build_historical_chain(
         return as_of_int in dates if dates else False
 
     for exp_value in expiration_values:
-        if exp_value < as_of_int:
+        if exp_value < effective_start_int:
             continue
+        if max_hint_int and exp_value > max_hint_int:
+            logger.debug(
+                "[ThetaData] Reached max hint %s for %s; stopping chain build.",
+                max_hint_date,
+                asset.symbol,
+            )
+            break
+        if min_hint_int and not hint_reached and exp_value >= min_hint_int:
+            hint_reached = True
 
         expiration_iso = _normalize_expiration_value(exp_value)
         if not expiration_iso:
@@ -2126,13 +2170,17 @@ def build_historical_chain(
                 as_of_date,
             )
             consecutive_misses += 1
-            if consecutive_misses >= max_consecutive_misses:
-                logger.debug(
-                    "Encountered %d consecutive inactive expirations for %s; stopping scan.",
-                    max_consecutive_misses,
-                    asset.symbol,
-                )
-                break
+            if consecutive_misses >= allowed_misses:
+                if not min_hint_int or hint_reached:
+                    logger.debug(
+                        "[ThetaData] Encountered %d consecutive inactive expirations for %s (starting near %s); stopping scan.",
+                        allowed_misses,
+                        asset.symbol,
+                        expiration_iso,
+                    )
+                    break
+                # When we're still marching toward the requested hint, keep scanning.
+                continue
             continue
 
         chains["CALL"][expiration_iso] = strike_values
@@ -2239,6 +2287,8 @@ def get_chains_cached(
     password: str,
     asset: Asset,
     current_date: date = None
+    ,
+    chain_constraints: Optional[Dict[str, Any]] = None,
 ) -> dict:
     """
     Retrieve option chain with caching (MATCHES POLYGON PATTERN).
@@ -2282,38 +2332,44 @@ def get_chains_cached(
     chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / _resolve_asset_folder(asset) / "option_chains"
     chain_folder.mkdir(parents=True, exist_ok=True)
 
-    # 3) Check for recent cached file (within RECENT_FILE_TOLERANCE_DAYS)
+    constraints = chain_constraints or {}
+    hint_present = any(
+        constraints.get(key) is not None for key in ("min_expiration_date", "max_expiration_date")
+    )
+
+    # 3) Check for recent cached file (within RECENT_FILE_TOLERANCE_DAYS) unless hints require fresh data
     RECENT_FILE_TOLERANCE_DAYS = 7
-    earliest_okay_date = current_date - timedelta(days=RECENT_FILE_TOLERANCE_DAYS)
-    pattern = f"{asset.symbol}_*.parquet"
-    potential_files = sorted(chain_folder.glob(pattern), reverse=True)
+    if not hint_present:
+        earliest_okay_date = current_date - timedelta(days=RECENT_FILE_TOLERANCE_DAYS)
+        pattern = f"{asset.symbol}_*.parquet"
+        potential_files = sorted(chain_folder.glob(pattern), reverse=True)
 
-    for fpath in potential_files:
-        fname = fpath.stem  # e.g., "SPY_2025-09-15"
-        parts = fname.split("_", maxsplit=1)
-        if len(parts) != 2:
-            continue
-        file_symbol, date_str = parts
-        if file_symbol != asset.symbol:
-            continue
+        for fpath in potential_files:
+            fname = fpath.stem  # e.g., "SPY_2025-09-15"
+            parts = fname.split("_", maxsplit=1)
+            if len(parts) != 2:
+                continue
+            file_symbol, date_str = parts
+            if file_symbol != asset.symbol:
+                continue
 
-        try:
-            file_date = date.fromisoformat(date_str)
-        except ValueError:
-            continue
+            try:
+                file_date = date.fromisoformat(date_str)
+            except ValueError:
+                continue
 
-        # If file is recent enough, reuse it
-        if earliest_okay_date <= file_date <= current_date:
-            logger.debug(f"Reusing chain file {fpath} (file_date={file_date})")
-            df_cached = pd.read_parquet(fpath, engine='pyarrow')
+            # If file is recent enough, reuse it
+            if earliest_okay_date <= file_date <= current_date:
+                logger.debug(f"Reusing chain file {fpath} (file_date={file_date})")
+                df_cached = pd.read_parquet(fpath, engine='pyarrow')
 
-            # Convert back to dict with lists (not numpy arrays)
-            data = df_cached["data"][0]
-            for right in data["Chains"]:
-                for exp_date in data["Chains"][right]:
-                    data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+                # Convert back to dict with lists (not numpy arrays)
+                data = df_cached["data"][0]
+                for right in data["Chains"]:
+                    for exp_date in data["Chains"][right]:
+                        data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
 
-            return data
+                return data
 
     # 4) No suitable file => fetch from ThetaData using exp=0 chain builder
     logger.debug(
@@ -2328,6 +2384,7 @@ def get_chains_cached(
         password=password,
         asset=asset,
         as_of_date=current_date,
+        chain_constraints=constraints if hint_present else None,
     )
 
     if chains_dict is None:

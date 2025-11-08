@@ -681,6 +681,34 @@ class OptionsHelper:
         self.strategy.log_message(f"Order details: {details}", color="blue")
         return details
 
+    def _chain_hint(self, min_expiration_date):
+        """Temporarily set chain constraints on the underlying data source."""
+        broker = getattr(self.strategy, "broker", None)
+        data_source = getattr(broker, "data_source", None) if broker else None
+
+        class _ChainHintContext:
+            def __init__(self, ds, min_dt):
+                self.ds = ds
+                self.min_dt = min_dt
+                self.prev = None
+
+            def __enter__(self):
+                if not self.ds:
+                    return
+                self.prev = getattr(self.ds, "_chain_constraints", None)
+                self.ds._chain_constraints = {"min_expiration_date": self.min_dt}
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                if not self.ds:
+                    return
+                if self.prev is None:
+                    if hasattr(self.ds, "_chain_constraints"):
+                        delattr(self.ds, "_chain_constraints")
+                else:
+                    self.ds._chain_constraints = self.prev
+
+        return _ChainHintContext(data_source, min_expiration_date)
+
     def get_expiration_on_or_after_date(self, dt: Union[date, datetime], chains: Union[Dict[str, Any], Chains], call_or_put: str, underlying_asset: Optional[Asset] = None) -> Optional[date]:
         """
         Get the expiration date that is on or after a given date, validating that the option has tradeable data.
@@ -728,6 +756,18 @@ class OptionsHelper:
             )
             return None
 
+        def _try_resolve_expiration(chain_map: Dict[str, Any]) -> List[Tuple[str, date]]:
+            expiration_dates: List[Tuple[str, date]] = []
+            for expiry_str in chain_map.keys():
+                try:
+                    from lumibot.entities.chains import _normalise_expiry
+                    expiry_date = _normalise_expiry(expiry_str)
+                    expiration_dates.append((expiry_str, expiry_date))
+                except Exception:
+                    continue
+            expiration_dates.sort(key=lambda x: x[1])
+            return expiration_dates
+
         # Get underlying symbol for validation
         underlying_symbol = None
         if underlying_asset:
@@ -738,17 +778,37 @@ class OptionsHelper:
             underlying_symbol = chains_map['UnderlyingSymbol']
 
         # Convert string expiries to dates for comparison
-        expiration_dates: List[Tuple[str, date]] = []
-        for expiry_str in specific_chain.keys():
-            try:
-                from lumibot.entities.chains import _normalise_expiry
-                expiry_date = _normalise_expiry(expiry_str)
-                expiration_dates.append((expiry_str, expiry_date))
-            except:
-                continue
-
-        expiration_dates.sort(key=lambda x: x[1])
+        expiration_dates: List[Tuple[str, date]] = _try_resolve_expiration(specific_chain)
         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
+
+        # If we couldn't find any expirations beyond the requested date, attempt a deeper fetch
+        if not future_candidates and underlying_asset is not None:
+            self.strategy.log_message(
+                f"No expirations >= {dt} found in cached chains; requesting extended range...",
+                color="yellow",
+            )
+            with self._chain_hint(dt):
+                refreshed_chains = self.strategy.get_chains(underlying_asset)
+            if refreshed_chains:
+                chains_map = refreshed_chains if isinstance(refreshed_chains, dict) else {}
+                options_map = chains_map.get("Chains") if isinstance(chains_map.get("Chains"), dict) else None
+                if options_map:
+                    specific_chain = options_map.get(call_or_put_caps) if isinstance(options_map.get(call_or_put_caps), dict) else None
+                    if specific_chain:
+                        expiration_dates = _try_resolve_expiration(specific_chain)
+                        future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
+                        chain_refetched = True
+            if future_candidates:
+                self.strategy.log_message(
+                    f"Extended chain request delivered {len(future_candidates)} expirations >= {dt}.",
+                    color="blue",
+                )
+            else:
+                self.strategy.log_message(
+                    f"Extended chain request still lacks expirations on/after {dt}; giving up.",
+                    color="red",
+                )
+                return None
 
         # Check each candidate expiry to find one with valid data
         for exp_str, exp_date in future_candidates:
@@ -792,10 +852,8 @@ class OptionsHelper:
                     return exp_date
 
         # No future expirations with tradeable data; let the caller skip entries gracefully.
-        self.strategy.log_message(
-            f"No valid expirations on or after {dt} with tradeable data for {call_or_put_caps}; skipping.",
-            color="yellow",
-        )
+        msg = f"No valid expirations on or after {dt} with tradeable data for {call_or_put_caps}; skipping."
+        self.strategy.log_message(msg, color="yellow")
         return None
 
     # ============================================================

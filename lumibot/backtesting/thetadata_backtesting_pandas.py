@@ -60,6 +60,7 @@ class ThetaDataBacktestingPandas(PandasData):
         self._use_quote_data = use_quote_data
 
         self._dataset_metadata: Dict[tuple, Dict[str, object]] = {}
+        self._chain_constraints = None
 
         # Set data_source to self since this class acts as both broker and data source
         self.data_source = self
@@ -1157,11 +1158,13 @@ class ThetaDataBacktestingPandas(PandasData):
         """
         from lumibot.entities import Chains
 
+        constraints = getattr(self, "_chain_constraints", None)
         chains_dict = thetadata_helper.get_chains_cached(
             username=self._username,
             password=self._password,
             asset=asset,
-            current_date=self.get_datetime().date()
+            current_date=self.get_datetime().date(),
+            chain_constraints=constraints,
         )
 
         # Wrap in Chains entity for modern API

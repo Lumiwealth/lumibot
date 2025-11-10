@@ -130,8 +130,8 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         # _update_datetime should NOT be called
         self.broker._update_datetime.assert_not_called()
 
-    def test_get_time_to_close_nudges_past_exact_close(self):
-        """Regression: ensure the broker advances when now == market_close (DST fallback case)."""
+    def test_get_time_to_close_returns_zero_at_close(self):
+        """Regression: ensure get_time_to_close returns 0 when now == market_close."""
         tz = pytz.timezone("America/New_York")
         market_open = tz.localize(datetime(2025, 11, 2, 9, 30))
         market_close = tz.localize(datetime(2025, 11, 2, 16, 0))
@@ -145,7 +145,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
         seconds = self.broker.get_time_to_close()
 
-        assert seconds == 60.0
+        assert seconds == 0.0
 
     def test_update_datetime_pushes_forward_on_duplicate_timestamp(self):
         """Regression: new_datetime must advance when DST normalization repeats a minute."""

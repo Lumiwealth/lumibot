@@ -363,15 +363,14 @@ class BacktestingBroker(Broker):
             delta = market_close - now
             return delta.total_seconds()
 
-        delta = market_close - now
-        delta_seconds = delta.total_seconds()
+        delta_seconds = (market_close - now).total_seconds()
         if delta_seconds <= 0:
             logger.debug(
-                "Backtesting clock hit or passed market close (%s >= %s); nudging forward 60 seconds to avoid stalling.",
+                "Backtesting clock reached or passed market close (%s >= %s); returning 0 seconds.",
                 now,
                 market_close,
             )
-            return 60.0
+            return 0.0
 
         return delta_seconds
 

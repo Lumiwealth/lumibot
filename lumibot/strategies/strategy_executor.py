@@ -98,26 +98,35 @@ class StrategyExecutor(Thread):
                 self._market_type_cache[market_name] = True
                 return True
 
-            # Get market calendar
             cal = mcal.get_calendar(market_name)
 
-            # Test with a recent Monday (typical trading day)
-            test_date = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
-            schedule = cal.schedule(start_date=test_date, end_date=test_date)
+            # Sample ~1.5 weeks so we can observe weekend gaps as well as daily spans.
+            reference_day = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
+            schedule = cal.schedule(
+                start_date=(reference_day - timedelta(days=3)),
+                end_date=(reference_day + timedelta(days=7)),
+            )
 
             if schedule.empty:
-                # No trading on this date, assume it's not continuous
                 self._market_type_cache[market_name] = False
                 return False
 
-            # Calculate trading hours duration
-            market_open = schedule.iloc[0, 0]
-            market_close = schedule.iloc[0, 1]
-            duration_hours = (market_close - market_open).total_seconds() / 3600
+            durations = schedule["market_close"] - schedule["market_open"]
+            avg_duration = durations.mean()
+            duration_hours = avg_duration.total_seconds() / 3600 if avg_duration is not pd.NaT else 0
 
-            # Consider markets with 20+ hours per day as continuous
-            # This catches futures markets that trade ~22-24 hours
-            is_continuous = duration_hours >= 20.0
+            # Detect long breaks (weekends/maintenance) between sessions.
+            if len(schedule) >= 2:
+                next_opens = schedule["market_open"].iloc[1:].reset_index(drop=True)
+                prev_closes = schedule["market_close"].iloc[:-1].reset_index(drop=True)
+                gaps = (next_opens - prev_closes)
+                max_gap = gaps.max()
+                gap_hours = max_gap.total_seconds() / 3600 if isinstance(max_gap, pd.Timedelta) else 0
+            else:
+                gap_hours = 0
+
+            # Treat as continuous only if it runs >=20h *and* has no multi-hour gaps (>=6h) between sessions.
+            is_continuous = (duration_hours >= 20.0) and (gap_hours < 6.0)
 
             self._market_type_cache[market_name] = is_continuous
             return is_continuous

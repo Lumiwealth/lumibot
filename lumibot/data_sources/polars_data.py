@@ -7,6 +7,7 @@ import pandas as pd
 
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars, Quote
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -392,37 +393,51 @@ class PolarsData(DataSourceBacktesting):
         pandas.DatetimeIndex
             Cleaned index with one-minute frequency during market hours.
         """
-        # Ensure the datetime index is in datetime format and drop duplicate timestamps
-        dt_index = pd.to_datetime(dt_index).drop_duplicates()
+        # Ensure the datetime index is timezone-aware and drop duplicates
+        dt_index = pd.to_datetime(dt_index)
+        original_tz = dt_index.tz
+        if original_tz is None:
+            original_tz = LUMIBOT_DEFAULT_PYTZ
+            dt_index = dt_index.tz_localize(original_tz, ambiguous="infer", nonexistent="shift_forward")
 
-        # Create a DataFrame with dt_index as the index and sort it
-        df = pd.DataFrame(range(len(dt_index)), index=dt_index)
+        dt_index = dt_index.sort_values().drop_duplicates()
+        dt_index_utc = dt_index.tz_convert("UTC")
+
+        # Normalize calendar boundaries to UTC to match the resample space
+        pcal_utc = pcal.copy()
+        if isinstance(pcal_utc.index, pd.DatetimeIndex):
+            calendar_index = pcal_utc.index
+            if getattr(calendar_index, "tz", None) is not None:
+                calendar_index = calendar_index.tz_convert(original_tz).normalize().tz_localize(None)
+            else:
+                calendar_index = calendar_index.tz_localize(None) if hasattr(calendar_index, "tz_localize") else calendar_index
+            pcal_utc.index = calendar_index
+        for column in ("market_open", "market_close"):
+            pcal_utc[column] = pd.to_datetime(pcal_utc[column])
+            if getattr(pcal_utc[column].dt, "tz", None) is None:
+                pcal_utc[column] = pcal_utc[column].dt.tz_localize(original_tz, ambiguous="infer", nonexistent="shift_forward")
+            pcal_utc[column] = pcal_utc[column].dt.tz_convert("UTC")
+
+        # Create a DataFrame in UTC to avoid DST duplication
+        df = pd.DataFrame(range(len(dt_index_utc)), index=dt_index_utc)
         df = df.sort_index()
+        df["dates"] = df.index.tz_convert(original_tz).normalize().tz_localize(None)
 
-        # Create a column for the date portion only (normalize to date, keeping as datetime64 type)
-        df["dates"] = df.index.normalize()
-
-        # Merge with the trading calendar on the 'dates' column to get market open/close times.
-        # Use a left join to keep all rows from the original index.
         df = df.merge(
-            pcal[["market_open", "market_close"]],
+            pcal_utc[["market_open", "market_close"]],
             left_on="dates",
             right_index=True,
             how="left"
         )
 
         if self._timestep == "minute":
-            # Resample to a 1-minute frequency, using pad to fill missing times.
-            # At this point, the index is unique so asfreq will work correctly.
             df = df.asfreq("1min", method="pad")
-
-            # Filter to include only the rows that fall within market open and close times.
-            result_index = df.loc[
-                (df.index >= df["market_open"]) & (df.index <= df["market_close"])
-            ].index
+            mask = (df.index >= df["market_open"]) & (df.index <= df["market_close"])
+            result_index = df.loc[mask].index
         else:
             result_index = df.index
 
+        result_index = result_index.tz_convert(original_tz)
         return result_index
 
     def get_trading_days_pandas(self):

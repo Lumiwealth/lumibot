@@ -5,6 +5,9 @@ Ensures that datasource_class=None correctly auto-selects from the env var.
 import os
 from datetime import datetime
 from unittest.mock import patch, MagicMock
+
+import pandas as pd
+import pytz
 import pytest
 from dotenv import load_dotenv
 
@@ -70,6 +73,26 @@ class SimpleTestStrategy(Strategy):
 class TestBacktestingDataSourceEnv:
     """Test BACKTESTING_DATA_SOURCE environment variable."""
 
+    @staticmethod
+    def _fake_polygon_df(api_key, asset, start_datetime, end_datetime, timespan="day", quote_asset=None, **kwargs):
+        """Return deterministic OHLCV data so tests never hit the live Polygon API."""
+        tz = start_datetime.tzinfo or pytz.timezone("America/New_York")
+        freq_map = {"minute": "min", "hour": "H"}
+        freq = freq_map.get(timespan, "D")
+        seconds_per = {"min": 60, "H": 3600, "D": 86400}[freq]
+        span_seconds = max((end_datetime - start_datetime).total_seconds(), 1)
+        periods = max(10, int(span_seconds / seconds_per) + 5)
+        index = pd.date_range(start_datetime, periods=periods, freq=freq, tz=tz)
+        base = pd.Series(range(len(index)), index=index).astype(float)
+        data = {
+            "open": 200 + base,
+            "high": 201 + base,
+            "low": 199 + base,
+            "close": 200.5 + base,
+            "volume": 1000 + base * 10,
+        }
+        return pd.DataFrame(data, index=index)
+
     def test_auto_select_polygon_case_insensitive(self, clean_environment, restore_theta_credentials, caplog):
         """Test that BACKTESTING_DATA_SOURCE=polygon (lowercase) selects PolygonDataBacktesting."""
         # Configure caplog to capture INFO level logs from lumibot.strategies._strategy
@@ -79,7 +102,9 @@ class TestBacktestingDataSourceEnv:
         if not polygon_key:
             pytest.skip("Polygon API key not configured")
 
-        with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'polygon'}):
+        with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'polygon'}), \
+             patch('lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon',
+                   side_effect=self._fake_polygon_df):
             # Re-import credentials to pick up env change
             from importlib import reload
             import lumibot.credentials

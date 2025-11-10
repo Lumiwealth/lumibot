@@ -1,6 +1,8 @@
 import pytest
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
+import pandas as pd
 import pytz
 from lumibot.entities import Asset, Order, Bars
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
@@ -70,11 +72,28 @@ class TestBrokerHandlesCrypto:
         start = datetime.now() - timedelta(days=4)
         end = datetime.now() - timedelta(days=2)
 
-        data_source = PolygonDataBacktesting(
-            datetime_start=start,
-            datetime_end=end,
-            api_key=POLYGON_CONFIG["API_KEY"]
-        )
+        def _fake_polygon(api_key, asset, start_datetime, end_datetime, timespan="day", quote_asset=None, **kwargs):
+            tz = start_datetime.tzinfo or pytz.timezone("America/New_York")
+            freq = {"minute": "min", "hour": "H"}.get(timespan, "D")
+            periods = 20
+            index = pd.date_range(start_datetime, periods=periods, freq=freq, tz=tz)
+            base = pd.Series(range(periods), index=index).astype(float)
+            data = {
+                "open": 200 + base,
+                "high": 201 + base,
+                "low": 199 + base,
+                "close": 200.5 + base,
+                "volume": 1000 + base * 10,
+            }
+            return pd.DataFrame(data, index=index)
+
+        with patch('lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon',
+                   side_effect=_fake_polygon):
+            data_source = PolygonDataBacktesting(
+                datetime_start=start,
+                datetime_end=end,
+                api_key=POLYGON_CONFIG["API_KEY"]
+            )
         broker = BacktestingBroker(data_source=data_source)
 
         # test_get_last_price

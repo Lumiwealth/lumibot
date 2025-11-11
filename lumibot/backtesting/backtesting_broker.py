@@ -302,7 +302,8 @@ class BacktestingBroker(Broker):
         open_time = trading_day.market_open
 
         # DEBUG: Log what's happening
-        print(f"[BROKER DEBUG] get_time_to_open: now={now}, next_trading_day={trading_day.name}, open_time={open_time}")
+        logger.debug(f"[BROKER DEBUG] get_time_to_open: now={now}, next_trading_day={trading_day.name}, "
+                     f"open_time={open_time}")
 
         # For Backtesting, sometimes the user can just pass in dates (i.e. 2023-08-01) and not datetimes
         # In this case the "now" variable is starting at midnight, so we need to adjust the open_time to be actual
@@ -314,17 +315,18 @@ class BacktestingBroker(Broker):
             now_date = now.date() if hasattr(now, 'date') else now
             trading_day_dates = self._trading_days.index.date
             if now_date in trading_day_dates:
-                print(f"[BROKER DEBUG] Overriding open_time to datetime_start because now ({now}) is on a trading day but after market open")
+                logger.debug(f"[BROKER DEBUG] Overriding open_time to datetime_start because now ({now}) is on a "
+                             f"trading day but after market open")
                 open_time = self.data_source.datetime_start
             else:
-                print(f"[BROKER DEBUG] NOT overriding open_time because now ({now}) is NOT a trading day")
+                logger.debug(f"[BROKER DEBUG] NOT overriding open_time because now ({now}) is NOT a trading day")
 
         if now >= open_time:
-            print(f"[BROKER DEBUG] Market already open: now={now} >= open_time={open_time}, returning 0")
+            logger.debug(f"[BROKER DEBUG] Market already open: now={now} >= open_time={open_time}, returning 0")
             return 0
 
         delta = open_time - now
-        print(f"[BROKER DEBUG] Market opens in {delta.total_seconds()} seconds")
+        logger.debug(f"[BROKER DEBUG] Market opens in {delta.total_seconds()} seconds")
         return delta.total_seconds()
 
     def get_time_to_close(self):
@@ -361,30 +363,31 @@ class BacktestingBroker(Broker):
     def _await_market_to_open(self, timedelta=None, strategy=None):
         # Process outstanding orders first before waiting for market to open
         # or else they don't get processed until the next day
-        print(f"[BROKER DEBUG] _await_market_to_open called, current datetime={self.datetime}, timedelta={timedelta}")
+        logger.debug(f"[BROKER DEBUG] _await_market_to_open called, current "
+                     f"datetime={self.datetime}, timedelta={timedelta}")
         self.process_pending_orders(strategy=strategy)
 
         time_to_open = self.get_time_to_open()
-        print(f"[BROKER DEBUG] get_time_to_open returned: {time_to_open}")
+        logger.debug(f"[BROKER DEBUG] get_time_to_open returned: {time_to_open}")
 
         # If None is returned, it means we've reached the end of available trading days
         if time_to_open is None:
             logger.info("Backtesting reached end of available trading days data")
-            print(f"[BROKER DEBUG] time_to_open is None, returning early")
+            logger.debug(f"[BROKER DEBUG] time_to_open is None, returning early")
             return
 
         # Allow the caller to specify a buffer (in minutes) before the actual open
         if timedelta:
             time_to_open -= 60 * timedelta
-            print(f"[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: {time_to_open}")
+            logger.debug(f"[BROKER DEBUG] Adjusted time_to_open for timedelta buffer: {time_to_open}")
 
         # Only advance time if there is something positive to advance;
         # prevents zero or negative time updates.
         if time_to_open <= 0:
-            print(f"[BROKER DEBUG] time_to_open <= 0 ({time_to_open}), returning without advancing time")
+            logger.debug(f"[BROKER DEBUG] time_to_open <= 0 ({time_to_open}), returning without advancing time")
             return
 
-        print(f"[BROKER DEBUG] Advancing time by {time_to_open} seconds")
+        logger.debug(f"[BROKER DEBUG] Advancing time by {time_to_open} seconds")
         self._update_datetime(time_to_open)
 
     def _await_market_to_close(self, timedelta=None, strategy=None):

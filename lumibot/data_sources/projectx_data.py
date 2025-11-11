@@ -293,9 +293,8 @@ class ProjectXData(DataSource):
                                 dropped = (~valid_mask).sum()
                                 self.logger.debug(f"Dropping {dropped} rows with invalid datetime during index set for {asset.symbol}")
                                 df = df.loc[valid_mask]
-                                dt_series = dt_series.loc[valid_mask]
-                            df = df.set_index(dt_series)
-                            df.index.name = "datetime"
+                            df = df.set_index("datetime")
+
                             # Convert to local timezone similar to other sources (Bars keeps tz-aware). Use UTC to be consistent.
                             if df.index.tz is None:
                                 df.index = df.index.tz_localize('UTC')

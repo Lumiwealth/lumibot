@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pandas as pd
 from datetime import datetime, time, timedelta
 import pytz
@@ -20,11 +20,14 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def setUp(self):
         """Set up a mock BacktestingBroker instance for testing."""
-        # Use patch to mock the data_source during instantiation or assign afterwards
-        with patch('lumibot.backtesting.backtesting_broker.DataSourceBacktesting') as MockDataSource:
-            # Prevent __init__ from running fully if it causes issues
-            self.broker = BacktestingBroker.__new__(BacktestingBroker)
-            self.broker.data_source = MockDataSource() # Assign mock data_source
+        class _StubDataSource:
+            def __init__(self):
+                self.get_datetime = MagicMock()
+                self._update_datetime = MagicMock()
+
+        # Prevent __init__ from running fully if it causes issues
+        self.broker = BacktestingBroker.__new__(BacktestingBroker)
+        self.broker.data_source = _StubDataSource()  # Assign lightweight data_source stub
 
         self.broker.logger = MagicMock()
         # Mock the get_datetime method on the data_source
@@ -43,9 +46,19 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         self.broker.process_pending_orders = MagicMock()
         self.mock_strategy = MagicMock() # Mock strategy object
 
-    def _set_current_time(self, timestamp_str):
+    def _set_current_time(self, timestamp):
         """Helper to set the mock time."""
-        self.mock_datetime = pd.Timestamp(timestamp_str, tz='America/New_York')
+        if isinstance(timestamp, pd.Timestamp):
+            ts = timestamp
+        elif isinstance(timestamp, datetime):
+            ts = pd.Timestamp(timestamp)
+        else:
+            ts = pd.Timestamp(timestamp)
+
+        if ts.tzinfo is None:
+            ts = ts.tz_localize('America/New_York')
+
+        self.mock_datetime = ts
         self.broker.data_source.get_datetime.return_value = self.mock_datetime
 
     def test_await_close_during_market_hours_no_buffer(self):
@@ -116,6 +129,41 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         self.broker.get_time_to_close.assert_called_once()
         # _update_datetime should NOT be called
         self.broker._update_datetime.assert_not_called()
+
+    def test_get_time_to_close_returns_zero_at_close(self):
+        """Regression: ensure get_time_to_close returns 0 when now == market_close."""
+        tz = pytz.timezone("America/New_York")
+        market_open = tz.localize(datetime(2025, 11, 2, 9, 30))
+        market_close = tz.localize(datetime(2025, 11, 2, 16, 0))
+        self.broker.get_time_to_close = BacktestingBroker.get_time_to_close.__get__(self.broker, BacktestingBroker)
+        self.broker._trading_days = pd.DataFrame(
+            {"market_open": [market_open]},
+            index=[market_close],
+        )
+        self.broker._market_open_cache = {market_close: market_open}
+        self._set_current_time('2025-11-02 16:00:00')
+
+        seconds = self.broker.get_time_to_close()
+
+        assert seconds == 0.0
+
+    def test_update_datetime_pushes_forward_on_duplicate_timestamp(self):
+        """Regression: new_datetime must advance when DST normalization repeats a minute."""
+        tz = pytz.timezone("America/New_York")
+        stuck_time = tz.localize(datetime(2025, 11, 2, 1, 30), is_dst=True)
+        # Restore the real implementation for this regression test.
+        self.broker._update_datetime = BacktestingBroker._update_datetime.__get__(self.broker, BacktestingBroker)
+        self._set_current_time(pd.Timestamp(stuck_time))
+        self.broker.option_source = None
+        update_spy = MagicMock()
+        self.broker.data_source._update_datetime = update_spy
+
+        self.broker._update_datetime(stuck_time)
+
+        update_spy.assert_called_once()
+        forwarded = update_spy.call_args[0][0]
+        self.assertGreater(forwarded, stuck_time)
+        self.assertEqual((forwarded - stuck_time).total_seconds(), 60.0)
 
     # Remove the old simulation tests as they are replaced by direct method calls
     # def test_advance_time_before_market_open(self): ...

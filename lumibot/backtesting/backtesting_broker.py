@@ -226,6 +226,8 @@ class BacktestingBroker(Broker):
         tz = self.datetime.tzinfo
         is_pytz = isinstance(tz, (pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo))
 
+        previous_datetime = self.datetime
+
         if isinstance(update_dt, timedelta):
             new_datetime = self.datetime + update_dt
         elif isinstance(update_dt, int) or isinstance(update_dt, float):
@@ -235,6 +237,12 @@ class BacktestingBroker(Broker):
 
         # This is needed to handle Daylight Savings Time changes
         new_datetime = tz.normalize(new_datetime) if is_pytz else new_datetime
+
+        # Guard against non-advancing timestamps (e.g., DST ambiguity)
+        if new_datetime <= previous_datetime:
+            new_datetime = previous_datetime + timedelta(minutes=1)
+            if is_pytz:
+                new_datetime = tz.normalize(new_datetime)
 
         self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
         if self.option_source:
@@ -355,8 +363,16 @@ class BacktestingBroker(Broker):
             delta = market_close - now
             return delta.total_seconds()
 
-        delta = market_close - now
-        return delta.total_seconds()
+        delta_seconds = (market_close - now).total_seconds()
+        if delta_seconds <= 0:
+            logger.debug(
+                "Backtesting clock reached or passed market close (%s >= %s); returning 0 seconds.",
+                now,
+                market_close,
+            )
+            return 0.0
+
+        return delta_seconds
 
     def _await_market_to_open(self, timedelta=None, strategy=None):
         # Process outstanding orders first before waiting for market to open

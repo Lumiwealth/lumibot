@@ -6,6 +6,7 @@ import pandas as pd
 import polars as pl
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+import pytz
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -178,6 +179,19 @@ class DataPolars:
         # Cached pandas DataFrame (lazy conversion)
         self._pandas_df = None
 
+    def _localize_or_convert_index(self, index, tz):
+        """Ensure index is tz-aware using the provided timezone."""
+        if isinstance(tz, str):
+            tz = pytz.timezone(tz)
+
+        if getattr(index, "tz", None) is None:
+            return index.tz_localize(tz, ambiguous="infer", nonexistent="shift_forward")
+
+        if str(index.tz) == str(tz):
+            return index
+
+        return index.tz_convert(tz)
+
     @property
     def df(self):
         """Return pandas DataFrame for compatibility. Converts from polars on-demand."""
@@ -197,26 +211,15 @@ class DataPolars:
 
             # Apply timezone conversion: UTC → America/New_York
             if self._timezone is not None:
-                # Explicit timezone parameter takes priority
-                if not self._pandas_df.index.tzinfo:
-                    self._pandas_df.index = self._pandas_df.index.tz_localize(self._timezone)
-                else:
-                    self._pandas_df.index = self._pandas_df.index.tz_convert(self._timezone)
-            elif polars_tz is not None:
-                # Polars had timezone (e.g., UTC from DataBento), convert to DEFAULT_PYTZ
-                if not self._pandas_df.index.tzinfo:
-                    # Timezone lost during conversion, re-localize then convert
-                    self._pandas_df.index = self._pandas_df.index.tz_localize(polars_tz)
-                    self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
+                self._pandas_df.index = self._localize_or_convert_index(self._pandas_df.index, self._timezone)
+            else:
+                if polars_tz is not None:
+                    self._pandas_df.index = self._localize_or_convert_index(self._pandas_df.index, polars_tz)
+
+                if not getattr(self._pandas_df.index, "tz", None):
+                    self._pandas_df.index = self._localize_or_convert_index(self._pandas_df.index, DEFAULT_PYTZ)
                 elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
-                    # Timezone preserved, just convert
                     self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
-            elif not self._pandas_df.index.tzinfo:
-                # No timezone info, localize to DEFAULT_PYTZ
-                self._pandas_df.index = self._pandas_df.index.tz_localize(DEFAULT_PYTZ)
-            elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
-                # Different timezone, convert to DEFAULT_PYTZ
-                self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
 
         return self._pandas_df
 

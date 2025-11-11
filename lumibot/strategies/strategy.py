@@ -1460,7 +1460,7 @@ class Strategy(_Strategy):
 
         Parameters
         ---------
-        order : Order object or list of Order objects
+        order : Order or list[Order]
             Order object or a list of order objects containing the asset and instructions for executing the order.
         is_multileg : bool
             Tradier only.

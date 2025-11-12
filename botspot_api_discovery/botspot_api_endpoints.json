@@ -153,16 +153,279 @@
       "authentication": "Bearer token required",
       "capturedFrom": "TC-001-05",
       "verified": false
+    },
+    {
+      "endpoint": "/sse/stream",
+      "method": "POST",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Generate AI strategy via Server-Sent Events (SSE) streaming",
+      "authentication": "Bearer token required",
+      "headers": {
+        "Authorization": "Bearer {access_token}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream"
+      },
+      "requestBody": {
+        "type": "generate_strategy",
+        "prompt": "string (natural language strategy description)",
+        "aiStrategyId": "string (empty for new, UUID for refinement)",
+        "message": "string (same as prompt)",
+        "files": "array (optional file attachments)"
+      },
+      "responses": {
+        "200": {
+          "description": "SSE stream with multiple events",
+          "contentType": "text/event-stream",
+          "events": [
+            {
+              "event": "data",
+              "data": {
+                "action": "prompt_to_ai",
+                "phase": "sending",
+                "content": "string",
+                "metadata": "object"
+              }
+            },
+            {
+              "event": "data",
+              "data": {
+                "action": "thinking",
+                "phase": "code_generation",
+                "content": "string",
+                "usage": {
+                  "model": "gpt-5",
+                  "provider": "openai",
+                  "reasoning_effort": "medium",
+                  "input_tokens": "integer",
+                  "output_tokens": "integer",
+                  "total_tokens": "integer"
+                }
+              }
+            },
+            {
+              "event": "data",
+              "data": {
+                "action": "strategy_generated",
+                "phase": "complete",
+                "generatedCode": "string (full Python Lumibot strategy code)",
+                "usage": "object (token usage)"
+              }
+            }
+          ],
+          "notes": [
+            "Stream includes :heartbeat messages for keep-alive",
+            "Uses GPT-5 for code generation (provider: openai)",
+            "Generation takes ~2-3 minutes",
+            "Final event contains complete generated strategy code"
+          ]
+        }
+      },
+      "capturedFrom": "TC-002-04",
+      "verified": true
+    },
+    {
+      "endpoint": "/ai-bot-builder/list-strategies",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "List all AI-generated strategies for current user",
+      "authentication": "Bearer token required",
+      "headers": {
+        "Authorization": "Bearer {access_token}"
+      },
+      "responses": {
+        "200": {
+          "description": "List of strategies",
+          "schema": {
+            "strategies": [
+              {
+                "id": "uuid (strategyId)",
+                "aiStrategyId": "uuid",
+                "name": "string",
+                "createdAt": "datetime",
+                "updatedAt": "datetime",
+                "revisions": "integer",
+                "isActive": "boolean"
+              }
+            ]
+          }
+        }
+      },
+      "capturedFrom": "TC-002-02",
+      "verified": true
+    },
+    {
+      "endpoint": "/ai-bot-builder/usage-limits",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Get user's prompt usage limits (X/500 prompts remaining)",
+      "authentication": "Bearer token required",
+      "headers": {
+        "Authorization": "Bearer {access_token}"
+      },
+      "responses": {
+        "200": {
+          "description": "Usage limits",
+          "schema": {
+            "used": "integer",
+            "limit": "integer (typically 500)",
+            "remaining": "integer"
+          }
+        }
+      },
+      "capturedFrom": "TC-002-02",
+      "verified": true
+    },
+    {
+      "endpoint": "/ai-bot-builder/generate-diagram",
+      "method": "POST",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Generate Mermaid flowchart diagram from strategy code",
+      "authentication": "Bearer token required",
+      "headers": {
+        "Authorization": "Bearer {access_token}",
+        "Content-Type": "application/json"
+      },
+      "requestBody": {
+        "python": "string (full Python strategy code)",
+        "revisionId": "uuid",
+        "skipRender": "boolean (optional)"
+      },
+      "responses": {
+        "200": {
+          "description": "Generated Mermaid diagram",
+          "schema": {
+            "mmd": "string (Mermaid markdown syntax)",
+            "revisionId": "uuid",
+            "skipRender": "boolean"
+          }
+        }
+      },
+      "capturedFrom": "TC-002-05",
+      "verified": true
+    },
+    {
+      "endpoint": "/ai-bot-builder/list-versions",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Get all versions/revisions of a strategy",
+      "authentication": "Bearer token required",
+      "queryParams": {
+        "aiStrategyId": "uuid (required)"
+      },
+      "responses": {
+        "200": {
+          "description": "Strategy versions",
+          "schema": {
+            "user_id": "uuid",
+            "aiStrategyId": "uuid",
+            "strategy": {
+              "id": "uuid (strategyId)",
+              "name": "string",
+              "description": "string",
+              "strategyType": "AI",
+              "isPublic": "boolean",
+              "createdAt": "datetime",
+              "updatedAt": "datetime"
+            },
+            "versions": [
+              {
+                "version": "integer",
+                "code_in": "string (input/prompt)",
+                "code_out": "string (generated Python code)",
+                "comments": "string (AI-generated description)",
+                "mermaidDiagram": "string",
+                "backtestMetrics": "object (optional)",
+                "createdAt": "datetime"
+              }
+            ]
+          }
+        }
+      },
+      "capturedFrom": "TC-002-05",
+      "verified": true
+    },
+    {
+      "endpoint": "/ai-bot-builder/feedback",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Get user feedback/rating for a strategy revision",
+      "authentication": "Bearer token required",
+      "queryParams": {
+        "revisionId": "uuid (required)"
+      },
+      "responses": {
+        "200": {
+          "description": "Feedback data",
+          "schema": {
+            "revisionId": "uuid",
+            "rating": "integer (1-5)",
+            "comment": "string (optional)"
+          }
+        }
+      },
+      "capturedFrom": "TC-002-05",
+      "verified": false
+    },
+    {
+      "endpoint": "/marketplace/check-published/{strategyId}",
+      "method": "GET",
+      "baseUrl": "https://api.botspot.trade",
+      "description": "Check if strategy has been published to marketplace",
+      "authentication": "Bearer token required",
+      "pathParams": {
+        "strategyId": "uuid"
+      },
+      "responses": {
+        "200": {
+          "description": "Publication status",
+          "schema": {
+            "isPublished": "boolean",
+            "publishedAt": "datetime (optional)",
+            "marketplaceUrl": "string (optional)"
+          }
+        }
+      },
+      "capturedFrom": "TC-002-05",
+      "verified": false
     }
   ],
-  "models": {},
+  "models": {
+    "Strategy": {
+      "description": "AI-generated trading strategy",
+      "properties": {
+        "id": "uuid (strategyId)",
+        "aiStrategyId": "uuid",
+        "name": "string",
+        "description": "string",
+        "strategyType": "string (AI, Manual, etc.)",
+        "isPublic": "boolean",
+        "createdAt": "datetime",
+        "updatedAt": "datetime"
+      }
+    },
+    "StrategyRevision": {
+      "description": "A specific version of a strategy",
+      "properties": {
+        "revisionId": "uuid",
+        "version": "integer (1, 2, 3...)",
+        "code_out": "string (generated Python code)",
+        "comments": "string (AI description)",
+        "mermaidDiagram": "string",
+        "createdAt": "datetime"
+      }
+    }
+  },
   "discoveryMetadata": {
-    "discoveredAt": "2025-11-03T20:39:19.717963",
-    "totalEndpoints": 8,
-    "verifiedEndpoints": 3,
+    "discoveredAt": "2025-11-04T06:47:30.000000",
+    "totalEndpoints": 15,
+    "verifiedEndpoints": 8,
     "toolsUsed": [
       "Chrome MCP DevTools",
       "Python requests library"
+    ],
+    "completedTestCases": [
+      "TC-001: Authentication Flow",
+      "TC-002: Create Strategy Workflow"
     ]
   }
 }

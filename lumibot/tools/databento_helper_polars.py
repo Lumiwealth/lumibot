@@ -5,30 +5,35 @@
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Union
 from decimal import Decimal
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import polars as pl
+from termcolor import colored
+
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot.tools import futures_roll
-from termcolor import colored
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 
 class DataBentoAuthenticationError(RuntimeError):
     """Raised when DataBento rejects authentication credentials."""
+
     pass
+
 
 # DataBento imports (will be installed as dependency)
 try:
-    import databento as db
+    import databento as db  # noqa: F401
     from databento import Historical
+
     DATABENTO_AVAILABLE = True
 except ImportError:
     DATABENTO_AVAILABLE = False
@@ -226,7 +231,6 @@ class DataBentoClient:
 
             # Fetch instrument definition using 'definition' schema
             # DataBento requires end > start, so add 1 day to end
-            from datetime import timedelta
             if isinstance(reference_date, datetime):
                 end_date = (reference_date + timedelta(days=1)).strftime("%Y-%m-%d")
             elif isinstance(reference_date, date):
@@ -564,7 +568,7 @@ def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
         # Remove corrupted cache file
         try:
             cache_file.unlink()
-        except:
+        except Exception:
             pass
 
     return None
@@ -733,7 +737,7 @@ def _normalize_databento_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df_norm = df.copy()
 
     # DataBento timestamp column mapping
-    timestamp_cols = ['ts_event', 'timestamp', 'time']
+    timestamp_cols = ["ts_event", "timestamp", "time"]
     timestamp_col = None
     for col in timestamp_cols:
         if col in df_norm.columns:
@@ -855,14 +859,34 @@ def _fetch_and_update_futures_multiplier(
         _INSTRUMENT_DEFINITION_CACHE[cache_key] = definition
 
         # Update asset
-        if 'unit_of_measure_qty' in definition:
-            multiplier = int(definition['unit_of_measure_qty'])
+        if "unit_of_measure_qty" in definition:
+            multiplier = int(definition["unit_of_measure_qty"])
             logger.debug(f"[MULTIPLIER] BEFORE update: asset.multiplier = {asset.multiplier}")
             asset.multiplier = multiplier
-            logger.debug(f"[MULTIPLIER] ✓✓✓ SUCCESS! Set multiplier for {asset.symbol} (resolved to {resolved_symbol}): {multiplier}")
+            logger.debug(
+                f"[MULTIPLIER] ✓✓✓ SUCCESS! Set multiplier for {asset.symbol} "
+                f"(resolved to {resolved_symbol}): {multiplier}"
+            )
             logger.debug(f"[MULTIPLIER] AFTER update: asset.multiplier = {asset.multiplier}")
         else:
-            logger.error(f"[MULTIPLIER] ✗ Definition missing unit_of_measure_qty field! Fields: {list(definition.keys())}")
+            logger.error(
+                f"[MULTIPLIER] ✗ Definition missing unit_of_measure_qty field! Fields: {list(definition.keys())}"
+            )
+
+        if asset.asset_type == Asset.AssetType.FUTURE and getattr(asset, "expiration", None) in (None, ""):
+            expiration_value = definition.get("expiration")
+            if expiration_value:
+                try:
+                    expiration_ts = pd.to_datetime(expiration_value, utc=True, errors="coerce")
+                except Exception as exc:
+                    logger.debug(
+                        f"[MULTIPLIER] Unable to parse expiration '{expiration_value}' for {asset.symbol}: {exc}"
+                    )
+                    expiration_ts = None
+
+                if expiration_ts is not None and not pd.isna(expiration_ts):
+                    asset.expiration = expiration_ts.date()
+                    logger.debug(f"[MULTIPLIER] ✓ Captured expiration for {asset.symbol}: {asset.expiration}")
     else:
         logger.error(f"[MULTIPLIER] ✗ Failed to get definition from DataBento for {resolved_symbol}")
 
@@ -1009,7 +1033,32 @@ def get_price_data_from_databento(
         logger.warning(f"No DataBento data available for {asset.symbol} between {start} and {end}")
         return None
 
-    combined = pd.concat(frames, axis=0)
+    # Filter out any frames that don't have proper datetime indices
+    valid_frames = []
+    for i, frame in enumerate(frames):
+        if frame.empty:
+            continue
+        if not isinstance(frame.index, pd.DatetimeIndex):
+            logger.warning(
+                f"Frame {i} for {asset.symbol} does not have DatetimeIndex (type: {type(frame.index)}), skipping. "
+                f"Index sample: {frame.index[:5] if len(frame.index) > 0 else 'empty'}"
+            )
+            continue
+        valid_frames.append(frame)
+
+    if not valid_frames:
+        logger.warning(f"No valid DataFrames with datetime indices for {asset.symbol}")
+        return None
+
+    combined = pd.concat(valid_frames, axis=0)
+    # Ensure index is datetime before sorting to avoid mixed-type errors
+    if not isinstance(combined.index, pd.DatetimeIndex):
+        logger.warning(
+            f"Combined DataFrame for {asset.symbol} has non-DatetimeIndex ({type(combined.index)}), converting"
+        )
+        combined.index = pd.to_datetime(combined.index, errors="coerce")
+        # Remove any rows with NaT (failed conversions)
+        combined = combined[combined.index.notna()]
     combined.sort_index(inplace=True)
 
     schedule = futures_roll.build_roll_schedule(
@@ -1034,20 +1083,22 @@ def get_price_data_from_databento(
         combined_reset = combined.reset_index()
 
         # Ensure the datetime column is named 'datetime'
-        if 'datetime' not in combined_reset.columns:
+        if "datetime" not in combined_reset.columns:
             # Find the first datetime column
-            datetime_cols = combined_reset.select_dtypes(include=['datetime64']).columns
+            datetime_cols = combined_reset.select_dtypes(include=["datetime64"]).columns
             if len(datetime_cols) > 0:
                 # Rename first datetime column to 'datetime'
-                combined_reset = combined_reset.rename(columns={datetime_cols[0]: 'datetime'})
+                combined_reset = combined_reset.rename(columns={datetime_cols[0]: "datetime"})
             else:
                 # No datetime columns found - index might have been reset with a different name
                 first_col = combined_reset.columns[0]
                 logger.warning(f"No datetime column found after reset_index, using first column: {first_col}")
-                combined_reset = combined_reset.rename(columns={first_col: 'datetime'})
+                combined_reset = combined_reset.rename(columns={first_col: "datetime"})
 
-        # Convert to polars
+        # Convert to polars and normalize datetime metadata
         combined_polars = pl.from_pandas(combined_reset)
+        combined_polars = _ensure_polars_datetime_timezone(combined_polars)
+        combined_polars = _ensure_polars_datetime_precision(combined_polars)
 
         return combined_polars
 
@@ -1249,6 +1300,26 @@ def _ensure_polars_datetime_timezone(df: pl.DataFrame, column: str = "datetime")
     if isinstance(col_dtype, pl.Datetime):
         return df.with_columns(pl.col(column).dt.replace_time_zone("UTC"))
     return df
+
+
+def _ensure_polars_datetime_precision(
+    df: pl.DataFrame,
+    column: str = "datetime",
+    time_unit: str = "ns",
+) -> pl.DataFrame:
+    """Normalize the precision of a datetime column (default nanosecond)."""
+    if column not in df.columns:
+        return df
+    col_dtype = df.schema.get(column)
+    if not isinstance(col_dtype, pl.Datetime):
+        return df
+    target_dtype = pl.Datetime(
+        time_unit=time_unit,
+        time_zone=col_dtype.time_zone or "UTC",
+    )
+    if col_dtype == target_dtype:
+        return df
+    return df.with_columns(pl.col(column).cast(target_dtype))
 
 
 def get_price_data_from_databento_polars(*args, **kwargs):

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Tuple
 
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
-_FUTURES_MONTH_CODES: Dict[int, str] = {
+_FUTURES_MONTH_CODES: dict[int, str] = {
     1: "F",
     2: "G",
     3: "H",
@@ -38,6 +38,12 @@ ROLL_RULES: dict[str, RollRule] = {
         symbol: RollRule(offset_business_days=8, anchor="third_friday", contract_months=(3, 6, 9, 12))
         for symbol in {"ES", "MES", "NQ", "MNQ", "YM", "MYM"}
     },
+    # Gold (GC) - COMEX Gold futures
+    # Contract months: Feb, Apr, Jun, Aug, Dec (most liquid months)
+    # Last trading day: 3rd last business day of contract month at 12:30 CT
+    # Roll occurs: 3 business days before last trading day (3rd last business day)
+    "GC": RollRule(offset_business_days=3, anchor="third_last_business_day", contract_months=(2, 4, 6, 8, 12)),
+    "MGC": RollRule(offset_business_days=3, anchor="third_last_business_day", contract_months=(2, 4, 6, 8, 12)),  # Micro Gold - same as GC
 }
 
 YearMonth = Tuple[int, int]
@@ -87,6 +93,20 @@ def _last_business_day_of_month(year: int, month: int) -> datetime:
     return last_day
 
 
+def _third_last_business_day_of_month(year: int, month: int) -> datetime:
+    """Get the 3rd last business day of the specified month.
+    This is the official CME last trading day for GC futures."""
+    last_bday = _last_business_day_of_month(year, month)
+    # Count backwards 2 more business days
+    count = 0
+    current = last_bday
+    while count < 2:
+        current -= timedelta(days=1)
+        if current.weekday() < 5:  # Monday-Friday
+            count += 1
+    return current
+
+
 def _subtract_business_days(dt: datetime, days: int) -> datetime:
     result = dt
     remaining = days
@@ -102,6 +122,18 @@ def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
         anchor = _third_friday(year, month)
     elif rule.anchor == "month_end":
         anchor = _last_business_day_of_month(year, month)
+    elif rule.anchor == "third_last_business_day":
+        # For GC: Last trading day is 3rd last business day, roll is N days before that
+        anchor = _third_last_business_day_of_month(year, month)
+    elif rule.anchor == "previous_month_end":
+        # Roll at end of month BEFORE contract month (e.g., roll Feb contract at end of Jan)
+        if month == 1:
+            prev_month = 12
+            prev_year = year - 1
+        else:
+            prev_month = month - 1
+            prev_year = year
+        anchor = _last_business_day_of_month(prev_year, prev_month)
     else:
         anchor = _to_timezone(datetime(year, month, 15))
     if rule.offset_business_days <= 0:
@@ -119,7 +151,6 @@ def _advance_quarter(current_month: int, current_year: int) -> YearMonth:
 
 
 def _legacy_mid_month(reference_date: datetime) -> YearMonth:
-    quarter_months = [3, 6, 9, 12]
     year = reference_date.year
     month = reference_date.month
     day = reference_date.day
@@ -208,7 +239,7 @@ def resolve_symbol_for_datetime(asset, dt: datetime, year_digits: int = 2) -> st
     return build_contract_symbol(asset.symbol, year, month, year_digits=year_digits)
 
 
-def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits: int = 2) -> List[str]:
+def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits: int = 2) -> list[str]:
     if start is None or end is None:
         return []
 
@@ -217,7 +248,7 @@ def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits
     if start > end:
         start, end = end, start
 
-    symbols: List[str] = []
+    symbols: list[str] = []
     seen: set[str] = set()
     cursor = start
     step = timedelta(days=30)
@@ -238,6 +269,7 @@ def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits
         symbols = symbols[: final_index + 1]
 
     return symbols
+
 
 def build_roll_schedule(asset, start: datetime, end: datetime, year_digits: int = 2):
     if start is None or end is None:
@@ -280,11 +312,14 @@ def build_roll_schedule(asset, start: datetime, end: datetime, year_digits: int 
         clipped.append((symbol, start_clip, end_clip))
 
     if not clipped:
-        return [(
-            symbol,
-            s.astimezone(pytz.UTC),
-            e.astimezone(pytz.UTC),
-        ) for symbol, s, e in schedule]
+        return [
+            (
+                symbol,
+                s.astimezone(pytz.UTC),
+                e.astimezone(pytz.UTC),
+            )
+            for symbol, s, e in schedule
+        ]
 
     last_symbol, s, e = clipped[-1]
     if e < end:

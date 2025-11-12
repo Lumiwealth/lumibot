@@ -42,4 +42,7 @@ def test_projectx_fetch_bars_datetime_debug(projectx_dt, caplog):
     debug_entries = [r for r in caplog.records if 'Retrieved ' in r.message]
     assert debug_entries, 'Expected debug log about retrieved bars'
     # Confirm synthesized datetime column exists
-    assert 'datetime' in bars.df.columns
+    assert bars.df.index.name == 'datetime'
+    # Check datetime index type
+    assert pd.api.types.is_datetime64_any_dtype(bars.df.index)
+

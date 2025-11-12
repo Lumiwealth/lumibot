@@ -1051,6 +1051,14 @@ def get_price_data_from_databento(
         return None
 
     combined = pd.concat(valid_frames, axis=0)
+    # Ensure index is datetime before sorting to avoid mixed-type errors
+    if not isinstance(combined.index, pd.DatetimeIndex):
+        logger.warning(
+            f"Combined DataFrame for {asset.symbol} has non-DatetimeIndex ({type(combined.index)}), converting"
+        )
+        combined.index = pd.to_datetime(combined.index, errors="coerce")
+        # Remove any rows with NaT (failed conversions)
+        combined = combined[combined.index.notna()]
     combined.sort_index(inplace=True)
 
     schedule = futures_roll.build_roll_schedule(

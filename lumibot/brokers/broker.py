@@ -1748,6 +1748,13 @@ class Broker(ABC):
             "asset.expiration": stored_order.asset.expiration if stored_order.asset is not None else None,
             "asset.asset_type": stored_order.asset.asset_type if stored_order.asset is not None else None,
         }
+        price_source = getattr(stored_order, "_price_source", None)
+        if price_source:
+            new_row["price_source"] = price_source
+            try:
+                delattr(stored_order, "_price_source")
+            except AttributeError:
+                pass
         # Create a DataFrame with the new row
         new_row_df = pd.DataFrame(new_row, index=[0])
 

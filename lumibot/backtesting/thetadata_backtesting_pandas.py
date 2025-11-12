@@ -697,6 +697,7 @@ class ThetaDataBacktestingPandas(PandasData):
             datastyle="ohlc",
             include_after_hours=True  # Default to True for extended hours data
         )
+
         if df_ohlc is None or df_ohlc.empty:
             expired_reason = (
                 expiration_dt is not None
@@ -891,6 +892,12 @@ class ThetaDataBacktestingPandas(PandasData):
                 if close_series is None:
                     return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
                 closes = close_series.dropna()
+                # Remove placeholder rows (missing=True) from consideration.
+                if "missing" in data.df.columns:
+                    missing_mask = data.df.loc[closes.index, "missing"]
+                    closes = closes[~missing_mask.fillna(True)]
+                # Ignore non-positive prices which indicate bad ticks.
+                closes = closes[closes > 0]
                 if closes.empty:
                     logger.debug(
                         "[THETA][DEBUG][THETADATA-PANDAS] get_last_price found no valid closes for %s/%s; returning None (likely expired).",

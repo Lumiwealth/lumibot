@@ -17,6 +17,52 @@ from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.tools.backtest_cache import CacheMode
 
 
+@patch("lumibot.tools.thetadata_helper.get_request")
+def test_get_historical_data_filters_zero_quotes(mock_get_request):
+    asset = Asset(
+        asset_type="option",
+        symbol="CVNA",
+        expiration=date(2026, 1, 16),
+        strike=150.0,
+        right="CALL",
+    )
+    mock_get_request.return_value = {
+        "header": {
+            "format": [
+                "date",
+                "ms_of_day",
+                "bid",
+                "ask",
+                "bid_size",
+                "ask_size",
+                "count",
+            ]
+        },
+        "response": [
+            [20240102, 0, 0.0, 0.0, 0, 0, 0],
+            [20240102, 60000, 10.0, 11.0, 0, 0, 0],
+        ],
+    }
+
+    start = datetime.datetime(2024, 1, 2, tzinfo=pytz.UTC)
+    end = start + datetime.timedelta(minutes=2)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="quote",
+    )
+
+    assert df is not None
+    assert len(df) == 1
+    assert df["bid"].iloc[0] == 10.0
+    assert df["ask"].iloc[0] == 11.0
+
+
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
 @patch('lumibot.tools.thetadata_helper.get_historical_data')
@@ -219,6 +265,7 @@ def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path
             assert eod_second_mock.call_count == 0
             assert len(second) == 2
             assert set(second.index.date) == {datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)}
+
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')

@@ -239,6 +239,23 @@ class PandasData(DataSourceBacktesting):
                         logger.info(f"Error getting last price for {tuple_to_find}: price is NaN")
                     return None
 
+                if price is None:
+                    return None
+
+                # Treat non-positive prices as missing data.
+                try:
+                    numeric_price = float(price)
+                except (TypeError, ValueError):
+                    numeric_price = None
+
+                if numeric_price is not None and numeric_price <= 0:
+                    logger.warning(
+                        "Ignoring non-positive price %.4f for %s; treating as missing data.",
+                        numeric_price,
+                        tuple_to_find,
+                    )
+                    return None
+
                 return price
             except Exception as e:
                 logger.info(f"Error getting last price for {tuple_to_find}: {e}")
@@ -282,6 +299,16 @@ class PandasData(DataSourceBacktesting):
             if pd.isna(ohlcv_bid_ask_dict):
                 logger.info(f"Error getting ohlcv_bid_ask for {tuple_to_find}: ohlcv_bid_ask_dict is NaN")
                 return Quote(asset=asset)
+
+            for side_key in ("bid", "ask"):
+                value = ohlcv_bid_ask_dict.get(side_key)
+                if value is not None:
+                    try:
+                        numeric_value = float(value)
+                    except (TypeError, ValueError):
+                        numeric_value = value
+                    if isinstance(numeric_value, (int, float)) and numeric_value <= 0:
+                        ohlcv_bid_ask_dict[side_key] = None
 
             # Convert dictionary to Quote object
             return Quote(

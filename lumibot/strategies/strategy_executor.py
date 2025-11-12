@@ -1326,6 +1326,17 @@ class StrategyExecutor(Thread):
             self._before_market_opens()
             self.lifecycle_last_date['before_market_opens'] = current_date
 
+    def _ensure_progress_inside_open_session(self, time_to_close):
+        """Advance the broker clock if we're stuck while the market is open."""
+        if self.broker.is_market_open() and (time_to_close is None or time_to_close <= 0):
+            self.strategy.logger.debug(
+                "Broker clock stalled with market open; nudging forward by one second."
+            )
+            self.broker._update_datetime(1)
+            return self.broker.get_time_to_close()
+
+        return time_to_close
+
     def _setup_market_session(self, has_data_source):
         """Set up the market session for non-24/7 markets"""
         # Set date to the start date, but account for minutes_before_opening
@@ -1400,7 +1411,7 @@ class StrategyExecutor(Thread):
             # Set up market session and check if we should continue
             if not self._setup_market_session(has_data_source):
                 return
-            time_to_close = self.broker.get_time_to_close()
+            time_to_close = self._ensure_progress_inside_open_session(self.broker.get_time_to_close())
         else:
             time_to_close = float("inf")
 

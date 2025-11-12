@@ -21,12 +21,146 @@ logger = get_logger(__name__)
 WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
-BASE_URL = "http://127.0.0.1:25510"
+BASE_URL = os.environ.get("THETADATA_BASE_URL", "http://127.0.0.1:25503")
+HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "AAPL")
 CONNECTION_RETRY_SLEEP = 1.0
 CONNECTION_MAX_RETRIES = 60
 BOOT_GRACE_PERIOD = 5.0
 MAX_RESTART_ATTEMPTS = 3
 MAX_TERMINAL_RESTART_CYCLES = 3
+
+# Mapping between milliseconds and ThetaData interval labels
+INTERVAL_MS_TO_LABEL = {
+    10: "10ms",
+    100: "100ms",
+    500: "500ms",
+    1000: "1s",
+    5000: "5s",
+    10000: "10s",
+    15000: "15s",
+    30000: "30s",
+    60000: "1m",
+    300000: "5m",
+    600000: "10m",
+    900000: "15m",
+    1800000: "30m",
+    3600000: "1h",
+}
+
+HISTORY_ENDPOINTS = {
+    ("stock", "ohlc"): "/v3/stock/history/ohlc",
+    ("stock", "quote"): "/v3/stock/history/quote",
+    ("option", "ohlc"): "/v3/option/history/ohlc",
+    ("option", "quote"): "/v3/option/history/quote",
+    ("index", "ohlc"): "/v3/index/history/ohlc",
+    ("index", "quote"): "/v3/index/history/price",
+}
+
+EOD_ENDPOINTS = {
+    "stock": "/v3/stock/history/eod",
+    "option": "/v3/option/history/eod",
+    "index": "/v3/index/history/eod",
+}
+
+OPTION_LIST_ENDPOINTS = {
+    "expirations": "/v3/option/list/expirations",
+    "strikes": "/v3/option/list/strikes",
+    "dates_quote": "/v3/option/list/dates/quote",
+}
+
+DEFAULT_SESSION_HOURS = {
+    True: ("04:00:00", "20:00:00"),   # include extended hours
+    False: ("09:30:00", "16:00:00"),  # regular session only
+}
+
+
+def _interval_label_from_ms(interval_ms: int) -> str:
+    label = INTERVAL_MS_TO_LABEL.get(interval_ms)
+    if label is None:
+        raise ValueError(f"Unsupported ThetaData interval: {interval_ms} ms")
+    return label
+
+
+def _columnar_payload_to_records(payload: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+    if not payload:
+        return []
+    sample_key = next(iter(payload))
+    length = len(payload[sample_key])
+    records: List[Dict[str, Any]] = []
+    for idx in range(length):
+        row = {}
+        for key, values in payload.items():
+            try:
+                row[key] = values[idx]
+            except IndexError:
+                raise ValueError(f"Column '{key}' length mismatch in ThetaData response")
+        records.append(row)
+    return records
+
+
+def _localize_timestamps(series: pd.Series) -> pd.DatetimeIndex:
+    dt_index = pd.to_datetime(series, errors="coerce")
+    tz = LUMIBOT_DEFAULT_PYTZ
+    if getattr(dt_index.dt, "tz", None) is None:
+        return dt_index.dt.tz_localize(tz)
+    return dt_index.dt.tz_convert(tz)
+
+
+def _format_time(value: datetime) -> str:
+    return value.strftime("%H:%M:%S")
+
+
+def _compute_session_bounds(
+    day: date,
+    start_dt: datetime,
+    end_dt: datetime,
+    include_after_hours: bool,
+) -> Tuple[str, str]:
+    default_start, default_end = DEFAULT_SESSION_HOURS[include_after_hours]
+    tz = LUMIBOT_DEFAULT_PYTZ
+    start_default = datetime.combine(day, datetime.strptime(default_start, "%H:%M:%S").time(), tz)
+    end_default = datetime.combine(day, datetime.strptime(default_end, "%H:%M:%S").time(), tz)
+
+    session_start = start_default
+    session_end = end_default
+
+    if start_dt.date() == day:
+        session_start = start_dt
+    if end_dt.date() == day:
+        session_end = end_dt
+
+    if session_end < session_start:
+        session_end = session_start
+
+    return _format_time(session_start), _format_time(session_end)
+
+
+def _probe_terminal_ready(timeout: float = 0.5) -> bool:
+    try:
+        params = {"symbol": HEALTHCHECK_SYMBOL, "format": "json"}
+        resp = requests.get(f"{BASE_URL}/v3/stock/snapshot/quote", params=params, timeout=timeout)
+        if resp.status_code == 200:
+            return True
+        text = resp.text.upper()
+        if "SERVER_STARTING" in text or resp.status_code == 571:
+            return False
+    except Exception:
+        return False
+    return False
+
+
+def _request_terminal_shutdown() -> bool:
+    shutdown_paths = [
+        f"{BASE_URL}/v3/system/terminal/shutdown",
+        f"{BASE_URL}/v2/system/terminal/shutdown",
+    ]
+    for path in shutdown_paths:
+        try:
+            requests.get(path, timeout=1)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def _resolve_asset_folder(asset_obj: Asset) -> str:
@@ -496,13 +630,13 @@ def get_price_data(
 
 
         # DEBUG-LOG: Before pandas return
-        if df_all is not None and not df_all.empty:
+        if df_all is not None and len(df_all) > 0:
             logger.debug(
                 "[THETA][DEBUG][RETURN][PANDAS] asset=%s rows=%d first_ts=%s last_ts=%s",
                 asset,
                 len(df_all),
-                df_all.index.min().isoformat() if len(df_all) > 0 else None,
-                df_all.index.max().isoformat() if len(df_all) > 0 else None
+                df_all.index.min().isoformat(),
+                df_all.index.max().isoformat()
             )
         return df_all
 
@@ -1385,123 +1519,32 @@ def start_theta_data_client(username: str, password: str):
     # The connection will be established via HTTP/WebSocket to localhost:25510
     return THETA_DATA_PROCESS
 
-
 def check_connection(username: str, password: str, wait_for_connection: bool = False):
-    """Ensure the local ThetaTerminal is running. Optionally block until it is connected.
-
-    Parameters
-    ----------
-    username : str
-        ThetaData username.
-    password : str
-        ThetaData password.
-    wait_for_connection : bool, optional
-        If True, block and retry until the terminal reports CONNECTED (or retries are exhausted).
-        If False, perform a lightweight liveness check and return immediately.
-    """
+    """Ensure ThetaTerminal is running and responsive."""
 
     CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
 
-    max_retries = CONNECTION_MAX_RETRIES
-    sleep_interval = CONNECTION_RETRY_SLEEP
-    client = None
-
-    def probe_status() -> Optional[str]:
-        try:
-            res = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=1)
-            return res.text
-        except Exception as exc:
-            logger.debug(f"Cannot reach ThetaTerminal status endpoint: {exc}")
-            return None
+    def ensure_process():
+        if not is_process_alive():
+            logger.info("ThetaTerminal process not found; attempting restart.")
+            start_theta_data_client(username=username, password=password)
 
     if not wait_for_connection:
-        status_text = probe_status()
-        if status_text == "CONNECTED":
-            if THETA_DATA_PROCESS is None and THETA_DATA_PID is None:
-                logger.debug("ThetaTerminal reports CONNECTED but no process is tracked; restarting to capture handle.")
-                client = start_theta_data_client(username=username, password=password)
-                new_client, connected = check_connection(
-                    username=username,
-                    password=password,
-                    wait_for_connection=True,
-                )
-                return client or new_client, connected
-
-            logger.debug("ThetaTerminal already connected.")
+        if _probe_terminal_ready():
             return None, True
-
-        if not is_process_alive():
-            logger.debug("ThetaTerminal process not running; launching background restart.")
-            client = start_theta_data_client(username=username, password=password)
-            new_client, connected = check_connection(
-                username=username,
-                password=password,
-                wait_for_connection=True,
-            )
-            return client or new_client, connected
-
-        logger.debug("ThetaTerminal running but not yet CONNECTED; waiting for status.")
+        ensure_process()
         return check_connection(username=username, password=password, wait_for_connection=True)
 
-    total_restart_cycles = 0
+    retries = 0
+    while retries < CONNECTION_MAX_RETRIES:
+        if _probe_terminal_ready():
+            return None, True
 
-    while True:
-        counter = 0
-        restart_attempts = 0
+        ensure_process()
+        retries += 1
+        time.sleep(CONNECTION_RETRY_SLEEP)
 
-        while counter < max_retries:
-            status_text = probe_status()
-            if status_text == "CONNECTED":
-                if counter or total_restart_cycles:
-                    logger.info(
-                        "ThetaTerminal connected after %s attempt(s) (restart cycles=%s).",
-                        counter + 1,
-                        total_restart_cycles,
-                    )
-                return client, True
-            elif status_text == "DISCONNECTED":
-                logger.debug("ThetaTerminal reports DISCONNECTED; will retry.")
-            elif status_text is not None:
-                logger.debug(f"ThetaTerminal returned unexpected status: {status_text}")
-
-            if not is_process_alive():
-                if restart_attempts >= MAX_RESTART_ATTEMPTS:
-                    logger.error("ThetaTerminal not running after %s restart attempts.", restart_attempts)
-                    break
-                restart_attempts += 1
-                logger.warning("ThetaTerminal process is not running (restart #%s).", restart_attempts)
-                client = start_theta_data_client(username=username, password=password)
-                CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
-                time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
-                counter = 0
-                continue
-
-            counter += 1
-            if counter % 10 == 0:
-                logger.info("Waiting for ThetaTerminal connection (attempt %s/%s).", counter, max_retries)
-            time.sleep(sleep_interval)
-
-        total_restart_cycles += 1
-        if total_restart_cycles > MAX_TERMINAL_RESTART_CYCLES:
-            logger.error(
-                "Unable to connect to Theta Data after %s restart cycle(s) (%s attempts each).",
-                MAX_TERMINAL_RESTART_CYCLES,
-                max_retries,
-            )
-            raise ThetaDataConnectionError(
-                f"Unable to connect to Theta Data after {MAX_TERMINAL_RESTART_CYCLES} restart cycle(s)."
-            )
-
-        logger.warning(
-            "ThetaTerminal still disconnected after %s attempts; restarting (cycle %s/%s).",
-            max_retries,
-            total_restart_cycles,
-            MAX_TERMINAL_RESTART_CYCLES,
-        )
-        client = start_theta_data_client(username=username, password=password)
-        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
-        time.sleep(max(BOOT_GRACE_PERIOD, sleep_interval))
-
+    raise ThetaDataConnectionError("ThetaTerminal did not become ready in time.")
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     all_responses = []
@@ -1910,7 +1953,19 @@ def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl:
     # Remove any rows where count is 0 (no data - the prices will be 0 at these times too)
     # NOTE: Indexes always have count=0 since they're calculated values, not traded securities
     if "quote" in datastyle.lower():
-        df = df[(df["bid_size"] != 0) | (df["ask_size"] != 0)]
+        # Preserve only rows that have a positive bid or ask so we never cache placeholder zeros.
+        bid_col = df.get("bid")
+        ask_col = df.get("ask")
+        if bid_col is not None and ask_col is not None:
+            valid_prices_mask = ((bid_col > 0) | (ask_col > 0)).fillna(False)
+            removed_rows = int(len(df) - valid_prices_mask.sum())
+            if removed_rows:
+                logger.debug(
+                    "[THETA][DEBUG][INTRADAY][QUOTE_FILTER] asset=%s removed_rows=%d reason=non_positive_prices",
+                    asset,
+                    removed_rows,
+                )
+            df = df[valid_prices_mask]
     elif asset.asset_type != "index":
         # Don't filter indexes by count - they're always 0
         df = df[df["count"] != 0]

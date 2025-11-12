@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 import pandas as pd
+from collections import OrderedDict
 from datetime import datetime, time, timedelta
 import pytz
 
@@ -28,6 +29,11 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         # Prevent __init__ from running fully if it causes issues
         self.broker = BacktestingBroker.__new__(BacktestingBroker)
         self.broker.data_source = _StubDataSource()  # Assign lightweight data_source stub
+        self.broker.market = "NYSE"
+        self.broker._market_session_cache = OrderedDict()
+        self.broker._cache_max_size = 500
+        self.broker._daily_sessions = {}
+        self.broker._sessions_built = False
 
         self.broker.logger = MagicMock()
         # Mock the get_datetime method on the data_source
@@ -146,6 +152,31 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         seconds = self.broker.get_time_to_close()
 
         assert seconds == 0.0
+
+    def test_get_time_to_close_handles_contiguous_sessions(self):
+        """Futures sessions reopen immediately; broker must advance to the next close."""
+        tz = pytz.timezone("America/New_York")
+        first_open = tz.localize(datetime(2025, 10, 27, 18, 0))
+        first_close = tz.localize(datetime(2025, 10, 28, 18, 0))
+        second_open = first_close
+        second_close = tz.localize(datetime(2025, 10, 29, 18, 0))
+
+        self.broker.market = "us_futures"
+        self.broker.get_time_to_close = BacktestingBroker.get_time_to_close.__get__(self.broker, BacktestingBroker)
+        self.broker.is_market_open = MagicMock(return_value=True)
+        self.broker._trading_days = pd.DataFrame(
+            {"market_open": [first_open, second_open]},
+            index=[first_close, second_close],
+        )
+        self.broker._market_open_cache = {
+            first_close: first_open,
+            second_close: second_open,
+        }
+        self._set_current_time(second_open)
+
+        seconds = self.broker.get_time_to_close()
+
+        assert seconds == (second_close - second_open).total_seconds()
 
     def test_update_datetime_pushes_forward_on_duplicate_timestamp(self):
         """Regression: new_datetime must advance when DST normalization repeats a minute."""

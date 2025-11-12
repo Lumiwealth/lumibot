@@ -4,8 +4,9 @@ import threading
 from collections import OrderedDict
 from datetime import timedelta
 from decimal import Decimal
-from typing import Union
+from typing import Optional, Union
 
+import pandas as pd
 import polars as pl
 import pytz
 
@@ -14,6 +15,11 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import CustomStream
+
+try:
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+except Exception:  # pragma: no cover - optional dependency
+    ThetaDataBacktestingPandas = None
 
 logger = get_logger(__name__)
 
@@ -186,6 +192,35 @@ class BacktestingBroker(Broker):
 
         self._sessions_built = True
 
+    def _ensure_market_open_cache(self):
+        """Populate the market-open cache if it has not been initialized."""
+        if self._market_open_cache or self._trading_days is None:
+            return
+        self._market_open_cache = self._trading_days['market_open'].to_dict()
+
+    def _get_market_open_for_close(self, close_time):
+        self._ensure_market_open_cache()
+        return self._market_open_cache.get(close_time)
+
+    def _contiguous_session_time(self, now, idx):
+        """Return remaining time when sessions share a boundary (e.g., futures, crypto)."""
+        if not self.is_market_open():
+            return None
+
+        next_idx = idx + 1
+        if next_idx >= len(self._trading_days):
+            return None
+
+        next_close = self._trading_days.index[next_idx]
+        next_open = self._get_market_open_for_close(next_close)
+        if next_open is None:
+            return None
+
+        if next_open <= now < next_close:
+            return (next_close - now).total_seconds()
+
+        return None
+
     def _is_market_open_dict(self, now):
         """Fast O(1) day lookup then check few sessions."""
         if not self._sessions_built:
@@ -349,11 +384,10 @@ class BacktestingBroker(Broker):
 
         # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
-        # Use cached dict instead of .at for performance; cache should be ready from initialization
-        if not self._market_open_cache:
-            # Safety: rebuild via centralized path rather than inline logic
-            self.initialize_market_calendars(self._trading_days.reset_index())
-        market_open = self._market_open_cache[market_close_time]
+        market_open = self._get_market_open_for_close(market_close_time)
+        if market_open is None:
+            logger.warning("Missing market_open for %s; cannot compute time_to_close", market_close_time)
+            return None
         market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
         # If we're before the market opens for the found trading day,
@@ -365,6 +399,10 @@ class BacktestingBroker(Broker):
 
         delta_seconds = (market_close - now).total_seconds()
         if delta_seconds <= 0:
+            contiguous_seconds = self._contiguous_session_time(now, idx)
+            if contiguous_seconds is not None:
+                return contiguous_seconds
+
             logger.debug(
                 "Backtesting clock reached or passed market close (%s >= %s); returning 0 seconds.",
                 now,
@@ -1541,6 +1579,9 @@ class BacktestingBroker(Broker):
             # Fill the order.
             #############################
 
+            if price is None and self._should_attempt_quote_fallback(open, high, low):
+                price = self._try_fill_with_quote(order, strategy, open, high, low)
+
             # If the price is set, then the order has been filled
             if price is not None:
                 self._execute_filled_order(
@@ -1583,9 +1624,105 @@ class BacktestingBroker(Broker):
         """Determine whether a price is unusable (None or NaN)."""
         if value is None:
             return True
+        if isinstance(value, Decimal):
+            try:
+                value = float(value)
+            except (ValueError, TypeError):
+                return True
         if isinstance(value, float) and math.isnan(value):
             return True
+        try:
+            if pd.isna(value):
+                return True
+        except Exception:
+            pass
         return False
+
+    def _bar_has_missing_prices(self, *values) -> bool:
+        return any(self._is_invalid_price(val) for val in values)
+
+    def _should_attempt_quote_fallback(self, open_, high_, low_) -> bool:
+        return self._is_thetadata_source() and self._bar_has_missing_prices(open_, high_, low_)
+
+    def _is_thetadata_source(self) -> bool:
+        if ThetaDataBacktestingPandas is None:
+            return False
+        return isinstance(self.data_source, ThetaDataBacktestingPandas)
+
+    def _get_spread_limit(self, strategy, key: str) -> Optional[float]:
+        if strategy is None or not key:
+            return None
+        if hasattr(strategy, key):
+            try:
+                return float(getattr(strategy, key))
+            except (TypeError, ValueError):
+                return None
+        params = getattr(strategy, "parameters", None)
+        if isinstance(params, dict) and key in params:
+            try:
+                return float(params[key])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _try_fill_with_quote(self, order, strategy, open_=None, high_=None, low_=None) -> Optional[float]:
+        """Attempt to fill an order using ThetaData quotes when OHLC bars are missing."""
+        if not self._is_thetadata_source():
+            return None
+        if not self._bar_has_missing_prices(open_, high_, low_):
+            return None
+        if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT):
+            return None
+        if not (order.is_buy_order() or order.is_sell_order()):
+            return None
+
+        try:
+            quote = self.get_quote(order.asset, quote=order.quote)
+        except Exception as exc:  # pragma: no cover - defensive log for unexpected broker states
+            self.logger.debug("ThetaData quote lookup failed for %s: %s", getattr(order.asset, "symbol", order.asset), exc)
+            return None
+
+        if quote is None:
+            return None
+
+        bid = self._coerce_price(getattr(quote, "bid", None))
+        ask = self._coerce_price(getattr(quote, "ask", None))
+
+        is_buy = order.is_buy_order()
+        fill_price = ask if is_buy else bid
+        if fill_price is None or self._is_invalid_price(fill_price):
+            return None
+
+        limit_price = self._coerce_price(order.limit_price)
+        if limit_price is not None:
+            if is_buy and fill_price > limit_price:
+                return None
+            if not is_buy and fill_price < limit_price:
+                return None
+
+        spread_key = "max_spread_buy_pct" if is_buy else "max_spread_sell_pct"
+        spread_limit = self._get_spread_limit(strategy, spread_key)
+        if spread_limit is not None and bid is not None and ask is not None:
+            mid = (ask + bid) / 2
+            if mid > 0:
+                spread_pct = (ask - bid) / mid
+                if spread_pct > spread_limit:
+                    if strategy is not None:
+                        strategy.log_message(
+                            f"Skipped ThetaData quote fill for {order.identifier} "
+                            f"(spread {spread_pct:.2%} exceeds {spread_limit:.2%}).",
+                            color="yellow",
+                        )
+                    return None
+
+        if strategy is not None:
+            strategy.log_message(
+                f"Filled {order.identifier} via ThetaData quote @ {fill_price:.2f}.",
+                color="yellow",
+            )
+
+        setattr(order, "_price_source", "quote")
+        return fill_price
 
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""

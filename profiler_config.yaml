@@ -1,0 +1,23 @@
+_metadata:
+  created_at: '2025-11-11'
+  created_by: migration_from_droid_repo
+  description: 'Performance profiling configuration for GC futures strategy'
+
+auto_detect:
+  enabled: true
+  track_all_functions: true
+
+profiling:
+  output_dir: profile_reports
+  track_degradation: true
+  track_memory: true
+
+# Target file to profile - using the newly ported strategy
+target_file: examples/gc_futures_el_optimized.py
+
+targets:
+  max_data_conversion_time: 30.0
+  max_hot_loop_time: 2.0
+  max_isinstance_calls: 10000000
+  max_matplotlib_time: 1.0
+  max_total_runtime: 300.0

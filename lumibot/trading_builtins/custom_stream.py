@@ -101,7 +101,7 @@ class PollingStream(CustomStream):
         while not self._stop_event.is_set():
             try:
                 # This is a blocking operation until an item is available in the queue or the timeout is reached.
-                event, payload = self._queue.get(timeout=min(self.polling_interval, 0.1))
+                event, payload = self._queue.get(timeout=max(self.polling_interval, 0.1))
                 self._process_queue_event(event, payload)
                 self._queue.task_done()
             except queue.Empty:

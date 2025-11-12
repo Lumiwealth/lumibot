@@ -1453,14 +1453,14 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
-    def submit_order(self, order: Order, **kwargs):
+    def submit_order(self, order: Order|list[Order], **kwargs):
         """Submit an order or a list of orders for assets
 
         Submits an order or a list of orders for processing by the active broker.
 
         Parameters
         ---------
-        order : Order object or list of Order objects
+        order : Order or list[Order]
             Order object or a list of order objects containing the asset and instructions for executing the order.
         is_multileg : bool
             Tradier only.

@@ -1321,6 +1321,8 @@ class Broker(ABC):
                 if order is None:
                     continue
 
+                # this seems very broker specific by assuming "leg" is how they package multileg orders
+                # it should be removed if the broker specific _parse_broker_order() function handles multileg orders
                 # Check if it is a multileg order and Parse the legs
                 if isinstance(broker_order, dict) and "leg" in broker_order and isinstance(broker_order["leg"], list):
                     parsed_legs = []

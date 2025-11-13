@@ -496,6 +496,7 @@ class _Strategy:
         self._stats_file = stats_file
         self._stats = None
         self._stats_list = []
+        self._stats_dirty = False
         self._analysis = {}
 
         # Variable backup related variables
@@ -714,11 +715,10 @@ class _Strategy:
                         asset_is_option = True
 
                     if self.broker.option_source is not None and asset_is_option:
-                        price = self.broker.option_source.get_last_price(asset)
-                        prices[asset] = price
+                        source = self.broker.option_source
                     else:
-                        price = self.broker.data_source.get_last_price(asset)
-                        prices[asset] = price
+                        source = self.broker.data_source
+                    prices[asset] = self._get_price_from_source(source, asset)
 
             for position in positions:
                 # Turn the asset into a tuple if it's a crypto asset
@@ -800,6 +800,144 @@ class _Strategy:
             self._portfolio_value = portfolio_value
         return portfolio_value
 
+    def _get_price_from_source(self, source, asset):
+        """Return best available price from the provided data source."""
+        if source is None:
+            return None
+
+        snapshot_price = None
+        if hasattr(source, "get_price_snapshot"):
+            try:
+                snapshot = source.get_price_snapshot(asset)
+            except Exception:
+                self.logger.exception(
+                    "Error retrieving price snapshot for %s from %s; falling back to last trade.",
+                    asset,
+                    type(source).__name__,
+                )
+            else:
+                snapshot_price = self._pick_snapshot_price(asset, snapshot)
+
+        if snapshot_price is not None:
+            return snapshot_price
+
+        get_last_price = getattr(source, "get_last_price", None)
+        if callable(get_last_price):
+            return get_last_price(asset)
+
+        self.logger.warning(
+            "Data source %s for asset %s does not provide get_last_price; returning None.",
+            type(source).__name__,
+            asset,
+        )
+        return None
+
+    def _pick_snapshot_price(self, asset, snapshot):
+        """Decide which figure to use from a Theta snapshot."""
+        if not snapshot:
+            return None
+
+        close_price = self._coerce_snapshot_price(snapshot.get("close"))
+        bid_price = self._coerce_snapshot_price(snapshot.get("bid"))
+        ask_price = self._coerce_snapshot_price(snapshot.get("ask"))
+        threshold = self._snapshot_stale_threshold_seconds()
+
+        now = self._normalize_snapshot_datetime(getattr(self.broker, "datetime", None))
+        if now is None:
+            now = self._normalize_snapshot_datetime(datetime.datetime.now(LUMIBOT_DEFAULT_PYTZ))
+
+        trade_time = self._normalize_snapshot_datetime(snapshot.get("last_trade_time"))
+        bid_time = self._normalize_snapshot_datetime(snapshot.get("last_bid_time"))
+        ask_time = self._normalize_snapshot_datetime(snapshot.get("last_ask_time"))
+
+        def _is_fresh(ts):
+            if ts is None or now is None:
+                return False
+            return (now - ts).total_seconds() <= threshold
+
+        if close_price is not None and _is_fresh(trade_time):
+            return close_price
+
+        bid_fresh = bid_price is not None and _is_fresh(bid_time)
+        ask_fresh = ask_price is not None and _is_fresh(ask_time)
+
+        if bid_fresh and ask_fresh:
+            mid_price = (bid_price + ask_price) / 2.0
+            self.logger.debug(
+                "Using bid/ask mid price for %s because last trade at %s is older than %ss.",
+                asset,
+                trade_time.isoformat() if trade_time else "unknown",
+                threshold,
+            )
+            return mid_price
+        if bid_fresh:
+            self.logger.debug(
+                "Using bid price for %s because last trade at %s is older than %ss.",
+                asset,
+                trade_time.isoformat() if trade_time else "unknown",
+                threshold,
+            )
+            return bid_price
+        if ask_fresh:
+            self.logger.debug(
+                "Using ask price for %s because last trade at %s is older than %ss.",
+                asset,
+                trade_time.isoformat() if trade_time else "unknown",
+                threshold,
+            )
+            return ask_price
+
+        if close_price is not None:
+            self.logger.warning(
+                "Using stale trade price for %s; last trade=%s, last bid=%s, last ask=%s (threshold=%ss).",
+                asset,
+                trade_time.isoformat() if trade_time else "unknown",
+                bid_time.isoformat() if bid_time else "unknown",
+                ask_time.isoformat() if ask_time else "unknown",
+                threshold,
+            )
+            return close_price
+
+        return None
+
+    @staticmethod
+    def _coerce_snapshot_price(value):
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(numeric):
+            return None
+        return numeric
+
+    def _normalize_snapshot_datetime(self, dt_value):
+        if dt_value is None:
+            return None
+        if isinstance(dt_value, pd.Timestamp):
+            dt_value = dt_value.to_pydatetime()
+        elif isinstance(dt_value, str):
+            try:
+                dt_value = pd.to_datetime(dt_value).to_pydatetime()
+            except (TypeError, ValueError):
+                return None
+        if isinstance(dt_value, datetime.datetime):
+            if dt_value.tzinfo is None:
+                try:
+                    return LUMIBOT_DEFAULT_PYTZ.localize(dt_value)
+                except ValueError:
+                    return dt_value.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+            return dt_value.astimezone(LUMIBOT_DEFAULT_PYTZ)
+        return None
+
+    @staticmethod
+    def _snapshot_stale_threshold_seconds():
+        try:
+            return int(os.environ.get("THETADATA_MTM_STALE_SECONDS", "120"))
+        except (TypeError, ValueError):
+            return 120
+
     def _update_cash(self, side, quantity, price, multiplier):
         """update the self.cash"""
         with self._executor.lock:
@@ -860,13 +998,18 @@ class _Strategy:
 
     def _append_row(self, row):
         self._stats_list.append(row)
+        self._stats_dirty = True
 
     def _format_stats(self):
+        if not self._stats_dirty and self._stats is not None:
+            return self._stats
+
         self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
             self._stats = self._stats.sort_index()
         self._stats["return"] = self._stats["portfolio_value"].pct_change()
+        self._stats_dirty = False
 
         return self._stats
 

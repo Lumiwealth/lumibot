@@ -1,20 +1,23 @@
 # This file contains helper functions for getting data from Polygon.io
-import time
 import os
+import hashlib
+import re
 import signal
-from typing import Any, Dict, List, Optional, Tuple
+import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-import pytz
+from typing import Any, Dict, List, Optional, Tuple
+
 import pandas as pd
 import pandas_market_calendars as mcal
+import pytz
 import requests
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from lumibot.tools.lumibot_logger import get_logger
 from lumibot.entities import Asset
 from tqdm import tqdm
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
+from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -22,9 +25,14 @@ WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = os.environ.get("THETADATA_BASE_URL", "http://127.0.0.1:25503")
-HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "AAPL")
+HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
+READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
+    ("/v3/terminal/mdds/status", {"format": "json"}),
+    ("/v3/option/list/expirations", {"symbol": HEALTHCHECK_SYMBOL, "format": "json"}),
+)
+READINESS_TIMEOUT = float(os.environ.get("THETADATA_HEALTHCHECK_TIMEOUT", "1.0"))
 CONNECTION_RETRY_SLEEP = 1.0
-CONNECTION_MAX_RETRIES = 60
+CONNECTION_MAX_RETRIES = 120
 BOOT_GRACE_PERIOD = 5.0
 MAX_RESTART_ATTEMPTS = 3
 MAX_TERMINAL_RESTART_CYCLES = 3
@@ -81,6 +89,32 @@ def _interval_label_from_ms(interval_ms: int) -> str:
     return label
 
 
+def _coerce_json_payload(payload: Any) -> Dict[str, Any]:
+    """Normalize ThetaData v2/v3 payloads into {'header':{'format':[...]}, 'response': [...] }."""
+    if isinstance(payload, dict):
+        if "response" in payload and "header" in payload:
+            return payload
+        # Columnar format -> convert to rows
+        columns = list(payload.keys())
+        if not columns:
+            return {"header": {"format": []}, "response": []}
+        lengths = [len(payload[col]) for col in columns]
+        length = max(lengths)
+        rows: List[List[Any]] = []
+        for idx in range(length):
+            row = []
+            for col, col_values in payload.items():
+                try:
+                    row.append(col_values[idx])
+                except IndexError:
+                    row.append(None)
+            rows.append(row)
+        return {"header": {"format": columns}, "response": rows}
+    if isinstance(payload, list):
+        return {"header": {"format": None}, "response": payload}
+    return {"header": {"format": None}, "response": [payload]}
+
+
 def _columnar_payload_to_records(payload: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
     if not payload:
         return []
@@ -115,6 +149,7 @@ def _compute_session_bounds(
     start_dt: datetime,
     end_dt: datetime,
     include_after_hours: bool,
+    prefer_full_session: bool = False,
 ) -> Tuple[str, str]:
     default_start, default_end = DEFAULT_SESSION_HOURS[include_after_hours]
     tz = LUMIBOT_DEFAULT_PYTZ
@@ -124,10 +159,11 @@ def _compute_session_bounds(
     session_start = start_default
     session_end = end_default
 
-    if start_dt.date() == day:
-        session_start = start_dt
-    if end_dt.date() == day:
-        session_end = end_dt
+    if not prefer_full_session:
+        if start_dt.date() == day:
+            session_start = start_dt
+        if end_dt.date() == day:
+            session_end = end_dt
 
     if session_end < session_start:
         session_end = session_start
@@ -135,32 +171,210 @@ def _compute_session_bounds(
     return _format_time(session_start), _format_time(session_end)
 
 
-def _probe_terminal_ready(timeout: float = 0.5) -> bool:
-    try:
-        params = {"symbol": HEALTHCHECK_SYMBOL, "format": "json"}
-        resp = requests.get(f"{BASE_URL}/v3/stock/snapshot/quote", params=params, timeout=timeout)
-        if resp.status_code == 200:
-            return True
-        text = resp.text.upper()
-        if "SERVER_STARTING" in text or resp.status_code == 571:
-            return False
-    except Exception:
-        return False
+def _normalize_market_datetime(value: datetime) -> datetime:
+    """Ensure datetimes are timezone-aware in the default market timezone."""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        value = datetime.combine(value, datetime.min.time())
+    if value.tzinfo is None:
+        return LUMIBOT_DEFAULT_PYTZ.localize(value)
+    return value.astimezone(LUMIBOT_DEFAULT_PYTZ)
+
+
+def _format_option_strike(strike: float) -> str:
+    """Format strikes for v3 requests (decimal string expected)."""
+    text = f"{strike:.3f}"
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _extract_timestamp_series(
+    df: pd.DataFrame,
+    target_tz: timezone = LUMIBOT_DEFAULT_PYTZ,
+) -> Tuple[Optional[pd.Series], List[str]]:
+    """Return a timezone-localized timestamp series plus the source columns to drop."""
+    drop_cols: List[str] = []
+    timestamp_col = _detect_column(df, ("timestamp", "datetime", "time"))
+    if timestamp_col:
+        ts_series = pd.to_datetime(df[timestamp_col], errors="coerce")
+        if getattr(ts_series.dt, "tz", None) is None:
+            ts_series = ts_series.dt.tz_localize(target_tz)
+        else:
+            ts_series = ts_series.dt.tz_convert(target_tz)
+        drop_cols.append(timestamp_col)
+        return ts_series, drop_cols
+
+    date_col = _detect_column(df, ("date",))
+    ms_col = _detect_column(df, ("ms_of_day", "msOfDay", "ms_of_day2"))
+    if date_col and ms_col:
+        date_series = pd.to_datetime(df[date_col].astype(str), format="%Y%m%d", errors="coerce")
+        ms_series = pd.to_timedelta(pd.to_numeric(df[ms_col], errors="coerce").fillna(0), unit="ms")
+        ts_series = date_series + ms_series
+        if getattr(ts_series.dt, "tz", None) is None:
+            ts_series = ts_series.dt.tz_localize(target_tz)
+        else:
+            ts_series = ts_series.dt.tz_convert(target_tz)
+        drop_cols.extend([date_col, ms_col])
+        return ts_series, drop_cols
+
+    return None, drop_cols
+
+
+def _finalize_history_dataframe(
+    df: pd.DataFrame,
+    datastyle: str,
+    asset: Asset,
+    target_tz: timezone = LUMIBOT_DEFAULT_PYTZ,
+) -> Optional[pd.DataFrame]:
+    """Apply timestamp indexing and basic filtering so legacy callers keep working."""
+    if df is None or df.empty:
+        return df
+
+    df = df.copy()
+    ts_series, drop_cols = _extract_timestamp_series(df, target_tz=target_tz)
+    if ts_series is not None:
+        df = df.assign(datetime=ts_series)
+        df = df.drop(columns=drop_cols, errors="ignore")
+        df = df[~df["datetime"].isna()]
+        if df.empty:
+            return df
+        df = df.set_index("datetime")
+        datastyle_key = (datastyle or "").lower()
+        index_series = pd.Series(df.index, index=df.index)
+
+        def _empty_timestamp_series() -> pd.Series:
+            return pd.Series(pd.NaT, index=df.index, dtype=index_series.dtype)
+
+        if datastyle_key == "ohlc":
+            df["last_trade_time"] = index_series
+            df["last_bid_time"] = _empty_timestamp_series()
+            df["last_ask_time"] = _empty_timestamp_series()
+        elif datastyle_key == "quote":
+            df["last_trade_time"] = _empty_timestamp_series()
+            df["last_bid_time"] = index_series
+            df["last_ask_time"] = index_series
+
+    if df.empty:
+        return df
+
+    if "quote" in datastyle.lower():
+        bid_col = df.get("bid")
+        ask_col = df.get("ask")
+        if bid_col is not None and ask_col is not None:
+            valid_prices_mask = ((bid_col > 0) | (ask_col > 0)).fillna(False)
+            df = df[valid_prices_mask]
+    elif str(getattr(asset, "asset_type", "")).lower() != "index":
+        count_col = _detect_column(df, ("count",))
+        if count_col and count_col in df.columns:
+            df = df[df[count_col] != 0]
+
+    drop_candidates = ["ms_of_day", "ms_of_day2", "date", "timestamp"]
+    df = df.drop(columns=[c for c in drop_candidates if c in df.columns], errors="ignore")
+
+    if df.empty:
+        return df
+
+    df = df[~df.index.duplicated(keep="last")]
+    df = df.sort_index()
+    return df
+
+
+def _terminal_http_alive(timeout: float = 0.3) -> bool:
+    """Return True if the local ThetaTerminal responds to HTTP."""
+    for endpoint, params in READINESS_PROBES:
+        try:
+            resp = requests.get(
+                f"{BASE_URL}{endpoint}",
+                params=params,
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return True
+        except requests.RequestException:
+            continue
     return False
+
+
+def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
+    for endpoint, params in READINESS_PROBES:
+        try:
+            resp = requests.get(
+                f"{BASE_URL}{endpoint}",
+                params=params,
+                timeout=timeout,
+            )
+        except Exception:
+            continue
+
+        if resp.status_code == 200:
+            if "status" in endpoint:
+                body = (resp.text or "").strip().upper()
+                if not body or body in {"CONNECTED", "READY", "OK"}:
+                    return True
+            else:
+                return True
+
+        text = (resp.text or "").upper()
+        if resp.status_code == 571 or "SERVER_STARTING" in text:
+            return False
+        if resp.status_code in (404, 410):
+            continue
+        if resp.status_code in (471, 473):
+            logger.error(
+                "ThetaData readiness probe %s failed with %s: %s",
+                endpoint,
+                resp.status_code,
+                resp.text,
+            )
+    return False
+
+
+def _ensure_java_runtime(min_major: int = 21) -> None:
+    """Ensure a supported Java runtime exists before starting ThetaTerminal."""
+    import shutil
+    import subprocess
+
+    java_path = shutil.which("java")
+    if not java_path:
+        raise RuntimeError("Java runtime not found. Install Java 21+ to run ThetaTerminal.")
+
+    try:
+        proc = subprocess.run(
+            [java_path, "-version"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Failed to execute '{java_path} -version': {exc}") from exc
+
+    version_output = (proc.stderr or proc.stdout or "").splitlines()
+    first_line = version_output[0] if version_output else ""
+    match = re.search(r"\"(\d+(?:\.\d+)*)\"", first_line)
+    version_str = match.group(1) if match else ""
+    major_part = version_str.split(".")[0] if version_str else ""
+    if major_part == "1" and len(version_str.split(".")) > 1:
+        major_part = version_str.split(".")[1]
+
+    try:
+        major = int(major_part)
+    except (TypeError, ValueError):
+        major = None
+
+    if major is None or major < min_major:
+        raise RuntimeError(
+            f"ThetaData requires Java {min_major}+; detected version '{first_line or 'unknown'}'."
+        )
 
 
 def _request_terminal_shutdown() -> bool:
-    shutdown_paths = [
-        f"{BASE_URL}/v3/system/terminal/shutdown",
-        f"{BASE_URL}/v2/system/terminal/shutdown",
-    ]
-    for path in shutdown_paths:
-        try:
-            requests.get(path, timeout=1)
-            return True
-        except Exception:
-            continue
-    return False
+    shutdown_url = f"{BASE_URL}/v3/system/terminal/shutdown"
+    try:
+        requests.get(shutdown_url, timeout=1)
+        return True
+    except Exception:
+        return False
 
 
 def _resolve_asset_folder(asset_obj: Asset) -> str:
@@ -1363,27 +1577,16 @@ def is_process_alive():
 
 def start_theta_data_client(username: str, password: str):
     import subprocess
-    import shutil
     global THETA_DATA_PROCESS, THETA_DATA_PID
     CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
 
     # First try shutting down any existing connection
-    graceful_shutdown_requested = False
-    try:
-        requests.get(f"{BASE_URL}/v2/system/terminal/shutdown", timeout=1)
-        graceful_shutdown_requested = True
-    except Exception:
-        pass
+    graceful_shutdown_requested = _request_terminal_shutdown()
 
     shutdown_deadline = time.time() + 15
     while True:
         process_alive = is_process_alive()
-        status_alive = False
-        try:
-            status_text = requests.get(f"{BASE_URL}/v2/system/mdds/status", timeout=0.5).text
-            status_alive = status_text in ("CONNECTED", "DISCONNECTED")
-        except Exception:
-            status_alive = False
+        status_alive = _terminal_http_alive(timeout=0.2)
 
         if not process_alive and not status_alive:
             break
@@ -1450,8 +1653,7 @@ def start_theta_data_client(username: str, password: str):
     # and has shell escaping bugs with special characters in passwords
 
     # Verify Java is available
-    if not shutil.which("java"):
-        raise RuntimeError("Java is not installed. Please install Java 11+ to use ThetaData.")
+    _ensure_java_runtime()
 
     # Find ThetaTerminal.jar
     jar_file = theta_dir / "ThetaTerminal.jar"
@@ -1481,6 +1683,21 @@ def start_theta_data_client(username: str, password: str):
 
     if not jar_file.exists():
         raise FileNotFoundError(f"ThetaTerminal.jar not found at {jar_file}")
+
+    try:
+        jar_stats = jar_file.stat()
+        jar_mtime = datetime.fromtimestamp(jar_stats.st_mtime).isoformat()
+        jar_size_mb = jar_stats.st_size / (1024 * 1024)
+        jar_hash = hashlib.sha256(jar_file.read_bytes()).hexdigest()
+        logger.info(
+            "Using ThetaTerminal jar at %s (%.2f MB, mtime %s, sha256=%s)",
+            jar_file,
+            jar_size_mb,
+            jar_mtime,
+            jar_hash[:16],
+        )
+    except Exception as exc:
+        logger.warning("Unable to fingerprint ThetaTerminal jar %s: %s", jar_file, exc)
 
     # Launch ThetaTerminal with --creds-file argument (no credentials on command line)
     # This avoids all shell escaping issues and is the recommended approach
@@ -1516,7 +1733,7 @@ def start_theta_data_client(username: str, password: str):
     logger.info(f"ThetaTerminal started with PID: {THETA_DATA_PID}")
 
     # We don't return a ThetaClient object since we're launching manually
-    # The connection will be established via HTTP/WebSocket to localhost:25510
+    # The connection will be established via HTTP on 127.0.0.1:25503 (and FPSS WebSocket on 25520)
     return THETA_DATA_PROCESS
 
 def check_connection(username: str, password: str, wait_for_connection: bool = False):
@@ -1552,6 +1769,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     page_count = 0
     consecutive_disconnects = 0
     restart_budget = 3
+    querystring = dict(querystring or {})
+    querystring.setdefault("format", "json")
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -1573,17 +1792,24 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     request_params if request_params else querystring
                 )
 
-                response = requests.get(request_url, headers=headers, params=request_params)
+                response = requests.get(
+                    request_url,
+                    headers=headers,
+                    params=request_params,
+                    timeout=30,
+                )
                 status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None
                 if status_code == 472:
                     logger.warning(f"No data available for request: {response.text[:200]}")
-                    # DEBUG-LOG: API response - no data
-                    logger.debug(
-                        "[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA"
-                    )
+                    logger.debug("[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA")
                     consecutive_disconnects = 0
                     return None
+                elif status_code == 571:
+                    logger.debug("ThetaTerminal reports SERVER_STARTING; waiting before retry.")
+                    check_connection(username=username, password=password, wait_for_connection=True)
+                    time.sleep(CONNECTION_RETRY_SLEEP)
+                    continue
                 elif status_code == 474:
                     consecutive_disconnects += 1
                     logger.warning("Received 474 from Theta Data (attempt %s): %s", counter + 1, response.text[:200])
@@ -1607,6 +1833,15 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         check_connection(username=username, password=password, wait_for_connection=True)
                         time.sleep(CONNECTION_RETRY_SLEEP)
                     continue
+                elif status_code == 410:
+                    raise RuntimeError(
+                        "ThetaData responded with 410 GONE. Ensure all requests use the v3 REST endpoints "
+                        "on http://127.0.0.1:25503/v3/..."
+                    )
+                elif status_code in (471, 473, 476):
+                    raise RuntimeError(
+                        f"ThetaData request rejected with status {status_code}: {response.text.strip()[:500]}"
+                    )
                 # If status code is not 200, then we are not connected
                 elif status_code != 200:
                     logger.warning(f"Non-200 status code {status_code}: {response.text[:200]}")
@@ -1618,7 +1853,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     check_connection(username=username, password=password, wait_for_connection=True)
                     consecutive_disconnects = 0
                 else:
-                    json_resp = response.json()
+                    json_payload = response.json()
+                    json_resp = _coerce_json_payload(json_payload)
                     consecutive_disconnects = 0
 
                     # DEBUG-LOG: API response - success
@@ -1650,6 +1886,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 raise
             except ValueError:
                 # Preserve deliberate ValueError signals (e.g., ThetaData error_type responses)
+                raise
+            except RuntimeError:
                 raise
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
@@ -1687,7 +1925,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
 def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, username: str, password: str, datastyle: str = "ohlc"):
     """
-    Get EOD (End of Day) data from ThetaData using the /v2/hist/{asset_type}/eod endpoint.
+    Get EOD (End of Day) data from ThetaData using the /v3/.../history/eod endpoints.
 
     This endpoint provides official daily OHLC that includes the 16:00 closing auction
     and follows SIP sale-condition rules, matching Polygon and Yahoo Finance exactly.
@@ -1720,22 +1958,26 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     start_date = start_dt.strftime("%Y%m%d")
     end_date = end_dt.strftime("%Y%m%d")
 
-    # Use v2 EOD API endpoint (supports stock, index, option)
-    url = f"{BASE_URL}/v2/hist/{asset.asset_type}/eod"
+    asset_type = str(getattr(asset, "asset_type", "stock")).lower()
+    endpoint = EOD_ENDPOINTS.get(asset_type)
+    if endpoint is None:
+        raise ValueError(f"Unsupported asset_type '{asset_type}' for ThetaData EOD history")
+
+    url = f"{BASE_URL}{endpoint}"
 
     querystring = {
-        "root": asset.symbol,
-        "start_date": start_date,
-        "end_date": end_date
+        "symbol": asset.symbol,
+        "start_date": datetime.strptime(start_date, "%Y%m%d").strftime("%Y-%m-%d"),
+        "end_date": datetime.strptime(end_date, "%Y%m%d").strftime("%Y-%m-%d"),
     }
 
-    # For options, add strike, expiration, and right parameters
-    if asset.asset_type == "option":
-        expiration_str = asset.expiration.strftime("%Y%m%d")
-        strike = int(asset.strike * 1000)
-        querystring["exp"] = expiration_str
-        querystring["strike"] = strike
-        querystring["right"] = "C" if asset.right == "CALL" else "P"
+    if asset_type == "option":
+        if not asset.expiration or asset.strike is None:
+            raise ValueError(f"Option asset {asset} missing expiration or strike for EOD request")
+        querystring["expiration"] = asset.expiration.strftime("%Y-%m-%d")
+        querystring["strike"] = _format_option_strike(float(asset.strike))
+        right = str(getattr(asset, "right", "CALL")).upper()
+        querystring["right"] = "call" if right.startswith("C") else "put"
 
     headers = {"Accept": "application/json"}
 
@@ -1806,7 +2048,7 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     # that don't match Polygon/Yahoo. We fix this by using minute bar data.
     # Solution: Fetch minute bars for each trading day and aggregate to get correct OHLC
     # NOTE: Indexes don't need this fix since they are calculated values, not traded securities
-    if asset.asset_type in ["stock", "option"]:
+    if asset_type in ("stock", "option"):
         logger.info(f"Fetching 9:30 AM minute bars to correct EOD open prices...")
 
         # Get minute data for the date range to extract 9:30 AM opens
@@ -1838,171 +2080,135 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     return df
 
 
-def get_historical_data(asset: Asset, start_dt: datetime, end_dt: datetime, ivl: int, username: str, password: str, datastyle:str = "ohlc", include_after_hours: bool = True):
+def get_historical_data(
+    asset: Asset,
+    start_dt: datetime,
+    end_dt: datetime,
+    ivl: int,
+    username: str,
+    password: str,
+    datastyle: str = "ohlc",
+    include_after_hours: bool = True,
+):
     """
-    Get data from ThetaData
-
-    Parameters
-    ----------
-    asset : Asset
-        The asset we are getting data for
-    start_dt : datetime
-        The start date/time for the data we want
-    end_dt : datetime
-        The end date/time for the data we want
-    ivl : int
-        The interval for the data we want in milliseconds (eg. 60000 for 1 minute)
-    username : str
-        Your ThetaData username
-    password : str
-        Your ThetaData password
-    datastyle : str
-        The style of data to retrieve ("ohlc" or "quote")
-    include_after_hours : bool
-        Whether to include after-hours trading data (default True)
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame with the data for the asset
+    Fetch intraday history from ThetaData using the v3 REST endpoints.
     """
 
-    # Comvert start and end dates to strings
-    start_date = start_dt.strftime("%Y%m%d")
-    end_date = end_dt.strftime("%Y%m%d")
+    asset_type = str(getattr(asset, "asset_type", "stock")).lower()
+    endpoint = HISTORY_ENDPOINTS.get((asset_type, datastyle))
+    if endpoint is None:
+        raise ValueError(f"Unsupported ThetaData history request ({asset_type}, {datastyle})")
 
-    # Use v2 API for ALL asset types
-    url = f"{BASE_URL}/v2/hist/{asset.asset_type}/{datastyle}"
-
-    if asset.asset_type == "option":
-        # Convert the expiration date to a string
-        expiration_str = asset.expiration.strftime("%Y%m%d")
-
-        # Convert the strike price to an integer and multiply by 1000
-        strike = int(asset.strike * 1000)
-
-        querystring = {
-            "root": asset.symbol,
-            "start_date": start_date,
-            "end_date": end_date,
-            "ivl": ivl,
-            "strike": strike,  # "140000",
-            "exp": expiration_str,  # "20220930",
-            "right": "C" if asset.right == "CALL" else "P",
-            # include_after_hours=True means extended hours (rth=false)
-            # include_after_hours=False means regular hours only (rth=true)
-            "rth": "false" if include_after_hours else "true"
-        }
-    elif asset.asset_type == "index":
-        # For indexes (SPX, VIX, etc.), don't use rth parameter
-        # Indexes are calculated values, not traded securities
-        querystring = {
-            "root": asset.symbol,
-            "start_date": start_date,
-            "end_date": end_date,
-            "ivl": ivl
-        }
-    else:
-        # For stocks, respect include_after_hours parameter
-        # rth=false means extended hours (pre-market + regular + after-hours)
-        # rth=true means 9:30 AM - 4:00 PM ET (regular market hours only)
-        querystring = {
-            "root": asset.symbol,
-            "start_date": start_date,
-            "end_date": end_date,
-            "ivl": ivl,
-            "rth": "false" if include_after_hours else "true"
-        }
-
+    interval_label = _interval_label_from_ms(ivl)
+    url = f"{BASE_URL}{endpoint}"
     headers = {"Accept": "application/json"}
 
-    # DEBUG-LOG: Intraday data request
-    logger.debug(
-        "[THETA][DEBUG][INTRADAY][REQUEST] asset=%s start=%s end=%s ivl=%d datastyle=%s include_after_hours=%s",
-        asset,
-        start_date,
-        end_date,
-        ivl,
-        datastyle,
-        include_after_hours
-    )
+    start_is_date_only = isinstance(start_dt, date) and not isinstance(start_dt, datetime)
+    end_is_date_only = isinstance(end_dt, date) and not isinstance(end_dt, datetime)
 
-    # Send the request
+    start_local = _normalize_market_datetime(start_dt)
+    end_local = _normalize_market_datetime(end_dt)
+    trading_days = get_trading_dates(asset, start_local, end_local)
 
-    json_resp = get_request(url=url, headers=headers, querystring=querystring,
-                            username=username, password=password)
-    if json_resp is None:
-        # DEBUG-LOG: Intraday data response - no data
+    if not trading_days:
         logger.debug(
-            "[THETA][DEBUG][INTRADAY][RESPONSE] asset=%s result=NO_DATA",
-            asset
+            "[THETA][DEBUG][INTRADAY][NO_DAYS] asset=%s start=%s end=%s",
+            asset,
+            start_dt,
+            end_dt,
         )
         return None
 
-    # DEBUG-LOG: Intraday data response - success
-    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
     logger.debug(
-        "[THETA][DEBUG][INTRADAY][RESPONSE] asset=%s rows=%d",
+        "[THETA][DEBUG][INTRADAY][REQUEST] asset=%s start=%s end=%s ivl=%d datastyle=%s include_after_hours=%s",
         asset,
-        response_rows
+        start_dt,
+        end_dt,
+        ivl,
+        datastyle,
+        include_after_hours,
     )
 
-    # Convert to pandas dataframe
-    df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
+    def build_option_params() -> Dict[str, str]:
+        if not asset.expiration:
+            raise ValueError(f"Expiration date missing for option asset {asset}")
+        if asset.strike is None:
+            raise ValueError(f"Strike missing for option asset {asset}")
+        right = str(getattr(asset, "right", "CALL")).upper()
+        return {
+            "symbol": asset.symbol,
+            "expiration": asset.expiration.strftime("%Y-%m-%d"),
+            "strike": _format_option_strike(float(asset.strike)),
+            "right": "call" if right.startswith("C") else "put",
+        }
 
-    # Remove any rows where count is 0 (no data - the prices will be 0 at these times too)
-    # NOTE: Indexes always have count=0 since they're calculated values, not traded securities
-    if "quote" in datastyle.lower():
-        # Preserve only rows that have a positive bid or ask so we never cache placeholder zeros.
-        bid_col = df.get("bid")
-        ask_col = df.get("ask")
-        if bid_col is not None and ask_col is not None:
-            valid_prices_mask = ((bid_col > 0) | (ask_col > 0)).fillna(False)
-            removed_rows = int(len(df) - valid_prices_mask.sum())
-            if removed_rows:
-                logger.debug(
-                    "[THETA][DEBUG][INTRADAY][QUOTE_FILTER] asset=%s removed_rows=%d reason=non_positive_prices",
-                    asset,
-                    removed_rows,
-                )
-            df = df[valid_prices_mask]
-    elif asset.asset_type != "index":
-        # Don't filter indexes by count - they're always 0
-        df = df[df["count"] != 0]
+    if asset_type == "index" and datastyle == "ohlc":
+        querystring = {
+            "symbol": asset.symbol,
+            "start_date": start_local.strftime("%Y-%m-%d"),
+            "end_date": end_local.strftime("%Y-%m-%d"),
+            "interval": interval_label,
+        }
+        json_resp = get_request(
+            url=url,
+            headers=headers,
+            querystring=querystring,
+            username=username,
+            password=password,
+        )
+        if not json_resp:
+            return None
+        df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
+        return _finalize_history_dataframe(df, datastyle, asset)
 
-    if df is None or df.empty:
-        return df
+    frames: List[pd.DataFrame] = []
+    option_params = build_option_params() if asset_type == "option" else None
 
-    # Function to combine ms_of_day and date into datetime
-    def combine_datetime(row):
-        # Ensure the date is in integer format and then convert to string
-        date_str = str(int(row["date"]))
-        base_date = datetime.strptime(date_str, "%Y%m%d")
-        # v2 API returns correct start-stamped bars - no adjustment needed
-        datetime_value = base_date + timedelta(milliseconds=int(row["ms_of_day"]))
-        return datetime_value
+    for trading_day in trading_days:
+        querystring: Dict[str, Any] = {
+            "symbol": asset.symbol,
+            "date": trading_day.strftime("%Y-%m-%d"),
+            "interval": interval_label,
+        }
+        if option_params:
+            querystring.update(option_params)
+        if asset_type == "index":
+            # Index quote/price endpoint expects 'date' per request similar to options/stocks
+            querystring.pop("symbol", None)
+            querystring["symbol"] = asset.symbol
 
-    # Apply the function to each row to create a new datetime column
+        session_start, session_end = _compute_session_bounds(
+            trading_day,
+            start_local,
+            end_local,
+            include_after_hours,
+            prefer_full_session=start_is_date_only and end_is_date_only,
+        )
+        querystring["start_time"] = session_start
+        querystring["end_time"] = session_end
 
-    # Create a new datetime column using the combine_datetime function
-    datetime_combined = df.apply(combine_datetime, axis=1)
+        json_resp = get_request(
+            url=url,
+            headers=headers,
+            querystring=querystring,
+            username=username,
+            password=password,
+        )
+        if not json_resp:
+            continue
 
-    # Assign the newly created datetime column
-    df = df.assign(datetime=datetime_combined)
+        df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
+        df = _finalize_history_dataframe(df, datastyle, asset)
+        if df is not None and not df.empty:
+            frames.append(df)
 
-    # Convert the datetime column to a datetime and localize to Eastern Time
-    df["datetime"] = pd.to_datetime(df["datetime"])
+    if not frames:
+        logger.debug("[THETA][DEBUG][INTRADAY][EMPTY_RESULT] asset=%s", asset)
+        return None
 
-    # Localize to LUMIBOT_DEFAULT_PYTZ (ThetaData returns times in ET)
-    df["datetime"] = df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ)
-
-    # Set datetime as the index
-    df = df.set_index("datetime")
-
-    # Drop the ms_of_day and date columns
-    df = df.drop(columns=["ms_of_day", "date"], errors='ignore')
-
-    return df
+    result = pd.concat(frames).sort_index()
+    result = result[~result.index.duplicated(keep="last")]
+    return result
 
 
 def _normalize_expiration_value(raw_value: object) -> Optional[str]:
@@ -2076,9 +2282,9 @@ def build_historical_chain(
 
     headers = {"Accept": "application/json"}
     expirations_resp = get_request(
-        url=f"{BASE_URL}/v2/list/expirations",
+        url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['expirations']}",
         headers=headers,
-        querystring={"root": asset.symbol},
+        querystring={"symbol": asset.symbol},
         username=username,
         password=password,
     )
@@ -2100,7 +2306,18 @@ def build_historical_chain(
         )
         return None
 
-    expiration_values: List[int] = sorted(int(value) for value in exp_df.iloc[:, 0].tolist())
+    expiration_col = _detect_column(exp_df, ("expiration", "exp", "date"))
+    if not expiration_col:
+        logger.warning("ThetaData expiration payload missing expected columns for %s.", asset.symbol)
+        return None
+
+    expiration_values: List[str] = []
+    for raw_value in exp_df[expiration_col].tolist():
+        normalized = _normalize_expiration_value(raw_value)
+        if normalized:
+            expiration_values.append(normalized)
+    expiration_values = sorted({value for value in expiration_values})
+
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
     constraints = chain_constraints or {}
@@ -2141,15 +2358,15 @@ def build_historical_chain(
     consecutive_misses = 0
     hint_reached = False
 
-    def expiration_has_data(expiration_str: str, strike_thousandths: int, right: str) -> bool:
+    def expiration_has_data(expiration_iso: str, strike_value: float, right: str) -> bool:
         querystring = {
-            "root": asset.symbol,
-            "exp": expiration_str,
-            "strike": strike_thousandths,
-            "right": right,
+            "symbol": asset.symbol,
+            "expiration": expiration_iso,
+            "strike": strike_value,
+            "option_type": "CALL" if right == "C" else "PUT",
         }
         resp = get_request(
-            url=f"{BASE_URL}/list/dates/option/quote",
+            url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['dates_quote']}",
             headers=headers,
             querystring=querystring,
             username=username,
@@ -2157,30 +2374,42 @@ def build_historical_chain(
         )
         if not resp or resp.get("header", {}).get("error_type") == "NO_DATA":
             return False
-        dates = resp.get("response", [])
-        return as_of_int in dates if dates else False
+        dates = []
+        data_rows = resp.get("response", [])
+        if data_rows and isinstance(data_rows[0], (list, tuple)):
+            # Responses converted via _coerce_json_payload
+            date_idx = 0
+            dates = [row[date_idx] for row in data_rows]
+        elif data_rows:
+            dates = data_rows
+        ints = []
+        for date_value in dates:
+            if not date_value:
+                continue
+            try:
+                ints.append(int(str(date_value).replace("-", "")[:8]))
+            except ValueError:
+                continue
+        return as_of_int in ints
 
-    for exp_value in expiration_values:
-        if exp_value < effective_start_int:
+    for expiration_iso in expiration_values:
+        expiration_int = int(expiration_iso.replace("-", ""))
+        if expiration_int < effective_start_int:
             continue
-        if max_hint_int and exp_value > max_hint_int:
+        if max_hint_int and expiration_int > max_hint_int:
             logger.debug(
                 "[ThetaData] Reached max hint %s for %s; stopping chain build.",
                 max_hint_date,
                 asset.symbol,
             )
             break
-        if min_hint_int and not hint_reached and exp_value >= min_hint_int:
+        if min_hint_int and not hint_reached and expiration_int >= min_hint_int:
             hint_reached = True
 
-        expiration_iso = _normalize_expiration_value(exp_value)
-        if not expiration_iso:
-            continue
-
         strike_resp = get_request(
-            url=f"{BASE_URL}/v2/list/strikes",
+            url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
-            querystring={"root": asset.symbol, "exp": str(exp_value)},
+            querystring={"symbol": asset.symbol, "expiration": expiration_iso},
             username=username,
             password=password,
         )
@@ -2202,7 +2431,22 @@ def build_historical_chain(
                 break
             continue
 
-        strike_values = sorted({round(value / 1000.0, 4) for value in strike_df.iloc[:, 0].tolist()})
+        strike_col = _detect_column(strike_df, ("strike",))
+        if not strike_col:
+            consecutive_misses += 1
+            if consecutive_misses >= max_consecutive_misses:
+                break
+            continue
+
+        strike_values = sorted(
+            {
+                strike
+                for strike in (
+                    _normalize_strike_value(value) for value in strike_df[strike_col].tolist()
+                )
+                if strike
+            }
+        )
         if not strike_values:
             consecutive_misses += 1
             if consecutive_misses >= max_consecutive_misses:
@@ -2212,10 +2456,9 @@ def build_historical_chain(
         # Use the median strike to validate whether the expiration existed on the backtest date
         median_index = len(strike_values) // 2
         probe_strike = strike_values[median_index]
-        probe_thousandths = int(round(probe_strike * 1000))
 
-        has_call_data = expiration_has_data(str(exp_value), probe_thousandths, "C")
-        has_put_data = has_call_data or expiration_has_data(str(exp_value), probe_thousandths, "P")
+        has_call_data = expiration_has_data(expiration_iso, probe_strike, "C")
+        has_put_data = has_call_data or expiration_has_data(expiration_iso, probe_strike, "P")
 
         if not (has_call_data or has_put_data):
             logger.debug(
@@ -2277,18 +2520,22 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
         after_date,
     )
 
-    url = f"{BASE_URL}/v2/list/expirations"
-    querystring = {"root": ticker}
+    url = f"{BASE_URL}{OPTION_LIST_ENDPOINTS['expirations']}"
+    querystring = {"symbol": ticker}
     headers = {"Accept": "application/json"}
     json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
-    expirations = df.iloc[:, 0].tolist()
+    expiration_col = _detect_column(df, ("expiration", "date", "exp"))
+    if not expiration_col:
+        return []
+    expirations = df[expiration_col].tolist()
     after_date_int = int(after_date.strftime("%Y%m%d"))
     expirations = [x for x in expirations if x >= after_date_int]
     expirations_final = []
     for expiration in expirations:
-        expiration_str = str(expiration)
-        expirations_final.append(f"{expiration_str[:4]}-{expiration_str[4:6]}-{expiration_str[6:]}")
+        expiration_str = _normalize_expiration_value(expiration)
+        if expiration_str:
+            expirations_final.append(expiration_str)
     return expirations_final
 
 
@@ -2312,13 +2559,11 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     list[float]
         A list of strike prices for the given ticker and expiration date
     """
-    # Use v2 API endpoint
-    url = f"{BASE_URL}/v2/list/strikes"
+    url = f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}"
 
-    # Convert the expiration date to a string
-    expiration_str = expiration.strftime("%Y%m%d")
+    expiration_iso = expiration.strftime("%Y-%m-%d")
 
-    querystring = {"root": ticker, "exp": expiration_str}
+    querystring = {"symbol": ticker, "expiration": expiration_iso}
 
     headers = {"Accept": "application/json"}
 
@@ -2328,11 +2573,15 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
 
-    # Convert df to a list of the first (and only) column
-    strikes = df.iloc[:, 0].tolist()
+    strike_col = _detect_column(df, ("strike",))
+    if not strike_col:
+        return []
 
-    # Divide each strike by 1000 to get the actual strike price
-    strikes = [x / 1000.0 for x in strikes]
+    strikes = []
+    for raw in df[strike_col].tolist():
+        strike = _normalize_strike_value(raw)
+        if strike:
+            strikes.append(strike)
 
     return strikes
 

@@ -1412,9 +1412,15 @@ class Broker(ABC):
             for order in orders:
                 tasks.append(executor.submit(self.cancel_order, order))
 
-    def cancel_open_orders(self, strategy):
+    def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
         """cancel all open orders for a given strategy"""
-        orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
+        if orders is None:
+            orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
+        else:
+            orders = [o for o in orders if o.is_active()]
+        if not orders:
+            self.logger.debug("cancel_open_orders(strategy=%s) -> no active orders", strategy)
+            return []
         order_ids = [
             getattr(order, "identifier", None)
             or getattr(order, "id", None)

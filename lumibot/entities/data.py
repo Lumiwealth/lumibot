@@ -2,6 +2,8 @@ import datetime
 from decimal import Decimal
 from typing import Optional, Union
 
+import numpy as np
+
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
@@ -457,6 +459,49 @@ class Data:
         close_price = self.datalines["close"].dataline[iter_count]
         price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
         return price
+
+    @check_data
+    def get_price_snapshot(self, dt, length=1, timeshift=0):
+        """Return OHLC, bid/ask, and timestamp metadata for the provided datetime."""
+        iter_count = self.get_iter_count(dt)
+
+        def _get_value(column: str):
+            if column not in self.datalines:
+                return None
+            return self.datalines[column].dataline[iter_count]
+
+        def _get_timestamp(column: str) -> Optional[datetime.datetime]:
+            if column not in self.datalines:
+                return None
+            raw_value = self.datalines[column].dataline[iter_count]
+            if raw_value is None:
+                return None
+            if isinstance(raw_value, float) and np.isnan(raw_value):
+                return None
+            if pd.isna(raw_value):
+                return None
+            if isinstance(raw_value, pd.Timestamp):
+                return raw_value.to_pydatetime()
+            if isinstance(raw_value, datetime.datetime):
+                return raw_value
+            try:
+                ts = pd.Timestamp(raw_value)
+            except Exception:
+                return None
+            return ts.to_pydatetime()
+
+        snapshot = {
+            "open": _get_value("open"),
+            "high": _get_value("high"),
+            "low": _get_value("low"),
+            "close": _get_value("close"),
+            "bid": _get_value("bid"),
+            "ask": _get_value("ask"),
+            "last_trade_time": _get_timestamp("last_trade_time"),
+            "last_bid_time": _get_timestamp("last_bid_time"),
+            "last_ask_time": _get_timestamp("last_ask_time"),
+        }
+        return snapshot
 
     @check_data
     def get_quote(self, dt, length=1, timeshift=0):

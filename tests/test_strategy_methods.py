@@ -1,11 +1,26 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import uuid
 from unittest.mock import patch, MagicMock
+import pytest
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.entities import Asset, Order, Position
 from apscheduler.triggers.cron import CronTrigger
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+
+class FakeSnapshotSource:
+    def __init__(self):
+        self.snapshot = None
+        self.last_price_calls = 0
+
+    def get_price_snapshot(self, asset, *args, **kwargs):
+        return self.snapshot
+
+    def get_last_price(self, asset, *args, **kwargs):
+        self.last_price_calls += 1
+        return None
 
 
 class TestStrategyMethods:
@@ -219,6 +234,105 @@ class TestStrategyMethods:
             updated_value = strategy._update_portfolio_value()
 
         assert updated_value == original_value
+
+    def _setup_strategy_with_option_position(self):
+        date_start = datetime(2024, 1, 1)
+        date_end = datetime(2024, 1, 10)
+        data_source = YahooDataBacktesting(date_start, date_end)
+        backtesting_broker = BacktestingBroker(data_source)
+        strategy = BuyAndHold(
+            backtesting_broker,
+            backtesting_start=date_start,
+            backtesting_end=date_end,
+        )
+        option_asset = Asset(
+            "CVNA",
+            asset_type="option",
+            expiration=date(2026, 1, 16),
+            strike=180.0,
+            right="CALL",
+        )
+        option_asset.multiplier = 100
+        position = Position(strategy._name, option_asset, quantity=2, avg_fill_price=60.0)
+        strategy.broker.get_tracked_positions = MagicMock(return_value=[position])
+        strategy._quote_asset = Asset("USD", asset_type="forex")
+        source = FakeSnapshotSource()
+        strategy.broker.option_source = source
+        strategy.broker.data_source = MagicMock()
+        strategy.broker.data_source.get_last_price = MagicMock(return_value=None)
+        return strategy, position, option_asset, source
+
+    def test_update_portfolio_value_prefers_fresh_trade_snapshot(self):
+        strategy, position, option_asset, source = self._setup_strategy_with_option_position()
+        now = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 4, 7, 10, 30))
+        strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
+        source.snapshot = {
+            "open": 60.0,
+            "high": 66.0,
+            "low": 58.0,
+            "close": 65.0,
+            "bid": 64.5,
+            "ask": 65.5,
+            "last_trade_time": now - timedelta(seconds=30),
+            "last_bid_time": now - timedelta(seconds=20),
+            "last_ask_time": now - timedelta(seconds=10),
+        }
+        starting_cash = strategy.cash
+
+        value = strategy._update_portfolio_value()
+        expected_price = 65.0
+        assert value == pytest.approx(starting_cash + position.quantity * option_asset.multiplier * expected_price)
+        assert source.last_price_calls == 0
+
+    def test_update_portfolio_value_uses_mid_when_trade_stale(self):
+        strategy, position, option_asset, source = self._setup_strategy_with_option_position()
+        now = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 4, 7, 10, 30))
+        strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
+        source.snapshot = {
+            "open": 60.0,
+            "high": 66.0,
+            "low": 58.0,
+            "close": 65.0,
+            "bid": 70.0,
+            "ask": 74.0,
+            "last_trade_time": now - timedelta(minutes=10),
+            "last_bid_time": now - timedelta(seconds=20),
+            "last_ask_time": now - timedelta(seconds=10),
+        }
+        starting_cash = strategy.cash
+
+        with patch.object(strategy.logger, "warning") as warning_mock:
+            value = strategy._update_portfolio_value()
+
+        expected_price = (70.0 + 74.0) / 2.0
+        assert value == pytest.approx(starting_cash + position.quantity * option_asset.multiplier * expected_price)
+        warning_mock.assert_not_called()
+        assert source.last_price_calls == 0
+
+    def test_update_portfolio_value_warns_when_all_snapshot_data_stale(self):
+        strategy, position, option_asset, source = self._setup_strategy_with_option_position()
+        now = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 4, 7, 10, 30))
+        strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
+        stale_dt = now - timedelta(minutes=10)
+        source.snapshot = {
+            "open": 60.0,
+            "high": 66.0,
+            "low": 58.0,
+            "close": 65.0,
+            "bid": 70.0,
+            "ask": 74.0,
+            "last_trade_time": stale_dt,
+            "last_bid_time": stale_dt,
+            "last_ask_time": stale_dt,
+        }
+        starting_cash = strategy.cash
+
+        with patch.object(strategy.logger, "warning") as warning_mock:
+            value = strategy._update_portfolio_value()
+
+        assert value == pytest.approx(starting_cash + position.quantity * option_asset.multiplier * 65.0)
+        warning_mock.assert_called_once()
+        assert source.last_price_calls == 0
 
     @patch('uuid.uuid4')
     def test_register_cron_callback_adds_job_to_scheduler(self, mock_uuid4):

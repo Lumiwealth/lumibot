@@ -340,6 +340,31 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     return returns_df
 
 
+SAFE_COLOR_CYCLE = [
+    "#FF6B6B",  # coral
+    "#F4A261",  # sand
+    "#2EC4B6",  # teal
+    "#7E57C2",  # purple
+    "#F9C74F",  # gold
+    "#34A0A4",  # aquamarine
+    "#E63946",  # crimson
+]
+_BLACK_VALUES = {"black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)"}
+
+
+def _safe_color(raw_color, key_hint=""):
+    """Return a color guaranteed to be visible against dark backgrounds."""
+    if isinstance(raw_color, str):
+        color_text = raw_color.strip().lower()
+        if color_text and color_text not in _BLACK_VALUES:
+            return raw_color
+    if raw_color is not None and not isinstance(raw_color, str):
+        return raw_color
+
+    idx = abs(hash(key_hint)) % len(SAFE_COLOR_CYCLE)
+    return SAFE_COLOR_CYCLE[idx]
+
+
 def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     start = to_datetime_aware(start)
     end = to_datetime_aware(end)
@@ -449,8 +474,11 @@ def plot_indicators(
                         else:
                             marker_size = float(marker_sizes)
 
-                # If color is not set, set it to white
-                group_df.loc[:, "color"] = group_df["color"].fillna("white")
+                if "color" not in group_df.columns:
+                    group_df["color"] = None
+                group_df.loc[:, "color"] = group_df["color"].apply(
+                    lambda val: _safe_color(val, f"{plot_name}:{marker_name}")
+                )
 
                 # Determine which subplot to use
                 row = plot_names.index(plot_name) + 1
@@ -492,8 +520,9 @@ def plot_indicators(
         for plot_name, plot_df in chart_lines_df.groupby("plot_name"):
             # Loop over the line names for this plot_name
             for line_name, group_df in plot_df.groupby("name"):
-                # Get the color for this line name
-                color = group_df["color"].iloc[0]
+                if "color" not in group_df.columns:
+                    group_df = group_df.assign(color=None)
+                color = _safe_color(group_df["color"].iloc[0], f"{plot_name}:{line_name}")
 
                 # Determine which subplot to use
                 row = plot_names.index(plot_name) + 1
@@ -530,7 +559,7 @@ def plot_indicators(
             title_font_size=30,
             template="plotly_dark",
             height=height,  # Dynamic height based on number of subplots
-            margin=dict(t=150)  # Add more space between title and first subplot
+            margin=dict(t=150),  # Add more space between title and first subplot
         )
 
         # Range selector buttons

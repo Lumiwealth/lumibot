@@ -765,7 +765,7 @@ class Ccxt(Broker):
             if order.identifier == response:
                 order.set_canceled()
 
-    def cancel_open_orders(self, strategy):
+    def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
         """Cancel all open orders at the broker."""
         for order in self._pull_broker_all_orders():
             self.api.cancel_order(order["id"], symbol=order["symbol"])

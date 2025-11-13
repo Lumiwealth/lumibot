@@ -1809,7 +1809,7 @@ class Strategy(_Strategy):
         """
         return self.broker.cancel_orders(orders)
 
-    def cancel_open_orders(self):
+    def cancel_open_orders(self, orders: list[Order] | None = None):
         """Cancel all the strategy open orders.
 
         Cancels all orders that are open and awaiting execution within
@@ -1830,23 +1830,29 @@ class Strategy(_Strategy):
         >>> self.cancel_open_orders()
 
         """
+        active_orders: list[Order] = []
         try:
-            tracked_orders = self.broker.get_tracked_orders(self.name)
+            tracked_orders = orders if orders is not None else self.broker.get_tracked_orders(self.name)
             active_orders = [order for order in tracked_orders if order.is_active()]
-            order_ids = [
-                getattr(order, "identifier", None)
-                or getattr(order, "id", None)
-                or getattr(order, "order_id", None)
-                for order in active_orders
-            ]
-            if order_ids:
+            if active_orders:
+                order_ids = [
+                    getattr(order, "identifier", None)
+                    or getattr(order, "id", None)
+                    or getattr(order, "order_id", None)
+                    for order in active_orders
+                ]
                 self.log_message(
                     f"cancel_open_orders -> active={len(active_orders)} ids={order_ids}",
                     color="yellow",
                 )
         except Exception as exc:  # pragma: no cover - defensive logging
             self.logger.exception("Failed to enumerate open orders before cancellation: %s", exc)
-        return self.broker.cancel_open_orders(self.name)
+            active_orders = []
+
+        if not active_orders:
+            return []
+
+        return self.broker.cancel_open_orders(self.name, active_orders)
 
     def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None):
         """Modify an order.

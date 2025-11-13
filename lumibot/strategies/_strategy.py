@@ -291,6 +291,9 @@ class _Strategy:
         self._position_value = None
         self._portfolio_value = None
 
+        # Only log one message about cloud API key being missing
+        self._logged_missing_lumiwealth_api_key = False
+
         if name is not None:
             self._name = name
 
@@ -1679,7 +1682,12 @@ class _Strategy:
         # Check if self.lumiwealth_api_key has been set, if not, return
         if not hasattr(self, "lumiwealth_api_key") or self.lumiwealth_api_key is None or self.lumiwealth_api_key == "":
             # Log that we are not sending the update to the cloud
-            self.logger.warning("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because lumiwealth_api_key is not set. If you would like to be able to track your bot performance on www.botspot.trade, please set the lumiwealth_api_key parameter in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
+            if not self._logged_missing_lumiwealth_api_key:
+                self.logger.warning("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because "
+                                    "lumiwealth_api_key is not set. If you would like to be able to track your bot "
+                                    "performance on www.botspot.trade, please set the lumiwealth_api_key parameter "
+                                    "in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
+                self._logged_missing_lumiwealth_api_key = True
             return
 
         # Log that we're starting to send data

@@ -1413,7 +1413,18 @@ class Broker(ABC):
                 tasks.append(executor.submit(self.cancel_order, order))
 
     def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
-        """cancel all open orders for a given strategy"""
+        """Cancel all open orders for a given strategy.
+
+        Parameters
+        ----------
+        strategy : str
+            Strategy name whose orders should be canceled.
+        orders : list[Order] | None
+            Optional pre-filtered orders list. When provided, the broker
+            skips re-fetching tracked orders and cancels the supplied
+            active orders immediately. If None, the broker will gather
+            the active orders itself.
+        """
         if orders is None:
             orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
         else:

@@ -8,6 +8,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -298,10 +299,15 @@ def _terminal_http_alive(timeout: float = 0.3) -> bool:
 
 def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
     for endpoint, params in READINESS_PROBES:
+        request_url = f"{BASE_URL}{endpoint}"
+        if params:
+            try:
+                request_url = f"{request_url}?{urlencode(params)}"
+            except Exception:
+                pass
         try:
             resp = requests.get(
-                f"{BASE_URL}{endpoint}",
-                params=params,
+                request_url,
                 timeout=timeout,
             )
         except Exception:
@@ -315,6 +321,8 @@ def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
             if "status" in endpoint:
                 if not normalized_text or normalized_text in {"CONNECTED", "READY", "OK"}:
                     return True
+                # Explicit non-ready signal from status endpoint.
+                return False
             else:
                 return True
 
@@ -1779,10 +1787,19 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
 
-    def ensure_process():
-        if not is_process_alive():
-            logger.info("ThetaTerminal process not found; attempting restart.")
-            start_theta_data_client(username=username, password=password)
+    def ensure_process(force_restart: bool = False):
+        alive = is_process_alive()
+        if alive and not force_restart:
+            return
+        if alive and force_restart:
+            logger.warning("ThetaTerminal unresponsive; restarting process.")
+            try:
+                _request_terminal_shutdown()
+            except Exception:
+                pass
+        logger.info("ThetaTerminal process not found; attempting restart.")
+        start_theta_data_client(username=username, password=password)
+        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
 
     if not wait_for_connection:
         if _probe_terminal_ready():
@@ -1790,7 +1807,7 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
                 ensure_process()
                 return check_connection(username=username, password=password, wait_for_connection=True)
             return None, True
-        ensure_process()
+        ensure_process(force_restart=True)
         return check_connection(username=username, password=password, wait_for_connection=True)
 
     retries = 0
@@ -1803,7 +1820,7 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
                 continue
             return None, True
 
-        ensure_process()
+        ensure_process(force_restart=True)
         retries += 1
         time.sleep(CONNECTION_RETRY_SLEEP)
 
@@ -2469,9 +2486,10 @@ def build_historical_chain(
     hint_reached = False
 
     def expiration_has_data(expiration_iso: str, strike_value: float, right: str) -> bool:
+        exp_param = expiration_iso.replace("-", "")
         querystring = {
             "symbol": asset.symbol,
-            "expiration": expiration_iso,
+            "exp": exp_param,
             "strike": strike_value,
             "option_type": "CALL" if right == "C" else "PUT",
         }
@@ -2516,10 +2534,11 @@ def build_historical_chain(
         if min_hint_int and not hint_reached and expiration_int >= min_hint_int:
             hint_reached = True
 
+        expiration_param = expiration_iso.replace("-", "")
         strike_resp = get_request(
             url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
-            querystring={"symbol": asset.symbol, "exp": expiration_iso},
+            querystring={"symbol": asset.symbol, "exp": expiration_param},
             username=username,
             password=password,
         )
@@ -2672,8 +2691,9 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     url = f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}"
 
     expiration_iso = expiration.strftime("%Y-%m-%d")
+    expiration_param = expiration_iso.replace("-", "")
 
-    querystring = {"symbol": ticker, "exp": expiration_iso}
+    querystring = {"symbol": ticker, "exp": expiration_param}
 
     headers = {"Accept": "application/json"}
 

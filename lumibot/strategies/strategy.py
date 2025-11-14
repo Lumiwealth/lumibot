@@ -1818,7 +1818,11 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        None
+        orders : list[Order] | None
+            Optional list of already enumerated orders. Pass in the list
+            when you have just fetched/filtered the active orders to avoid
+            re-querying the broker; leave as None to let the broker gather
+            them itself.
 
         Returns
         -------

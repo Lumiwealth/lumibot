@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import polars as pl
+import numpy as np
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import PolarsData
@@ -91,6 +92,8 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
         # Track which futures assets we've fetched multipliers for (to avoid redundant API calls)
         self._multiplier_fetched_assets = set()
+        # Cache datetime arrays (UTC nanoseconds) per asset/timestep for fast slicing
+        self._datetime_ns_cache = {}
 
         # Verify DataBento availability
         if not databento_helper.DATABENTO_AVAILABLE:
@@ -245,6 +248,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         date_end=None
                     )
                     self.pandas_data[search_asset] = data_obj
+                    self._cache_datetime_series(search_asset, data_obj)
                 else:
                     pandas_df = df.to_pandas() if hasattr(df, "to_pandas") else df
                     # Create Data object and store
@@ -255,6 +259,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         quote=quote_asset,
                     )
                     self.pandas_data[search_asset] = data_obj
+                    self._cache_datetime_series(search_asset, data_obj)
                     cached_len = len(pandas_df) if hasattr(pandas_df, "__len__") else 0
                     logger.debug(f"Cached {cached_len} rows for {asset.symbol}")
                 
@@ -448,6 +453,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     date_end=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2000, 1, 1))
                 )
                 self.pandas_data[search_asset] = data_obj
+                self._cache_datetime_series(search_asset, data_obj)
                 return
 
             # Handle polars DataFrame (has 'datetime' column) or pandas DataFrame (has datetime index)
@@ -478,6 +484,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 return
 
             self.pandas_data[search_asset] = data_obj
+            self._cache_datetime_series(search_asset, data_obj)
 
         except DataBentoAuthenticationError as e:
             logger.error(colored(f"DataBento authentication failed for {asset_separated.symbol}: {e}", "red"))
@@ -485,6 +492,45 @@ class DataBentoDataBacktestingPolars(PolarsData):
         except Exception as e:
             logger.error(f"Error updating pandas data for {asset_separated.symbol}: {str(e)}")
             logger.error(traceback.format_exc())
+
+    def _cache_datetime_series(self, search_asset, data_obj):
+        """
+        Build and cache sorted datetime nanosecond arrays for quick slicing.
+        """
+        try:
+            timestep = getattr(data_obj, "timestep", "minute")
+            cache_key = (search_asset, timestep)
+
+            if isinstance(data_obj, DataPolars):
+                dt_series = data_obj.polars_df["datetime"]
+                if dt_series.dtype.time_zone:
+                    dt_series = dt_series.dt.convert_time_zone("UTC")
+                else:
+                    dt_series = dt_series.dt.replace_time_zone("UTC")
+                dt_ns = dt_series.dt.timestamp("ns").to_numpy()
+            else:
+                df_index = data_obj.df.index
+                if getattr(df_index, "tz", None) is None:
+                    df_index = df_index.tz_localize("UTC")
+                else:
+                    df_index = df_index.tz_convert("UTC")
+                dt_ns = df_index.view("int64")
+
+            self._datetime_ns_cache[cache_key] = dt_ns
+        except Exception as exc:
+            logger.debug(f"Failed to cache datetime series for {search_asset}: {exc}")
+
+    @staticmethod
+    def _datetime_to_utc_ns(dt_obj):
+        """
+        Convert a datetime to UTC nanoseconds since epoch.
+        """
+        ts = pd.Timestamp(dt_obj)
+        if ts.tz is None:
+            ts = ts.tz_localize("UTC")
+        else:
+            ts = ts.tz_convert("UTC")
+        return int(ts.value)
 
     def get_last_price(self, asset, quote=None, exchange=None):
         """
@@ -534,11 +580,17 @@ class DataBentoDataBacktestingPolars(PolarsData):
             if search_asset in self.pandas_data:
                 asset_data = self.pandas_data[search_asset]
 
+                datetime_key = (search_asset, asset_data.timestep)
+                datetime_ns = self._datetime_ns_cache.get(datetime_key)
+                if datetime_ns is None:
+                    self._cache_datetime_series(search_asset, asset_data)
+                    datetime_ns = self._datetime_ns_cache.get(datetime_key)
+
                 # OPTIMIZATION: If asset_data is DataPolars, work with polars directly to avoid conversion
                 if isinstance(asset_data, DataPolars):
                     polars_df = asset_data.polars_df
 
-                    if polars_df.height > 0 and 'close' in polars_df.columns:
+                    if polars_df.height > 0 and 'close' in polars_df.columns and datetime_ns is not None and len(datetime_ns) > 0:
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
 
@@ -550,61 +602,49 @@ class DataBentoDataBacktestingPolars(PolarsData):
                             bar_delta = timedelta(days=1)
 
                         cutoff_dt = current_dt_aware - bar_delta
+                        cutoff_ns = self._datetime_to_utc_ns(cutoff_dt)
+                        last_pos = np.searchsorted(datetime_ns, cutoff_ns, side="right") - 1
 
-                        # Convert to UTC for polars comparison (polars DataFrame datetime is in UTC)
-                        polars_tz = polars_df["datetime"].dtype.time_zone
-                        if polars_tz:
-                            cutoff_dt_compat = pd.Timestamp(cutoff_dt).tz_convert(polars_tz)
-                            current_dt_compat = pd.Timestamp(current_dt_aware).tz_convert(polars_tz)
-                        else:
-                            cutoff_dt_compat = cutoff_dt
-                            current_dt_compat = current_dt_aware
+                        if last_pos < 0:
+                            # Allow current timestamp if we haven't closed a prior bar yet
+                            current_ns = self._datetime_to_utc_ns(current_dt_aware)
+                            last_pos = np.searchsorted(datetime_ns, current_ns, side="right") - 1
 
-                        # Filter using polars operations (no conversion!)
-                        filtered_df = polars_df.filter(pl.col("datetime") <= cutoff_dt_compat)
-
-                        # If we have no prior bar (e.g., first iteration), allow the current timestamp
-                        if filtered_df.height == 0:
-                            filtered_df = polars_df.filter(pl.col("datetime") <= current_dt_compat)
-
-                        if filtered_df.height > 0:
-                            last_price = filtered_df['close'][-1]
+                        if last_pos >= 0:
+                            idx = int(last_pos)
+                            last_price = polars_df["close"][idx]
                             if not pd.isna(last_price):
                                 price = float(last_price)
-                                # OPTIMIZATION: Cache the result
                                 self._last_price_cache[cache_key] = price
                                 return price
                 else:
                     # For regular Data objects, use pandas operations
                     df = asset_data.df
 
-                    if not df.empty and 'close' in df.columns:
-                            # Ensure current_dt is timezone-aware for comparison
-                            current_dt_aware = to_datetime_aware(current_dt)
+                    if not df.empty and 'close' in df.columns and datetime_ns is not None and len(datetime_ns) > 0:
+                        current_dt_aware = to_datetime_aware(current_dt)
 
-                            # Step back one bar so only fully closed bars are visible
-                            bar_delta = timedelta(minutes=1)
-                            if asset_data.timestep == "hour":
-                                bar_delta = timedelta(hours=1)
-                            elif asset_data.timestep == "day":
-                                bar_delta = timedelta(days=1)
+                        bar_delta = timedelta(minutes=1)
+                        if asset_data.timestep == "hour":
+                            bar_delta = timedelta(hours=1)
+                        elif asset_data.timestep == "day":
+                            bar_delta = timedelta(days=1)
 
-                            cutoff_dt = current_dt_aware - bar_delta
+                        cutoff_dt = current_dt_aware - bar_delta
+                        cutoff_ns = self._datetime_to_utc_ns(cutoff_dt)
+                        last_pos = np.searchsorted(datetime_ns, cutoff_ns, side="right") - 1
 
-                            # Filter to data up to current backtest time (exclude current bar unless broker overrides)
-                            filtered_df = df[df.index <= cutoff_dt]
+                        if last_pos < 0:
+                            current_ns = self._datetime_to_utc_ns(current_dt_aware)
+                            last_pos = np.searchsorted(datetime_ns, current_ns, side="right") - 1
 
-                            # If we have no prior bar (e.g., first iteration), allow the current timestamp
-                            if filtered_df.empty:
-                                filtered_df = df[df.index <= current_dt_aware]
-
-                            if not filtered_df.empty:
-                                last_price = filtered_df['close'].iloc[-1]
-                                if not pd.isna(last_price):
-                                    price = float(last_price)
-                                    # OPTIMIZATION: Cache the result
-                                    self._last_price_cache[cache_key] = price
-                                    return price
+                        if last_pos >= 0:
+                            idx = int(last_pos)
+                            last_price = df['close'].iloc[idx]
+                            if not pd.isna(last_price):
+                                price = float(last_price)
+                                self._last_price_cache[cache_key] = price
+                                return price
             
             # If no cached data, try to get recent data
             logger.warning(f"No cached data for {asset.symbol}, attempting direct fetch")
@@ -866,28 +906,30 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         cutoff_dt_compat = cutoff_dt
                         current_dt_compat = current_dt_aware
 
-                    # INSTRUMENTATION: Log timeshift application and filtering
-                    broker_dt_orig = self.get_datetime()
-                    filter_branch = "shift_seconds > 0 (<=cutoff)" if shift_seconds > 0 else "shift_seconds <= 0 (<current)"
+                    datetime_key = (search_asset, asset_data.timestep)
+                    datetime_ns = self._datetime_ns_cache.get(datetime_key)
+                    if datetime_ns is None:
+                        self._cache_datetime_series(search_asset, asset_data)
+                        datetime_ns = self._datetime_ns_cache.get(datetime_key)
 
-                    # Filter using polars operations (no conversion!)
-                    if shift_seconds > 0:
-                        filtered_df = polars_df.filter(pl.col("datetime") <= cutoff_dt_compat)
-                    else:
-                        filtered_df = polars_df.filter(pl.col("datetime") < current_dt_compat)
+                    if datetime_ns is None or len(datetime_ns) == 0:
+                        self._filtered_bars_cache[cache_key] = None
+                        return None
 
-                    # Log what bar we're returning
-                    if filtered_df.height > 0:
-                        returned_bar_dt = filtered_df["datetime"][-1]
-                        logger.debug(f"[TIMESHIFT_POLARS] asset={asset_separated.symbol} broker_dt={broker_dt_orig} "
-                                   f"timeshift={timeshift} shift_seconds={shift_seconds} "
-                                   f"shifted_dt={current_dt_aware} cutoff_dt={cutoff_dt} "
-                                   f"filter={filter_branch} returned_bar={returned_bar_dt}")
+                    target_dt = cutoff_dt if shift_seconds > 0 else current_dt_aware
+                    side = "right" if shift_seconds > 0 else "left"
+                    target_ns = self._datetime_to_utc_ns(target_dt)
+                    last_pos = np.searchsorted(datetime_ns, target_ns, side=side) - 1
 
-                    # Take the last 'length' bars
-                    result_df = filtered_df.tail(length)
+                    if last_pos < 0:
+                        self._filtered_bars_cache[cache_key] = None
+                        return None
 
-                    # OPTIMIZATION: Cache the result before returning
+                    start_pos = max(0, last_pos - (length - 1))
+                    slice_len = last_pos - start_pos + 1
+
+                    result_df = polars_df.slice(start_pos, slice_len)
+
                     if result_df.height > 0:
                         self._filtered_bars_cache[cache_key] = result_df
                         return result_df
@@ -897,57 +939,32 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 else:
                     return None
             else:
-                # For regular Data objects, use pandas operations
+                # For regular Data objects, use pandas but leverage positional slicing
                 df = asset_data.df
 
                 if not df.empty:
-                    # ========================================================================
-                    # CRITICAL: NEGATIVE TIMESHIFT ARITHMETIC FOR LOOKAHEAD (MATCHES PANDAS)
-                    # ========================================================================
-                    # Negative timeshift allows broker to "peek ahead" for realistic fills.
-                    # This arithmetic MUST match pandas exactly: current_dt - timeshift
-                    # With timeshift=-2: current_dt - (-2) = current_dt + 2 minutes ✓
-                    # ========================================================================
-                    shift_seconds = 0
-                    if timeshift:
-                        if isinstance(timeshift, int):
-                            shift_seconds = timeshift * 60
-                            current_dt = current_dt - timedelta(minutes=timeshift)  # FIXED: was +, now matches pandas
-                        else:
-                            shift_seconds = timeshift.total_seconds()
-                            current_dt = current_dt - timeshift  # FIXED: was +, now matches pandas
+                    datetime_key = (search_asset, asset_data.timestep)
+                    datetime_ns = self._datetime_ns_cache.get(datetime_key)
+                    if datetime_ns is None:
+                        self._cache_datetime_series(search_asset, asset_data)
+                        datetime_ns = self._datetime_ns_cache.get(datetime_key)
 
-                    # Ensure current_dt is timezone-aware for comparison
-                    current_dt_aware = to_datetime_aware(current_dt)
+                    if datetime_ns is None or len(datetime_ns) == 0:
+                        self._filtered_bars_cache[cache_key] = None
+                        return None
 
-                    # Step back one bar to avoid exposing the in-progress bar
-                    bar_delta = timedelta(minutes=1)
-                    if asset_data.timestep == "hour":
-                        bar_delta = timedelta(hours=1)
-                    elif asset_data.timestep == "day":
-                        bar_delta = timedelta(days=1)
+                    target_dt = cutoff_dt if shift_seconds > 0 else current_dt_aware
+                    side = "right" if shift_seconds > 0 else "left"
+                    target_ns = self._datetime_to_utc_ns(target_dt)
+                    last_pos = np.searchsorted(datetime_ns, target_ns, side=side) - 1
 
-                    cutoff_dt = current_dt_aware - bar_delta
+                    if last_pos < 0:
+                        self._filtered_bars_cache[cache_key] = None
+                        return None
 
-                    # INSTRUMENTATION: Log timeshift application and filtering (pandas fallback)
-                    broker_dt_orig = self.get_datetime()
-                    filter_branch = "shift_seconds > 0 (<=cutoff)" if shift_seconds > 0 else "shift_seconds <= 0 (<current)"
+                    start_pos = max(0, last_pos - (length - 1))
+                    result_df = df.iloc[start_pos:last_pos + 1]
 
-                    # Filter data up to current backtest time (exclude current bar unless broker overrides)
-                    filtered_df = df[df.index <= cutoff_dt] if shift_seconds > 0 else df[df.index < current_dt_aware]
-
-                    # Log what bar we're returning
-                    if not filtered_df.empty:
-                        returned_bar_dt = filtered_df.index[-1]
-                        logger.debug(f"[TIMESHIFT_POLARS_PD] asset={asset_separated.symbol} broker_dt={broker_dt_orig} "
-                                   f"timeshift={timeshift} shift_seconds={shift_seconds} "
-                                   f"shifted_dt={current_dt_aware} cutoff_dt={cutoff_dt} "
-                                   f"filter={filter_branch} returned_bar={returned_bar_dt}")
-
-                    # Take the last 'length' bars
-                    result_df = filtered_df.tail(length)
-
-                    # OPTIMIZATION: Cache the result before returning
                     if not result_df.empty:
                         self._filtered_bars_cache[cache_key] = result_df
                         return result_df

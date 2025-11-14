@@ -10,11 +10,254 @@ import pytz
 import requests
 import subprocess
 import time
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.tools.backtest_cache import CacheMode
+
+
+def _build_option_asset():
+    return Asset(
+        asset_type="option",
+        symbol="CVNA",
+        expiration=date(2026, 1, 16),
+        strike=150.0,
+        right="CALL",
+    )
+
+
+@pytest.fixture(scope="function")
+def theta_terminal_cleanup():
+    """Ensure ThetaTerminal is stopped between process health tests."""
+    yield
+    try:
+        thetadata_helper.shutdown_theta_terminal(timeout=10.0, force=True)
+    except Exception:
+        pass
+
+
+def test_finalize_history_dataframe_adds_last_trade_time_for_ohlc():
+    asset = Asset(asset_type="stock", symbol="CVNA")
+    df = pd.DataFrame(
+        {
+            "timestamp": ["2024-10-16T09:30:00", "2024-10-16T09:31:00"],
+            "open": [10.0, 10.5],
+            "high": [10.5, 11.0],
+            "low": [9.5, 10.0],
+            "close": [10.25, 10.75],
+            "volume": [1_000, 900],
+            "count": [12, 8],
+        }
+    )
+
+    result = thetadata_helper._finalize_history_dataframe(df, "ohlc", asset)
+
+    assert result is not None and "last_trade_time" in result.columns
+    pd.testing.assert_series_equal(
+        result["last_trade_time"],
+        pd.Series(result.index, index=result.index, name="last_trade_time"),
+    )
+    assert result["last_bid_time"].isna().all()
+    assert result["last_ask_time"].isna().all()
+
+
+def test_finalize_history_dataframe_adds_quote_timestamps():
+    asset = _build_option_asset()
+    df = pd.DataFrame(
+        {
+            "timestamp": ["2024-10-16T09:30:00", "2024-10-16T09:31:00"],
+            "bid": [9.5, 9.75],
+            "ask": [10.5, 10.75],
+            "bid_size": [10, 10],
+            "ask_size": [11, 11],
+            "count": [1, 1],
+        }
+    )
+
+    result = thetadata_helper._finalize_history_dataframe(df, "quote", asset)
+
+    assert result is not None and "last_bid_time" in result.columns
+    pd.testing.assert_series_equal(
+        result["last_bid_time"],
+        pd.Series(result.index, index=result.index, name="last_bid_time"),
+    )
+    pd.testing.assert_series_equal(
+        result["last_ask_time"],
+        pd.Series(result.index, index=result.index, name="last_ask_time"),
+    )
+    assert result["last_trade_time"].isna().all()
+
+
+def test_timestamp_metadata_forward_fills_when_merging_quotes():
+    asset = Asset(asset_type="stock", symbol="CVNA")
+    ohlc_raw = pd.DataFrame(
+        {
+            "timestamp": ["2024-10-16T09:30:00", "2024-10-16T09:32:00"],
+            "open": [10.0, 11.0],
+            "high": [10.5, 11.5],
+            "low": [9.5, 10.5],
+            "close": [10.25, 11.25],
+            "volume": [1_000, 1_100],
+            "count": [12, 9],
+        }
+    )
+    quote_raw = pd.DataFrame(
+        {
+            "timestamp": ["2024-10-16T09:31:00"],
+            "bid": [9.75],
+            "ask": [10.6],
+            "bid_size": [12],
+            "ask_size": [8],
+            "bid_condition": [0],
+            "ask_condition": [0],
+        }
+    )
+
+    df_ohlc = thetadata_helper._finalize_history_dataframe(ohlc_raw, "ohlc", asset)
+    df_quote = thetadata_helper._finalize_history_dataframe(quote_raw, "quote", asset)
+    timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
+    merged = pd.concat([df_ohlc, df_quote], axis=1, join="outer")
+    merged = ThetaDataBacktestingPandas._combine_duplicate_columns(merged, timestamp_columns)
+
+    quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
+    forward_fill_columns = [
+        col for col in quote_columns + timestamp_columns if col in merged.columns
+    ]
+    merged[forward_fill_columns] = merged[forward_fill_columns].ffill()
+
+    quote_only_time = pd.Timestamp("2024-10-16T09:31:00", tz=LUMIBOT_DEFAULT_PYTZ)
+    later_trade_time = pd.Timestamp("2024-10-16T09:32:00", tz=LUMIBOT_DEFAULT_PYTZ)
+    prev_trade_time = pd.Timestamp("2024-10-16T09:30:00", tz=LUMIBOT_DEFAULT_PYTZ)
+
+    assert merged.loc[quote_only_time, "last_trade_time"] == prev_trade_time
+    assert merged.loc[later_trade_time, "last_bid_time"] == quote_only_time
+    assert merged.loc[later_trade_time, "last_ask_time"] == quote_only_time
+@patch("lumibot.tools.thetadata_helper.get_request")
+def test_get_historical_data_filters_zero_quotes(mock_get_request):
+    asset = Asset(
+        asset_type="option",
+        symbol="CVNA",
+        expiration=date(2026, 1, 16),
+        strike=150.0,
+        right="CALL",
+    )
+    mock_get_request.return_value = {
+        "header": {
+            "format": [
+                "date",
+                "ms_of_day",
+                "bid",
+                "ask",
+                "bid_size",
+                "ask_size",
+                "count",
+            ]
+        },
+        "response": [
+            [20240102, 0, 0.0, 0.0, 0, 0, 0],
+            [20240102, 60000, 10.0, 11.0, 0, 0, 0],
+        ],
+    }
+
+    start = datetime.datetime(2024, 1, 2, tzinfo=pytz.UTC)
+    end = start + datetime.timedelta(minutes=2)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="quote",
+    )
+
+    assert df is not None
+    assert len(df) == 1
+    assert df["bid"].iloc[0] == 10.0
+    assert df["ask"].iloc[0] == 11.0
+
+
+@patch("lumibot.tools.thetadata_helper.get_request")
+@patch("lumibot.tools.thetadata_helper.get_trading_dates")
+def test_get_historical_data_uses_v3_option_params(mock_get_trading_dates, mock_get_request):
+    mock_get_trading_dates.return_value = [date(2024, 10, 16)]
+    mock_get_request.return_value = {
+        "header": {"format": ["timestamp", "bid", "ask", "count"]},
+        "response": [["2024-10-16T09:30:00", 10.0, 10.5, 1]],
+    }
+
+    asset = Asset(
+        asset_type="option",
+        symbol="CVNA",
+        expiration=date(2026, 1, 16),
+        strike=210.0,
+        right="CALL",
+    )
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 10, 16, 9, 30))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 10, 16, 16, 0))
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="quote",
+        include_after_hours=False,
+    )
+
+    assert df is not None
+    assert len(df) == 1
+    assert df.index.tz.zone == LUMIBOT_DEFAULT_PYTZ.zone
+
+    query = mock_get_request.call_args.kwargs["querystring"]
+    assert query["symbol"] == "CVNA"
+    assert query["expiration"] == "2026-01-16"
+    assert query["strike"] == "210"
+    assert query["right"] == "call"
+    assert query["date"] == "2024-10-16"
+    assert query["interval"] == "1m"
+    assert query["start_time"] == "09:30:00"
+    assert query["end_time"] == "16:00:00"
+
+
+@patch("lumibot.tools.thetadata_helper.get_request")
+@patch("lumibot.tools.thetadata_helper.get_trading_dates")
+def test_get_historical_data_accepts_date_inputs(mock_get_trading_dates, mock_get_request):
+    mock_get_trading_dates.return_value = [date(2024, 10, 16)]
+    mock_get_request.return_value = {
+        "header": {"format": ["timestamp", "open", "high", "low", "close", "count"]},
+        "response": [["2024-10-16T09:30:00", 10, 11, 9, 10.5, 1]],
+    }
+
+    asset = Asset(asset_type="stock", symbol="CVNA")
+    start = date(2024, 10, 16)
+    end = date(2024, 10, 16)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+        include_after_hours=True,
+    )
+
+    assert df is not None
+    assert len(df) == 1
+    assert df.index.tz.zone == LUMIBOT_DEFAULT_PYTZ.zone
+
+    query = mock_get_request.call_args.kwargs["querystring"]
+    assert query["date"] == "2024-10-16"
+    assert query["start_time"] == "04:00:00"
+    assert query["end_time"] == "20:00:00"
 
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
@@ -219,6 +462,7 @@ def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path
             assert eod_second_mock.call_count == 0
             assert len(second) == 2
             assert set(second.index.date) == {datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)}
+
 
 @patch('lumibot.tools.thetadata_helper.update_cache')
 @patch('lumibot.tools.thetadata_helper.update_df')
@@ -739,8 +983,12 @@ def test_start_theta_data_client():
 
     # Verify we can connect to status endpoint
     time.sleep(3)  # Give it time to start
-    res = requests.get(f"{thetadata_helper.BASE_URL}/v2/system/mdds/status", timeout=2)
-    assert res.text in ["CONNECTED", "DISCONNECTED"], f"Should get valid status response, got: {res.text}"
+    res = requests.get(
+        f"{thetadata_helper.BASE_URL}{thetadata_helper.READINESS_ENDPOINT}",
+        params={"symbol": thetadata_helper.HEALTHCHECK_SYMBOL, "format": "json"},
+        timeout=2,
+    )
+    assert res.status_code in (200, 571), f"Unexpected readiness status: {res.status_code} ({res.text})"
 
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
@@ -763,8 +1011,12 @@ def test_check_connection():
     assert thetadata_helper.is_process_alive() is True, "Process should be alive"
 
     # Verify we can actually query status endpoint
-    res = requests.get(f"{thetadata_helper.BASE_URL}/v2/system/mdds/status", timeout=2)
-    assert res.text == "CONNECTED", f"Status endpoint should report CONNECTED, got: {res.text}"
+    res = requests.get(
+        f"{thetadata_helper.BASE_URL}{thetadata_helper.READINESS_ENDPOINT}",
+        params={"symbol": thetadata_helper.HEALTHCHECK_SYMBOL, "format": "json"},
+        timeout=2,
+    )
+    assert res.status_code in (200, 571), f"Unexpected readiness status: {res.status_code} ({res.text})"
 
 
 @pytest.mark.skipif(
@@ -875,13 +1127,15 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
         thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
     # Assert
-    mock_get.assert_called_with(url, headers=headers, params=querystring)
+    expected_params = dict(querystring)
+    expected_params.setdefault("format", "json")
+    mock_get.assert_called_with(url, headers=headers, params=expected_params, timeout=30)
     mock_check_connection.assert_called_with(
         username="test_user",
         password="test_password",
         wait_for_connection=True,
     )
-    assert mock_check_connection.call_count == 2
+    assert mock_check_connection.call_count >= 2
     first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
     assert first_call_kwargs == {
         "username": "test_user",
@@ -904,7 +1158,9 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
         thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
     # Assert
-    mock_get.assert_called_with(url, headers=headers, params=querystring)
+    expected_params = dict(querystring)
+    expected_params.setdefault("format", "json")
+    mock_get.assert_called_with(url, headers=headers, params=expected_params, timeout=30)
     mock_check_connection.assert_called_with(
         username="test_user",
         password="test_password",
@@ -951,6 +1207,63 @@ def test_get_request_consecutive_474_triggers_restarts(mock_check_connection, mo
     }
 
 
+def test_probe_terminal_ready_handles_transient_states(monkeypatch):
+    """Ensure the readiness probe treats 571/ServerStarting as not ready."""
+    response = SimpleNamespace(status_code=571, text="SERVER_STARTING")
+    monkeypatch.setattr(thetadata_helper.requests, "get", lambda *_, **__: response)
+    assert thetadata_helper._probe_terminal_ready() is False
+
+
+def test_probe_terminal_ready_success(monkeypatch):
+    response = SimpleNamespace(status_code=200, text="OK")
+    monkeypatch.setattr(thetadata_helper.requests, "get", lambda *_, **__: response)
+    assert thetadata_helper._probe_terminal_ready()
+
+
+@patch('lumibot.tools.thetadata_helper.check_connection')
+def test_get_request_retries_on_571(mock_check_connection, monkeypatch):
+    """ThetaData should retry when the terminal returns SERVER_STARTING."""
+    mock_check_connection.return_value = (None, True)
+    payload = {"header": {"format": [], "next_page": None, "error_type": "null"}, "response": []}
+
+    responses = [
+        SimpleNamespace(status_code=571, text="SERVER_STARTING"),
+        SimpleNamespace(status_code=200, text="{}", json=lambda: payload),
+    ]
+
+    def fake_get(*args, **kwargs):
+        resp = responses.pop(0)
+        if resp.status_code == 200:
+            return SimpleNamespace(
+                status_code=200,
+                text="{}",
+                json=lambda: payload,
+            )
+        return resp
+
+    monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+    result = thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+    assert result == payload
+    assert mock_check_connection.call_count >= 2
+    assert responses == []
+
+
+@patch('lumibot.tools.thetadata_helper.check_connection')
+def test_get_request_raises_on_410(mock_check_connection, monkeypatch):
+    """v2 requests hitting v3 terminal should raise a helpful error."""
+    mock_check_connection.return_value = (None, True)
+
+    def fake_get(*args, **kwargs):
+        return SimpleNamespace(status_code=410, text="GONE")
+
+    monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+
+    assert "410" in str(excinfo.value)
+
+
 @patch('lumibot.tools.thetadata_helper.get_request')
 def test_get_historical_data_stock(mock_get_request):
     # Arrange
@@ -976,7 +1289,17 @@ def test_get_historical_data_stock(mock_get_request):
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     # 'datetime' is the index, not a column
-    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count"]
+    assert list(df.columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "count",
+        "last_trade_time",
+        "last_bid_time",
+        "last_ask_time",
+    ]
     assert df.index.name == "datetime"
     # Index is timezone-aware (America/New_York)
     assert df.index[0].year == 2023
@@ -1014,7 +1337,17 @@ def test_get_historical_data_option(mock_get_request):
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     # 'datetime' is the index, not a column
-    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count"]
+    assert list(df.columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "count",
+        "last_trade_time",
+        "last_bid_time",
+        "last_ask_time",
+    ]
     assert df.index.name == "datetime"
     # Index is timezone-aware (America/New_York)
     assert df.index[0].year == 2023
@@ -1062,7 +1395,20 @@ def test_get_historical_data_quote_style(mock_get_request):
 
     # Assert
     assert isinstance(df, pd.DataFrame)
-    assert df.empty  # Since bid_size and ask_size are 0, it should filter out this row
+    assert not df.empty
+    assert list(df.columns) == [
+        "bid_size",
+        "bid_condition",
+        "bid",
+        "bid_exchange",
+        "ask_size",
+        "ask_condition",
+        "ask",
+        "ask_exchange",
+        "last_trade_time",
+        "last_bid_time",
+        "last_ask_time",
+    ]
 
 @patch('lumibot.tools.thetadata_helper.get_request')
 def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
@@ -1084,7 +1430,7 @@ def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
     df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password")
 
     # Assert
-    assert df.empty  # The DataFrame should be empty because count is 0
+    assert df is None  # The DataFrame should be None because no valid rows remain
 
 
 @patch('lumibot.tools.thetadata_helper.get_request')
@@ -1163,9 +1509,9 @@ def test_get_strikes_normal_operation(mock_get_request):
     mock_json_response = {
         "header": {"format": ["strike_price"]},
         "response": [
-            {"strike_price": 1400},
-            {"strike_price": 1450},
-            {"strike_price": 1500}
+            {"strike_price": 140000},
+            {"strike_price": 145000},
+            {"strike_price": 150000}
         ]
     }
     mock_get_request.return_value = mock_json_response
@@ -1179,7 +1525,7 @@ def test_get_strikes_normal_operation(mock_get_request):
     strikes = thetadata_helper.get_strikes(username, password, ticker, expiration)
 
     # Assert
-    expected = [1.40, 1.45, 1.50]
+    expected = [140.0, 145.0, 150.0]
     assert strikes == expected
 
 @patch('lumibot.tools.thetadata_helper.get_request')
@@ -1204,6 +1550,7 @@ def test_get_strikes_empty_response(mock_get_request):
 
 
 @pytest.mark.apitest
+@pytest.mark.usefixtures("theta_terminal_cleanup")
 class TestThetaDataProcessHealthCheck:
     """
     Real integration tests for ThetaData process health monitoring.
@@ -1324,40 +1671,38 @@ class TestThetaDataProcessHealthCheck:
         assert thetadata_helper.is_process_alive() is True, "Final process should be alive"
 
     def test_process_dies_during_data_fetch(self):
-        """Test process recovery when killed - uses cached data but verifies no crash"""
+        """Ensure repeated shutdown + restart cycles succeed without BadSession loops."""
         username = os.environ.get("THETADATA_USERNAME")
         password = os.environ.get("THETADATA_PASSWORD")
         asset = Asset("AAPL", asset_type="stock")
-        # Use recent dates
         start = datetime.datetime(2025, 9, 1)
         end = datetime.datetime(2025, 9, 5)
 
-        # Start process
         thetadata_helper.start_theta_data_client(username, password)
-        time.sleep(3)
-        initial_pid = thetadata_helper.THETA_DATA_PID
 
-        # Kill process right before fetch
-        subprocess.run(['kill', '-9', str(initial_pid)], check=True)
-        time.sleep(0.5)
-        assert thetadata_helper.is_process_alive() is False, "Process should be dead after kill"
+        for cycle in range(2):
+            # Confirm the terminal is ready before simulating the crash/shutdown.
+            _, connected = thetadata_helper.check_connection(username, password, wait_for_connection=True)
+            assert connected is True, f"Cycle {cycle}: ThetaTerminal should be ready before shutdown."
 
-        # Fetch data - may use cache OR restart process depending on whether data is cached
-        df = thetadata_helper.get_price_data(
-            username=username,
-            password=password,
-            asset=asset,
-            start=start,
-            end=end,
-            timespan="minute"
-        )
+            # Request a graceful shutdown and ensure the process actually exits.
+            assert thetadata_helper.shutdown_theta_terminal(timeout=30.0) is True, (
+                f"Cycle {cycle}: ThetaTerminal failed to shut down via control endpoint."
+            )
+            assert thetadata_helper.is_process_alive() is False, f"Cycle {cycle}: process should be stopped."
 
-        # Should get data (from cache or after restart)
-        assert df is not None, "Should get data (from cache or after restart)"
+            # Fetch data immediately; helper should restart the terminal transparently.
+            df = thetadata_helper.get_price_data(
+                username=username,
+                password=password,
+                asset=asset,
+                start=start,
+                end=end,
+                timespan="minute",
+            )
 
-        # If data was NOT cached, process should have restarted
-        # If data WAS cached, process may still be dead
-        # Either way is acceptable - the key is no crash occurred
+            assert df is not None, f"Cycle {cycle}: Expected data frame after restart."
+            assert len(df) > 0, f"Cycle {cycle}: Expected non-empty data frame after restart."
 
     def test_process_never_started(self):
         """Test check_connection() when process was never started"""
@@ -1493,12 +1838,12 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
     def fake_get_request(url, headers, querystring, username, password):
-        if url.endswith("/v2/list/expirations"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {
                 "header": {"format": ["date"]},
                 "response": [[20241115], [20241205], [20250124]],
             }
-        if url.endswith("/v2/list/strikes"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
             exp = querystring["exp"]
             if exp == "20241115":
                 return {
@@ -1514,7 +1859,7 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
                 "header": {"format": ["strike"]},
                 "response": [[120000]],
             }
-        if url.endswith("/list/dates/option/quote"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"]):
             exp = querystring["exp"]
             if exp == "20241115":
                 return {
@@ -1545,11 +1890,11 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
     def fake_get_request(url, headers, querystring, username, password):
-        if url.endswith("/v2/list/expirations"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["date"]}, "response": [[20241129], [20241206]]}
-        if url.endswith("/v2/list/strikes"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
             return {"header": {"format": ["strike"]}, "response": [[150000], [155000]]}
-        if url.endswith("/list/dates/option/quote"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"]):
             return {"header": {"format": None, "error_type": "NO_DATA"}, "response": []}
         raise AssertionError(f"Unexpected URL {url}")
 
@@ -1568,7 +1913,7 @@ def test_build_historical_chain_empty_response(monkeypatch, caplog):
     as_of_date = date(2024, 11, 9)
 
     def fake_get_request(url, headers, querystring, username, password):
-        if url.endswith("/v2/list/expirations"):
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["date"]}, "response": []}
         raise AssertionError("Unexpected call after empty expirations")
 
@@ -1711,6 +2056,23 @@ def test_finalize_day_frame_handles_dst_fallback():
         assert strikes[0] > 0, f"Strike should be positive: {strikes[0]}"
 
         print(f"✓ Strikes properly formatted: {len(strikes)} strikes ranging {strikes[0]:.2f} to {strikes[-1]:.2f}")
+
+
+@patch("lumibot.tools.thetadata_helper.requests.get")
+def test_probe_terminal_ready_falls_back_when_status_endpoint_missing(mock_requests):
+    mock_requests.side_effect = [
+        SimpleNamespace(status_code=404, text="Not Found"),
+        SimpleNamespace(status_code=200, text="[]"),
+    ]
+    assert thetadata_helper._probe_terminal_ready() is True
+    assert mock_requests.call_count == 2
+
+
+@patch("lumibot.tools.thetadata_helper.requests.get")
+def test_probe_terminal_ready_handles_server_starting(mock_requests):
+    mock_requests.return_value = SimpleNamespace(status_code=571, text="SERVER_STARTING")
+    assert thetadata_helper._probe_terminal_ready() is False
+    mock_requests.assert_called_once()
 
 
 if __name__ == '__main__':

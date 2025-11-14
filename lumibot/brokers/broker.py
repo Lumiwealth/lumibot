@@ -1418,9 +1418,26 @@ class Broker(ABC):
             for order in orders:
                 tasks.append(executor.submit(self.cancel_order, order))
 
-    def cancel_open_orders(self, strategy):
-        """cancel all open orders for a given strategy"""
-        orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
+    def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
+        """Cancel all open orders for a given strategy.
+
+        Parameters
+        ----------
+        strategy : str
+            Strategy name whose orders should be canceled.
+        orders : list[Order] | None
+            Optional pre-filtered orders list. When provided, the broker
+            skips re-fetching tracked orders and cancels the supplied
+            active orders immediately. If None, the broker will gather
+            the active orders itself.
+        """
+        if orders is None:
+            orders = [o for o in self.get_tracked_orders(strategy) if o.is_active()]
+        else:
+            orders = [o for o in orders if o.is_active()]
+        if not orders:
+            self.logger.debug("cancel_open_orders(strategy=%s) -> no active orders", strategy)
+            return []
         order_ids = [
             getattr(order, "identifier", None)
             or getattr(order, "id", None)
@@ -1754,6 +1771,13 @@ class Broker(ABC):
             "asset.expiration": stored_order.asset.expiration if stored_order.asset is not None else None,
             "asset.asset_type": stored_order.asset.asset_type if stored_order.asset is not None else None,
         }
+        price_source = getattr(stored_order, "_price_source", None)
+        if price_source:
+            new_row["price_source"] = price_source
+            try:
+                delattr(stored_order, "_price_source")
+            except AttributeError:
+                pass
         # Create a DataFrame with the new row
         new_row_df = pd.DataFrame(new_row, index=[0])
 

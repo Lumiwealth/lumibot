@@ -1122,9 +1122,10 @@ class Tradovate(Broker):
         else:
             order.status = status
 
-    def cancel_open_orders(self, strategy):
+    def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
         """Cancel only the orders that are still active on Tradovate; prune the rest silently."""
-        tracked_orders = [order for order in self.get_tracked_orders(strategy) if order.is_active()]
+        tracked_orders_source = orders if orders is not None else self.get_tracked_orders(strategy)
+        tracked_orders = [order for order in tracked_orders_source if order.is_active()]
         if not tracked_orders:
             self.logger.info("cancel_open_orders(strategy=%s) -> no active orders tracked", strategy)
             return

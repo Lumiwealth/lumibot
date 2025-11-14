@@ -1,11 +1,12 @@
 import math
 import traceback
 import threading
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from datetime import timedelta
 from decimal import Decimal
-from typing import Union
+from typing import Optional, Union
 
+import pandas as pd
 import polars as pl
 import pytz
 
@@ -14,6 +15,11 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, TradingFee
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import CustomStream
+
+try:
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+except Exception:  # pragma: no cover - optional dependency
+    ThetaDataBacktestingPandas = None
 
 logger = get_logger(__name__)
 
@@ -139,6 +145,8 @@ class BacktestingBroker(Broker):
         self._last_cache_clear = None
         # Market open lookup cache (populated when calendars are initialized)
         self._market_open_cache = {}
+        # Track per-strategy futures lots for accurate margin/P&L when flipping
+        self._futures_lot_ledgers = defaultdict(list)
     def initialize_market_calendars(self, trading_days_df):
         """Initialize trading calendar and eagerly build caches for backtesting."""
         super().initialize_market_calendars(trading_days_df)
@@ -185,6 +193,35 @@ class BacktestingBroker(Broker):
                     self._daily_sessions[day].append((open_time, close_time))
 
         self._sessions_built = True
+
+    def _ensure_market_open_cache(self):
+        """Populate the market-open cache if it has not been initialized."""
+        if self._market_open_cache or self._trading_days is None:
+            return
+        self._market_open_cache = self._trading_days['market_open'].to_dict()
+
+    def _get_market_open_for_close(self, close_time):
+        self._ensure_market_open_cache()
+        return self._market_open_cache.get(close_time)
+
+    def _contiguous_session_time(self, now, idx):
+        """Return remaining time when sessions share a boundary (e.g., futures, crypto)."""
+        if not self.is_market_open():
+            return None
+
+        next_idx = idx + 1
+        if next_idx >= len(self._trading_days):
+            return None
+
+        next_close = self._trading_days.index[next_idx]
+        next_open = self._get_market_open_for_close(next_close)
+        if next_open is None:
+            return None
+
+        if next_open <= now < next_close:
+            return (next_close - now).total_seconds()
+
+        return None
 
     def _is_market_open_dict(self, now):
         """Fast O(1) day lookup then check few sessions."""
@@ -351,11 +388,10 @@ class BacktestingBroker(Broker):
 
         # Directly access the data needed using more efficient methods
         market_close_time = self._trading_days.index[idx]
-        # Use cached dict instead of .at for performance; cache should be ready from initialization
-        if not self._market_open_cache:
-            # Safety: rebuild via centralized path rather than inline logic
-            self.initialize_market_calendars(self._trading_days.reset_index())
-        market_open = self._market_open_cache[market_close_time]
+        market_open = self._get_market_open_for_close(market_close_time)
+        if market_open is None:
+            logger.warning("Missing market_open for %s; cannot compute time_to_close", market_close_time)
+            return None
         market_close = market_close_time  # Assuming this is a scalar value directly from the index
 
         # If we're before the market opens for the found trading day,
@@ -367,6 +403,10 @@ class BacktestingBroker(Broker):
 
         delta_seconds = (market_close - now).total_seconds()
         if delta_seconds <= 0:
+            contiguous_seconds = self._contiguous_session_time(now, idx)
+            if contiguous_seconds is not None:
+                return contiguous_seconds
+
             logger.debug(
                 "Backtesting clock reached or passed market close (%s >= %s); returning 0 seconds.",
                 now,
@@ -1058,82 +1098,7 @@ class BacktestingBroker(Broker):
             not is_multileg_parent
             and asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
         ):
-            # Reconstruct position state BEFORE this order to determine if opening/closing
-            futures_qty_before = 0
-            futures_entry_price = None
-
-            # Look through filled_orders to find position before this order
-            for filled_order in self._filled_orders.get_list():
-                if (filled_order.asset == order.asset
-                    and filled_order.strategy == order.strategy
-                    and filled_order != order):  # Don't count the current order
-
-                    if filled_order.side in (Order.OrderSide.BUY, "buy", "buy_to_open"):
-                        futures_qty_before += filled_order.quantity
-                        # Track most recent BUY entry price (for long positions)
-                        if filled_order.avg_fill_price:
-                            futures_entry_price = float(filled_order.avg_fill_price)
-                    elif filled_order.side in (Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE, "sell", "sell_to_close"):
-                        futures_qty_before -= filled_order.quantity
-                        # Track most recent SELL entry price (for short positions)
-                        # Note: This gets overwritten by SELL_TO_CLOSE, which is correct
-                        # We want the opening SELL price, not closing prices
-                        if (filled_order.side in (Order.OrderSide.SELL, "sell")  # Opening short
-                            and filled_order.avg_fill_price):
-                            futures_entry_price = float(filled_order.avg_fill_price)
-
-            # Determine if this order is opening or closing a position
-            is_opening = (futures_qty_before == 0)
-            is_closing_long = (
-                futures_qty_before > 0
-                and order.side in (Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE, "sell", "sell_to_close")
-            )
-            is_closing_short = (
-                futures_qty_before < 0
-                and order.side in (Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, "buy", "buy_to_open")
-            )
-            is_closing = is_closing_long or is_closing_short
-
-            # Get margin requirement and multiplier
-            margin_per_contract = get_futures_margin_requirement(order.asset)
-            multiplier = getattr(order.asset, "multiplier", 1)
-            total_margin = margin_per_contract * float(filled_quantity)
-
-            current_cash = strategy.cash
-
-            if is_opening:
-                # ENTRY (long or short): Deduct initial margin from cash
-                new_cash = current_cash - total_margin
-                strategy._set_cash_position(new_cash)
-
-            elif is_closing:
-                # EXIT (close long or cover short): Release margin and apply realized P&L
-                if futures_entry_price:
-                    exit_price = float(price)
-
-                    # For shorts, P&L is inverted: profit when price goes down
-                    if futures_qty_before < 0:
-                        # Closing short: P&L = (entry - exit) × qty × multiplier
-                        realized_pnl = (futures_entry_price - exit_price) * float(filled_quantity) * float(multiplier)
-                    else:
-                        # Closing long: P&L = (exit - entry) × qty × multiplier
-                        realized_pnl = (exit_price - futures_entry_price) * float(filled_quantity) * float(multiplier)
-
-                    # Update cash: release margin + add realized P&L
-                    new_cash = current_cash + total_margin + realized_pnl
-                    strategy._set_cash_position(new_cash)
-                else:
-                    # No entry price found - just release margin (shouldn't happen normally)
-                    logger.warning(
-                        f"No entry price found for futures exit: {order.asset.symbol}. "
-                        f"Only releasing margin, no P&L applied."
-                    )
-                    new_cash = current_cash + total_margin
-                    strategy._set_cash_position(new_cash)
-            else:
-                # Adding to existing position: deduct margin for additional contracts
-                new_cash = current_cash - total_margin
-                strategy._set_cash_position(new_cash)
+            self._process_futures_fill(strategy, order, float(price), float(filled_quantity))
 
         # For crypto base with forex quote (like BTC/USD where USD is forex), use cash
         # For crypto base with crypto quote (like BTC/USDT where both are crypto), use positions
@@ -1195,6 +1160,76 @@ class BacktestingBroker(Broker):
 
         # For other asset types (crypto+crypto, stocks, etc.), use the original position-based processing
         super()._process_crypto_quote(order, quantity, price)
+
+    def _get_futures_ledger_key(self, strategy, asset):
+        strategy_name = getattr(strategy, "_name", None) or getattr(strategy, "name", "unknown_strategy")
+        asset_symbol = getattr(asset, "symbol", "unknown_asset")
+        asset_type = getattr(asset, "asset_type", "unknown_type")
+        return (strategy_name, asset_symbol, asset_type)
+
+    def _realize_futures_pnl(self, ledger, closing_qty, exit_price, multiplier):
+        remaining = closing_qty
+        realized_pnl = 0.0
+
+        while remaining > 1e-9 and ledger:
+            lot = ledger[0]
+            lot_qty = abs(lot["qty"])
+            take_qty = min(lot_qty, remaining)
+            entry_price = lot["price"]
+
+            if lot["qty"] > 0:
+                realized_pnl += (exit_price - entry_price) * take_qty * multiplier
+                lot["qty"] -= take_qty
+            else:
+                realized_pnl += (entry_price - exit_price) * take_qty * multiplier
+                lot["qty"] += take_qty  # Negative qty for shorts
+
+            if abs(lot["qty"]) < 1e-9:
+                ledger.pop(0)
+
+            remaining -= take_qty
+
+        if remaining > 1e-6:
+            logger.warning("Attempted to close more futures contracts than currently open. Remaining qty: %.6f", remaining)
+
+        return realized_pnl
+
+    def _process_futures_fill(self, strategy, order, price, filled_quantity):
+        multiplier = getattr(order.asset, "multiplier", 1)
+        margin_per_contract = get_futures_margin_requirement(order.asset)
+
+        key = self._get_futures_ledger_key(strategy, order.asset)
+        ledger = self._futures_lot_ledgers[key]
+
+        net_before = sum(lot["qty"] for lot in ledger)
+        signed_fill_qty = filled_quantity if order.is_buy_order() else -filled_quantity
+
+        closing_qty = 0.0
+        if net_before and signed_fill_qty and net_before * signed_fill_qty < 0:
+            closing_qty = min(abs(net_before), filled_quantity)
+
+        opening_qty = filled_quantity - closing_qty
+
+        current_cash = strategy.cash or 0.0
+        new_cash = current_cash
+
+        if closing_qty > 0:
+            realized_pnl = self._realize_futures_pnl(ledger, closing_qty, price, multiplier)
+            new_cash += margin_per_contract * closing_qty
+            new_cash += realized_pnl
+
+        if opening_qty > 0:
+            opening_sign = 1 if signed_fill_qty > 0 else -1
+            ledger.append({
+                "qty": opening_sign * opening_qty,
+                "price": price,
+            })
+            new_cash -= margin_per_contract * opening_qty
+
+        if not ledger:
+            self._futures_lot_ledgers.pop(key, None)
+
+        strategy._set_cash_position(new_cash)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):
         """Calculate the trade cost of an order for a given strategy"""
@@ -1544,6 +1579,9 @@ class BacktestingBroker(Broker):
             # Fill the order.
             #############################
 
+            if price is None and self._should_attempt_quote_fallback(open, high, low):
+                price = self._try_fill_with_quote(order, strategy, open, high, low)
+
             # If the price is set, then the order has been filled
             if price is not None:
                 self._execute_filled_order(
@@ -1586,9 +1624,105 @@ class BacktestingBroker(Broker):
         """Determine whether a price is unusable (None or NaN)."""
         if value is None:
             return True
+        if isinstance(value, Decimal):
+            try:
+                value = float(value)
+            except (ValueError, TypeError):
+                return True
         if isinstance(value, float) and math.isnan(value):
             return True
+        try:
+            if pd.isna(value):
+                return True
+        except Exception:
+            pass
         return False
+
+    def _bar_has_missing_prices(self, *values) -> bool:
+        return any(self._is_invalid_price(val) for val in values)
+
+    def _should_attempt_quote_fallback(self, open_, high_, low_) -> bool:
+        return self._is_thetadata_source() and self._bar_has_missing_prices(open_, high_, low_)
+
+    def _is_thetadata_source(self) -> bool:
+        if ThetaDataBacktestingPandas is None:
+            return False
+        return isinstance(self.data_source, ThetaDataBacktestingPandas)
+
+    def _get_spread_limit(self, strategy, key: str) -> Optional[float]:
+        if strategy is None or not key:
+            return None
+        if hasattr(strategy, key):
+            try:
+                return float(getattr(strategy, key))
+            except (TypeError, ValueError):
+                return None
+        params = getattr(strategy, "parameters", None)
+        if isinstance(params, dict) and key in params:
+            try:
+                return float(params[key])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _try_fill_with_quote(self, order, strategy, open_=None, high_=None, low_=None) -> Optional[float]:
+        """Attempt to fill an order using ThetaData quotes when OHLC bars are missing."""
+        if not self._is_thetadata_source():
+            return None
+        if not self._bar_has_missing_prices(open_, high_, low_):
+            return None
+        if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT):
+            return None
+        if not (order.is_buy_order() or order.is_sell_order()):
+            return None
+
+        try:
+            quote = self.get_quote(order.asset, quote=order.quote)
+        except Exception as exc:  # pragma: no cover - defensive log for unexpected broker states
+            self.logger.debug("ThetaData quote lookup failed for %s: %s", getattr(order.asset, "symbol", order.asset), exc)
+            return None
+
+        if quote is None:
+            return None
+
+        bid = self._coerce_price(getattr(quote, "bid", None))
+        ask = self._coerce_price(getattr(quote, "ask", None))
+
+        is_buy = order.is_buy_order()
+        fill_price = ask if is_buy else bid
+        if fill_price is None or self._is_invalid_price(fill_price):
+            return None
+
+        limit_price = self._coerce_price(order.limit_price)
+        if limit_price is not None:
+            if is_buy and fill_price > limit_price:
+                return None
+            if not is_buy and fill_price < limit_price:
+                return None
+
+        spread_key = "max_spread_buy_pct" if is_buy else "max_spread_sell_pct"
+        spread_limit = self._get_spread_limit(strategy, spread_key)
+        if spread_limit is not None and bid is not None and ask is not None:
+            mid = (ask + bid) / 2
+            if mid > 0:
+                spread_pct = (ask - bid) / mid
+                if spread_pct > spread_limit:
+                    if strategy is not None:
+                        strategy.log_message(
+                            f"Skipped ThetaData quote fill for {order.identifier} "
+                            f"(spread {spread_pct:.2%} exceeds {spread_limit:.2%}).",
+                            color="yellow",
+                        )
+                    return None
+
+        if strategy is not None:
+            strategy.log_message(
+                f"Filled {order.identifier} via ThetaData quote @ {fill_price:.2f}.",
+                color="yellow",
+            )
+
+        setattr(order, "_price_source", "quote")
+        return fill_price
 
     def limit_order(self, limit_price, side, open_, high, low):
         """Limit order logic."""

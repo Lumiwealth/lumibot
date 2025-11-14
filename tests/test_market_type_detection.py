@@ -36,3 +36,27 @@ def test_us_futures_treated_as_non_continuous(strategy_executor):
 def test_true_continuous_markets_remain_continuous(strategy_executor):
     """24/7 markets should still be recognised as continuous."""
     assert strategy_executor._is_continuous_market("24/7") is True
+
+
+def test_ensure_progress_inside_open_session(strategy_executor, mocker):
+    """When time_to_close stalls during open market, executor should advance clock."""
+    broker = strategy_executor.broker
+    mocker.patch.object(broker, "is_market_open", return_value=True)
+    update_spy = mocker.patch.object(broker, "_update_datetime")
+    mocker.patch.object(broker, "get_time_to_close", return_value=15)
+
+    result = strategy_executor._ensure_progress_inside_open_session(0)
+
+    update_spy.assert_called_once_with(1)
+    assert result == 15
+
+
+def test_ensure_progress_noop_when_market_closed(strategy_executor, mocker):
+    broker = strategy_executor.broker
+    mocker.patch.object(broker, "is_market_open", return_value=False)
+    update_spy = mocker.patch.object(broker, "_update_datetime")
+
+    result = strategy_executor._ensure_progress_inside_open_session(0)
+
+    update_spy.assert_not_called()
+    assert result == 0

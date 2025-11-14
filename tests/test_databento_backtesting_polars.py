@@ -319,3 +319,48 @@ def test_polars_no_future_minutes(mock_get_data, mocked_polars_helper):
     assert bars is not None
     # Ensure we never look past the current iteration timestamp.
     assert bars.polars_df["datetime"][-1] <= base
+
+
+@pytest.mark.usefixtures("mocked_polars_helper")
+@patch(
+    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
+)
+@pytest.mark.parametrize(
+    "timeshift,expected_offsets",
+    [
+        (0, [9, 10, 11]),
+        (-2, [11, 12, 13]),
+        (2, [7, 8, 9]),
+    ],
+)
+def test_pull_source_bars_uses_index_search(mock_get_data, timeshift, expected_offsets, monkeypatch):
+    """Ensure the optimized slicing path returns the same bars for various timeshifts."""
+    mock_get_data.return_value = _polars_frame(0, rows=20)
+    start = datetime(2025, 1, 6, tzinfo=timezone.utc)
+    end = datetime(2025, 1, 7, tzinfo=timezone.utc)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
+
+    backtester = DataBentoDataBacktestingPolars(
+        datetime_start=start,
+        datetime_end=end,
+        api_key=API_KEY,
+        show_progress_bar=False,
+    )
+
+    current_dt = datetime(2025, 1, 6, 14, 12, tzinfo=timezone.utc)
+    monkeypatch.setattr(backtester, "get_datetime", lambda: current_dt)
+
+    result = backtester._pull_source_symbol_bars(
+        asset,
+        length=3,
+        timestep="minute",
+        timeshift=timeshift,
+    )
+
+    assert result is not None
+    result_offsets = []
+    for dt in result["datetime"].to_list():
+        minutes_delta = int((dt - datetime(2025, 1, 6, 14, 0, tzinfo=timezone.utc)).total_seconds() // 60)
+        result_offsets.append(minutes_delta)
+
+    assert result_offsets == expected_offsets

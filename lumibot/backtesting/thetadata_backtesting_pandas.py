@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 
 import logging
 import pandas as pd
@@ -697,6 +697,7 @@ class ThetaDataBacktestingPandas(PandasData):
             datastyle="ohlc",
             include_after_hours=True  # Default to True for extended hours data
         )
+
         if df_ohlc is None or df_ohlc.empty:
             expired_reason = (
                 expiration_dt is not None
@@ -766,13 +767,24 @@ class ThetaDataBacktestingPandas(PandasData):
             else:
                 # Combine the ohlc and quote data using outer join to preserve all data
                 # Use forward fill for missing quote values (ThetaData's recommended approach)
+                timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
                 df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
+                df = self._combine_duplicate_columns(df, timestamp_columns)
 
-                # Forward fill missing quote values
+                # Theta includes duplicate metadata columns (symbol/strike/right/expiration); merge them once.
+                duplicate_names = df.columns[df.columns.duplicated()].unique().tolist()
+                if duplicate_names:
+                    df = self._combine_duplicate_columns(df, duplicate_names)
+
+                # Forward fill missing quote values and timestamp metadata
                 quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
-                existing_quote_cols = [col for col in quote_columns if col in df.columns]
-                if existing_quote_cols:
-                    df[existing_quote_cols] = df[existing_quote_cols].ffill()
+                forward_fill_columns = [
+                    col
+                    for col in quote_columns + timestamp_columns
+                    if col in df.columns
+                ]
+                if forward_fill_columns:
+                    df[forward_fill_columns] = df[forward_fill_columns].ffill()
 
                     # Log how much forward filling occurred
                     if 'bid' in df.columns and 'ask' in df.columns:
@@ -789,7 +801,20 @@ class ThetaDataBacktestingPandas(PandasData):
             # Add the keys to the self.pandas_data dictionary
             self.pandas_data.update(pandas_data_update)
             self._data_store.update(pandas_data_update)
-            self._record_metadata(search_asset, data.df, ts_unit, asset_separated)
+        self._record_metadata(search_asset, data.df, ts_unit, asset_separated)
+
+    @staticmethod
+    def _combine_duplicate_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+        """Deduplicate duplicate-named columns, preferring the first non-null entry per row."""
+        for column in columns:
+            if column not in df.columns:
+                continue
+            selection = df.loc[:, column]
+            if isinstance(selection, pd.DataFrame):
+                combined = selection.bfill(axis=1).ffill(axis=1).iloc[:, 0]
+                df = df.drop(columns=column)
+                df[column] = combined
+        return df
 
 
     def _pull_source_symbol_bars(
@@ -891,6 +916,12 @@ class ThetaDataBacktestingPandas(PandasData):
                 if close_series is None:
                     return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
                 closes = close_series.dropna()
+                # Remove placeholder rows (missing=True) from consideration.
+                if "missing" in data.df.columns:
+                    missing_mask = data.df.loc[closes.index, "missing"]
+                    closes = closes[~missing_mask.fillna(True)]
+                # Ignore non-positive prices which indicate bad ticks.
+                closes = closes[closes > 0]
                 if closes.empty:
                     logger.debug(
                         "[THETA][DEBUG][THETADATA-PANDAS] get_last_price found no valid closes for %s/%s; returning None (likely expired).",
@@ -929,6 +960,41 @@ class ThetaDataBacktestingPandas(PandasData):
             float(frame_last_close) if frame_last_close is not None else None,
         )
         return value
+
+    def get_price_snapshot(self, asset, quote=None, timestep="minute", **kwargs) -> Optional[Dict[str, object]]:
+        """Return the latest OHLC + quote snapshot for the requested asset."""
+        sample_length = 5
+        dt = self.get_datetime()
+        self._update_pandas_data(asset, quote, sample_length, timestep, dt)
+        _, ts_unit = self.get_start_datetime_and_ts_unit(
+            sample_length, timestep, dt, start_buffer=START_BUFFER
+        )
+
+        tuple_key = self.find_asset_in_data_store(asset, quote, ts_unit)
+        data = None
+        if tuple_key is not None:
+            data = self.pandas_data.get(tuple_key)
+            if data is None and isinstance(tuple_key, tuple) and len(tuple_key) == 3:
+                legacy_tuple_key = (tuple_key[0], tuple_key[1])
+                data = self.pandas_data.get(legacy_tuple_key)
+
+        if data is None or not hasattr(data, "get_price_snapshot"):
+            logger.debug(
+                "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot unavailable for %s/%s (tuple_key=%s).",
+                asset,
+                quote or Asset("USD", "forex"),
+                tuple_key,
+            )
+            return None
+
+        snapshot = data.get_price_snapshot(dt)
+        logger.debug(
+            "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot succeeded for %s/%s: %s",
+            asset,
+            quote or Asset("USD", "forex"),
+            snapshot,
+        )
+        return snapshot
 
     def get_historical_prices(
         self,

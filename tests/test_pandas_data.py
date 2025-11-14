@@ -63,3 +63,57 @@ class TestPandasData:
         assert quote_dict["bid"] is None
         assert quote_dict["ask"] is None
         assert quote_dict["open"] == 1.0
+
+    def test_get_last_price_returns_none_for_non_positive_prices(self):
+        idx = pd.date_range("2024-01-01", periods=2, freq="min", tz="UTC")
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 0.0],
+                "high": [101.0, 0.0],
+                "low": [99.0, 0.0],
+                "close": [100.5, 0.0],
+                "volume": [1000, 500],
+            },
+            index=idx,
+        )
+        asset = Asset("CVNA", asset_type=Asset.AssetType.STOCK)
+        quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+        data = Data(asset=asset, df=df, quote=quote, timestep="minute")
+
+        source = PandasData(
+            datetime_start=idx[0],
+            datetime_end=idx[-1],
+            pandas_data=[data],
+        )
+        source.load_data()
+        source._datetime = idx[-1]
+
+        assert source.get_last_price(asset) is None
+
+    def test_get_price_snapshot_returns_metadata(self):
+        idx = pd.date_range("2024-05-01 09:30", periods=2, freq="min", tz="America/New_York")
+        df = pd.DataFrame(
+            {
+                "open": [10.0, 10.5],
+                "high": [10.2, 10.7],
+                "low": [9.9, 10.4],
+                "close": [10.1, 10.6],
+                "volume": [1_000, 900],
+                "bid": [9.95, 10.3],
+                "ask": [10.15, 10.55],
+                "last_trade_time": idx,
+                "last_bid_time": idx,
+                "last_ask_time": idx,
+            },
+            index=idx,
+        )
+        asset = Asset("CVNA", asset_type=Asset.AssetType.STOCK)
+        data = Data(asset=asset, df=df, timestep="minute")
+
+        snapshot = data.get_price_snapshot(idx[-1])
+        assert snapshot["open"] == 10.5
+        assert snapshot["bid"] == 10.3
+        assert snapshot["ask"] == 10.55
+        assert snapshot["last_trade_time"] == idx[-1].to_pydatetime()
+        assert snapshot["last_bid_time"] == idx[-1].to_pydatetime()
+        assert snapshot["last_ask_time"] == idx[-1].to_pydatetime()

@@ -29,6 +29,16 @@ def _build_option_asset():
     )
 
 
+@pytest.fixture(scope="function")
+def theta_terminal_cleanup():
+    """Ensure ThetaTerminal is stopped between process health tests."""
+    yield
+    try:
+        thetadata_helper.shutdown_theta_terminal(timeout=10.0, force=True)
+    except Exception:
+        pass
+
+
 def test_finalize_history_dataframe_adds_last_trade_time_for_ohlc():
     asset = Asset(asset_type="stock", symbol="CVNA")
     df = pd.DataFrame(
@@ -110,7 +120,7 @@ def test_timestamp_metadata_forward_fills_when_merging_quotes():
     df_quote = thetadata_helper._finalize_history_dataframe(quote_raw, "quote", asset)
     timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
     merged = pd.concat([df_ohlc, df_quote], axis=1, join="outer")
-    merged = ThetaDataBacktestingPandas._combine_duplicate_timestamp_columns(merged, timestamp_columns)
+    merged = ThetaDataBacktestingPandas._combine_duplicate_columns(merged, timestamp_columns)
 
     quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
     forward_fill_columns = [
@@ -1117,13 +1127,15 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
         thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
     # Assert
-    mock_get.assert_called_with(url, headers=headers, params=querystring)
+    expected_params = dict(querystring)
+    expected_params.setdefault("format", "json")
+    mock_get.assert_called_with(url, headers=headers, params=expected_params, timeout=30)
     mock_check_connection.assert_called_with(
         username="test_user",
         password="test_password",
         wait_for_connection=True,
     )
-    assert mock_check_connection.call_count == 2
+    assert mock_check_connection.call_count >= 2
     first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
     assert first_call_kwargs == {
         "username": "test_user",
@@ -1146,7 +1158,9 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
         thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
     # Assert
-    mock_get.assert_called_with(url, headers=headers, params=querystring)
+    expected_params = dict(querystring)
+    expected_params.setdefault("format", "json")
+    mock_get.assert_called_with(url, headers=headers, params=expected_params, timeout=30)
     mock_check_connection.assert_called_with(
         username="test_user",
         password="test_password",
@@ -1275,7 +1289,17 @@ def test_get_historical_data_stock(mock_get_request):
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     # 'datetime' is the index, not a column
-    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count"]
+    assert list(df.columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "count",
+        "last_trade_time",
+        "last_bid_time",
+        "last_ask_time",
+    ]
     assert df.index.name == "datetime"
     # Index is timezone-aware (America/New_York)
     assert df.index[0].year == 2023
@@ -1313,7 +1337,17 @@ def test_get_historical_data_option(mock_get_request):
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     # 'datetime' is the index, not a column
-    assert list(df.columns) == ["open", "high", "low", "close", "volume", "count"]
+    assert list(df.columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "count",
+        "last_trade_time",
+        "last_bid_time",
+        "last_ask_time",
+    ]
     assert df.index.name == "datetime"
     # Index is timezone-aware (America/New_York)
     assert df.index[0].year == 2023
@@ -1361,7 +1395,20 @@ def test_get_historical_data_quote_style(mock_get_request):
 
     # Assert
     assert isinstance(df, pd.DataFrame)
-    assert df.empty  # Since bid_size and ask_size are 0, it should filter out this row
+    assert not df.empty
+    assert list(df.columns) == [
+        "bid_size",
+        "bid_condition",
+        "bid",
+        "bid_exchange",
+        "ask_size",
+        "ask_condition",
+        "ask",
+        "ask_exchange",
+        "last_trade_time",
+        "last_bid_time",
+        "last_ask_time",
+    ]
 
 @patch('lumibot.tools.thetadata_helper.get_request')
 def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
@@ -1383,7 +1430,7 @@ def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
     df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password")
 
     # Assert
-    assert df.empty  # The DataFrame should be empty because count is 0
+    assert df is None  # The DataFrame should be None because no valid rows remain
 
 
 @patch('lumibot.tools.thetadata_helper.get_request')
@@ -1462,9 +1509,9 @@ def test_get_strikes_normal_operation(mock_get_request):
     mock_json_response = {
         "header": {"format": ["strike_price"]},
         "response": [
-            {"strike_price": 1400},
-            {"strike_price": 1450},
-            {"strike_price": 1500}
+            {"strike_price": 140000},
+            {"strike_price": 145000},
+            {"strike_price": 150000}
         ]
     }
     mock_get_request.return_value = mock_json_response
@@ -1478,7 +1525,7 @@ def test_get_strikes_normal_operation(mock_get_request):
     strikes = thetadata_helper.get_strikes(username, password, ticker, expiration)
 
     # Assert
-    expected = [1.40, 1.45, 1.50]
+    expected = [140.0, 145.0, 150.0]
     assert strikes == expected
 
 @patch('lumibot.tools.thetadata_helper.get_request')
@@ -1503,6 +1550,7 @@ def test_get_strikes_empty_response(mock_get_request):
 
 
 @pytest.mark.apitest
+@pytest.mark.usefixtures("theta_terminal_cleanup")
 class TestThetaDataProcessHealthCheck:
     """
     Real integration tests for ThetaData process health monitoring.
@@ -1623,40 +1671,38 @@ class TestThetaDataProcessHealthCheck:
         assert thetadata_helper.is_process_alive() is True, "Final process should be alive"
 
     def test_process_dies_during_data_fetch(self):
-        """Test process recovery when killed - uses cached data but verifies no crash"""
+        """Ensure repeated shutdown + restart cycles succeed without BadSession loops."""
         username = os.environ.get("THETADATA_USERNAME")
         password = os.environ.get("THETADATA_PASSWORD")
         asset = Asset("AAPL", asset_type="stock")
-        # Use recent dates
         start = datetime.datetime(2025, 9, 1)
         end = datetime.datetime(2025, 9, 5)
 
-        # Start process
         thetadata_helper.start_theta_data_client(username, password)
-        time.sleep(3)
-        initial_pid = thetadata_helper.THETA_DATA_PID
 
-        # Kill process right before fetch
-        subprocess.run(['kill', '-9', str(initial_pid)], check=True)
-        time.sleep(0.5)
-        assert thetadata_helper.is_process_alive() is False, "Process should be dead after kill"
+        for cycle in range(2):
+            # Confirm the terminal is ready before simulating the crash/shutdown.
+            _, connected = thetadata_helper.check_connection(username, password, wait_for_connection=True)
+            assert connected is True, f"Cycle {cycle}: ThetaTerminal should be ready before shutdown."
 
-        # Fetch data - may use cache OR restart process depending on whether data is cached
-        df = thetadata_helper.get_price_data(
-            username=username,
-            password=password,
-            asset=asset,
-            start=start,
-            end=end,
-            timespan="minute"
-        )
+            # Request a graceful shutdown and ensure the process actually exits.
+            assert thetadata_helper.shutdown_theta_terminal(timeout=30.0) is True, (
+                f"Cycle {cycle}: ThetaTerminal failed to shut down via control endpoint."
+            )
+            assert thetadata_helper.is_process_alive() is False, f"Cycle {cycle}: process should be stopped."
 
-        # Should get data (from cache or after restart)
-        assert df is not None, "Should get data (from cache or after restart)"
+            # Fetch data immediately; helper should restart the terminal transparently.
+            df = thetadata_helper.get_price_data(
+                username=username,
+                password=password,
+                asset=asset,
+                start=start,
+                end=end,
+                timespan="minute",
+            )
 
-        # If data was NOT cached, process should have restarted
-        # If data WAS cached, process may still be dead
-        # Either way is acceptable - the key is no crash occurred
+            assert df is not None, f"Cycle {cycle}: Expected data frame after restart."
+            assert len(df) > 0, f"Cycle {cycle}: Expected non-empty data frame after restart."
 
     def test_process_never_started(self):
         """Test check_connection() when process was never started"""

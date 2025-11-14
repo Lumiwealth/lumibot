@@ -769,7 +769,12 @@ class ThetaDataBacktestingPandas(PandasData):
                 # Use forward fill for missing quote values (ThetaData's recommended approach)
                 timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
                 df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
-                df = self._combine_duplicate_timestamp_columns(df, timestamp_columns)
+                df = self._combine_duplicate_columns(df, timestamp_columns)
+
+                # Theta includes duplicate metadata columns (symbol/strike/right/expiration); merge them once.
+                duplicate_names = df.columns[df.columns.duplicated()].unique().tolist()
+                if duplicate_names:
+                    df = self._combine_duplicate_columns(df, duplicate_names)
 
                 # Forward fill missing quote values and timestamp metadata
                 quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
@@ -799,8 +804,8 @@ class ThetaDataBacktestingPandas(PandasData):
         self._record_metadata(search_asset, data.df, ts_unit, asset_separated)
 
     @staticmethod
-    def _combine_duplicate_timestamp_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
-        """Deduplicate timestamp metadata columns, preferring the first non-null entry per row."""
+    def _combine_duplicate_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+        """Deduplicate duplicate-named columns, preferring the first non-null entry per row."""
         for column in columns:
             if column not in df.columns:
                 continue

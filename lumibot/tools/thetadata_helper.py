@@ -26,8 +26,9 @@ MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 BASE_URL = os.environ.get("THETADATA_BASE_URL", "http://127.0.0.1:25503")
 HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
+READINESS_ENDPOINT = "/v3/terminal/mdds/status"
 READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
-    ("/v3/terminal/mdds/status", {"format": "json"}),
+    (READINESS_ENDPOINT, {"format": "json"}),
     ("/v3/option/list/expirations", {"symbol": HEALTHCHECK_SYMBOL, "format": "json"}),
 )
 READINESS_TIMEOUT = float(os.environ.get("THETADATA_HEALTHCHECK_TIMEOUT", "1.0"))
@@ -306,25 +307,27 @@ def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
         except Exception:
             continue
 
-        if resp.status_code == 200:
+        status_code = getattr(resp, "status_code", 200)
+        body_text = getattr(resp, "text", "") or ""
+        normalized_text = body_text.strip().upper()
+
+        if status_code == 200:
             if "status" in endpoint:
-                body = (resp.text or "").strip().upper()
-                if not body or body in {"CONNECTED", "READY", "OK"}:
+                if not normalized_text or normalized_text in {"CONNECTED", "READY", "OK"}:
                     return True
             else:
                 return True
 
-        text = (resp.text or "").upper()
-        if resp.status_code == 571 or "SERVER_STARTING" in text:
+        if status_code == 571 or "SERVER_STARTING" in normalized_text:
             return False
-        if resp.status_code in (404, 410):
+        if status_code in (404, 410):
             continue
-        if resp.status_code in (471, 473):
+        if status_code in (471, 473):
             logger.error(
                 "ThetaData readiness probe %s failed with %s: %s",
                 endpoint,
-                resp.status_code,
-                resp.text,
+                status_code,
+                body_text,
             )
     return False
 
@@ -369,12 +372,61 @@ def _ensure_java_runtime(min_major: int = 21) -> None:
 
 
 def _request_terminal_shutdown() -> bool:
-    shutdown_url = f"{BASE_URL}/v3/system/terminal/shutdown"
-    try:
-        requests.get(shutdown_url, timeout=1)
+    """Best-effort request to stop ThetaTerminal via its REST control endpoint."""
+    shutdown_paths = (
+        "/v3/terminal/shutdown",
+        "/v3/system/terminal/shutdown",  # legacy fallback path
+    )
+    for path in shutdown_paths:
+        shutdown_url = f"{BASE_URL}{path}"
+        try:
+            resp = requests.get(shutdown_url, timeout=1)
+        except Exception:
+            continue
+        status_code = getattr(resp, "status_code", 200)
+        if status_code < 500:
+            return True
+    return False
+
+
+def shutdown_theta_terminal(timeout: float = 30.0, force: bool = True) -> bool:
+    """Request ThetaTerminal shutdown and wait until the process fully exits."""
+    global THETA_DATA_PID
+
+    if not is_process_alive() and not _terminal_http_alive(timeout=0.2):
+        reset_theta_terminal_tracking()
         return True
-    except Exception:
+
+    graceful_requested = _request_terminal_shutdown()
+    deadline = time.monotonic() + max(timeout, 0.0)
+
+    while time.monotonic() < deadline:
+        process_alive = is_process_alive()
+        status_alive = _terminal_http_alive(timeout=0.2)
+        if not process_alive and not status_alive:
+            reset_theta_terminal_tracking()
+            if graceful_requested:
+                logger.info("ThetaTerminal shut down gracefully.")
+            return True
+        time.sleep(0.5)
+
+    if not force:
+        logger.warning("ThetaTerminal did not exit within %.1fs; leaving process running.", timeout)
         return False
+
+    kill_pid = THETA_DATA_PID
+    if kill_pid:
+        kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
+        try:
+            os.kill(kill_pid, kill_signal)
+            logger.warning("Force killed ThetaTerminal PID %s after timeout.", kill_pid)
+        except Exception as exc:
+            logger.warning("Failed to force kill ThetaTerminal PID %s: %s", kill_pid, exc)
+    else:
+        logger.warning("ThetaTerminal PID unavailable; cannot force kill after shutdown timeout.")
+
+    reset_theta_terminal_tracking()
+    return True
 
 
 def _resolve_asset_folder(asset_obj: Asset) -> str:
@@ -395,6 +447,12 @@ THETA_DATA_LOG_HANDLE = None
 
 class ThetaDataConnectionError(RuntimeError):
     """Raised when ThetaTerminal cannot reconnect to Theta Data after multiple restarts."""
+
+    pass
+
+
+class ThetaDataSessionInvalidError(ThetaDataConnectionError):
+    """Raised when ThetaTerminal keeps returning BadSession responses after a restart."""
 
     pass
 
@@ -1580,27 +1638,7 @@ def start_theta_data_client(username: str, password: str):
     global THETA_DATA_PROCESS, THETA_DATA_PID
     CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
 
-    # First try shutting down any existing connection
-    graceful_shutdown_requested = _request_terminal_shutdown()
-
-    shutdown_deadline = time.time() + 15
-    while True:
-        process_alive = is_process_alive()
-        status_alive = _terminal_http_alive(timeout=0.2)
-
-        if not process_alive and not status_alive:
-            break
-
-        if time.time() >= shutdown_deadline:
-            if process_alive and THETA_DATA_PID:
-                kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
-                try:
-                    os.kill(THETA_DATA_PID, kill_signal)
-                except Exception as kill_exc:
-                    logger.warning("Failed to force kill ThetaTerminal PID %s: %s", THETA_DATA_PID, kill_exc)
-            break
-
-        time.sleep(0.5)
+    shutdown_theta_terminal(timeout=30.0, force=True)
 
     # Create creds.txt file to avoid passing password with special characters on command line
     # This is the official ThetaData method and avoids shell escaping issues
@@ -1748,6 +1786,9 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     if not wait_for_connection:
         if _probe_terminal_ready():
+            if not is_process_alive():
+                ensure_process()
+                return check_connection(username=username, password=password, wait_for_connection=True)
             return None, True
         ensure_process()
         return check_connection(username=username, password=password, wait_for_connection=True)
@@ -1755,6 +1796,11 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
     retries = 0
     while retries < CONNECTION_MAX_RETRIES:
         if _probe_terminal_ready():
+            if not is_process_alive():
+                ensure_process()
+                retries += 1
+                time.sleep(CONNECTION_RETRY_SLEEP)
+                continue
             return None, True
 
         ensure_process()
@@ -1771,6 +1817,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     restart_budget = 3
     querystring = dict(querystring or {})
     querystring.setdefault("format", "json")
+    session_reset_budget = 5
+    session_reset_in_progress = False
+    awaiting_session_validation = False
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -1780,6 +1829,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
         # Use next_page URL if available, otherwise use original URL with querystring
         request_url = next_page_url if next_page_url else url
         request_params = None if next_page_url else querystring
+        json_resp = None
 
         while True:
             try:
@@ -1804,6 +1854,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     logger.warning(f"No data available for request: {response.text[:200]}")
                     logger.debug("[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA")
                     consecutive_disconnects = 0
+                    session_reset_in_progress = False
+                    awaiting_session_validation = False
                     return None
                 elif status_code == 571:
                     logger.debug("ThetaTerminal reports SERVER_STARTING; waiting before retry.")
@@ -1833,6 +1885,56 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         check_connection(username=username, password=password, wait_for_connection=True)
                         time.sleep(CONNECTION_RETRY_SLEEP)
                     continue
+                elif status_code == 500 and "BadSession" in (response.text or ""):
+                    if awaiting_session_validation:
+                        logger.error(
+                            "ThetaTerminal still reports BadSession immediately after a clean restart; manual intervention required."
+                        )
+                        raise ThetaDataSessionInvalidError(
+                            "ThetaData session remained invalid after a clean restart."
+                        )
+                    if not session_reset_in_progress:
+                        if session_reset_budget <= 0:
+                            raise ValueError("ThetaData session invalid after multiple restarts.")
+                        session_reset_budget -= 1
+                        session_reset_in_progress = True
+                        logger.warning(
+                            "ThetaTerminal session invalid; restarting (remaining attempts=%s).",
+                            session_reset_budget,
+                        )
+                        restart_started = time.monotonic()
+                        start_theta_data_client(username=username, password=password)
+                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                        while True:
+                            try:
+                                check_connection(username=username, password=password, wait_for_connection=True)
+                                break
+                            except ThetaDataConnectionError as exc:
+                                logger.warning("Waiting for ThetaTerminal after restart: %s", exc)
+                                time.sleep(CONNECTION_RETRY_SLEEP)
+                        wait_elapsed = time.monotonic() - restart_started
+                        logger.info(
+                            "ThetaTerminal restarted after BadSession (pid=%s, wait=%.1fs).",
+                            THETA_DATA_PID,
+                            wait_elapsed,
+                        )
+                    else:
+                        logger.warning("ThetaTerminal session still stabilizing after restart; waiting to retry request.")
+                        try:
+                            check_connection(username=username, password=password, wait_for_connection=True)
+                        except ThetaDataConnectionError as exc:
+                            logger.warning("ThetaTerminal unavailable while waiting for session reset: %s", exc)
+                            time.sleep(CONNECTION_RETRY_SLEEP)
+                            continue
+                    time.sleep(max(CONNECTION_RETRY_SLEEP, 5))
+                    next_page_url = None
+                    request_url = url
+                    request_params = querystring
+                    consecutive_disconnects = 0
+                    counter = 0
+                    json_resp = None
+                    awaiting_session_validation = True
+                    continue
                 elif status_code == 410:
                     raise RuntimeError(
                         "ThetaData responded with 410 GONE. Ensure all requests use the v3 REST endpoints "
@@ -1855,6 +1957,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 else:
                     json_payload = response.json()
                     json_resp = _coerce_json_payload(json_payload)
+                    session_reset_in_progress = False
                     consecutive_disconnects = 0
 
                     # DEBUG-LOG: API response - success
@@ -1899,6 +2002,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
             counter += 1
             if counter > 1:
                 raise ValueError("Cannot connect to Theta Data!")
+        if json_resp is None:
+            continue
 
         # Store this page's response data
         page_count += 1
@@ -2108,7 +2213,7 @@ def get_historical_data(
 
     start_local = _normalize_market_datetime(start_dt)
     end_local = _normalize_market_datetime(end_dt)
-    trading_days = get_trading_dates(asset, start_local, end_local)
+    trading_days = get_trading_dates(asset, start_dt, end_dt)
 
     if not trading_days:
         logger.debug(
@@ -2263,6 +2368,11 @@ def _detect_column(df: pd.DataFrame, candidates: Tuple[str, ...]) -> Optional[st
         lookup = candidate.lower()
         if lookup in normalized:
             return normalized[lookup]
+    for normalized_name, original in normalized.items():
+        for candidate in candidates:
+            lookup = candidate.lower()
+            if lookup in normalized_name:
+                return original
     return None
 
 
@@ -2409,7 +2519,7 @@ def build_historical_chain(
         strike_resp = get_request(
             url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
-            querystring={"symbol": asset.symbol, "expiration": expiration_iso},
+            querystring={"symbol": asset.symbol, "exp": expiration_iso},
             username=username,
             password=password,
         )
@@ -2563,7 +2673,7 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
 
     expiration_iso = expiration.strftime("%Y-%m-%d")
 
-    querystring = {"symbol": ticker, "expiration": expiration_iso}
+    querystring = {"symbol": ticker, "exp": expiration_iso}
 
     headers = {"Accept": "application/json"}
 

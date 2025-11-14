@@ -1,11 +1,40 @@
+import shutil
+from pathlib import Path
+
 import setuptools
+from setuptools.command.build_py import build_py as _build_py
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+DIST_DIR = PROJECT_ROOT / "dist"
+if DIST_DIR.exists():
+    shutil.rmtree(DIST_DIR)
+
+
+class BuildWithThetaJar(_build_py):
+    """Ensure ThetaTerminal.jar from the repo is included in every build."""
+
+    def run(self):
+        super().run()
+        self._copy_theta_terminal()
+
+    def _copy_theta_terminal(self):
+        src = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
+        if not src.exists():
+            raise FileNotFoundError(f"ThetaTerminal.jar not found at {src}")
+        dest = Path(self.build_lib) / "lumibot" / "resources" / "ThetaTerminal.jar"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        print(
+            f"[build] Bundled ThetaTerminal.jar -> {dest} "
+            f"(size={dest.stat().st_size} bytes)"
+        )
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="lumibot",
-    version="4.2.12",
+    version="4.3.2",
     author="Robert Grzesik",
     author_email="rob@lumiwealth.com",
     description="Backtesting and Trading Library, Made by Lumiwealth",
@@ -70,4 +99,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.10",
+    cmdclass={"build_py": BuildWithThetaJar},
 )

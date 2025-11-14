@@ -1963,11 +1963,19 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     )
                 # If status code is not 200, then we are not connected
                 elif status_code != 200:
-                    logger.warning(f"Non-200 status code {status_code}: {response.text[:200]}")
+                    logged_params = request_params if request_params is not None else querystring
+                    logger.warning(
+                        "Non-200 status code %s for ThetaData request %s params=%s body=%s",
+                        status_code,
+                        request_url,
+                        logged_params,
+                        response.text[:200],
+                    )
                     # DEBUG-LOG: API response - error
                     logger.debug(
-                        "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR",
-                        status_code
+                        "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR url=%s",
+                        status_code,
+                        request_url,
                     )
                     check_connection(username=username, password=password, wait_for_connection=True)
                     consecutive_disconnects = 0
@@ -2486,12 +2494,13 @@ def build_historical_chain(
     hint_reached = False
 
     def expiration_has_data(expiration_iso: str, strike_value: float, right: str) -> bool:
-        exp_param = expiration_iso.replace("-", "")
+        expiration_param = expiration_iso
         querystring = {
             "symbol": asset.symbol,
-            "exp": exp_param,
+            "expiration": expiration_param,
             "strike": strike_value,
-            "option_type": "CALL" if right == "C" else "PUT",
+            "right": "call" if right == "C" else "put",
+            "format": "json",
         }
         resp = get_request(
             url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['dates_quote']}",
@@ -2534,11 +2543,14 @@ def build_historical_chain(
         if min_hint_int and not hint_reached and expiration_int >= min_hint_int:
             hint_reached = True
 
-        expiration_param = expiration_iso.replace("-", "")
         strike_resp = get_request(
             url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
-            querystring={"symbol": asset.symbol, "exp": expiration_param},
+            querystring={
+                "symbol": asset.symbol,
+                "expiration": expiration_iso,
+                "format": "json",
+            },
             username=username,
             password=password,
         )
@@ -2657,14 +2669,18 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
     expiration_col = _detect_column(df, ("expiration", "date", "exp"))
     if not expiration_col:
         return []
-    expirations = df[expiration_col].tolist()
     after_date_int = int(after_date.strftime("%Y%m%d"))
-    expirations = [x for x in expirations if x >= after_date_int]
-    expirations_final = []
-    for expiration in expirations:
-        expiration_str = _normalize_expiration_value(expiration)
-        if expiration_str:
-            expirations_final.append(expiration_str)
+    expirations_final: List[str] = []
+    for raw_value in df[expiration_col].tolist():
+        normalized = _normalize_expiration_value(raw_value)
+        if not normalized:
+            continue
+        try:
+            normalized_int = int(normalized.replace("-", ""))
+        except (TypeError, ValueError):
+            continue
+        if normalized_int >= after_date_int:
+            expirations_final.append(normalized)
     return expirations_final
 
 
@@ -2691,9 +2707,7 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     url = f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}"
 
     expiration_iso = expiration.strftime("%Y-%m-%d")
-    expiration_param = expiration_iso.replace("-", "")
-
-    querystring = {"symbol": ticker, "exp": expiration_param}
+    querystring = {"symbol": ticker, "expiration": expiration_iso, "format": "json"}
 
     headers = {"Accept": "application/json"}
 

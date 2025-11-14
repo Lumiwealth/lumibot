@@ -1105,6 +1105,39 @@ def test_get_request_non_200_status_code():
         assert False, f"Should not raise exception, got: {e}"
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Requires ThetaData Terminal (not available in CI)"
+)
+def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
+    """Exercise option list endpoints via real ThetaTerminal to guard v3 regressions."""
+    username = os.environ.get("THETADATA_USERNAME")
+    password = os.environ.get("THETADATA_PASSWORD")
+
+    if not username or not password:
+        pytest.skip("ThetaData credentials not configured")
+
+    thetadata_helper.check_connection(username, password, wait_for_connection=True)
+
+    as_of_date = datetime.date.today() - datetime.timedelta(days=5)
+    while as_of_date.weekday() >= 5:
+        as_of_date -= datetime.timedelta(days=1)
+
+    asset = Asset("SPY", asset_type="stock")
+    chain = thetadata_helper.build_historical_chain(
+        username=username,
+        password=password,
+        asset=asset,
+        as_of_date=as_of_date,
+        max_expirations=5,
+        max_consecutive_misses=5,
+    )
+
+    assert chain is not None, "Expected option chain data from ThetaTerminal"
+    assert chain["Chains"]["CALL"], "CALL chain should contain expirations"
+    assert chain["Chains"]["PUT"], "PUT chain should contain expirations"
+
+
 @patch('lumibot.tools.thetadata_helper.check_connection')
 @patch('lumibot.tools.thetadata_helper.requests.get')
 def test_get_request_error_in_json(mock_get, mock_check_connection):
@@ -1844,13 +1877,13 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
                 "response": [[20241115], [20241205], [20250124]],
             }
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
-            exp = querystring["exp"]
-            if exp == "20241115":
+            exp = querystring["expiration"]
+            if exp == "2024-11-15":
                 return {
                     "header": {"format": ["strike"]},
                     "response": [[100000], [105000]],
                 }
-            if exp == "20241205":
+            if exp == "2024-12-05":
                 return {
                     "header": {"format": ["strike"]},
                     "response": [[110000]],
@@ -1860,8 +1893,8 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
                 "response": [[120000]],
             }
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"]):
-            exp = querystring["exp"]
-            if exp == "20241115":
+            exp = querystring["expiration"]
+            if exp == "2024-11-15":
                 return {
                     "header": {"format": None, "error_type": "null"},
                     "response": [as_of_int, as_of_int + 1],
@@ -1881,6 +1914,48 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
     assert list(result["Chains"]["CALL"].keys()) == ["2024-11-15"]
     assert result["Chains"]["CALL"]["2024-11-15"] == [100.0, 105.0]
     assert result["Chains"]["PUT"]["2024-11-15"] == [100.0, 105.0]
+
+
+def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
+    asset = Asset("SPY", asset_type="stock")
+    as_of_date = date(2024, 11, 15)
+    captured = []
+
+    def fake_get_request(url, headers, querystring, username, password):
+        captured.append((url, dict(querystring)))
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
+            return {"header": {"format": ["expiration"]}, "response": [["20241220"]]}
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
+            return {"header": {"format": ["strike"]}, "response": [[100000], [101000]]}
+        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"]):
+            if querystring["right"] == "call":
+                return {"header": {"format": None, "error_type": "NO_DATA"}, "response": []}
+            return {
+                "header": {"format": None, "error_type": "null"},
+                "response": [int(as_of_date.strftime("%Y%m%d"))],
+            }
+        raise AssertionError(f"Unexpected URL {url}")
+
+    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+
+    result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
+    assert result is not None
+
+    strike_calls = [
+        params for url, params in captured if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"])
+    ]
+    assert strike_calls, "Expected at least one strikes request"
+    assert strike_calls[0]["expiration"] == "2024-12-20"
+    assert "exp" not in strike_calls[0]
+    assert strike_calls[0]["format"] == "json"
+
+    dates_calls = [
+        params for url, params in captured if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"])
+    ]
+    assert {call["right"] for call in dates_calls} == {"call", "put"}
+    for params in dates_calls:
+        assert params["expiration"] == "2024-12-20"
+        assert params["format"] == "json"
 
 
 def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):

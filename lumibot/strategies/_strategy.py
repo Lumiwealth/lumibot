@@ -1534,6 +1534,13 @@ class _Strategy:
         base_filename = f"{name + '_' if name is not None else ''}{datestring}_{random_string}"
 
         logdir = "logs"
+        env_save_logfile = os.environ.get("SAVE_LOGFILE")
+        if env_save_logfile is not None:
+            normalized = env_save_logfile.strip().lower()
+            if normalized in ("true", "1", "yes", "y"):
+                save_logfile = True
+            elif normalized in ("false", "0", "no", "n"):
+                save_logfile = False
         if logfile is None and save_logfile:
             logfile = f"{logdir}/{base_filename}_logs.csv"
         if stats_file is None and save_stats_file:

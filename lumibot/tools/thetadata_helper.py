@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -25,7 +25,47 @@ logger = get_logger(__name__)
 WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
-BASE_URL = os.environ.get("THETADATA_BASE_URL", "http://127.0.0.1:25503")
+DEFAULT_THETA_BASE = "http://127.0.0.1:25503"
+_downloader_base_env = os.environ.get("DATADOWNLOADER_BASE_URL")
+_theta_fallback_base = os.environ.get("THETADATA_BASE_URL", DEFAULT_THETA_BASE)
+
+
+def _normalize_base_url(raw: Optional[str]) -> str:
+    if not raw:
+        return DEFAULT_THETA_BASE
+    raw = raw.strip()
+    if not raw:
+        return DEFAULT_THETA_BASE
+    if not raw.startswith(("http://", "https://")):
+        raw = f"http://{raw}"
+    return raw.rstrip("/")
+
+
+def _is_loopback_url(raw: str) -> bool:
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return False
+    host = (parsed.hostname or "").lower()
+    return host in {"127.0.0.1", "localhost", "::1"}
+
+
+def _coerce_skip_flag(raw: Optional[str], base_url: str) -> bool:
+    if raw:
+        value = raw.strip().lower()
+        if value in {"1", "true", "yes", "on"}:
+            return True
+        if value in {"0", "false", "no", "off"}:
+            return False
+    if _downloader_base_env and not _is_loopback_url(base_url):
+        return True
+    return False
+
+
+BASE_URL = _normalize_base_url(_downloader_base_env or _theta_fallback_base)
+DOWNLOADER_API_KEY = os.environ.get("DATADOWNLOADER_API_KEY")
+DOWNLOADER_KEY_HEADER = os.environ.get("DATADOWNLOADER_API_KEY_HEADER", "X-Downloader-Key")
+REMOTE_DOWNLOADER_ENABLED = _coerce_skip_flag(os.environ.get("DATADOWNLOADER_SKIP_LOCAL_START"), BASE_URL)
 HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
 READINESS_ENDPOINT = "/v3/terminal/mdds/status"
 READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
@@ -82,6 +122,13 @@ DEFAULT_SESSION_HOURS = {
     True: ("04:00:00", "20:00:00"),   # include extended hours
     False: ("09:30:00", "16:00:00"),  # regular session only
 }
+
+
+def _build_request_headers(base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    request_headers: Dict[str, str] = dict(base or {})
+    if DOWNLOADER_API_KEY:
+        request_headers.setdefault(DOWNLOADER_KEY_HEADER, DOWNLOADER_API_KEY)
+    return request_headers
 
 
 def _interval_label_from_ms(interval_ms: int) -> str:
@@ -283,10 +330,12 @@ def _finalize_history_dataframe(
 
 def _terminal_http_alive(timeout: float = 0.3) -> bool:
     """Return True if the local ThetaTerminal responds to HTTP."""
+    request_headers = _build_request_headers()
     for endpoint, params in READINESS_PROBES:
         try:
             resp = requests.get(
                 f"{BASE_URL}{endpoint}",
+                headers=request_headers,
                 params=params,
                 timeout=timeout,
             )
@@ -298,6 +347,7 @@ def _terminal_http_alive(timeout: float = 0.3) -> bool:
 
 
 def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
+    request_headers = _build_request_headers()
     for endpoint, params in READINESS_PROBES:
         request_url = f"{BASE_URL}{endpoint}"
         if params:
@@ -308,6 +358,7 @@ def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
         try:
             resp = requests.get(
                 request_url,
+                headers=request_headers,
                 timeout=timeout,
             )
         except Exception:
@@ -400,6 +451,9 @@ def _request_terminal_shutdown() -> bool:
 def shutdown_theta_terminal(timeout: float = 30.0, force: bool = True) -> bool:
     """Request ThetaTerminal shutdown and wait until the process fully exits."""
     global THETA_DATA_PID
+
+    if REMOTE_DOWNLOADER_ENABLED:
+        return True
 
     if not is_process_alive() and not _terminal_http_alive(timeout=0.2):
         reset_theta_terminal_tracking()
@@ -1620,6 +1674,10 @@ def is_process_alive():
     import os
     import subprocess
 
+    if REMOTE_DOWNLOADER_ENABLED:
+        # Remote downloader handles lifecycle; treat as always alive locally.
+        return True
+
     global THETA_DATA_PROCESS, THETA_DATA_PID, THETA_DATA_LOG_HANDLE
 
     # If we have a subprocess handle, trust it first
@@ -1645,6 +1703,10 @@ def start_theta_data_client(username: str, password: str):
     import subprocess
     global THETA_DATA_PROCESS, THETA_DATA_PID
     CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
+
+    if REMOTE_DOWNLOADER_ENABLED:
+        logger.debug("Remote Theta downloader configured; skipping local ThetaTerminal launch.")
+        return None
 
     shutdown_theta_terminal(timeout=30.0, force=True)
 
@@ -1787,6 +1849,17 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
 
+    if REMOTE_DOWNLOADER_ENABLED:
+        retries = 0
+        if not wait_for_connection and _probe_terminal_ready():
+            return None, True
+        while retries < CONNECTION_MAX_RETRIES:
+            if _probe_terminal_ready():
+                return None, True
+            retries += 1
+            time.sleep(CONNECTION_RETRY_SLEEP)
+        raise ThetaDataConnectionError("Remote Theta downloader did not become ready in time.")
+
     def ensure_process(force_restart: bool = False):
         alive = is_process_alive()
         if alive and not force_restart:
@@ -1859,9 +1932,11 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     request_params if request_params else querystring
                 )
 
+                request_headers = _build_request_headers(headers)
+
                 response = requests.get(
                     request_url,
-                    headers=headers,
+                    headers=request_headers,
                     params=request_params,
                     timeout=30,
                 )

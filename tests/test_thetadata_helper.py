@@ -1297,6 +1297,47 @@ def test_get_request_raises_on_410(mock_check_connection, monkeypatch):
     assert "410" in str(excinfo.value)
 
 
+def test_get_request_attaches_downloader_header(monkeypatch):
+    headers_seen = {}
+
+    class DummyResponse:
+        status_code = 200
+
+        def json(self):
+            return {"response": [], "header": {"format": []}}
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        headers_seen.update(headers or {})
+        return DummyResponse()
+
+    monkeypatch.setattr(thetadata_helper, "DOWNLOADER_API_KEY", "secret-key")
+    monkeypatch.setattr(thetadata_helper, "DOWNLOADER_KEY_HEADER", "X-Downloader-Key")
+    monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+    monkeypatch.setattr(thetadata_helper, "check_connection", lambda **_: (None, True))
+
+    thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+    assert headers_seen["X-Downloader-Key"] == "secret-key"
+
+
+def test_check_connection_remote_downloader(monkeypatch):
+    probe_calls = {"count": 0}
+
+    def fake_probe():
+        probe_calls["count"] += 1
+        return probe_calls["count"] >= 2
+
+    fake_time = SimpleNamespace(sleep=lambda *_: None)
+
+    monkeypatch.setattr(thetadata_helper, "REMOTE_DOWNLOADER_ENABLED", True)
+    monkeypatch.setattr(thetadata_helper, "_probe_terminal_ready", lambda: fake_probe())
+    monkeypatch.setattr(thetadata_helper, "CONNECTION_MAX_RETRIES", 3)
+    monkeypatch.setattr(thetadata_helper, "time", fake_time)
+
+    _, ready = thetadata_helper.check_connection("user", "pass", wait_for_connection=True)
+    assert ready is True
+    assert probe_calls["count"] == 2
+
+
 @patch('lumibot.tools.thetadata_helper.get_request')
 def test_get_historical_data_stock(mock_get_request):
     # Arrange
@@ -2015,7 +2056,7 @@ class TestThetaDataConnectionSupervision:
             def __init__(self, text):
                 self.text = text
 
-        def fake_get(url, timeout):
+        def fake_get(url, timeout=None, **kwargs):
             try:
                 text = next(statuses)
             except StopIteration:
@@ -2050,7 +2091,7 @@ class TestThetaDataConnectionSupervision:
             def __init__(self, text):
                 self.text = text
 
-        def fake_get(url, timeout):
+        def fake_get(url, timeout=None, **kwargs):
             try:
                 text = next(statuses)
             except StopIteration:

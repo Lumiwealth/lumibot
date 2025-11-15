@@ -1,4 +1,5 @@
 import datetime
+import json
 from datetime import date
 import logging
 import numpy as np
@@ -17,6 +18,23 @@ from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.tools.backtest_cache import CacheMode
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "thetadata_v3"
+
+
+def _load_fixture_payload(name: str):
+    with open(FIXTURE_DIR / name, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _fixture_response(name: str):
+    payload = _load_fixture_payload(name)
+    response = thetadata_helper._coerce_json_payload(payload)
+    header = response.setdefault("header", {})
+    header.setdefault("format", header.get("format") or list(payload.keys()))
+    header.setdefault("error_type", "null")
+    header.setdefault("next_page", None)
+    return response
 
 
 def _build_option_asset():
@@ -2238,3 +2256,233 @@ def test_thetadata_no_future_minutes(monkeypatch):
     assert bars is not None
     assert len(bars.df) == 1
     assert bars.df.index[-1].tz_convert(tz) <= now
+
+
+def test_get_historical_eod_data_handles_missing_date(monkeypatch):
+    response = _fixture_response("stock_eod.json")
+
+    def fake_request(url, headers, querystring, username, password):
+        return response
+
+    minute_index = pd.to_datetime(
+        ["2024-11-15 13:30:00", "2024-11-18 13:30:00"],
+        utc=True,
+    )
+    minute_df = pd.DataFrame({"open": [301.25, 341.0]}, index=minute_index)
+    minute_df.index.name = "datetime"
+
+    monkeypatch.setattr(thetadata_helper, "get_request", fake_request)
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_historical_data",
+        lambda *args, **kwargs: minute_df,
+    )
+
+    asset = Asset(symbol="TSLA", asset_type="stock")
+    start_dt = datetime.datetime(2024, 11, 15, tzinfo=pytz.UTC)
+    end_dt = datetime.datetime(2024, 11, 18, tzinfo=pytz.UTC)
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset,
+        start_dt,
+        end_dt,
+        username="rob-dev@lumiwealth.com",
+        password="TestTestTest",
+    )
+
+    assert list(df.index.date) == [datetime.date(2024, 11, 15), datetime.date(2024, 11, 18)]
+    assert df.index.tz is not None
+    assert pytest.approx(df.loc["2024-11-15", "open"]) == 301.25
+
+
+def test_get_historical_data_stock_v3_schema(monkeypatch):
+    response = _fixture_response("stock_history_ohlc.json")
+
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_request",
+        lambda *args, **kwargs: response,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_trading_dates",
+        lambda asset, start, end: [datetime.date(2024, 11, 15)],
+    )
+
+    asset = Asset(symbol="TSLA", asset_type="stock")
+    start_dt = datetime.datetime(2024, 11, 15, 9, 30, tzinfo=pytz.UTC)
+    end_dt = datetime.datetime(2024, 11, 15, 10, 0, tzinfo=pytz.UTC)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+    )
+
+    assert len(df) == 6
+    assert df.index.tz is not None
+    assert {"open", "high", "low", "close"} <= set(df.columns)
+
+
+def test_get_historical_data_stock_quotes_v3_schema(monkeypatch):
+    response = _fixture_response("stock_history_quote.json")
+
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_request",
+        lambda *args, **kwargs: response,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_trading_dates",
+        lambda asset, start, end: [datetime.date(2024, 11, 15)],
+    )
+
+    asset = Asset(symbol="TSLA", asset_type="stock")
+    start_dt = datetime.datetime(2024, 11, 15, 9, 30, tzinfo=pytz.UTC)
+    end_dt = datetime.datetime(2024, 11, 15, 9, 33, tzinfo=pytz.UTC)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="quote",
+    )
+
+    assert len(df) == 4
+    assert df.index.tz is not None
+    assert {"bid", "ask"} <= set(df.columns)
+    assert (df["bid"] > 0).any()
+
+
+def test_option_history_parsing_handles_v3_payloads(monkeypatch):
+    response = _fixture_response("option_history_ohlc.json")
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_request",
+        lambda *args, **kwargs: response,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_trading_dates",
+        lambda asset, start, end: [datetime.date(2024, 11, 15)],
+    )
+
+    asset = Asset(
+        symbol="TSLA",
+        asset_type="option",
+        expiration=date(2024, 11, 22),
+        strike=340.0,
+        right="CALL",
+    )
+    start_dt = datetime.datetime(2024, 11, 15, 9, 30, tzinfo=pytz.UTC)
+    end_dt = datetime.datetime(2024, 11, 15, 9, 33, tzinfo=pytz.UTC)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+    )
+
+    assert "symbol" in df.columns
+    assert not df.empty
+    assert (df["close"] >= 0).all()
+
+
+def test_option_quote_history_parsing_handles_v3_payloads(monkeypatch):
+    response = _fixture_response("option_history_quote.json")
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_request",
+        lambda *args, **kwargs: response,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "get_trading_dates",
+        lambda asset, start, end: [datetime.date(2024, 11, 15)],
+    )
+
+    asset = Asset(
+        symbol="TSLA",
+        asset_type="option",
+        expiration=date(2024, 11, 22),
+        strike=340.0,
+        right="CALL",
+    )
+    start_dt = datetime.datetime(2024, 11, 15, 9, 30, tzinfo=pytz.UTC)
+    end_dt = datetime.datetime(2024, 11, 15, 9, 32, tzinfo=pytz.UTC)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="quote",
+    )
+
+    assert {"bid", "ask"} <= set(df.columns)
+    assert len(df) == 2
+
+
+def test_option_list_helpers_handle_v3_schema(monkeypatch):
+    exp_response = _fixture_response("option_expirations.json")
+    strike_response = _fixture_response("option_strikes.json")
+    responses = [exp_response, strike_response]
+
+    def fake_get_request(url, headers, querystring, username, password):
+        return responses.pop(0)
+
+    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+
+    expirations = thetadata_helper.get_expirations(
+        username="user",
+        password="pass",
+        ticker="TSLA",
+        after_date=date(2012, 7, 1),
+    )
+    assert expirations == [
+        "2012-07-21",
+        "2012-08-18",
+        "2012-09-22",
+        "2012-10-20",
+        "2012-11-17",
+        "2012-12-22",
+        "2013-01-19",
+    ]
+
+    strikes = thetadata_helper.get_strikes(
+        username="user",
+        password="pass",
+        ticker="TSLA",
+        expiration=datetime.datetime(2024, 11, 22),
+    )
+    assert strikes[:3] == [362.5, 160.0, 320.0]
+
+
+def test_option_dates_quote_fixture_is_normalized():
+    response = _fixture_response("option_dates_quote.json")
+    rows = response["response"]
+    assert rows[0][0] == "2024-10-03"
+    assert len(rows) == 5
+
+
+def test_theta_endpoints_use_v3_prefix():
+    for path in thetadata_helper.HISTORY_ENDPOINTS.values():
+        assert path.startswith("/v3/")
+    for path in thetadata_helper.EOD_ENDPOINTS.values():
+        assert path.startswith("/v3/")
+    for path in thetadata_helper.OPTION_LIST_ENDPOINTS.values():
+        assert path.startswith("/v3/")

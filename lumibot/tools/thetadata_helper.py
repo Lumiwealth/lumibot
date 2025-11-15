@@ -2222,9 +2222,7 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
 
     # Function to combine ms_of_day and date into datetime
     def combine_datetime(row):
-        # Ensure the date is in integer format and then convert to string
-        date_str = str(int(row["date"]))
-        base_date = datetime.strptime(date_str, "%Y%m%d")
+        base_date = _coerce_eod_trading_day(row)
         # EOD reports are normalized at ~17:15 ET but represent the trading day
         # We use midnight of the trading day as the timestamp (consistent with daily bars)
         return base_date
@@ -2459,6 +2457,29 @@ def _normalize_strike_value(raw_value: object) -> Optional[float]:
         strike /= 1000.0
 
     return round(strike, 4)
+
+
+def _coerce_eod_trading_day(row: pd.Series) -> datetime:
+    """Derive the trading day for EOD rows when ThetaData omits the legacy `date` column."""
+    row_dict = row.to_dict() if hasattr(row, "to_dict") else dict(row)
+    normalized = _normalize_expiration_value(row_dict.get("date"))
+    if normalized:
+        return datetime.strptime(normalized, "%Y-%m-%d")
+
+    timestamp_candidates = ("created", "last_trade", "timestamp", "datetime")
+    for column in timestamp_candidates:
+        value = row_dict.get(column)
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            continue
+        dt_value = pd.to_datetime(value, utc=True, errors="coerce")
+        if pd.isna(dt_value):
+            continue
+        return datetime(dt_value.year, dt_value.month, dt_value.day)
+
+    raise KeyError(
+        "ThetaData EOD payload missing 'date' plus fallback timestamp columns "
+        "(created, last_trade, timestamp, datetime)."
+    )
 
 
 def _detect_column(df: pd.DataFrame, candidates: Tuple[str, ...]) -> Optional[str]:

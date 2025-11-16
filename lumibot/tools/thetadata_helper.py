@@ -66,6 +66,8 @@ BASE_URL = _normalize_base_url(_downloader_base_env or _theta_fallback_base)
 DOWNLOADER_API_KEY = os.environ.get("DATADOWNLOADER_API_KEY")
 DOWNLOADER_KEY_HEADER = os.environ.get("DATADOWNLOADER_API_KEY_HEADER", "X-Downloader-Key")
 REMOTE_DOWNLOADER_ENABLED = _coerce_skip_flag(os.environ.get("DATADOWNLOADER_SKIP_LOCAL_START"), BASE_URL)
+if REMOTE_DOWNLOADER_ENABLED:
+    logger.info("[THETA][CONFIG] Remote downloader enabled at %s", BASE_URL)
 HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
 READINESS_ENDPOINT = "/v3/terminal/mdds/status"
 READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
@@ -2432,16 +2434,30 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
         logger.info(f"Fetching 9:30 AM minute bars to correct EOD open prices...")
 
         # Get minute data for the date range to extract 9:30 AM opens
-        minute_df = get_historical_data(
-            asset=asset,
-            start_dt=start_dt,
-            end_dt=end_dt,
-            ivl=60000,  # 1 minute
-            username=username,
-            password=password,
-            datastyle=datastyle,
-            include_after_hours=False  # RTH only
-        )
+        minute_df = None
+        correction_window = ("09:30:00", "09:31:00")
+        try:
+            minute_df = get_historical_data(
+                asset=asset,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                ivl=60000,  # 1 minute
+                username=username,
+                password=password,
+                datastyle=datastyle,
+                include_after_hours=False,  # RTH only
+                session_time_override=correction_window,
+            )
+        except ThetaRequestError as exc:
+            body_text = (exc.body or "").lower()
+            if "start must be before end" in body_text:
+                logger.warning(
+                    "ThetaData rejected 09:30 correction window for %s; skipping open fix this chunk (%s)",
+                    asset.symbol,
+                    exc.body,
+                )
+            else:
+                raise
 
         if minute_df is not None and not minute_df.empty:
             # Group by date and get the first bar's open for each day
@@ -2469,9 +2485,16 @@ def get_historical_data(
     password: str,
     datastyle: str = "ohlc",
     include_after_hours: bool = True,
+    session_time_override: Optional[Tuple[str, str]] = None,
 ):
     """
     Fetch intraday history from ThetaData using the v3 REST endpoints.
+
+    Parameters
+    ----------
+    session_time_override : Optional[Tuple[str, str]]
+        When provided, overrides the computed start/end session times for each trading day
+        (HH:MM:SS strings). Useful for requesting specific minute windows such as the 09:30 open.
     """
 
     asset_type = str(getattr(asset, "asset_type", "stock")).lower()
@@ -2557,13 +2580,16 @@ def get_historical_data(
             querystring.pop("symbol", None)
             querystring["symbol"] = asset.symbol
 
-        session_start, session_end = _compute_session_bounds(
-            trading_day,
-            start_local,
-            end_local,
-            include_after_hours,
-            prefer_full_session=start_is_date_only and end_is_date_only,
-        )
+        if session_time_override:
+            session_start, session_end = session_time_override
+        else:
+            session_start, session_end = _compute_session_bounds(
+                trading_day,
+                start_local,
+                end_local,
+                include_after_hours,
+                prefer_full_session=start_is_date_only and end_is_date_only,
+            )
         querystring["start_time"] = session_start
         querystring["end_time"] = session_end
 

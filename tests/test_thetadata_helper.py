@@ -292,6 +292,43 @@ def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch)
     assert df.index.is_monotonic_increasing
 
 
+def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, caplog):
+    eod_payload = {
+        "header": {
+            "format": ["date", "open", "high", "low", "close", "volume", "ms_of_day", "ms_of_day2", "created"],
+            "error_type": "null",
+        },
+        "response": [
+            ["20241122", 10.0, 11.0, 9.5, 10.5, 1000, 0, 0, "2024-11-22T16:00:00"]
+        ],
+    }
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: copy.deepcopy(eod_payload))
+
+    def _failing_minute_fetch(**_):
+        raise thetadata_helper.ThetaRequestError(
+            "Cannot connect to Theta Data!", status_code=400, body="Start must be before end"
+        )
+
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", _failing_minute_fetch)
+
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    tz = pytz.UTC
+    start = tz.localize(datetime.datetime(2024, 11, 21, 19, 0))
+    end = tz.localize(datetime.datetime(2024, 11, 22, 19, 0))
+
+    with caplog.at_level(logging.WARNING):
+        df = thetadata_helper.get_historical_eod_data(
+            asset=asset,
+            start_dt=start,
+            end_dt=end,
+            username="user",
+            password="pass",
+        )
+
+    assert not df.empty
+    assert "skipping open fix" in caplog.text
+
+
 def test_get_historical_data_parses_stock_downloader_schema(monkeypatch):
     fixture = load_thetadata_fixture("stock_history_ohlc.json")
 
@@ -1408,7 +1445,8 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
         password="test_password",
         wait_for_connection=True,
     )
-    assert mock_check_connection.call_count == 3
+    expected_calls = thetadata_helper.HTTP_RETRY_LIMIT + 1  # initial probe + retries
+    assert mock_check_connection.call_count == expected_calls
 
 
 @patch('lumibot.tools.thetadata_helper.check_connection')
@@ -1760,6 +1798,43 @@ def test_get_historical_data_empty_response(mock_get_request):
 
     # Assert
     assert df is None
+
+
+@patch("lumibot.tools.thetadata_helper.get_trading_dates")
+@patch("lumibot.tools.thetadata_helper.get_request")
+def test_get_historical_data_applies_session_override(mock_get_request, mock_get_trading_dates):
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    start_dt = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 11, 21, 19, 0))
+    end_dt = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 11, 25, 19, 0))
+    ivl = 60000
+    mock_get_trading_dates.return_value = [
+        datetime.date(2024, 11, 22),
+        datetime.date(2024, 11, 25),
+    ]
+    mock_get_request.return_value = {
+        "header": {
+            "format": ["timestamp", "open", "high", "low", "close", "volume", "count"],
+            "error_type": "null",
+        },
+        "response": [["2024-11-22T09:30:00", 10, 11, 9, 10.5, 1000, 1]],
+    }
+
+    df = thetadata_helper.get_historical_data(
+        asset,
+        start_dt,
+        end_dt,
+        ivl,
+        "test_user",
+        "test_password",
+        session_time_override=("09:30:00", "09:31:00"),
+    )
+
+    assert df is not None
+    assert mock_get_request.call_count == len(mock_get_trading_dates.return_value)
+    for call in mock_get_request.call_args_list:
+        qs = call.kwargs["querystring"]
+        assert qs["start_time"] == "09:30:00"
+        assert qs["end_time"] == "09:31:00"
 
 @patch('lumibot.tools.thetadata_helper.get_request')
 def test_get_historical_data_quote_style(mock_get_request):

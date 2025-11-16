@@ -78,6 +78,9 @@ CONNECTION_MAX_RETRIES = 120
 BOOT_GRACE_PERIOD = 5.0
 MAX_RESTART_ATTEMPTS = 3
 MAX_TERMINAL_RESTART_CYCLES = 3
+HTTP_RETRY_LIMIT = 3
+HTTP_RETRY_BACKOFF_MAX = 5.0
+TRANSIENT_STATUS_CODES = {500, 502, 503, 504, 520, 521}
 
 # Mapping between milliseconds and ThetaData interval labels
 INTERVAL_MS_TO_LABEL = {
@@ -517,6 +520,15 @@ class ThetaDataSessionInvalidError(ThetaDataConnectionError):
     """Raised when ThetaTerminal keeps returning BadSession responses after a restart."""
 
     pass
+
+
+class ThetaRequestError(ValueError):
+    """Raised when repeated ThetaData HTTP requests fail with transient errors."""
+
+    def __init__(self, message: str, status_code: Optional[int] = None, body: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
 
 def reset_connection_diagnostics():
     """Reset ThetaData connection counters (useful for tests)."""
@@ -1910,6 +1922,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     session_reset_budget = 5
     session_reset_in_progress = False
     awaiting_session_validation = False
+    http_retry_limit = HTTP_RETRY_LIMIT
+    last_status_code: Optional[int] = None
+    last_failure_detail: Optional[str] = None
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -1922,6 +1937,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
         json_resp = None
 
         while True:
+            sleep_duration = 0.0
             try:
                 CONNECTION_DIAGNOSTICS["network_requests"] += 1
 
@@ -2040,12 +2056,16 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 elif status_code != 200:
                     logged_params = request_params if request_params is not None else querystring
                     logger.warning(
-                        "Non-200 status code %s for ThetaData request %s params=%s body=%s",
+                        "Non-200 status code %s for ThetaData request %s params=%s body=%s (attempt %s/%s)",
                         status_code,
                         request_url,
                         logged_params,
                         response.text[:200],
+                        counter + 1,
+                        http_retry_limit,
                     )
+                    last_status_code = status_code
+                    last_failure_detail = response.text[:200]
                     # DEBUG-LOG: API response - error
                     logger.debug(
                         "[THETA][DEBUG][API][RESPONSE] status=%d result=ERROR url=%s",
@@ -2054,6 +2074,10 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     )
                     check_connection(username=username, password=password, wait_for_connection=True)
                     consecutive_disconnects = 0
+                    sleep_duration = min(
+                        CONNECTION_RETRY_SLEEP * max(counter + 1, 1),
+                        HTTP_RETRY_BACKOFF_MAX,
+                    )
                 else:
                     json_payload = response.json()
                     json_resp = _coerce_json_payload(json_payload)
@@ -2095,13 +2119,27 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
             except Exception as e:
                 logger.warning(f"Exception during request (attempt {counter + 1}): {e}")
                 check_connection(username=username, password=password, wait_for_connection=True)
+                last_status_code = None
+                last_failure_detail = str(e)
                 if counter == 0:
                     logger.debug("[THETA][DEBUG][API][WAIT] Allowing ThetaTerminal to initialize for 5s before retry.")
                     time.sleep(5)
 
             counter += 1
-            if counter > 1:
-                raise ValueError("Cannot connect to Theta Data!")
+            if counter >= http_retry_limit:
+                raise ThetaRequestError(
+                    "Cannot connect to Theta Data!",
+                    status_code=last_status_code,
+                    body=last_failure_detail,
+                )
+            if sleep_duration > 0:
+                logger.debug(
+                    "[THETA][DEBUG][API][WAIT] Sleeping %.2fs before retry (attempt %d/%d).",
+                    sleep_duration,
+                    counter + 1,
+                    http_retry_limit,
+                )
+                time.sleep(sleep_duration)
         if json_resp is None:
             continue
 
@@ -2196,6 +2234,76 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
             yield cursor, window_end
             cursor = window_end + timedelta(days=1)
 
+    def _execute_chunk_request(chunk_start: date, chunk_end: date):
+        querystring = base_query.copy()
+        querystring["start_date"] = chunk_start.strftime("%Y-%m-%d")
+        querystring["end_date"] = chunk_end.strftime("%Y-%m-%d")
+
+        logger.debug(
+            "[THETA][DEBUG][EOD][REQUEST][CHUNK] asset=%s start=%s end=%s",
+            asset,
+            querystring["start_date"],
+            querystring["end_date"],
+        )
+
+        return get_request(
+            url=url,
+            headers=headers,
+            querystring=querystring,
+            username=username,
+            password=password,
+        )
+
+    def _collect_chunk_payloads(chunk_start: date, chunk_end: date, *, allow_split: bool = True) -> List[Optional[Dict[str, Any]]]:
+        try:
+            response = _execute_chunk_request(chunk_start, chunk_end)
+            return [response]
+        except ThetaRequestError as exc:
+            span_days = (chunk_end - chunk_start).days + 1
+            if not allow_split or span_days <= 1:
+                raise
+            midpoint = chunk_start + timedelta(days=(span_days // 2) - 1)
+            right_start = midpoint + timedelta(days=1)
+            logger.warning(
+                "[THETA][WARN][EOD][CHUNK] asset=%s start=%s end=%s status=%s retrying with split windows",
+                asset,
+                chunk_start,
+                chunk_end,
+                exc.status_code,
+            )
+            split_payloads: List[Optional[Dict[str, Any]]] = []
+            splits = (
+                (chunk_start, min(midpoint, chunk_end)),
+                (min(right_start, chunk_end), chunk_end),
+            )
+            for split_idx, (split_start, split_end) in enumerate(splits, start=1):
+                if split_start > split_end:
+                    continue
+                logger.debug(
+                    "[THETA][DEBUG][EOD][REQUEST][CHUNK][SPLIT] asset=%s parent=%s-%s split=%d start=%s end=%s",
+                    asset,
+                    chunk_start,
+                    chunk_end,
+                    split_idx,
+                    split_start,
+                    split_end,
+                )
+                try:
+                    split_payloads.extend(
+                        _collect_chunk_payloads(split_start, split_end, allow_split=False)
+                    )
+                except ThetaRequestError as sub_exc:
+                    logger.error(
+                        "[THETA][ERROR][EOD][CHUNK][SPLIT] asset=%s parent=%s-%s split=%d failed status=%s",
+                        asset,
+                        chunk_start,
+                        chunk_end,
+                        split_idx,
+                        sub_exc.status_code,
+                    )
+                    raise
+            return split_payloads
+
     aggregated_rows: List[List[Any]] = []
     header_format: Optional[List[str]] = None
     windows = list(_chunk_windows())
@@ -2211,55 +2319,58 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     )
 
     for idx, (window_start, window_end) in enumerate(windows, start=1):
-        querystring = base_query.copy()
-        querystring["start_date"] = window_start.strftime("%Y-%m-%d")
-        querystring["end_date"] = window_end.strftime("%Y-%m-%d")
-
         logger.debug(
             "[THETA][DEBUG][EOD][REQUEST][CHUNK] asset=%s chunk=%d/%d start=%s end=%s",
             asset,
             idx,
             len(windows),
-            querystring["start_date"],
-            querystring["end_date"],
+            window_start,
+            window_end,
         )
 
         try:
-            json_resp = get_request(
-                url=url,
-                headers=headers,
-                querystring=querystring,
-                username=username,
-                password=password,
+            chunk_payloads = _collect_chunk_payloads(window_start, window_end)
+        except ThetaRequestError as exc:
+            logger.error(
+                "[THETA][ERROR][EOD][CHUNK] asset=%s chunk=%d/%d start=%s end=%s status=%s detail=%s",
+                asset,
+                idx,
+                len(windows),
+                window_start,
+                window_end,
+                exc.status_code,
+                exc.body,
             )
+            raise
         except ValueError as exc:
             logger.error(
                 "[THETA][ERROR][EOD][CHUNK] asset=%s chunk=%d/%d start=%s end=%s error=%s",
                 asset,
                 idx,
                 len(windows),
-                querystring["start_date"],
-                querystring["end_date"],
+                window_start,
+                window_end,
                 exc,
             )
             raise
 
-        if not json_resp:
-            continue
+        for json_resp in chunk_payloads:
+            if not json_resp:
+                continue
 
-        response_rows = json_resp.get("response") or []
-        if response_rows:
-            aggregated_rows.extend(response_rows)
-        if not header_format and json_resp.get("header", {}).get("format"):
-            header_format = json_resp["header"]["format"]
+            response_rows = json_resp.get("response") or []
+            if response_rows:
+                aggregated_rows.extend(response_rows)
+            if not header_format and json_resp.get("header", {}).get("format"):
+                header_format = json_resp["header"]["format"]
 
-        logger.debug(
-            "[THETA][DEBUG][EOD][RESPONSE][CHUNK] asset=%s chunk=%d/%d rows=%d",
-            asset,
-            idx,
-            len(windows),
-            len(response_rows),
-        )
+            logger.debug(
+                "[THETA][DEBUG][EOD][RESPONSE][CHUNK] asset=%s chunk=%d/%d rows=%d",
+                asset,
+                idx,
+                len(windows),
+                len(response_rows),
+            )
 
     if not aggregated_rows or not header_format:
         logger.debug(

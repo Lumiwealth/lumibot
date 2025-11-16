@@ -1,3 +1,4 @@
+import copy
 import datetime
 import json
 from datetime import date
@@ -251,6 +252,44 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
     assert not df.empty
     assert df.index.tzinfo is not None
     assert "open" in df.columns
+
+
+def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch):
+    fixture = load_thetadata_fixture("stock_history_eod.json")
+    first_row = copy.deepcopy(fixture["response"][0])
+    second_row = copy.deepcopy(fixture["response"][1])
+    responses = [
+        {"header": copy.deepcopy(fixture["header"]), "response": [first_row]},
+        {"header": copy.deepcopy(fixture["header"]), "response": [second_row]},
+    ]
+    captured_ranges = []
+
+    def fake_get_request(url, headers, querystring, username, password):
+        captured_ranges.append((querystring["start_date"], querystring["end_date"]))
+        return responses.pop(0)
+
+    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+
+    asset = Asset(asset_type="stock", symbol="PLTR")
+    start = pytz.UTC.localize(datetime.datetime(2023, 1, 1))
+    end = pytz.UTC.localize(datetime.datetime(2024, 12, 30, 23, 59))
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert captured_ranges == [
+        ("2023-01-01", "2023-12-31"),
+        ("2024-01-01", "2024-12-30"),
+    ]
+    assert df is not None
+    assert len(df) == 2
+    assert df.index.is_monotonic_increasing
 
 
 def test_get_historical_data_parses_stock_downloader_schema(monkeypatch):

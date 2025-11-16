@@ -2494,7 +2494,8 @@ def test_get_historical_data_stock_v3_schema(monkeypatch):
         datastyle="ohlc",
     )
 
-    assert len(df) == 6
+    # Theta sometimes emits trailing placeholder bars with zero volume/count; ensure they are dropped.
+    assert len(df) == 5
     assert df.index.tz is not None
     assert {"open", "high", "low", "close"} <= set(df.columns)
 

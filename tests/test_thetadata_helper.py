@@ -316,7 +316,7 @@ def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, c
     start = tz.localize(datetime.datetime(2024, 11, 21, 19, 0))
     end = tz.localize(datetime.datetime(2024, 11, 22, 19, 0))
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
         df = thetadata_helper.get_historical_eod_data(
             asset=asset,
             start_dt=start,

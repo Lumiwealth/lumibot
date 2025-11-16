@@ -1411,6 +1411,31 @@ def test_get_request_exception_handling(mock_get, mock_check_connection):
     assert mock_check_connection.call_count == 3
 
 
+@patch('lumibot.tools.thetadata_helper.check_connection')
+def test_get_request_raises_theta_request_error_after_transient_status(mock_check_connection, monkeypatch):
+    """Ensure repeated 5xx responses raise ThetaRequestError with the status code."""
+    mock_check_connection.return_value = (None, True)
+
+    responses = [
+        SimpleNamespace(status_code=503, text="Service unavailable")
+        for _ in range(thetadata_helper.HTTP_RETRY_LIMIT)
+    ]
+
+    def fake_get(*args, **kwargs):
+        if not responses:
+            raise AssertionError("Expected ThetaRequestError before exhausting responses")
+        return responses.pop(0)
+
+    monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+    monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *_: None)
+
+    with pytest.raises(thetadata_helper.ThetaRequestError) as excinfo:
+        thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+
+    assert excinfo.value.status_code == 503
+    assert mock_check_connection.call_count >= thetadata_helper.HTTP_RETRY_LIMIT
+
+
 
 @patch('lumibot.tools.thetadata_helper.start_theta_data_client')
 @patch('lumibot.tools.thetadata_helper.check_connection')
@@ -1545,6 +1570,66 @@ def test_get_historical_eod_data_handles_missing_date(monkeypatch):
     df = thetadata_helper.get_historical_eod_data(asset, start, start, "user", "pass")
     assert not df.empty
     assert df.index[0].strftime("%Y-%m-%d") == "2025-11-10"
+
+
+def test_get_historical_eod_data_splits_chunk_on_transient_error(monkeypatch):
+    """Ensure a transient ThetaRequestError triggers a one-time chunk split."""
+    call_ranges = []
+
+    def fake_get_request(url, headers, querystring, username, password):
+        start = querystring["start_date"]
+        end = querystring["end_date"]
+        call_ranges.append((start, end))
+        if start == "2024-01-01" and end == "2024-01-04":
+            raise thetadata_helper.ThetaRequestError("503 error", status_code=503)
+        rows = []
+        cursor = datetime.datetime.strptime(start, "%Y-%m-%d")
+        end_dt = datetime.datetime.strptime(end, "%Y-%m-%d")
+        while cursor <= end_dt:
+            rows.append([100.0, 101.0, cursor.strftime("%Y-%m-%dT17:15:00Z")])
+            cursor += datetime.timedelta(days=1)
+        return {"header": {"format": ["open", "close", "created"]}, "response": rows}
+
+    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+
+    asset = Asset("MSFT", asset_type="stock")
+    start = datetime.datetime(2024, 1, 1)
+    end = datetime.datetime(2024, 1, 4)
+
+    df = thetadata_helper.get_historical_eod_data(asset, start, end, "user", "pass")
+    assert len(df) == 4
+    assert ("2024-01-01", "2024-01-04") in call_ranges
+    assert ("2024-01-01", "2024-01-02") in call_ranges
+    assert ("2024-01-03", "2024-01-04") in call_ranges
+
+
+def test_get_historical_eod_data_split_failure_bubbles(monkeypatch):
+    """If a split sub-chunk fails, propagate the ThetaRequestError."""
+    failure_ranges = {
+        ("2024-01-01", "2024-01-04"),
+        ("2024-01-01", "2024-01-02"),
+    }
+
+    def fake_get_request(url, headers, querystring, username, password):
+        start = querystring["start_date"]
+        end = querystring["end_date"]
+        if (start, end) in failure_ranges:
+            raise thetadata_helper.ThetaRequestError("still failing", status_code=503)
+        rows = [
+            [100.0, 101.0, f"{start}T17:15:00Z"],
+        ]
+        return {"header": {"format": ["open", "close", "created"]}, "response": rows}
+
+    monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+
+    asset = Asset("MSFT", asset_type="stock")
+    start = datetime.datetime(2024, 1, 1)
+    end = datetime.datetime(2024, 1, 4)
+
+    with pytest.raises(thetadata_helper.ThetaRequestError):
+        thetadata_helper.get_historical_eod_data(asset, start, end, "user", "pass")
 
 
 def test_check_connection_remote_downloader(monkeypatch):

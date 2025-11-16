@@ -1,6 +1,7 @@
 import datetime
 import json
 from datetime import date
+import json
 import logging
 import numpy as np
 import os
@@ -35,6 +36,15 @@ def _fixture_response(name: str):
     header.setdefault("error_type", "null")
     header.setdefault("next_page", None)
     return response
+
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "thetadata_v3"
+
+
+def load_thetadata_fixture(name: str):
+    path = FIXTURES_DIR / name
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def _build_option_asset():
@@ -153,6 +163,27 @@ def test_timestamp_metadata_forward_fills_when_merging_quotes():
     assert merged.loc[quote_only_time, "last_trade_time"] == prev_trade_time
     assert merged.loc[later_trade_time, "last_bid_time"] == quote_only_time
     assert merged.loc[later_trade_time, "last_ask_time"] == quote_only_time
+
+
+def test_all_theta_endpoints_use_v3_paths():
+    history_paths = list(thetadata_helper.HISTORY_ENDPOINTS.values())
+    eod_paths = list(thetadata_helper.EOD_ENDPOINTS.values())
+    option_paths = list(thetadata_helper.OPTION_LIST_ENDPOINTS.values())
+    for endpoint in history_paths + eod_paths + option_paths:
+        assert endpoint.startswith("/v3/"), f"{endpoint} is not a v3 endpoint"
+
+
+def test_build_request_headers_injects_downloader_key():
+    original_key = thetadata_helper.DOWNLOADER_API_KEY
+    original_header = thetadata_helper.DOWNLOADER_KEY_HEADER
+    try:
+        thetadata_helper.DOWNLOADER_API_KEY = "unit-test-key"
+        thetadata_helper.DOWNLOADER_KEY_HEADER = "X-Test-Key"
+        headers = thetadata_helper._build_request_headers({})
+        assert headers["X-Test-Key"] == "unit-test-key"
+    finally:
+        thetadata_helper.DOWNLOADER_API_KEY = original_key
+        thetadata_helper.DOWNLOADER_KEY_HEADER = original_header
 @patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_filters_zero_quotes(mock_get_request):
     asset = Asset(
@@ -199,6 +230,93 @@ def test_get_historical_data_filters_zero_quotes(mock_get_request):
     assert df["ask"].iloc[0] == 11.0
 
 
+def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
+    fixture = load_thetadata_fixture("stock_history_eod.json")
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+
+    asset = Asset(asset_type="stock", symbol="PLTR")
+    start = pytz.UTC.localize(datetime.datetime(2024, 9, 16))
+    end = pytz.UTC.localize(datetime.datetime(2024, 9, 18))
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert df is not None
+    assert not df.empty
+    assert df.index.tzinfo is not None
+    assert "open" in df.columns
+
+
+def test_get_historical_data_parses_stock_downloader_schema(monkeypatch):
+    fixture = load_thetadata_fixture("stock_history_ohlc.json")
+
+    def fake_trading_dates(*_args, **_kwargs):
+        return [date(2024, 9, 16)]
+
+    monkeypatch.setattr(thetadata_helper, "get_trading_dates", fake_trading_dates)
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
+
+    asset = Asset(asset_type="stock", symbol="PLTR")
+    start = pytz.UTC.localize(datetime.datetime(2024, 9, 16, 9, 30))
+    end = start + datetime.timedelta(minutes=5)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+    )
+
+    assert df is not None
+    assert not df.empty
+    assert df.index.tzinfo is not None
+    assert "close" in df.columns
+
+
+def test_get_historical_data_parses_option_downloader_schema(monkeypatch):
+    fixture = load_thetadata_fixture("option_history_ohlc.json")
+
+    def fake_trading_dates(*_args, **_kwargs):
+        return [date(2024, 9, 16)]
+
+    monkeypatch.setattr(thetadata_helper, "get_trading_dates", fake_trading_dates)
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
+
+    asset = Asset(
+        asset_type="option",
+        symbol="TSLA",
+        expiration=date(2024, 10, 18),
+        strike=250.0,
+        right="CALL",
+    )
+    start = pytz.UTC.localize(datetime.datetime(2024, 9, 16, 9, 30))
+    end = start + datetime.timedelta(minutes=5)
+
+    df = thetadata_helper.get_historical_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        ivl=60000,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+    )
+
+    assert df is not None
+    assert not df.empty
+    assert "strike" in df.columns
+    assert df.index.tzinfo is not None
+
+
 @patch("lumibot.tools.thetadata_helper.get_request")
 @patch("lumibot.tools.thetadata_helper.get_trading_dates")
 def test_get_historical_data_uses_v3_option_params(mock_get_trading_dates, mock_get_request):
@@ -242,6 +360,36 @@ def test_get_historical_data_uses_v3_option_params(mock_get_trading_dates, mock_
     assert query["interval"] == "1m"
     assert query["start_time"] == "09:30:00"
     assert query["end_time"] == "16:00:00"
+
+
+def test_get_expirations_normalizes_downloader_payload(monkeypatch):
+    fixture = load_thetadata_fixture("option_list_expirations.json")
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
+
+    expirations = thetadata_helper.get_expirations(
+        username="user",
+        password="pass",
+        ticker="TSLA",
+        after_date=date(2024, 9, 1),
+    )
+
+    assert expirations
+    assert all(isinstance(exp, str) and exp.count("-") == 2 for exp in expirations)
+
+
+def test_get_strikes_normalizes_downloader_payload(monkeypatch):
+    fixture = load_thetadata_fixture("option_list_strikes.json")
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
+
+    strikes = thetadata_helper.get_strikes(
+        username="user",
+        password="pass",
+        ticker="TSLA",
+        expiration=datetime.datetime(2024, 10, 18),
+    )
+
+    assert strikes
+    assert all(isinstance(value, float) for value in strikes)
 
 
 @patch("lumibot.tools.thetadata_helper.get_request")
@@ -1129,6 +1277,10 @@ def test_get_request_non_200_status_code():
 )
 def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
     """Exercise option list endpoints via real ThetaTerminal to guard v3 regressions."""
+    if thetadata_helper.REMOTE_DOWNLOADER_ENABLED:
+        pytest.skip("Remote downloader configured; skip local ThetaTerminal integration test")
+    if os.environ.get("ENABLE_THETADATA_TERMINAL_TESTS") != "1":
+        pytest.skip("ThetaTerminal integration tests disabled; set ENABLE_THETADATA_TERMINAL_TESTS=1 to run")
     username = os.environ.get("THETADATA_USERNAME")
     password = os.environ.get("THETADATA_PASSWORD")
 
@@ -1335,6 +1487,25 @@ def test_get_request_attaches_downloader_header(monkeypatch):
 
     thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
     assert headers_seen["X-Downloader-Key"] == "secret-key"
+
+
+def test_get_historical_eod_data_handles_missing_date(monkeypatch):
+    sample_response = {
+        "header": {"format": ["open", "close", "created"]},
+        "response": [
+            [439.5, 445.23, "2025-11-10T17:15:01.116"]
+        ]
+    }
+
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: sample_response)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+
+    asset = Asset("TSLA", asset_type="stock")
+    start = datetime.datetime(2025, 11, 10, tzinfo=datetime.timezone.utc)
+
+    df = thetadata_helper.get_historical_eod_data(asset, start, start, "user", "pass")
+    assert not df.empty
+    assert df.index[0].strftime("%Y-%m-%d") == "2025-11-10"
 
 
 def test_check_connection_remote_downloader(monkeypatch):

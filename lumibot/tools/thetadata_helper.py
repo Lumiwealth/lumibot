@@ -128,6 +128,41 @@ DEFAULT_SESSION_HOURS = {
     False: ("09:30:00", "16:00:00"),  # regular session only
 }
 
+OPEN_CORRECTION_CACHE: Dict[str, Dict[date, float]] = {}
+OPEN_CORRECTION_CACHE_LIMIT = int(os.environ.get("THETADATA_OPEN_CACHE_LIMIT", "512"))
+
+
+def reset_open_correction_cache() -> None:
+    """Utility hook for tests to clear cached 09:30 open prices."""
+    OPEN_CORRECTION_CACHE.clear()
+
+
+def _open_cache_key(asset: Asset) -> str:
+    expiration = getattr(asset, "expiration", None)
+    suffix = f":{expiration}" if expiration else ""
+    return f"{getattr(asset, 'asset_type', 'stock')}::{asset.symbol}{suffix}"
+
+
+def _trim_open_cache(asset_key: str) -> None:
+    cache = OPEN_CORRECTION_CACHE.get(asset_key)
+    if not cache:
+        return
+    overflow = len(cache) - OPEN_CORRECTION_CACHE_LIMIT
+    if overflow <= 0:
+        return
+    for stale_date in sorted(cache.keys())[:overflow]:
+        cache.pop(stale_date, None)
+
+
+def _localize_trade_midnight(trade_date: date, reference: Optional[datetime]) -> datetime:
+    base = datetime.combine(trade_date, datetime.min.time())
+    tzinfo = getattr(reference, "tzinfo", None)
+    if tzinfo is None:
+        return pytz.UTC.localize(base)
+    if base.tzinfo is not None:
+        return base.astimezone(tzinfo)
+    return tzinfo.localize(base)
+
 
 def _build_request_headers(base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     request_headers: Dict[str, str] = dict(base or {})
@@ -2426,52 +2461,120 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     df = df.drop(columns=["bid_size", "bid_exchange", "bid", "bid_condition",
                           "ask_size", "ask_exchange", "ask", "ask_condition"], errors='ignore')
 
-    # FIX: ThetaData's EOD endpoint returns incorrect open/high/low prices for STOCKS and OPTIONS
-    # that don't match Polygon/Yahoo. We fix this by using minute bar data.
-    # Solution: Fetch minute bars for each trading day and aggregate to get correct OHLC
-    # NOTE: Indexes don't need this fix since they are calculated values, not traded securities
-    if asset_type in ("stock", "option"):
-        logger.info(f"Fetching 9:30 AM minute bars to correct EOD open prices...")
+    # Fix incorrect stock/option opens by reusing cached 09:30 minute bars when necessary.
+    if asset_type in ("stock", "option") and "open" in df.columns:
+        df = _maybe_correct_eod_opens(
+            df=df,
+            asset=asset,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            username=username,
+            password=password,
+            datastyle=datastyle,
+        )
 
-        # Get minute data for the date range to extract 9:30 AM opens
-        minute_df = None
-        correction_window = ("09:30:00", "09:31:00")
-        try:
-            minute_df = get_historical_data(
-                asset=asset,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                ivl=60000,  # 1 minute
-                username=username,
-                password=password,
-                datastyle=datastyle,
-                include_after_hours=False,  # RTH only
-                session_time_override=correction_window,
+    return df
+
+
+def _maybe_correct_eod_opens(
+    df: pd.DataFrame,
+    asset: Asset,
+    start_dt: datetime,
+    end_dt: datetime,
+    username: str,
+    password: str,
+    datastyle: str,
+):
+    asset_key = _open_cache_key(asset)
+    asset_cache = OPEN_CORRECTION_CACHE.setdefault(asset_key, {})
+
+    reused_cache = False
+    if asset_cache:
+        for idx in df.index:
+            cached_value = asset_cache.get(idx.date())
+            if cached_value is not None:
+                df.at[idx, "open"] = cached_value
+                reused_cache = True
+
+    open_series = df.get("open")
+    if open_series is None:
+        return df
+
+    trade_dates = sorted({idx.date() for idx in df.index})
+    invalid_dates = {
+        idx.date()
+        for idx, value in zip(df.index, open_series)
+        if pd.isna(value) or value <= 0
+    }
+    uncached_dates = [
+        trade_date
+        for trade_date in trade_dates
+        if trade_date in invalid_dates or trade_date not in asset_cache
+    ]
+
+    if not uncached_dates:
+        logger.debug(
+            "[THETA][EOD][OPEN] cached 09:30 opens already cover %s; skipping Theta fetch",
+            asset.symbol,
+        )
+        for idx in df.index:
+            cached_value = asset_cache.get(idx.date())
+            if cached_value is not None:
+                df.at[idx, "open"] = cached_value
+        return df
+
+    logger.info(
+        "Fetching 9:30 AM minute bars to correct EOD open prices (asset=%s missing_days=%d)...",
+        asset.symbol,
+        len(uncached_dates),
+    )
+
+    correction_window = ("09:30:00", "09:31:00")
+    minute_df = None
+    start_fetch = _localize_trade_midnight(uncached_dates[0], start_dt)
+    end_fetch = _localize_trade_midnight(uncached_dates[-1] + timedelta(days=1), end_dt)
+
+    try:
+        minute_df = get_historical_data(
+            asset=asset,
+            start_dt=start_fetch,
+            end_dt=end_fetch,
+            ivl=60000,
+            username=username,
+            password=password,
+            datastyle=datastyle,
+            include_after_hours=False,
+            session_time_override=correction_window,
+        )
+    except ThetaRequestError as exc:
+        body_text = (exc.body or "").lower()
+        if "start must be before end" in body_text:
+            logger.warning(
+                "ThetaData rejected 09:30 correction window for %s; skipping open fix this chunk (%s)",
+                asset.symbol,
+                exc.body,
             )
-        except ThetaRequestError as exc:
-            body_text = (exc.body or "").lower()
-            if "start must be before end" in body_text:
-                logger.warning(
-                    "ThetaData rejected 09:30 correction window for %s; skipping open fix this chunk (%s)",
-                    asset.symbol,
-                    exc.body,
-                )
-            else:
-                raise
+            return df
+        raise
 
-        if minute_df is not None and not minute_df.empty:
-            # Group by date and get the first bar's open for each day
-            minute_df_copy = minute_df.copy()
-            minute_df_copy['date'] = minute_df_copy.index.date
+    if minute_df is None or minute_df.empty:
+        return df
 
-            # For each date in df, find the corresponding 9:30 AM open from minute data
-            for idx in df.index:
-                trade_date = idx.date()
-                day_minutes = minute_df_copy[minute_df_copy['date'] == trade_date]
-                if len(day_minutes) > 0:
-                    # Use the first minute bar's open (9:30 AM opening auction)
-                    correct_open = day_minutes.iloc[0]['open']
-                    df.loc[idx, 'open'] = correct_open
+    minute_df_copy = minute_df.copy()
+    minute_df_copy["date"] = minute_df_copy.index.date
+    grouped = minute_df_copy.groupby("date").first()
+
+    for trade_date, row in grouped.iterrows():
+        open_price = row.get("open")
+        if open_price is None:
+            continue
+        asset_cache[trade_date] = float(open_price)
+    _trim_open_cache(asset_key)
+
+    for idx in df.index:
+        cached_value = asset_cache.get(idx.date())
+        if cached_value is not None:
+            df.at[idx, "open"] = cached_value
 
     return df
 

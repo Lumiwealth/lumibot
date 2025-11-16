@@ -14,6 +14,7 @@ import requests
 import subprocess
 import time
 from types import SimpleNamespace
+from typing import Any, Dict
 from unittest.mock import patch, MagicMock
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
@@ -58,6 +59,51 @@ def _build_option_asset():
     )
 
 
+def _build_sample_ohlc(start_ts: str, periods: int, freq: str = "1D") -> pd.DataFrame:
+    idx = pd.date_range(start=start_ts, periods=periods, freq=freq, tz=pytz.UTC)
+    return pd.DataFrame(
+        {
+            "open": np.linspace(10.0, 10.0 + periods, periods),
+            "high": np.linspace(11.0, 11.0 + periods, periods),
+            "low": np.linspace(9.5, 9.5 + periods, periods),
+            "close": np.linspace(10.5, 10.5 + periods, periods),
+            "volume": np.arange(1, periods + 1, dtype=float),
+        },
+        index=idx,
+    )
+
+
+def _build_eod_payload(open_price: float = 10.0) -> Dict[str, Any]:
+    return {
+        "header": {
+            "format": [
+                "date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "open_interest",
+                "count",
+                "created",
+            ]
+        },
+        "response": [
+            [
+                "20241122",
+                open_price,
+                open_price + 1.0,
+                open_price - 0.5,
+                open_price + 0.25,
+                1000,
+                0,
+                0,
+                "2024-11-22T16:00:00",
+            ]
+        ],
+    }
+
+
 @pytest.fixture(scope="function")
 def theta_terminal_cleanup():
     """Ensure ThetaTerminal is stopped between process health tests."""
@@ -66,6 +112,13 @@ def theta_terminal_cleanup():
         thetadata_helper.shutdown_theta_terminal(timeout=10.0, force=True)
     except Exception:
         pass
+
+
+@pytest.fixture(autouse=True)
+def reset_open_cache():
+    thetadata_helper.reset_open_correction_cache()
+    yield
+    thetadata_helper.reset_open_correction_cache()
 
 
 def test_finalize_history_dataframe_adds_last_trade_time_for_ohlc():
@@ -293,15 +346,7 @@ def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch)
 
 
 def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, caplog):
-    eod_payload = {
-        "header": {
-            "format": ["date", "open", "high", "low", "close", "volume", "ms_of_day", "ms_of_day2", "created"],
-            "error_type": "null",
-        },
-        "response": [
-            ["20241122", 10.0, 11.0, 9.5, 10.5, 1000, 0, 0, "2024-11-22T16:00:00"]
-        ],
-    }
+    eod_payload = _build_eod_payload(open_price=0.0)
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: copy.deepcopy(eod_payload))
 
     def _failing_minute_fetch(**_):
@@ -356,6 +401,132 @@ def test_get_historical_data_parses_stock_downloader_schema(monkeypatch):
     assert not df.empty
     assert df.index.tzinfo is not None
     assert "close" in df.columns
+
+
+def test_get_historical_eod_data_skips_minute_fetch_when_opens_valid(monkeypatch):
+    eod_payload = _build_eod_payload(open_price=12.0)
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: copy.deepcopy(eod_payload))
+
+    def _unexpected_minute_fetch(**_):
+        raise AssertionError("Minute fetch should be skipped when opens are valid")
+
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", _unexpected_minute_fetch)
+
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    asset_key = thetadata_helper._open_cache_key(asset)
+    thetadata_helper.OPEN_CORRECTION_CACHE.setdefault(asset_key, {})[date(2024, 11, 22)] = 12.0
+    tz = pytz.UTC
+    start = tz.localize(datetime.datetime(2024, 11, 21, 19, 0))
+    end = tz.localize(datetime.datetime(2024, 11, 22, 19, 0))
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert not df.empty
+    assert (df["open"] > 0).all()
+
+
+def test_get_historical_eod_data_reuses_cached_minute_opens(monkeypatch):
+    eod_payload = _build_eod_payload(open_price=0.0)
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: copy.deepcopy(eod_payload))
+
+    minute_df = _build_sample_ohlc("2024-11-22 09:30:00+00:00", periods=2, freq="min")
+    fetch_count = {"calls": 0}
+
+    def _minute_fetch(**_):
+        fetch_count["calls"] += 1
+        return minute_df
+
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", _minute_fetch)
+
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    tz = pytz.UTC
+    start = tz.localize(datetime.datetime(2024, 11, 21, 19, 0))
+    end = tz.localize(datetime.datetime(2024, 11, 22, 19, 0))
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert (df["open"] > 0).all()
+    assert fetch_count["calls"] == 1
+
+    def _should_not_run(**_):
+        raise AssertionError("Cached opens should prevent a second minute fetch")
+
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", _should_not_run)
+
+    df_cached = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert (df_cached["open"] > 0).all()
+
+
+def test_update_pandas_data_appends_incremental_rows(monkeypatch):
+    tz = pytz.UTC
+    start = tz.localize(datetime.datetime(2024, 1, 1))
+    end = tz.localize(datetime.datetime(2024, 1, 31))
+
+    with patch.object(ThetaDataBacktestingPandas, "kill_processes_by_name", return_value=None), patch.object(
+        thetadata_helper, "reset_theta_terminal_tracking", return_value=None
+    ):
+        backtester = ThetaDataBacktestingPandas(
+            datetime_start=start,
+            datetime_end=end,
+            pandas_data=[],
+            username="user",
+            password="pass",
+        )
+
+    backtester._use_quote_data = False
+    dt_sequence = [
+        tz.localize(datetime.datetime(2024, 1, 5, 16, 0)),
+        tz.localize(datetime.datetime(2024, 1, 7, 16, 0)),
+    ]
+    dt_calls = iter([dt_sequence[0], dt_sequence[0], dt_sequence[1], dt_sequence[1]])
+    backtester.get_datetime = MagicMock(side_effect=dt_calls)
+
+    fetch_ranges = []
+    payloads = [
+        _build_sample_ohlc("2024-01-05 09:30:00+00:00", periods=5, freq="min"),
+        _build_sample_ohlc("2024-01-05 09:35:00+00:00", periods=4, freq="min"),
+    ]
+
+    def _price_data(username, password, asset_param, start_dt, end_dt, **kwargs):
+        fetch_ranges.append((start_dt, end_dt))
+        return payloads[len(fetch_ranges) - 1]
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _price_data)
+
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    backtester._update_pandas_data(asset, None, length=5, timestep="minute", start_dt=dt_sequence[0])
+
+    tuple_key = next(iter(backtester.pandas_data))
+    meta = backtester._dataset_metadata.get(tuple_key)
+    assert meta is not None
+    assert meta.get("end") < dt_sequence[1]
+
+    backtester._update_pandas_data(asset, None, length=5, timestep="minute", start_dt=dt_sequence[1])
+
+    assert len(fetch_ranges) == 2
+    assert fetch_ranges[1][0] > fetch_ranges[0][0]
+
+    stored_df = backtester.pandas_data[tuple_key].df
+    assert len(stored_df) == 9  # 5 initial rows + 4 new rows from incremental fetch
 
 
 def test_get_historical_data_parses_option_downloader_schema(monkeypatch):

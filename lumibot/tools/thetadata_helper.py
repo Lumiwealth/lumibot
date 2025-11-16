@@ -2170,36 +2170,98 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
 
     url = f"{BASE_URL}{endpoint}"
 
-    querystring = {
+    base_query = {
         "symbol": asset.symbol,
-        "start_date": datetime.strptime(start_date, "%Y%m%d").strftime("%Y-%m-%d"),
-        "end_date": datetime.strptime(end_date, "%Y%m%d").strftime("%Y-%m-%d"),
     }
 
     if asset_type == "option":
         if not asset.expiration or asset.strike is None:
             raise ValueError(f"Option asset {asset} missing expiration or strike for EOD request")
-        querystring["expiration"] = asset.expiration.strftime("%Y-%m-%d")
-        querystring["strike"] = _format_option_strike(float(asset.strike))
+        base_query["expiration"] = asset.expiration.strftime("%Y-%m-%d")
+        base_query["strike"] = _format_option_strike(float(asset.strike))
         right = str(getattr(asset, "right", "CALL")).upper()
-        querystring["right"] = "call" if right.startswith("C") else "put"
+        base_query["right"] = "call" if right.startswith("C") else "put"
 
     headers = {"Accept": "application/json"}
 
-    # DEBUG-LOG: EOD data request
+    # Convert to date objects for chunking
+    start_day = datetime.strptime(start_date, "%Y%m%d").date()
+    end_day = datetime.strptime(end_date, "%Y%m%d").date()
+    max_span = timedelta(days=364)
+
+    def _chunk_windows():
+        cursor = start_day
+        while cursor <= end_day:
+            window_end = min(cursor + max_span, end_day)
+            yield cursor, window_end
+            cursor = window_end + timedelta(days=1)
+
+    aggregated_rows: List[List[Any]] = []
+    header_format: Optional[List[str]] = None
+    windows = list(_chunk_windows())
+
+    # DEBUG-LOG: EOD data request (overall)
     logger.debug(
-        "[THETA][DEBUG][EOD][REQUEST] asset=%s start=%s end=%s datastyle=%s",
+        "[THETA][DEBUG][EOD][REQUEST] asset=%s start=%s end=%s datastyle=%s chunks=%d",
         asset,
         start_date,
         end_date,
-        datastyle
+        datastyle,
+        len(windows)
     )
 
-    # Send the request
-    json_resp = get_request(url=url, headers=headers, querystring=querystring,
-                            username=username, password=password)
-    if json_resp is None:
-        # DEBUG-LOG: EOD data response - no data
+    for idx, (window_start, window_end) in enumerate(windows, start=1):
+        querystring = base_query.copy()
+        querystring["start_date"] = window_start.strftime("%Y-%m-%d")
+        querystring["end_date"] = window_end.strftime("%Y-%m-%d")
+
+        logger.debug(
+            "[THETA][DEBUG][EOD][REQUEST][CHUNK] asset=%s chunk=%d/%d start=%s end=%s",
+            asset,
+            idx,
+            len(windows),
+            querystring["start_date"],
+            querystring["end_date"],
+        )
+
+        try:
+            json_resp = get_request(
+                url=url,
+                headers=headers,
+                querystring=querystring,
+                username=username,
+                password=password,
+            )
+        except ValueError as exc:
+            logger.error(
+                "[THETA][ERROR][EOD][CHUNK] asset=%s chunk=%d/%d start=%s end=%s error=%s",
+                asset,
+                idx,
+                len(windows),
+                querystring["start_date"],
+                querystring["end_date"],
+                exc,
+            )
+            raise
+
+        if not json_resp:
+            continue
+
+        response_rows = json_resp.get("response") or []
+        if response_rows:
+            aggregated_rows.extend(response_rows)
+        if not header_format and json_resp.get("header", {}).get("format"):
+            header_format = json_resp["header"]["format"]
+
+        logger.debug(
+            "[THETA][DEBUG][EOD][RESPONSE][CHUNK] asset=%s chunk=%d/%d rows=%d",
+            asset,
+            idx,
+            len(windows),
+            len(response_rows),
+        )
+
+    if not aggregated_rows or not header_format:
         logger.debug(
             "[THETA][DEBUG][EOD][RESPONSE] asset=%s result=NO_DATA",
             asset
@@ -2207,15 +2269,15 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
         return None
 
     # DEBUG-LOG: EOD data response - success
-    response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0
     logger.debug(
-        "[THETA][DEBUG][EOD][RESPONSE] asset=%s rows=%d",
+        "[THETA][DEBUG][EOD][RESPONSE] asset=%s rows=%d chunks=%d",
         asset,
-        response_rows
+        len(aggregated_rows),
+        len(windows),
     )
 
     # Convert to pandas dataframe
-    df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
+    df = pd.DataFrame(aggregated_rows, columns=header_format)
 
     if df is None or df.empty:
         return df

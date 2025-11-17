@@ -2488,13 +2488,11 @@ def _maybe_correct_eod_opens(
     asset_key = _open_cache_key(asset)
     asset_cache = OPEN_CORRECTION_CACHE.setdefault(asset_key, {})
 
-    reused_cache = False
     if asset_cache:
         for idx in df.index:
             cached_value = asset_cache.get(idx.date())
             if cached_value is not None:
                 df.at[idx, "open"] = cached_value
-                reused_cache = True
 
     open_series = df.get("open")
     if open_series is None:
@@ -2506,17 +2504,20 @@ def _maybe_correct_eod_opens(
         for idx, value in zip(df.index, open_series)
         if pd.isna(value) or value <= 0
     }
-    uncached_dates = [
-        trade_date
-        for trade_date in trade_dates
-        if trade_date in invalid_dates or trade_date not in asset_cache
-    ]
+    missing_cache_dates = [trade_date for trade_date in trade_dates if trade_date not in asset_cache]
+    dates_to_fetch = sorted(set(missing_cache_dates) | invalid_dates)
 
-    if not uncached_dates:
-        logger.debug(
-            "[THETA][EOD][OPEN] cached 09:30 opens already cover %s; skipping Theta fetch",
-            asset.symbol,
-        )
+    if not dates_to_fetch:
+        if invalid_dates:
+            logger.debug(
+                "[THETA][EOD][OPEN] invalid opens for %s resolved from cache; skipping 09:30 correction",
+                asset.symbol,
+            )
+        else:
+            logger.debug(
+                "[THETA][EOD][OPEN] opens already cached for %s; skipping 09:30 correction",
+                asset.symbol,
+            )
         for idx in df.index:
             cached_value = asset_cache.get(idx.date())
             if cached_value is not None:
@@ -2526,49 +2527,66 @@ def _maybe_correct_eod_opens(
     logger.info(
         "Fetching 9:30 AM minute bars to correct EOD open prices (asset=%s missing_days=%d)...",
         asset.symbol,
-        len(uncached_dates),
+        len(dates_to_fetch),
     )
 
     correction_window = ("09:30:00", "09:31:00")
-    minute_df = None
-    start_fetch = _localize_trade_midnight(uncached_dates[0], start_dt)
-    end_fetch = _localize_trade_midnight(uncached_dates[-1] + timedelta(days=1), end_dt)
 
-    try:
-        minute_df = get_historical_data(
-            asset=asset,
-            start_dt=start_fetch,
-            end_dt=end_fetch,
-            ivl=60000,
-            username=username,
-            password=password,
-            datastyle=datastyle,
-            include_after_hours=False,
-            session_time_override=correction_window,
-        )
-    except ThetaRequestError as exc:
-        body_text = (exc.body or "").lower()
-        if "start must be before end" in body_text:
-            logger.warning(
-                "ThetaData rejected 09:30 correction window for %s; skipping open fix this chunk (%s)",
-                asset.symbol,
-                exc.body,
+    def _store_opens(minute_df: Optional[pd.DataFrame]) -> int:
+        if minute_df is None or minute_df.empty:
+            return 0
+        minute_df_copy = minute_df.copy()
+        minute_df_copy["date"] = minute_df_copy.index.date
+        grouped = minute_df_copy.groupby("date").first()
+        stored = 0
+        for trade_date, row in grouped.iterrows():
+            open_price = row.get("open")
+            if open_price is None:
+                continue
+            asset_cache[trade_date] = float(open_price)
+            stored += 1
+        return stored
+
+    spans: List[Tuple[date, date]] = []
+    span_start = dates_to_fetch[0]
+    previous = span_start
+    for trade_date in dates_to_fetch[1:]:
+        if (trade_date - previous).days > 1:
+            spans.append((span_start, previous))
+            span_start = trade_date
+        previous = trade_date
+    spans.append((span_start, previous))
+
+    for span_start, span_end in spans:
+        start_fetch = _localize_trade_midnight(span_start, start_dt)
+        end_fetch = _localize_trade_midnight(span_end + timedelta(days=1), end_dt)
+        try:
+            minute_df = get_historical_data(
+                asset=asset,
+                start_dt=start_fetch,
+                end_dt=end_fetch,
+                ivl=60000,
+                username=username,
+                password=password,
+                datastyle=datastyle,
+                include_after_hours=False,
+                session_time_override=correction_window,
             )
-            return df
-        raise
+        except ThetaRequestError as exc:
+            body_text = (exc.body or "").lower()
+            if "start must be before end" in body_text:
+                logger.warning(
+                    "ThetaData rejected 09:30 correction window for %s; skipping open fix window %s-%s (%s)",
+                    asset.symbol,
+                    span_start,
+                    span_end,
+                    exc.body,
+                )
+                continue
+            raise
 
-    if minute_df is None or minute_df.empty:
-        return df
+        _store_opens(minute_df)
 
-    minute_df_copy = minute_df.copy()
-    minute_df_copy["date"] = minute_df_copy.index.date
-    grouped = minute_df_copy.groupby("date").first()
-
-    for trade_date, row in grouped.iterrows():
-        open_price = row.get("open")
-        if open_price is None:
-            continue
-        asset_cache[trade_date] = float(open_price)
     _trim_open_cache(asset_key)
 
     for idx in df.index:

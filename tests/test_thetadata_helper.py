@@ -476,6 +476,55 @@ def test_get_historical_eod_data_reuses_cached_minute_opens(monkeypatch):
     assert (df_cached["open"] > 0).all()
 
 
+def test_maybe_correct_eod_opens_caches_per_trade_date(monkeypatch):
+    thetadata_helper.reset_open_correction_cache()
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    tz = pytz.UTC
+    start = tz.localize(datetime.datetime(2024, 11, 21, 19, 0))
+    end = tz.localize(datetime.datetime(2024, 11, 23, 19, 0))
+    idx = pd.date_range(start="2024-11-21 20:00:00+00:00", periods=2, freq="D", tz=tz)
+    eod_df = pd.DataFrame({"open": [0.0, 0.0], "close": [10.0, 10.5]}, index=idx)
+
+    minute_index = pd.to_datetime(
+        ["2024-11-21 09:30:00+00:00", "2024-11-22 09:30:00+00:00"],
+        utc=True,
+    )
+    minute_df = pd.DataFrame({"open": [12.0, 13.0]}, index=minute_index)
+    minute_df.index.name = "datetime"
+    fetch_count = {"calls": 0}
+
+    def _minute_fetch(**_):
+        fetch_count["calls"] += 1
+        return minute_df
+
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", _minute_fetch)
+
+    corrected = thetadata_helper._maybe_correct_eod_opens(
+        df=eod_df.copy(),
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+    )
+    assert fetch_count["calls"] == 1
+    assert (corrected["open"] > 0).all()
+
+    repeated = thetadata_helper._maybe_correct_eod_opens(
+        df=eod_df.copy(),
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+        datastyle="ohlc",
+    )
+
+    assert fetch_count["calls"] == 1
+    assert (repeated["open"] > 0).all()
+
+
 def test_update_pandas_data_appends_incremental_rows(monkeypatch):
     tz = pytz.UTC
     start = tz.localize(datetime.datetime(2024, 1, 1))
@@ -516,7 +565,7 @@ def test_update_pandas_data_appends_incremental_rows(monkeypatch):
     backtester._update_pandas_data(asset, None, length=5, timestep="minute", start_dt=dt_sequence[0])
 
     tuple_key = next(iter(backtester.pandas_data))
-    meta = backtester._dataset_metadata.get(tuple_key)
+    meta = backtester._dataset_metadata.get((tuple_key, "minute"))
     assert meta is not None
     assert meta.get("end") < dt_sequence[1]
 

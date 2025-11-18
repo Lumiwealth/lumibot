@@ -119,7 +119,7 @@ class ThetaDataBacktestingPandas(PandasData):
             expiration_dt = expiration_dt.replace(tzinfo=self.tzinfo)
         return self.to_default_timezone(expiration_dt)
 
-    def _record_metadata(self, key, frame: pd.DataFrame, ts_unit: str, asset: Asset) -> None:
+    def _record_metadata(self, key, frame: pd.DataFrame, ts_unit: str, asset: Asset, has_quotes: bool = False) -> None:
         """Persist dataset coverage details for reuse checks."""
         previous_meta = self._dataset_metadata.get(key, {})
 
@@ -153,6 +153,7 @@ class ThetaDataBacktestingPandas(PandasData):
             "rows": rows,
         }
         metadata["empty_fetch"] = frame is None or frame.empty
+        metadata["has_quotes"] = bool(has_quotes)
 
         if frame is not None and not frame.empty and "missing" in frame.columns:
             placeholder_flags = frame["missing"].fillna(False).astype(bool)
@@ -175,6 +176,12 @@ class ThetaDataBacktestingPandas(PandasData):
             metadata["expiration_notice"] = previous_meta.get("expiration_notice", False)
 
         self._dataset_metadata[key] = metadata
+
+    def _frame_has_quote_columns(self, frame: Optional[pd.DataFrame]) -> bool:
+        if frame is None or frame.empty:
+            return False
+        quote_markers = {"bid", "ask", "bid_size", "ask_size", "last_trade_time", "last_bid_time", "last_ask_time"}
+        return any(col in frame.columns for col in quote_markers)
 
     def _finalize_day_frame(
         self,
@@ -386,7 +393,7 @@ class ThetaDataBacktestingPandas(PandasData):
 
         return frame
 
-    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
+    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None, require_quote_data: bool = False):
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -444,8 +451,10 @@ class ThetaDataBacktestingPandas(PandasData):
 
         existing_data = self.pandas_data.get(search_asset)
         if existing_data is not None and search_asset not in self._dataset_metadata:
-            self._record_metadata(search_asset, existing_data.df, existing_data.timestep, asset_separated)
+            has_quotes = self._frame_has_quote_columns(existing_data.df)
+            self._record_metadata(search_asset, existing_data.df, existing_data.timestep, asset_separated, has_quotes=has_quotes)
         existing_meta = self._dataset_metadata.get(search_asset)
+        existing_has_quotes = bool(existing_meta.get("has_quotes")) if existing_meta else False
 
         if existing_data is not None and existing_meta and existing_meta.get("timestep") == ts_unit:
             existing_start = existing_meta.get("start")
@@ -725,7 +734,8 @@ class ThetaDataBacktestingPandas(PandasData):
                 if placeholder_update:
                     self.pandas_data.update(placeholder_update)
                     self._data_store.update(placeholder_update)
-                    self._record_metadata(search_asset, placeholder_data.df, ts_unit, asset_separated)
+                    has_quotes = self._frame_has_quote_columns(placeholder_data.df)
+                    self._record_metadata(search_asset, placeholder_data.df, ts_unit, asset_separated, has_quotes=has_quotes)
                     logger.debug(
                         "[THETA][DEBUG][THETADATA-PANDAS] refreshed metadata from cache for %s/%s (%s) after empty fetch.",
                         asset_separated,
@@ -735,10 +745,12 @@ class ThetaDataBacktestingPandas(PandasData):
             return None
 
         df = df_ohlc
+        quotes_attached = False
+        quotes_enabled = require_quote_data or existing_has_quotes
 
         # Quote data (bid/ask) is only available for intraday data (minute, hour, second)
         # For daily+ data, only use OHLC
-        if self._use_quote_data and ts_unit in ["minute", "hour", "second"]:
+        if self._use_quote_data and ts_unit in ["minute", "hour", "second"] and quotes_enabled:
             try:
                 df_quote = thetadata_helper.get_price_data(
                     self._username,
@@ -770,6 +782,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
                 df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
                 df = self._combine_duplicate_columns(df, timestamp_columns)
+                quotes_attached = True
 
                 # Theta includes duplicate metadata columns (symbol/strike/right/expiration); merge them once.
                 duplicate_names = df.columns[df.columns.duplicated()].unique().tolist()
@@ -801,7 +814,7 @@ class ThetaDataBacktestingPandas(PandasData):
             # Add the keys to the self.pandas_data dictionary
             self.pandas_data.update(pandas_data_update)
             self._data_store.update(pandas_data_update)
-        self._record_metadata(search_asset, data.df, ts_unit, asset_separated)
+        self._record_metadata(search_asset, data.df, ts_unit, asset_separated, has_quotes=quotes_attached)
 
     @staticmethod
     def _combine_duplicate_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
@@ -893,7 +906,7 @@ class ThetaDataBacktestingPandas(PandasData):
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         sample_length = 5
         dt = self.get_datetime()
-        self._update_pandas_data(asset, quote, sample_length, timestep, dt)
+        self._update_pandas_data(asset, quote, sample_length, timestep, dt, require_quote_data=True)
         _, ts_unit = self.get_start_datetime_and_ts_unit(
             sample_length, timestep, dt, start_buffer=START_BUFFER
         )
@@ -1103,7 +1116,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 timestep
             )
 
-        self._update_pandas_data(asset, quote, 1, timestep, dt)
+        self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
 
         # [INSTRUMENTATION] Capture in-memory dataframe state after _update_pandas_data
         debug_enabled = True

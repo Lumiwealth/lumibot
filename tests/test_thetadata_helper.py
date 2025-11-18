@@ -254,6 +254,29 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
     assert "open" in df.columns
 
 
+def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
+    fixture = load_thetadata_fixture("stock_history_eod.json")
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
+    minute_fetch = MagicMock(return_value=None)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", minute_fetch)
+
+    asset = Asset(asset_type="stock", symbol="PLTR")
+    start = pytz.UTC.localize(datetime.datetime(2024, 9, 16))
+    end = pytz.UTC.localize(datetime.datetime(2024, 9, 18))
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert df is not None
+    assert not df.empty
+    minute_fetch.assert_not_called()
+
+
 def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch):
     fixture = load_thetadata_fixture("stock_history_eod.json")
     first_row = copy.deepcopy(fixture["response"][0])
@@ -304,12 +327,12 @@ def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, c
     }
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: copy.deepcopy(eod_payload))
 
-    def _failing_minute_fetch(**_):
-        raise thetadata_helper.ThetaRequestError(
+    minute_fetch = MagicMock(
+        side_effect=thetadata_helper.ThetaRequestError(
             "Cannot connect to Theta Data!", status_code=400, body="Start must be before end"
         )
-
-    monkeypatch.setattr(thetadata_helper, "get_historical_data", _failing_minute_fetch)
+    )
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", minute_fetch)
 
     asset = Asset(asset_type="stock", symbol="MSFT")
     tz = pytz.UTC
@@ -326,7 +349,8 @@ def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, c
         )
 
     assert not df.empty
-    assert "skipping open fix" in caplog.text
+    minute_fetch.assert_not_called()
+    assert "skipping open fix" not in caplog.text
 
 
 def test_get_historical_data_parses_stock_downloader_schema(monkeypatch):
@@ -2634,19 +2658,9 @@ def test_get_historical_eod_data_handles_missing_date(monkeypatch):
     def fake_request(url, headers, querystring, username, password):
         return response
 
-    minute_index = pd.to_datetime(
-        ["2024-11-15 13:30:00", "2024-11-18 13:30:00"],
-        utc=True,
-    )
-    minute_df = pd.DataFrame({"open": [301.25, 341.0]}, index=minute_index)
-    minute_df.index.name = "datetime"
-
     monkeypatch.setattr(thetadata_helper, "get_request", fake_request)
-    monkeypatch.setattr(
-        thetadata_helper,
-        "get_historical_data",
-        lambda *args, **kwargs: minute_df,
-    )
+    minute_fetch = MagicMock(return_value=None)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", minute_fetch)
 
     asset = Asset(symbol="TSLA", asset_type="stock")
     start_dt = datetime.datetime(2024, 11, 15, tzinfo=pytz.UTC)
@@ -2662,7 +2676,8 @@ def test_get_historical_eod_data_handles_missing_date(monkeypatch):
 
     assert list(df.index.date) == [datetime.date(2024, 11, 15), datetime.date(2024, 11, 18)]
     assert df.index.tz is not None
-    assert pytest.approx(df.loc["2024-11-15", "open"]) == 301.25
+    assert pytest.approx(df.loc["2024-11-15", "open"]) == 310.52
+    minute_fetch.assert_not_called()
 
 
 def test_get_historical_data_stock_v3_schema(monkeypatch):

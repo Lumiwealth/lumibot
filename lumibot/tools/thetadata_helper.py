@@ -5,6 +5,7 @@ import re
 import signal
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -83,6 +84,7 @@ MAX_TERMINAL_RESTART_CYCLES = 3
 HTTP_RETRY_LIMIT = 3
 HTTP_RETRY_BACKOFF_MAX = 5.0
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504, 520, 521}
+MAX_PARALLEL_CHUNKS = int(os.environ.get("THETADATA_MAX_PARALLEL_CHUNKS", "80"))
 
 # Mapping between milliseconds and ThetaData interval labels
 INTERVAL_MS_TO_LABEL = {
@@ -1010,7 +1012,6 @@ def get_price_data(
     total_queries = (total_days // MAX_DAYS) + 1
     description = f"\nDownloading '{datastyle}' data for {asset} / {quote_asset} with '{timespan}' from ThetaData..."
     logger.info(description)
-    pbar = tqdm(total=1, desc=description, dynamic_ncols=True)
 
     delta = timedelta(days=MAX_DAYS)
 
@@ -1167,46 +1168,104 @@ def get_price_data(
             f"Supported values: {list(TIMESPAN_TO_MS.keys())} or 'day'"
         )
 
+    chunk_ranges: List[Tuple[datetime, datetime]] = []
     current_start = fetch_start
     current_end = fetch_start + delta
 
     while current_start <= fetch_end:
-        # If we don't have a paid subscription, we need to wait 1 minute between requests because of
-        # the rate limit. Wait every other query so that we don't spend too much time waiting.
+        chunk_upper = min(current_end, fetch_end, current_start + delta)
+        chunk_ranges.append((current_start, chunk_upper))
+        next_start = chunk_upper + timedelta(days=1)
+        if asset.expiration and next_start > asset.expiration:
+            break
+        current_start = next_start
+        current_end = current_start + delta
 
-        if current_end > fetch_end:
-            current_end = fetch_end
-        if current_end > current_start + delta:
-            current_end = current_start + delta
+    if not chunk_ranges:
+        logger.debug("[THETA][DEBUG][THETADATA] No chunk ranges generated for %s", asset)
+        return df_all
 
-        result_df = get_historical_data(asset, current_start, current_end, interval_ms, username, password, datastyle=datastyle, include_after_hours=include_after_hours)
-        chunk_end = _clamp_option_end(asset, current_end)
+    total_queries = len(chunk_ranges)
+    chunk_workers = max(1, min(MAX_PARALLEL_CHUNKS, total_queries))
+    logger.info(
+        "ThetaData downloader requesting %d chunk(s) with up to %d parallel workers.",
+        total_queries,
+        chunk_workers,
+    )
+    pbar = tqdm(total=max(1, total_queries), desc=description, dynamic_ncols=True)
 
-        if result_df is None or len(result_df) == 0:
-            expired_chunk = (
-                asset.asset_type == "option"
-                and asset.expiration is not None
-                and chunk_end.date() >= asset.expiration
-            )
-            if expired_chunk:
-                logger.debug(
-                    "[THETA][DEBUG][THETADATA] Option %s considered expired on %s; reusing cached data between %s and %s.",
-                    asset,
-                    asset.expiration,
-                    current_start,
-                    chunk_end,
-                )
-            else:
+    def _fetch_chunk(chunk_start: datetime, chunk_end: datetime):
+        return get_historical_data(
+            asset,
+            chunk_start,
+            chunk_end,
+            interval_ms,
+            username,
+            password,
+            datastyle=datastyle,
+            include_after_hours=include_after_hours,
+        )
+
+    with ThreadPoolExecutor(max_workers=chunk_workers) as executor:
+        future_map: Dict[Any, Tuple[datetime, datetime, float]] = {}
+        for chunk_start, chunk_end in chunk_ranges:
+            submitted_at = time.perf_counter()
+            future = executor.submit(_fetch_chunk, chunk_start, chunk_end)
+            future_map[future] = (chunk_start, chunk_end, submitted_at)
+        for future in as_completed(future_map):
+            chunk_start, chunk_end, submitted_at = future_map[future]
+            try:
+                result_df = future.result()
+            except Exception as exc:
                 logger.warning(
-                    f"No data returned for {asset} / {quote_asset} with '{timespan}' timespan between {current_start} and {current_end}"
+                    "ThetaData chunk fetch failed for %s between %s and %s: %s",
+                    asset,
+                    chunk_start,
+                    chunk_end,
+                    exc,
                 )
-            missing_chunk = get_trading_dates(asset, current_start, chunk_end)
-            df_all = append_missing_markers(df_all, missing_chunk)
-            pbar.update(1)
+                result_df = None
 
-        else:
+            clamped_end = _clamp_option_end(asset, chunk_end)
+            elapsed = time.perf_counter() - submitted_at
+
+            if result_df is None or len(result_df) == 0:
+                expired_chunk = (
+                    asset.asset_type == "option"
+                    and asset.expiration is not None
+                    and clamped_end.date() >= asset.expiration
+                )
+                if expired_chunk:
+                    logger.debug(
+                        "[THETA][DEBUG][THETADATA] Option %s considered expired on %s; reusing cached data between %s and %s.",
+                        asset,
+                        asset.expiration,
+                        chunk_start,
+                        clamped_end,
+                    )
+                else:
+                    logger.warning(
+                        "No data returned for %s / %s with '%s' timespan between %s and %s",
+                        asset,
+                        quote_asset,
+                        timespan,
+                        chunk_start,
+                        chunk_end,
+                    )
+                missing_chunk = get_trading_dates(asset, chunk_start, clamped_end)
+                logger.info(
+                    "ThetaData chunk complete (no rows) for %s between %s and %s in %.2fs",
+                    asset,
+                    chunk_start,
+                    clamped_end,
+                    elapsed,
+                )
+                df_all = append_missing_markers(df_all, missing_chunk)
+                pbar.update(1)
+                continue
+
             df_all = update_df(df_all, result_df)
-            available_chunk = get_trading_dates(asset, current_start, chunk_end)
+            available_chunk = get_trading_dates(asset, chunk_start, clamped_end)
             df_all = remove_missing_markers(df_all, available_chunk)
             if "datetime" in result_df.columns:
                 chunk_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
@@ -1220,13 +1279,15 @@ def get_price_data(
             missing_within_chunk = [day for day in available_chunk if day not in covered_days]
             if missing_within_chunk:
                 df_all = append_missing_markers(df_all, missing_within_chunk)
+            logger.info(
+                "ThetaData chunk complete for %s between %s and %s (rows=%d) in %.2fs",
+                asset,
+                chunk_start,
+                clamped_end,
+                len(result_df),
+                elapsed,
+            )
             pbar.update(1)
-
-        current_start = current_end + timedelta(days=1)
-        current_end = current_start + delta
-
-        if asset.expiration and current_start > asset.expiration:
-            break
 
     update_cache(cache_file, df_all, df_cached, remote_payload=remote_payload)
     if df_all is not None:
@@ -2425,53 +2486,6 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     # Drop bid/ask columns if present (EOD includes NBBO but we only need OHLC)
     df = df.drop(columns=["bid_size", "bid_exchange", "bid", "bid_condition",
                           "ask_size", "ask_exchange", "ask", "ask_condition"], errors='ignore')
-
-    # FIX: ThetaData's EOD endpoint returns incorrect open/high/low prices for STOCKS and OPTIONS
-    # that don't match Polygon/Yahoo. We fix this by using minute bar data.
-    # Solution: Fetch minute bars for each trading day and aggregate to get correct OHLC
-    # NOTE: Indexes don't need this fix since they are calculated values, not traded securities
-    if asset_type in ("stock", "option"):
-        logger.info(f"Fetching 9:30 AM minute bars to correct EOD open prices...")
-
-        # Get minute data for the date range to extract 9:30 AM opens
-        minute_df = None
-        correction_window = ("09:30:00", "09:31:00")
-        try:
-            minute_df = get_historical_data(
-                asset=asset,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                ivl=60000,  # 1 minute
-                username=username,
-                password=password,
-                datastyle=datastyle,
-                include_after_hours=False,  # RTH only
-                session_time_override=correction_window,
-            )
-        except ThetaRequestError as exc:
-            body_text = (exc.body or "").lower()
-            if "start must be before end" in body_text:
-                logger.warning(
-                    "ThetaData rejected 09:30 correction window for %s; skipping open fix this chunk (%s)",
-                    asset.symbol,
-                    exc.body,
-                )
-            else:
-                raise
-
-        if minute_df is not None and not minute_df.empty:
-            # Group by date and get the first bar's open for each day
-            minute_df_copy = minute_df.copy()
-            minute_df_copy['date'] = minute_df_copy.index.date
-
-            # For each date in df, find the corresponding 9:30 AM open from minute data
-            for idx in df.index:
-                trade_date = idx.date()
-                day_minutes = minute_df_copy[minute_df_copy['date'] == trade_date]
-                if len(day_minutes) > 0:
-                    # Use the first minute bar's open (9:30 AM opening auction)
-                    correct_open = day_minutes.iloc[0]['open']
-                    df.loc[idx, 'open'] = correct_open
 
     return df
 

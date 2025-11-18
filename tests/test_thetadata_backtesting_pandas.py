@@ -24,25 +24,28 @@ def _build_frame(start_ts: str, periods: int, freq: str) -> pd.DataFrame:
     return base
 
 
-def test_update_pandas_data_reuses_cached_window(monkeypatch):
-    tz = pytz.UTC
-    start = tz.localize(datetime.datetime(2024, 1, 1))
-    end = tz.localize(datetime.datetime(2024, 2, 1))
-
+def _build_backtester(start: datetime.datetime, end: datetime.datetime) -> ThetaDataBacktestingPandas:
     with patch.object(ThetaDataBacktestingPandas, "kill_processes_by_name", return_value=None), patch.object(
         thetadata_helper, "reset_theta_terminal_tracking", return_value=None
     ):
-        backtester = ThetaDataBacktestingPandas(
+        tester = ThetaDataBacktestingPandas(
             datetime_start=start,
             datetime_end=end,
             pandas_data=[],
             username="user",
             password="pass",
         )
+    tester._use_quote_data = False
+    tester.get_datetime = MagicMock(return_value=end)
+    return tester
 
-    backtester._use_quote_data = False
-    backtester.get_datetime = MagicMock(return_value=end)
 
+def test_update_pandas_data_reuses_cached_window(monkeypatch):
+    tz = pytz.UTC
+    start = tz.localize(datetime.datetime(2024, 1, 1))
+    end = tz.localize(datetime.datetime(2024, 2, 1))
+
+    backtester = _build_backtester(start, end)
     fetch_counts = {"day": 0, "minute": 0}
 
     def fake_price_data(username, password, asset_param, start_datetime, end_datetime, timespan, **kwargs):
@@ -57,34 +60,39 @@ def test_update_pandas_data_reuses_cached_window(monkeypatch):
     backtester._update_pandas_data(asset, None, length=55, timestep="day", start_dt=end)
     assert fetch_counts["day"] == 1
 
-    # Second call with same parameters should reuse cached data entirely.
     backtester._update_pandas_data(asset, None, length=55, timestep="day", start_dt=end)
     assert fetch_counts["day"] == 1
 
-    # Request minute data to force a new fetch for the same asset.
     backtester._update_pandas_data(asset, None, length=30, timestep="minute", start_dt=end)
     assert fetch_counts["minute"] == 1
 
     tuple_key = next(iter(backtester.pandas_data))
-    day_meta = backtester._dataset_metadata.get((tuple_key, "day"))
-    minute_meta = backtester._dataset_metadata.get((tuple_key, "minute"))
+    day_meta = backtester._dataset_metadata.get(tuple_key)
     assert day_meta is not None
-    assert minute_meta is not None
 
 
-def test_combine_duplicate_columns_preserves_first_non_null():
+def test_update_pandas_data_fetches_when_cache_starts_after_request(monkeypatch):
     tz = pytz.UTC
-    idx = pd.date_range(start="2024-01-01 00:00:00+00:00", periods=2, freq="D", tz=tz)
-    frame = pd.DataFrame(
-        [
-            [101.0, None, 1.0],
-            [None, 202.0, 2.0],
-        ],
-        columns=["open", "open", "close"],
-        index=idx,
+    start = tz.localize(datetime.datetime(2024, 1, 1))
+    end = tz.localize(datetime.datetime(2024, 2, 1))
+
+    backtester = _build_backtester(start, end)
+    fetch_counts = {"day": 0}
+
+    def fake_price_data(username, password, asset_param, start_datetime, end_datetime, timespan, **kwargs):
+        fetch_counts["day"] += 1
+        return _build_frame("2023-12-20 00:00:00+00:00", periods=60, freq="D")
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", fake_price_data)
+    asset = Asset(asset_type="stock", symbol="MSFT")
+
+    backtester._update_pandas_data(asset, None, length=55, timestep="day", start_dt=end)
+    assert fetch_counts["day"] == 1
+
+    meta_key = next(iter(backtester._dataset_metadata))
+    backtester._dataset_metadata[meta_key]["start"] = (
+        backtester._dataset_metadata[meta_key]["start"] + datetime.timedelta(days=10)
     )
 
-    combined = ThetaDataBacktestingPandas._combine_duplicate_columns(frame, ["open"])
-    assert combined.columns.tolist() == ["open", "close"]
-    assert combined.loc[idx[0], "open"] == 101.0
-    assert combined.loc[idx[1], "open"] == 202.0
+    backtester._update_pandas_data(asset, None, length=55, timestep="day", start_dt=end)
+    assert fetch_counts["day"] == 2

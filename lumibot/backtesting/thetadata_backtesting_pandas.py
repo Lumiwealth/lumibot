@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, Optional, Tuple, Union, List
+from typing import Dict, Optional, Union, List
 
 import logging
 import pandas as pd
@@ -59,7 +59,7 @@ class ThetaDataBacktestingPandas(PandasData):
         self._password       = password
         self._use_quote_data = use_quote_data
 
-        self._dataset_metadata: Dict[Tuple[tuple, str], Dict[str, object]] = {}
+        self._dataset_metadata: Dict[tuple, Dict[str, object]] = {}
         self._chain_constraints = None
 
         # Set data_source to self since this class acts as both broker and data source
@@ -119,18 +119,6 @@ class ThetaDataBacktestingPandas(PandasData):
             expiration_dt = expiration_dt.replace(tzinfo=self.tzinfo)
         return self.to_default_timezone(expiration_dt)
 
-    def _metadata_key(self, asset_key: tuple, ts_unit: str) -> Tuple[tuple, str]:
-        """Namespace dataset metadata by timestep so day/minute caches don't overwrite each other."""
-        return (asset_key, ts_unit)
-
-    def _tail_overlap_for_unit(self, ts_unit: str) -> timedelta:
-        """Small overlap window for incremental fetches to ensure continuity."""
-        if ts_unit == "day":
-            return timedelta(days=2)
-        if ts_unit == "hour":
-            return timedelta(hours=6)
-        return timedelta(minutes=60)
-
     def _record_metadata(self, key, frame: pd.DataFrame, ts_unit: str, asset: Asset) -> None:
         """Persist dataset coverage details for reuse checks."""
         previous_meta = self._dataset_metadata.get(key, {})
@@ -140,15 +128,14 @@ class ThetaDataBacktestingPandas(PandasData):
             rows = 0
         else:
             if isinstance(frame.index, pd.DatetimeIndex):
-                dt_index = frame.index
+                dt_source = frame.index
+            elif "datetime" in frame.columns:
+                dt_source = frame["datetime"]
+            elif "index" in frame.columns:
+                dt_source = frame["index"]
             else:
-                if "datetime" in frame.columns:
-                    dt_source = frame["datetime"]
-                elif "index" in frame.columns:
-                    dt_source = frame["index"]
-                else:
-                    dt_source = frame.index
-                dt_index = dt_source if isinstance(dt_source, pd.DatetimeIndex) else pd.to_datetime(dt_source)
+                dt_source = frame.index
+            dt_index = pd.to_datetime(dt_source)
             if len(dt_index):
                 start = dt_index.min().to_pydatetime()
                 end = dt_index.max().to_pydatetime()
@@ -223,8 +210,7 @@ class ThetaDataBacktestingPandas(PandasData):
         if "datetime" in frame.columns:
             frame = frame.set_index("datetime")
 
-        if not isinstance(frame.index, pd.DatetimeIndex):
-            frame.index = pd.to_datetime(frame.index)
+        frame.index = pd.to_datetime(frame.index)
 
         # DEBUG-LOG: Timezone state before localization
         logger.debug(
@@ -445,15 +431,9 @@ class ThetaDataBacktestingPandas(PandasData):
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
-        request_is_daily = ts_unit == "day"
 
         requested_length = length
-        try:
-            base_td, _ = self.convert_timestep_str_to_timedelta(timestep)
-        except Exception:
-            base_td = timedelta(minutes=1)
         requested_start = self._normalize_default_timezone(start_datetime)
-        normalized_end = self._normalize_default_timezone(start_dt) if start_dt is not None else None
         start_threshold = requested_start + START_BUFFER if requested_start is not None else None
         current_dt = self.get_datetime()
         end_requirement = self.datetime_end if ts_unit == "day" else current_dt
@@ -462,25 +442,10 @@ class ThetaDataBacktestingPandas(PandasData):
         if expiration_dt is not None and end_requirement is not None and expiration_dt < end_requirement:
             end_requirement = expiration_dt
 
-        append_mode = False
-        fetch_start_datetime = start_datetime
-        fetch_end_datetime = self.datetime_end if request_is_daily else end_requirement
-
         existing_data = self.pandas_data.get(search_asset)
-        meta_key = self._metadata_key(search_asset, ts_unit)
-        if (
-            existing_data is not None
-            and existing_data.timestep == ts_unit
-            and meta_key not in self._dataset_metadata
-        ):
-            self._record_metadata(meta_key, existing_data.df, existing_data.timestep, asset_separated)
-        existing_meta = self._dataset_metadata.get(meta_key)
-        if existing_meta is None:
-            legacy_meta = self._dataset_metadata.get(search_asset)
-            if legacy_meta and legacy_meta.get("timestep") == ts_unit:
-                existing_meta = legacy_meta
-                self._dataset_metadata[meta_key] = legacy_meta
-                self._dataset_metadata.pop(search_asset, None)
+        if existing_data is not None and search_asset not in self._dataset_metadata:
+            self._record_metadata(search_asset, existing_data.df, existing_data.timestep, asset_separated)
+        existing_meta = self._dataset_metadata.get(search_asset)
 
         if existing_data is not None and existing_meta and existing_meta.get("timestep") == ts_unit:
             existing_start = existing_meta.get("start")
@@ -598,22 +563,22 @@ class ThetaDataBacktestingPandas(PandasData):
 
             cache_covers = (
                 start_ok
-                and end_ok
                 and existing_rows >= requested_length
+                and end_ok
             )
 
             # DEBUG-LOG: Final cache decision
             logger.debug(
                 "[DEBUG][BACKTEST][THETA][DEBUG][PANDAS][CACHE_DECISION] asset=%s | "
                 "cache_covers=%s | "
-                "start_ok=%s rows_ok=%s (existing_rows=%d requested=%d) end_ok=%s",
+                "start_ok=%s rows_ok=%s (existing=%d >= requested=%d) end_ok=%s",
                 asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
                 cache_covers,
                 start_ok,
                 existing_rows >= requested_length,
                 existing_rows,
                 requested_length,
-                end_ok,
+                end_ok
             )
 
             if cache_covers:
@@ -665,22 +630,6 @@ class ThetaDataBacktestingPandas(PandasData):
                 requested_length,
             )
 
-            if (
-                not cache_covers
-                and start_ok
-                and existing_rows > 0
-                and not end_ok
-                and existing_end is not None
-            ):
-                append_mode = True
-                overlap = self._tail_overlap_for_unit(ts_unit)
-                fetch_start_datetime = existing_end - overlap
-                if requested_start is not None:
-                    fetch_start_datetime = max(fetch_start_datetime, requested_start)
-                fetch_end_datetime = end_requirement or current_dt
-                if fetch_end_datetime is not None and fetch_start_datetime >= fetch_end_datetime:
-                    fetch_start_datetime = fetch_end_datetime - overlap
-
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
             asset_data = self.pandas_data[search_asset]
@@ -694,8 +643,7 @@ class ThetaDataBacktestingPandas(PandasData):
             if data_timestep == ts_unit:
                 # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                 if (data_start_datetime - start_datetime) < START_BUFFER:
-                    if not append_mode:
-                        return None
+                    return None
 
             # Always try to get the lowest timestep possible because we can always resample
             # If day is requested then make sure we at least have data that's less than a day
@@ -703,16 +651,14 @@ class ThetaDataBacktestingPandas(PandasData):
                 if data_timestep == "minute":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        if not append_mode:
-                            return None
+                        return None
                     else:
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
                 elif data_timestep == "hour":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        if not append_mode:
-                            return None
+                        return None
                     else:
                         # We don't have enough data, so we need to get more (but in hours)
                         ts_unit = "hour"
@@ -722,14 +668,10 @@ class ThetaDataBacktestingPandas(PandasData):
                 if data_timestep == "minute":
                     # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
                     if (data_start_datetime - start_datetime) < START_BUFFER:
-                        if not append_mode:
-                            return None
+                        return None
                     else:
                         # We don't have enough data, so we need to get more (but in minutes)
                         ts_unit = "minute"
-
-        if fetch_end_datetime is None:
-            fetch_end_datetime = current_dt
 
         # Download data from ThetaData
         # Get ohlc data from ThetaData
@@ -740,15 +682,15 @@ class ThetaDataBacktestingPandas(PandasData):
             quote_asset,
             length,
             timestep,
-            fetch_start_datetime,
-            fetch_end_datetime,
+            start_datetime,
+            self.datetime_end,
         )
         df_ohlc = thetadata_helper.get_price_data(
             self._username,
             self._password,
             asset_separated,
-            fetch_start_datetime,
-            fetch_end_datetime,
+            start_datetime,
+            self.datetime_end,
             timespan=ts_unit,
             quote_asset=quote_asset,
             dt=date_time_now,
@@ -783,7 +725,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 if placeholder_update:
                     self.pandas_data.update(placeholder_update)
                     self._data_store.update(placeholder_update)
-                    self._record_metadata(meta_key, placeholder_data.df, ts_unit, asset_separated)
+                    self._record_metadata(search_asset, placeholder_data.df, ts_unit, asset_separated)
                     logger.debug(
                         "[THETA][DEBUG][THETADATA-PANDAS] refreshed metadata from cache for %s/%s (%s) after empty fetch.",
                         asset_separated,
@@ -794,11 +736,9 @@ class ThetaDataBacktestingPandas(PandasData):
 
         df = df_ohlc
 
-        # Quote data (bid/ask) is only available for intraday data (minute, hour, second).
-        # If the strategy requested daily bars, skip the quote merge entirely even if we temporarily
-        # fetch intraday data to extend coverage.
-        use_quote_data = self._use_quote_data and not request_is_daily
-        if use_quote_data and ts_unit in ["minute", "hour", "second"]:
+        # Quote data (bid/ask) is only available for intraday data (minute, hour, second)
+        # For daily+ data, only use OHLC
+        if self._use_quote_data and ts_unit in ["minute", "hour", "second"]:
             try:
                 df_quote = thetadata_helper.get_price_data(
                     self._username,
@@ -852,21 +792,6 @@ class ThetaDataBacktestingPandas(PandasData):
                         if remaining_nulls > 0:
                             logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
 
-        if append_mode and existing_data is not None and isinstance(existing_data.df, pd.DataFrame):
-            existing_df = existing_data.df
-            df_to_append = df
-            existing_tz = getattr(existing_df.index, "tz", None)
-            new_tz = getattr(df_to_append.index, "tz", None)
-            if existing_tz is not None and new_tz is not None and existing_tz != new_tz:
-                df_to_append = df_to_append.tz_convert(existing_tz)
-            elif existing_tz is not None and new_tz is None:
-                df_to_append = df_to_append.tz_localize(existing_tz)
-            elif existing_tz is None and new_tz is not None:
-                df_to_append = df_to_append.tz_convert(pytz.UTC).tz_localize(None)
-            df = pd.concat([existing_df, df_to_append])
-            df = df[~df.index.duplicated(keep="last")]
-            df = df.sort_index()
-
         if df is None or df.empty:
             return None
 
@@ -876,29 +801,19 @@ class ThetaDataBacktestingPandas(PandasData):
             # Add the keys to the self.pandas_data dictionary
             self.pandas_data.update(pandas_data_update)
             self._data_store.update(pandas_data_update)
-        self._record_metadata(meta_key, data.df, ts_unit, asset_separated)
+        self._record_metadata(search_asset, data.df, ts_unit, asset_separated)
 
     @staticmethod
     def _combine_duplicate_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
         """Deduplicate duplicate-named columns, preferring the first non-null entry per row."""
-        if df is None or df.empty or not columns:
-            return df
-        if not df.columns.duplicated().any():
-            return df
-
-        # Tag each column with its original position so we can safely drop duplicates by label
-        df.columns = pd.MultiIndex.from_arrays([df.columns, range(len(df.columns))])
-
         for column in columns:
-            dup_labels = [col for col in df.columns if col[0] == column]
-            if len(dup_labels) <= 1:
+            if column not in df.columns:
                 continue
-            selection = df.loc[:, dup_labels]
-            combined = selection.bfill(axis=1).ffill(axis=1).iloc[:, 0]
-            df.loc[:, dup_labels[0]] = combined
-            df = df.drop(columns=dup_labels[1:])
-
-        df.columns = df.columns.get_level_values(0)
+            selection = df.loc[:, column]
+            if isinstance(selection, pd.DataFrame):
+                combined = selection.bfill(axis=1).ffill(axis=1).iloc[:, 0]
+                df = df.drop(columns=column)
+                df[column] = combined
         return df
 
 

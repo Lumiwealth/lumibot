@@ -462,10 +462,10 @@ class PandasData(DataSourceBacktesting):
         return bars
 
     def get_yesterday_dividend(self, asset, quote=None):
-        pass
+        return super().get_yesterday_dividend(asset, quote=quote)
 
     def get_yesterday_dividends(self, assets, quote=None):
-        pass
+        return super().get_yesterday_dividends(assets, quote=quote)
 
     # =======Options methods.=================
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):

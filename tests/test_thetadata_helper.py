@@ -185,6 +185,77 @@ def test_build_request_headers_injects_downloader_key():
     finally:
         thetadata_helper.DOWNLOADER_API_KEY = original_key
         thetadata_helper.DOWNLOADER_KEY_HEADER = original_header
+
+
+def test_normalize_dividend_events_returns_expected_columns():
+    df = pd.DataFrame(
+        {
+            "ex_dividend_date": ["2024-01-15", "2024-04-15"],
+            "amount": ["0.12", "0.34"],
+            "record_date": ["2024-01-16", None],
+            "pay_date": ["2024-01-20", None],
+            "frequency": ["quarterly", "quarterly"],
+        }
+    )
+    normalized = thetadata_helper._normalize_dividend_events(df, "TQQQ")
+    assert list(normalized.columns)[:2] == ["event_date", "cash_amount"]
+    assert normalized["cash_amount"].tolist() == [0.12, 0.34]
+    assert normalized["event_date"].dt.tz is not None
+
+
+def test_normalize_split_events_supports_ratio_calculations():
+    df = pd.DataFrame(
+        {
+            "execution_date": ["2025-11-20", "2026-01-10"],
+            "split_to": [2, None],
+            "split_from": [1, None],
+            "ratio": [None, "3:2"],
+        }
+    )
+    normalized = thetadata_helper._normalize_split_events(df, "TQQQ")
+    assert normalized["ratio"].tolist() == [2.0, 1.5]
+    assert normalized["event_date"].dt.tz is not None
+
+
+@patch("lumibot.tools.thetadata_helper._get_theta_dividends")
+@patch("lumibot.tools.thetadata_helper._get_theta_splits")
+def test_apply_corporate_actions_populates_columns(mock_splits, mock_dividends):
+    asset = Asset(symbol="TQQQ", asset_type="stock")
+    index = pd.to_datetime(["2024-01-15", "2024-02-15"], utc=True)
+    frame = pd.DataFrame(
+        {
+            "open": [100, 110],
+            "high": [101, 111],
+            "low": [99, 109],
+            "close": [100.5, 110.5],
+            "volume": [1_000, 1_100],
+        },
+        index=index,
+    )
+    mock_dividends.return_value = pd.DataFrame(
+        {
+            "event_date": pd.to_datetime(["2024-01-15"], utc=True),
+            "cash_amount": [0.25],
+        }
+    )
+    mock_splits.return_value = pd.DataFrame(
+        {
+            "event_date": pd.to_datetime(["2024-02-15"], utc=True),
+            "ratio": [2.0],
+        }
+    )
+
+    enriched = thetadata_helper._apply_corporate_actions_to_frame(
+        asset,
+        frame.copy(),
+        date(2024, 1, 1),
+        date(2024, 3, 1),
+        "user",
+        "pass",
+    )
+
+    assert enriched["dividend"].tolist() == [0.25, 0.0]
+    assert enriched["stock_splits"].tolist() == [0.0, 2.0]
 @patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_filters_zero_quotes(mock_get_request):
     asset = Asset(

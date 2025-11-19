@@ -1,6 +1,7 @@
 # This file contains helper functions for getting data from Polygon.io
 import os
 import hashlib
+import json
 import re
 import signal
 import time
@@ -118,6 +119,30 @@ EOD_ENDPOINTS = {
     "option": "/v3/option/history/eod",
     "index": "/v3/index/history/eod",
 }
+
+CORPORATE_EVENT_ENDPOINTS = {
+    "dividends": (
+        "/v3/stock/dividends",
+        "/v3/stock/history/dividends",
+        "/v3/stock/events/dividends",
+    ),
+    "splits": (
+        "/v3/stock/splits",
+        "/v3/stock/history/splits",
+        "/v3/stock/events/splits",
+    ),
+}
+
+RESOLVED_EVENT_ENDPOINTS: Dict[str, str] = {}
+EVENT_CACHE_PAD_DAYS = int(os.environ.get("THETADATA_EVENT_CACHE_PAD_DAYS", "60"))
+EVENT_CACHE_MIN_DATE = date(1950, 1, 1)
+EVENT_CACHE_MAX_DATE = date(2100, 12, 31)
+CORPORATE_EVENT_FOLDER = "events"
+DIVIDEND_VALUE_COLUMNS = ("amount", "cash", "dividend", "cash_amount")
+DIVIDEND_DATE_COLUMNS = ("ex_dividend_date", "ex_date", "ex_dividend", "execution_date")
+SPLIT_NUMERATOR_COLUMNS = ("split_to", "to", "numerator", "ratio_to")
+SPLIT_DENOMINATOR_COLUMNS = ("split_from", "from", "denominator", "ratio_from")
+SPLIT_RATIO_COLUMNS = ("ratio", "split_ratio")
 
 OPTION_LIST_ENDPOINTS = {
     "expirations": "/v3/option/list/expirations",
@@ -543,6 +568,394 @@ def reset_connection_diagnostics():
         "placeholder_writes": 0,
         "terminal_restarts": 0,
     })
+
+
+def _symbol_cache_component(asset: Asset) -> str:
+    symbol = getattr(asset, "symbol", "") or "symbol"
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "_", str(symbol).upper())
+    return cleaned or "symbol"
+
+
+def _event_cache_paths(asset: Asset, event_type: str) -> Tuple[Path, Path]:
+    provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
+    asset_folder = _resolve_asset_folder(asset)
+    symbol_component = _symbol_cache_component(asset)
+    event_folder = provider_root / asset_folder / CORPORATE_EVENT_FOLDER / event_type
+    cache_path = event_folder / f"{symbol_component}_{event_type}.parquet"
+    meta_path = event_folder / f"{symbol_component}_{event_type}.meta.json"
+    return cache_path, meta_path
+
+
+def _load_event_cache_frame(cache_path: Path) -> pd.DataFrame:
+    if not cache_path.exists():
+        return pd.DataFrame()
+    try:
+        df = pd.read_parquet(cache_path)
+    except Exception as exc:
+        logger.warning("Failed to load ThetaData %s cache (%s); re-downloading", cache_path, exc)
+        return pd.DataFrame()
+    if "event_date" in df.columns:
+        df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce", utc=True)
+    return df
+
+
+def _save_event_cache_frame(cache_path: Path, df: pd.DataFrame) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    df_to_save = df.copy()
+    if "event_date" in df_to_save.columns:
+        df_to_save["event_date"] = pd.to_datetime(df_to_save["event_date"], utc=True)
+    df_to_save.to_parquet(cache_path, index=False)
+
+
+def _load_event_metadata(meta_path: Path) -> List[Tuple[date, date]]:
+    if not meta_path.exists():
+        return []
+    try:
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    ranges: List[Tuple[date, date]] = []
+    for start_str, end_str in payload.get("ranges", []):
+        try:
+            start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
+            end_dt = datetime.strptime(end_str, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if start_dt > end_dt:
+            start_dt, end_dt = end_dt, start_dt
+        ranges.append((start_dt, end_dt))
+    return ranges
+
+
+def _write_event_metadata(meta_path: Path, ranges: List[Tuple[date, date]]) -> None:
+    payload = {
+        "ranges": [
+            (start.isoformat(), end.isoformat())
+            for start, end in sorted(ranges, key=lambda pair: pair[0])
+        ]
+    }
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _merge_coverage_ranges(ranges: List[Tuple[date, date]]) -> List[Tuple[date, date]]:
+    if not ranges:
+        return []
+    sorted_ranges = sorted(ranges, key=lambda pair: pair[0])
+    merged: List[Tuple[date, date]] = []
+    current_start, current_end = sorted_ranges[0]
+    for start, end in sorted_ranges[1:]:
+        if start <= current_end + timedelta(days=1):
+            current_end = max(current_end, end)
+        else:
+            merged.append((current_start, current_end))
+            current_start, current_end = start, end
+    merged.append((current_start, current_end))
+    return merged
+
+
+def _calculate_missing_event_windows(
+    ranges: List[Tuple[date, date]],
+    request_start: date,
+    request_end: date,
+) -> List[Tuple[date, date]]:
+    if request_start > request_end:
+        request_start, request_end = request_end, request_start
+    if not ranges:
+        return [(request_start, request_end)]
+
+    merged = _merge_coverage_ranges(ranges)
+    missing: List[Tuple[date, date]] = []
+    cursor = request_start
+    for start, end in merged:
+        if end < cursor:
+            continue
+        if start > request_end:
+            break
+        if start > cursor:
+            missing.append((cursor, min(request_end, start - timedelta(days=1))))
+        cursor = max(cursor, end + timedelta(days=1))
+        if cursor > request_end:
+            break
+    if cursor <= request_end:
+        missing.append((cursor, request_end))
+    return [window for window in missing if window[0] <= window[1]]
+
+
+def _pad_event_window(window_start: date, window_end: date) -> Tuple[date, date]:
+    pad = timedelta(days=max(EVENT_CACHE_PAD_DAYS, 0))
+    padded_start = max(EVENT_CACHE_MIN_DATE, window_start - pad)
+    padded_end = min(EVENT_CACHE_MAX_DATE, window_end + pad)
+    if padded_start > padded_end:
+        padded_start, padded_end = padded_end, padded_start
+    return padded_start, padded_end
+
+
+def _coerce_event_dataframe(json_resp: Optional[Dict[str, Any]]) -> pd.DataFrame:
+    if not json_resp:
+        return pd.DataFrame()
+    rows = json_resp.get("response") or []
+    header = json_resp.get("header", {})
+    fmt = header.get("format")
+    if rows and fmt and isinstance(rows[0], (list, tuple)):
+        return pd.DataFrame(rows, columns=fmt)
+    if rows and isinstance(rows[0], dict):
+        return pd.DataFrame(rows)
+    return pd.DataFrame(rows)
+
+
+def _coerce_event_timestamp(series: pd.Series) -> pd.Series:
+    ts = pd.to_datetime(series, errors="coerce", utc=True)
+    ts = ts.dt.normalize()
+    return ts
+
+
+def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    working = df.copy()
+    value_col = _detect_column(working, DIVIDEND_VALUE_COLUMNS) or DIVIDEND_VALUE_COLUMNS[0]
+    date_col = _detect_column(working, DIVIDEND_DATE_COLUMNS)
+    record_col = _detect_column(working, ("record_date", "record"))
+    pay_col = _detect_column(working, ("pay_date", "payment_date"))
+    declared_col = _detect_column(working, ("declared_date", "declaration_date"))
+    freq_col = _detect_column(working, ("frequency", "freq"))
+
+    if date_col is None:
+        logger.debug("[THETA][DEBUG][DIVIDENDS] Missing ex-dividend date column for %s", symbol)
+        return pd.DataFrame()
+
+    normalized = pd.DataFrame()
+    normalized["event_date"] = _coerce_event_timestamp(working[date_col])
+    normalized["cash_amount"] = pd.to_numeric(working[value_col], errors="coerce").fillna(0.0)
+    if record_col:
+        normalized["record_date"] = _coerce_event_timestamp(working[record_col])
+    if pay_col:
+        normalized["pay_date"] = _coerce_event_timestamp(working[pay_col])
+    if declared_col:
+        normalized["declared_date"] = _coerce_event_timestamp(working[declared_col])
+    if freq_col:
+        normalized["frequency"] = working[freq_col]
+    normalized["symbol"] = symbol
+    normalized = normalized.dropna(subset=["event_date"])
+    return normalized.sort_values("event_date")
+
+
+def _parse_ratio_value(raw: Any) -> Optional[float]:
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        try:
+            return float(raw)
+        except Exception:
+            return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    if ":" in text:
+        left, right = text.split(":", 1)
+        try:
+            left_val = float(left)
+            right_val = float(right)
+            if right_val == 0:
+                return None
+            return left_val / right_val
+        except Exception:
+            return None
+    try:
+        return float(text)
+    except Exception:
+        return None
+
+
+def _normalize_split_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    working = df.copy()
+    date_col = _detect_column(working, ("execution_date", "ex_date", "date"))
+    if date_col is None:
+        return pd.DataFrame()
+    numerator_col = _detect_column(working, SPLIT_NUMERATOR_COLUMNS)
+    denominator_col = _detect_column(working, SPLIT_DENOMINATOR_COLUMNS)
+    ratio_col = _detect_column(working, SPLIT_RATIO_COLUMNS)
+
+    def _resolve_ratio(row: pd.Series) -> float:
+        numerator = row.get(numerator_col) if numerator_col else None
+        denominator = row.get(denominator_col) if denominator_col else None
+        ratio_value = _parse_ratio_value(row.get(ratio_col)) if ratio_col else None
+        if numerator is not None and denominator not in (None, 0):
+            if not (pd.isna(numerator) or pd.isna(denominator)):
+                try:
+                    numerator = float(numerator)
+                    denominator = float(denominator)
+                    if denominator != 0:
+                        return numerator / denominator
+                except Exception:
+                    pass
+        if ratio_value is not None:
+            return ratio_value
+        return 1.0
+
+    normalized = pd.DataFrame()
+    normalized["event_date"] = _coerce_event_timestamp(working[date_col])
+    normalized["ratio"] = working.apply(_resolve_ratio, axis=1)
+    normalized["symbol"] = symbol
+    normalized = normalized.dropna(subset=["event_date"])
+    return normalized.sort_values("event_date")
+
+
+def _download_corporate_events(
+    asset: Asset,
+    event_type: str,
+    window_start: date,
+    window_end: date,
+    username: str,
+    password: str,
+) -> pd.DataFrame:
+    endpoints = [RESOLVED_EVENT_ENDPOINTS.get(event_type)] if RESOLVED_EVENT_ENDPOINTS.get(event_type) else []
+    endpoints.extend([path for path in CORPORATE_EVENT_ENDPOINTS.get(event_type, ()) if path not in endpoints])
+    querystring = {
+        "symbol": asset.symbol,
+        "start_date": window_start.strftime("%Y-%m-%d"),
+        "end_date": window_end.strftime("%Y-%m-%d"),
+        "format": "json",
+    }
+    headers = {"Accept": "application/json"}
+    last_error: Optional[ThetaRequestError] = None
+    for endpoint in endpoints:
+        if not endpoint:
+            continue
+        url = f"{BASE_URL}{endpoint}"
+        try:
+            response = get_request(
+                url=url,
+                headers=headers,
+                querystring=querystring,
+                username=username,
+                password=password,
+            )
+        except ThetaRequestError as exc:
+            last_error = exc
+            if exc.status_code in {404, 410}:
+                continue
+            raise
+        if response is None:
+            RESOLVED_EVENT_ENDPOINTS.setdefault(event_type, endpoint)
+            return pd.DataFrame()
+        df = _coerce_event_dataframe(response)
+        if event_type == "dividends":
+            normalized = _normalize_dividend_events(df, asset.symbol)
+        else:
+            normalized = _normalize_split_events(df, asset.symbol)
+        RESOLVED_EVENT_ENDPOINTS.setdefault(event_type, endpoint)
+        return normalized
+    if last_error:
+        raise last_error
+    return pd.DataFrame()
+
+
+def _ensure_event_cache(
+    asset: Asset,
+    event_type: str,
+    start_date: date,
+    end_date: date,
+    username: str,
+    password: str,
+) -> pd.DataFrame:
+    cache_path, meta_path = _event_cache_paths(asset, event_type)
+    cache_df = _load_event_cache_frame(cache_path)
+    coverage = _load_event_metadata(meta_path)
+    missing_windows = _calculate_missing_event_windows(coverage, start_date, end_date)
+    fetched_ranges: List[Tuple[date, date]] = []
+    new_frames: List[pd.DataFrame] = []
+    for window_start, window_end in missing_windows:
+        padded_start, padded_end = _pad_event_window(window_start, window_end)
+        data_frame = _download_corporate_events(
+            asset,
+            event_type,
+            padded_start,
+            padded_end,
+            username,
+            password,
+        )
+        if data_frame is not None and not data_frame.empty:
+            new_frames.append(data_frame)
+        fetched_ranges.append((padded_start, padded_end))
+    if new_frames:
+        combined = pd.concat([cache_df] + new_frames, ignore_index=True) if not cache_df.empty else pd.concat(new_frames, ignore_index=True)
+        dedupe_cols = ["event_date", "cash_amount"] if event_type == "dividends" else ["event_date", "ratio"]
+        cache_df = combined.drop_duplicates(subset=dedupe_cols, keep="last").sort_values("event_date")
+        _save_event_cache_frame(cache_path, cache_df)
+    if fetched_ranges:
+        updated_ranges = _merge_coverage_ranges(coverage + fetched_ranges)
+        _write_event_metadata(meta_path, updated_ranges)
+    if cache_df.empty:
+        return cache_df
+    date_series = cache_df["event_date"].dt.date
+    mask = (date_series >= min(start_date, end_date)) & (date_series <= max(start_date, end_date))
+    return cache_df.loc[mask].copy()
+
+
+def _get_theta_dividends(asset: Asset, start_date: date, end_date: date, username: str, password: str) -> pd.DataFrame:
+    if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
+        return pd.DataFrame()
+    return _ensure_event_cache(asset, "dividends", start_date, end_date, username, password)
+
+
+def _get_theta_splits(asset: Asset, start_date: date, end_date: date, username: str, password: str) -> pd.DataFrame:
+    if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
+        return pd.DataFrame()
+    return _ensure_event_cache(asset, "splits", start_date, end_date, username, password)
+
+
+def _apply_corporate_actions_to_frame(
+    asset: Asset,
+    frame: pd.DataFrame,
+    start_day: date,
+    end_day: date,
+    username: str,
+    password: str,
+) -> pd.DataFrame:
+    if frame is None or frame.empty:
+        return frame
+    if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
+        if "dividend" not in frame.columns:
+            frame["dividend"] = 0.0
+        if "stock_splits" not in frame.columns:
+            frame["stock_splits"] = 0.0
+        return frame
+
+    dividends = _get_theta_dividends(asset, start_day, end_day, username, password)
+    splits = _get_theta_splits(asset, start_day, end_day, username, password)
+
+    tz_index = frame.index
+    if isinstance(tz_index, pd.DatetimeIndex):
+        index_dates = tz_index
+    else:
+        index_dates = pd.to_datetime(tz_index, errors="coerce")
+    if getattr(index_dates, "tz", None) is None:
+        index_dates = index_dates.tz_localize("UTC")
+    else:
+        index_dates = index_dates.tz_convert("UTC")
+    index_dates = index_dates.date
+
+    if "dividend" not in frame.columns:
+        frame["dividend"] = 0.0
+    if not dividends.empty:
+        dividend_map = dividends.groupby(dividends["event_date"].dt.date)["cash_amount"].sum().to_dict()
+        frame["dividend"] = [float(dividend_map.get(day, 0.0)) for day in index_dates]
+    else:
+        frame["dividend"] = 0.0
+
+    if "stock_splits" not in frame.columns:
+        frame["stock_splits"] = 0.0
+    if not splits.empty:
+        split_map = splits.groupby(splits["event_date"].dt.date)["ratio"].prod().to_dict()
+        frame["stock_splits"] = [float(split_map.get(day, 0.0)) for day in index_dates]
+    else:
+        frame["stock_splits"] = 0.0
+
+    return frame
 
 
 def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
@@ -2486,6 +2899,8 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     # Drop bid/ask columns if present (EOD includes NBBO but we only need OHLC)
     df = df.drop(columns=["bid_size", "bid_exchange", "bid", "bid_condition",
                           "ask_size", "ask_exchange", "ask", "ask_condition"], errors='ignore')
+
+    df = _apply_corporate_actions_to_frame(asset, df, start_day, end_day, username, password)
 
     return df
 

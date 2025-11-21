@@ -5,7 +5,7 @@ ThetaData Backtesting
 
 .. important::
    
-   **You can get a username and password at** `thetadata.net <https://www.thetadata.net/>`_. **Please use the full link to give us credit for the sale (https://www.thetadata.net), it helps support this project. You can use the coupon code 'LUMI' for 10% off.**
+   **Sign up at** `ThetaData <https://www.thetadata.net/>`_. **Use the promo code ``BotSpot10`` at checkout for 10% off the first order—ThetaData tracks the code so they can credit BotSpot for the referral.**
 
 ThetaData backtester allows for flexible and robust backtesting. It uses the thetadata API to fetch pricing data for stocks, options, forex, and cryptocurrencies. This backtester simplifies the process of getting pricing data; simply use the thetadata DataSource and it will automatically fetch pricing data when you call `get_last_price()` or `get_historical_prices()`.
 

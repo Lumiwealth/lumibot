@@ -5,7 +5,7 @@ Polygon.io Backtesting
 
 .. important::
    
-   **You can get an API key at** `Polygon.io <https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10>`_. **Please use the full link to give us credit for the sale (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10), it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
+   **ThetaData is our preferred data partner and the service we recommend to most LumiBot users—sign up at** `ThetaData <https://www.thetadata.net/>`_ **and use the promo code ``BotSpot10`` for 10% off the first order.** This section remains for teams that still need Polygon.io. If you require Polygon access you can create an account at `polygon.io <https://polygon.io/>`_.
 
 Polygon.io backtester allows for flexible and robust backtesting. It uses the polygon.io API to fetch pricing data for stocks, options, forex, and cryptocurrencies. This backtester simplifies the process of getting pricing data; simply use the PolygonDataSource and it will automatically fetch pricing data when you call `get_last_price()` or `get_historical_prices()`.
 
@@ -104,7 +104,7 @@ Here's the full code (with explicit dates):
 
 .. important::
    
-   **You can get an API key at** `Polygon.io <https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10>`_. **Please use the full link to give us credit for the sale (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10), it helps support this project. You can use the coupon code 'LUMI10' for 10% off.**
+   **ThetaData remains our recommended vendor (promo code ``BotSpot10`` at `thetadata.net <https://www.thetadata.net/>`_). These Polygon instructions are provided for existing workflows that still rely on Polygon’s API.**
 
 Optional: Environment Variables
 -------------------------------

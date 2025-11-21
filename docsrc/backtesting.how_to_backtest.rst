@@ -1,7 +1,7 @@
 How To Backtest
 ===================================
 
-Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **Yahoo Finance**, **Polygon.io**, **ThetaData**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
+Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **ThetaData** (our recommended vendor), **Polygon.io**, **Yahoo Finance**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
 
 .. note::
 
@@ -41,38 +41,33 @@ Choosing a Data Source
 
 LumiBot supports several data sources for backtesting, each suited for different asset types and backtesting needs. Here's an overview of the available sources:
 
-**1. Yahoo Finance**
+**1. ThetaData (Recommended)**
+
+- Deep historical coverage for U.S. equities and options with SIP-quality filtering.
+- Offers free tiers plus paid plans with higher rate limits and multi-year history.
+
+.. important::
+
+   **Get Your ThetaData Account**
+
+   Sign up at `ThetaData <https://www.thetadata.net/>`_. Use the promo code ``BotSpot10`` for 10% off the first order—ThetaData uses this code to credit BotSpot for the referral.
+
+For more details, see the :ref:`ThetaData Backtesting <backtesting.thetadata>` section.
+
+**2. Yahoo Finance**
 
 - Free stock and ETF data for daily trading backtests.
 - Suitable for longer-term strategies but not ideal for intraday backtesting.
 
 For more details, see the :ref:`Yahoo Backtesting <backtesting.yahoo>` section.
 
-**2. Polygon.io**
+**3. Polygon.io**
 
 - Offers intraday and end-of-day data for stocks, options, forex, and cryptocurrency.
 - Provides up to two years of free data; paid plans offer more advanced features and faster data retrieval.
-
-.. important::
-
-   **Get Your API Key from Polygon.io**
-   
-   You can get an API key at `Polygon.io <https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10>`_. **Please use the coupon code 'LUMI10' for 10% off!**
+- Best suited for existing workflows; new LumiBot users should consider ThetaData first for the BotSpot10 promo and deeper coverage.
 
 For more details, see the :ref:`Polygon.io Backtesting <backtesting.polygon>` section.
-
-**3. ThetaData**
-
-- Designed for users looking to backtest stock and options trading strategies.
-- Provides options pricing and other securities.
-
-.. important::
-
-   **Get Your ThetaData Account**
-   
-   You can get a username and password at `thetadata.net <https://www.thetadata.net/>`_. **Please use the coupon code 'LUMI' for 10% off!**
-
-For more details, see the :ref:`ThetaData Backtesting <backtesting.thetadata>` section.
 
 **4. Pandas (CSV or Other Custom Data)**
 

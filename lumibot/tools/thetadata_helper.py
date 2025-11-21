@@ -5,8 +5,10 @@ import json
 import re
 import signal
 import time
+import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -85,7 +87,12 @@ MAX_TERMINAL_RESTART_CYCLES = 3
 HTTP_RETRY_LIMIT = 3
 HTTP_RETRY_BACKOFF_MAX = 5.0
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504, 520, 521}
-MAX_PARALLEL_CHUNKS = int(os.environ.get("THETADATA_MAX_PARALLEL_CHUNKS", "80"))
+# Theta caps outstanding REST calls per account (Pro tier = 8, v2 legacy = 4). Keep chunk fan-out below
+# that limit so a single bot doesn't starve everyone else.
+MAX_PARALLEL_CHUNKS = int(os.environ.get("THETADATA_MAX_PARALLEL_CHUNKS", "8"))
+THETADATA_CONCURRENCY_BUDGET = max(1, int(os.environ.get("THETADATA_CONCURRENCY_BUDGET", "8")))
+THETADATA_CONCURRENCY_WAIT_LOG_THRESHOLD = float(os.environ.get("THETADATA_CONCURRENCY_WAIT_THRESHOLD", "0.5"))
+THETA_REQUEST_SEMAPHORE = threading.BoundedSemaphore(THETADATA_CONCURRENCY_BUDGET)
 
 # Mapping between milliseconds and ThetaData interval labels
 INTERVAL_MS_TO_LABEL = {
@@ -120,20 +127,10 @@ EOD_ENDPOINTS = {
     "index": "/v3/index/history/eod",
 }
 
-CORPORATE_EVENT_ENDPOINTS = {
-    "dividends": (
-        "/v3/stock/dividends",
-        "/v3/stock/history/dividends",
-        "/v3/stock/events/dividends",
-    ),
-    "splits": (
-        "/v3/stock/splits",
-        "/v3/stock/history/splits",
-        "/v3/stock/events/splits",
-    ),
-}
-
-RESOLVED_EVENT_ENDPOINTS: Dict[str, str] = {}
+# Theta support confirmed (Nov 2025) that dividends/splits live only on the legacy v2 REST surface.
+# We therefore source corporate actions from these endpoints regardless of which terminal version is running.
+THETA_V2_DIVIDEND_ENDPOINT = "/v2/hist/stock/dividend"
+THETA_V2_SPLIT_ENDPOINT = "/v2/hist/stock/split"
 EVENT_CACHE_PAD_DAYS = int(os.environ.get("THETADATA_EVENT_CACHE_PAD_DAYS", "60"))
 EVENT_CACHE_MIN_DATE = date(1950, 1, 1)
 EVENT_CACHE_MAX_DATE = date(2100, 12, 31)
@@ -154,6 +151,21 @@ DEFAULT_SESSION_HOURS = {
     True: ("04:00:00", "20:00:00"),   # include extended hours
     False: ("09:30:00", "16:00:00"),  # regular session only
 }
+
+
+@contextmanager
+def _acquire_theta_slot(label: str = "request"):
+    """Enforce the plan-wide concurrency cap for outbound Theta requests."""
+
+    start = time.perf_counter()
+    THETA_REQUEST_SEMAPHORE.acquire()
+    wait = time.perf_counter() - start
+    if wait >= THETADATA_CONCURRENCY_WAIT_LOG_THRESHOLD:
+        logger.warning("[THETA][CONCURRENCY] Waited %.2fs for Theta slot (%s)", wait, label)
+    try:
+        yield
+    finally:
+        THETA_REQUEST_SEMAPHORE.release()
 
 
 def _build_request_headers(base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -812,46 +824,45 @@ def _download_corporate_events(
     username: str,
     password: str,
 ) -> pd.DataFrame:
-    endpoints = [RESOLVED_EVENT_ENDPOINTS.get(event_type)] if RESOLVED_EVENT_ENDPOINTS.get(event_type) else []
-    endpoints.extend([path for path in CORPORATE_EVENT_ENDPOINTS.get(event_type, ()) if path not in endpoints])
+    """Fetch corporate actions via Theta's v2 REST endpoints."""
+
+    if event_type not in {"dividends", "splits"}:
+        return pd.DataFrame()
+
+    if not asset.symbol:
+        return pd.DataFrame()
+
+    endpoint = THETA_V2_DIVIDEND_ENDPOINT if event_type == "dividends" else THETA_V2_SPLIT_ENDPOINT
     querystring = {
-        "symbol": asset.symbol,
-        "start_date": window_start.strftime("%Y-%m-%d"),
-        "end_date": window_end.strftime("%Y-%m-%d"),
-        "format": "json",
+        "root": asset.symbol,
+        "start_date": window_start.strftime("%Y%m%d"),
+        "end_date": window_end.strftime("%Y%m%d"),
+        "use_csv": "false",
+        "pretty_time": "false",
     }
     headers = {"Accept": "application/json"}
-    last_error: Optional[ThetaRequestError] = None
-    for endpoint in endpoints:
-        if not endpoint:
-            continue
-        url = f"{BASE_URL}{endpoint}"
-        try:
-            response = get_request(
-                url=url,
-                headers=headers,
-                querystring=querystring,
-                username=username,
-                password=password,
-            )
-        except ThetaRequestError as exc:
-            last_error = exc
-            if exc.status_code in {404, 410}:
-                continue
-            raise
-        if response is None:
-            RESOLVED_EVENT_ENDPOINTS.setdefault(event_type, endpoint)
+    url = f"{BASE_URL}{endpoint}"
+
+    try:
+        response = get_request(
+            url=url,
+            headers=headers,
+            querystring=querystring,
+            username=username,
+            password=password,
+        )
+    except ThetaRequestError as exc:
+        if exc.status_code in {404, 410}:
             return pd.DataFrame()
-        df = _coerce_event_dataframe(response)
-        if event_type == "dividends":
-            normalized = _normalize_dividend_events(df, asset.symbol)
-        else:
-            normalized = _normalize_split_events(df, asset.symbol)
-        RESOLVED_EVENT_ENDPOINTS.setdefault(event_type, endpoint)
-        return normalized
-    if last_error:
-        raise last_error
-    return pd.DataFrame()
+        raise
+
+    if not response:
+        return pd.DataFrame()
+
+    df = _coerce_event_dataframe(response)
+    if event_type == "dividends":
+        return _normalize_dividend_events(df, asset.symbol)
+    return _normalize_split_events(df, asset.symbol)
 
 
 def _ensure_event_cache(
@@ -2426,12 +2437,15 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
                 request_headers = _build_request_headers(headers)
 
-                response = requests.get(
-                    request_url,
-                    headers=request_headers,
-                    params=request_params,
-                    timeout=30,
-                )
+                label = "remote" if REMOTE_DOWNLOADER_ENABLED else "local"
+                slot_label = f"{label}:{request_url.split('?')[0]}"
+                with _acquire_theta_slot(slot_label):
+                    response = requests.get(
+                        request_url,
+                        headers=request_headers,
+                        params=request_params,
+                        timeout=30,
+                    )
                 status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None
                 if status_code == 472:

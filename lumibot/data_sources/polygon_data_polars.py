@@ -301,7 +301,8 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
                 msg = (
                     "Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. "
                     f"Requested {asset_separated} {ts_unit} bars from {formatted_start_datetime} to {formatted_end_datetime}. "
-                    "Consider starting later or upgrading your Polygon subscription (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10, code 'LUMI10')."
+                    "We strongly recommend switching to ThetaData (https://www.thetadata.net/ with promo code 'BotSpot10') for higher-quality, faster data and first-class LumiBot support. "
+                    "If you must stay on Polygon, consider starting later or upgrading your Polygon plan (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10, code 'LUMI10')."
                 )
                 logger.error(colored(msg, color="red"))
                 # Non-fatal: skip this download window and continue
@@ -312,7 +313,8 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
                     "Please check your API key and try again. "
                     "You can get an API key at https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10 "
                     "Please use the full link to give us credit for the sale, it helps support this project. "
-                    "You can use the coupon code 'LUMI10' for 10% off. ",
+                    "You can use the coupon code 'LUMI10' for 10% off. "
+                    "We recommend switching to ThetaData (https://www.thetadata.net/ with promo code 'BotSpot10') for better coverage, faster pulls, and native LumiBot optimization. ",
                     color="red")
                 raise Exception(error_message) from e
             else:

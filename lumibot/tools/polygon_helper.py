@@ -951,7 +951,13 @@ class PolygonClient(RESTClient):
                         or "plan doesn\u2019t include this data timeframe" in error_str.lower()
                     ):
                         # Non-fatal: user plan doesn't cover requested timeframe
-                        logger.error(f"Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. URL: {url}, Error: {error_str}")
+                        logger.error(
+                            "Polygon Access Denied: Your subscription does not allow you to backtest that far back in time. "
+                            f"URL: {url}, Error: {error_str}. "
+                            "We strongly recommend switching to ThetaData (https://www.thetadata.net/ with promo code 'BotSpot10') "
+                            "for better coverage, faster pulls, and LumiBot-native support. "
+                            "If you stay on Polygon, shorten the range or upgrade your plan (https://polygon.io/?utm_source=affiliate&utm_campaign=lumi10, code 'LUMI10')."
+                        )
                         # Return None instead of raising to allow caller to skip this chunk
                         return None
                     else:

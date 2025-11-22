@@ -492,17 +492,35 @@ class DataSource(ABC):
 
                         # Cache the dividend dict for this asset
                         self._dividend_cache[asset] = asset_dividends
+                        if asset_dividends:
+                            logger.debug(
+                                "[DIVIDEND][CACHE] Cached %d entries for %s (%s -> %s)",
+                                len(asset_dividends),
+                                getattr(asset, "symbol", asset),
+                                min(asset_dividends.keys()),
+                                max(asset_dividends.keys()),
+                            )
+                        else:
+                            logger.debug(
+                                "[DIVIDEND][CACHE] No dividend entries available for %s",
+                                getattr(asset, "symbol", asset),
+                            )
                     except Exception as e:
                         # If fetching fails, cache empty dict to avoid repeated failures
                         self._dividend_cache[asset] = {}
 
-                # Now look up the dividend for yesterday
+                # Now look up the dividend for the current trading date. Daily bars already align
+                # dividends with the ex-date, so there's no need to subtract a day here.
                 asset_dividends = self._dividend_cache.get(asset, {})
-                from datetime import timedelta
-                yesterday = current_date - timedelta(days=1)
-
-                # Find dividend for yesterday (or 0 if none)
-                dividend = asset_dividends.get(yesterday, 0)
+                dividend = asset_dividends.get(current_date, 0)
+                if dividend:
+                    logger.debug(
+                        "[DIVIDEND][APPLY] %s -> %s pays %.4f on %s",
+                        getattr(asset, "symbol", asset),
+                        getattr(self, "_name", "strategy"),
+                        dividend,
+                        current_date,
+                    )
                 result[asset] = dividend
 
             return AssetsMapping(result)

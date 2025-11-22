@@ -16,7 +16,7 @@ import time
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
 from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.tools.backtest_cache import CacheMode
@@ -306,6 +306,11 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
     fixture = load_thetadata_fixture("stock_history_eod.json")
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
     monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+    monkeypatch.setattr(
+        thetadata_helper,
+        "_apply_corporate_actions_to_frame",
+        lambda asset, frame, start, end, username, password: frame,
+    )
 
     asset = Asset(asset_type="stock", symbol="PLTR")
     start = pytz.UTC.localize(datetime.datetime(2024, 9, 16))
@@ -330,6 +335,11 @@ def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
     minute_fetch = MagicMock(return_value=None)
     monkeypatch.setattr(thetadata_helper, "get_historical_data", minute_fetch)
+    monkeypatch.setattr(
+        thetadata_helper,
+        "_apply_corporate_actions_to_frame",
+        lambda asset, frame, start, end, username, password: frame,
+    )
 
     asset = Asset(asset_type="stock", symbol="PLTR")
     start = pytz.UTC.localize(datetime.datetime(2024, 9, 16))
@@ -346,6 +356,39 @@ def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
     assert df is not None
     assert not df.empty
     minute_fetch.assert_not_called()
+
+
+def test_get_historical_eod_data_falls_back_to_date_when_created_missing(monkeypatch):
+    payload = {
+        "header": {"format": ["date", "open", "high", "low", "close", "volume"]},
+        "response": [
+            ["2024-11-01", 10.0, 11.0, 9.5, 10.5, 1_000],
+            ["2024-11-04", 11.0, 12.0, 10.5, 11.5, 2_000],
+        ],
+    }
+
+    monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: payload)
+    monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
+    monkeypatch.setattr(
+        thetadata_helper,
+        "_apply_corporate_actions_to_frame",
+        lambda asset, frame, start, end, username, password: frame,
+    )
+
+    asset = Asset(asset_type="stock", symbol="AAPL")
+    start = pytz.UTC.localize(datetime.datetime(2024, 11, 1))
+    end = pytz.UTC.localize(datetime.datetime(2024, 11, 4))
+
+    df = thetadata_helper.get_historical_eod_data(
+        asset=asset,
+        start_dt=start,
+        end_dt=end,
+        username="user",
+        password="pass",
+    )
+
+    assert list(df.index.strftime("%Y-%m-%d")) == ["2024-11-01", "2024-11-04"]
+    assert df.loc["2024-11-01", "open"] == 10.0
 
 
 def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch):
@@ -2632,6 +2675,87 @@ def test_finalize_day_frame_handles_dst_fallback():
 
     assert result is not None
     assert len(result) == len(frame_index)
+
+
+def test_update_pandas_data_fetches_real_day_frames(monkeypatch):
+    """Daily requests should stay daily even when only minute cache exists."""
+
+    monkeypatch.setattr(
+        ThetaDataBacktestingPandas,
+        "kill_processes_by_name",
+        lambda self, keyword: None,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "reset_theta_terminal_tracking",
+        lambda: None,
+    )
+
+    utc = pytz.UTC
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=utc.localize(datetime.datetime(2024, 7, 1)),
+        datetime_end=utc.localize(datetime.datetime(2024, 11, 5)),
+        username="user",
+        password="pass",
+        use_quote_data=False,
+    )
+
+    asset = Asset("TQQQ", asset_type="stock")
+    quote = Asset("USD", asset_type="forex")
+    key = (asset, quote)
+
+    minute_index = pd.date_range(
+        start=utc.localize(datetime.datetime(2024, 7, 15, 13, 30)),
+        periods=1_000,
+        freq="min",
+    )
+    minute_frame = pd.DataFrame(
+        {
+            "open": 50 + np.arange(len(minute_index)) * 0.01,
+            "high": 50.5 + np.arange(len(minute_index)) * 0.01,
+            "low": 49.5 + np.arange(len(minute_index)) * 0.01,
+            "close": 50.25 + np.arange(len(minute_index)) * 0.01,
+            "volume": 1_000,
+        },
+        index=minute_index,
+    )
+
+    data_source.pandas_data[key] = Data(asset, minute_frame, timestep="minute", quote=quote)
+    data_source._record_metadata(key, minute_frame, "minute", asset, has_quotes=False)
+
+    captured = {}
+
+    def fake_get_price_data(*args, **kwargs):
+        captured["timespan"] = kwargs.get("timespan")
+        eod_index = pd.date_range(
+            start=utc.localize(datetime.datetime(2024, 8, 1, 20, 0)),
+            periods=10,
+            freq="D",
+        )
+        return pd.DataFrame(
+            {
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1_000,
+            },
+            index=eod_index,
+        )
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(
+        ThetaDataBacktestingPandas,
+        "get_datetime",
+        lambda self: utc.localize(datetime.datetime(2024, 11, 1, 16, 0)),
+    )
+
+    data_source._update_pandas_data(asset, quote, length=50, timestep="day")
+
+    assert captured.get("timespan") == "day", "Theta daily requests must use the daily endpoint"
+    stored = data_source.pandas_data.get(key)
+    assert stored is not None
+    assert stored.timestep == "day", "pandas_data entry should be daily after refresh"
 
     def test_chains_strike_format(self):
         """Test strikes are floats (not integers) and properly converted."""

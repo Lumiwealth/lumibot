@@ -8,7 +8,7 @@ import subprocess
 from datetime import date, datetime, timedelta
 
 from lumibot.data_sources import PandasData
-from lumibot.entities import Asset, Data
+from lumibot.entities import Asset, AssetsMapping, Data
 from lumibot.credentials import THETADATA_CONFIG
 from lumibot.tools import thetadata_helper
 
@@ -654,33 +654,21 @@ class ThetaDataBacktestingPandas(PandasData):
                 if (data_start_datetime - start_datetime) < START_BUFFER:
                     return None
 
-            # Always try to get the lowest timestep possible because we can always resample
-            # If day is requested then make sure we at least have data that's less than a day
-            if ts_unit == "day":
-                if data_timestep == "minute":
-                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                    if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
-                    else:
-                        # We don't have enough data, so we need to get more (but in minutes)
-                        ts_unit = "minute"
-                elif data_timestep == "hour":
-                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                    if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
-                    else:
-                        # We don't have enough data, so we need to get more (but in hours)
-                        ts_unit = "hour"
+            # When daily bars are requested we should never "downgrade" to minute/hour requests.
+            # Doing so forces the helper to download massive minute ranges and resample, which is
+            # both slow (multi-minute runs) and introduces price drift vs Polygon/Yahoo.
+            # Instead, rely on the Theta EOD endpoint for official day data. If the cache does not
+            # contain enough coverage we will fetch additional daily bars directly (ts_unit stays "day").
+            if ts_unit == "day" and data_timestep in {"minute", "hour"}:
+                if (data_start_datetime - start_datetime) < START_BUFFER:
+                    return None
 
-            # If hour is requested then make sure we at least have data that's less than an hour
-            if ts_unit == "hour":
-                if data_timestep == "minute":
-                    # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                    if (data_start_datetime - start_datetime) < START_BUFFER:
-                        return None
-                    else:
-                        # We don't have enough data, so we need to get more (but in minutes)
-                        ts_unit = "minute"
+            # Hourly requests can leverage minute data, but should not force fresh minute downloads
+            # unless the cache truly lacks coverage. Keep the existing minute cache instead of lowering
+            # ts_unit for the fetch.
+            if ts_unit == "hour" and data_timestep == "minute":
+                if (data_start_datetime - start_datetime) < START_BUFFER:
+                    return None
 
         # Download data from ThetaData
         # Get ohlc data from ThetaData
@@ -902,6 +890,63 @@ class ThetaDataBacktestingPandas(PandasData):
             final_rows,
         )
         return bars
+
+    def get_yesterday_dividends(self, assets, quote=None):
+        """Fetch Theta dividends via the corporate actions API to guarantee coverage."""
+        if not hasattr(self, "_theta_dividend_cache"):
+            self._theta_dividend_cache = {}
+
+        current_date = self._datetime.date() if hasattr(self._datetime, "date") else self._datetime
+        result = {}
+        for asset in assets:
+            cache = self._theta_dividend_cache.get(asset)
+            if cache is None:
+                cache = {}
+                start_day = getattr(self, "datetime_start", None)
+                end_day = getattr(self, "datetime_end", None)
+                start_date = start_day.date() if hasattr(start_day, "date") else current_date - timedelta(days=365)
+                end_date = end_day.date() if hasattr(end_day, "date") else current_date
+                try:
+                    events = thetadata_helper._get_theta_dividends(asset, start_date, end_date, self._username, self._password)
+                    if events is not None and not events.empty:
+                        for _, row in events.iterrows():
+                            event_dt = row.get("event_date")
+                            amount = row.get("cash_amount", 0)
+                            if pd.notna(event_dt) and amount:
+                                cache[event_dt.date()] = float(amount)
+                        logger.debug(
+                            "[THETA][DIVIDENDS] cached %d entries for %s (%s -> %s)",
+                            len(cache),
+                            getattr(asset, "symbol", asset),
+                            min(cache.keys()),
+                            max(cache.keys()),
+                        )
+                    else:
+                        logger.debug(
+                            "[THETA][DIVIDENDS] no dividend rows returned for %s between %s and %s",
+                            getattr(asset, "symbol", asset),
+                            start_date,
+                            end_date,
+                        )
+                except Exception as exc:
+                    logger.debug(
+                        "[THETA][DEBUG][DIVIDENDS] Failed to load corporate actions for %s: %s",
+                        getattr(asset, "symbol", asset),
+                        exc,
+                    )
+                self._theta_dividend_cache[asset] = cache
+
+            dividend = cache.get(current_date, 0.0)
+            if dividend:
+                logger.info(
+                    "[THETA][DIVIDENDS] %s dividend on %s = %.6f",
+                    getattr(asset, "symbol", asset),
+                    current_date,
+                    dividend,
+                )
+            result[asset] = dividend
+
+        return AssetsMapping(result)
 
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         sample_length = 5

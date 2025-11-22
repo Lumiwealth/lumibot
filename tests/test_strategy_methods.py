@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import logging
 import uuid
 from unittest.mock import patch, MagicMock
 import pytest
@@ -6,6 +7,7 @@ import pytest
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.entities import Asset, Order, Position
+from lumibot.strategies.strategy import Strategy
 from apscheduler.triggers.cron import CronTrigger
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
@@ -24,6 +26,11 @@ class FakeSnapshotSource:
 
 
 class TestStrategyMethods:
+    def _make_strategy_stub(self):
+        strat = Strategy.__new__(Strategy)
+        strat.logger = logging.getLogger(__name__)
+        return strat
+
     def test_get_option_expiration_after_date(self):
         """
         Test the get_option_expiration_after_date method by checking that the correct expiration date is returned
@@ -157,6 +164,51 @@ class TestStrategyMethods:
         # Test that validation fails for None order
         is_valid = strategy._validate_order(None)
         assert is_valid == False
+
+    def test_get_price_from_source_prefers_daily_cache(self):
+        strat = self._make_strategy_stub()
+        strat._should_use_daily_last_price = MagicMock(return_value=True)
+        strat.get_last_price = MagicMock(return_value=123.45)
+
+        dummy_source = MagicMock()
+        base = Asset("SPY", Asset.AssetType.STOCK)
+        quote = Asset("USD", Asset.AssetType.FOREX)
+
+        result = Strategy._get_price_from_source(strat, dummy_source, (base, quote))
+
+        assert result == 123.45
+        strat.get_last_price.assert_called_once_with(base, quote=quote)
+        dummy_source.get_price_snapshot.assert_not_called()
+
+    def test_get_price_from_source_snapshot_fallback(self):
+        strat = self._make_strategy_stub()
+        strat._should_use_daily_last_price = MagicMock(return_value=False)
+        strat.get_last_price = MagicMock(return_value=321)
+        strat._pick_snapshot_price = MagicMock(return_value=42.0)
+
+        dummy_source = MagicMock()
+        dummy_source.get_price_snapshot.return_value = {"fake": "snapshot"}
+
+        asset = Asset("QQQ", Asset.AssetType.STOCK)
+        result = Strategy._get_price_from_source(strat, dummy_source, asset)
+
+        assert result == 42.0
+        strat._pick_snapshot_price.assert_called_once()
+        strat.get_last_price.assert_not_called()
+
+    def test_get_price_from_source_prefers_daily_cache_single_asset(self):
+        strat = self._make_strategy_stub()
+        strat._should_use_daily_last_price = MagicMock(return_value=True)
+        strat.get_last_price = MagicMock(return_value=456.78)
+
+        dummy_source = MagicMock()
+        asset = Asset("SPY", Asset.AssetType.STOCK)
+
+        result = Strategy._get_price_from_source(strat, dummy_source, asset)
+
+        assert result == 456.78
+        strat.get_last_price.assert_called_once_with(asset, quote=None)
+        dummy_source.get_price_snapshot.assert_not_called()
 
     def test_validate_order_with_invalid_order_type(self):
         """

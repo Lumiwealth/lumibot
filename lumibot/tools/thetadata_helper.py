@@ -18,6 +18,7 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
 import requests
+from dateutil import parser as dateutil_parser
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from tqdm import tqdm
@@ -66,7 +67,8 @@ def _coerce_skip_flag(raw: Optional[str], base_url: str) -> bool:
     return False
 
 
-BASE_URL = _normalize_base_url(_downloader_base_env or _theta_fallback_base)
+_DEFAULT_BASE_URL = _normalize_base_url(_downloader_base_env or _theta_fallback_base)
+BASE_URL = _DEFAULT_BASE_URL
 DOWNLOADER_API_KEY = os.environ.get("DATADOWNLOADER_API_KEY")
 DOWNLOADER_KEY_HEADER = os.environ.get("DATADOWNLOADER_API_KEY_HEADER", "X-Downloader-Key")
 REMOTE_DOWNLOADER_ENABLED = _coerce_skip_flag(os.environ.get("DATADOWNLOADER_SKIP_LOCAL_START"), BASE_URL)
@@ -78,6 +80,15 @@ READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
     (READINESS_ENDPOINT, {"format": "json"}),
     ("/v3/option/list/expirations", {"symbol": HEALTHCHECK_SYMBOL, "format": "json"}),
 )
+
+
+def _current_base_url() -> str:
+    """Return the latest downloader base URL, honoring runtime env overrides."""
+    runtime_base = os.environ.get("DATADOWNLOADER_BASE_URL")
+    if runtime_base:
+        return _normalize_base_url(runtime_base)
+    fallback = os.environ.get("THETADATA_BASE_URL", _theta_fallback_base)
+    return _normalize_base_url(fallback)
 READINESS_TIMEOUT = float(os.environ.get("THETADATA_HEALTHCHECK_TIMEOUT", "1.0"))
 CONNECTION_RETRY_SLEEP = 1.0
 CONNECTION_MAX_RETRIES = 120
@@ -378,7 +389,7 @@ def _terminal_http_alive(timeout: float = 0.3) -> bool:
     for endpoint, params in READINESS_PROBES:
         try:
             resp = requests.get(
-                f"{BASE_URL}{endpoint}",
+                f"{_current_base_url()}{endpoint}",
                 headers=request_headers,
                 params=params,
                 timeout=timeout,
@@ -393,7 +404,7 @@ def _terminal_http_alive(timeout: float = 0.3) -> bool:
 def _probe_terminal_ready(timeout: float = READINESS_TIMEOUT) -> bool:
     request_headers = _build_request_headers()
     for endpoint, params in READINESS_PROBES:
-        request_url = f"{BASE_URL}{endpoint}"
+        request_url = f"{_current_base_url()}{endpoint}"
         if params:
             try:
                 request_url = f"{request_url}?{urlencode(params)}"
@@ -481,7 +492,7 @@ def _request_terminal_shutdown() -> bool:
         "/v3/system/terminal/shutdown",  # legacy fallback path
     )
     for path in shutdown_paths:
-        shutdown_url = f"{BASE_URL}{path}"
+        shutdown_url = f"{_current_base_url()}{path}"
         try:
             resp = requests.get(shutdown_url, timeout=1)
         except Exception:
@@ -717,9 +728,18 @@ def _coerce_event_dataframe(json_resp: Optional[Dict[str, Any]]) -> pd.DataFrame
 
 
 def _coerce_event_timestamp(series: pd.Series) -> pd.Series:
-    ts = pd.to_datetime(series, errors="coerce", utc=True)
-    ts = ts.dt.normalize()
-    return ts
+    """Coerce Theta event timestamps (string or numeric) into normalized UTC dates."""
+    if series is None:
+        return pd.Series(dtype="datetime64[ns, UTC]")
+
+    working = series.copy() if isinstance(series, pd.Series) else pd.Series(series)
+    if pd.api.types.is_numeric_dtype(working):
+        # Theta v2 endpoints return YYYYMMDD integers; stringify before parsing so pandas
+        # doesn't treat them as nanosecond offsets from epoch.
+        working = pd.to_numeric(working, errors="coerce").astype("Int64").astype(str)
+
+    ts = pd.to_datetime(working, errors="coerce", utc=True)
+    return ts.dt.normalize()
 
 
 def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
@@ -841,7 +861,7 @@ def _download_corporate_events(
         "pretty_time": "false",
     }
     headers = {"Accept": "application/json"}
-    url = f"{BASE_URL}{endpoint}"
+    url = f"{_current_base_url()}{endpoint}"
 
     try:
         response = get_request(
@@ -2405,7 +2425,10 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     consecutive_disconnects = 0
     restart_budget = 3
     querystring = dict(querystring or {})
-    querystring.setdefault("format", "json")
+    if "format" not in querystring:
+        is_v2_request = "/v2/" in url
+        if not is_v2_request:
+            querystring["format"] = "json"
     session_reset_budget = 5
     session_reset_in_progress = False
     awaiting_session_validation = False
@@ -2661,11 +2684,8 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     Get EOD (End of Day) data from ThetaData using the /v3/.../history/eod endpoints.
 
     This endpoint provides official daily OHLC that includes the 16:00 closing auction
-    and follows SIP sale-condition rules, matching Polygon and Yahoo Finance exactly.
-
-    NOTE: ThetaData's EOD endpoint has been found to return incorrect open prices for stocks
-    that don't match Polygon/Yahoo. We fix this by using the first minute bar's open price.
-    Indexes don't have this issue since they are calculated values.
+    and follows SIP sale-condition rules. Theta's SIP-defined "official" open can differ
+    from data vendors that use the first 09:30 trade rather than the auction print.
 
     Parameters
     ----------
@@ -2696,7 +2716,7 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     if endpoint is None:
         raise ValueError(f"Unsupported asset_type '{asset_type}' for ThetaData EOD history")
 
-    url = f"{BASE_URL}{endpoint}"
+    url = f"{_current_base_url()}{endpoint}"
 
     base_query = {
         "symbol": asset.symbol,
@@ -2884,12 +2904,51 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
         return df
 
     def combine_datetime(row):
-        created_value = row.get("created") or row.get("last_trade")
-        if not created_value:
-            raise KeyError("ThetaData EOD response missing 'created' timestamp")
-        dt_value = pd.to_datetime(created_value, utc=True, errors="coerce")
-        if pd.isna(dt_value):
-            raise KeyError("ThetaData EOD response provided invalid 'created' timestamp")
+        try:
+            row_dict = row.to_dict()
+        except Exception:
+            row_dict = dict(row)
+        if isinstance(row_dict.get("response"), dict):
+            row_dict = row_dict["response"]
+        elif isinstance(row_dict.get("response"), list) and row_dict["response"]:
+            first = row_dict["response"][0]
+            if isinstance(first, dict):
+                row_dict = first
+
+        def _coerce_timestamp(value: Any) -> Optional[pd.Timestamp]:
+            if value is None or value == "":
+                return None
+            ts = pd.to_datetime(value, utc=True, errors="coerce")
+            if ts is not None and not pd.isna(ts):
+                return ts
+            # Try parsing without forcing UTC, then localize if needed.
+            ts = pd.to_datetime(value, errors="coerce")
+            if ts is None or pd.isna(ts):
+                try:
+                    parsed = dateutil_parser.parse(str(value))
+                except Exception:
+                    return None
+                if parsed.tzinfo is None:
+                    parsed = pytz.UTC.localize(parsed)
+                else:
+                    parsed = parsed.astimezone(pytz.UTC)
+                return pd.Timestamp(parsed)
+            if getattr(ts, "tzinfo", None) is None:
+                ts = ts.tz_localize("UTC")
+            else:
+                ts = ts.tz_convert("UTC")
+            return ts
+
+        created_value = row_dict.get("created") or row_dict.get("last_trade") or row_dict.get("timestamp")
+        dt_value = _coerce_timestamp(created_value)
+
+        if dt_value is None or pd.isna(dt_value):
+            fallback_date = row_dict.get("date") or row_dict.get("trade_date")
+            dt_value = _coerce_timestamp(fallback_date)
+
+        if dt_value is None or pd.isna(dt_value):
+            logger.error("[THETA][ERROR][EOD][TIMESTAMP] missing fields row=%s", row_dict)
+            raise KeyError("ThetaData EOD response missing timestamp fields")
         base_date = datetime(dt_value.year, dt_value.month, dt_value.day)
         # EOD reports represent the trading day; use midnight of that day for indexing.
         return base_date
@@ -2946,7 +3005,7 @@ def get_historical_data(
         raise ValueError(f"Unsupported ThetaData history request ({asset_type}, {datastyle})")
 
     interval_label = _interval_label_from_ms(ivl)
-    url = f"{BASE_URL}{endpoint}"
+    url = f"{_current_base_url()}{endpoint}"
     headers = {"Accept": "application/json"}
 
     start_is_date_only = isinstance(start_dt, date) and not isinstance(start_dt, datetime)
@@ -3136,7 +3195,7 @@ def build_historical_chain(
 
     headers = {"Accept": "application/json"}
     expirations_resp = get_request(
-        url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['expirations']}",
+        url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
         headers=headers,
         querystring={"symbol": asset.symbol},
         username=username,
@@ -3222,7 +3281,7 @@ def build_historical_chain(
             "format": "json",
         }
         resp = get_request(
-            url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['dates_quote']}",
+            url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['dates_quote']}",
             headers=headers,
             querystring=querystring,
             username=username,
@@ -3263,7 +3322,7 @@ def build_historical_chain(
             hint_reached = True
 
         strike_resp = get_request(
-            url=f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}",
+            url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
             querystring={
                 "symbol": asset.symbol,
@@ -3380,7 +3439,7 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
         after_date,
     )
 
-    url = f"{BASE_URL}{OPTION_LIST_ENDPOINTS['expirations']}"
+    url = f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}"
     querystring = {"symbol": ticker}
     headers = {"Accept": "application/json"}
     json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
@@ -3423,7 +3482,7 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     list[float]
         A list of strike prices for the given ticker and expiration date
     """
-    url = f"{BASE_URL}{OPTION_LIST_ENDPOINTS['strikes']}"
+    url = f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['strikes']}"
 
     expiration_iso = expiration.strftime("%Y-%m-%d")
     querystring = {"symbol": ticker, "expiration": expiration_iso, "format": "json"}

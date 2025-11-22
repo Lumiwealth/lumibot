@@ -808,6 +808,24 @@ class _Strategy:
         if source is None:
             return None
 
+        quote_for_daily = None
+        base_asset = asset
+        if isinstance(asset, tuple) and len(asset) > 0:
+            base_asset = asset[0]
+            if len(asset) > 1:
+                quote_for_daily = asset[1]
+
+        if isinstance(base_asset, Asset) and self._should_use_daily_last_price(base_asset):
+            try:
+                return self.get_last_price(base_asset, quote=quote_for_daily)
+            except Exception:
+                self.logger.debug(
+                    "Daily-price shortcut failed for %s/%s; falling back to snapshot.",
+                    base_asset,
+                    getattr(quote_for_daily, "symbol", quote_for_daily),
+                    exc_info=True,
+                )
+
         snapshot_price = None
         if hasattr(source, "get_price_snapshot"):
             try:
@@ -979,7 +997,6 @@ class _Strategy:
             for position in positions:
                 if position.asset != self._quote_asset and position.asset.asset_type != "option":
                     assets.append(position.asset)
-
             # Early return if no assets - avoid expensive dividend API calls
             if not assets:
                 return self.cash
@@ -994,6 +1011,15 @@ class _Strategy:
                 if cash is None:
                     cash = 0
                 cash += dividend_per_share * float(quantity)
+                if dividend_per_share:
+                    run_dt = self.get_datetime() if callable(getattr(self, "get_datetime", None)) else None
+                    self.logger.info(
+                        "[DIVIDEND] Credited %.4f per share for %s (qty=%s) on %s",
+                        dividend_per_share,
+                        asset,
+                        quantity,
+                        run_dt.date() if run_dt else "unknown",
+                    )
                 self._set_cash_position(cash)
             return self.cash
 

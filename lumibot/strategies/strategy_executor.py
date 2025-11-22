@@ -1374,6 +1374,9 @@ class StrategyExecutor(Thread):
             if self.broker.IS_BACKTESTING_BROKER and self.broker.datetime > self.broker.data_source.datetime_end:
                 break
 
+            if not self._is_pandas_daily_data_source():
+                self.strategy._update_cash_with_dividends()
+
             self._on_trading_iteration()
 
             if self.broker.IS_BACKTESTING_BROKER:

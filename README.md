@@ -7,6 +7,9 @@ Lumibot is a backtesting and trading library for stocks, options, crypto, future
 
 **IMPORTANT: This library requires data for backtesting. Our recommended data source is [ThetaData](https://www.thetadata.net/) because they provide the deepest historical coverage we’ve found and directly support BotSpot. Use the promo code `BotSpot10` at checkout for 10% off the first order (the code also tells ThetaData you were referred by us).**
 
+> **Contributor note:** Read `AGENTS.md` before running anything Theta-related. That file spells out the hard rules—never launch ThetaTerminal or the shared downloader locally, always point LumiBot at the AWS-hosted downloader, and wrap all long
+> commands with `/Users/robertgrzesik/bin/safe-timeout`. Breaking these rules kills the only licensed Theta session.
+
 ## Documentation - 👇 Start Here 👇
 
 To get started with Lumibot, you can check out our documentation below.

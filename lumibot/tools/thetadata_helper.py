@@ -2,6 +2,7 @@
 import os
 import hashlib
 import json
+import random
 import re
 import signal
 import time
@@ -104,6 +105,9 @@ MAX_PARALLEL_CHUNKS = int(os.environ.get("THETADATA_MAX_PARALLEL_CHUNKS", "8"))
 THETADATA_CONCURRENCY_BUDGET = max(1, int(os.environ.get("THETADATA_CONCURRENCY_BUDGET", "8")))
 THETADATA_CONCURRENCY_WAIT_LOG_THRESHOLD = float(os.environ.get("THETADATA_CONCURRENCY_WAIT_THRESHOLD", "0.5"))
 THETA_REQUEST_SEMAPHORE = threading.BoundedSemaphore(THETADATA_CONCURRENCY_BUDGET)
+QUEUE_FULL_BACKOFF_BASE = float(os.environ.get("THETADATA_QUEUE_FULL_BACKOFF_BASE", "1.0"))
+QUEUE_FULL_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_FULL_BACKOFF_MAX", "30.0"))
+QUEUE_FULL_BACKOFF_JITTER = float(os.environ.get("THETADATA_QUEUE_FULL_BACKOFF_JITTER", "0.5"))
 
 # Mapping between milliseconds and ThetaData interval labels
 INTERVAL_MS_TO_LABEL = {
@@ -2369,15 +2373,18 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
     CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
 
     if REMOTE_DOWNLOADER_ENABLED:
-        retries = 0
-        if not wait_for_connection and _probe_terminal_ready():
-            return None, True
-        while retries < CONNECTION_MAX_RETRIES:
-            if _probe_terminal_ready():
-                return None, True
-            retries += 1
-            time.sleep(CONNECTION_RETRY_SLEEP)
-        raise ThetaDataConnectionError("Remote Theta downloader did not become ready in time.")
+        if wait_for_connection:
+            for attempt in range(3):
+                if _probe_terminal_ready():
+                    return None, True
+                logger.debug(
+                    "Remote downloader readiness probe attempt %d failed; retrying in %.1fs",
+                    attempt + 1,
+                    CONNECTION_RETRY_SLEEP,
+                )
+                time.sleep(CONNECTION_RETRY_SLEEP)
+            logger.warning("Proceeding despite remote downloader readiness probe failures.")
+        return None, True
 
     def ensure_process(force_restart: bool = False):
         alive = is_process_alive()
@@ -2435,6 +2442,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     http_retry_limit = HTTP_RETRY_LIMIT
     last_status_code: Optional[int] = None
     last_failure_detail: Optional[str] = None
+    queue_full_attempts = 0
+    queue_full_wait_total = 0.0
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -2463,11 +2472,12 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 label = "remote" if REMOTE_DOWNLOADER_ENABLED else "local"
                 slot_label = f"{label}:{request_url.split('?')[0]}"
                 with _acquire_theta_slot(slot_label):
+                    request_timeout = None if REMOTE_DOWNLOADER_ENABLED else 30
                     response = requests.get(
                         request_url,
                         headers=request_headers,
                         params=request_params,
-                        timeout=30,
+                        timeout=request_timeout,
                     )
                 status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None
@@ -2565,6 +2575,33 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     raise RuntimeError(
                         f"ThetaData request rejected with status {status_code}: {response.text.strip()[:500]}"
                     )
+                elif status_code == 503 and REMOTE_DOWNLOADER_ENABLED:
+                    payload = {}
+                    try:
+                        payload = response.json()
+                    except ValueError:
+                        payload = {}
+                    if isinstance(payload, dict) and payload.get("error") == "queue_full":
+                        active = payload.get("active")
+                        waiting = payload.get("waiting")
+                        queue_delay = min(
+                            QUEUE_FULL_BACKOFF_MAX,
+                            max(QUEUE_FULL_BACKOFF_BASE, 0.1) * (2 ** min(queue_full_attempts, 6)),
+                        )
+                        queue_delay += random.uniform(0, max(QUEUE_FULL_BACKOFF_JITTER, 0.0))
+                        queue_full_attempts += 1
+                        queue_full_wait_total += queue_delay
+                        logger.warning(
+                            "Remote Theta downloader queue full (active=%s waiting=%s). "
+                            "Sleeping %.2fs before retry (total_wait=%.2fs attempt=%d).",
+                            active,
+                            waiting,
+                            queue_delay,
+                            queue_full_wait_total,
+                            queue_full_attempts,
+                        )
+                        time.sleep(queue_delay)
+                        continue
                 # If status code is not 200, then we are not connected
                 elif status_code != 200:
                     logged_params = request_params if request_params is not None else querystring
@@ -2596,6 +2633,8 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     json_resp = _coerce_json_payload(json_payload)
                     session_reset_in_progress = False
                     consecutive_disconnects = 0
+                    queue_full_attempts = 0
+                    queue_full_wait_total = 0.0
 
                     # DEBUG-LOG: API response - success
                     response_rows = len(json_resp.get("response", [])) if isinstance(json_resp.get("response"), list) else 0

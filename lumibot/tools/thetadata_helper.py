@@ -2482,12 +2482,15 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 label = "remote" if REMOTE_DOWNLOADER_ENABLED else "local"
                 slot_label = f"{label}:{request_url.split('?')[0]}"
                 with _acquire_theta_slot(slot_label):
-                    request_timeout = None if REMOTE_DOWNLOADER_ENABLED else 30
+                    # Do NOT enforce a per-request timeout here. The remote downloader queues requests and may
+                    # legitimately take longer than 30s; forcing a timeout pushes the request to the back of the
+                    # queue and can lead to infinite retries under load. Timeouts belong in the downloader, not
+                    # in LumiBot’s client calls.
                     response = requests.get(
                         request_url,
                         headers=request_headers,
                         params=request_params,
-                        timeout=request_timeout,
+                        timeout=None,
                     )
                 status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None

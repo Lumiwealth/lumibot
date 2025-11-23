@@ -224,6 +224,17 @@ class PandasData(DataSourceBacktesting):
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
+        # If the asset is not yet cached, try a quick fetch using the current timestep
+        # so daily-cadence strategies do not trigger minute downloads by default.
+        if tuple_to_find not in self._data_store:
+            try:
+                target_ts = self._timestep or self.MIN_TIMESTEP
+                # Fetch a single bar to seed the cache
+                self.get_historical_prices(asset, length=1, timestep=target_ts, quote=quote, exchange=exchange)
+            except Exception:
+                pass
+            tuple_to_find = self.find_asset_in_data_store(asset, quote)
+
         if tuple_to_find in self._data_store:
             data = self._data_store[tuple_to_find]
             try:

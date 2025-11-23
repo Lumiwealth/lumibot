@@ -29,10 +29,15 @@ class ThetaDataBacktestingPandas(PandasData):
     Backtesting implementation of ThetaData
     """
 
+    # Allow both minute and day; broker decides cadence based on strategy sleeptime.
+    MIN_TIMESTEP = "minute"
+    # Allow the broker to switch to day-level fills for daily-cadence strategies
+    ALLOW_DAILY_TIMESTEP = True
+
     IS_BACKTESTING_BROKER = True
 
-    # Enable fallback to last_price when bid/ask quotes are unavailable for options
-    option_quote_fallback_allowed = True
+    # Do not fall back to last_price when bid/ask quotes are unavailable for options
+    option_quote_fallback_allowed = False
 
     def __init__(
         self,
@@ -47,6 +52,9 @@ class ThetaDataBacktestingPandas(PandasData):
         # Pass allow_option_quote_fallback to parent to enable fallback mechanism
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
                          allow_option_quote_fallback=True, **kwargs)
+
+        # Default to minute; broker can flip to day for daily strategies.
+        self._timestep = self.MIN_TIMESTEP
 
         if username is None:
             username = THETADATA_CONFIG.get("THETADATA_USERNAME")
@@ -469,7 +477,8 @@ class ThetaDataBacktestingPandas(PandasData):
         requested_start = self._normalize_default_timezone(start_datetime)
         start_threshold = requested_start + START_BUFFER if requested_start is not None else None
         current_dt = self.get_datetime()
-        end_requirement = self.datetime_end if ts_unit == "day" else current_dt
+        # Limit fetch to the simulated clock to avoid downloading the entire backtest range at once.
+        end_requirement = current_dt if ts_unit == "day" else current_dt
         end_requirement = self._normalize_default_timezone(end_requirement)
         expiration_dt = self._option_expiration_end(asset_separated)
         if expiration_dt is not None and end_requirement is not None and expiration_dt < end_requirement:
@@ -727,14 +736,14 @@ class ThetaDataBacktestingPandas(PandasData):
             length,
             timestep,
             start_datetime,
-            self.datetime_end,
+            end_requirement,
         )
         df_ohlc = thetadata_helper.get_price_data(
             self._username,
             self._password,
             asset_separated,
             start_datetime,
-            self.datetime_end,
+            end_requirement,
             timespan=ts_unit,
             quote_asset=quote_asset,
             dt=date_time_now,
@@ -980,6 +989,15 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
+        # Align implicit requests to the current cadence: if the data source is operating on day bars,
+        # avoid fallback to minute unless explicitly requested.
+        if timestep is None and getattr(self, "_timestep", None) == "day":
+            timestep = "day"
+        elif timestep == "minute" and getattr(self, "_timestep", None) == "day":
+            # Debug guard to trace unexpected minute requests during daily cadence.
+            import traceback
+            logger.warning("[THETA][DEBUG] Minute timestep requested while source is in day mode for %s; length=%s timeshift=%s", asset, length, timeshift)
+            logger.debug("Caller stack:\n%s", "".join(traceback.format_stack(limit=8)))
         dt = self.get_datetime()
         requested_length = self.estimate_requested_length(length, timestep=timestep)
         logger.debug(

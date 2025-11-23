@@ -195,10 +195,6 @@ class Data:
         )
         self.datetime_start = self.df.index[0]
         self.datetime_end = self.df.index[-1]
-        # Track the earliest datetime requested by the data source even if real bars begin later.
-        self.requested_datetime_start = self.datetime_start
-        # Avoid log spam when callers probe before the first real bar.
-        self._prehistory_notice_emitted = False
 
     def set_times(self, trading_hours_start, trading_hours_end):
         """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
@@ -399,29 +395,11 @@ class Data:
 
             dt = args[0]
 
-            requested_start = getattr(self, "requested_datetime_start", self.datetime_start)
-            effective_floor = requested_start or self.datetime_start
-            if dt < effective_floor:
-                if not getattr(self, "_requested_floor_notice_emitted", False):
-                    logger.debug(
-                        "Requested datetime %s for %s predates requested floor %s; returning None",
-                        dt,
-                        self.asset,
-                        effective_floor,
-                    )
-                    self._requested_floor_notice_emitted = True
-                return None
+            # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start:
-                # Requested datetime predates the first real bar but is still within the cached placeholder range.
-                if not getattr(self, "_prehistory_notice_emitted", False):
-                    logger.debug(
-                        "No real bars yet for %s (requested %s; first real bar %s); returning None",
-                        self.asset,
-                        dt,
-                        self.datetime_start,
-                    )
-                    self._prehistory_notice_emitted = True
-                return None
+                raise ValueError(
+                    f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
+                )
 
             # Search for dt in self.iter_index_dict
             if getattr(self, "iter_index_dict", None) is None:
@@ -446,12 +424,10 @@ class Data:
             data_index = i + 1 - length - timeshift
             is_data = data_index >= 0
             if not is_data:
-                if not getattr(self, "_insufficient_history_notice_emitted", False):
-                    logger.warning(
-                        f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
-                    )
-                    self._insufficient_history_notice_emitted = True
-                return None
+                # Log a warning
+                logger.warning(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
+                )
 
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")

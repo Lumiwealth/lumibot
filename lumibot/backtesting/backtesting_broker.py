@@ -1474,8 +1474,9 @@ class BacktestingBroker(Broker):
             elif self.data_source.SOURCE == "PANDAS":
                 # Decide whether this strategy/asset pair should rely on daily bars (Theta EOD)
                 timestep = getattr(self.data_source, "_timestep", None) or self.data_source.get_timestep()
-                timeshift_value = -2
-                length_value = 2
+                # Default minute cadence: use the latest completed bar with no offset.
+                timeshift_value = -1
+                length_value = 1
                 base_asset = order.asset
                 if isinstance(base_asset, tuple) and len(base_asset) > 0:
                     base_asset = base_asset[0]
@@ -1503,6 +1504,7 @@ class BacktestingBroker(Broker):
                     if use_daily:
                         timestep = "day"
                         timeshift_value = -2  # Interpret as two daily bars
+                        length_value = 2
 
                 # If we already know the first real bar for this asset/timestep, skip valuation until then
                 coverage_start = None

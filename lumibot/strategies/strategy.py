@@ -2076,11 +2076,16 @@ class Strategy(_Strategy):
         else:
             quote_asset = quote
 
-        heuristic_price = self._maybe_use_daily_last_price(asset, quote_asset, exchange)
-        if heuristic_price is not None:
-            return heuristic_price
-
         try:
+            # For daily-cadence backtests, prefer day bars to avoid exploding minute fetches.
+            if (IS_BACKTESTING or getattr(self.broker, "IS_BACKTESTING_BROKER", False)) and self._should_use_daily_last_price(asset):
+                try:
+                    bars = self.get_historical_prices(asset, length=2, timestep="day", timeshift=-1, quote=quote_asset, exchange=exchange)
+                    if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
+                        return float(bars.df["close"].iloc[-1])
+                except Exception:
+                    # Fall through to the default path on any failure.
+                    pass
             return self.broker.get_last_price(
                 asset,
                 quote=quote_asset,
@@ -2092,87 +2097,17 @@ class Strategy(_Strategy):
             self.log_message(f"{e}")
             return None
 
-    def _maybe_use_daily_last_price(self, asset: Asset, quote_asset: Optional[Asset], exchange: Optional[str]):
-        """Return a cached daily close when the strategy cadence is daily."""
-        if not self._should_use_daily_last_price(asset):
-            return None
-
-        current_dt = None
-        try:
-            current_dt = self.get_datetime()
-        except Exception:
-            return None
-
-        if current_dt is None:
-            return None
-
-        cache_key = self._build_daily_last_price_cache_key(asset, quote_asset, exchange)
-        if cache_key is None:
-            return None
-
-        session = current_dt.date()
-        cache = getattr(self, "_daily_last_price_cache", None)
-        if cache is None:
-            cache = {}
-            self._daily_last_price_cache = cache
-        else:
-            cached_entry = cache.get(cache_key)
-            if cached_entry and cached_entry["session"] == session:
-                return cached_entry["price"]
-
-        bars = None
-        try:
-            bars = self.get_historical_prices(
-                asset,
-                1,
-                "day",
-                quote=quote_asset,
-                exchange=exchange,
-                include_after_hours=False,
-            )
-        except Exception as exc:
-            self.logger.debug("Daily last price lookup failed for %s: %s", asset, exc)
-            return None
-
-        df = getattr(bars, "df", None) if bars is not None else None
-        if df is None or df.empty:
-            return None
-
-        close_col = next((name for name in ("close", "adj_close", "price") if name in df.columns), None)
-        if close_col is None:
-            return None
-
-        close_value = df[close_col].iloc[-1]
-        if close_value is None or pd.isna(close_value):
-            return None
-
-        price = float(close_value)
-        cache[cache_key] = {"session": session, "price": price}
-        return price
-
-    def _build_daily_last_price_cache_key(self, asset: Asset, quote_asset: Optional[Asset], exchange: Optional[str]):
-        if asset is None:
-            return None
-        asset_symbol = getattr(asset, "symbol", None)
-        asset_type = getattr(asset, "asset_type", None)
-        quote_symbol = getattr(quote_asset, "symbol", None) if quote_asset else None
-        exchange_key = exchange or getattr(asset, "exchange", None)
-        return (asset_type, asset_symbol, quote_symbol, exchange_key)
-
     def _should_use_daily_last_price(self, asset: Asset) -> bool:
         if asset is None:
             return False
         asset_type = str(getattr(asset, "asset_type", "")).lower()
         if asset_type not in {"stock", "equity", "index"}:
             return False
-
         if not (IS_BACKTESTING or getattr(self.broker, "IS_BACKTESTING_BROKER", False)):
             return False
-
         cadence_seconds = self._get_sleeptime_seconds()
         if cadence_seconds is None:
             return False
-        # Treat >= 20 hours as a daily cadence so we can reuse EOD data
         return cadence_seconds >= 20 * 3600
 
     def _get_sleeptime_seconds(self) -> Optional[float]:

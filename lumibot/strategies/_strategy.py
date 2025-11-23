@@ -808,28 +808,21 @@ class _Strategy:
         if source is None:
             return None
 
-        quote_for_daily = None
-        base_asset = asset
-        if isinstance(asset, tuple) and len(asset) > 0:
-            base_asset = asset[0]
-            if len(asset) > 1:
-                quote_for_daily = asset[1]
-
-        if isinstance(base_asset, Asset) and self._should_use_daily_last_price(base_asset):
-            try:
-                return self.get_last_price(base_asset, quote=quote_for_daily)
-            except Exception:
-                self.logger.debug(
-                    "Daily-price shortcut failed for %s/%s; falling back to snapshot.",
-                    base_asset,
-                    getattr(quote_for_daily, "symbol", quote_for_daily),
-                    exc_info=True,
-                )
-
         snapshot_price = None
+        timestep_hint = None
+        # Determine if this strategy is effectively daily cadence.
+        try:
+            cadence_seconds = self._get_sleeptime_seconds()
+            if cadence_seconds is not None and cadence_seconds >= 20 * 3600:
+                timestep_hint = "day"
+        except Exception:
+            timestep_hint = None
         if hasattr(source, "get_price_snapshot"):
             try:
-                snapshot = source.get_price_snapshot(asset)
+                if timestep_hint:
+                    snapshot = source.get_price_snapshot(asset, timestep=timestep_hint)
+                else:
+                    snapshot = source.get_price_snapshot(asset)
             except Exception:
                 self.logger.exception(
                     "Error retrieving price snapshot for %s from %s; falling back to last trade.",
@@ -997,6 +990,7 @@ class _Strategy:
             for position in positions:
                 if position.asset != self._quote_asset and position.asset.asset_type != "option":
                     assets.append(position.asset)
+
             # Early return if no assets - avoid expensive dividend API calls
             if not assets:
                 return self.cash
@@ -1011,15 +1005,6 @@ class _Strategy:
                 if cash is None:
                     cash = 0
                 cash += dividend_per_share * float(quantity)
-                if dividend_per_share:
-                    run_dt = self.get_datetime() if callable(getattr(self, "get_datetime", None)) else None
-                    self.logger.info(
-                        "[DIVIDEND] Credited %.4f per share for %s (qty=%s) on %s",
-                        dividend_per_share,
-                        asset,
-                        quantity,
-                        run_dt.date() if run_dt else "unknown",
-                    )
                 self._set_cash_position(cash)
             return self.cash
 
@@ -1207,10 +1192,6 @@ class _Strategy:
         tearsheet_file=None,
         show_tearsheet=True,
     ):
-        skip_env = os.environ.get("LUMIBOT_SKIP_TEARSHEET") or os.environ.get("LUMIBOT_FAST_BACKTEST")
-        if skip_env and str(skip_env).strip().lower() in {"1", "true", "yes", "on"}:
-            self.logger.info("Skipping tearsheet generation because LUMIBOT_SKIP_TEARSHEET/LUMIBOT_FAST_BACKTEST is set.")
-            return None
         if not save_tearsheet and not show_tearsheet:
             return None
 

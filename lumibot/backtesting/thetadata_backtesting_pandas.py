@@ -108,6 +108,13 @@ class ThetaDataBacktestingPandas(PandasData):
                 dt_value = dt_value.replace(tzinfo=self.tzinfo)
         return self.to_default_timezone(dt_value)
 
+    def _build_dataset_keys(self, asset: Asset, quote: Optional[Asset], ts_unit: str) -> tuple[tuple, tuple]:
+        """Return canonical (asset, quote, timestep) and legacy (asset, quote) cache keys."""
+        quote_asset = quote if quote is not None else Asset("USD", "forex")
+        canonical_key = (asset, quote_asset, ts_unit)
+        legacy_key = (asset, quote_asset)
+        return canonical_key, legacy_key
+
     def _option_expiration_end(self, asset: Asset) -> Optional[datetime]:
         """Return expiration datetime localized to default timezone, if applicable."""
         if getattr(asset, "asset_type", None) != Asset.AssetType.OPTION or asset.expiration is None:
@@ -119,7 +126,20 @@ class ThetaDataBacktestingPandas(PandasData):
             expiration_dt = expiration_dt.replace(tzinfo=self.tzinfo)
         return self.to_default_timezone(expiration_dt)
 
-    def _record_metadata(self, key, frame: pd.DataFrame, ts_unit: str, asset: Asset, has_quotes: bool = False) -> None:
+    def _record_metadata(
+        self,
+        key,
+        frame: pd.DataFrame,
+        ts_unit: str,
+        asset: Asset,
+        has_quotes: bool = False,
+        start_override: Optional[datetime] = None,
+        end_override: Optional[datetime] = None,
+        rows_override: Optional[int] = None,
+        data_start_override: Optional[datetime] = None,
+        data_end_override: Optional[datetime] = None,
+        data_rows_override: Optional[int] = None,
+    ) -> None:
         """Persist dataset coverage details for reuse checks."""
         previous_meta = self._dataset_metadata.get(key, {})
 
@@ -145,12 +165,21 @@ class ThetaDataBacktestingPandas(PandasData):
 
         normalized_start = self._normalize_default_timezone(start)
         normalized_end = self._normalize_default_timezone(end)
+        override_start = self._normalize_default_timezone(start_override)
+        override_end = self._normalize_default_timezone(end_override)
+        effective_rows = rows_override if rows_override is not None else rows
+        normalized_data_start = self._normalize_default_timezone(data_start_override) or normalized_start
+        normalized_data_end = self._normalize_default_timezone(data_end_override) or normalized_end
+        effective_data_rows = data_rows_override if data_rows_override is not None else rows
 
         metadata: Dict[str, object] = {
             "timestep": ts_unit,
-            "start": normalized_start,
-            "end": normalized_end,
-            "rows": rows,
+            "data_start": normalized_data_start,
+            "data_end": normalized_data_end,
+            "data_rows": effective_data_rows,
+            "start": override_start or normalized_start,
+            "end": override_end or normalized_end,
+            "rows": effective_rows,
         }
         metadata["empty_fetch"] = frame is None or frame.empty
         metadata["has_quotes"] = bool(has_quotes)
@@ -419,14 +448,11 @@ class ThetaDataBacktestingPandas(PandasData):
             logger.info(f"\n[DEBUG STRIKE 157] _update_pandas_data called for asset: {asset}")
             logger.info(f"[DEBUG STRIKE 157] Traceback:\n{''.join(traceback.format_stack())}")
 
-        search_asset = asset
         asset_separated = asset
         quote_asset = quote if quote is not None else Asset("USD", "forex")
 
-        if isinstance(search_asset, tuple):
-            asset_separated, quote_asset = search_asset
-        else:
-            search_asset = (search_asset, quote_asset)
+        if isinstance(asset_separated, tuple):
+            asset_separated, quote_asset = asset_separated
 
         if asset_separated.asset_type == "option":
             expiry = asset_separated.expiration
@@ -449,11 +475,32 @@ class ThetaDataBacktestingPandas(PandasData):
         if expiration_dt is not None and end_requirement is not None and expiration_dt < end_requirement:
             end_requirement = expiration_dt
 
-        existing_data = self.pandas_data.get(search_asset)
-        if existing_data is not None and search_asset not in self._dataset_metadata:
-            has_quotes = self._frame_has_quote_columns(existing_data.df)
-            self._record_metadata(search_asset, existing_data.df, existing_data.timestep, asset_separated, has_quotes=has_quotes)
-        existing_meta = self._dataset_metadata.get(search_asset)
+        canonical_key, legacy_key = self._build_dataset_keys(asset_separated, quote_asset, ts_unit)
+        dataset_key = canonical_key
+        cached_data = None
+        for lookup_key in (canonical_key, legacy_key):
+            candidate = self.pandas_data.get(lookup_key)
+            if candidate is not None:
+                cached_data = candidate
+                dataset_key = lookup_key
+                break
+
+        if cached_data is not None and canonical_key not in self.pandas_data:
+            self.pandas_data[canonical_key] = cached_data
+            self._data_store[canonical_key] = cached_data
+
+        existing_meta = self._dataset_metadata.get(canonical_key)
+        if existing_meta is None and legacy_key in self._dataset_metadata:
+            existing_meta = self._dataset_metadata[legacy_key]
+            if existing_meta is not None:
+                self._dataset_metadata[canonical_key] = existing_meta
+
+        if cached_data is not None and existing_meta is None:
+            has_quotes = self._frame_has_quote_columns(cached_data.df)
+            self._record_metadata(canonical_key, cached_data.df, cached_data.timestep, asset_separated, has_quotes=has_quotes)
+            existing_meta = self._dataset_metadata.get(canonical_key)
+
+        existing_data = cached_data
         existing_has_quotes = bool(existing_meta.get("has_quotes")) if existing_meta else False
 
         if existing_data is not None and existing_meta and existing_meta.get("timestep") == ts_unit:
@@ -640,13 +687,12 @@ class ThetaDataBacktestingPandas(PandasData):
             )
 
         # Check if we have data for this asset
-        if search_asset in self.pandas_data:
-            asset_data = self.pandas_data[search_asset]
-            asset_data_df = asset_data.df
+        if existing_data is not None:
+            asset_data_df = existing_data.df
             data_start_datetime = asset_data_df.index[0]
 
             # Get the timestep of the data
-            data_timestep = asset_data.timestep
+            data_timestep = existing_data.timestep
 
             # If the timestep is the same, we don't need to update the data
             if data_timestep == ts_unit:
@@ -657,11 +703,12 @@ class ThetaDataBacktestingPandas(PandasData):
             # When daily bars are requested we should never "downgrade" to minute/hour requests.
             # Doing so forces the helper to download massive minute ranges and resample, which is
             # both slow (multi-minute runs) and introduces price drift vs Polygon/Yahoo.
-            # Instead, rely on the Theta EOD endpoint for official day data. If the cache does not
-            # contain enough coverage we will fetch additional daily bars directly (ts_unit stays "day").
+            # Instead, rely on the Theta EOD endpoint for official day data, even if minute data is already cached.
             if ts_unit == "day" and data_timestep in {"minute", "hour"}:
-                if (data_start_datetime - start_datetime) < START_BUFFER:
-                    return None
+                logger.debug(
+                    "[THETA][DEBUG][THETADATA-PANDAS] day bars requested while cache holds %s data; forcing EOD fetch",
+                    data_timestep,
+                )
 
             # Hourly requests can leverage minute data, but should not force fresh minute downloads
             # unless the cache truly lacks coverage. Keep the existing minute cache instead of lowering
@@ -692,7 +739,8 @@ class ThetaDataBacktestingPandas(PandasData):
             quote_asset=quote_asset,
             dt=date_time_now,
             datastyle="ohlc",
-            include_after_hours=True  # Default to True for extended hours data
+            include_after_hours=True,  # Default to True for extended hours data
+            preserve_full_history=True,
         )
 
         if df_ohlc is None or df_ohlc.empty:
@@ -720,10 +768,15 @@ class ThetaDataBacktestingPandas(PandasData):
                 placeholder_data = Data(asset_separated, cache_df, timestep=ts_unit, quote=quote_asset)
                 placeholder_update = self._set_pandas_data_keys([placeholder_data])
                 if placeholder_update:
-                    self.pandas_data.update(placeholder_update)
-                    self._data_store.update(placeholder_update)
+                    enriched_update: Dict[tuple, Data] = {}
+                    for key, data_obj in placeholder_update.items():
+                        enriched_update[key] = data_obj
+                        if isinstance(key, tuple) and len(key) == 2:
+                            enriched_update[(key[0], key[1], data_obj.timestep)] = data_obj
+                    self.pandas_data.update(enriched_update)
+                    self._data_store.update(enriched_update)
                     has_quotes = self._frame_has_quote_columns(placeholder_data.df)
-                    self._record_metadata(search_asset, placeholder_data.df, ts_unit, asset_separated, has_quotes=has_quotes)
+                    self._record_metadata(canonical_key, placeholder_data.df, ts_unit, asset_separated, has_quotes=has_quotes)
                     logger.debug(
                         "[THETA][DEBUG][THETADATA-PANDAS] refreshed metadata from cache for %s/%s (%s) after empty fetch.",
                         asset_separated,
@@ -750,7 +803,8 @@ class ThetaDataBacktestingPandas(PandasData):
                     quote_asset=quote_asset,
                     dt=date_time_now,
                     datastyle="quote",
-                    include_after_hours=True  # Default to True for extended hours data
+                    include_after_hours=True,  # Default to True for extended hours data
+                    preserve_full_history=True,
                 )
             except Exception as exc:
                 logger.exception(
@@ -796,13 +850,111 @@ class ThetaDataBacktestingPandas(PandasData):
         if df is None or df.empty:
             return None
 
-        data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
+        merged_df = df
+        if isinstance(merged_df, pd.DataFrame) and "datetime" in merged_df.columns:
+            merged_df = merged_df.set_index("datetime")
+        if (
+            existing_data is not None
+            and existing_data.timestep == ts_unit
+            and existing_data.df is not None
+            and not existing_data.df.empty
+        ):
+            if merged_df is None or merged_df.empty:
+                merged_df = existing_data.df.copy()
+            else:
+                merged_df = pd.concat([existing_data.df, merged_df]).sort_index()
+                merged_df = merged_df[~merged_df.index.duplicated(keep="last")]
+
+        if not isinstance(merged_df.index, pd.DatetimeIndex):
+            merged_df.index = pd.to_datetime(merged_df.index, utc=True)
+        index_tz = getattr(merged_df.index, "tz", None)
+        if index_tz is None:
+            merged_df.index = merged_df.index.tz_localize(pytz.UTC)
+        else:
+            merged_df.index = merged_df.index.tz_convert(pytz.UTC)
+
+        # Keep a copy of the merged frame (with placeholders) for metadata,
+        # but strip placeholder rows before creating the Pandas Data container.
+        metadata_frame = merged_df.copy()
+        cleaned_df = merged_df
+        placeholder_mask = None
+        placeholder_rows = 0
+        leading_placeholder = False
+        if "missing" in cleaned_df.columns:
+            placeholder_mask = cleaned_df["missing"].astype(bool)
+            placeholder_rows = int(placeholder_mask.sum())
+            if placeholder_rows and len(placeholder_mask):
+                leading_placeholder = bool(placeholder_mask.iloc[0])
+            cleaned_df = cleaned_df.loc[~placeholder_mask].copy()
+            cleaned_df = cleaned_df.drop(columns=["missing"], errors="ignore")
+        else:
+            cleaned_df = cleaned_df.copy()
+
+        if cleaned_df.empty:
+            logger.debug(
+                "[THETA][DEBUG][THETADATA-PANDAS] All merged rows for %s/%s were placeholders; retaining raw merge for diagnostics.",
+                asset_separated,
+                quote_asset,
+            )
+            cleaned_df = metadata_frame.drop(columns=["missing"], errors="ignore").copy()
+
+        metadata_start_override = None
+        if leading_placeholder and len(metadata_frame):
+            earliest_index = metadata_frame.index[0]
+            if isinstance(earliest_index, pd.Timestamp):
+                earliest_index = earliest_index.to_pydatetime()
+            metadata_start_override = earliest_index
+
+        data_start_candidate = cleaned_df.index.min() if not cleaned_df.empty else None
+        data_end_candidate = cleaned_df.index.max() if not cleaned_df.empty else None
+        data = Data(asset_separated, cleaned_df, timestep=ts_unit, quote=quote_asset)
+        requested_history_start = metadata_start_override
+        if requested_history_start is None and existing_meta is not None:
+            requested_history_start = existing_meta.get("start")
+        if requested_history_start is None:
+            requested_history_start = start_datetime
+        if isinstance(requested_history_start, pd.Timestamp):
+            requested_history_start = requested_history_start.to_pydatetime()
+        effective_floor = requested_history_start or data.datetime_start
+        if effective_floor is not None:
+            data.requested_datetime_start = effective_floor
         pandas_data_update = self._set_pandas_data_keys([data])
         if pandas_data_update is not None:
-            # Add the keys to the self.pandas_data dictionary
-            self.pandas_data.update(pandas_data_update)
-            self._data_store.update(pandas_data_update)
-        self._record_metadata(search_asset, data.df, ts_unit, asset_separated, has_quotes=quotes_attached)
+            enriched_update: Dict[tuple, Data] = {}
+            for key, data_obj in pandas_data_update.items():
+                enriched_update[key] = data_obj
+                if isinstance(key, tuple) and len(key) == 2:
+                    enriched_update[(key[0], key[1], data_obj.timestep)] = data_obj
+            # Add the keys (legacy + timestep-aware) to the caches
+            self.pandas_data.update(enriched_update)
+            self._data_store.update(enriched_update)
+            if ts_unit == "day":
+                # Signal to the strategy executor that we're effectively running on daily cadence.
+                if getattr(self, "_timestep", None) != "day":
+                    self._timestep = "day"
+                # Refresh the cached date index so daily iteration can advance efficiently.
+                try:
+                    self._date_index = self.update_date_index()
+                except Exception:
+                    logger.debug("[THETA][DEBUG][THETADATA-PANDAS] Failed to rebuild date index for daily cache.", exc_info=True)
+        rows_override = len(metadata_frame) if placeholder_rows else None
+        self._record_metadata(
+            canonical_key,
+            metadata_frame,
+            ts_unit,
+            asset_separated,
+            has_quotes=quotes_attached,
+            start_override=metadata_start_override,
+            rows_override=rows_override,
+            data_start_override=data_start_candidate,
+            data_end_override=data_end_candidate,
+            data_rows_override=len(cleaned_df),
+        )
+        if legacy_key not in self._dataset_metadata:
+            try:
+                self._dataset_metadata[legacy_key] = self._dataset_metadata.get(canonical_key, {})
+            except Exception:
+                pass
 
     @staticmethod
     def _combine_duplicate_columns(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
@@ -1069,6 +1221,12 @@ class ThetaDataBacktestingPandas(PandasData):
             raise ValueError("ThetaData backtesting currently supports pandas output only.")
 
         current_dt = self.get_datetime()
+        start_requirement, ts_unit = self.get_start_datetime_and_ts_unit(
+            length,
+            timestep,
+            current_dt,
+            start_buffer=START_BUFFER,
+        )
         bars = super().get_historical_prices(
             asset=asset,
             length=length,
@@ -1079,6 +1237,22 @@ class ThetaDataBacktestingPandas(PandasData):
             include_after_hours=include_after_hours,
             return_polars=False,
         )
+        if bars is not None and hasattr(bars, "df") and bars.df is not None:
+            try:
+                # Drop any future bars to avoid lookahead when requesting intraday data
+                if ts_unit == "minute":
+                    effective_now = self.to_default_timezone(self.get_datetime())
+                    try:
+                        idx_converted = bars.df.index.tz_convert(effective_now.tzinfo)
+                    except Exception:
+                        idx_converted = bars.df.index
+                    mask = idx_converted <= effective_now
+                    pruned = bars.df[mask]
+                    if pruned.empty and len(bars.df):
+                        pruned = bars.df[idx_converted < effective_now]
+                    bars.df = pruned
+            except Exception:
+                pass
         if bars is None or getattr(bars, "df", None) is None or bars.df.empty:
             logger.debug(
                 "[THETA][DEBUG][FETCH][THETA][DEBUG][PANDAS] asset=%s quote=%s length=%s timestep=%s timeshift=%s current_dt=%s "
@@ -1093,14 +1267,39 @@ class ThetaDataBacktestingPandas(PandasData):
             return bars
 
         df = bars.df
+        dataset_key = self.find_asset_in_data_store(asset, quote, ts_unit)
+        candidate_data = None
+        if dataset_key is not None:
+            candidate_data = self.pandas_data.get(dataset_key)
+            if candidate_data is None and isinstance(dataset_key, tuple) and len(dataset_key) == 3:
+                legacy_key = (dataset_key[0], dataset_key[1])
+                candidate_data = self.pandas_data.get(legacy_key)
+        normalized_requirement = self._normalize_default_timezone(start_requirement)
+        normalized_current_dt = self._normalize_default_timezone(current_dt)
+        normalized_data_start = None
+        if candidate_data is not None and getattr(candidate_data, "df", None) is not None and not candidate_data.df.empty:
+            normalized_data_start = self._normalize_default_timezone(candidate_data.df.index.min())
+        if (
+            normalized_current_dt is not None
+            and normalized_data_start is not None
+            and normalized_current_dt < normalized_data_start
+        ):
+            logger.debug(
+                "[THETA][DEBUG][FETCH][THETA][DEBUG][PANDAS] asset=%s quote=%s length=%s timestep=%s timeshift=%s current_dt=%s "
+                "occurs before first real bar %s – returning None",
+                getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
+                getattr(quote, "symbol", quote),
+                length,
+                timestep,
+                timeshift,
+                normalized_current_dt,
+                normalized_data_start,
+            )
+            return None
         rows = len(df)
         columns = list(df.columns)
-        if "datetime" in df.columns:
-            first_ts = df["datetime"].iloc[0]
-            last_ts = df["datetime"].iloc[-1]
-        else:
-            first_ts = df.index[0]
-            last_ts = df.index[-1]
+        first_ts = df["datetime"].iloc[0] if "datetime" in df.columns else df.index[0]
+        last_ts = df["datetime"].iloc[-1] if "datetime" in df.columns else df.index[-1]
 
         logger.debug(
             "[THETA][DEBUG][FETCH][THETA][DEBUG][PANDAS] asset=%s quote=%s length=%s timestep=%s timeshift=%s current_dt=%s rows=%s "
@@ -1166,8 +1365,13 @@ class ThetaDataBacktestingPandas(PandasData):
         # [INSTRUMENTATION] Capture in-memory dataframe state after _update_pandas_data
         debug_enabled = True
 
-        search_asset = (asset, quote if quote else Asset("USD", "forex"))
-        data_obj = self.pandas_data.get(search_asset)
+        base_asset = asset[0] if isinstance(asset, tuple) else asset
+        quote_asset = quote if quote else Asset("USD", "forex")
+        _, ts_unit = self.get_start_datetime_and_ts_unit(1, timestep, dt, start_buffer=START_BUFFER)
+        canonical_key, legacy_key = self._build_dataset_keys(base_asset, quote_asset, ts_unit)
+        data_obj = self.pandas_data.get(canonical_key)
+        if data_obj is None:
+            data_obj = self.pandas_data.get(legacy_key)
         if data_obj is not None and hasattr(data_obj, 'df'):
             df = data_obj.df
             if df is not None and len(df) > 0:

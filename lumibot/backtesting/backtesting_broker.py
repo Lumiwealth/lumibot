@@ -1472,26 +1472,105 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
+                # Decide whether this strategy/asset pair should rely on daily bars (Theta EOD)
+                timestep = getattr(self.data_source, "_timestep", None) or self.data_source.get_timestep()
+                timeshift_value = -2
+                length_value = 2
+                base_asset = order.asset
+                if isinstance(base_asset, tuple) and len(base_asset) > 0:
+                    base_asset = base_asset[0]
+                quote_asset = order.quote
+                if isinstance(asset, tuple) and len(asset) > 1 and isinstance(asset[1], Asset):
+                    quote_asset = asset[1]
+                if quote_asset is None:
+                    quote_asset = Asset("USD", "forex")
+                if strategy is not None:
+                    use_daily = False
+                    try:
+                        use_daily = strategy._should_use_daily_last_price(base_asset)
+                    except Exception:
+                        use_daily = False
+                    if not use_daily:
+                        cadence_seconds = None
+                        try:
+                            cadence_seconds = strategy._get_sleeptime_seconds()
+                        except Exception:
+                            cadence_seconds = None
+                        if cadence_seconds is not None and cadence_seconds >= 20 * 3600:
+                            use_daily = True
+                    if not use_daily and getattr(self.data_source, "_timestep", None) == "day":
+                        use_daily = True
+                    if use_daily:
+                        timestep = "day"
+                        timeshift_value = -2  # Interpret as two daily bars
+
+                # If we already know the first real bar for this asset/timestep, skip valuation until then
+                coverage_start = None
+                key_candidates = []
+                if hasattr(self.data_source, "_build_dataset_keys"):
+                    try:
+                        canonical_key, legacy_key = self.data_source._build_dataset_keys(base_asset, quote_asset, timestep)
+                        key_candidates = [canonical_key, legacy_key]
+                    except Exception:
+                        key_candidates = []
+                pandas_cache = getattr(self.data_source, "pandas_data", {}) or {}
+                for key in key_candidates:
+                    existing_data = pandas_cache.get(key)
+                    if existing_data is None and isinstance(key, tuple) and len(key) == 3:
+                        existing_data = pandas_cache.get((key[0], key[1]))
+                    if existing_data is not None:
+                        coverage_start = getattr(existing_data, "requested_datetime_start", None) or getattr(existing_data, "datetime_start", None)
+                        if coverage_start is not None:
+                            break
+                if coverage_start is None:
+                    meta_store = getattr(self.data_source, "_dataset_metadata", None)
+                    if isinstance(meta_store, dict):
+                        for key in key_candidates:
+                            meta = meta_store.get(key)
+                            if meta:
+                                coverage_start = meta.get("data_start") or meta.get("start")
+                            if coverage_start is not None:
+                                break
+                if isinstance(coverage_start, pd.Timestamp):
+                    coverage_start = coverage_start.to_pydatetime()
+                if coverage_start is not None and coverage_start.tzinfo is None and getattr(self.data_source, "tzinfo", None):
+                    try:
+                        coverage_start = self.data_source.tzinfo.localize(coverage_start)
+                    except Exception:
+                        try:
+                            coverage_start = coverage_start.replace(tzinfo=self.data_source.tzinfo)
+                        except Exception:
+                            pass
+                if coverage_start is not None and self.datetime < coverage_start:
+                    if strategy is not None:
+                        display_symbol = getattr(order.asset, "symbol", order.asset)
+                        strategy.log_message(
+                            f"[DIAG] No pandas coverage yet for {display_symbol} at {self.datetime}; waiting for first real bar {coverage_start}",
+                            color="yellow",
+                        )
+                    continue
+
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,
-                    length=2,
+                    length=length_value,
                     quote=order.quote,
-                    timeshift=-2,
-                    timestep=self.data_source._timestep,
+                    timeshift=timeshift_value,
+                    timestep=timestep,
                 )
                 # Check if we got any ohlc data
                 if ohlc is None or ohlc.empty:
                     if strategy is not None:
                         display_symbol = getattr(order.asset, "symbol", order.asset)
-                        order_identifier = getattr(order, "identifier", None)
-                        if order_identifier is None:
-                            order_identifier = getattr(order, "id", "<unknown>")
+                        order_identifier = getattr(order, "identifier", None) or getattr(order, "id", "<unknown>")
+                        action = "holding" if timestep == "day" else "canceling"
                         strategy.log_message(
-                            f"[DIAG] No pandas bars for {display_symbol} at {self.datetime}; "
-                            f"canceling {order.order_type} id={order_identifier}",
+                            f"[DIAG] No pandas bars for {display_symbol} at {self.datetime}; {action} {order.order_type} id={order_identifier}",
                             color="yellow",
                         )
+                    if timestep == "day":
+                        # Leave the order pending so it can be re-priced on the next iteration when data is available.
+                        continue
                     self.cancel_order(order)
                     continue
 
@@ -1509,10 +1588,20 @@ class BacktestingBroker(Broker):
                         dt_col = 'datetime'  # fallback
 
                     # Filter for current time or future
-                    df = df_original.filter(pl.col(dt_col) >= self.datetime)
+                    df = df_original.filter(pl.col(dt_col) <= self.datetime)
 
-                    # If the dataframe is empty, get the last row
                     if len(df) == 0:
+                        earliest_dt = df_original[dt_col].min()
+                        latest_dt = df_original[dt_col].max()
+                        if earliest_dt is not None and self.datetime < earliest_dt:
+                            if strategy is not None:
+                                display_symbol = getattr(order.asset, "symbol", order.asset)
+                                strategy.log_message(
+                                    f"[DIAG] No historical coverage yet for {display_symbol} at {self.datetime}; "
+                                    f"waiting for first real bar {earliest_dt}",
+                                    color="yellow",
+                                )
+                            continue
                         df = df_original.tail(1)
 
                     # Get values
@@ -1524,12 +1613,26 @@ class BacktestingBroker(Broker):
                     volume = df["volume"][0]
                 else:  # Pandas DataFrame
                     # Make sure that we are only getting the prices for the current time exactly or in the future
-                    df = df_original[df_original.index >= self.datetime]
+                    df = df_original[df_original.index <= self.datetime]
 
-                    # If the dataframe is empty, then we should get the last row of the original dataframe
-                    # because it is the best data we have
                     if len(df) == 0:
-                        df = df_original.iloc[-1:]
+                        earliest_dt = df_original.index.min()
+                        latest_dt = df_original.index.max()
+                        if earliest_dt is not None and self.datetime < earliest_dt:
+                            # We have not reached the first real bar yet; skip filling until data exists.
+                            if strategy is not None:
+                                display_symbol = getattr(order.asset, "symbol", order.asset)
+                                strategy.log_message(
+                                    f"[DIAG] No historical coverage yet for {display_symbol} at {self.datetime}; "
+                                    f"waiting for first real bar {earliest_dt}",
+                                    color="yellow",
+                                )
+                            continue
+                        if latest_dt is not None and self.datetime > latest_dt:
+                            df = df_original.iloc[-1:]
+                        else:
+                            # No matching rows due to timezone mismatches; fall back to the closest prior bar
+                            df = df_original.iloc[-1:]
 
                     dt = df.index[0]
                     open = df["open"].iloc[0]

@@ -1207,6 +1207,10 @@ class _Strategy:
         tearsheet_file=None,
         show_tearsheet=True,
     ):
+        skip_env = os.environ.get("LUMIBOT_SKIP_TEARSHEET") or os.environ.get("LUMIBOT_FAST_BACKTEST")
+        if skip_env and str(skip_env).strip().lower() in {"1", "true", "yes", "on"}:
+            self.logger.info("Skipping tearsheet generation because LUMIBOT_SKIP_TEARSHEET/LUMIBOT_FAST_BACKTEST is set.")
+            return None
         if not save_tearsheet and not show_tearsheet:
             return None
 

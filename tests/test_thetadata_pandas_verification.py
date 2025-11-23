@@ -135,6 +135,10 @@ def run_backtest(run_type):
     not THETADATA_CONFIG.get("THETADATA_USERNAME") or not THETADATA_CONFIG.get("THETADATA_PASSWORD"),
     reason="ThetaData credentials not configured - skipping API test"
 )
+@pytest.mark.skipif(
+    os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
+    reason="Local ThetaTerminal is disabled on this environment",
+)
 def test_pandas_cold_warm():
     """Test that pandas implementation works correctly with caching."""
 

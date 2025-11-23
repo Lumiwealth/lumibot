@@ -1019,6 +1019,14 @@ def restore_numeric_dtypes(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]
     return df
 
 
+def _strip_placeholder_rows(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Drop placeholder rows (missing=True) from the dataframe."""
+    if df is None or len(df) == 0 or "missing" not in df.columns:
+        return df
+    cleaned = df[~df["missing"].astype(bool)].drop(columns=["missing"])
+    return restore_numeric_dtypes(cleaned)
+
+
 def append_missing_markers(
     df_all: Optional[pd.DataFrame],
     missing_dates: List[datetime.date],
@@ -1153,7 +1161,8 @@ def get_price_data(
     dt=None,
     datastyle: str = "ohlc",
     include_after_hours: bool = True,
-    return_polars: bool = False
+    return_polars: bool = False,
+    preserve_full_history: bool = False,
 ) -> Optional[pd.DataFrame]:
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
@@ -1186,6 +1195,9 @@ def get_price_data(
         Whether to include after-hours trading data (default True)
     return_polars : bool
         ThetaData currently supports pandas output only. Passing True raises a ValueError.
+    preserve_full_history : bool
+        When True, skip trimming the cached frame to [start, end]. Useful for callers (like the backtester)
+        that want to keep the full historical coverage in memory.
 
     Returns
     -------
@@ -1332,23 +1344,19 @@ def get_price_data(
                 end.isoformat() if hasattr(end, 'isoformat') else end
             )
         # Filter cached data to requested date range before returning
-        if df_all is not None and not df_all.empty:
-            # For daily data, use date-based filtering (timestamps vary by provider)
-            # For intraday data, use precise datetime filtering
-            if timespan == "day":
-                # Convert index to dates for comparison
-                df_dates = pd.to_datetime(df_all.index).date
+        result_frame = df_all
+        if result_frame is not None and not result_frame.empty:
+            if timespan == "day" and not preserve_full_history:
+                df_dates = pd.to_datetime(result_frame.index).date
                 start_date = start.date() if hasattr(start, 'date') else start
                 end_date = end.date() if hasattr(end, 'date') else end
                 mask = (df_dates >= start_date) & (df_dates <= end_date)
-                df_all = df_all[mask]
-            else:
-                # Intraday: use precise datetime filtering
+                result_frame = result_frame[mask]
+            elif timespan != "day":
                 import datetime as datetime_module  # RENAMED to avoid shadowing dt parameter!
 
-                # DEBUG-LOG: Entry to intraday filter
-                rows_before_any_filter = len(df_all)
-                max_ts_before_any_filter = df_all.index.max() if len(df_all) > 0 else None
+                rows_before_any_filter = len(result_frame)
+                max_ts_before_any_filter = result_frame.index.max() if len(result_frame) > 0 else None
                 logger.debug(
                     "[THETA][DEBUG][FILTER][INTRADAY_ENTRY] asset=%s | "
                     "rows_before=%d max_ts_before=%s | "
@@ -1362,81 +1370,62 @@ def get_price_data(
                     type(dt).__name__ if dt else None
                 )
 
-                # Convert date to datetime if needed
-                if isinstance(start, datetime_module.date) and not isinstance(start, datetime_module.datetime):
-                    start = datetime_module.datetime.combine(start, datetime_module.time.min)
+                if not preserve_full_history:
+                    if isinstance(start, datetime_module.date) and not isinstance(start, datetime_module.datetime):
+                        start = datetime_module.datetime.combine(start, datetime_module.time.min)
+                        logger.debug(
+                            "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted start from date to datetime: %s",
+                            start.isoformat()
+                        )
+                    if isinstance(end, datetime_module.date) and not isinstance(end, datetime_module.datetime):
+                        end = datetime_module.datetime.combine(end, datetime_module.time.max)
+                        logger.debug(
+                            "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted end from date to datetime: %s",
+                            end.isoformat()
+                        )
+
+                    if isinstance(end, datetime_module.datetime) and end.time() == datetime_module.time.min:
+                        end = datetime_module.datetime.combine(end.date(), datetime_module.time.max)
+                        logger.debug(
+                            "[THETA][DEBUG][FILTER][MIDNIGHT_FIX] converted end from midnight to end-of-day: %s",
+                            end.isoformat()
+                        )
+
+                    if start.tzinfo is None:
+                        start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
+                        logger.debug(
+                            "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s",
+                            start.isoformat()
+                        )
+                    if end.tzinfo is None:
+                        end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
+                        logger.debug(
+                            "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s",
+                            end.isoformat()
+                        )
+
                     logger.debug(
-                        "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted start from date to datetime: %s",
-                        start.isoformat()
-                    )
-                if isinstance(end, datetime_module.date) and not isinstance(end, datetime_module.datetime):
-                    end = datetime_module.datetime.combine(end, datetime_module.time.max)
-                    logger.debug(
-                        "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted end from date to datetime: %s",
+                        "[THETA][DEBUG][FILTER][NO_DT_FILTER] asset=%s | "
+                        "using end=%s for upper bound (dt parameter ignored for cache retrieval)",
+                        asset.symbol if hasattr(asset, 'symbol') else str(asset),
                         end.isoformat()
                     )
+                    result_frame = result_frame[(result_frame.index >= start) & (result_frame.index <= end)]
 
-                # Handle datetime objects with midnight time (users often pass datetime(YYYY, MM, DD))
-                if isinstance(end, datetime_module.datetime) and end.time() == datetime_module.time.min:
-                    # Convert end-of-period midnight to end-of-day
-                    end = datetime_module.datetime.combine(end.date(), datetime_module.time.max)
-                    logger.debug(
-                        "[THETA][DEBUG][FILTER][MIDNIGHT_FIX] converted end from midnight to end-of-day: %s",
-                        end.isoformat()
-                    )
+            if preserve_full_history:
+                result_frame = ensure_missing_column(result_frame)
+            else:
+                result_frame = _strip_placeholder_rows(result_frame)
 
-                if start.tzinfo is None:
-                    start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
-                    logger.debug(
-                        "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s",
-                        start.isoformat()
-                    )
-                if end.tzinfo is None:
-                    end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
-                    logger.debug(
-                        "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s",
-                        end.isoformat()
-                    )
-
-                # REMOVED: Look-ahead bias protection was too aggressive
-                # The dt filtering was breaking negative timeshift (intentional look-ahead for fills)
-                # Look-ahead bias protection should happen at get_bars() level, not cache retrieval
-                #
-                # NEW APPROACH: Always return full [start, end] range from cache
-                # Let Data/DataPolars.get_bars() handle look-ahead bias protection
-                logger.debug(
-                    "[THETA][DEBUG][FILTER][NO_DT_FILTER] asset=%s | "
-                    "using end=%s for upper bound (dt parameter ignored for cache retrieval)",
-                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                    end.isoformat()
-                )
-                df_all = df_all[(df_all.index >= start) & (df_all.index <= end)]
-
-        # DEBUG-LOG: After date range filtering, before missing removal
-        if df_all is not None and not df_all.empty:
-            logger.debug(
-                "[THETA][DEBUG][FILTER][AFTER] asset=%s rows=%d first_ts=%s last_ts=%s dt_filter=%s",
-                asset,
-                len(df_all),
-                df_all.index.min().isoformat() if len(df_all) > 0 else None,
-                df_all.index.max().isoformat() if len(df_all) > 0 else None,
-                dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt
-            )
-
-        if df_all is not None and not df_all.empty and "missing" in df_all.columns:
-            df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
-
-
-        # DEBUG-LOG: Before pandas return
-        if df_all is not None and len(df_all) > 0:
+        if result_frame is not None and len(result_frame) > 0:
             logger.debug(
                 "[THETA][DEBUG][RETURN][PANDAS] asset=%s rows=%d first_ts=%s last_ts=%s",
                 asset,
-                len(df_all),
-                df_all.index.min().isoformat(),
-                df_all.index.max().isoformat()
+                len(result_frame),
+                result_frame.index.min().isoformat(),
+                result_frame.index.max().isoformat()
             )
-        return df_all
+        return result_frame
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
 
@@ -1523,9 +1512,11 @@ def get_price_data(
                 remote_payload=remote_payload,
             )
             df_clean = df_all.copy() if df_all is not None else None
-            if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
-                df_clean = df_clean[~df_clean["missing"].astype(bool)].drop(columns=["missing"])
-                df_clean = restore_numeric_dtypes(df_clean)
+            if df_clean is not None and not df_clean.empty:
+                if preserve_full_history:
+                    df_clean = ensure_missing_column(df_clean)
+                else:
+                    df_clean = _strip_placeholder_rows(df_clean)
             logger.info(
                 "ThetaData cache updated for %s %s %s with placeholders only (missing=%d).",
                 asset,
@@ -1534,7 +1525,12 @@ def get_price_data(
                 len(requested_dates),
             )
 
-            if df_clean is not None and not df_clean.empty and timespan == "day":
+            if (
+                not preserve_full_history
+                and df_clean is not None
+                and not df_clean.empty
+                and timespan == "day"
+            ):
                 start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
                 end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
                 dates = pd.to_datetime(df_clean.index).date
@@ -1575,9 +1571,11 @@ def get_price_data(
         )
 
         df_clean = df_all.copy() if df_all is not None else None
-        if df_clean is not None and not df_clean.empty and "missing" in df_clean.columns:
-            df_clean = df_clean[~df_clean["missing"].astype(bool)].drop(columns=["missing"])
-            df_clean = restore_numeric_dtypes(df_clean)
+        if df_clean is not None and not df_clean.empty:
+            if preserve_full_history:
+                df_clean = ensure_missing_column(df_clean)
+            else:
+                df_clean = _strip_placeholder_rows(df_clean)
 
         logger.info(
             "ThetaData cache updated for %s %s %s (rows=%d placeholders=%d).",
@@ -1588,7 +1586,12 @@ def get_price_data(
             placeholder_count,
         )
 
-        if df_clean is not None and not df_clean.empty and timespan == "day":
+        if (
+            not preserve_full_history
+            and df_clean is not None
+            and not df_clean.empty
+            and timespan == "day"
+        ):
             start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
             end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
             dates = pd.to_datetime(df_clean.index).date
@@ -1744,11 +1747,18 @@ def get_price_data(
         logger.info("ThetaData cache updated for %s %s %s (%d rows).", asset, timespan, datastyle, len(df_all))
     # Close the progress bar when done
     pbar.close()
-    if df_all is not None and not df_all.empty and "missing" in df_all.columns:
-        df_all = df_all[~df_all["missing"].astype(bool)].drop(columns=["missing"])
-        df_all = restore_numeric_dtypes(df_all)
+    if df_all is not None and not df_all.empty:
+        if preserve_full_history:
+            df_all = ensure_missing_column(df_all)
+        else:
+            df_all = _strip_placeholder_rows(df_all)
 
-    if df_all is not None and not df_all.empty and timespan == "day":
+    if (
+        not preserve_full_history
+        and df_all is not None
+        and not df_all.empty
+        and timespan == "day"
+    ):
         start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
         end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
         dates = pd.to_datetime(df_all.index).date
@@ -2718,7 +2728,15 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     return json_resp
 
 
-def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, username: str, password: str, datastyle: str = "ohlc"):
+def get_historical_eod_data(
+    asset: Asset,
+    start_dt: datetime,
+    end_dt: datetime,
+    username: str,
+    password: str,
+    datastyle: str = "ohlc",
+    apply_corporate_actions: bool = True,
+):
     """
     Get EOD (End of Day) data from ThetaData using the /v3/.../history/eod endpoints.
 
@@ -3012,7 +3030,8 @@ def get_historical_eod_data(asset: Asset, start_dt: datetime, end_dt: datetime, 
     df = df.drop(columns=["bid_size", "bid_exchange", "bid", "bid_condition",
                           "ask_size", "ask_exchange", "ask", "ask_condition"], errors='ignore')
 
-    df = _apply_corporate_actions_to_frame(asset, df, start_day, end_day, username, password)
+    if apply_corporate_actions:
+        df = _apply_corporate_actions_to_frame(asset, df, start_day, end_day, username, password)
 
     return df
 

@@ -322,6 +322,7 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
         end_dt=end,
         username="user",
         password="pass",
+        apply_corporate_actions=False,
     )
 
     assert df is not None
@@ -351,6 +352,7 @@ def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
         end_dt=end,
         username="user",
         password="pass",
+        apply_corporate_actions=False,
     )
 
     assert df is not None
@@ -385,6 +387,7 @@ def test_get_historical_eod_data_falls_back_to_date_when_created_missing(monkeyp
         end_dt=end,
         username="user",
         password="pass",
+        apply_corporate_actions=False,
     )
 
     assert list(df.index.strftime("%Y-%m-%d")) == ["2024-11-01", "2024-11-04"]
@@ -418,6 +421,7 @@ def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch)
         end_dt=end,
         username="user",
         password="pass",
+        apply_corporate_actions=False,
     )
 
     assert captured_ranges == [
@@ -767,6 +771,60 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
         check_dtype=False,
     )
     mock_update_cache.assert_called_once()
+
+
+@patch('lumibot.tools.thetadata_helper.get_trading_dates')
+@patch('lumibot.tools.thetadata_helper.update_cache')
+@patch('lumibot.tools.thetadata_helper.update_df')
+@patch('lumibot.tools.thetadata_helper.get_historical_data')
+@patch('lumibot.tools.thetadata_helper.get_missing_dates')
+@patch('lumibot.tools.thetadata_helper.load_cache')
+@patch('lumibot.tools.thetadata_helper.build_cache_filename')
+@patch('lumibot.tools.thetadata_helper.tqdm')
+def test_get_price_data_preserve_full_history_returns_full_cache(
+    mock_tqdm,
+    mock_build_cache_filename,
+    mock_load_cache,
+    mock_get_missing_dates,
+    mock_get_historical_data,
+    mock_update_df,
+    mock_update_cache,
+    mock_get_trading_dates,
+):
+    mock_build_cache_filename.return_value.exists.return_value = True
+    date_index = pd.date_range("2020-01-01", periods=10, freq="D", tz=LUMIBOT_DEFAULT_PYTZ)
+    df_cache = pd.DataFrame(
+        {
+            "open": np.arange(len(date_index), dtype=float),
+            "high": np.arange(len(date_index), dtype=float) + 0.5,
+            "low": np.arange(len(date_index), dtype=float) - 0.5,
+            "close": np.arange(len(date_index), dtype=float) + 0.25,
+            "volume": 1000,
+        },
+        index=date_index,
+    )
+    mock_load_cache.return_value = df_cache
+    mock_get_missing_dates.return_value = []
+    asset = Asset(asset_type="stock", symbol="MSFT")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2020, 1, 5))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2020, 1, 6))
+
+    df = thetadata_helper.get_price_data(
+        "user",
+        "pass",
+        asset,
+        start,
+        end,
+        "day",
+        dt=start,
+        preserve_full_history=True,
+    )
+
+    assert df is not None
+    assert len(df) == len(df_cache)
+    assert df.index.min() == date_index.min()
+    assert df.index.max() == date_index.max()
+    mock_get_historical_data.assert_not_called()
 
 
 def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path):
@@ -1345,6 +1403,10 @@ def test_update_df_with_timezone_awareness():
     os.environ.get("CI") == "true",
     reason="Requires ThetaData Terminal (not available in CI)"
 )
+@pytest.mark.skipif(
+    os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
+    reason="Local ThetaTerminal is disabled on this environment",
+)
 def test_start_theta_data_client():
     """Test starting real ThetaData client process - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -1374,6 +1436,10 @@ def test_start_theta_data_client():
     os.environ.get("CI") == "true",
     reason="Requires ThetaData Terminal (not available in CI)"
 )
+@pytest.mark.skipif(
+    os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
+    reason="Local ThetaTerminal is disabled on this environment",
+)
 def test_check_connection():
     """Test check_connection() with real ThetaData - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -1402,6 +1468,10 @@ def test_check_connection():
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
     reason="Requires ThetaData Terminal (not available in CI)"
+)
+@pytest.mark.skipif(
+    os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
+    reason="Local ThetaTerminal is disabled on this environment",
 )
 def test_check_connection_with_exception():
     """Test check_connection() when ThetaData process already running - NO MOCKS"""
@@ -1524,8 +1594,9 @@ def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
 
 @patch('lumibot.tools.thetadata_helper.check_connection')
 @patch('lumibot.tools.thetadata_helper.requests.get')
-def test_get_request_error_in_json(mock_get, mock_check_connection):
+def test_get_request_error_in_json(mock_get, mock_check_connection, monkeypatch):
     # Arrange
+    monkeypatch.setattr(thetadata_helper, "REMOTE_DOWNLOADER_ENABLED", False)
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
@@ -1563,8 +1634,9 @@ def test_get_request_error_in_json(mock_get, mock_check_connection):
 
 @patch('lumibot.tools.thetadata_helper.check_connection')
 @patch('lumibot.tools.thetadata_helper.requests.get')
-def test_get_request_exception_handling(mock_get, mock_check_connection):
+def test_get_request_exception_handling(mock_get, mock_check_connection, monkeypatch):
     # Arrange
+    monkeypatch.setattr(thetadata_helper, "REMOTE_DOWNLOADER_ENABLED", False)
     mock_get.side_effect = requests.exceptions.RequestException
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
@@ -1729,6 +1801,41 @@ def test_get_request_attaches_downloader_header(monkeypatch):
     assert headers_seen["X-Downloader-Key"] == "secret-key"
 
 
+def test_get_request_remote_queue_full_backoff(monkeypatch):
+    payload_queue = {"error": "queue_full", "active": 8, "waiting": 12}
+    payload_success = {"header": {"format": [], "error_type": "null", "next_page": None}, "response": []}
+    call_timeouts = []
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        call_timeouts.append(timeout)
+        if len(call_timeouts) == 1:
+            return SimpleNamespace(
+                status_code=503,
+                text=json.dumps(payload_queue),
+                json=lambda: payload_queue,
+            )
+        return SimpleNamespace(
+            status_code=200,
+            text="{}",
+            json=lambda: payload_success,
+        )
+
+    sleeps = []
+
+    def fake_sleep(duration):
+        sleeps.append(duration)
+
+    monkeypatch.setattr(thetadata_helper, "REMOTE_DOWNLOADER_ENABLED", True)
+    monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+    monkeypatch.setattr(thetadata_helper, "check_connection", lambda **_: (None, True))
+    monkeypatch.setattr(thetadata_helper.time, "sleep", fake_sleep)
+
+    result = thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+    assert result == payload_success
+    assert call_timeouts[0] is None, "Remote downloader calls should not set request timeout"
+    assert sleeps, "Queue-full response should trigger a sleep before retrying"
+
+
 def test_get_historical_eod_data_handles_missing_date(monkeypatch):
     sample_response = {
         "header": {"format": ["open", "close", "created"]},
@@ -1773,7 +1880,14 @@ def test_get_historical_eod_data_splits_chunk_on_transient_error(monkeypatch):
     start = datetime.datetime(2024, 1, 1)
     end = datetime.datetime(2024, 1, 4)
 
-    df = thetadata_helper.get_historical_eod_data(asset, start, end, "user", "pass")
+    df = thetadata_helper.get_historical_eod_data(
+        asset,
+        start,
+        end,
+        "user",
+        "pass",
+        apply_corporate_actions=False,
+    )
     assert len(df) == 4
     assert ("2024-01-01", "2024-01-04") in call_ranges
     assert ("2024-01-01", "2024-01-02") in call_ranges
@@ -2720,8 +2834,13 @@ def test_update_pandas_data_fetches_real_day_frames(monkeypatch):
         index=minute_index,
     )
 
-    data_source.pandas_data[key] = Data(asset, minute_frame, timestep="minute", quote=quote)
-    data_source._record_metadata(key, minute_frame, "minute", asset, has_quotes=False)
+    per_timestep_key, legacy_key = data_source._build_dataset_keys(asset, quote, "minute")
+    minute_data = Data(asset, minute_frame, timestep="minute", quote=quote)
+    data_source.pandas_data[legacy_key] = minute_data
+    data_source.pandas_data[per_timestep_key] = minute_data
+    data_source._data_store[legacy_key] = minute_data
+    data_source._data_store[per_timestep_key] = minute_data
+    data_source._record_metadata(per_timestep_key, minute_frame, "minute", asset, has_quotes=False)
 
     captured = {}
 
@@ -2756,6 +2875,166 @@ def test_update_pandas_data_fetches_real_day_frames(monkeypatch):
     stored = data_source.pandas_data.get(key)
     assert stored is not None
     assert stored.timestep == "day", "pandas_data entry should be daily after refresh"
+
+
+def test_update_pandas_data_preserves_full_history(monkeypatch):
+    monkeypatch.setattr(
+        ThetaDataBacktestingPandas,
+        "kill_processes_by_name",
+        lambda self, keyword: None,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "reset_theta_terminal_tracking",
+        lambda: None,
+    )
+
+    utc = pytz.UTC
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=utc.localize(datetime.datetime(2020, 1, 1)),
+        datetime_end=utc.localize(datetime.datetime(2025, 11, 5)),
+        username="user",
+        password="pass",
+        use_quote_data=False,
+    )
+
+    asset = Asset("SPY", asset_type="stock")
+    quote = Asset("USD", asset_type="forex")
+    key = (asset, quote)
+
+    base_index = pd.date_range(
+        start=utc.localize(datetime.datetime(2020, 10, 1, 20, 0)),
+        periods=250,
+        freq="D",
+    )
+    base_frame = pd.DataFrame(
+        {
+            "open": 100 + np.arange(len(base_index), dtype=float),
+            "high": 101 + np.arange(len(base_index), dtype=float),
+            "low": 99 + np.arange(len(base_index), dtype=float),
+            "close": 100.5 + np.arange(len(base_index), dtype=float),
+            "volume": 1_000,
+        },
+        index=base_index,
+    )
+    day_key, legacy_key = data_source._build_dataset_keys(asset, quote, "day")
+    day_data = Data(asset, base_frame, timestep="day", quote=quote)
+    data_source.pandas_data[legacy_key] = day_data
+    data_source.pandas_data[day_key] = day_data
+    data_source._data_store[legacy_key] = day_data
+    data_source._data_store[day_key] = day_data
+    data_source._record_metadata(day_key, base_frame, "day", asset, has_quotes=False)
+
+    captured = {}
+
+    def fake_get_price_data(*args, **kwargs):
+        captured["preserve_full_history"] = kwargs.get("preserve_full_history")
+        new_index = pd.date_range(
+            start=utc.localize(datetime.datetime(2024, 1, 1, 20, 0)),
+            periods=30,
+            freq="D",
+        )
+        return pd.DataFrame(
+            {
+                "open": 200 + np.arange(len(new_index), dtype=float),
+                "high": 201 + np.arange(len(new_index), dtype=float),
+                "low": 199 + np.arange(len(new_index), dtype=float),
+                "close": 200.5 + np.arange(len(new_index), dtype=float),
+                "volume": 2_000,
+            },
+            index=new_index,
+        )
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(
+        ThetaDataBacktestingPandas,
+        "get_datetime",
+        lambda self: utc.localize(datetime.datetime(2025, 11, 5, 16, 0)),
+    )
+
+    data_source._update_pandas_data(asset, quote, length=len(base_frame) + 25, timestep="day")
+
+    stored = data_source.pandas_data.get(key)
+    assert stored is not None
+    assert captured.get("preserve_full_history") is True
+    assert stored.df.index.min() == base_index.min()
+    assert stored.df.index.max() > base_index.max()
+    assert len(stored.df) >= len(base_frame)
+
+
+def test_update_pandas_data_keeps_placeholder_history(monkeypatch):
+    monkeypatch.setattr(
+        ThetaDataBacktestingPandas,
+        "kill_processes_by_name",
+        lambda self, keyword: None,
+    )
+    monkeypatch.setattr(
+        thetadata_helper,
+        "reset_theta_terminal_tracking",
+        lambda: None,
+    )
+
+    utc = pytz.UTC
+    data_source = ThetaDataBacktestingPandas(
+        datetime_start=utc.localize(datetime.datetime(2020, 1, 1)),
+        datetime_end=utc.localize(datetime.datetime(2025, 11, 5)),
+        username="user",
+        password="pass",
+        use_quote_data=False,
+    )
+
+    asset = Asset("SPY", asset_type="stock")
+    quote = Asset("USD", asset_type="forex")
+    key = (asset, quote)
+
+    placeholder_index = pd.date_range(
+        start=utc.localize(datetime.datetime(2020, 10, 1, 20, 0)),
+        end=data_source.datetime_end,
+        freq="D",
+    )
+    missing_flags = [True] * 120 + [False] * (len(placeholder_index) - 120)
+    placeholder_frame = pd.DataFrame(
+        {
+            "open": np.linspace(90.0, 110.0, num=len(placeholder_index)),
+            "high": np.linspace(90.5, 110.5, num=len(placeholder_index)),
+            "low": np.linspace(89.5, 109.5, num=len(placeholder_index)),
+            "close": np.linspace(90.25, 110.25, num=len(placeholder_index)),
+            "volume": np.linspace(1_000, 2_000, num=len(placeholder_index)),
+            "missing": missing_flags,
+        },
+        index=placeholder_index,
+    )
+
+    call_counter = {"calls": 0}
+
+    def fake_get_price_data(*args, **kwargs):
+        call_counter["calls"] += 1
+        return placeholder_frame.copy()
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", fake_get_price_data)
+    current_dt = utc.localize(datetime.datetime(2025, 11, 5, 16, 0))
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "get_datetime", lambda self: current_dt)
+
+    data_source._update_pandas_data(asset, quote, length=150, timestep="day")
+
+    stored = data_source.pandas_data.get(key)
+    assert stored is not None
+    assert call_counter["calls"] == 1
+    first_real_idx = placeholder_frame.loc[~placeholder_frame["missing"]].index.min()
+    assert stored.df.index.min() == first_real_idx
+    assert "missing" not in stored.df.columns
+    # The data container should remember the earliest requested datetime so callers know history exists.
+    assert stored.requested_datetime_start.date() == datetime.date(2020, 10, 1)
+    placeholder_dt = placeholder_frame.index[0].to_pydatetime()
+    # Requests prior to the first real bar should gracefully return None (signaling "skip iteration").
+    assert stored.get_last_price(placeholder_dt) is None
+    real_dt = first_real_idx.to_pydatetime()
+    assert stored.get_last_price(real_dt) is not None
+
+    metadata = data_source._dataset_metadata[key]
+    assert metadata["start"].date() == datetime.date(2020, 10, 1)
+    assert metadata["data_start"].date() == first_real_idx.date()
+    assert metadata["rows"] == len(placeholder_index)
 
     def test_chains_strike_format(self):
         """Test strikes are floats (not integers) and properly converted."""

@@ -5948,3 +5948,15 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-11-23T17:28:19.853732,test_tqqq_theta_integration,unknown,,16.685,0a6cff7a,4.3.8,,,,,Auto-tracked from test_theta_strategies_integration
 2025-11-23T17:29:02.389302,test_meli_theta_integration,unknown,,7.853,0a6cff7a,4.3.8,,,,,Auto-tracked from test_theta_strategies_integration
 2025-11-23T20:30:49.673019,test_s3_truncated_cache_forces_refetch,ThetaData,,0.342,b0af23d4,4.3.11,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:32:42.509904,test_s3_truncated_cache_forces_refetch,ThetaData,,0.298,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:32:42.815786,test_placeholder_rows_trigger_refetch_and_sidecar,ThetaData,,0.199,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:33:14.638625,test_s3_truncated_cache_forces_refetch,ThetaData,,0.254,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:33:14.924682,test_placeholder_rows_trigger_refetch_and_sidecar,ThetaData,,0.198,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:37:33.624147,test_s3_truncated_cache_forces_refetch,ThetaData,,0.25,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:37:33.896244,test_placeholder_rows_trigger_refetch_and_sidecar,ThetaData,,0.192,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:38:09.538044,test_s3_truncated_cache_forces_refetch,ThetaData,,0.245,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:38:09.808608,test_placeholder_rows_trigger_refetch_and_sidecar,ThetaData,,0.192,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_cache_validation
+2025-11-23T21:40:38.360814,test_s3_truncated_cache_forces_refetch,ThetaData,,0.235,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_resilience
+2025-11-23T21:40:38.616977,test_placeholder_rows_trigger_refetch_and_sidecar,ThetaData,,0.186,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_resilience
+2025-11-23T21:54:41.093492,test_s3_truncated_cache_forces_refetch,ThetaData,,0.28,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_resilience
+2025-11-23T21:54:41.360059,test_placeholder_rows_trigger_refetch_and_sidecar,ThetaData,,0.186,1c69e75e,4.3.12,,,,,Auto-tracked from test_thetadata_resilience

@@ -1248,6 +1248,8 @@ def get_price_data(
     remote_payload = build_remote_cache_payload(asset, timespan, datastyle)
     cache_manager = get_backtest_cache()
 
+    sidecar_file = _cache_sidecar_path(cache_file)
+
     if cache_manager.enabled:
         try:
             fetched_remote = cache_manager.ensure_local_file(cache_file, payload=remote_payload)
@@ -1264,6 +1266,16 @@ def get_price_data(
                 "[THETA][DEBUG][CACHE][REMOTE_DOWNLOAD_ERROR] asset=%s cache_file=%s error=%s",
                 asset,
                 cache_file,
+                exc,
+            )
+
+        try:
+            cache_manager.ensure_local_file(sidecar_file, payload=remote_payload, force_download=True)
+        except Exception as exc:
+            logger.debug(
+                "[THETA][DEBUG][CACHE][REMOTE_SIDECAR_ERROR] asset=%s sidecar=%s error=%s",
+                asset,
+                sidecar_file,
                 exc,
             )
 
@@ -1303,6 +1315,9 @@ def get_price_data(
         cached_rows - placeholder_rows
     )
 
+    sidecar_data = _load_cache_sidecar(cache_file)
+    cache_checksum = _hash_file(cache_file)
+
     def _validate_cache_frame(
         frame: Optional[pd.DataFrame],
         requested_start_dt: datetime,
@@ -1313,39 +1328,98 @@ def get_price_data(
         if frame is None or frame.empty:
             return False, "empty"
 
+        frame = ensure_missing_column(frame)
+
         try:
             frame_index = pd.to_datetime(frame.index)
         except Exception:
             return False, "unparseable_index"
 
+        if frame_index.tz is None:
+            frame_index = frame_index.tz_localize(pytz.UTC)
+        else:
+            frame_index = frame_index.tz_convert(pytz.UTC)
+
+        if frame_index.has_duplicates:
+            return False, "duplicate_index"
+
         min_ts = frame_index.min()
         max_ts = frame_index.max()
         total_rows = len(frame)
+        placeholder_mask = frame["missing"].astype(bool) if "missing" in frame.columns else pd.Series(False, index=frame.index)
+        placeholder_rows = int(placeholder_mask.sum()) if hasattr(placeholder_mask, "sum") else 0
+        real_rows = total_rows - placeholder_rows
 
-        if min_ts.tzinfo is None:
-            min_ts = min_ts.tz_localize(pytz.UTC)
-        if max_ts.tzinfo is None:
-            max_ts = max_ts.tz_localize(pytz.UTC)
-
+        requested_start_date = requested_start_dt.date()
         requested_end_date = requested_end_dt.date()
 
+        # Validate sidecar alignment
+        if sidecar_data:
+            rows_match = sidecar_data.get("rows") in (None, total_rows) or int(sidecar_data.get("rows", 0)) == total_rows
+            placeholders_match = sidecar_data.get("placeholders") in (None, placeholder_rows) or int(sidecar_data.get("placeholders", 0)) == placeholder_rows
+            checksum_match = (sidecar_data.get("checksum") is None) or (cache_checksum is None) or (sidecar_data.get("checksum") == cache_checksum)
+            min_match = sidecar_data.get("min") is None or sidecar_data.get("min") == (min_ts.isoformat() if hasattr(min_ts, "isoformat") else None)
+            max_match = sidecar_data.get("max") is None or sidecar_data.get("max") == (max_ts.isoformat() if hasattr(max_ts, "isoformat") else None)
+            if not all([rows_match, placeholders_match, checksum_match, min_match, max_match]):
+                return False, "sidecar_mismatch"
+
         if span == "day":
-            requested_days = get_trading_dates(asset, requested_start_dt, requested_end_dt)
-            expected_days = len(requested_days)
-            # Accept a small shortfall to allow for holidays/weekends already excluded by the calendar.
-            too_few_rows = expected_days > 0 and total_rows < max(5, int(expected_days * 0.6))
-            gap_days = (requested_end_date - max_ts.date()).days
-            too_old = gap_days > 5
-            if too_few_rows or too_old:
-                reason = "too_few_rows" if too_few_rows else "stale_max_date"
-                return False, reason
+            trading_days = get_trading_dates(asset, requested_start_dt, requested_end_dt)
+            index_dates = pd.Index(frame_index.date)
+            placeholder_dates = set(pd.Index(frame_index[placeholder_mask].date)) if hasattr(frame_index, "__len__") else set()
+
+            if placeholder_rows > 0:
+                tail_placeholder = bool(placeholder_mask.iloc[-1])
+                if tail_placeholder:
+                    return False, "tail_placeholder"
+                unexpected_placeholders = [d for d in placeholder_dates if d not in _ALLOWED_HISTORICAL_PLACEHOLDER_DATES]
+                if unexpected_placeholders:
+                    return False, "unexpected_placeholders"
+
+            missing_required: List[date] = []
+            for d in trading_days:
+                if d in _ALLOWED_HISTORICAL_PLACEHOLDER_DATES and d in placeholder_dates:
+                    continue
+                if d not in index_dates:
+                    missing_required.append(d)
+                    continue
+                if d in placeholder_dates:
+                    missing_required.append(d)
+
+            if missing_required:
+                return False, "missing_trading_days"
+
+            if requested_start_date < min_ts.date():
+                return False, "starts_after_requested"
+            if requested_end_date > max_ts.date():
+                return False, "stale_max_date"
+
+            expected_days = len(trading_days)
+            too_few_rows = expected_days > 0 and real_rows < max(5, int(expected_days * 0.9))
+            if too_few_rows:
+                return False, "too_few_rows"
         return True, ""
 
     cache_ok, cache_reason = _validate_cache_frame(df_all, requested_start, requested_end, timespan)
+    if cache_ok and df_all is not None and _load_cache_sidecar(cache_file) is None:
+        # Backfill a missing sidecar for a valid cache.
+        try:
+            checksum = _hash_file(cache_file)
+            _write_cache_sidecar(cache_file, df_all, checksum)
+        except Exception:
+            logger.debug(
+                "[THETA][DEBUG][CACHE][SIDECAR_BACKFILL_ERROR] cache_file=%s",
+                cache_file,
+            )
+
     if not cache_ok and df_all is not None:
         cache_invalid = True
         try:
             cache_file.unlink()
+        except Exception:
+            pass
+        try:
+            _cache_sidecar_path(cache_file).unlink()
         except Exception:
             pass
         df_all = None
@@ -2017,13 +2091,18 @@ def get_missing_dates(df_all, asset, start, end):
         )
         return trading_dates
 
+    df_working = ensure_missing_column(df_all.copy())
+
     # It is possible to have full day gap in the data if previous queries were far apart
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
-    dates = pd.Series(df_all.index.date).unique()
-    cached_dates_count = len(dates)
-    cached_first = min(dates) if len(dates) > 0 else None
-    cached_last = max(dates) if len(dates) > 0 else None
+    dates_series = pd.Series(df_working.index.date)
+    # Only treat rows without the "missing" marker as coverage. Placeholders must be re-fetched.
+    missing_mask = df_working["missing"].astype(bool).to_numpy()
+    real_dates = dates_series[~missing_mask].unique()
+    cached_dates_count = len(real_dates)
+    cached_first = min(real_dates) if len(real_dates) > 0 else None
+    cached_last = max(real_dates) if len(real_dates) > 0 else None
 
     logger.debug(
         "[THETA][DEBUG][CACHE][CACHED_DATES] asset=%s | "
@@ -2034,7 +2113,7 @@ def get_missing_dates(df_all, asset, start, end):
         cached_last
     )
 
-    missing_dates = sorted(set(trading_dates) - set(dates))
+    missing_dates = sorted(set(trading_dates) - set(real_dates))
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":
@@ -2135,6 +2214,83 @@ def load_cache(cache_file):
     return df
 
 
+def _cache_sidecar_path(cache_file: Path) -> Path:
+    return cache_file.with_suffix(cache_file.suffix + ".meta.json")
+
+
+_ALLOWED_HISTORICAL_PLACEHOLDER_DATES = {
+    date(2019, 12, 4),
+    date(2019, 12, 5),
+    date(2019, 12, 6),
+}
+
+
+def _hash_file(path: Path) -> Optional[str]:
+    """Compute a SHA256 checksum for the given file."""
+    if not path.exists() or not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_cache_sidecar(cache_file: Path) -> Optional[Dict[str, Any]]:
+    sidecar = _cache_sidecar_path(cache_file)
+    if not sidecar.exists():
+        return None
+    try:
+        return json.loads(sidecar.read_text())
+    except Exception:
+        return None
+
+
+def _build_sidecar_payload(
+    df_working: pd.DataFrame,
+    checksum: Optional[str],
+) -> Dict[str, Any]:
+    min_ts = df_working.index.min() if len(df_working) > 0 else None
+    max_ts = df_working.index.max() if len(df_working) > 0 else None
+    placeholder_count = int(df_working["missing"].sum()) if "missing" in df_working.columns else 0
+    real_rows = len(df_working) - placeholder_count
+    payload: Dict[str, Any] = {
+        "version": 2,
+        "rows": int(len(df_working)),
+        "real_rows": int(real_rows),
+        "placeholders": int(placeholder_count),
+        "min": min_ts.isoformat() if hasattr(min_ts, "isoformat") else None,
+        "max": max_ts.isoformat() if hasattr(max_ts, "isoformat") else None,
+        "checksum": checksum,
+        "updated": datetime.utcnow().isoformat() + "Z",
+    }
+    return payload
+
+
+def _write_cache_sidecar(
+    cache_file: Path,
+    df_working: pd.DataFrame,
+    checksum: Optional[str],
+) -> None:
+    sidecar = _cache_sidecar_path(cache_file)
+    try:
+        payload = _build_sidecar_payload(df_working, checksum)
+        sidecar.write_text(json.dumps(payload, indent=2))
+        logger.debug(
+            "[THETA][DEBUG][CACHE][SIDECAR_WRITE] %s rows=%d real_rows=%d placeholders=%d",
+            sidecar.name,
+            payload["rows"],
+            payload["real_rows"],
+            payload["placeholders"],
+        )
+    except Exception as exc:  # pragma: no cover - sidecar is best-effort
+        logger.debug(
+            "[THETA][DEBUG][CACHE][SIDECAR_WRITE_ERROR] cache_file=%s error=%s",
+            cache_file,
+            exc,
+        )
+
+
 def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_payload=None):
     """Update the cache file with the new data and optional placeholder markers."""
     # DEBUG-LOG: Entry to update_cache
@@ -2221,6 +2377,17 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         )
 
     df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
+    checksum = _hash_file(cache_file)
+    sidecar_path = None
+    try:
+        _write_cache_sidecar(cache_file, df_working, checksum)
+        sidecar_path = _cache_sidecar_path(cache_file)
+    except Exception:
+        # Sidecar is best-effort; failures shouldn't block cache writes.
+        logger.debug(
+            "[THETA][DEBUG][CACHE][SIDECAR_SKIP] cache_file=%s | sidecar write failed",
+            cache_file.name,
+        )
 
     logger.debug(
         "[THETA][DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully",
@@ -2228,15 +2395,56 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
     )
 
     cache_manager = get_backtest_cache()
-    if cache_manager.mode == CacheMode.S3_READWRITE:
+
+    def _atomic_remote_upload(local_path: Path) -> bool:
+        if cache_manager.mode != CacheMode.S3_READWRITE:
+            return False
         try:
-            cache_manager.on_local_update(cache_file, payload=remote_payload)
-        except Exception as exc:
+            client = cache_manager._get_client()
+        except Exception as exc:  # pragma: no cover - defensive
             logger.debug(
                 "[THETA][DEBUG][CACHE][REMOTE_UPLOAD_ERROR] cache_file=%s error=%s",
-                cache_file,
+                local_path,
                 exc,
             )
+            return False
+
+        remote_key = cache_manager.remote_key_for(local_path, payload=remote_payload)
+        if not remote_key:
+            return False
+
+        bucket = cache_manager._settings.bucket if cache_manager._settings else None
+        if not bucket:
+            return False
+
+        tmp_key = f"{remote_key}.tmp-{int(time.time())}-{random.randint(1000,9999)}"
+        try:
+            client.upload_file(str(local_path), bucket, tmp_key)
+            client.copy({"Bucket": bucket, "Key": tmp_key}, bucket, remote_key)
+            client.delete_object(Bucket=bucket, Key=tmp_key)
+            logger.debug(
+                "[THETA][DEBUG][CACHE][REMOTE_UPLOAD_ATOMIC] %s <- %s (tmp=%s)",
+                remote_key,
+                local_path.as_posix(),
+                tmp_key,
+            )
+            return True
+        except Exception as exc:  # pragma: no cover - relies on boto3
+            logger.debug(
+                "[THETA][DEBUG][CACHE][REMOTE_UPLOAD_ERROR] cache_file=%s error=%s",
+                local_path,
+                exc,
+            )
+            return False
+        finally:
+            try:
+                client.delete_object(Bucket=bucket, Key=tmp_key)
+            except Exception:
+                pass
+
+    _atomic_remote_upload(cache_file)
+    if sidecar_path and sidecar_path.exists():
+        _atomic_remote_upload(sidecar_path)
 
 
 def update_df(df_all, result):
@@ -2749,7 +2957,45 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                         HTTP_RETRY_BACKOFF_MAX,
                     )
                 else:
-                    json_payload = response.json()
+                    try:
+                        json_payload = response.json()
+                    except ValueError as exc:
+                        # Sometimes Theta/DataDownloader returns a non-JSON payload even when format=json.
+                        # Attempt a CSV fallback before retrying to avoid hard failures on large payloads.
+                        csv_fallback = None
+                        try:
+                            import io
+                            csv_fallback = pd.read_csv(io.StringIO(response.text))
+                        except Exception:
+                            csv_fallback = None
+
+                        if csv_fallback is not None and not csv_fallback.empty:
+                            json_payload = {
+                                "header": {"format": list(csv_fallback.columns)},
+                                "response": csv_fallback.values.tolist(),
+                            }
+                            logger.info(
+                                "ThetaData response parsed via CSV fallback on attempt %s/%s (rows=%s).",
+                                counter + 1,
+                                http_retry_limit,
+                                len(csv_fallback),
+                            )
+                        else:
+                            # Treat this as transient and retry instead of failing the entire fetch path.
+                            last_status_code = status_code
+                            last_failure_detail = str(exc)
+                            logger.warning(
+                                "Failed to parse ThetaData response as JSON (attempt %s/%s): %s",
+                                counter + 1,
+                                http_retry_limit,
+                                exc,
+                            )
+                            sleep_duration = min(
+                                CONNECTION_RETRY_SLEEP * max(counter + 1, 1),
+                                HTTP_RETRY_BACKOFF_MAX,
+                            )
+                            break
+
                     json_resp = _coerce_json_payload(json_payload)
                     session_reset_in_progress = False
                     consecutive_disconnects = 0
@@ -2887,6 +3133,8 @@ def get_historical_eod_data(
 
     base_query = {
         "symbol": asset.symbol,
+        # Request JSON to avoid CSV parse errors on thetadata responses.
+        "format": "json",
     }
 
     if asset_type == "option":
@@ -3221,6 +3469,8 @@ def get_historical_data(
             "start_date": start_local.strftime("%Y-%m-%d"),
             "end_date": end_local.strftime("%Y-%m-%d"),
             "interval": interval_label,
+            # Ensure we always get JSON; CSV payloads will break json parsing.
+            "format": "json",
         }
         json_resp = get_request(
             url=url,
@@ -3242,6 +3492,7 @@ def get_historical_data(
             "symbol": asset.symbol,
             "date": trading_day.strftime("%Y-%m-%d"),
             "interval": interval_label,
+            "format": "json",
         }
         if option_params:
             querystring.update(option_params)

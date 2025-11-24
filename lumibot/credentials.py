@@ -48,8 +48,11 @@ if not found_dotenv:
 # If no .env file was found, print a warning message
 if not found_dotenv:
     # Create a colored message for the log using termcolor
-    colored_message = termcolor.colored("No .env file found. This is ok if you are using environment variables or secrets (like on Replit, AWS, etc), but if you are not, please create a .env file in the root directory of the project.", "yellow")
-    logger.warning(colored_message)
+    colored_message = termcolor.colored(
+        "No .env file found. This is expected when relying on environment variables or external secrets.",
+        "blue",
+    )
+    logger.debug(colored_message)
 
 # dotenv.load_dotenv()
 broker=None

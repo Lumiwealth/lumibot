@@ -457,7 +457,11 @@ class Data:
         iter_count = self.get_iter_count(dt)
         open_price = self.datalines["open"].dataline[iter_count]
         close_price = self.datalines["close"].dataline[iter_count]
-        price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+        # For daily bars, use the completed session's close; using the open can miss drawdowns.
+        if self.timestep == "day":
+            price = close_price
+        else:
+            price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
         return price
 
     @check_data

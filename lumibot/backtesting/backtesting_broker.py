@@ -1474,8 +1474,10 @@ class BacktestingBroker(Broker):
             elif self.data_source.SOURCE == "PANDAS":
                 # Default to the current data source timestep, but force daily bars for daily-cadence strategies.
                 timestep = getattr(self.data_source, "_timestep", None) or self.data_source.get_timestep()
-                timeshift_value = -2
-                length_value = 2
+                # Use a forward-looking window for fills. Default to -2 for daily, -3 for minute to ensure
+                # we see the next bar when pricing orders.
+                timeshift_value = -3 if timestep != "day" else -2
+                length_value = 3 if timestep != "day" else 2
                 if strategy is not None:
                     use_daily = False
                     cadence_seconds = None

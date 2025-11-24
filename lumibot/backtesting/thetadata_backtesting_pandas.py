@@ -478,8 +478,17 @@ class ThetaDataBacktestingPandas(PandasData):
         start_threshold = requested_start + START_BUFFER if requested_start is not None else None
         current_dt = self.get_datetime()
         # Limit fetch to the simulated clock to avoid downloading the entire backtest range at once.
-        end_requirement = current_dt if ts_unit == "day" else current_dt
-        end_requirement = self._normalize_default_timezone(end_requirement)
+        # For daily bars in backtests we want full forward coverage (lookahead is expected),
+        # so pull through the backtest end instead of stopping at the current clock.
+        if ts_unit == "day":
+            # For daily bars, always start at the backtest start so the initial run has full history
+            # (prevents partial caches that miss drawdown windows) and still allow lookahead.
+            requested_start = self._normalize_default_timezone(self.datetime_start)
+            # Force the fetch window to the full backtest span instead of a rolling lookback.
+            start_datetime = requested_start
+            end_requirement = self._normalize_default_timezone(self.datetime_end)
+        else:
+            end_requirement = self._normalize_default_timezone(current_dt)
         expiration_dt = self._option_expiration_end(asset_separated)
         if expiration_dt is not None and end_requirement is not None and expiration_dt < end_requirement:
             end_requirement = expiration_dt
@@ -859,6 +868,78 @@ class ThetaDataBacktestingPandas(PandasData):
         if df is None or df.empty:
             return None
 
+        def _prep_frame(base_df: pd.DataFrame) -> pd.DataFrame:
+            frame = base_df
+            if isinstance(frame, pd.DataFrame) and "datetime" in frame.columns:
+                frame = frame.set_index("datetime")
+            if not isinstance(frame.index, pd.DatetimeIndex):
+                frame.index = pd.to_datetime(frame.index, utc=True)
+            index_tz = getattr(frame.index, "tz", None)
+            if index_tz is None:
+                frame.index = frame.index.tz_localize(pytz.UTC)
+            else:
+                frame.index = frame.index.tz_convert(pytz.UTC)
+            return frame.sort_index()
+
+        def _process_frame(frame: pd.DataFrame):
+            metadata_frame_local = frame.copy()
+            cleaned_df_local = frame
+            placeholder_mask_local = None
+            placeholder_rows_local = 0
+            leading_placeholder_local = False
+            if "missing" in cleaned_df_local.columns:
+                placeholder_mask_local = cleaned_df_local["missing"].astype(bool)
+                placeholder_rows_local = int(placeholder_mask_local.sum())
+                if placeholder_rows_local and len(placeholder_mask_local):
+                    leading_placeholder_local = bool(placeholder_mask_local.iloc[0])
+                cleaned_df_local = cleaned_df_local.loc[~placeholder_mask_local].copy()
+                cleaned_df_local = cleaned_df_local.drop(columns=["missing"], errors="ignore")
+            else:
+                cleaned_df_local = cleaned_df_local.copy()
+
+            if cleaned_df_local.empty:
+                logger.debug(
+                    "[THETA][DEBUG][THETADATA-PANDAS] All merged rows for %s/%s were placeholders; retaining raw merge for diagnostics.",
+                    asset_separated,
+                    quote_asset,
+                )
+                cleaned_df_local = metadata_frame_local.drop(columns=["missing"], errors="ignore").copy()
+
+            metadata_start_override_local = None
+            if leading_placeholder_local and len(metadata_frame_local):
+                earliest_index = metadata_frame_local.index[0]
+                if isinstance(earliest_index, pd.Timestamp):
+                    earliest_index = earliest_index.to_pydatetime()
+                metadata_start_override_local = earliest_index
+
+            data_start_candidate_local = cleaned_df_local.index.min() if not cleaned_df_local.empty else None
+            data_end_candidate_local = cleaned_df_local.index.max() if not cleaned_df_local.empty else None
+            return (
+                metadata_frame_local,
+                cleaned_df_local,
+                placeholder_mask_local,
+                placeholder_rows_local,
+                leading_placeholder_local,
+                metadata_start_override_local,
+                data_start_candidate_local,
+                data_end_candidate_local,
+            )
+
+        def _covers_window(frame: Optional[pd.DataFrame], start_dt: Optional[datetime], end_dt: Optional[datetime]) -> bool:
+            if frame is None or frame.empty or start_dt is None or end_dt is None:
+                return False
+            try:
+                idx = pd.to_datetime(frame.index)
+                if idx.tz is None:
+                    idx = idx.tz_localize(pytz.UTC)
+                else:
+                    idx = idx.tz_convert(pytz.UTC)
+                min_dt = idx.min()
+                max_dt = idx.max()
+            except Exception:
+                return False
+            return min_dt.date() <= start_dt.date() and max_dt.date() >= end_dt.date()
+
         merged_df = df
         if isinstance(merged_df, pd.DataFrame) and "datetime" in merged_df.columns:
             merged_df = merged_df.set_index("datetime")
@@ -874,48 +955,41 @@ class ThetaDataBacktestingPandas(PandasData):
                 merged_df = pd.concat([existing_data.df, merged_df]).sort_index()
                 merged_df = merged_df[~merged_df.index.duplicated(keep="last")]
 
-        if not isinstance(merged_df.index, pd.DatetimeIndex):
-            merged_df.index = pd.to_datetime(merged_df.index, utc=True)
-        index_tz = getattr(merged_df.index, "tz", None)
-        if index_tz is None:
-            merged_df.index = merged_df.index.tz_localize(pytz.UTC)
-        else:
-            merged_df.index = merged_df.index.tz_convert(pytz.UTC)
+        merged_df = _prep_frame(merged_df)
+        (
+            metadata_frame,
+            cleaned_df,
+            placeholder_mask,
+            placeholder_rows,
+            leading_placeholder,
+            metadata_start_override,
+            data_start_candidate,
+            data_end_candidate,
+        ) = _process_frame(merged_df)
 
-        # Keep a copy of the merged frame (with placeholders) for metadata,
-        # but strip placeholder rows before creating the Pandas Data container.
-        metadata_frame = merged_df.copy()
-        cleaned_df = merged_df
-        placeholder_mask = None
-        placeholder_rows = 0
-        leading_placeholder = False
-        if "missing" in cleaned_df.columns:
-            placeholder_mask = cleaned_df["missing"].astype(bool)
-            placeholder_rows = int(placeholder_mask.sum())
-            if placeholder_rows and len(placeholder_mask):
-                leading_placeholder = bool(placeholder_mask.iloc[0])
-            cleaned_df = cleaned_df.loc[~placeholder_mask].copy()
-            cleaned_df = cleaned_df.drop(columns=["missing"], errors="ignore")
-        else:
-            cleaned_df = cleaned_df.copy()
-
-        if cleaned_df.empty:
-            logger.debug(
-                "[THETA][DEBUG][THETADATA-PANDAS] All merged rows for %s/%s were placeholders; retaining raw merge for diagnostics.",
-                asset_separated,
-                quote_asset,
-            )
-            cleaned_df = metadata_frame.drop(columns=["missing"], errors="ignore").copy()
-
-        metadata_start_override = None
-        if leading_placeholder and len(metadata_frame):
-            earliest_index = metadata_frame.index[0]
-            if isinstance(earliest_index, pd.Timestamp):
-                earliest_index = earliest_index.to_pydatetime()
-            metadata_start_override = earliest_index
-
-        data_start_candidate = cleaned_df.index.min() if not cleaned_df.empty else None
-        data_end_candidate = cleaned_df.index.max() if not cleaned_df.empty else None
+        if ts_unit == "day" and not _covers_window(metadata_frame, requested_start, end_requirement):
+            # Reload from the freshly written cache to avoid running on a truncated in-memory frame.
+            cache_file = thetadata_helper.build_cache_filename(asset_separated, ts_unit, "ohlc")
+            cache_df = thetadata_helper.load_cache(cache_file)
+            if cache_df is not None and not cache_df.empty:
+                logger.debug(
+                    "[THETA][DEBUG][THETADATA-PANDAS] reloading daily cache from disk for %s/%s due to coverage gap (requested=%s->%s)",
+                    asset_separated,
+                    quote_asset,
+                    requested_start,
+                    end_requirement,
+                )
+                merged_df = _prep_frame(cache_df)
+                (
+                    metadata_frame,
+                    cleaned_df,
+                    placeholder_mask,
+                    placeholder_rows,
+                    leading_placeholder,
+                    metadata_start_override,
+                    data_start_candidate,
+                    data_end_candidate,
+                ) = _process_frame(merged_df)
         data = Data(asset_separated, cleaned_df, timestep=ts_unit, quote=quote_asset)
         requested_history_start = metadata_start_override
         if requested_history_start is None and existing_meta is not None:

@@ -75,6 +75,18 @@ DOWNLOADER_KEY_HEADER = os.environ.get("DATADOWNLOADER_API_KEY_HEADER", "X-Downl
 REMOTE_DOWNLOADER_ENABLED = _coerce_skip_flag(os.environ.get("DATADOWNLOADER_SKIP_LOCAL_START"), BASE_URL)
 if REMOTE_DOWNLOADER_ENABLED:
     logger.info("[THETA][CONFIG] Remote downloader enabled at %s", BASE_URL)
+    if DOWNLOADER_API_KEY:
+        # Log a safe fingerprint so prod runs can confirm the key is present without leaking it.
+        key_prefix = DOWNLOADER_API_KEY[:4]
+        key_suffix = DOWNLOADER_API_KEY[-4:] if len(DOWNLOADER_API_KEY) > 8 else ""
+        logger.info(
+            "[THETA][CONFIG] Downloader API key detected (len=%d, prefix=%s..., suffix=...%s)",
+            len(DOWNLOADER_API_KEY),
+            key_prefix,
+            key_suffix,
+        )
+    else:
+        logger.warning("[THETA][CONFIG] Downloader API key missing (DATADOWNLOADER_API_KEY not set)")
 HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
 READINESS_ENDPOINT = "/v3/terminal/mdds/status"
 READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
@@ -1231,6 +1243,7 @@ def get_price_data(
     # Check if we already have data for this asset in the cache file
     df_all = None
     df_cached = None
+    cache_invalid = False
     cache_file = build_cache_filename(asset, timespan, datastyle)
     remote_payload = build_remote_cache_payload(asset, timespan, datastyle)
     cache_manager = get_backtest_cache()
@@ -1290,6 +1303,61 @@ def get_price_data(
         cached_rows - placeholder_rows
     )
 
+    def _validate_cache_frame(
+        frame: Optional[pd.DataFrame],
+        requested_start_dt: datetime,
+        requested_end_dt: datetime,
+        span: str,
+    ) -> Tuple[bool, str]:
+        """Return (is_valid, reason). Only applies sanity checks when a frame exists."""
+        if frame is None or frame.empty:
+            return False, "empty"
+
+        try:
+            frame_index = pd.to_datetime(frame.index)
+        except Exception:
+            return False, "unparseable_index"
+
+        min_ts = frame_index.min()
+        max_ts = frame_index.max()
+        total_rows = len(frame)
+
+        if min_ts.tzinfo is None:
+            min_ts = min_ts.tz_localize(pytz.UTC)
+        if max_ts.tzinfo is None:
+            max_ts = max_ts.tz_localize(pytz.UTC)
+
+        requested_end_date = requested_end_dt.date()
+
+        if span == "day":
+            requested_days = get_trading_dates(asset, requested_start_dt, requested_end_dt)
+            expected_days = len(requested_days)
+            # Accept a small shortfall to allow for holidays/weekends already excluded by the calendar.
+            too_few_rows = expected_days > 0 and total_rows < max(5, int(expected_days * 0.6))
+            gap_days = (requested_end_date - max_ts.date()).days
+            too_old = gap_days > 5
+            if too_few_rows or too_old:
+                reason = "too_few_rows" if too_few_rows else "stale_max_date"
+                return False, reason
+        return True, ""
+
+    cache_ok, cache_reason = _validate_cache_frame(df_all, requested_start, requested_end, timespan)
+    if not cache_ok and df_all is not None:
+        cache_invalid = True
+        try:
+            cache_file.unlink()
+        except Exception:
+            pass
+        df_all = None
+        df_cached = None
+        logger.warning(
+            "[THETA][CACHE][INVALID] asset=%s span=%s reason=%s rows=%d",
+            asset,
+            timespan,
+            cache_reason,
+            cached_rows,
+        )
+
     logger.debug(
         "[THETA][DEBUG][THETADATA-CACHE] pre-fetch rows=%d placeholders=%d for %s %s %s",
         cached_rows,
@@ -1308,7 +1376,10 @@ def get_price_data(
         end.isoformat() if hasattr(end, 'isoformat') else end
     )
 
-    missing_dates = get_missing_dates(df_all, asset, start, end)
+    if cache_invalid:
+        missing_dates = get_trading_dates(asset, start, end)
+    else:
+        missing_dates = get_missing_dates(df_all, asset, start, end)
 
     logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
@@ -1457,20 +1528,52 @@ def get_price_data(
     # This matches Polygon and Yahoo Finance EXACTLY (zero tolerance)
     if timespan == "day":
         requested_dates = list(missing_dates)
+        today_utc = datetime.now(pytz.UTC).date()
+        future_dates: List[date] = []
+        effective_start = fetch_start
+        effective_end = fetch_end
+
+        if fetch_end > today_utc:
+            effective_end = today_utc
+            future_dates = [d for d in requested_dates if d > today_utc]
+            requested_dates = [d for d in requested_dates if d <= today_utc]
+            logger.info(
+                "[THETA][INFO][THETADATA-EOD] Skipping %d future trading day(s) beyond %s; placeholders will be recorded.",
+                len(future_dates),
+                today_utc,
+            )
+
+        if effective_start > effective_end:
+            # All requested dates are in the future—record placeholders and return.
+            df_all = append_missing_markers(df_all, future_dates)
+            update_cache(
+                cache_file,
+                df_all,
+                df_cached,
+                missing_dates=future_dates,
+                remote_payload=remote_payload,
+            )
+            df_clean = df_all.copy() if df_all is not None else None
+            if df_clean is not None and not df_clean.empty:
+                if preserve_full_history:
+                    df_clean = ensure_missing_column(df_clean)
+                else:
+                    df_clean = _strip_placeholder_rows(df_clean)
+            return df_clean if df_clean is not None else pd.DataFrame()
         logger.info("Daily bars: using EOD endpoint for official close prices")
         logger.debug(
             "[THETA][DEBUG][THETADATA-EOD] requesting %d trading day(s) for %s from %s to %s",
             len(requested_dates),
             asset,
-            fetch_start,
-            fetch_end,
+            effective_start,
+            effective_end,
         )
 
         # Use EOD endpoint for official daily OHLC
         result_df = get_historical_eod_data(
             asset=asset,
-            start_dt=fetch_start,
-            end_dt=fetch_end,
+            start_dt=effective_start,
+            end_dt=effective_end,
             username=username,
             password=password,
             datastyle=datastyle
@@ -1504,11 +1607,13 @@ def get_price_data(
                     fetch_end,
                 )
             df_all = append_missing_markers(df_all, requested_dates)
+            if future_dates:
+                df_all = append_missing_markers(df_all, future_dates)
             update_cache(
                 cache_file,
                 df_all,
                 df_cached,
-                missing_dates=requested_dates,
+                missing_dates=requested_dates + future_dates,
                 remote_payload=remote_payload,
             )
             df_clean = df_all.copy() if df_all is not None else None
@@ -1546,7 +1651,7 @@ def get_price_data(
             len(result_df),
         )
 
-        trading_days = get_trading_dates(asset, fetch_start, fetch_end)
+        trading_days = get_trading_dates(asset, effective_start, effective_end)
         if "datetime" in result_df.columns:
             covered_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
         else:
@@ -1559,6 +1664,8 @@ def get_price_data(
 
         df_all = remove_missing_markers(df_all, list(covered_days))
         missing_within_range = [day for day in trading_days if day not in covered_days]
+        if future_dates:
+            missing_within_range.extend(future_dates)
         placeholder_count = len(missing_within_range)
         df_all = append_missing_markers(df_all, missing_within_range)
 

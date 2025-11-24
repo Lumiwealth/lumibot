@@ -117,7 +117,17 @@ class BacktestCacheManager:
         if not isinstance(local_path, Path):
             local_path = Path(local_path)
 
-        if local_path.exists() and not force_download:
+        if self._settings and self._settings.backend == "s3":
+            # S3 cache mode is exclusive: NEVER reuse a local file. We always delete any local copy
+            # and require a fresh download from S3. If the download fails, callers must fetch from
+            # the data source and re-upload—no local fallback is allowed when backend=s3.
+            if local_path.exists():
+                try:
+                    local_path.unlink()
+                except Exception:
+                    pass
+            force_download = True
+        elif local_path.exists() and not force_download:
             return False
 
         remote_key = self.remote_key_for(local_path, payload)
@@ -142,6 +152,12 @@ class BacktestCacheManager:
                 logger.debug(
                     "[REMOTE_CACHE][MISS] %s (reason=%s)", remote_key, self._describe_error(exc)
                 )
+                # In S3 mode, we intentionally leave no local cache on a miss to force fresh fetch.
+                if local_path.exists():
+                    try:
+                        local_path.unlink()
+                    except Exception:
+                        pass
                 return False
             raise
 

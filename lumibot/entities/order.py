@@ -1109,9 +1109,9 @@ class Order:
             logger.error(f"Cannot create position from order {self.identifier} - asset is None")
             return None
 
-        position_qty = quantity
-        if self.side == SELL:
-            position_qty = -quantity
+        position_qty = Decimal(quantity)
+        if self.is_sell_order():
+            position_qty = -position_qty
 
         position = entities.Position(
             self.strategy,

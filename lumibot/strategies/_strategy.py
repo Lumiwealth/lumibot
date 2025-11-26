@@ -952,7 +952,27 @@ class _Strategy:
         except (TypeError, ValueError):
             return 120
 
-    def _update_cash(self, side, quantity, price, multiplier):
+    @staticmethod
+    def _is_buy_side(side):
+        if side is None:
+            return False
+        if isinstance(side, Order.OrderSide):
+            normalized = side.value.lower()
+        else:
+            normalized = str(side).lower()
+        return normalized in ("buy", "buy_to_open", "buy_to_cover", "buy_to_close")
+
+    @staticmethod
+    def _is_sell_side(side):
+        if side is None:
+            return False
+        if isinstance(side, Order.OrderSide):
+            normalized = side.value.lower()
+        else:
+            normalized = str(side).lower()
+        return normalized in ("sell", "sell_short", "sell_to_close", "sell_to_open")
+
+    def _update_cash(self, order_or_side, quantity, price, multiplier):
         """update the self.cash"""
         with self._executor.lock:
             cash_val = self.cash # Calls property
@@ -967,13 +987,15 @@ class _Strategy:
             price_dec = Decimal(str(price))
             multiplier_dec = Decimal(str(multiplier))
 
-            if isinstance(side, Order.OrderSide):
-                side_value = str(side.value).lower()
-            else:
-                side_value = str(side).lower() if side is not None else ""
-            if side_value in ("buy", "buy_to_open", "buy_to_cover"):
+            order_obj = order_or_side if isinstance(order_or_side, Order) else None
+            side = getattr(order_obj, "side", order_or_side)
+
+            is_buy = order_obj.is_buy_order() if order_obj is not None else self._is_buy_side(side)
+            is_sell = order_obj.is_sell_order() if order_obj is not None else self._is_sell_side(side)
+
+            if is_buy:
                 current_cash -= quantity_dec * price_dec * multiplier_dec
-            if side_value in ("sell", "sell_short", "sell_to_close", "sell_to_open"):
+            if is_sell:
                 current_cash += quantity_dec * price_dec * multiplier_dec
 
             self._set_cash_position(float(current_cash)) # _set_cash_position expects float

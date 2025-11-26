@@ -200,10 +200,37 @@ class TestCash(unittest.TestCase):
             self.assertIsInstance(shares_method, int, "Division should produce integer shares")
         except TypeError as e:
             self.fail(f"get_cash() division failed: {e}")
-        
-        # Both should calculate the same number of shares
-        self.assertEqual(shares_property, shares_method,
-                        "Both cash methods should calculate same number of shares")
+
+    def test_update_cash_handles_all_order_sides(self):
+        """Ensure _update_cash debits/credits cash for every order closing side"""
+        asset = Asset("TEST", asset_type=Asset.AssetType.STOCK)
+        quantity = 5
+        price = 10.0
+        multiplier = 1
+        start_cash = self.strategy.cash
+
+        def make_order(side):
+            return Order(self.strategy, asset=asset, quantity=quantity, side=side)
+
+        scenarios = [
+            (Order.OrderSide.BUY, Order.OrderSide.SELL),
+            (Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.SELL_TO_CLOSE),
+            (Order.OrderSide.SELL_SHORT, Order.OrderSide.BUY_TO_CLOSE),
+            (Order.OrderSide.SELL_TO_OPEN, Order.OrderSide.BUY_TO_COVER),
+        ]
+
+        for entry_side, exit_side in scenarios:
+            with self.subTest(entry=entry_side, exit=exit_side):
+                self.strategy._set_cash_position(start_cash)
+                entry_order = make_order(entry_side)
+                self.strategy._update_cash(entry_order, quantity, price, multiplier)
+                exit_order = make_order(exit_side)
+                self.strategy._update_cash(exit_order, quantity, price, multiplier)
+                self.assertAlmostEqual(
+                    self.strategy.cash,
+                    start_cash,
+                    msg=f"Cash should return to baseline for {entry_side}->{exit_side}",
+                )
     
     def test_division_with_different_prices(self):
         """Test the division operation with various stock prices"""

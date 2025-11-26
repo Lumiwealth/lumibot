@@ -941,6 +941,65 @@ def plot_returns(
     fig.write_html(plot_file_html, auto_open=show_plot)
 
 
+def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataFrame):
+    if strategy_df is None or benchmark_df is None:
+        return None
+
+    if strategy_df.empty or benchmark_df.empty:
+        return None
+
+    _strategy_df = strategy_df.copy()
+    _benchmark_df = benchmark_df.copy()
+
+    _strategy_df.index = pd.to_datetime(_strategy_df.index)
+    _benchmark_df.index = pd.to_datetime(_benchmark_df.index)
+
+    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+
+    df["portfolio_value"] = df["portfolio_value"].ffill()
+    df["portfolio_value"] = df["portfolio_value"].bfill()
+
+    if "symbol_cumprod" in df.columns:
+        df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
+        first_symbol = df["symbol_cumprod"].dropna().iloc[0] if not df["symbol_cumprod"].dropna().empty else 1
+    else:
+        first_symbol = 1
+        df["symbol_cumprod"] = 1
+
+    df.loc[df.index[0], "symbol_cumprod"] = 1 if pd.isna(first_symbol) else first_symbol
+
+    # Seed the resample with the true initial equity so that pct_change sees day 0 -> day 1 moves
+    first_strategy_idx = _strategy_df.index.min()
+    if pd.notna(first_strategy_idx):
+        first_strategy_idx = pd.to_datetime(first_strategy_idx)
+        initial_equity = _strategy_df.loc[first_strategy_idx, "portfolio_value"]
+        anchor_idx = first_strategy_idx.normalize() - pd.Timedelta(microseconds=1)
+        anchor_row = pd.DataFrame(
+            {
+                "portfolio_value": [initial_equity],
+                "symbol_cumprod": [first_symbol if not pd.isna(first_symbol) else 1],
+            },
+            index=[anchor_idx],
+        )
+        df = pd.concat([anchor_row, df], axis=0, sort=True)
+        df = df[~df.index.duplicated(keep="last")]
+
+    df = df.resample("D").last()
+    df["strategy"] = df["portfolio_value"].bfill().pct_change(fill_method=None).fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].bfill().pct_change(fill_method=None).fillna(0)
+
+    df_final = df.loc[:, ["strategy", "benchmark"]]
+    df_final.index = pd.to_datetime(df_final.index)
+    df_final.index = df_final.index.tz_localize(None)
+
+    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
+        return None
+
+    return df_final
+
+
 def create_tearsheet(
     strategy_df: pd.DataFrame,
     strat_name: str,
@@ -960,42 +1019,9 @@ def create_tearsheet(
 
     logger.info("\nCreating tearsheet...")
 
-    # Check if df1 or df2 are empty and return if they are
-    if strategy_df is None or benchmark_df is None or strategy_df.empty or benchmark_df.empty:
-        logger.error("No data to create tearsheet, skipping")
-        return
+    df_final = _prepare_tearsheet_returns(strategy_df, benchmark_df)
 
-    _strategy_df = strategy_df.copy()
-    _benchmark_df = benchmark_df.copy()
-
-    # Convert _strategy_df and _benchmark_df indexes to a date object instead of datetime
-    _strategy_df.index = pd.to_datetime(_strategy_df.index)
-
-    # Merge the strategy and benchmark dataframes on the index column
-    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
-
-    df.index = pd.to_datetime(df.index)
-    df["portfolio_value"] = df["portfolio_value"].ffill()
-
-    # If the portfolio_value is NaN, backfill it because sometimes the benchmark starts before the strategy
-    df["portfolio_value"] = df["portfolio_value"].bfill()
-
-    df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
-    df.loc[df.index[0], "symbol_cumprod"] = 1
-
-    df = df.resample("D").last()
-    df["strategy"] = df["portfolio_value"].bfill().pct_change(fill_method=None).fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].bfill().pct_change(fill_method=None).fillna(0)
-
-    # Merge the strategy and benchmark columns into a new dataframe called df_final
-    df_final = df.loc[:, ["strategy", "benchmark"]]
-
-    # df_final = df.loc[:, ["strategy", "benchmark"]]
-    df_final.index = pd.to_datetime(df_final.index)
-    df_final.index = df_final.index.tz_localize(None)
-
-    # Check if df_final is empty and return if it is
-    if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
+    if df_final is None:
         logger.warning("No data to create tearsheet, skipping")
         return
 

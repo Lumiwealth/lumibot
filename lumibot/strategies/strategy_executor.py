@@ -485,7 +485,7 @@ class StrategyExecutor(Thread):
                 and quantity is not None
                 and price is not None
             ):
-                self.strategy._update_cash(order.side, quantity, price, multiplier)
+                self.strategy._update_cash(order, quantity, price, multiplier)
 
             self._on_filled_order(**payload)
 
@@ -520,7 +520,7 @@ class StrategyExecutor(Thread):
                 and quantity is not None
                 and price is not None
             ):
-                self.strategy._update_cash(order.side, quantity, price, multiplier)
+                self.strategy._update_cash(order, quantity, price, multiplier)
 
             self._on_partially_filled_order(**payload)
 

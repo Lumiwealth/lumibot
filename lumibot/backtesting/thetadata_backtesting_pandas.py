@@ -165,8 +165,23 @@ class ThetaDataBacktestingPandas(PandasData):
                 dt_source = frame.index
             dt_index = pd.to_datetime(dt_source)
             if len(dt_index):
-                start = dt_index.min().to_pydatetime()
-                end = dt_index.max().to_pydatetime()
+                if ts_unit == "day":
+                    start_date = dt_index.min().date()
+                    end_date = dt_index.max().date()
+                    base_tz = getattr(dt_index, "tz", None)
+                    start_dt = datetime.combine(start_date, datetime.min.time())
+                    end_dt = datetime.combine(end_date, datetime.max.time())
+                    if base_tz is not None:
+                        start_dt = start_dt.replace(tzinfo=base_tz)
+                        end_dt = end_dt.replace(tzinfo=base_tz)
+                    else:
+                        start_dt = start_dt.replace(tzinfo=pytz.UTC)
+                        end_dt = end_dt.replace(tzinfo=pytz.UTC)
+                    start = start_dt
+                    end = end_dt
+                else:
+                    start = dt_index.min().to_pydatetime()
+                    end = dt_index.max().to_pydatetime()
             else:
                 start = end = None
             rows = len(frame)
@@ -213,6 +228,19 @@ class ThetaDataBacktestingPandas(PandasData):
             metadata["expiration_notice"] = previous_meta.get("expiration_notice", False)
 
         self._dataset_metadata[key] = metadata
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "[THETA][DEBUG][METADATA][WRITE] key=%s ts=%s start=%s end=%s data_start=%s data_end=%s rows=%s placeholders=%s has_quotes=%s",
+                key,
+                ts_unit,
+                metadata.get("start"),
+                metadata.get("end"),
+                metadata.get("data_start"),
+                metadata.get("data_end"),
+                metadata.get("rows"),
+                metadata.get("placeholders"),
+                metadata.get("has_quotes"),
+            )
 
     def _frame_has_quote_columns(self, frame: Optional[pd.DataFrame]) -> bool:
         if frame is None or frame.empty:
@@ -430,6 +458,59 @@ class ThetaDataBacktestingPandas(PandasData):
 
         return frame
 
+    def _load_sidecar_metadata(self, key, asset: Asset, ts_unit: str) -> Optional[Dict[str, object]]:
+        """Hydrate in-memory metadata from an on-disk ThetaData cache sidecar."""
+        cache_file = thetadata_helper.build_cache_filename(asset, ts_unit, "ohlc")
+        sidecar = thetadata_helper._load_cache_sidecar(cache_file)
+        if not sidecar:
+            return None
+
+        min_raw = sidecar.get("min")
+        max_raw = sidecar.get("max")
+        rows = sidecar.get("rows", 0)
+        placeholders = sidecar.get("placeholders", 0)
+        if ts_unit == "day":
+            min_dt = pd.to_datetime(min_raw) if min_raw else None
+            max_dt = pd.to_datetime(max_raw) if max_raw else None
+            min_date = min_dt.date() if min_dt is not None else None
+            max_date = max_dt.date() if max_dt is not None else None
+            base_tz = getattr(min_dt, "tz", None) or getattr(max_dt, "tz", None) or pytz.UTC
+            try:
+                normalized_min = datetime.combine(min_date, datetime.min.time()).replace(tzinfo=base_tz) if min_date else None
+                normalized_max = datetime.combine(max_date, datetime.max.time()).replace(tzinfo=base_tz) if max_date else None
+                normalized_min = self.to_default_timezone(normalized_min) if normalized_min else None
+                normalized_max = self.to_default_timezone(normalized_max) if normalized_max else None
+            except Exception:
+                normalized_min = datetime.combine(min_date, datetime.min.time()) if min_date else None
+                normalized_max = datetime.combine(max_date, datetime.max.time()) if max_date else None
+        else:
+            normalized_min = self._normalize_default_timezone(pd.to_datetime(min_raw).to_pydatetime()) if min_raw else None
+            normalized_max = self._normalize_default_timezone(pd.to_datetime(max_raw).to_pydatetime()) if max_raw else None
+
+        meta = {
+            "timestep": ts_unit,
+            "start": normalized_min,
+            "end": normalized_max,
+            "data_start": normalized_min,
+            "data_end": normalized_max,
+            "rows": int(rows) if rows is not None else 0,
+            "placeholders": int(placeholders) if placeholders is not None else 0,
+            "prefetch_complete": False,
+            "sidecar_loaded": True,
+        }
+        self._dataset_metadata[key] = meta
+        logger.debug(
+            "[THETA][DEBUG][SIDECAR][LOAD] asset=%s key=%s ts_unit=%s start=%s end=%s rows=%s placeholders=%s",
+            getattr(asset, "symbol", asset),
+            key,
+            ts_unit,
+            normalized_min,
+            normalized_max,
+            meta["rows"],
+            placeholders,
+        )
+        return meta
+
     def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None, require_quote_data: bool = False):
         """
         Get asset data and update the self.pandas_data dictionary.
@@ -472,23 +553,72 @@ class ThetaDataBacktestingPandas(PandasData):
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
             length, timestep, start_dt, start_buffer=START_BUFFER
         )
-
-        requested_length = length
-        requested_start = self._normalize_default_timezone(start_datetime)
-        start_threshold = requested_start + START_BUFFER if requested_start is not None else None
         current_dt = self.get_datetime()
-        # Limit fetch to the simulated clock to avoid downloading the entire backtest range at once.
-        # For daily bars in backtests we want full forward coverage (lookahead is expected),
-        # so pull through the backtest end instead of stopping at the current clock.
+
+        requested_length = max(length, 1)
+        requested_start = self._normalize_default_timezone(start_datetime)
+        window_start = self._normalize_default_timezone(self.datetime_start - START_BUFFER)
+        if requested_start is None or (window_start is not None and window_start < requested_start):
+            requested_start = window_start
+        start_threshold = requested_start + START_BUFFER if requested_start is not None else None
+        start_for_fetch = requested_start or start_datetime
+        # Always target full backtest coverage on first fetch; reuse thereafter
         if ts_unit == "day":
-            # For daily bars, always start at the backtest start so the initial run has full history
-            # (prevents partial caches that miss drawdown windows) and still allow lookahead.
-            requested_start = self._normalize_default_timezone(self.datetime_start)
-            # Force the fetch window to the full backtest span instead of a rolling lookback.
-            start_datetime = requested_start
-            end_requirement = self._normalize_default_timezone(self.datetime_end)
+            try:
+                end_date = self.datetime_end.date() if hasattr(self.datetime_end, "date") else self.datetime_end
+            except Exception:
+                end_date = self.datetime_end
+            end_requirement = datetime.combine(end_date, datetime.max.time())
+            try:
+                end_requirement = self.tzinfo.localize(end_requirement)
+            except Exception:
+                end_requirement = end_requirement.replace(tzinfo=getattr(self, "tzinfo", None))
+            end_requirement = self.to_default_timezone(end_requirement) if hasattr(self, "to_default_timezone") else end_requirement
         else:
-            end_requirement = self._normalize_default_timezone(current_dt)
+            end_requirement = self._normalize_default_timezone(self.datetime_end)
+        # Align day requests to the last known trading day before datetime_end to avoid off-by-one churn.
+        if ts_unit == "day":
+            try:
+                trading_days = thetadata_helper.get_trading_dates(
+                    asset_separated,
+                    start_for_fetch or self.datetime_start,
+                    end_requirement or self.datetime_end,
+                )
+                if trading_days:
+                    last_trading_day = trading_days[-1]
+                    end_requirement = datetime.combine(last_trading_day, datetime.max.time()).replace(tzinfo=end_requirement.tzinfo)
+                    logger.debug(
+                        "[THETA][DEBUG][END_ALIGNMENT] asset=%s/%s last_trading_day=%s aligned_end=%s",
+                        asset_separated,
+                        quote_asset,
+                        last_trading_day,
+                        end_requirement,
+                    )
+            except Exception:
+                logger.debug("[THETA][DEBUG][END_ALIGNMENT] failed to align end_requirement for day bars", exc_info=True)
+        # Log when minute/hour data is requested in day mode - this is allowed when explicitly
+        # requested by the strategy (e.g., get_historical_prices with timestep="minute").
+        # The implicit→day alignment happens upstream in _pull_source_symbol_bars.
+        current_mode = getattr(self, "_timestep", None)
+        if current_mode == "day" and ts_unit in {"minute", "hour"}:
+            logger.debug(
+                "[THETA][DEBUG][MINUTE_IN_DAY_MODE] _update_pandas_data ts_unit=%s current_mode=day asset=%s length=%s require_quote_data=%s | allowing explicit request",
+                ts_unit,
+                asset_separated,
+                requested_length,
+                require_quote_data,
+            )
+        logger.debug(
+            "[THETA][DEBUG][UPDATE_ENTRY] asset=%s quote=%s timestep=%s length=%s requested_start=%s start_for_fetch=%s target_end=%s current_dt=%s",
+            asset_separated,
+            quote_asset,
+            ts_unit,
+            requested_length,
+            requested_start,
+            start_for_fetch,
+            end_requirement,
+            current_dt,
+        )
         expiration_dt = self._option_expiration_end(asset_separated)
         if expiration_dt is not None and end_requirement is not None and expiration_dt < end_requirement:
             end_requirement = expiration_dt
@@ -499,9 +629,19 @@ class ThetaDataBacktestingPandas(PandasData):
         for lookup_key in (canonical_key, legacy_key):
             candidate = self.pandas_data.get(lookup_key)
             if candidate is not None:
-                cached_data = candidate
-                dataset_key = lookup_key
-                break
+                # Only use cached data if its timestep matches what we're requesting.
+                # This prevents using day data when minute data is requested (or vice versa).
+                if candidate.timestep == ts_unit:
+                    cached_data = candidate
+                    dataset_key = lookup_key
+                    break
+                else:
+                    logger.debug(
+                        "[THETA][DEBUG][CACHE_SKIP] Found data under key=%s but timestep mismatch: cached=%s requested=%s",
+                        lookup_key,
+                        candidate.timestep,
+                        ts_unit,
+                    )
 
         if cached_data is not None and canonical_key not in self.pandas_data:
             self.pandas_data[canonical_key] = cached_data
@@ -512,6 +652,84 @@ class ThetaDataBacktestingPandas(PandasData):
             existing_meta = self._dataset_metadata[legacy_key]
             if existing_meta is not None:
                 self._dataset_metadata[canonical_key] = existing_meta
+        if existing_meta is None:
+            existing_meta = self._load_sidecar_metadata(canonical_key, asset_separated, ts_unit)
+
+        existing_data = self.pandas_data.get(dataset_key)
+        if existing_data is not None and ts_unit == "day":
+            # Refresh metadata from the actual dataframe to avoid stale end dates caused by tz shifts.
+            has_quotes = self._frame_has_quote_columns(existing_data.df)
+            self._record_metadata(canonical_key, existing_data.df, existing_data.timestep, asset_separated, has_quotes=has_quotes)
+            existing_meta = self._dataset_metadata.get(canonical_key)
+            try:
+                df_idx = pd.to_datetime(existing_data.df.index)
+                logger.debug(
+                    "[THETA][DEBUG][DAY_METADATA_REBUILD] asset=%s/%s df_min=%s df_max=%s rows=%s rebuilt_start=%s rebuilt_end=%s",
+                    asset_separated,
+                    quote_asset,
+                    df_idx.min(),
+                    df_idx.max(),
+                    len(df_idx),
+                    existing_meta.get("start") if existing_meta else None,
+                    existing_meta.get("end") if existing_meta else None,
+                )
+            except Exception:
+                logger.debug("[THETA][DEBUG][DAY_METADATA_REBUILD] failed to log dataframe bounds", exc_info=True)
+
+        # Fast-path reuse: if we already have a dataframe that covers the needed window, skip all fetch/ffill work.
+        # IMPORTANT: Only reuse if the cached data's timestep matches what we're requesting.
+        # Otherwise we might reuse day data when minute data was requested (or vice versa).
+        if existing_data is not None and existing_data.timestep == ts_unit:
+            df_idx = existing_data.df.index
+            if len(df_idx):
+                idx = pd.to_datetime(df_idx)
+                if idx.tz is None:
+                    idx = idx.tz_localize(pytz.UTC)
+                else:
+                    idx = idx.tz_convert(pytz.UTC)
+                coverage_start = idx.min()
+                coverage_end = idx.max()
+                # Use date-level comparison for both day and minute data, but ensure both
+                # timestamps are in the same timezone before extracting date. Otherwise
+                # UTC midnight (Nov 3 00:00 UTC = Nov 2 19:00 EST) would incorrectly match
+                # a local date requirement of Nov 3.
+                if coverage_end is not None and end_requirement is not None:
+                    # Convert both to the same timezone (use end_requirement's timezone)
+                    target_tz = end_requirement.tzinfo
+                    if target_tz is not None and coverage_end.tzinfo is not None:
+                        coverage_end_local = coverage_end.astimezone(target_tz)
+                    else:
+                        coverage_end_local = coverage_end
+                    coverage_end_cmp = coverage_end_local.date()
+                    end_requirement_cmp = end_requirement.date()
+                else:
+                    coverage_end_cmp = coverage_end.date() if coverage_end is not None else None
+                    end_requirement_cmp = end_requirement.date() if end_requirement is not None else None
+                end_ok = coverage_end_cmp is not None and end_requirement_cmp is not None and coverage_end_cmp >= end_requirement_cmp
+
+                if (
+                    coverage_start is not None
+                    and requested_start is not None
+                    and coverage_start <= requested_start + START_BUFFER
+                    and end_ok
+                ):
+                    meta = self._dataset_metadata.get(canonical_key, {}) or {}
+                    if not meta.get("ffilled"):
+                        meta["ffilled"] = True
+                    if meta.get("prefetch_complete") is None:
+                        meta["prefetch_complete"] = True
+                    self._dataset_metadata[canonical_key] = meta
+                    logger.info(
+                        "[THETA][CACHE][FAST_REUSE] asset=%s/%s (%s) covers start=%s end=%s needed_start=%s needed_end=%s -> reuse (date-level comparison)",
+                        asset_separated,
+                        quote_asset,
+                        ts_unit,
+                        coverage_start,
+                        coverage_end,
+                        requested_start,
+                        end_requirement,
+                    )
+                    return None
 
         if cached_data is not None and existing_meta is None:
             has_quotes = self._frame_has_quote_columns(cached_data.df)
@@ -519,12 +737,21 @@ class ThetaDataBacktestingPandas(PandasData):
             existing_meta = self._dataset_metadata.get(canonical_key)
 
         existing_data = cached_data
+        existing_start = None
+        existing_end = None
         existing_has_quotes = bool(existing_meta.get("has_quotes")) if existing_meta else False
 
         if existing_data is not None and existing_meta and existing_meta.get("timestep") == ts_unit:
             existing_start = existing_meta.get("start")
             existing_rows = existing_meta.get("rows", 0)
             existing_end = existing_meta.get("end")
+
+            # Fill missing metadata with actual dataframe bounds
+            if (existing_start is None or existing_end is None) and len(existing_data.df.index) > 0:
+                if existing_start is None:
+                    existing_start = self._normalize_default_timezone(existing_data.df.index[0])
+                if existing_end is None:
+                    existing_end = self._normalize_default_timezone(existing_data.df.index[-1])
 
             # DEBUG-LOG: Cache validation entry
             logger.debug(
@@ -583,47 +810,39 @@ class ThetaDataBacktestingPandas(PandasData):
                         asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated)
                     )
                 else:
-                    # FIX: For daily data, use date-only comparison instead of datetime comparison
-                    # This prevents false negatives when existing_end is midnight and end_requirement is later the same day
-                    if ts_unit == "day":
-                        existing_end_date = existing_end.date() if hasattr(existing_end, 'date') else existing_end
-                        end_requirement_date = end_requirement.date() if hasattr(end_requirement, 'date') else end_requirement
-                        existing_end_cmp = existing_end_date
-                        end_requirement_cmp = end_requirement_date
+                    # FIX: For both day and minute data, use date-only comparison
+                    # For day data: prevents false negatives when existing_end is midnight and end_requirement is later
+                    # For minute data: minute data legitimately ends at market close (7:59 PM), not midnight
+                    # IMPORTANT: Convert to same timezone before extracting date to avoid UTC/local mismatch
+                    if hasattr(existing_end, 'tzinfo') and hasattr(end_requirement, 'tzinfo'):
+                        target_tz = end_requirement.tzinfo
+                        if target_tz is not None and existing_end.tzinfo is not None:
+                            existing_end_local = existing_end.astimezone(target_tz)
+                        else:
+                            existing_end_local = existing_end
                     else:
-                        existing_end_cmp = existing_end
-                        end_requirement_cmp = end_requirement
+                        existing_end_local = existing_end
+                    existing_end_date = existing_end_local.date() if hasattr(existing_end_local, 'date') else existing_end_local
+                    end_requirement_date = end_requirement.date() if hasattr(end_requirement, 'date') else end_requirement
+                    existing_end_cmp = existing_end_date
+                    end_requirement_cmp = end_requirement_date
+                    # Allow 3-day tolerance - ThetaData may not have the most recent data
+                    end_tolerance = timedelta(days=3)
 
-                    if existing_end_cmp > end_requirement_cmp:
+                    if existing_end_cmp >= end_requirement_cmp - end_tolerance:
                         end_ok = True
                         logger.debug(
                             "[DEBUG][BACKTEST][THETA][DEBUG][PANDAS][END_VALIDATION][RESULT] asset=%s | "
-                            "end_ok=TRUE | reason=existing_end_exceeds_requirement | "
-                            "existing_end=%s end_requirement=%s ts_unit=%s",
+                            "end_ok=TRUE | reason=existing_end_meets_requirement | "
+                            "existing_end=%s end_requirement=%s tolerance=%s ts_unit=%s",
                             asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
                             existing_end.isoformat(),
                             end_requirement.isoformat(),
-                            ts_unit
-                        )
-                    elif existing_end_cmp == end_requirement_cmp:
-                        weekday = existing_end.weekday() if hasattr(existing_end, "weekday") else None
-                        placeholder_on_weekend = tail_placeholder and weekday is not None and weekday >= 5
-                        placeholder_empty_fetch = tail_placeholder and existing_meta.get("empty_fetch")
-                        end_ok = (not tail_placeholder) or placeholder_on_weekend or placeholder_empty_fetch
-
-                        logger.debug(
-                            "[DEBUG][BACKTEST][THETA][DEBUG][PANDAS][END_VALIDATION][EXACT_MATCH] asset=%s | "
-                            "existing_end == end_requirement | "
-                            "weekday=%s placeholder_on_weekend=%s placeholder_empty_fetch=%s | "
-                            "end_ok=%s ts_unit=%s",
-                            asset_separated.symbol if hasattr(asset_separated, 'symbol') else str(asset_separated),
-                            weekday,
-                            placeholder_on_weekend,
-                            placeholder_empty_fetch,
-                            end_ok,
+                            end_tolerance,
                             ts_unit
                         )
                     else:
+                        # existing_end is still behind the required window
                         end_ok = False
                         logger.debug(
                             "[DEBUG][BACKTEST][THETA][DEBUG][PANDAS][END_VALIDATION][RESULT] asset=%s | "
@@ -703,19 +922,72 @@ class ThetaDataBacktestingPandas(PandasData):
                 existing_rows,
                 requested_length,
             )
+            if existing_meta is not None and existing_meta.get("prefetch_complete"):
+                # The cache was marked complete but doesn't cover our required end date.
+                # This can happen if the cache is stale or backtest dates changed.
+                # Clear the prefetch_complete flag and try to fetch more data.
+                logger.info(
+                    "[THETA][CACHE][STALE] asset=%s/%s (%s) prefetch_complete but coverage insufficient; "
+                    "clearing flag to allow refetch. existing_end=%s target_end=%s",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                    existing_end,
+                    end_requirement,
+                )
+                existing_meta["prefetch_complete"] = False
+                self._dataset_metadata[canonical_key] = existing_meta
+            logger.info(
+                "[THETA][CACHE][REFRESH] asset=%s/%s (%s) dt=%s start_needed=%s end_needed=%s reasons=%s rows_have=%s rows_need=%s",
+                asset_separated,
+                quote_asset,
+                ts_unit,
+                current_dt,
+                requested_start,
+                end_requirement,
+                ",".join(reasons) or "unknown",
+                existing_rows,
+                requested_length,
+            )
 
         # Check if we have data for this asset
         if existing_data is not None:
             asset_data_df = existing_data.df
             data_start_datetime = asset_data_df.index[0]
+            data_end_datetime = asset_data_df.index[-1]
 
             # Get the timestep of the data
             data_timestep = existing_data.timestep
 
+            coverage_start = (
+                self._normalize_default_timezone(existing_start)
+                if existing_start is not None
+                else self._normalize_default_timezone(data_start_datetime)
+            )
+            coverage_end = (
+                self._normalize_default_timezone(existing_end)
+                if existing_end is not None
+                else self._normalize_default_timezone(data_end_datetime)
+            )
+
+            end_missing = False
+            if end_requirement is not None:
+                if coverage_end is None:
+                    end_missing = True
+                else:
+                    coverage_end_cmp = coverage_end.date() if ts_unit == "day" else coverage_end
+                    end_requirement_cmp = end_requirement.date() if ts_unit == "day" else end_requirement
+                    end_missing = coverage_end_cmp < end_requirement_cmp
+
             # If the timestep is the same, we don't need to update the data
             if data_timestep == ts_unit:
                 # Check if we have enough data (5 days is the buffer we subtracted from the start datetime)
-                if (data_start_datetime - start_datetime) < START_BUFFER:
+                start_buffer_ok = (
+                    coverage_start is not None
+                    and start_for_fetch is not None
+                    and (coverage_start - start_for_fetch) < START_BUFFER
+                )
+                if start_buffer_ok and not end_missing:
                     return None
 
             # When daily bars are requested we should never "downgrade" to minute/hour requests.
@@ -744,14 +1016,14 @@ class ThetaDataBacktestingPandas(PandasData):
             quote_asset,
             length,
             timestep,
-            start_datetime,
+            start_for_fetch,
             end_requirement,
         )
         df_ohlc = thetadata_helper.get_price_data(
             self._username,
             self._password,
             asset_separated,
-            start_datetime,
+            start_for_fetch,
             end_requirement,
             timespan=ts_unit,
             quote_asset=quote_asset,
@@ -777,31 +1049,11 @@ class ThetaDataBacktestingPandas(PandasData):
                 )
                 if existing_meta is not None:
                     existing_meta["expiration_notice"] = True
-            else:
-                logger.warning(f"No OHLC data returned for {asset_separated} / {quote_asset} ({ts_unit}); skipping cache update.")
-            cache_df = thetadata_helper.load_cache(
-                thetadata_helper.build_cache_filename(asset_separated, ts_unit, "ohlc")
+                return None
+            raise ValueError(
+                f"No OHLC data returned for {asset_separated} / {quote_asset} ({ts_unit}) "
+                f"start={start_datetime} end={end_requirement}; refusing to proceed with empty dataset."
             )
-            if cache_df is not None and len(cache_df) > 0:
-                placeholder_data = Data(asset_separated, cache_df, timestep=ts_unit, quote=quote_asset)
-                placeholder_update = self._set_pandas_data_keys([placeholder_data])
-                if placeholder_update:
-                    enriched_update: Dict[tuple, Data] = {}
-                    for key, data_obj in placeholder_update.items():
-                        enriched_update[key] = data_obj
-                        if isinstance(key, tuple) and len(key) == 2:
-                            enriched_update[(key[0], key[1], data_obj.timestep)] = data_obj
-                    self.pandas_data.update(enriched_update)
-                    self._data_store.update(enriched_update)
-                    has_quotes = self._frame_has_quote_columns(placeholder_data.df)
-                    self._record_metadata(canonical_key, placeholder_data.df, ts_unit, asset_separated, has_quotes=has_quotes)
-                    logger.debug(
-                        "[THETA][DEBUG][THETADATA-PANDAS] refreshed metadata from cache for %s/%s (%s) after empty fetch.",
-                        asset_separated,
-                        quote_asset,
-                        ts_unit,
-                    )
-            return None
 
         df = df_ohlc
         quotes_attached = False
@@ -815,8 +1067,8 @@ class ThetaDataBacktestingPandas(PandasData):
                     self._username,
                     self._password,
                     asset_separated,
-                    start_datetime,
-                    self.datetime_end,
+                    start_for_fetch,
+                    end_requirement,
                     timespan=ts_unit,
                     quote_asset=quote_asset,
                     dt=date_time_now,
@@ -856,14 +1108,56 @@ class ThetaDataBacktestingPandas(PandasData):
                     for col in quote_columns + timestamp_columns
                     if col in df.columns
                 ]
+                quotes_ffilled = False
+                quotes_ffill_rows = None
+                quotes_ffill_remaining = None
                 if forward_fill_columns:
-                    df[forward_fill_columns] = df[forward_fill_columns].ffill()
+                    should_ffill = True
+                    if existing_meta:
+                        prev_ffilled = existing_meta.get("quotes_ffilled")
+                        prev_rows = existing_meta.get("quotes_ffill_rows")
+                        prev_end = existing_meta.get("data_end")
+                        if prev_ffilled and prev_rows is not None:
+                            current_rows = len(df)
+                            current_end = None
+                            try:
+                                if "datetime" in df.columns:
+                                    current_end = pd.to_datetime(df["datetime"]).max()
+                                else:
+                                    current_end = pd.to_datetime(df.index).max()
+                                if isinstance(current_end, pd.Timestamp):
+                                    current_end = current_end.to_pydatetime()
+                                current_end = self._normalize_default_timezone(current_end)
+                            except Exception:
+                                current_end = None
 
-                    # Log how much forward filling occurred
-                    if 'bid' in df.columns and 'ask' in df.columns:
-                        remaining_nulls = df[['bid', 'ask']].isna().sum().sum()
-                        if remaining_nulls > 0:
-                            logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
+                            end_tolerance = timedelta(hours=12) if ts_unit in ["minute", "hour", "second"] else timedelta(days=0)
+                            if (
+                                current_rows <= prev_rows
+                                and prev_end is not None
+                                and current_end is not None
+                                and current_end <= prev_end + end_tolerance
+                            ):
+                                should_ffill = False
+                                logger.debug(
+                                    "[THETA][DEBUG][THETADATA-PANDAS][FFILL] Skipping forward fill for %s/%s (%s); already applied to %s rows",
+                                    asset_separated,
+                                    quote_asset,
+                                    ts_unit,
+                                    prev_rows,
+                                )
+
+                    if should_ffill:
+                        df[forward_fill_columns] = df[forward_fill_columns].ffill()
+                        quotes_ffilled = True
+                        quotes_ffill_rows = len(df)
+
+                        # Log how much forward filling occurred
+                        if 'bid' in df.columns and 'ask' in df.columns:
+                            remaining_nulls = df[['bid', 'ask']].isna().sum().sum()
+                            quotes_ffill_remaining = remaining_nulls
+                            if remaining_nulls > 0:
+                                logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
 
         if df is None or df.empty:
             return None
@@ -991,11 +1285,23 @@ class ThetaDataBacktestingPandas(PandasData):
                     data_end_candidate,
                 ) = _process_frame(merged_df)
         data = Data(asset_separated, cleaned_df, timestep=ts_unit, quote=quote_asset)
+        data.strict_end_check = True
+        logger.debug(
+            "[THETA][DEBUG][DATA_OBJ] asset=%s/%s (%s) rows=%s idx_min=%s idx_max=%s placeholders=%s ffilled=%s",
+            asset_separated,
+            quote_asset,
+            ts_unit,
+            len(cleaned_df) if cleaned_df is not None else 0,
+            cleaned_df.index.min() if cleaned_df is not None and len(cleaned_df) else None,
+            cleaned_df.index.max() if cleaned_df is not None and len(cleaned_df) else None,
+            placeholder_rows,
+            meta.get("ffilled") if 'meta' in locals() else None,
+        )
         requested_history_start = metadata_start_override
         if requested_history_start is None and existing_meta is not None:
             requested_history_start = existing_meta.get("start")
         if requested_history_start is None:
-            requested_history_start = start_datetime
+            requested_history_start = start_for_fetch
         if isinstance(requested_history_start, pd.Timestamp):
             requested_history_start = requested_history_start.to_pydatetime()
         effective_floor = requested_history_start or data.datetime_start
@@ -1033,6 +1339,146 @@ class ThetaDataBacktestingPandas(PandasData):
             data_end_override=data_end_candidate,
             data_rows_override=len(cleaned_df),
         )
+        meta = self._dataset_metadata.get(canonical_key, {}) or {}
+        legacy_meta = self._dataset_metadata.get(legacy_key)
+        meta["prefetch_complete"] = True
+        meta["target_start"] = requested_start
+        meta["target_end"] = end_requirement
+        meta["ffilled"] = True
+
+        if quotes_attached:
+            if quotes_ffill_rows is None and existing_meta is not None:
+                quotes_ffill_rows = existing_meta.get("quotes_ffill_rows")
+            if existing_meta is not None and quotes_ffill_remaining is None:
+                quotes_ffill_remaining = existing_meta.get("quotes_nulls_remaining")
+            meta["quotes_ffilled"] = bool(meta.get("quotes_ffilled") or quotes_ffilled)
+            if quotes_ffill_rows is not None:
+                meta["quotes_ffill_rows"] = quotes_ffill_rows
+            if quotes_ffill_remaining is not None:
+                meta["quotes_nulls_remaining"] = quotes_ffill_remaining
+        elif existing_meta is not None and existing_meta.get("quotes_ffilled"):
+            meta["quotes_ffilled"] = True
+
+        self._dataset_metadata[canonical_key] = meta
+        if legacy_meta is not None:
+            legacy_meta.update(meta)
+            self._dataset_metadata[legacy_key] = legacy_meta
+        if ts_unit == "day" and placeholder_mask is not None and len(placeholder_mask):
+            try:
+                tail_missing = bool(placeholder_mask.iloc[-1])
+                if tail_missing:
+                    last_idx = pd.to_datetime(metadata_frame.index).max()
+                    meta["tail_missing_date"] = last_idx.date() if hasattr(last_idx, "date") else last_idx
+                    if end_requirement is not None and hasattr(last_idx, "date"):
+                        try:
+                            end_req_date = end_requirement.date()
+                            last_missing_date = last_idx.date()
+                            if last_missing_date >= end_req_date:
+                                meta["tail_missing_permanent"] = True
+                        except Exception:
+                            logger.debug("[THETA][DEBUG][TAIL_PLACEHOLDER] failed to compare missing vs end_requirement", exc_info=True)
+                    logger.debug(
+                        "[THETA][DEBUG][TAIL_PLACEHOLDER] asset=%s/%s last_missing_date=%s target_end=%s permanent=%s",
+                        asset_separated,
+                        quote_asset,
+                        meta.get("tail_missing_date"),
+                        end_requirement,
+                        meta.get("tail_missing_permanent"),
+                    )
+            except Exception:
+                logger.debug("[THETA][DEBUG][TAIL_PLACEHOLDER] failed to compute tail placeholder metadata", exc_info=True)
+            self._dataset_metadata[canonical_key] = meta
+            if legacy_meta is not None:
+                legacy_meta.update(meta)
+                self._dataset_metadata[legacy_key] = legacy_meta
+
+        coverage_end = meta.get("data_end") or meta.get("end")
+        if ts_unit == "day":
+            try:
+                coverage_end = pd.to_datetime(metadata_frame.index).max()
+                logger.debug(
+                    "[THETA][DEBUG][COVERAGE_END] asset=%s/%s (%s) coverage_end_index=%s",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                    coverage_end,
+                )
+            except Exception:
+                pass
+        logger.debug(
+            "[THETA][DEBUG][COVERAGE_CHECK] asset=%s/%s (%s) coverage_start=%s coverage_end=%s target_start=%s target_end=%s data_rows=%s placeholders=%s",
+            asset_separated,
+            quote_asset,
+            ts_unit,
+            meta.get("data_start"),
+            coverage_end,
+            requested_start,
+            end_requirement,
+            meta.get("data_rows"),
+            meta.get("placeholders"),
+        )
+        if end_requirement is not None:
+            if coverage_end is None:
+                raise ValueError(
+                    f"ThetaData coverage for {asset_separated}/{quote_asset} ({ts_unit}) has no end timestamp "
+                    f"while target end is {end_requirement}."
+                )
+            # For both day and minute data, compare at the date level.
+            # Minute data legitimately ends at end of after-hours trading (not midnight),
+            # so comparing full timestamps would fail incorrectly.
+            # IMPORTANT: Convert to same timezone before extracting date to avoid UTC/local mismatch
+            if hasattr(coverage_end, 'tzinfo') and hasattr(end_requirement, 'tzinfo'):
+                target_tz = end_requirement.tzinfo
+                if target_tz is not None and coverage_end.tzinfo is not None:
+                    coverage_end_local = coverage_end.astimezone(target_tz)
+                else:
+                    coverage_end_local = coverage_end
+            else:
+                coverage_end_local = coverage_end
+            coverage_end_cmp = coverage_end_local.date()
+            end_requirement_cmp = end_requirement.date()
+            # Allow tolerance of up to 3 days at the end - ThetaData may not have the most recent data
+            days_behind = (end_requirement_cmp - coverage_end_cmp).days if end_requirement_cmp > coverage_end_cmp else 0
+            END_TOLERANCE_DAYS = 3
+            if days_behind > 0 and days_behind <= END_TOLERANCE_DAYS:
+                logger.warning(
+                    "[THETA][COVERAGE][TOLERANCE] asset=%s/%s (%s) data is %s day(s) behind target_end=%s; allowing within tolerance",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                    days_behind,
+                    end_requirement,
+                )
+            if coverage_end_cmp < end_requirement_cmp and days_behind > END_TOLERANCE_DAYS:
+                logger.error(
+                    "[THETA][ERROR][COVERAGE] asset=%s/%s (%s) coverage_end=%s target_end=%s rows=%s placeholders=%s days_behind=%s",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                    coverage_end,
+                    end_requirement,
+                    meta.get("rows"),
+                    meta.get("placeholders"),
+                    days_behind,
+                )
+                logger.error(
+                    "[THETA][ERROR][COVERAGE][DIAGNOSTICS] requested_start=%s start_for_fetch=%s data_start=%s data_end=%s requested_length=%s prefetch_complete=%s",
+                    requested_start,
+                    start_for_fetch,
+                    meta.get("data_start"),
+                    meta.get("data_end"),
+                    requested_length,
+                    meta.get("prefetch_complete"),
+                )
+                raise ValueError(
+                    f"ThetaData coverage for {asset_separated}/{quote_asset} ({ts_unit}) ends at {coverage_end} "
+                    f"but target end is {end_requirement}; aborting repeated refreshes."
+                )
+        if meta.get("tail_placeholder") and not meta.get("tail_missing_permanent"):
+            raise ValueError(
+                f"ThetaData cache for {asset_separated}/{quote_asset} ({ts_unit}) ends with placeholders; "
+                f"cannot trade on incomplete data (target_end={end_requirement})."
+            )
         if legacy_key not in self._dataset_metadata:
             try:
                 self._dataset_metadata[legacy_key] = self._dataset_metadata.get(canonical_key, {})
@@ -1063,15 +1509,17 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        # Align implicit requests to the current cadence: if the data source is operating on day bars,
-        # avoid fallback to minute unless explicitly requested.
-        if timestep is None and getattr(self, "_timestep", None) == "day":
+        # When timestep is not explicitly specified, align to the current backtesting mode
+        # to avoid accidental minute-for-day fallback. Explicit minute/hour requests are
+        # allowed - if a strategy explicitly asks for minute data, that's intentional.
+        current_mode = getattr(self, "_timestep", None)
+        if timestep is None and current_mode == "day":
             timestep = "day"
-        elif timestep == "minute" and getattr(self, "_timestep", None) == "day":
-            # Debug guard to trace unexpected minute requests during daily cadence.
-            import traceback
-            logger.warning("[THETA][DEBUG] Minute timestep requested while source is in day mode for %s; length=%s timeshift=%s", asset, length, timeshift)
-            logger.debug("Caller stack:\n%s", "".join(traceback.format_stack(limit=8)))
+            logger.debug(
+                "[THETA][DEBUG][TIMESTEP_ALIGN] Implicit request aligned to day mode for asset=%s length=%s",
+                asset,
+                length,
+            )
         dt = self.get_datetime()
         requested_length = self.estimate_requested_length(length, timestep=timestep)
         logger.debug(
@@ -1195,6 +1643,15 @@ class ThetaDataBacktestingPandas(PandasData):
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         sample_length = 5
         dt = self.get_datetime()
+        # In day mode, use day data for price lookups instead of defaulting to minute.
+        # This prevents unnecessary minute data downloads at end of day-mode backtests.
+        current_mode = getattr(self, "_timestep", None)
+        if current_mode == "day" and timestep == "minute":
+            timestep = "day"
+            logger.debug(
+                "[THETA][DEBUG][TIMESTEP_ALIGN] get_last_price aligned from minute to day for asset=%s",
+                asset,
+            )
         self._update_pandas_data(asset, quote, sample_length, timestep, dt, require_quote_data=True)
         _, ts_unit = self.get_start_datetime_and_ts_unit(
             sample_length, timestep, dt, start_buffer=START_BUFFER
@@ -1267,6 +1724,15 @@ class ThetaDataBacktestingPandas(PandasData):
         """Return the latest OHLC + quote snapshot for the requested asset."""
         sample_length = 5
         dt = self.get_datetime()
+        # In day mode, use day data for price snapshots instead of defaulting to minute.
+        # This prevents unnecessary minute data downloads at end of day-mode backtests.
+        current_mode = getattr(self, "_timestep", None)
+        if current_mode == "day" and timestep == "minute":
+            timestep = "day"
+            logger.debug(
+                "[THETA][DEBUG][TIMESTEP_ALIGN] get_price_snapshot aligned from minute to day for asset=%s",
+                asset,
+            )
         self._update_pandas_data(asset, quote, sample_length, timestep, dt)
         _, ts_unit = self.get_start_datetime_and_ts_unit(
             sample_length, timestep, dt, start_buffer=START_BUFFER
@@ -1289,14 +1755,26 @@ class ThetaDataBacktestingPandas(PandasData):
             )
             return None
 
-        snapshot = data.get_price_snapshot(dt)
-        logger.debug(
-            "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot succeeded for %s/%s: %s",
-            asset,
-            quote or Asset("USD", "forex"),
-            snapshot,
-        )
-        return snapshot
+        try:
+            snapshot = data.get_price_snapshot(dt)
+            logger.debug(
+                "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot succeeded for %s/%s: %s",
+                asset,
+                quote or Asset("USD", "forex"),
+                snapshot,
+            )
+            return snapshot
+        except ValueError as e:
+            # Handle case where requested date is after available data (e.g., end of backtest)
+            if "after the available data's end" in str(e):
+                logger.debug(
+                    "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot date %s after data end for %s/%s; returning None",
+                    dt,
+                    asset,
+                    quote or Asset("USD", "forex"),
+                )
+                return None
+            raise
 
     def get_historical_prices(
         self,

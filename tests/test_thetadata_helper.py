@@ -3346,3 +3346,298 @@ def test_theta_endpoints_use_v3_prefix():
         assert path.startswith("/v3/")
     for path in thetadata_helper.OPTION_LIST_ENDPOINTS.values():
         assert path.startswith("/v3/")
+
+
+def _build_dummy_df(start_ts: pd.Timestamp, periods: int = 5, freq: str = "1D") -> pd.DataFrame:
+    index = pd.date_range(start_ts, periods=periods, freq=freq, tz="UTC")
+    return pd.DataFrame(
+        {
+            "open": range(periods),
+            "high": range(periods),
+            "low": range(periods),
+            "close": range(periods),
+            "volume": [1_000] * periods,
+            "missing": [False] * periods,
+        },
+        index=index,
+    )
+
+
+def test_update_pandas_data_reuses_covered_window(monkeypatch):
+    """Once coverage metadata spans the window, _update_pandas_data must not refetch."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2024-01-02", tz="UTC")
+    end = pd.Timestamp("2024-01-10", tz="UTC")
+    asset = Asset("ZZTEST", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    df = _build_dummy_df(start, periods=9)
+    data = Data(asset=asset, df=df, quote=quote, timestep="day")
+    data.strict_end_check = True
+    ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end, pandas_data={(asset, quote, "day"): data})
+    meta_key = (asset, quote, "day")
+    ds._dataset_metadata[meta_key] = {
+        "timestep": "day",
+        "start": start.to_pydatetime(),
+        "end": end.to_pydatetime(),
+        "data_start": start.to_pydatetime(),
+        "data_end": end.to_pydatetime(),
+        "rows": len(df),
+        "prefetch_complete": True,
+    }
+
+    calls = []
+
+    def _fake_get_price_data(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("fetch should not be called for covered window")
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _fake_get_price_data)
+    ds._update_pandas_data(asset, quote, length=5, timestep="day", start_dt=end)
+    assert calls == []
+    meta = ds._dataset_metadata.get((asset, quote, "day"))
+    assert meta and meta.get("prefetch_complete") is True
+    assert meta.get("ffilled") is True
+
+
+def test_update_pandas_data_raises_on_incomplete_end(monkeypatch):
+    """If a full-window fetch still ends before datetime_end, raise to avoid refresh thrash."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2024-01-02", tz="UTC")
+    end = pd.Timestamp("2024-01-20", tz="UTC")
+    asset = Asset("ZZTEST2", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end)
+
+    calls = []
+
+    def _fake_get_price_data(username, password, asset_param, start_param, end_param, **kwargs):
+        calls.append((start_param, end_param, kwargs.get("timespan")))
+        short_df = _build_dummy_df(start, periods=3)
+        return short_df
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _fake_get_price_data)
+
+    with pytest.raises(ValueError):
+        ds._update_pandas_data(asset, quote, length=5, timestep="day", start_dt=end)
+
+    assert len(calls) == 1
+    assert calls[0][2] == "day"
+
+
+def test_trading_dates_are_memoized(monkeypatch):
+    """Calendar construction should be cached to avoid repeated expensive calls."""
+    thetadata_helper._cached_trading_dates.cache_clear()
+    calls = []
+
+    class DummyCalendar:
+        def schedule(self, start_date=None, end_date=None):
+            calls.append((start_date, end_date))
+            return pd.DataFrame(index=pd.date_range(start_date, end_date, freq="B"))
+
+    monkeypatch.setattr(thetadata_helper.mcal, "get_calendar", lambda name: DummyCalendar())
+
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    start = datetime.datetime(2024, 1, 1)
+    end = datetime.datetime(2024, 1, 10)
+
+    first = thetadata_helper.get_trading_dates(asset, start, end)
+    second = thetadata_helper.get_trading_dates(asset, start, end)
+
+    assert first == second
+    assert len(calls) == 1
+
+
+def test_day_request_does_not_downshift_to_minute(monkeypatch, tmp_path):
+    """Day requests must use day/EOD fetch even if minute cache exists (prevents minute-for-day slowdown)."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2024-01-02", tz="UTC")
+    end = pd.Timestamp("2024-01-10", tz="UTC")
+    asset = Asset("TQQQ", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    # Preseed minute cache (should not be reused for day requests)
+    minute_df = _build_dummy_df(start, periods=60, freq="1min")
+    minute_data = Data(asset=asset, df=minute_df, quote=quote, timestep="minute")
+    minute_data.strict_end_check = True
+    cache_file = tmp_path / "tqqq.day.ohlc.parquet"
+    monkeypatch.setattr(thetadata_helper, "build_cache_filename", lambda *args, **kwargs: cache_file)
+    monkeypatch.setattr(thetadata_helper, "load_cache", lambda *args, **kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "_load_cache_sidecar", lambda *args, **kwargs: None)
+
+    ds = ThetaDataBacktestingPandas(
+        datetime_start=start,
+        datetime_end=end,
+        pandas_data={(asset, quote, "minute"): minute_data},
+    )
+
+    calls = []
+
+    def _fake_get_price_data(username, password, asset_param, start_param, end_param, **kwargs):
+        calls.append(kwargs.get("timespan"))
+        day_index = pd.date_range(start_param, end_param, freq="1D", tz="UTC")
+        return pd.DataFrame(
+            {
+                "open": range(len(day_index)),
+                "high": range(len(day_index)),
+                "low": range(len(day_index)),
+                "close": range(len(day_index)),
+                "volume": [1_000] * len(day_index),
+                "missing": [False] * len(day_index),
+            },
+            index=day_index,
+        )
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _fake_get_price_data)
+
+    ds._update_pandas_data(asset, quote, length=5, timestep="day", start_dt=end)
+
+    assert calls, "get_price_data was never called"
+    assert calls == ["day"], "Day requests should not call minute/hour fetch paths"
+
+
+def test_no_data_fetch_raises_once(monkeypatch, tmp_path):
+    """NO_DATA responses must raise instead of looping; ensures permanent missing is treated as fatal."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2024-01-02", tz="UTC")
+    end = pd.Timestamp("2024-01-05", tz="UTC")
+    asset = Asset("ZZNODATA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    cache_file = tmp_path / "zznodata.day.ohlc.parquet"
+    monkeypatch.setattr(thetadata_helper, "build_cache_filename", lambda *args, **kwargs: cache_file)
+    monkeypatch.setattr(thetadata_helper, "load_cache", lambda *args, **kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "_load_cache_sidecar", lambda *args, **kwargs: None)
+
+    calls = []
+
+    def _fake_get_price_data(username, password, asset_param, start_param, end_param, **kwargs):
+        calls.append((start_param, end_param, kwargs.get("timespan")))
+        return pd.DataFrame()
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _fake_get_price_data)
+
+    ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end)
+
+    with pytest.raises(ValueError):
+        ds._update_pandas_data(asset, quote, length=5, timestep="day", start_dt=end)
+
+    assert len(calls) == 1
+
+
+def test_minute_request_blocked_in_day_mode(monkeypatch):
+    """When source is in day mode, minute/hour requests are rejected to prevent minute-for-day fallback."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2024-01-02", tz="UTC")
+    end = pd.Timestamp("2024-01-05", tz="UTC")
+    asset = Asset("TQQQ", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    day_df = _build_dummy_df(start, periods=4, freq="1D")
+    day_data = Data(asset=asset, df=day_df, quote=quote, timestep="day")
+    day_data.strict_end_check = True
+
+    ds = ThetaDataBacktestingPandas(
+        datetime_start=start,
+        datetime_end=end,
+        pandas_data={(asset, quote, "day"): day_data},
+    )
+    ds._timestep = "day"
+
+    with pytest.raises(ValueError):
+        ds._pull_source_symbol_bars(asset, length=10, timestep="minute", quote=quote)
+
+    with pytest.raises(ValueError):
+        ds._update_pandas_data(asset, quote, length=10, timestep="minute", start_dt=end)
+
+
+def test_day_cache_reuse_aligns_end_without_refetch(monkeypatch):
+    """Day cache that already ends on the required trading day should reuse without any downloader calls."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2020-10-01", tz="UTC")
+    end = pd.Timestamp("2025-11-03", tz="UTC")
+    asset = Asset("TQQQ", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    start_date = pd.Timestamp("2020-09-26", tz="UTC")
+    end_date = pd.Timestamp("2025-11-03", tz="UTC")
+    day_index = pd.date_range(start_date, end_date, freq="1D", tz="UTC")
+    day_df = pd.DataFrame(
+        {
+            "open": range(len(day_index)),
+            "high": range(len(day_index)),
+            "low": range(len(day_index)),
+            "close": range(len(day_index)),
+            "volume": [1_000] * len(day_index),
+            "missing": [False] * len(day_index),
+        },
+        index=day_index,
+    )
+    day_data = Data(asset=asset, df=day_df, quote=quote, timestep="day")
+    day_data.strict_end_check = True
+
+    ds = ThetaDataBacktestingPandas(
+        datetime_start=start,
+        datetime_end=end,
+        pandas_data={(asset, quote, "day"): day_data},
+    )
+    ds._timestep = "day"
+
+    calls = []
+
+    def _fake_get_price_data(*args, **kwargs):
+        calls.append(kwargs.get("timespan"))
+        raise AssertionError("Downloader should not be invoked when cache covers end of window")
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _fake_get_price_data)
+
+    ds._update_pandas_data(asset, quote, length=2, timestep="day", start_dt=end)
+
+    assert calls == []
+    meta = ds._dataset_metadata.get((asset, quote, "day"))
+    assert meta is not None
+    assert meta.get("prefetch_complete") is True
+    assert meta.get("end").date() == datetime.date(2025, 11, 3)
+    assert meta.get("data_end").date() == datetime.date(2025, 11, 3)
+
+
+def test_tail_placeholder_at_end_marks_permanent_not_refetched(monkeypatch):
+    """If the final requested day is missing (NO_DATA), mark it permanently and stop retry loops."""
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
+    start = pd.Timestamp("2024-01-01", tz="UTC")
+    end = pd.Timestamp("2024-01-05", tz="UTC")
+    asset = Asset("ZZTAIL", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    # Build a frame where the last day is missing; Theta should not be re-polled repeatedly.
+    day_index = pd.date_range(start, end, freq="1D", tz="UTC")
+    df = pd.DataFrame(
+        {
+            "open": [1.0, 2.0, 3.0, 4.0, None],
+            "high": [1.0, 2.0, 3.0, 4.0, None],
+            "low": [1.0, 2.0, 3.0, 4.0, None],
+            "close": [1.0, 2.0, 3.0, 4.0, None],
+            "volume": [100] * 5,
+            "missing": [False, False, False, False, True],
+        },
+        index=day_index,
+    )
+
+    calls = []
+
+    def _fake_get_price_data(*args, **kwargs):
+        calls.append(kwargs.get("timespan"))
+        return df
+
+    monkeypatch.setattr(thetadata_helper, "get_price_data", _fake_get_price_data)
+
+    ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end)
+    ds._timestep = "day"
+
+    ds._update_pandas_data(asset, quote, length=3, timestep="day", start_dt=end)
+
+    assert calls == ["day"]
+    meta = ds._dataset_metadata.get((asset, quote, "day"))
+    assert meta is not None
+    assert meta.get("tail_placeholder") is True
+    assert meta.get("tail_missing_permanent") is True
+    assert meta.get("tail_missing_date") == datetime.date(2024, 1, 5)

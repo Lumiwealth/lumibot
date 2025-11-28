@@ -394,11 +394,35 @@ class Data:
                 raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
 
             dt = args[0]
+            length = kwargs.get("length", 1)
+            timeshift = kwargs.get("timeshift", 0)
+
+            if isinstance(timeshift, datetime.timedelta):
+                if self.timestep == "day":
+                    timeshift = int(timeshift.total_seconds() / (24 * 3600))
+                else:
+                    timeshift = int(timeshift.total_seconds() / 60)
+                kwargs["timeshift"] = timeshift
 
             # Check if the iter date is outside of this data's date range.
             if dt < self.datetime_start:
                 raise ValueError(
                     f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
+                )
+            if dt > self.datetime_end:
+                strict_end_check = getattr(self, "strict_end_check", False)
+                if strict_end_check:
+                    raise ValueError(
+                        f"The date you are looking for ({dt}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={timeshift}; data refresh required instead of using stale bars."
+                    )
+                gap = dt - self.datetime_end
+                max_gap = datetime.timedelta(days=3)
+                if gap > max_gap:
+                    raise ValueError(
+                        f"The date you are looking for ({dt}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={timeshift}; data refresh required instead of using stale bars."
+                    )
+                logger.warning(
+                    f"The date you are looking for ({dt}) is after the available data's end ({self.datetime_end}) by {gap}. Using the last available bar (within tolerance of {max_gap})."
                 )
 
             # Search for dt in self.iter_index_dict
@@ -411,16 +435,6 @@ class Data:
                 # If not found, get the last known data
                 i = self.iter_index.asof(dt)
 
-            length = kwargs.get("length", 1)
-            timeshift = kwargs.get("timeshift", 0)
-
-            if isinstance(timeshift, datetime.timedelta):
-                if self.timestep == "day":
-                    timeshift = int(timeshift.total_seconds() / (24 * 3600))
-                else:
-                    timeshift = int(timeshift.total_seconds() / 60)
-                kwargs["timeshift"] = timeshift
-
             data_index = i + 1 - length - timeshift
             is_data = data_index >= 0
             if not is_data:
@@ -428,6 +442,24 @@ class Data:
                 logger.warning(
                     f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
                 )
+                try:
+                    idx_vals = self.df.index
+                    idx_min = idx_vals.min()
+                    idx_max = idx_vals.max()
+                    logger.info(
+                        "[DATA][CHECK] asset=%s timestep=%s dt=%s length=%s timeshift=%s iter_index=%s idx_min=%s idx_max=%s rows=%s",
+                        getattr(self.asset, "symbol", self.asset),
+                        getattr(self, "timestep", None),
+                        dt,
+                        length,
+                        timeshift,
+                        i,
+                        idx_min,
+                        idx_max,
+                        len(idx_vals),
+                    )
+                except Exception:
+                    logger.debug("[DATA][CHECK] failed to log index diagnostics", exc_info=True)
 
             res = func(self, *args, **kwargs)
             # print(f"Results last price: {res}")

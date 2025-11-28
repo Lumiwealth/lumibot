@@ -1,5 +1,6 @@
 # This file contains helper functions for getting data from Polygon.io
 import os
+import functools
 import hashlib
 import json
 import random
@@ -164,8 +165,8 @@ EVENT_CACHE_MAX_DATE = date(2100, 12, 31)
 CORPORATE_EVENT_FOLDER = "events"
 DIVIDEND_VALUE_COLUMNS = ("amount", "cash", "dividend", "cash_amount")
 DIVIDEND_DATE_COLUMNS = ("ex_dividend_date", "ex_date", "ex_dividend", "execution_date")
-SPLIT_NUMERATOR_COLUMNS = ("split_to", "to", "numerator", "ratio_to")
-SPLIT_DENOMINATOR_COLUMNS = ("split_from", "from", "denominator", "ratio_from")
+SPLIT_NUMERATOR_COLUMNS = ("split_to", "to", "numerator", "ratio_to", "after_shares")
+SPLIT_DENOMINATOR_COLUMNS = ("split_from", "from", "denominator", "ratio_from", "before_shares")
 SPLIT_RATIO_COLUMNS = ("ratio", "split_ratio")
 
 OPTION_LIST_ENDPOINTS = {
@@ -753,8 +754,11 @@ def _coerce_event_timestamp(series: pd.Series) -> pd.Series:
         # Theta v2 endpoints return YYYYMMDD integers; stringify before parsing so pandas
         # doesn't treat them as nanosecond offsets from epoch.
         working = pd.to_numeric(working, errors="coerce").astype("Int64").astype(str)
-
-    ts = pd.to_datetime(working, errors="coerce", utc=True)
+        # Use explicit format for YYYYMMDD strings to avoid pandas format inference warnings
+        ts = pd.to_datetime(working, format="%Y%m%d", errors="coerce", utc=True)
+    else:
+        # For non-numeric data, let pandas infer the format
+        ts = pd.to_datetime(working, errors="coerce", utc=True)
     return ts.dt.normalize()
 
 
@@ -820,7 +824,31 @@ def _normalize_split_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     working = df.copy()
+
+    # ThetaData v2 returns a row for EVERY trading day with the "most recent" split info.
+    # Format: [ms_of_day, split_date, before_shares, after_shares, date]
+    # We need to filter to only actual split events where date == split_date
+    split_date_col = _detect_column(working, ("split_date",))
     date_col = _detect_column(working, ("execution_date", "ex_date", "date"))
+
+    if split_date_col and date_col and split_date_col != date_col:
+        # Filter to only rows where the trading date matches the split date
+        # This extracts actual split events from the daily data
+        try:
+            split_dates = pd.to_datetime(working[split_date_col].astype(str), format="%Y%m%d", errors="coerce")
+            trading_dates = pd.to_datetime(working[date_col].astype(str), format="%Y%m%d", errors="coerce")
+            actual_split_mask = split_dates.dt.date == trading_dates.dt.date
+            working = working[actual_split_mask].copy()
+            logger.debug(
+                "[THETA][SPLITS] Filtered %s to %d actual split event(s)",
+                symbol, len(working)
+            )
+        except Exception as e:
+            logger.debug("[THETA][SPLITS] Could not filter split events for %s: %s", symbol, e)
+
+    if working.empty:
+        return pd.DataFrame()
+
     if date_col is None:
         return pd.DataFrame()
     numerator_col = _detect_column(working, SPLIT_NUMERATOR_COLUMNS)
@@ -849,6 +877,10 @@ def _normalize_split_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     normalized["ratio"] = working.apply(_resolve_ratio, axis=1)
     normalized["symbol"] = symbol
     normalized = normalized.dropna(subset=["event_date"])
+
+    # Remove rows with ratio 1.0 (no actual split)
+    normalized = normalized[normalized["ratio"] != 1.0]
+
     return normalized.sort_values("event_date")
 
 
@@ -952,7 +984,35 @@ def _get_theta_dividends(asset: Asset, start_date: date, end_date: date, usernam
 def _get_theta_splits(asset: Asset, start_date: date, end_date: date, username: str, password: str) -> pd.DataFrame:
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
-    return _ensure_event_cache(asset, "splits", start_date, end_date, username, password)
+
+    # Try ThetaData first - the Data Downloader handles auth via API key, not basic auth
+    # So even if username/password are empty, the request may succeed via the downloader
+    try:
+        splits = _ensure_event_cache(asset, "splits", start_date, end_date, username, password)
+        if splits is not None and not splits.empty:
+            logger.info("[THETA][SPLITS] Got %d splits from ThetaData for %s", len(splits), asset.symbol)
+            return splits
+    except Exception as e:
+        logger.debug("[THETA][SPLITS] ThetaData split fetch failed for %s: %s", asset.symbol, e)
+
+    # Fall back to Yahoo Finance for split data if ThetaData fails
+    try:
+        from ..tools.yahoo_helper import YahooHelper
+        logger.debug("[THETA][SPLITS] Falling back to Yahoo Finance for %s splits", asset.symbol)
+        yahoo_splits = YahooHelper.get_symbol_splits(asset.symbol)
+        if yahoo_splits is not None and not yahoo_splits.empty:
+            # Convert Yahoo format to our normalized format
+            normalized = pd.DataFrame()
+            normalized["event_date"] = pd.to_datetime(yahoo_splits.index).tz_localize(None).tz_localize("UTC")
+            # Yahoo returns split ratio as "new shares per old share" (e.g., 3.0 for 3-for-1)
+            normalized["ratio"] = yahoo_splits.values
+            normalized["symbol"] = asset.symbol
+            logger.info("[THETA][SPLITS] Got %d splits from Yahoo for %s", len(normalized), asset.symbol)
+            return normalized
+    except Exception as e:
+        logger.debug("[THETA][SPLITS] Yahoo fallback failed for %s: %s", asset.symbol, e)
+
+    return pd.DataFrame()
 
 
 def _apply_corporate_actions_to_frame(
@@ -999,6 +1059,63 @@ def _apply_corporate_actions_to_frame(
     if not splits.empty:
         split_map = splits.groupby(splits["event_date"].dt.date)["ratio"].prod().to_dict()
         frame["stock_splits"] = [float(split_map.get(day, 0.0)) for day in index_dates]
+
+        # Apply split adjustments to OHLC prices for backtesting accuracy.
+        # For a 3-for-1 split (ratio=3.0), prices BEFORE the split should be divided by 3.
+        # This makes historical prices comparable to current prices.
+        # IMPORTANT: Only apply splits that have actually occurred (split_date <= data_end_date)
+        # Don't adjust for future splits that haven't happened yet.
+        price_columns = ["open", "high", "low", "close"]
+        available_price_cols = [col for col in price_columns if col in frame.columns]
+
+        if available_price_cols:
+            # Sort splits by date (oldest first)
+            sorted_splits = splits.sort_values("event_date")
+
+            # Filter out future splits (splits that occur AFTER the data's end date)
+            # These haven't happened yet, so prices shouldn't be adjusted for them
+            data_end_date = max(index_dates)
+            applicable_splits = sorted_splits[sorted_splits["event_date"].dt.date <= data_end_date]
+
+            if len(applicable_splits) < len(sorted_splits):
+                skipped = len(sorted_splits) - len(applicable_splits)
+                logger.debug(
+                    "[THETA][SPLIT_ADJUST] Skipping %d future split(s) after data_end=%s",
+                    skipped, data_end_date
+                )
+
+            # Calculate cumulative split factor for each date in the frame
+            # We need to work from most recent to oldest, accumulating the factor
+            split_dates = applicable_splits["event_date"].dt.date.tolist()
+            split_ratios = applicable_splits["ratio"].tolist()
+
+            # Create a cumulative adjustment factor series
+            # For each date in the frame, calculate how much to divide prices by
+            cumulative_factor = pd.Series(1.0, index=frame.index)
+
+            # Work backwards through splits
+            for split_date, ratio in zip(reversed(split_dates), reversed(split_ratios)):
+                if ratio > 0 and ratio != 1.0:
+                    # All dates BEFORE the split date need to be divided by this ratio
+                    mask = pd.Series(index_dates) < split_date
+                    cumulative_factor.loc[mask.values] *= ratio
+
+            # Apply the adjustment to price columns
+            for col in available_price_cols:
+                if col in frame.columns:
+                    original_values = frame[col].copy()
+                    frame[col] = frame[col] / cumulative_factor
+                    # Log significant adjustments for debugging
+                    max_adjustment = cumulative_factor.max()
+                    if max_adjustment > 1.1:  # More than 10% adjustment
+                        logger.debug(
+                            "[THETA][SPLIT_ADJUST] asset=%s col=%s max_factor=%.2f splits=%d",
+                            asset.symbol, col, max_adjustment, len(splits)
+                        )
+
+            # Also adjust volume (multiply instead of divide for splits)
+            if "volume" in frame.columns:
+                frame["volume"] = frame["volume"] * cumulative_factor
     else:
         frame["stock_splits"] = 0.0
 
@@ -1368,22 +1485,9 @@ def get_price_data(
             index_dates = pd.Index(frame_index.date)
             placeholder_dates = set(pd.Index(frame_index[placeholder_mask].date)) if hasattr(frame_index, "__len__") else set()
 
-            if placeholder_rows > 0:
-                tail_placeholder = bool(placeholder_mask.iloc[-1])
-                if tail_placeholder:
-                    return False, "tail_placeholder"
-                unexpected_placeholders = [d for d in placeholder_dates if d not in _ALLOWED_HISTORICAL_PLACEHOLDER_DATES]
-                if unexpected_placeholders:
-                    return False, "unexpected_placeholders"
-
             missing_required: List[date] = []
             for d in trading_days:
-                if d in _ALLOWED_HISTORICAL_PLACEHOLDER_DATES and d in placeholder_dates:
-                    continue
                 if d not in index_dates:
-                    missing_required.append(d)
-                    continue
-                if d in placeholder_dates:
                     missing_required.append(d)
 
             if missing_required:
@@ -1395,7 +1499,9 @@ def get_price_data(
                 return False, "stale_max_date"
 
             expected_days = len(trading_days)
-            too_few_rows = expected_days > 0 and real_rows < max(5, int(expected_days * 0.9))
+            # Use total_rows (including placeholders) for coverage check since placeholders
+            # represent permanently missing data that we've already identified
+            too_few_rows = expected_days > 0 and total_rows < max(5, int(expected_days * 0.9))
             if too_few_rows:
                 return False, "too_few_rows"
         return True, ""
@@ -1454,6 +1560,25 @@ def get_price_data(
         missing_dates = get_trading_dates(asset, start, end)
     else:
         missing_dates = get_missing_dates(df_all, asset, start, end)
+
+    if (
+        timespan == "day"
+        and df_all is not None
+        and "missing" in df_all.columns
+        and missing_dates
+    ):
+        placeholder_dates = set(pd.Index(df_all[df_all["missing"].astype(bool)].index.date))
+        if placeholder_dates:
+            before = len(missing_dates)
+            missing_dates = [d for d in missing_dates if d not in placeholder_dates]
+            after = len(missing_dates)
+            logger.debug(
+                "[THETA][DEBUG][CACHE][PLACEHOLDER_SUPPRESS] asset=%s timespan=%s removed=%d missing=%d",
+                asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                timespan,
+                before - after,
+                after,
+            )
 
     logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
@@ -1570,6 +1695,16 @@ def get_price_data(
                 result_frame.index.min().isoformat(),
                 result_frame.index.max().isoformat()
             )
+
+        # Apply split adjustments to cached data (the adjustment logic is idempotent)
+        # This ensures cached data from before the split adjustment fix is properly adjusted
+        if result_frame is not None and not result_frame.empty and timespan == "day":
+            start_day = start.date() if hasattr(start, "date") else start
+            end_day = end.date() if hasattr(end, "date") else end
+            result_frame = _apply_corporate_actions_to_frame(
+                asset, result_frame, start_day, end_day, username, password
+            )
+
         return result_frame
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
@@ -1950,6 +2085,21 @@ def get_price_data(
 
 
 
+@functools.lru_cache(maxsize=512)
+def _cached_trading_dates(asset_type: str, start_date: date, end_date: date) -> List[date]:
+    """Memoized trading-day resolver to avoid rebuilding calendars every call."""
+    if asset_type == "crypto":
+        return [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
+    if asset_type == "stock" or asset_type == "option" or asset_type == "index":
+        cal = mcal.get_calendar("NYSE")
+    elif asset_type == "forex":
+        cal = mcal.get_calendar("CME_FX")
+    else:
+        raise ValueError(f"Unsupported asset type for thetadata: {asset_type}")
+    df = cal.schedule(start_date=start_date, end_date=end_date)
+    return df.index.date.tolist()
+
+
 def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     """
     Get a list of trading days for the asset between the start and end dates
@@ -1966,29 +2116,9 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     -------
 
     """
-    # Crypto Asset Calendar
-    if asset.asset_type == "crypto":
-        # Crypto trades every day, 24/7 so we don't need to check the calendar
-        return [start.date() + timedelta(days=x) for x in range((end.date() - start.date()).days + 1)]
-
-    # Stock/Option/Index Asset for Backtesting - Assuming NYSE trading days
-    elif asset.asset_type == "stock" or asset.asset_type == "option" or asset.asset_type == "index":
-        cal = mcal.get_calendar("NYSE")
-
-    # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
-    # Calendar: "CME_FX"
-    elif asset.asset_type == "forex":
-        cal = mcal.get_calendar("CME_FX")
-
-    else:
-        raise ValueError(f"Unsupported asset type for thetadata: {asset.asset_type}")
-
-    # Get the trading days between the start and end dates
     start_date = start.date() if hasattr(start, 'date') else start
     end_date = end.date() if hasattr(end, 'date') else end
-    df = cal.schedule(start_date=start_date, end_date=end_date)
-    trading_days = df.index.date.tolist()
-    return trading_days
+    return list(_cached_trading_dates(asset.asset_type, start_date, end_date))
 
 
 def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
@@ -2097,9 +2227,8 @@ def get_missing_dates(df_all, asset, start, end):
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
     dates_series = pd.Series(df_working.index.date)
-    # Only treat rows without the "missing" marker as coverage. Placeholders must be re-fetched.
-    missing_mask = df_working["missing"].astype(bool).to_numpy()
-    real_dates = dates_series[~missing_mask].unique()
+    # Treat placeholder rows as known coverage; missing dates are considered permanently absent once written.
+    real_dates = dates_series.unique()
     cached_dates_count = len(real_dates)
     cached_first = min(real_dates) if len(real_dates) > 0 else None
     cached_last = max(real_dates) if len(real_dates) > 0 else None
@@ -2230,9 +2359,15 @@ def _hash_file(path: Path) -> Optional[str]:
     if not path.exists() or not path.is_file():
         return None
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                if not chunk:
+                    break
+                digest.update(chunk)
+    except Exception as exc:
+        logger.debug("[THETA][DEBUG][CACHE][HASH_FAIL] path=%s error=%s", path, exc)
+        return None
     return digest.hexdigest()
 
 

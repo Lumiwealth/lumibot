@@ -1225,13 +1225,26 @@ class StrategyExecutor(Thread):
 
     def _process_pandas_daily_data(self):
         """Process pandas daily data and execute one trading iteration"""
+        dates = self.broker.data_source._date_index
         if self.broker.data_source._iter_count is None:
             # Get the first date from _date_index equal or greater than
             # backtest start date.
-            dates = self.broker.data_source._date_index
-            self.broker.data_source._iter_count = dates.get_loc(dates[dates > self.broker.datetime][0])
+            future_dates = dates[dates > self.broker.datetime]
+            if len(future_dates) == 0:
+                # No more dates available - we've reached the end of data
+                logger.info("[BACKTEST] No future dates available in _date_index; end of data reached")
+                self.stop_event.set()  # Signal main loop to exit
+                return
+            self.broker.data_source._iter_count = dates.get_loc(future_dates[0])
         else:
             self.broker.data_source._iter_count += 1
+
+        # Check bounds before accessing _date_index
+        if self.broker.data_source._iter_count >= len(dates):
+            logger.info("[BACKTEST] _iter_count (%d) exceeded available dates (%d); end of data reached",
+                        self.broker.data_source._iter_count, len(dates))
+            self.stop_event.set()  # Signal main loop to exit
+            return
 
         dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
         self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.get_portfolio_value())

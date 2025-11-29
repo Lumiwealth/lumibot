@@ -105,3 +105,27 @@ def test_cleanup():
 # Register cleanup functions to run on exit
 atexit.register(cleanup_all_schedulers)
 atexit.register(cleanup_all_threads)
+
+
+@pytest.fixture
+def disable_datasource_override(monkeypatch):
+    """
+    Fixture to disable the BACKTESTING_DATA_SOURCE environment variable override.
+
+    Use this fixture in tests that need to test SPECIFIC data sources (Yahoo, Alpaca,
+    Polygon, etc.) without being overridden by the CI environment.
+
+    The BACKTESTING_DATA_SOURCE env var is designed to let users easily switch data sources,
+    but it interferes with tests that explicitly test specific data source behavior.
+
+    Usage:
+        def test_yahoo_specific_behavior(disable_datasource_override):
+            # This test will use YahooDataBacktesting as explicitly requested in code,
+            # NOT whatever BACKTESTING_DATA_SOURCE is set to in the environment
+            ...
+
+    LEGACY TEST COMPATIBILITY (Aug 2023+):
+    Many legacy tests were written before the BACKTESTING_DATA_SOURCE override existed.
+    They expect specific data sources and will fail if overridden.
+    """
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "none")

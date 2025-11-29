@@ -25,6 +25,10 @@ if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your 
 logger = logging.getLogger(__name__)
 
 
+# LEGACY TEST CLASS (created Feb 2025)
+# These tests explicitly test AlpacaBacktesting behavior and must not be overridden
+# by the BACKTESTING_DATA_SOURCE environment variable.
+@pytest.mark.usefixtures("disable_datasource_override")
 class TestAlpacaBacktesting:
     """Tests for the AlpacaBacktesting datasource class as well as using it in strategies."""
 

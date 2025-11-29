@@ -123,8 +123,8 @@ def test_multileg_spread_backtest_cash_and_parent_fill():
     assert len(actual_fills) == 2
 
     # Parent fill should not move cash beyond the sum of the legs.
-    # Use actual fill prices from the backtesting data (AAA: $101, BBB: $51)
-    expected_cash = 100_000.0 - (10 * 101.0) + (5 * 51.0)
+    # Fills occur at open prices on the first trading day (AAA: $100, BBB: $50)
+    expected_cash = 100_000.0 - (10 * 100.0) + (5 * 50.0)
     assert strategy.cash == pytest.approx(expected_cash, rel=1e-9)
 
     parent_orders = [
@@ -136,7 +136,8 @@ def test_multileg_spread_backtest_cash_and_parent_fill():
     parent_order = parent_orders[0]
 
     assert parent_order.trade_cost == pytest.approx(0.0, abs=1e-9)
-    assert parent_order.avg_fill_price == pytest.approx((101.0 - 51.0), abs=1e-9)
+    # Parent's avg_fill_price is the net price: long_price - short_price = 100.0 - 50.0
+    assert parent_order.avg_fill_price == pytest.approx((100.0 - 50.0), abs=1e-9)
 
     # Check that both child orders were filled (no parent fill event currently generated)
     assert len(actual_fills) == 2

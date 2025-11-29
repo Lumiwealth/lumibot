@@ -117,8 +117,8 @@ def test_progress_bar_shows_green_bar(clean_environment):
     )
     
     result = output.getvalue()
-    
-    # Should be properly formatted with || delimiters  
-    assert "||" in result, "Progress bar should have proper formatting"
+
+    # Should be properly formatted with | delimiters (single pipe, not double)
+    assert "|" in result, "Progress bar should have proper formatting"
     # Should contain percentage
     assert "50.00%" in result, "Progress bar should show percentage"

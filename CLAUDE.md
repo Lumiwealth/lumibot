@@ -151,6 +151,47 @@ Always ensure `.env` files have matching cache versions:
 - `lumibot/.env`
 - `Demos/.env`
 
+## Test Philosophy (CRITICAL - READ THIS)
+
+### Test Age = Test Authority
+
+When tests fail, how you fix them depends on **how old the test is**:
+
+| Test Age | Authority Level | How to Fix |
+|----------|----------------|------------|
+| **>1 year old** | LEGACY - High authority | **Fix the CODE**, not the test. These tests have proven themselves over time. |
+| **6-12 months** | ESTABLISHED - Medium authority | Investigate carefully. Likely fix the code, but could be test issue. |
+| **<6 months** | NEW - Lower authority | Test may need adjustment. Still verify code isn't broken. |
+| **<1 month** | EXPERIMENTAL | Test is still being refined. Adjust as needed. |
+
+### Check Test Age Before Fixing
+
+```bash
+# Check when a test file was first created
+git log --format="%ai" --follow -- tests/path/to/test.py | tail -1
+
+# Check when a specific test function was added
+git log -p --all -S 'def test_function_name' -- tests/
+```
+
+### Conflict Resolution
+
+When old tests and new tests conflict:
+1. **Old test wins by default** - it has proven track record
+2. If the new test represents genuinely new functionality, ask the user
+3. Document any judgment calls in the test file with comments
+
+### Adding Comments to Tests
+
+For tests over 1 year old, add a comment when modifying:
+```python
+# LEGACY TEST (created Aug 2023) - This test has proven correct behavior
+# DO NOT modify expected values without understanding the full impact
+# If this test fails, FIX THE CODE, not this test
+def test_important_behavior():
+    ...
+```
+
 ## Testing Checklist for Data Source Changes
 
 1. Run TQQQ 200-Day MA with Yahoo (2013-2025) → expect ~30-45% CAGR

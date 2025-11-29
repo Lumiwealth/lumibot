@@ -1,9 +1,14 @@
 import datetime
-import os
 
 import pytest
 
-from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
+from lumibot.backtesting import CcxtBacktesting, PolygonDataBacktesting, YahooDataBacktesting
+
+# Global parameters
+# API Key for testing Polygon.io
+from lumibot.credentials import POLYGON_CONFIG
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.example_strategies.ccxt_backtesting_example import CcxtBacktestingExampleStrategy
 from lumibot.example_strategies.options_hold_to_expiry import OptionsHoldToExpiry
 from lumibot.example_strategies.stock_bracket import StockBracket
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
@@ -12,12 +17,7 @@ from lumibot.example_strategies.stock_limit_and_trailing_stops import (
     LimitAndTrailingStop,
 )
 from lumibot.example_strategies.stock_oco import StockOco
-from lumibot.example_strategies.ccxt_backtesting_example import CcxtBacktestingExampleStrategy
-from lumibot.entities import Asset, Order, TradingFee
 
-# Global parameters
-# API Key for testing Polygon.io
-from lumibot.credentials import POLYGON_CONFIG
 
 class TestExampleStrategies:
 

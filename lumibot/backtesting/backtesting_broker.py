@@ -1,6 +1,6 @@
 import math
-import traceback
 import threading
+import traceback
 from collections import OrderedDict, defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -12,7 +12,7 @@ import pytz
 
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Order, Position, TradingFee
+from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import CustomStream
 
@@ -452,7 +452,7 @@ class BacktestingBroker(Broker):
         # If None is returned, it means we've reached the end of available trading days
         if time_to_open is None:
             logger.info("Backtesting reached end of available trading days data")
-            logger.debug(f"[BROKER DEBUG] time_to_open is None, returning early")
+            logger.debug("[BROKER DEBUG] time_to_open is None, returning early")
             return
 
         # Allow the caller to specify a buffer (in minutes) before the actual open
@@ -789,7 +789,7 @@ class BacktestingBroker(Broker):
         if existing_position:
             existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order
             if existing_position.quantity == 0:
-                logger.info("Position %r liquidated" % existing_position)
+                logger.info(f"Position {existing_position!r} liquidated")
                 self._filled_positions.remove(existing_position)
                 self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
 
@@ -1278,7 +1278,7 @@ class BacktestingBroker(Broker):
                 trade_cost += Decimal(str(price)) * Decimal(str(order.quantity)) * trading_fee.percent_fee
 
         return trade_cost
-        
+
 
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
@@ -1422,8 +1422,7 @@ class BacktestingBroker(Broker):
             price = None
             filled_quantity = order.quantity
             timeshift = None
-            dt = None
-            open = high = low = close = volume = None
+            open = high = low = None
 
             #############################
             # Get OHLCV data for the asset
@@ -1474,24 +1473,24 @@ class BacktestingBroker(Broker):
 
                 # Handle both pandas and polars DataFrames
                 if hasattr(ohlc.df, 'index'):  # pandas
-                    dt = ohlc.df.index[-1]
+                    ohlc.df.index[-1]
                     open = ohlc.df['open'].iloc[-1]
                     high = ohlc.df['high'].iloc[-1]
                     low = ohlc.df['low'].iloc[-1]
-                    close = ohlc.df['close'].iloc[-1]
-                    volume = ohlc.df['volume'].iloc[-1]
+                    ohlc.df['close'].iloc[-1]
+                    ohlc.df['volume'].iloc[-1]
                 else:  # polars
                     # Find datetime column
                     dt_cols = [col for col in ohlc.df.columns if 'date' in col.lower() or 'time' in col.lower()]
                     if dt_cols:
-                        dt = ohlc.df[dt_cols[0]][-1]
+                        ohlc.df[dt_cols[0]][-1]
                     else:
-                        dt = None
+                        pass
                     open = ohlc.df['open'][-1]
                     high = ohlc.df['high'][-1]
                     low = ohlc.df['low'][-1]
-                    close = ohlc.df['close'][-1]
-                    volume = ohlc.df['volume'][-1]
+                    ohlc.df['close'][-1]
+                    ohlc.df['volume'][-1]
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
@@ -1581,12 +1580,12 @@ class BacktestingBroker(Broker):
                         df = df_original.tail(1)
 
                     # Get values
-                    dt = df[dt_col][-1]
+                    df[dt_col][-1]
                     open = df["open"][-1]
                     high = df["high"][-1]
                     low = df["low"][-1]
-                    close = df["close"][-1]
-                    volume = df["volume"][-1]
+                    df["close"][-1]
+                    df["volume"][-1]
                 else:  # Pandas DataFrame
                     # Make sure that we are only getting the prices for the current time exactly or in the future
                     df = df_original[df_original.index <= self.datetime]
@@ -1606,12 +1605,12 @@ class BacktestingBroker(Broker):
                             continue
                         df = df_original.iloc[-1:]
 
-                    dt = df.index[-1]
+                    df.index[-1]
                     open = df["open"].iloc[-1]
                     high = df["high"].iloc[-1]
                     low = df["low"].iloc[-1]
-                    close = df["close"].iloc[-1]
-                    volume = df["volume"].iloc[-1]
+                    df["close"].iloc[-1]
+                    df["volume"].iloc[-1]
 
             #############################
             # Determine transaction price.
@@ -1796,7 +1795,7 @@ class BacktestingBroker(Broker):
                 color="yellow",
             )
 
-        setattr(order, "_price_source", "quote")
+        order._price_source = "quote"
         return fill_price
 
     def limit_order(self, limit_price, side, open_, high, low):

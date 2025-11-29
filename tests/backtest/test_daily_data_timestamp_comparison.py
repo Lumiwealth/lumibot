@@ -17,12 +17,13 @@ ANY failure in this test indicates a CRITICAL bug that could cause:
 ZERO TOLERANCE for failures.
 """
 
-import os
-import pytest
 import datetime
+import os
+
 import pandas as pd
+import pytest
 from dotenv import load_dotenv
-from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
+
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.tools.polygon_helper import get_price_data_from_polygon as polygon_get_price_data
@@ -156,7 +157,7 @@ class TestDailyDataTimestampComparison:
         print(f"{'='*80}")
 
         # ==== GET THETADATA OPTION DATA ====
-        print(f"\n1. Fetching ThetaData option daily data...")
+        print("\n1. Fetching ThetaData option daily data...")
         try:
             theta_df = thetadata_helper.get_price_data(
                 username=username,
@@ -170,13 +171,13 @@ class TestDailyDataTimestampComparison:
             pytest.fail(f"CRITICAL: ThetaData option daily data FAILED: {e}")
 
         if theta_df is None or len(theta_df) == 0:
-            pytest.fail(f"CRITICAL: ThetaData returned NO option daily data")
+            pytest.fail("CRITICAL: ThetaData returned NO option daily data")
 
         print(f"   ✓ ThetaData: {len(theta_df)} daily bars")
         print(f"   Date range: {theta_df.index[0]} to {theta_df.index[-1]}")
 
         # ==== GET POLYGON OPTION DATA FOR COMPARISON ====
-        print(f"\n2. Fetching Polygon option data for validation...")
+        print("\n2. Fetching Polygon option data for validation...")
         polygon_api_key = os.environ.get("POLYGON_API_KEY")
 
         try:
@@ -190,7 +191,7 @@ class TestDailyDataTimestampComparison:
             )
 
             if polygon_df is None or len(polygon_df) == 0:
-                print(f"   ⚠ WARNING: Polygon returned NO option data - skipping price comparison")
+                print("   ⚠ WARNING: Polygon returned NO option data - skipping price comparison")
                 polygon_df = None
             else:
                 print(f"   ✓ Polygon: {len(polygon_df)} daily bars")
@@ -200,19 +201,19 @@ class TestDailyDataTimestampComparison:
             polygon_df = None
 
         # ==== CHECK: Minimum Trading Days ====
-        print(f"\n3. Verifying minimum trading days...")
+        print("\n3. Verifying minimum trading days...")
         assert len(theta_df) >= min_trading_days, \
             f"CRITICAL: Expected at least {min_trading_days} days, got {len(theta_df)}"
         print(f"   ✓ Sufficient trading days: {len(theta_df)} >= {min_trading_days}")
 
         # ==== CHECK: Price Comparison (if Polygon data available) ====
         if polygon_df is not None and len(polygon_df) > 0:
-            print(f"\n4. Verifying OHLC prices vs Polygon (half-penny tolerance: $0.005)...")
+            print("\n4. Verifying OHLC prices vs Polygon (half-penny tolerance: $0.005)...")
 
             # Check same number of days
             if len(theta_df) != len(polygon_df):
                 print(f"\n   ✗ MISMATCH: ThetaData={len(theta_df)} days, Polygon={len(polygon_df)} days")
-                pytest.fail(f"CRITICAL: Different number of trading days")
+                pytest.fail("CRITICAL: Different number of trading days")
 
             # Align data
             max_diff = {'open': 0.0, 'high': 0.0, 'low': 0.0, 'close': 0.0}
@@ -248,11 +249,11 @@ class TestDailyDataTimestampComparison:
                     failures.append(f"{field}: max diff ${max_diff[field]:.4f}")
 
             if failures:
-                print(f"\n   ✗ PRICE TOLERANCE EXCEEDED:")
+                print("\n   ✗ PRICE TOLERANCE EXCEEDED:")
                 for failure in failures:
                     print(f"      {failure}")
 
-                print(f"\n   PRICE COMPARISON (first 10 days):")
+                print("\n   PRICE COMPARISON (first 10 days):")
                 print(f"   {'Date':<12} {'Theta':<10} {'Polygon':<10} {'Diff':<10}")
                 print(f"   {'-'*50}")
                 for row in comparison_data[:10]:
@@ -269,7 +270,7 @@ class TestDailyDataTimestampComparison:
                   f"low=${max_diff['low']:.4f}, close=${max_diff['close']:.4f}")
 
         # ==== CHECK: Price Data Sanity ====
-        print(f"\n5. Verifying price data sanity...")
+        print("\n5. Verifying price data sanity...")
 
         # Check for zero or negative prices (invalid)
         zero_prices = (theta_df['close'] <= 0).sum()
@@ -281,11 +282,11 @@ class TestDailyDataTimestampComparison:
         max_price = theta_df['close'].max()
         avg_price = theta_df['close'].mean()
 
-        print(f"   ✓ All prices positive")
+        print("   ✓ All prices positive")
         print(f"      Price range: ${min_price:.2f} - ${max_price:.2f} (avg: ${avg_price:.2f})")
 
         # ==== CHECK: OHLC Consistency ====
-        print(f"\n4. Verifying OHLC consistency...")
+        print("\n4. Verifying OHLC consistency...")
 
         # High should be >= Low for every bar
         invalid_hl = (theta_df['high'] < theta_df['low']).sum()
@@ -302,22 +303,22 @@ class TestDailyDataTimestampComparison:
         if invalid_l > 0:
             pytest.fail(f"CRITICAL: {invalid_l} bars have low > open/close")
 
-        print(f"   ✓ OHLC relationships valid (high >= low, high >= open/close, low <= open/close)")
+        print("   ✓ OHLC relationships valid (high >= low, high >= open/close, low <= open/close)")
 
         # ==== CHECK: Volume Data ====
-        print(f"\n5. Verifying volume data...")
+        print("\n5. Verifying volume data...")
         zero_volume = (theta_df['volume'] == 0).sum()
         pct_zero_vol = (zero_volume / len(theta_df)) * 100
 
         print(f"   ✓ Volume data present ({zero_volume}/{len(theta_df)} bars with zero volume = {pct_zero_vol:.1f}%)")
         if pct_zero_vol > 50:
-            print(f"   ⚠ WARNING: >50% of bars have zero volume (may indicate low liquidity)")
+            print("   ⚠ WARNING: >50% of bars have zero volume (may indicate low liquidity)")
 
         print(f"\n{'='*80}")
         print(f"✓✓✓ {symbol} OPTION DATA VALIDATION PASSED ✓✓✓")
         print(f"    Trading days: {len(theta_df)}")
         print(f"    Price range: ${min_price:.2f} - ${max_price:.2f}")
-        print(f"    OHLC relationships: VALID")
+        print("    OHLC relationships: VALID")
         print(f"    Period: {theta_df.index[0].date()} to {theta_df.index[-1].date()}")
         print(f"{'='*80}\n")
 
@@ -345,7 +346,7 @@ class TestDailyDataTimestampComparison:
         print(f"{'='*80}")
 
         # ==== GET THETADATA DAILY DATA ====
-        print(f"\n1. Fetching ThetaData daily data...")
+        print("\n1. Fetching ThetaData daily data...")
         try:
             theta_df = thetadata_helper.get_price_data(
                 username=username,
@@ -367,7 +368,7 @@ class TestDailyDataTimestampComparison:
         # ==== GET POLYGON OR YAHOO DAILY DATA ====
         # NOTE: Polygon requires paid plan for indexes, so we use Yahoo Finance for indexes
         if asset_type == "index":
-            print(f"\n2. Fetching Yahoo Finance daily data (indexes not available in free Polygon)...")
+            print("\n2. Fetching Yahoo Finance daily data (indexes not available in free Polygon)...")
             import yfinance as yf
 
             # Yahoo Finance uses ^SPX for SPX, ^VIX for VIX, ^NDX for NDX
@@ -397,7 +398,7 @@ class TestDailyDataTimestampComparison:
             except Exception as e:
                 pytest.fail(f"CRITICAL: Yahoo Finance daily data FAILED for {symbol}: {e}")
         else:
-            print(f"\n2. Fetching Polygon daily data...")
+            print("\n2. Fetching Polygon daily data...")
             try:
                 polygon_df = polygon_get_price_data(
                     api_key=polygon_api_key,
@@ -418,7 +419,7 @@ class TestDailyDataTimestampComparison:
         print(f"   Date range: {polygon_df.index[0]} to {polygon_df.index[-1]}")
 
         # ==== CHECK 1: Minimum Trading Days ====
-        print(f"\n3. Verifying minimum trading days...")
+        print("\n3. Verifying minimum trading days...")
         assert len(theta_df) >= min_trading_days, \
             f"CRITICAL: ThetaData has only {len(theta_df)} days, expected >={min_trading_days}"
         assert len(polygon_df) >= min_trading_days, \
@@ -426,20 +427,20 @@ class TestDailyDataTimestampComparison:
         print(f"   ✓ Both sources have >={min_trading_days} trading days")
 
         # ==== CHECK 2: Same Number of Days ====
-        print(f"\n4. Verifying same number of trading days...")
+        print("\n4. Verifying same number of trading days...")
         if len(theta_df) != len(polygon_df):
             print(f"\n   ✗ MISMATCH: ThetaData={len(theta_df)} days, Polygon={len(polygon_df)} days")
-            print(f"\n   ThetaData dates:")
+            print("\n   ThetaData dates:")
             for dt in theta_df.index:
                 print(f"      {dt.date()}")
-            print(f"\n   Polygon dates:")
+            print("\n   Polygon dates:")
             for dt in polygon_df.index:
                 print(f"      {dt.date()}")
             pytest.fail(f"CRITICAL: Different number of trading days: Theta={len(theta_df)}, Polygon={len(polygon_df)}")
         print(f"   ✓ Same number of trading days: {len(theta_df)}")
 
         # ==== CHECK 3: IDENTICAL TIMESTAMPS ====
-        print(f"\n5. Verifying IDENTICAL timestamps (ZERO tolerance for shifts)...")
+        print("\n5. Verifying IDENTICAL timestamps (ZERO tolerance for shifts)...")
 
         # Convert to date for comparison (ignore time component)
         theta_dates = [dt.date() for dt in theta_df.index]
@@ -451,7 +452,7 @@ class TestDailyDataTimestampComparison:
                 mismatched_dates.append((i, theta_date, polygon_date))
 
         if mismatched_dates:
-            print(f"\n   ✗ CRITICAL: TIMESTAMP MISMATCH DETECTED!")
+            print("\n   ✗ CRITICAL: TIMESTAMP MISMATCH DETECTED!")
             print(f"\n   {'Index':<10} {'ThetaData':<15} {'Polygon':<15} {'Shift (days)'}")
             print(f"   {'-'*60}")
             for idx, theta_date, polygon_date in mismatched_dates:
@@ -459,10 +460,10 @@ class TestDailyDataTimestampComparison:
                 print(f"   {idx:<10} {theta_date} {polygon_date} {shift:+d}")
             pytest.fail(f"CRITICAL: {len(mismatched_dates)} timestamp mismatches found!")
 
-        print(f"   ✓ ALL timestamps match perfectly (0 shifts)")
+        print("   ✓ ALL timestamps match perfectly (0 shifts)")
 
         # ==== CHECK 4: OHLC PRICE ACCURACY ====
-        print(f"\n6. Verifying OHLC prices (penny-level tolerance: $0.01)...")
+        print("\n6. Verifying OHLC prices (penny-level tolerance: $0.01)...")
 
         # Create aligned DataFrame for comparison
         comparison_data = []
@@ -506,11 +507,11 @@ class TestDailyDataTimestampComparison:
             # Add Yahoo Finance 3-way comparison for failed days
             import yfinance as yf
 
-            print(f"\n   ✗ PRICE TOLERANCE EXCEEDED:")
+            print("\n   ✗ PRICE TOLERANCE EXCEEDED:")
             for failure in failures:
                 print(f"      {failure}")
 
-            print(f"\n   3-WAY COMPARISON (ThetaData vs Polygon vs Yahoo):")
+            print("\n   3-WAY COMPARISON (ThetaData vs Polygon vs Yahoo):")
             print(f"   {'Date':<12} {'Theta':<10} {'Polygon':<10} {'Yahoo':<10} {'Which Match?':<20}")
             print(f"   {'-'*70}")
 
@@ -555,22 +556,22 @@ class TestDailyDataTimestampComparison:
               f"low=${max_diff['low']:.4f}, close=${max_diff['close']:.4f}")
 
         # ==== CHECK 5: Exact Timestamp Alignment ====
-        print(f"\n6. Verifying EXACT timestamp alignment (no shifts allowed)...")
+        print("\n6. Verifying EXACT timestamp alignment (no shifts allowed)...")
         timestamp_mismatches = []
         for i, (theta_ts, polygon_ts) in enumerate(zip(theta_df.index, polygon_df.index)):
             if theta_ts.date() != polygon_ts.date():
                 timestamp_mismatches.append((i, theta_ts, polygon_ts))
 
         if timestamp_mismatches:
-            print(f"\n   ✗ TIMESTAMP MISMATCH DETECTED:")
+            print("\n   ✗ TIMESTAMP MISMATCH DETECTED:")
             for idx, theta_ts, polygon_ts in timestamp_mismatches[:10]:
                 print(f"      Index {idx}: Theta={theta_ts.date()}, Polygon={polygon_ts.date()}")
             pytest.fail(f"CRITICAL: {len(timestamp_mismatches)} timestamp mismatches!")
 
-        print(f"   ✓ ALL timestamps match EXACTLY (0 day shifts)")
+        print("   ✓ ALL timestamps match EXACTLY (0 day shifts)")
 
         # ==== CHECK 6: No Duplicates ====
-        print(f"\n7. Verifying no duplicate dates...")
+        print("\n7. Verifying no duplicate dates...")
         theta_duplicates = theta_df.index[theta_df.index.duplicated()].tolist()
         polygon_duplicates = polygon_df.index[polygon_df.index.duplicated()].tolist()
 
@@ -579,10 +580,10 @@ class TestDailyDataTimestampComparison:
         if polygon_duplicates:
             pytest.fail(f"CRITICAL: Polygon has duplicate dates: {polygon_duplicates}")
 
-        print(f"   ✓ No duplicate dates in either source")
+        print("   ✓ No duplicate dates in either source")
 
         # ==== CHECK 6: Volume Sanity ====
-        print(f"\n8. Verifying volume data...")
+        print("\n8. Verifying volume data...")
         if 'volume' in theta_df.columns and 'volume' in polygon_df.columns:
             theta_zero_vol = (theta_df['volume'] == 0).sum()
             polygon_zero_vol = (polygon_df['volume'] == 0).sum()
@@ -598,8 +599,8 @@ class TestDailyDataTimestampComparison:
         print(f"\n{'='*80}")
         print(f"✓✓✓ {symbol} DAILY DATA VALIDATION PASSED ✓✓✓")
         print(f"    Trading days: {len(theta_df)}")
-        print(f"    Timestamps: PERFECT MATCH (0 shifts)")
-        print(f"    Prices: ALL within $0.01")
+        print("    Timestamps: PERFECT MATCH (0 shifts)")
+        print("    Prices: ALL within $0.01")
         print(f"    Period: {theta_df.index[0].date()} to {theta_df.index[-1].date()}")
         print(f"{'='*80}\n")
 
@@ -622,7 +623,7 @@ class TestIntradayDataComparison:
     def test_theta_vs_polygon_intervals(self, interval, resample_rule, expected_bars):
         """Test ThetaData intervals match Polygon aggregated data EXACTLY."""
         import pytz
-        from lumibot import LUMIBOT_DEFAULT_PYTZ
+
 
         username = os.environ.get("THETADATA_USERNAME")
         password = os.environ.get("THETADATA_PASSWORD")
@@ -678,14 +679,14 @@ class TestIntradayDataComparison:
             pytest.fail(f"CRITICAL: Polygon minute data FAILED: {e}")
 
         if polygon_minute_df is None or len(polygon_minute_df) == 0:
-            pytest.fail(f"CRITICAL: Polygon returned NO minute data")
+            pytest.fail("CRITICAL: Polygon returned NO minute data")
 
         # Filter to RTH only (9:30 AM - 4:00 PM ET) before aggregating
         # Polygon may return extended hours data - we need to filter it manually
         polygon_minute_rth = polygon_minute_df[(polygon_minute_df.index >= start) & (polygon_minute_df.index <= end)]
 
         if polygon_minute_rth is None or len(polygon_minute_rth) == 0:
-            pytest.fail(f"CRITICAL: Polygon returned NO RTH minute data")
+            pytest.fail("CRITICAL: Polygon returned NO RTH minute data")
 
         # Aggregate Polygon minute data
         # For hourly, offset to align with market open (9:30 AM = 13:30 UTC)
@@ -711,21 +712,21 @@ class TestIntradayDataComparison:
         print(f"   Last bar:  {polygon_agg_df.index[-1]}")
 
         # ==== CHECK 1: Bar Count - Allow ±1 for 16:00 bar edge case ====
-        print(f"\n3. Verifying bar count match...")
+        print("\n3. Verifying bar count match...")
 
         # ThetaData RTH ends at 15:55 for intraday (no 16:00 bar), Polygon may include 16:00
         # This is acceptable behavior - both are correct interpretations of "4 PM close"
         bar_diff = abs(len(theta_df) - len(polygon_agg_df))
 
         if bar_diff > 1:
-            print(f"\n   ✗ CRITICAL: Bar count MISMATCH!")
+            print("\n   ✗ CRITICAL: Bar count MISMATCH!")
             print(f"      ThetaData: {len(theta_df)} bars")
             print(f"      Polygon:   {len(polygon_agg_df)} bars")
             print(f"      Difference: {bar_diff} bars")
             pytest.fail(f"CRITICAL: Bar count diff {bar_diff} > 1. Theta={len(theta_df)}, Polygon={len(polygon_agg_df)}")
 
         if bar_diff == 1:
-            print(f"   ⚠ Bar count off by 1 (acceptable for 16:00 bar edge case)")
+            print("   ⚠ Bar count off by 1 (acceptable for 16:00 bar edge case)")
             print(f"      ThetaData: {len(theta_df)} bars (ends {theta_df.index[-1]})")
             print(f"      Polygon:   {len(polygon_agg_df)} bars (ends {polygon_agg_df.index[-1]})")
             # Use shorter dataset for comparison
@@ -736,14 +737,14 @@ class TestIntradayDataComparison:
             print(f"   ✓ EXACT match: {len(theta_df)} bars")
 
         # ==== CHECK 2: EXACT Timestamp Match ====
-        print(f"\n4. Verifying EXACT timestamp alignment...")
+        print("\n4. Verifying EXACT timestamp alignment...")
         timestamp_mismatches = []
         for i, (theta_ts, polygon_ts) in enumerate(zip(theta_df.index, polygon_agg_df.index)):
             if theta_ts != polygon_ts:
                 timestamp_mismatches.append((i, theta_ts, polygon_ts))
 
         if timestamp_mismatches:
-            print(f"\n   ✗ TIMESTAMP MISMATCH DETECTED!")
+            print("\n   ✗ TIMESTAMP MISMATCH DETECTED!")
             print(f"\n   {'Index':<8} {'ThetaData':<25} {'Polygon':<25} {'Shift (seconds)'}")
             print(f"   {'-'*75}")
             for idx, theta_ts, polygon_ts in timestamp_mismatches[:10]:
@@ -751,10 +752,10 @@ class TestIntradayDataComparison:
                 print(f"   {idx:<8} {theta_ts} {polygon_ts} {shift:+.0f}s")
             pytest.fail(f"CRITICAL: {len(timestamp_mismatches)} timestamp mismatches!")
 
-        print(f"   ✓ ALL timestamps match EXACTLY (0 shifts)")
+        print("   ✓ ALL timestamps match EXACTLY (0 shifts)")
 
         # ==== CHECK 3: Price Accuracy (half-penny tolerance) ====
-        print(f"\n5. Verifying OHLC prices (half-penny tolerance: $0.005)...")
+        print("\n5. Verifying OHLC prices (half-penny tolerance: $0.005)...")
 
         max_diff = {'open': 0.0, 'high': 0.0, 'low': 0.0, 'close': 0.0}
         price_failures = []
@@ -783,7 +784,7 @@ class TestIntradayDataComparison:
                       f"Polygon=${failure['polygon']:.4f}, Diff=${failure['diff']:.4f}")
             pytest.fail(f"CRITICAL: {len(price_failures)} price differences exceed $0.005")
 
-        print(f"   ✓ All prices within $0.005 tolerance")
+        print("   ✓ All prices within $0.005 tolerance")
         print(f"      Max differences: open=${max_diff['open']:.4f}, high=${max_diff['high']:.4f}, "
               f"low=${max_diff['low']:.4f}, close=${max_diff['close']:.4f}")
 
@@ -791,8 +792,8 @@ class TestIntradayDataComparison:
         print(f"\n{'='*80}")
         print(f"✓✓✓ {asset.symbol} {interval.upper()} VALIDATION PASSED ✓✓✓")
         print(f"    Bars: {len(theta_df)} (EXACT match)")
-        print(f"    Timestamps: PERFECT MATCH (0 shifts)")
-        print(f"    Prices: ALL within $0.005 (half-penny)")
+        print("    Timestamps: PERFECT MATCH (0 shifts)")
+        print("    Prices: ALL within $0.005 (half-penny)")
         print(f"    Period: {theta_df.index[0]} to {theta_df.index[-1]}")
         print(f"{'='*80}\n")
 

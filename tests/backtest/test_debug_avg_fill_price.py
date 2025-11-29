@@ -2,6 +2,7 @@
 Debug test to trace avg_fill_price through a trade lifecycle
 """
 import datetime
+
 import pytest
 import pytz
 from dotenv import load_dotenv
@@ -10,11 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -42,17 +45,17 @@ class DebugStrategy(Strategy):
         if position:
             print(f"  Position: qty={position.quantity}, avg_fill_price={position.avg_fill_price}")
         else:
-            print(f"  Position: None")
+            print("  Position: None")
 
         # Buy on iteration 1
         if self.iteration == 1:
-            print(f"  >>> SUBMITTING BUY ORDER")
+            print("  >>> SUBMITTING BUY ORDER")
             order = self.create_order(self.mes, 1, "buy")
             self.submit_order(order)
 
         # Close on iteration 3
         elif self.iteration == 3 and position and position.quantity > 0:
-            print(f"  >>> SUBMITTING SELL ORDER")
+            print("  >>> SUBMITTING SELL ORDER")
             order = self.create_order(self.mes, 1, "sell")
             self.submit_order(order)
             self.trade_done = True
@@ -96,7 +99,7 @@ def test_debug_avg_fill_price():
 
     trader = Trader(logfile="", backtest=True)
     trader.add_strategy(strat)
-    results = trader.run_all(
+    trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,

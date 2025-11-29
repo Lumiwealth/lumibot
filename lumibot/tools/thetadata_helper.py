@@ -1,14 +1,13 @@
 # This file contains helper functions for getting data from Polygon.io
-import os
 import functools
 import hashlib
 import json
+import os
 import random
 import re
 import signal
-import time
 import threading
-from collections import defaultdict
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -21,9 +20,10 @@ import pandas_market_calendars as mcal
 import pytz
 import requests
 from dateutil import parser as dateutil_parser
+from tqdm import tqdm
+
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
-from tqdm import tqdm
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -340,7 +340,7 @@ def _coerce_json_payload(payload: Any) -> Dict[str, Any]:
         rows: List[List[Any]] = []
         for idx in range(length):
             row = []
-            for col, col_values in payload.items():
+            for _col, col_values in payload.items():
                 try:
                     row.append(col_values[idx])
                 except IndexError:
@@ -1244,7 +1244,7 @@ def _apply_corporate_actions_to_frame(
             # Apply the adjustment to price columns
             for col in available_price_cols:
                 if col in frame.columns:
-                    original_values = frame[col].copy()
+                    frame[col].copy()
                     frame[col] = frame[col] / cumulative_factor
                     # Log significant adjustments for debugging
                     max_adjustment = cumulative_factor.max()
@@ -1624,7 +1624,7 @@ def get_price_data(
         total_rows = len(frame)
         placeholder_mask = frame["missing"].astype(bool) if "missing" in frame.columns else pd.Series(False, index=frame.index)
         placeholder_rows = int(placeholder_mask.sum()) if hasattr(placeholder_mask, "sum") else 0
-        real_rows = total_rows - placeholder_rows
+        total_rows - placeholder_rows
 
         requested_start_date = requested_start_dt.date()
         requested_end_date = requested_end_dt.date()
@@ -1642,7 +1642,7 @@ def get_price_data(
         if span == "day":
             trading_days = get_trading_dates(asset, requested_start_dt, requested_end_dt)
             index_dates = pd.Index(frame_index.date)
-            placeholder_dates = set(pd.Index(frame_index[placeholder_mask].date)) if hasattr(frame_index, "__len__") else set()
+            set(pd.Index(frame_index[placeholder_mask].date)) if hasattr(frame_index, "__len__") else set()
 
             missing_required: List[date] = []
             for d in trading_days:
@@ -2859,7 +2859,6 @@ def update_df(df_all, result):
 def is_process_alive():
     """Check if ThetaTerminal Java process is still running"""
     import os
-    import subprocess
 
     if REMOTE_DOWNLOADER_ENABLED:
         # Remote downloader handles lifecycle; treat as always alive locally.
@@ -2910,7 +2909,7 @@ def start_theta_data_client(username: str, password: str):
     existing_password = None
     if creds_file.exists():
         try:
-            with open(creds_file, 'r') as f:
+            with open(creds_file) as f:
                 existing_username = (f.readline().strip() or None)
                 existing_password = (f.readline().strip() or None)
         except Exception as exc:

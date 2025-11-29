@@ -14,11 +14,13 @@ which we trust as our baseline for data accuracy.
 """
 
 import datetime
-import os
-import pytest
 import json
+import os
+
+import pytest
 from dotenv import load_dotenv
-from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting, PolygonDataBacktesting
+
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -407,7 +409,7 @@ class TestThetaDataVsPolygonComparison:
         if theta_df is None or len(theta_df) == 0:
             pytest.fail("ThetaData SPX data not available - check indices subscription is active")
 
-        print(f"\n✓ SPX Index Data Verification (15-minute intervals):")
+        print("\n✓ SPX Index Data Verification (15-minute intervals):")
         print(f"{'Time':<25} {'Open':<10} {'High':<10} {'Low':<10} {'Close':<10}")
         print("="*80)
 
@@ -437,10 +439,10 @@ class TestThetaDataVsPolygonComparison:
         assert first_time.hour == 9, f"First bar hour is {first_time.hour}, expected 9"
         assert 29 <= first_time.minute <= 30, f"First bar minute is {first_time.minute}, expected 29 or 30"
 
-        print(f"\n✓ SPX index data is accessible and working correctly!")
+        print("\n✓ SPX index data is accessible and working correctly!")
         print(f"  - Got {len(theta_df)} bars of 15-minute data")
-        print(f"  - Timestamps are 15 minutes apart")
-        print(f"  - OHLC data is consistent")
+        print("  - Timestamps are 15 minutes apart")
+        print("  - OHLC data is consistent")
         print(f"  - First bar at {first_time}")
         print(f"  - Price range: ${theta_df['close'].min():.2f} - ${theta_df['close'].max():.2f}")
 

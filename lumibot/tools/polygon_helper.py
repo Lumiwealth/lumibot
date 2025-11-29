@@ -89,11 +89,11 @@ def get_price_data_from_polygon(
 ) -> Optional[pd.DataFrame]:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
-    
+
     Data is cached locally (in LUMIBOT_CACHE_FOLDER/polygon) to avoid re-downloading data for dates
     that have already been checked. For any trading date with no data, a dummy row with a "missing"
     flag is stored in the cache. When returning data to the caller, dummy rows are filtered out.
-    
+
     Parameters
     ----------
     api_key : str
@@ -112,13 +112,13 @@ def get_price_data_from_polygon(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
-        
+
     Returns
     -------
     Optional[pd.DataFrame]
         The DataFrame containing the historical pricing data (with dummy rows removed),
         or None if a valid symbol could not be found.
-        
+
     Notes
     -----
     - If the cache file exists and is valid (and force_cache_update is False), cached data is loaded.
@@ -157,7 +157,9 @@ def get_price_data_from_polygon(
                 else:
                     # Intraday: use precise datetime filtering
                     import datetime as dt
+
                     import pytz
+
                     from lumibot import LUMIBOT_DEFAULT_PYTZ
 
                     # Convert date to datetime if needed
@@ -254,7 +256,9 @@ def get_price_data_from_polygon(
         else:
             # Intraday: use precise datetime filtering
             import datetime as dt
+
             import pytz
+
             from lumibot import LUMIBOT_DEFAULT_PYTZ
 
             # Convert date to datetime if needed
@@ -479,11 +483,11 @@ def get_missing_dates(
 ) -> List[datetime.date]:
     """
     Determine which trading dates are missing from the cache.
-    
+
     A date is considered "checked" if any row exists in the cache (whether it contains real
     data or a dummy row indicating a missing query). Trading dates are determined from the asset's
     calendar (via `get_trading_dates()`).
-    
+
     Parameters
     ----------
     df_all : Optional[pd.DataFrame]
@@ -494,7 +498,7 @@ def get_missing_dates(
         The start datetime of the requested range.
     end : datetime
         The end datetime of the requested range.
-        
+
     Returns
     -------
     List[datetime.date]
@@ -525,17 +529,17 @@ def get_missing_dates(
 def load_cache(cache_file: Path) -> pd.DataFrame:
     """
     Load cached data from a Feather file and return a DataFrame with a UTC‐aware DateTimeIndex.
-    
+
     Parameters
     ----------
     cache_file : Path
         The path to the Parquet cache file.
-        
+
     Returns
     -------
     pd.DataFrame
         The DataFrame containing the cached data with the 'datetime' column set as the index.
-        
+
     Raises
     ------
     KeyError
@@ -565,12 +569,12 @@ def update_cache(
 ) -> pd.DataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
-    
+
     For each date in `missing_dates` that is not already present in the cache,
     a dummy row is added (with a "missing" flag set to True). This ensures that
     dates which were queried but returned no data are recorded, so that they
     will not be re-downloaded on subsequent runs.
-    
+
     Parameters
     ----------
     cache_file : Path
@@ -579,7 +583,7 @@ def update_cache(
         The existing cached DataFrame (may be None or empty).
     missing_dates : Optional[List[datetime.date]]
         List of date objects for which data is missing.
-        
+
     Returns
     -------
     pd.DataFrame
@@ -629,7 +633,7 @@ def update_cache(
 def update_polygon_data(df_all, result):
     """
     Update the DataFrame with the new data from Polygon.
-    
+
     Parameters
     ----------
     df_all : pd.DataFrame
@@ -637,7 +641,7 @@ def update_polygon_data(df_all, result):
     result : list
         A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
-        
+
     Returns
     -------
     pd.DataFrame
@@ -689,7 +693,7 @@ def get_chains_cached(
     polygon_client: Optional["PolygonClient"] = None
 ) -> dict:
     """
-    Retrieve an option chain for a given asset and historical date using Polygon, 
+    Retrieve an option chain for a given asset and historical date using Polygon,
     with caching to reduce repeated downloads during backtests.
 
     Parameters
@@ -703,10 +707,10 @@ def get_chains_cached(
     exchange : str, optional
         The exchange to consider (e.g., "NYSE").
     current_date : datetime.date, optional
-        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function 
+        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function
         will return None immediately (no chain is fetched).
     polygon_client : PolygonClient, optional
-        A reusable PolygonClient instance; if None, one will be created using the 
+        A reusable PolygonClient instance; if None, one will be created using the
         given api_key.
 
     Returns
@@ -731,13 +735,13 @@ def get_chains_cached(
 
     Notes
     -----
-    1) We do *not* use the real system date in this function because it is purely 
+    1) We do *not* use the real system date in this function because it is purely
        historical/backtest-oriented.
-    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
+    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date
        exists, it is reused directly.
-    3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
+    3) Otherwise, the function downloads fresh data from Polygon, then saves it under
        `LUMIBOT_CACHE_FOLDER/polygon/option_chains/{symbol}_{date}.parquet`.
-    4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
+    4) By default, we fetch both 'expired=True' and 'expired=False', so you get
        historical + near-future options for your specified date.
     """
     logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
@@ -863,14 +867,14 @@ class PolygonClient(RESTClient):
         """
         Factory method to create a RESTClient or PolygonClient instance.
 
-        The method uses environment variables to determine default values for the API key 
-        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults 
+        The method uses environment variables to determine default values for the API key
+        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults
         to the value of the `POLYGON_API_KEY` environment variable.
         If the environment variable is not set, it defaults to False.
 
         Keyword Arguments:
         api_key : str, optional
-            The API key to authenticate with the service. Defaults to the value of the 
+            The API key to authenticate with the service. Defaults to the value of the
             `POLYGON_API_KEY` environment variable if not provided.
 
         Returns:

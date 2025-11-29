@@ -13,8 +13,8 @@ from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBackte
 from lumibot.backtesting.databento_backtesting_polars import (
     DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
 )
-from lumibot.entities import Asset
 from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.entities import Asset
 from lumibot.tools import databento_helper, databento_helper_polars
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")

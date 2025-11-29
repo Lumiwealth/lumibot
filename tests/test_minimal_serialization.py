@@ -6,10 +6,9 @@ entities for lightweight progress logging, as well as the ThetaData download sta
 tracking functionality.
 """
 import unittest
-from datetime import date, datetime
-from unittest.mock import MagicMock, patch
+from datetime import date
 
-from lumibot.entities import Asset, Position, Order
+from lumibot.entities import Asset, Order, Position
 
 
 class TestAssetMinimalDict(unittest.TestCase):
@@ -386,9 +385,7 @@ class TestDownloadStatusTracking(unittest.TestCase):
 
     def test_clear_download_status(self):
         """Test clearing download status."""
-        from lumibot.tools.thetadata_helper import (
-            get_download_status, set_download_status, clear_download_status
-        )
+        from lumibot.tools.thetadata_helper import clear_download_status, get_download_status, set_download_status
 
         asset = Asset(symbol="AAPL")
         set_download_status(asset, "USD", "ohlc", "minute", 5, 10)
@@ -421,9 +418,8 @@ class TestDownloadStatusTracking(unittest.TestCase):
     def test_download_status_thread_safety(self):
         """Test download status operations are thread-safe."""
         import threading
-        from lumibot.tools.thetadata_helper import (
-            get_download_status, set_download_status, clear_download_status
-        )
+
+        from lumibot.tools.thetadata_helper import clear_download_status, get_download_status, set_download_status
 
         errors = []
         iterations = 100

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple
 
 import pytest
 
@@ -39,9 +38,9 @@ def test_settings_from_env_requires_bucket():
 
 
 class StubS3Client:
-    def __init__(self, objects: Dict[Tuple[str, str], bytes] | None = None):
+    def __init__(self, objects: dict[tuple[str, str], bytes] | None = None):
         self.objects = objects or {}
-        self.uploads: Dict[Tuple[str, str], bytes] = {}
+        self.uploads: dict[tuple[str, str], bytes] = {}
 
     def download_file(self, bucket: str, key: str, destination: str) -> None:
         lookup = (bucket, key)

@@ -5,19 +5,21 @@
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Union
 from decimal import Decimal
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import polars as pl
+from termcolor import colored
+
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot.tools import futures_roll
-from termcolor import colored
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -287,7 +289,6 @@ def _convert_to_databento_format(symbol: str, asset_symbol: str = None) -> str:
     str
         DataBento-formatted symbol (e.g., MESU5)
     """
-    import re
 
     # Handle mock values used in tests
     if asset_symbol and symbol in ['MOCKED_CONTRACT', 'CENTRALIZED_RESULT']:
@@ -346,7 +347,6 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
     ValueError
         If symbol resolution fails with actionable error message
     """
-    import re
 
     symbol = asset.symbol.upper()
 
@@ -839,7 +839,7 @@ def _fetch_and_update_futures_multiplier(
             logger.debug(f"[MULTIPLIER] ✓ Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
             return
         else:
-            logger.warning(f"[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
+            logger.warning("[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
 
     # Fetch from DataBento using the RESOLVED symbol
     logger.debug(f"[MULTIPLIER] Fetching from DataBento for {resolved_symbol}, dataset={dataset}, ref_date={reference_date}")

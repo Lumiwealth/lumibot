@@ -1,22 +1,21 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
-from lumibot.backtesting import PolygonDataBacktesting
-from lumibot.credentials import IS_BACKTESTING
+import os
+from datetime import time
 
+from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.components.options_helper import OptionsHelper
 from lumibot.components.vix_helper import VixHelper
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
-from datetime import time, timedelta
-import math
-import os
 
 class IronCondor0DTE(Strategy):
     """

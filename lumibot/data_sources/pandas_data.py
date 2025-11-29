@@ -56,7 +56,7 @@ class PandasData(DataSourceBacktesting):
 
         # Check if pandas_data is a dictionary
         if isinstance(pandas_data, dict):
-            for k, data in pandas_data.items():
+            for _k, data in pandas_data.items():
                 key = _get_new_pandas_data_key(data)
                 new_pandas_data[key] = data
 
@@ -192,7 +192,7 @@ class PandasData(DataSourceBacktesting):
 
     def update_date_index(self):
         dt_index = None
-        for asset, data in self._data_store.items():
+        for _asset, data in self._data_store.items():
             if dt_index is None:
                 df = data.df
                 dt_index = df.index
@@ -271,19 +271,7 @@ class PandasData(DataSourceBacktesting):
                         except Exception as exc:
                             snapshot_err = f"{snapshot_err}|snapshot_exc={exc}" if snapshot_err else f"snapshot_exc={exc}"
                         message = (
-                            "[THETA][DEBUG][MELI][LAST_PRICE] dt=%s iter_dt=%s iter_count=%s open=%s high=%s low=%s close=%s bid=%s ask=%s err=%s"
-                            % (
-                                dt,
-                                iter_lookup,
-                                iter_count,
-                                open_p,
-                                high_p,
-                                low_p,
-                                close_p,
-                                bid_p,
-                                ask_p,
-                                snapshot_err,
-                            )
+                            f"[THETA][DEBUG][MELI][LAST_PRICE] dt={dt} iter_dt={iter_lookup} iter_count={iter_count} open={open_p} high={high_p} low={low_p} close={close_p} bid={bid_p} ask={ask_p} err={snapshot_err}"
                         )
                         print(message)
                         logger.warning(message)
@@ -557,7 +545,7 @@ class PandasData(DataSourceBacktesting):
             Chains={"CALL": defaultdict(list), "PUT": defaultdict(list)},
         )
 
-        for store_item, data in self._data_store.items():
+        for store_item, _data in self._data_store.items():
             store_asset = store_item[0]
             if store_asset.asset_type != "option":
                 continue

@@ -1,28 +1,32 @@
-from typing import Union
 from datetime import datetime, timedelta
-from unittest.mock import patch
 from decimal import Decimal
-import pytest
-from unittest.mock import PropertyMock
-
+from typing import Union
+from unittest.mock import PropertyMock, patch
 
 import pandas as pd
+import pytest
 import pytz
 
-from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
-from lumibot.components.drift_rebalancer_logic import DriftType
-from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftCalculationLogic, DriftOrderLogic
-from decimal import Decimal
-from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting, \
-    AlpacaBacktesting
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-from lumibot.entities import Order, Asset, TradingFee
+from lumibot.backtesting import (
+    AlpacaBacktesting,
+    BacktestingBroker,
+    PandasDataBacktesting,
+    PolygonDataBacktesting,
+    YahooDataBacktesting,
+)
+from lumibot.components.drift_rebalancer_logic import (
+    DriftCalculationLogic,
+    DriftOrderLogic,
+    DriftRebalancerLogic,
+    DriftType,
+    get_last_price_or_raise,
+)
 from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
-from lumibot.components.drift_rebalancer_logic import get_last_price_or_raise
-from lumibot.tools.helpers import quantize_to_num_decimals
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
+from lumibot.strategies.strategy import Strategy
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
+from lumibot.traders import Trader
 
 
 class EvenOddDriftRebalancer(DriftRebalancer):
@@ -202,7 +206,7 @@ class TestDriftCalculationLogic:
         strategy.portfolio_value = 3300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
 
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -267,7 +271,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (400+400+200=1000)
         strategy.portfolio_value = 1000.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
         # print(f"/n{df[['symbol', 'current_weight', 'target_weight', 'drift']]}")
 
@@ -332,7 +336,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
         strategy.portfolio_value = 3300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -397,7 +401,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
         strategy.portfolio_value = 3300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -466,7 +470,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
         strategy.portfolio_value = 3300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -533,7 +537,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1500+1000+800=3300)
         strategy.portfolio_value = 3300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -606,7 +610,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of all current values (1000+1500+1000+800=4300)
         strategy.portfolio_value = 4300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -680,7 +684,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of all current values (1000+1500+1000+800=4300)
         strategy.portfolio_value = 4300.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         pd.testing.assert_series_equal(
@@ -747,7 +751,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (0+500+500=1000)
         strategy.portfolio_value = 1000.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.5"), Decimal("0.5"), Decimal("0.0")]
@@ -786,7 +790,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1000+0=1000)
         strategy.portfolio_value = 1000.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
@@ -827,7 +831,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1500+(-550)=950)
         strategy.portfolio_value = 950.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
         assert df["current_weight"].tolist() == [Decimal('-0.5789473684210526315789473684'),
                                                  Decimal('1.578947368421052631578947368')]
@@ -874,7 +878,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (0+500+500=1000)
         strategy.portfolio_value = 1000.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.5"), Decimal("0.5"), Decimal("0.0")]
@@ -914,7 +918,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1000+0=1000)
         strategy.portfolio_value = 1000.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
@@ -953,7 +957,7 @@ class TestDriftCalculationLogic:
         # Mock portfolio value to return the sum of current values (1000+0=1000)
         strategy.portfolio_value = 1000.0
         mocker.patch.object(strategy, "get_portfolio_value", return_value=strategy.portfolio_value)
-        
+
         df = strategy.drift_rebalancer_logic.calculate(portfolio_weights=portfolio_weights)
 
         assert df["current_weight"].tolist() == [Decimal("0.0"), Decimal("1.0")]
@@ -2244,7 +2248,7 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         # Create an option asset
         option_asset = Asset(
             symbol="AAPL",
@@ -2253,15 +2257,15 @@ class TestDriftRebalancerOptions:
             strike=150.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         # Mock get_last_price to return $31.09 for options (like TEM in the logs)
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("31.09")
             return Decimal("100.0")
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         # Target: 15.42% of $100K = $15,420
         # With 100x multiplier: $15,420 / ($31.09 × 100) = ~4.96 ≈ 4 contracts
         df = pd.DataFrame({
@@ -2275,12 +2279,12 @@ class TestDriftRebalancerOptions:
             "target_value": Decimal("15420"),    # $15,420
             "drift": Decimal("1")
         })
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
-        # Should be ~4-5 contracts, not 400+ 
+        # Should be ~4-5 contracts, not 400+
         assert strategy.orders[0].quantity <= Decimal("10")  # Much less than without multiplier
         assert strategy.orders[0].quantity >= Decimal("4")   # But enough to meet target
         assert strategy.orders[0].order_type == Order.OrderType.LIMIT
@@ -2291,10 +2295,10 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         # Set limited cash
         strategy._set_cash_position(cash=6000.0)  # Only $6K available
-        
+
         option_asset = Asset(
             symbol="TEM",
             asset_type=Asset.AssetType.OPTION,
@@ -2302,14 +2306,14 @@ class TestDriftRebalancerOptions:
             strike=50.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("31.09")  # TEM option price from logs
             return Decimal("100.0")
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         # Want $15,420 worth but only have $6K
         df = pd.DataFrame({
             "symbol": ["TEM"],
@@ -2322,14 +2326,14 @@ class TestDriftRebalancerOptions:
             "target_value": Decimal("15420"),
             "drift": Decimal("1")
         })
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         # Should only buy what we can afford: $6000 / ($31.09 × 100) ≈ 1 contract
         assert strategy.orders[0].quantity <= Decimal("2")
-        
+
         # Verify actual cost doesn't exceed available cash
         actual_cost = strategy.orders[0].quantity * Decimal("31.09") * 100
         assert actual_cost <= Decimal("6000")
@@ -2340,7 +2344,7 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         option_asset = Asset(
             symbol="AAPL",
             asset_type=Asset.AssetType.OPTION,
@@ -2348,14 +2352,14 @@ class TestDriftRebalancerOptions:
             strike=150.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("30.00")
             return Decimal("100.0")
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         # Currently have 10 contracts worth $30K, want to reduce to $15K (5 contracts)
         # The drift is -0.5, which exceeds the default drift_threshold of 0.05
         df = pd.DataFrame({
@@ -2369,9 +2373,9 @@ class TestDriftRebalancerOptions:
             "target_value": Decimal("15000"),
             "drift": Decimal("-0.5")
         })
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "sell"
         # Should sell approximately 5 contracts (accounting for slippage)
@@ -2385,7 +2389,7 @@ class TestDriftRebalancerOptions:
             order_type=Order.OrderType.LIMIT,
             fractional_shares=True  # Even with fractional shares enabled
         )
-        
+
         option_asset = Asset(
             symbol="AAPL",
             asset_type=Asset.AssetType.OPTION,
@@ -2393,14 +2397,14 @@ class TestDriftRebalancerOptions:
             strike=150.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("33.33")  # Price that would give fractional contracts
             return Decimal("100.0")
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         # Target amount that would result in 4.8 contracts without rounding
         df = pd.DataFrame({
             "symbol": ["AAPL"],
@@ -2413,9 +2417,9 @@ class TestDriftRebalancerOptions:
             "target_value": Decimal("16000"),  # Would be ~4.8 contracts
             "drift": Decimal("1")
         })
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         # Should be rounded down to whole contracts
@@ -2428,7 +2432,7 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         stock_asset = Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK)
         option_asset = Asset(
             symbol="AAPL",
@@ -2437,14 +2441,14 @@ class TestDriftRebalancerOptions:
             strike=150.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("25.00")
             return Decimal("150.0")  # Stock price
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         # Portfolio: 80% stock, 20% options
         df = pd.DataFrame([
             {
@@ -2470,20 +2474,20 @@ class TestDriftRebalancerOptions:
                 "drift": Decimal("1")
             }
         ])
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         assert len(strategy.orders) == 2
-        
+
         # Find stock and option orders
         stock_order = next(o for o in strategy.orders if o.asset.asset_type == Asset.AssetType.STOCK)
         option_order = next(o for o in strategy.orders if o.asset.asset_type == Asset.AssetType.OPTION)
-        
+
         # Stock order (accounting for slippage and fees)
         assert stock_order.side == "buy"
         assert stock_order.quantity >= Decimal("525")  # Allow some variation due to slippage
         assert stock_order.quantity <= Decimal("535")
-        
+
         # Option order (accounting for slippage)
         assert option_order.side == "buy"
         assert option_order.quantity >= Decimal("7")   # Allow some variation due to slippage
@@ -2495,11 +2499,11 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         # Set initial cash
         initial_cash = Decimal("50000")
         strategy._set_cash_position(cash=float(initial_cash))
-        
+
         option_asset = Asset(
             symbol="SPY",
             asset_type=Asset.AssetType.OPTION,
@@ -2507,14 +2511,14 @@ class TestDriftRebalancerOptions:
             strike=400.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("20.00")
             return Decimal("100.0")
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         # Want to buy options worth $40K
         df = pd.DataFrame({
             "symbol": ["SPY"],
@@ -2527,15 +2531,14 @@ class TestDriftRebalancerOptions:
             "target_value": Decimal("40000"),
             "drift": Decimal("1")
         })
-        
+
         # Mock the cash position tracking during rebalance
-        original_get_current_cash = strategy.order_logic.get_current_cash_position
         def mock_get_current_cash():
             return initial_cash
         strategy.order_logic.get_current_cash_position = mock_get_current_cash
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         assert len(strategy.orders) == 1
         assert strategy.orders[0].side == "buy"
         # Should be close to 20 contracts but may vary due to slippage and fees
@@ -2548,7 +2551,7 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         option_asset = Asset(
             symbol="AAPL",
             asset_type=Asset.AssetType.OPTION,
@@ -2556,23 +2559,23 @@ class TestDriftRebalancerOptions:
             strike=150.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         # Test buy limit price (should add slippage)
         buy_limit = strategy.order_logic.calculate_limit_price(
-            last_price=Decimal("25.00"), 
-            side="buy", 
+            last_price=Decimal("25.00"),
+            side="buy",
             asset=option_asset
         )
-        expected_buy = Decimal("25.00") * (1 + Decimal("0.005"))  # Add 0.5% slippage
+        Decimal("25.00") * (1 + Decimal("0.005"))  # Add 0.5% slippage
         assert buy_limit == Decimal("25.12")  # Rounded down to nearest cent
-        
+
         # Test sell limit price (should subtract slippage)
         sell_limit = strategy.order_logic.calculate_limit_price(
-            last_price=Decimal("25.00"), 
-            side="sell", 
+            last_price=Decimal("25.00"),
+            side="sell",
             asset=option_asset
         )
-        expected_sell = Decimal("25.00") * (1 - Decimal("0.005"))  # Subtract 0.5% slippage
+        Decimal("25.00") * (1 - Decimal("0.005"))  # Subtract 0.5% slippage
         assert sell_limit == Decimal("24.88")  # Rounded up to nearest cent
 
     def test_options_insufficient_cash_creates_no_order(self):
@@ -2581,10 +2584,10 @@ class TestDriftRebalancerOptions:
             broker=self.backtesting_broker,
             order_type=Order.OrderType.LIMIT
         )
-        
+
         # Set very limited cash - not enough for even 1 contract
         strategy._set_cash_position(cash=1000.0)  # Only $1K
-        
+
         option_asset = Asset(
             symbol="EXPENSIVE",
             asset_type=Asset.AssetType.OPTION,
@@ -2592,14 +2595,14 @@ class TestDriftRebalancerOptions:
             strike=500.0,
             right=Asset.OptionRight.CALL
         )
-        
+
         def mock_get_last_price(asset, quote=None, exchange=None):
             if asset.asset_type == Asset.AssetType.OPTION:
                 return Decimal("50.00")  # $50 × 100 = $5K per contract
             return Decimal("100.0")
-        
+
         strategy.get_last_price = mock_get_last_price
-        
+
         df = pd.DataFrame({
             "symbol": ["EXPENSIVE"],
             "base_asset": [option_asset],
@@ -2611,8 +2614,8 @@ class TestDriftRebalancerOptions:
             "target_value": Decimal("100000"),  # Want $100K worth
             "drift": Decimal("1")
         })
-        
+
         strategy.order_logic.rebalance(drift_df=df)
-        
+
         # Should create no orders since we can't afford even 1 contract
         assert len(strategy.orders) == 0

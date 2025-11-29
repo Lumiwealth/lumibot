@@ -1,23 +1,21 @@
 import datetime
 import os
 from collections import defaultdict
+from datetime import timedelta
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
-import pytest
 import pandas_market_calendars as mcal
-from pandas.testing import assert_frame_equal
-from dotenv import load_dotenv
-
-from tests.fixtures import polygon_data_backtesting
+import pytest
 import pytz
+from dotenv import load_dotenv
+from pandas.testing import assert_frame_equal
+
 from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-
-from unittest.mock import MagicMock, patch
-from datetime import timedelta
 
 # Load environment variables from .env file
 load_dotenv()
@@ -221,7 +219,7 @@ class TestPolygonBacktestFull:
             )
         else:
             # Order should have been either canceled or filled
-            assert False, f"Stoploss order {stoploss_order_id} was neither canceled nor filled"
+            raise AssertionError(f"Stoploss order {stoploss_order_id} was neither canceled nor filled")
 
     @pytest.mark.apitest
     @pytest.mark.skipif(

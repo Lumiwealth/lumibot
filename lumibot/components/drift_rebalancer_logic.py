@@ -381,7 +381,7 @@ class DriftOrderLogic:
         # Execute sells first
         sell_orders = []
         buy_orders = []
-        for index, row in df.iterrows():
+        for _index, row in df.iterrows():
             if row["drift"] == -1:
                 # Sell everything (or create a short position)
                 base_asset = row["base_asset"]
@@ -447,7 +447,7 @@ class DriftOrderLogic:
         cash_position = self.get_current_cash_position()
 
         # Execute buys
-        for index, row in df.iterrows():
+        for _index, row in df.iterrows():
             if row["drift"] == 1 and row['current_quantity'] < 0 and self.shorting:
                 # Cover our short position
                 base_asset = row["base_asset"]
@@ -593,7 +593,7 @@ class DriftOrderLogic:
     def _check_if_rebalance_needed(self, drift_df: pd.DataFrame) -> bool:
         # Check if the absolute value of any drift is greater than the threshold
         rebalance_needed = False
-        for index, row in drift_df.iterrows():
+        for _index, row in drift_df.iterrows():
             msg = (
                 f"Symbol: {row['symbol']} current_weight: {row['current_weight']:.2%} "
                 f"target_weight: {row['target_weight']:.2%} drift: {row['drift']:.2%}"

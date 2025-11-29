@@ -1,7 +1,7 @@
+import importlib
 import os
 import sys
 import warnings
-import importlib
 
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -28,10 +28,12 @@ major, minor = sys.version_info[:2]
 
 # Check if Python version is less than 3.10
 if (major, minor) < (3, 10):
-    warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
+    warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning, stacklevel=2)
 
 # SOURCE PATH
 # Import constants from constants module (before importing submodules to avoid circular imports)
+# Import main submodules (after constants to avoid circular imports)
+from . import backtesting, brokers, data_sources, entities, strategies, traders
 from .constants import (
     LUMIBOT_CACHE_FOLDER,
     LUMIBOT_DEFAULT_PYTZ,
@@ -40,9 +42,6 @@ from .constants import (
     LUMIBOT_DEFAULT_TIMEZONE,
     LUMIBOT_SOURCE_PATH,
 )
-
-# Import main submodules (after constants to avoid circular imports)
-from . import backtesting, brokers, data_sources, entities, strategies, traders
 
 # Ensure cache folder exists
 if not os.path.exists(LUMIBOT_CACHE_FOLDER):
@@ -63,6 +62,7 @@ if not os.path.exists(LUMIBOT_CACHE_FOLDER):
 
 # Map the root package alias.
 import lumibot.entities as _lb_entities
+
 sys.modules.setdefault("entities", _lb_entities)
 
 # Expose common sub-modules (asset, bars, data, order, position, trading_fee)

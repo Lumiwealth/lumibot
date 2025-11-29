@@ -1,36 +1,37 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
+import pandas as pd
+
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.credentials import IS_BACKTESTING
-import pandas as pd
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 """
 TQQQ 200-Day Moving Average Strategy
 ------------------------------------
 This strategy buys the triple-leveraged NASDAQ ETF (TQQQ) when its closing
 price is ABOVE its 200-day simple moving average (SMA-200) and sells when the
-price dips BELOW the SMA-200.  
+price dips BELOW the SMA-200.
 
 The logic is intentionally very simple so that traders who are new to LumiBot
-can follow along:  
-1. Once a day, fetch the last 200 trading days of data.  
-2. Calculate the SMA-200 from that data.  
-3. Compare the latest closing price to the SMA-200.  
-   • Price > SMA-200  → be IN the market (buy if not already long).  
-   • Price < SMA-200  → be OUT of the market (sell if currently long).  
+can follow along:
+1. Once a day, fetch the last 200 trading days of data.
+2. Calculate the SMA-200 from that data.
+3. Compare the latest closing price to the SMA-200.
+   • Price > SMA-200  → be IN the market (buy if not already long).
+   • Price < SMA-200  → be OUT of the market (sell if currently long).
 
-Visual aids:  
-• A continuous black line plots TQQQ’s closing price.  
-• A continuous blue line plots the SMA-200.  
-• Green upward arrows mark BUY signals.  
+Visual aids:
+• A continuous black line plots TQQQ’s closing price.
+• A continuous blue line plots the SMA-200.
+• Green upward arrows mark BUY signals.
 • Red downward arrows mark SELL signals.
 
 No guarantee of future performance.  Historical results do not assure future

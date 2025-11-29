@@ -1,15 +1,15 @@
-from decimal import Decimal
-from typing import Dict, Optional, Union, List
-
 import logging
+import subprocess
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Dict, List, Optional, Union
+
 import pandas as pd
 import pytz
-import subprocess
-from datetime import date, datetime, timedelta
 
+from lumibot.credentials import THETADATA_CONFIG
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, AssetsMapping, Data
-from lumibot.credentials import THETADATA_CONFIG
 from lumibot.tools import thetadata_helper
 
 logger = logging.getLogger(__name__)
@@ -1076,7 +1076,7 @@ class ThetaDataBacktestingPandas(PandasData):
                     include_after_hours=True,  # Default to True for extended hours data
                     preserve_full_history=True,
                 )
-            except Exception as exc:
+            except Exception:
                 logger.exception(
                     "ThetaData quote download failed for %s / %s (%s)",
                     asset_separated,
@@ -1573,13 +1573,13 @@ class ThetaDataBacktestingPandas(PandasData):
         final_df = getattr(bars, "df", None)
         final_rows = len(final_df) if final_df is not None else 0
         logger.debug(
-            "[THETA][DEBUG][FETCH][THETA][DEBUG][PANDAS][FINAL] asset=%s quote=%s length=%s timestep=%s timeshift=%s current_dt=%s rows=%s",
+            "[THETA][DEBUG][FETCH][PANDAS][FINAL] asset=%s quote=%s length=%s timestep=%s start=%s end=%s rows=%s",
             getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
             getattr(quote, "symbol", quote),
-            length,
+            inferred_length,
             timestep,
-            timeshift,
-            current_dt,
+            start_date,
+            end_date,
             final_rows,
         )
         return bars
@@ -1891,7 +1891,7 @@ class ThetaDataBacktestingPandas(PandasData):
             if candidate_data is None and isinstance(dataset_key, tuple) and len(dataset_key) == 3:
                 legacy_key = (dataset_key[0], dataset_key[1])
                 candidate_data = self.pandas_data.get(legacy_key)
-        normalized_requirement = self._normalize_default_timezone(start_requirement)
+        self._normalize_default_timezone(start_requirement)
         normalized_current_dt = self._normalize_default_timezone(current_dt)
         normalized_data_start = None
         if candidate_data is not None and getattr(candidate_data, "df", None) is not None and not candidate_data.df.empty:

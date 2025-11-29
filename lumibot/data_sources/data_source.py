@@ -2,7 +2,7 @@ import os
 import time
 import traceback
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Union
@@ -446,7 +446,7 @@ class DataSource(ABC):
         chains = self.get_chains(asset)
         strikes = set()
         for right in chains["Chains"]:
-            for exp_date, strikes in chains["Chains"][right].items():
+            for _exp_date, strikes in chains["Chains"][right].items():
                 strikes |= set(strikes)
 
         return sorted(strikes)
@@ -505,7 +505,7 @@ class DataSource(ABC):
                                 "[DIVIDEND][CACHE] No dividend entries available for %s",
                                 getattr(asset, "symbol", asset),
                             )
-                    except Exception as e:
+                    except Exception:
                         # If fetching fails, cache empty dict to avoid repeated failures
                         self._dividend_cache[asset] = {}
 

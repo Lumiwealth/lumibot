@@ -1,6 +1,6 @@
 import os
-import time
 import threading
+import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -19,6 +19,7 @@ from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
+
 from ..data_sources import DataSource
 from ..entities import Asset, Order, Position, Quote
 from ..entities.chains import normalize_option_chains
@@ -35,7 +36,7 @@ DEFAULT_CLEANUP_CONFIG = {
         },
         "canceled_orders": {
             "max_age_days": 7,       # Keep canceled orders for 7 days
-            "max_count": 1000,       # Keep max 1,000 canceled orders  
+            "max_count": 1000,       # Keep max 1,000 canceled orders
             "min_keep": 50           # Always keep at least 50 recent orders
         },
         "error_orders": {
@@ -183,17 +184,17 @@ class Broker(ABC):
         """Initialize cleanup configuration with defaults."""
         if cleanup_config is None:
             return DEFAULT_CLEANUP_CONFIG.copy()
-        
+
         # Start with defaults and merge user config
         import copy
         config = copy.deepcopy(DEFAULT_CLEANUP_CONFIG)
-        
+
         if cleanup_config:
             # Update top-level settings
             for key in ["enabled", "cleanup_interval_iterations"]:
                 if key in cleanup_config:
                     config[key] = cleanup_config[key]
-            
+
             # Merge retention policies
             if "retention_policies" in cleanup_config:
                 for policy_name, policy_config in cleanup_config["retention_policies"].items():
@@ -202,35 +203,35 @@ class Broker(ABC):
                         config["retention_policies"][policy_name].update(policy_config)
                     else:
                         config["retention_policies"][policy_name] = policy_config
-        
+
         return config
 
     def _cleanup_old_tracking_data(self):
         """Perform cleanup of old orders and positions based on configured policies."""
         if not self._cleanup_config.get("enabled", True):
             return
-            
+
         current_time = self.data_source.get_datetime()
         cleanup_stats = {}
-        
+
         # Clean up each type of tracking data
         for list_name, policy in self._cleanup_config["retention_policies"].items():
             list_obj = getattr(self, f"_{list_name}", None)
             if list_obj is None:
                 continue
-                
+
             initial_count = len(list_obj)
             removed_count = self._cleanup_tracking_list(list_obj, policy, current_time)
             cleanup_stats[list_name] = {
                 "initial_count": initial_count,
-                "removed_count": removed_count, 
+                "removed_count": removed_count,
                 "final_count": len(list_obj)
             }
-        
+
         # Log cleanup results if any items were removed
         if any(stats["removed_count"] > 0 for stats in cleanup_stats.values()):
             self.logger.info(f"Memory cleanup completed: {cleanup_stats}")
-        
+
         self._last_cleanup_time = current_time
 
     def _cleanup_tracking_list(self, safe_list, policy, current_time):
@@ -238,33 +239,33 @@ class Broker(ABC):
         items = safe_list.get_list()
         if len(items) <= policy.get("min_keep", 0):
             return 0  # Don't clean up if below minimum threshold
-        
+
         items_to_remove = []
         max_age_days = policy.get("max_age_days")
         max_count = policy.get("max_count")
         min_keep = policy.get("min_keep", 0)
-        
+
         # Sort items by age (newest first) to preserve recent items
         sorted_items = sorted(items, key=self._get_item_timestamp, reverse=True)
-        
+
         for i, item in enumerate(sorted_items):
             should_remove = False
-            
+
             # Always keep minimum number of recent items
             if i < min_keep:
                 continue
-                
+
             # Remove by age
             if max_age_days and self._is_item_too_old(item, current_time, max_age_days):
                 should_remove = True
-                
+
             # Remove by count (keep most recent)
             if max_count and i >= max_count:
                 should_remove = True
-                
+
             if should_remove:
                 items_to_remove.append(item)
-        
+
         # Remove items (thread-safe)
         for item in items_to_remove:
             try:
@@ -272,7 +273,7 @@ class Broker(ABC):
             except ValueError:
                 # Item might have been removed by another thread
                 pass
-        
+
         return len(items_to_remove)
 
     def _get_item_timestamp(self, item):
@@ -292,7 +293,7 @@ class Broker(ABC):
         item_time = self._get_item_timestamp(item)
         if item_time is None:
             return False
-        
+
         age_delta = current_time - item_time
         return age_delta.days >= max_age_days
 
@@ -300,7 +301,7 @@ class Broker(ABC):
         """Trigger cleanup based on iteration counter."""
         self._iteration_counter += 1
         cleanup_interval = self._cleanup_config.get("cleanup_interval_iterations", 100)
-        
+
         if self._iteration_counter % cleanup_interval == 0:
             try:
                 self._cleanup_old_tracking_data()
@@ -1055,64 +1056,64 @@ class Broker(ABC):
     def _is_continuous_market(self, market_name):
         """
         Determine if a market trades continuously (24/7 or near-24/7) by checking its trading schedule.
-        
+
         This method uses pandas_market_calendars to check actual trading hours and caches results
         to avoid expensive repeated lookups.
-        
+
         Args:
             market_name (str): Name of the market (e.g., 'NYSE', 'us_futures', '24/7')
-            
+
         Returns:
             bool: True if market trades continuously (>=20 hours per day), False otherwise
         """
 
         if not hasattr(self, '_market_type_cache'):
             self._market_type_cache = {}
-            
+
         if market_name in self._market_type_cache:
             result = self._market_type_cache[market_name]
-            
+
             return result
-            
+
         try:
             # Special cases that are definitely continuous
             if market_name == '24/7':
                 self._market_type_cache[market_name] = True
-                
+
                 return True
-                
+
             # Get market calendar
             import pandas as pd
             import pandas_market_calendars as mcal
             cal = mcal.get_calendar(market_name)
-            
+
             # Test with a recent Monday (typical trading day)
             test_date = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
             schedule = cal.schedule(start_date=test_date, end_date=test_date)
-            
+
             if schedule.empty:
                 # No trading on this date, assume it's not continuous
                 self._market_type_cache[market_name] = False
-                
+
                 return False
-                
+
             # Calculate trading hours duration
             market_open = schedule.iloc[0, 0]
             market_close = schedule.iloc[0, 1]
             duration_hours = (market_close - market_open).total_seconds() / 3600
-            
+
             # Consider markets with 20+ hours per day as continuous
             # This catches futures markets that trade ~22-24 hours
             is_continuous = duration_hours >= 20.0
-            
+
             self._market_type_cache[market_name] = is_continuous
-            
+
             return is_continuous
-            
+
         except Exception as e:
             # If we can't determine market type, default to non-continuous for safety
             # Log the error for debugging
-            
+
             if hasattr(self, 'logger'):
                 self.logger.warning(f'Could not determine market type for {market_name}: {e}')
             self._market_type_cache[market_name] = False
@@ -1138,40 +1139,40 @@ class Broker(ABC):
 
         # Handle 24/7 markets immediately
         if self.market == '24/7':
-            
+
             return True
-            
+
         # Check if this is a continuous market (futures, forex, crypto)
         if self._is_continuous_market(self.market):
-            
+
             return True
-            
+
         current_time = datetime.now().astimezone(tz=tz.tzlocal())
 
-        # For ANY market, check both today's and tomorrow's sessions since trading sessions 
-        # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
+        # For ANY market, check both today's and tomorrow's sessions since trading sessions
+        # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm,
         # crypto sessions, international markets, etc.)
-        
+
         # Check today's session
         try:
             open_time_today = self.utc_to_local(self.market_hours(close=False, next=False))
             close_time_today = self.utc_to_local(self.market_hours(close=True, next=False))
-            
+
             if (current_time >= open_time_today) and (close_time_today >= current_time):
                 return True
         except:
             pass  # Today might not have a session
-        
+
         # Check tomorrow's session (which might have started today)
         try:
             open_time_tomorrow = self.utc_to_local(self.market_hours(close=False, next=True))
             close_time_tomorrow = self.utc_to_local(self.market_hours(close=True, next=True))
-            
+
             if (current_time >= open_time_tomorrow) and (close_time_tomorrow >= current_time):
                 return True
         except:
             pass  # Tomorrow might not have a session
-        
+
         return False
 
     def get_time_to_open(self):

@@ -5,7 +5,7 @@ import threading
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.credentials import CACHE_REMOTE_CONFIG
@@ -24,16 +24,16 @@ class CacheMode(str, Enum):
 class BacktestCacheSettings:
     backend: str
     mode: CacheMode
-    bucket: Optional[str] = None
+    bucket: str | None = None
     prefix: str = ""
-    region: Optional[str] = None
-    access_key_id: Optional[str] = None
-    secret_access_key: Optional[str] = None
-    session_token: Optional[str] = None
+    region: str | None = None
+    access_key_id: str | None = None
+    secret_access_key: str | None = None
+    session_token: str | None = None
     version: str = "v1"
 
     @staticmethod
-    def from_env(env: Dict[str, Optional[str]]) -> Optional["BacktestCacheSettings"]:
+    def from_env(env: dict[str, str | None]) -> BacktestCacheSettings | None:
         backend = (env.get("backend") or "local").strip().lower()
         mode_raw = (env.get("mode") or "disabled").strip().lower()
 
@@ -87,8 +87,8 @@ class _StubbedS3ErrorCodes:
 class BacktestCacheManager:
     def __init__(
         self,
-        settings: Optional[BacktestCacheSettings],
-        client_factory: Optional[Callable[[BacktestCacheSettings], object]] = None,
+        settings: BacktestCacheSettings | None,
+        client_factory: Callable[[BacktestCacheSettings], object] | None = None,
     ) -> None:
         self._settings = settings
         self._client_factory = client_factory
@@ -108,7 +108,7 @@ class BacktestCacheManager:
     def ensure_local_file(
         self,
         local_path: Path,
-        payload: Optional[Dict[str, object]] = None,
+        payload: dict[str, object] | None = None,
         force_download: bool = False,
     ) -> bool:
         if not self.enabled:
@@ -164,7 +164,7 @@ class BacktestCacheManager:
     def on_local_update(
         self,
         local_path: Path,
-        payload: Optional[Dict[str, object]] = None,
+        payload: dict[str, object] | None = None,
     ) -> bool:
         if not self.enabled or self.mode != CacheMode.S3_READWRITE:
             return False
@@ -192,8 +192,8 @@ class BacktestCacheManager:
     def remote_key_for(
         self,
         local_path: Path,
-        payload: Optional[Dict[str, object]] = None,
-    ) -> Optional[str]:
+        payload: dict[str, object] | None = None,
+    ) -> str | None:
         if not self.enabled:
             return None
 
@@ -278,7 +278,7 @@ class BacktestCacheManager:
 
 
 _MANAGER_LOCK = threading.Lock()
-_MANAGER_INSTANCE: Optional[BacktestCacheManager] = None
+_MANAGER_INSTANCE: BacktestCacheManager | None = None
 
 
 def get_backtest_cache() -> BacktestCacheManager:

@@ -1,6 +1,5 @@
-import os
-import time
 import logging
+import time
 
 from lumibot.tools.lumibot_logger import BotspotErrorHandler
 

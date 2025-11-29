@@ -1,8 +1,9 @@
 import unittest
-from unittest.mock import MagicMock
-import pandas as pd
 from collections import OrderedDict
-from datetime import datetime, time, timedelta
+from datetime import datetime
+from unittest.mock import MagicMock
+
+import pandas as pd
 import pytz
 
 # Try importing BacktestingBroker, and if it fails, add the project root to sys.path and retry
@@ -10,11 +11,10 @@ try:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.entities import Asset
 except ImportError:
-    import sys
     import os
+    import sys
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
-    from lumibot.entities import Asset
 
 
 class TestBacktestingBrokerTimeAdvance(unittest.TestCase):

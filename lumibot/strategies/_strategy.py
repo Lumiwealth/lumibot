@@ -29,7 +29,6 @@ from ..backtesting import (
     BacktestingBroker,
     InteractiveBrokersRESTBacktesting,
     PolygonDataBacktesting,
-    ThetaDataBacktesting,
 )
 from ..credentials import (
     BACKTESTING_END,
@@ -73,9 +72,9 @@ STATS_TABLE_NAME = "strategy_tracker"
 
 class SafeJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for Lumibot objects.
-    
+
     Handles:
-    - Objects with to_dict() method -> dictionary 
+    - Objects with to_dict() method -> dictionary
     - datetime.date and datetime.datetime -> ISO format string
     - Decimal -> float
     - Sets -> list
@@ -172,9 +171,9 @@ class _Strategy:
         filled_order_callback=None,
         name=None,
         budget=None,
-        parameters={},
-        buy_trading_fees=[],
-        sell_trading_fees=[],
+        parameters=None,
+        buy_trading_fees=None,
+        sell_trading_fees=None,
         force_start_immediately=False,
         discord_webhook_url=None,
         account_history_db_connection_str=None,
@@ -282,6 +281,12 @@ class _Strategy:
         """
         # TODO: Break up this function, too long!
 
+        if sell_trading_fees is None:
+            sell_trading_fees = []
+        if buy_trading_fees is None:
+            buy_trading_fees = []
+        if parameters is None:
+            parameters = {}
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
         self.save_logfile = save_logfile
@@ -313,7 +318,7 @@ class _Strategy:
         # Track which assets we've logged "Getting historical prices" for to reduce noise
         self._logged_get_historical_prices_assets = set()
 
-        if self.broker == None:
+        if self.broker is None:
             self.broker = BROKER
 
         # Handle data source initialization
@@ -397,7 +402,7 @@ class _Strategy:
         self.broker.quote_assets.add(self._quote_asset)
 
         # Setting the broker object
-        if self.broker == None:
+        if self.broker is None:
             self.is_backtesting = True
         else:
             self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
@@ -1073,7 +1078,7 @@ class _Strategy:
         return self._stats
 
     def _dump_stats(self):
-        logger = get_logger(__name__)
+        get_logger(__name__)
         # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()
@@ -1297,9 +1302,9 @@ class _Strategy:
         tearsheet_file = None,
         save_tearsheet = True,
         show_tearsheet = None,
-        parameters = {},
-        buy_trading_fees = [],
-        sell_trading_fees = [],
+        parameters = None,
+        buy_trading_fees = None,
+        sell_trading_fees = None,
         polygon_api_key = None,
         use_other_option_source = False,
         thetadata_username = None,
@@ -1402,7 +1407,7 @@ class _Strategy:
         -------
         tuple of (dict, Strategy)
             A tuple of the analysis dictionary and the strategy object. The analysis dictionary contains the
-            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where 
+            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where
             you can access the strategy returns and other attributes.
 
         Examples
@@ -1434,6 +1439,12 @@ class _Strategy:
         >>> )
         """
 
+        if sell_trading_fees is None:
+            sell_trading_fees = []
+        if buy_trading_fees is None:
+            buy_trading_fees = []
+        if parameters is None:
+            parameters = {}
         if name is None:
             name = self.__name__
 
@@ -1503,12 +1514,12 @@ class _Strategy:
 
         if env_override_name is not None:
             from lumibot.backtesting import (
-                PolygonDataBacktesting,
-                ThetaDataBacktesting,
-                YahooDataBacktesting,
                 AlpacaBacktesting,
                 CcxtBacktesting,
                 DataBentoDataBacktesting,
+                PolygonDataBacktesting,
+                ThetaDataBacktesting,
+                YahooDataBacktesting,
             )
 
             datasource_map = {
@@ -2014,7 +2025,7 @@ class _Strategy:
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 400:
-            self.logger.error(f"❌ Bad request - Invalid data format")
+            self.logger.error("❌ Bad request - Invalid data format")
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 413:

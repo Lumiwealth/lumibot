@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 class StrEnum(str, Enum):
     """
     A string enum implementation that works with Python 3.9+
-    
+
     This class extends str and Enum to create string enums that:
     1. Can be used like strings (string methods, comparison)
     2. Are hashable (for use in dictionaries, sets, etc.)
@@ -1155,14 +1155,14 @@ class Order:
     # =========Waiting methods==================
 
     def wait_to_be_registered(self):
-        logger.info("Waiting for order %r to be registered" % self)
+        logger.info(f"Waiting for order {self!r} to be registered")
         self._new_event.wait()
-        logger.info("Order %r registered" % self)
+        logger.info(f"Order {self!r} registered")
 
     def wait_to_be_closed(self):
-        logger.info("Waiting for broker to execute order %r" % self)
+        logger.info(f"Waiting for broker to execute order {self!r}")
         self._closed_event.wait()
-        logger.info("Order %r executed by broker" % self)
+        logger.info(f"Order {self!r} executed by broker")
 
     # ========= Serialization methods ===========
 

@@ -26,7 +26,7 @@ bulk_congress_trading_data_csv = "bulk_congress_trading_data.csv"
     -----------
     This module interacts with QuiverQuant's bulk Congress trading endpoint to fetch,
     store, and process congressional trading data for specific Bioguide IDs.
-    
+
     The `QuiverHelper` class helps download data from QuiverQuant, caches the data in a CSV file,
     and provides methods for retrieving and calculating portfolios based on transaction histories.
 """
@@ -41,11 +41,11 @@ class QuiverHelper:
     strategy : Strategy
         The parent strategy that this helper is part of.
     bulk_congress_trading_downloads : list
-        A list that keeps track of dictionary objects representing 
-        downloaded Congress trading data (including bioguide_id, 
+        A list that keeps track of dictionary objects representing
+        downloaded Congress trading data (including bioguide_id,
         download datetime, and the list of transaction data).
     bulk_congress_trading_df : pd.DataFrame
-        A pandas DataFrame that stores all downloaded Congress trading data 
+        A pandas DataFrame that stores all downloaded Congress trading data
         from CSV or newly fetched from QuiverQuant.
     """
 
@@ -57,7 +57,7 @@ class QuiverHelper:
         ----------
         strategy : Strategy
             The strategy that this component belongs to.
-        
+
         Returns
         -------
         None
@@ -206,8 +206,8 @@ class QuiverHelper:
 
     def get_trading_data_for_bioguide(self, bioguide_id, as_of_date):
         """
-        Fetch paginated results for a specific congressperson by bioguide_id and 
-        filter transactions by 'as_of_date'. Uses local caching to avoid repeated 
+        Fetch paginated results for a specific congressperson by bioguide_id and
+        filter transactions by 'as_of_date'. Uses local caching to avoid repeated
         downloads within a 24-hour window.
 
         Parameters
@@ -311,13 +311,13 @@ class QuiverHelper:
 
     def calculate_portfolio(self, transactions, as_of_date):
         """
-        Calculate the portfolio of a given congressperson (or set of transactions) 
+        Calculate the portfolio of a given congressperson (or set of transactions)
         up to a specified date. Only includes tickers with positive holdings.
 
         Parameters
         ----------
         transactions : list
-            A list of dictionaries, each representing a single transaction 
+            A list of dictionaries, each representing a single transaction
             with keys like 'Ticker', 'TransactionDate', 'Transaction', and 'Amount'.
         as_of_date : datetime.date
             Only include transactions on or before this date.
@@ -325,9 +325,9 @@ class QuiverHelper:
         Returns
         -------
         dict
-            A dictionary where the keys are tickers and the values are the 
+            A dictionary where the keys are tickers and the values are the
             cumulative holding amounts (only if positive).
-        
+
         Raises
         ------
         ValueError

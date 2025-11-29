@@ -84,7 +84,7 @@ class YahooHelperPolarsOptimized:
     ) -> Optional[pl.DataFrame]:
         """
         Get historical data for a symbol with optimized polars processing.
-        
+
         This method minimizes pandas usage and maximizes polars efficiency:
         1. Direct yfinance to polars conversion
         2. Lazy evaluation where possible

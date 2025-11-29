@@ -6,14 +6,15 @@ Test version of stock_buy_and_hold.py specifically for testing quiet logs functi
 # Test version - imports local lumibot for development
 
 import datetime as dt
-from dotenv import load_dotenv
 from pathlib import Path
+
 import pytz
+from dotenv import load_dotenv
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.traders import Trader
-from lumibot.strategies.strategy import Strategy
 from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 
 class BuyAndHoldQuietLogsTest(Strategy):
@@ -64,7 +65,6 @@ if __name__ == "__main__":
     # Set environment variable for quiet logs testing
     os.environ["BACKTESTING_QUIET_LOGS"] = "true"
 
-    from lumibot.backtesting import AlpacaBacktesting
     from lumibot.backtesting import PolygonDataBacktesting
 
     if not ALPACA_TEST_CONFIG:

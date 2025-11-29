@@ -15,7 +15,7 @@ print_full_pandas_dataframes()
 """
 Strategy Description
 
-This example demonstrates using crypto with the DriftRebalancer and AlpacaBacktesting. 
+This example demonstrates using crypto with the DriftRebalancer and AlpacaBacktesting.
 It rebalances a portfolio of assets to a target weight every time the asset drifts
 by a certain threshold. The strategy will sell the assets that has drifted the most and buy the
 assets that has drifted the least to bring the portfolio back to the target weights.

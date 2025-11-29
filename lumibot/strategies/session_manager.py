@@ -1,20 +1,20 @@
 """
 Session Management System for Lumibot Strategy Execution
 
-This module implements a clean session-based architecture that separates 
-backtesting and live trading concerns, solving the infinite restart bug 
+This module implements a clean session-based architecture that separates
+backtesting and live trading concerns, solving the infinite restart bug
 by ensuring guaranteed time progression in backtesting scenarios.
 
 Root Cause Analysis:
-The original _run_trading_session method mixed live trading and backtesting 
-logic in a single 963+ line method, with time advancement scattered across 
-multiple methods (safe_sleep, await_market_to_open, _strategy_sleep) that 
-provided no guarantees of forward progress. This caused infinite restarts 
+The original _run_trading_session method mixed live trading and backtesting
+logic in a single 963+ line method, with time advancement scattered across
+multiple methods (safe_sleep, await_market_to_open, _strategy_sleep) that
+provided no guarantees of forward progress. This caused infinite restarts
 when _run_trading_session completed without advancing time.
 
 Architecture Solution:
 - SessionManager: Abstract base class defining session interface
-- BacktestingSession: Handles backtesting with guaranteed time progression  
+- BacktestingSession: Handles backtesting with guaranteed time progression
 - LiveTradingSession: Handles live trading with APScheduler management
 - Clean separation of concerns with data source agnostic design
 """
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class SessionManager(ABC):
     """
     Abstract base class for managing strategy execution sessions.
-    
+
     Provides a clean interface for both backtesting and live trading sessions
     with guaranteed time progression and clear separation of concerns.
     """
@@ -41,7 +41,7 @@ class SessionManager(ABC):
     def __init__(self, strategy_executor: 'StrategyExecutor'):
         """
         Initialize the session manager.
-        
+
         Args:
             strategy_executor: The strategy executor instance
         """
@@ -53,7 +53,7 @@ class SessionManager(ABC):
     def should_continue_session(self) -> bool:
         """
         Determine if the trading session should continue.
-        
+
         Returns:
             bool: True if session should continue, False otherwise
         """
@@ -63,10 +63,10 @@ class SessionManager(ABC):
     def advance_time(self) -> bool:
         """
         Advance time in the session.
-        
+
         This method MUST guarantee forward time progression in backtesting
         to prevent infinite restart loops.
-        
+
         Returns:
             bool: True if time was successfully advanced, False if at end
         """
@@ -76,7 +76,7 @@ class SessionManager(ABC):
     def execute_trading_cycle(self) -> None:
         """
         Execute one complete trading cycle (on_trading_iteration).
-        
+
         This method handles the core strategy execution logic while
         delegating time management to the session manager.
         """
@@ -86,7 +86,7 @@ class SessionManager(ABC):
     def wait_for_next_cycle(self) -> None:
         """
         Wait for the next trading cycle to begin.
-        
+
         In backtesting: Advances to next time period
         In live trading: Sleeps until next scheduled execution
         """
@@ -95,7 +95,7 @@ class SessionManager(ABC):
     def run_session(self) -> None:
         """
         Main session execution loop.
-        
+
         This replaces the problematic _run_trading_session method with
         a clean, session-aware approach that guarantees progress.
         """
@@ -131,7 +131,7 @@ class SessionManager(ABC):
 class BacktestingSession(SessionManager):
     """
     Session manager for backtesting scenarios.
-    
+
     Ensures guaranteed time progression to prevent infinite restart loops
     that occur when _run_trading_session completes without advancing time.
     """
@@ -173,11 +173,11 @@ class BacktestingSession(SessionManager):
     def advance_time(self) -> bool:
         """
         Advance time in backtesting.
-        
+
         CRITICAL: This method guarantees forward time progression,
         solving the infinite restart bug by ensuring _run_trading_session
         never completes without time advancement.
-        
+
         Returns:
             bool: True if time advanced successfully, False if at end
         """
@@ -239,7 +239,7 @@ class BacktestingSession(SessionManager):
     def wait_for_next_cycle(self) -> None:
         """
         Wait for next cycle in backtesting.
-        
+
         In backtesting, this is typically a no-op since time advancement
         is handled by advance_time() method.
         """
@@ -250,10 +250,10 @@ class BacktestingSession(SessionManager):
     def set_time_parameters(self, start_time: datetime, end_time: datetime, time_step: timedelta = None):
         """
         Set time parameters for backtesting session.
-        
+
         Args:
             start_time: Session start time
-            end_time: Session end time  
+            end_time: Session end time
             time_step: Time step for progression (default: 1 day)
         """
         self._current_time = start_time
@@ -267,7 +267,7 @@ class BacktestingSession(SessionManager):
 class LiveTradingSession(SessionManager):
     """
     Session manager for live trading scenarios.
-    
+
     Handles APScheduler integration and real-time execution without
     the time advancement requirements of backtesting.
     """
@@ -287,11 +287,11 @@ class LiveTradingSession(SessionManager):
     def advance_time(self) -> bool:
         """
         Time advancement for live trading.
-        
+
         In live trading, time advances naturally, so this method
         primarily validates that we're still within trading hours
         and updates internal tracking.
-        
+
         Returns:
             bool: Always True for live trading (time advances naturally)
         """
@@ -321,7 +321,7 @@ class LiveTradingSession(SessionManager):
     def wait_for_next_cycle(self) -> None:
         """
         Wait for next cycle in live trading.
-        
+
         This method handles the real-time scheduling and market hours
         checking that's required for live trading scenarios.
         """

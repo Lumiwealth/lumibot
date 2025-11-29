@@ -2,14 +2,11 @@ import datetime
 import traceback
 from datetime import timedelta
 
+# Fix for NumPy 2.0+ compatibility with pandas_ta
+import numpy as np
 import pandas as pd
 import yfinance as yf
 from scipy import stats
-import traceback
-import datetime
-
-# Fix for NumPy 2.0+ compatibility with pandas_ta
-import numpy as np
 
 # pandas_ta 0.3.14b uses numpy.NaN which was removed in NumPy 2.0
 # Create alias for backward compatibility if needed
@@ -19,17 +16,17 @@ if not hasattr(np, 'NaN'):
 # Import pandas-ta-classic
 import pandas_ta_classic as ta
 
-""" 
+"""
     Description
     -----------
 
-    This is a general component for working with the VIX. It can be used to check the 
+    This is a general component for working with the VIX. It can be used to check the
     VIX, VIX 1D, VIX RSI, VIX percentile values and more.
 """
 
 class VixHelper:
     def __init__(self, strategy) -> None:
-        """ 
+        """
             Initialize the VIX helper with the given strategy.
 
             Parameters

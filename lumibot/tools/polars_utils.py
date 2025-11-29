@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Sequence, Set
+from typing import Iterable, Sequence
 
 import polars as pl
 
@@ -26,7 +26,7 @@ def _ensure_datetime_column(df: pl.DataFrame) -> str:
 def _aggregate_expressions(existing_cols: Sequence[str]) -> list[pl.Expr]:
     """Build aggregation expressions for OHLC-style resampling."""
     exprs: list[pl.Expr] = []
-    handled: Set[str] = {"datetime", "timestamp", "date", "time"}
+    handled: set[str] = {"datetime", "timestamp", "date", "time"}
 
     if "open" in existing_cols:
         exprs.append(pl.col("open").first().alias("open"))
@@ -64,8 +64,8 @@ def resample_polars_ohlc(
     df: pl.DataFrame,
     multiplier: int,
     base_unit: str,
-    length: Optional[int] = None,
-    label_offset: Optional[str] = None,
+    length: int | None = None,
+    label_offset: str | None = None,
 ) -> pl.DataFrame:
     """Resample a Polars DataFrame containing OHLC-like data.
 

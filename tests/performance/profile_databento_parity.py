@@ -9,15 +9,15 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import yappi
 import pytz
+import yappi
 
 # Force verbose logging
 os.environ['BACKTESTING_QUIET_LOGS'] = 'false'
 
 from lumibot.backtesting import DataBentoDataBacktestingPandas, DataBentoDataBacktestingPolars
-from lumibot.entities import Asset
 from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.entities import Asset
 from lumibot.tools import databento_helper
 
 OUTPUT_DIR = Path("tests/performance/logs")
@@ -76,7 +76,7 @@ def run_profile(mode: str, clear_cache: bool = False) -> float:
 
     for dt in test_datetimes:
         ds._datetime = dt
-        price = ds.get_last_price(asset)
+        ds.get_last_price(asset)
 
     elapsed = time.time() - start
     yappi.stop()

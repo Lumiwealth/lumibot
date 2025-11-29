@@ -1,13 +1,14 @@
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 import pytz
-from lumibot.entities import Asset, Order, Bars
-from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
+
+from lumibot.backtesting import BacktestingBroker, CcxtBacktesting, PolygonDataBacktesting, YahooDataBacktesting
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.credentials import ALPACA_TEST_CONFIG, POLYGON_CONFIG
+from lumibot.entities import Asset, Bars, Order
 
 
 class TestBrokerHandlesCrypto:

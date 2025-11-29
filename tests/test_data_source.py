@@ -1,6 +1,6 @@
+from datetime import datetime, timezone  # Added timezone
 from decimal import Decimal
 from typing import Union
-from datetime import datetime, timezone  # Added timezone
 
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset

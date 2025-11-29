@@ -584,7 +584,7 @@ class InteractiveBrokers(Broker):
         stored_order = self.get_tracked_order(orderId)
 
         if stored_order is None:
-            logger.info("Untracked order %s was logged by broker %s" % (orderId, self.name))
+            logger.info(f"Untracked order {orderId} was logged by broker {self.name}")
             return False
             # Check the order status submit changes.
         if execution.cumQty < stored_order.quantity:
@@ -1189,7 +1189,7 @@ class IBClient(EClient):
     def get_historical_data(
         self,
         reqId=0,
-        symbol=[],
+        symbol=None,
         end_date_time="",
         parsed_duration="1 D",
         parsed_timestep="1 day",
@@ -1197,9 +1197,13 @@ class IBClient(EClient):
         useRTH=0,
         formatDate=2,
         keepUpToDate=False,
-        chartOptions=[],
+        chartOptions=None,
         exchange="SMART",
     ):
+        if chartOptions is None:
+            chartOptions = []
+        if symbol is None:
+            symbol = []
         historical_storage = self.wrapper.init_historical()
 
         contract = self.create_contract(symbol, exchange=exchange)

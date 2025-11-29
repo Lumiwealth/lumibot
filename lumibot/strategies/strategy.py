@@ -6,23 +6,23 @@ import re
 import time
 import uuid
 from decimal import Decimal
-from typing import Callable, List, Type, Union, Optional
+from typing import Callable, List, Optional, Type, Union
 
 import jsonpickle
 import matplotlib
-from matplotlib.colors import is_color_like
 import numpy as np
 import pandas as pd
 import pandas_market_calendars as mcal
 from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored, COLORS
+from matplotlib.colors import is_color_like
+from termcolor import COLORS, colored
 
+from ..credentials import IS_BACKTESTING
 from ..data_sources import DataSource
 from ..entities import Asset, Data, Order, Position, Quote, TradingFee
 from ..tools import get_risk_free_rate
 from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
 from ..traders import Trader
-from ..credentials import IS_BACKTESTING
 from ._strategy import _Strategy
 
 matplotlib.use("Agg")
@@ -1118,80 +1118,80 @@ class Strategy(_Strategy):
             return None
 
         asset = self._sanitize_user_asset(asset)
-        
+
         # For non-continuous futures, use existing exact matching
         if asset.asset_type != Asset.AssetType.CONT_FUTURE:
             return self.broker.get_tracked_position(self.name, asset)
-        
+
         # For continuous futures, implement smart matching
         return self._get_continuous_future_position(asset)
 
     def _get_continuous_future_position(self, asset):
         """
         Find position for continuous futures by matching against active contracts.
-        
+
         Parameters
         ----------
         asset : Asset
             Continuous futures asset to find position for
-            
+
         Returns
         -------
         Position or None
             Position for the best matching active contract, or None if no matches
         """
         from lumibot.tools.futures_symbols import (
-            symbol_matches_root, 
+            build_ib_contract_variants,
             get_contract_priority_key,
-            build_ib_contract_variants
+            symbol_matches_root,
         )
-        
+
         # First try exact match (ProjectX may store as CONT_FUTURE)
         exact_position = self.broker.get_tracked_position(self.name, asset)
         if exact_position is not None:
             return exact_position
-        
+
         # Get all positions for this strategy
         all_positions = self.broker.get_tracked_positions(self.name)
         if not all_positions:
             return None
-        
+
         # Find positions that match this root symbol
         matching_positions = []
         root_symbol = asset.symbol
-        
+
         for position in all_positions:
             pos_asset = position.asset
-            
+
             # Skip non-futures positions
             if pos_asset.asset_type not in {Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE, Asset.AssetType.CONT_FUTURE}:
                 continue
-            
+
             # Check for root symbol match
             if symbol_matches_root(pos_asset.symbol, root_symbol):
                 matching_positions.append(position)
-            elif (pos_asset.symbol == root_symbol and 
-                  pos_asset.expiration is not None and 
+            elif (pos_asset.symbol == root_symbol and
+                  pos_asset.expiration is not None and
                   pos_asset.asset_type == Asset.AssetType.FUTURE):
                 # IB-style: same root symbol with expiration
                 matching_positions.append(position)
-        
+
         if not matching_positions:
             return None
-        
+
         if len(matching_positions) == 1:
             return matching_positions[0]
-        
+
         # Multiple matches - rank by priority and log
         priority_list = asset.get_potential_futures_contracts()
-        
+
         # Score each position by priority
         scored_positions = []
         for position in matching_positions:
             pos_asset = position.asset
-            
+
             # For IB-style positions, generate contract variants
-            if (pos_asset.symbol == root_symbol and 
+            if (pos_asset.symbol == root_symbol and
                 pos_asset.expiration is not None and
                 pos_asset.asset_type == Asset.AssetType.FUTURE):
                 variants = build_ib_contract_variants(root_symbol, pos_asset.expiration)
@@ -1203,13 +1203,13 @@ class Strategy(_Strategy):
             else:
                 # Direct symbol priority lookup
                 best_priority = get_contract_priority_key(pos_asset.symbol, priority_list)
-            
+
             scored_positions.append((best_priority, position))
-        
+
         # Sort by priority (lower number = higher priority)
         scored_positions.sort(key=lambda x: x[0])
         best_position = scored_positions[0][1]
-        
+
         # Log ambiguity warning
         contract_symbols = [pos.asset.symbol for pos in matching_positions]
         self.log_message(
@@ -1217,7 +1217,7 @@ class Strategy(_Strategy):
             f"Selected {best_position.asset.symbol} (front-month priority).",
             color="yellow"
         )
-        
+
         return best_position
 
     def get_tracked_positions(self):
@@ -4525,9 +4525,9 @@ class Strategy(_Strategy):
         tearsheet_file: str = None,
         save_tearsheet: bool = True,
         show_tearsheet: bool = True,
-        parameters: dict = {},
-        buy_trading_fees: List[TradingFee] = [],
-        sell_trading_fees: List[TradingFee] = [],
+        parameters: dict = None,
+        buy_trading_fees: List[TradingFee] = None,
+        sell_trading_fees: List[TradingFee] = None,
         polygon_api_key: str = None,
         indicators_file: str = None,
         show_indicators: bool = True,
@@ -4662,6 +4662,12 @@ class Strategy(_Strategy):
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+        if sell_trading_fees is None:
+            sell_trading_fees = []
+        if buy_trading_fees is None:
+            buy_trading_fees = []
+        if parameters is None:
+            parameters = {}
         results, strategy = self.run_backtest(
             datasource_class=datasource_class,
             backtesting_start=backtesting_start,

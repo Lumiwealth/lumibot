@@ -34,7 +34,7 @@ class ConfigsHelper:
             raise FileNotFoundError(f"Configs folder {configs_folder} not found")
 
     def find_and_load_configs_folder(self, base_dir, configs_folder) -> bool:
-        for root, dirs, files in os.walk(base_dir):
+        for root, dirs, _files in os.walk(base_dir):
             logger.debug(f"Checking {root} for {configs_folder}")
             if configs_folder in dirs:
                 # Set the configs directory

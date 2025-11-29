@@ -1,8 +1,8 @@
-import types
 import pytest
+
 from lumibot.brokers.projectx import ProjectX
-from lumibot.entities import Asset, Order
 from lumibot.data_sources import DataSource
+from lumibot.entities import Asset, Order
 
 
 class DummyDataSource(DataSource):
@@ -51,7 +51,7 @@ class MinimalProjectX(ProjectX):
                 return {"cash": 0, "equity": 0, "buying_power": 0, "account_value": 0}
         # Temporarily monkeypatch symbol inside projectx module namespace BEFORE super().__init__ uses it
         import lumibot.brokers.projectx as projectx_module
-        original_client = getattr(projectx_module, "ProjectXClient")
+        original_client = projectx_module.ProjectXClient
         projectx_module.ProjectXClient = lambda cfg: _ShimClient()
         try:
             super().__init__(config=config, data_source=DummyDataSource(), connect_stream=False)

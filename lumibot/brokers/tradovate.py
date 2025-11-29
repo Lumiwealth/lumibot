@@ -10,13 +10,14 @@ from typing import Optional, Union
 import requests
 from termcolor import colored
 
-from .broker import Broker
 from lumibot.data_sources import TradovateData
 from lumibot.entities import Asset, Order, Position
-from lumibot.trading_builtins import PollingStream
 
 # Set up module-specific logger for enhanced logging
 from lumibot.tools.lumibot_logger import get_logger
+from lumibot.trading_builtins import PollingStream
+
+from .broker import Broker
 
 logger = get_logger(__name__)
 
@@ -146,14 +147,14 @@ class Tradovate(Broker):
     def _get_headers(self, with_auth=True, with_content_type=False):
         """
         Create standard headers for API requests.
-        
+
         Parameters
         ----------
         with_auth : bool
             Whether to include the Authorization header with the trading token
         with_content_type : bool
             Whether to include Content-Type header for JSON requests
-            
+
         Returns
         -------
         dict
@@ -194,7 +195,7 @@ class Tradovate(Broker):
             # Check if CAPTCHA is required
             if data.get("p-captcha"):
                 p_time = data.get("p-time", 0)
-                p_ticket = data.get("p-ticket", "")
+                data.get("p-ticket", "")
 
                 # p-time is in minutes from Tradovate API
                 time_unit = "minutes" if p_time != 1 else "minute"
@@ -228,14 +229,14 @@ class Tradovate(Broker):
         """
         url = f"{self.trading_api_url}/account/list"
         headers = self._get_headers()
-        
+
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+
         for attempt in range(max_retries):
             try:
                 response = self._request("GET", url, headers=headers)
-                
+
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
@@ -245,10 +246,10 @@ class Tradovate(Broker):
                         continue
                     else:
                         logger.error(f"Account list still rate limited after {max_retries} attempts")
-                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
+                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts",
                                                 status_code=429,
                                                 response_text=response.text)
-                
+
                 response.raise_for_status()
                 accounts = response.json()
                 if isinstance(accounts, list) and accounts:
@@ -271,14 +272,14 @@ class Tradovate(Broker):
         """
         url = f"{self.trading_api_url}/user/list"
         headers = self._get_headers()
-        
+
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+
         for attempt in range(max_retries):
             try:
                 response = self._request("GET", url, headers=headers)
-                
+
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
@@ -288,10 +289,10 @@ class Tradovate(Broker):
                         continue
                     else:
                         logger.error(f"User list still rate limited after {max_retries} attempts")
-                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
+                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts",
                                                 status_code=429,
                                                 response_text=response.text)
-                
+
                 response.raise_for_status()
                 users = response.json()
                 if isinstance(users, list) and users:
@@ -401,7 +402,7 @@ class Tradovate(Broker):
     def _get_contract_details(self, contract_id: int) -> dict:
         """
         Retrieve contract details for a given contract id from Tradeovate using the /contract/item endpoint.
-        
+
         Endpoint: GET /contract/item?id=<contract_id>
         Response Schema: { "id": int, "name": string, "contractMaturityId": int }
         """
@@ -492,7 +493,7 @@ class Tradovate(Broker):
                 status_code = getattr(e.response if hasattr(e, 'response') else None, 'status_code', None)
                 last_status_code = status_code
                 final_exception = e
-                
+
                 # Handle rate limiting with exponential backoff
                 if status_code == 429:
                     if attempt < max_retries - 1:
@@ -503,7 +504,7 @@ class Tradovate(Broker):
                     else:
                         logger.error(f"Balance retrieval still rate limited after {max_retries} attempts")
                         break
-                
+
                 # For non-rate-limiting errors or final attempt, raise the error
                 raise TradovateAPIError("Failed to retrieve account financials",
                                          status_code=status_code,
@@ -542,7 +543,7 @@ class Tradovate(Broker):
     def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order:
         """
         Convert a Tradeovate order dictionary into a Lumibot Order object.
-        
+
         Expected Tradeovate fields:
         - id: order id
         - contractId: used to get asset details (for futures, asset_type is "future")
@@ -552,7 +553,7 @@ class Tradovate(Broker):
                     "Canceled", "Rejected", "Expired", "Submitted", etc.
         - timestamp: an ISO timestamp string (with a trailing 'Z' for UTC)
         - orderType, price, stopPrice: if provided
-        
+
         This function retrieves contract details (using _get_contract_details) to create an Asset,
         maps raw statuses to Lumibot's expected statuses, converts the timestamp into a datetime object,
         and creates the Order. The quote is set to USD.
@@ -574,8 +575,8 @@ class Tradovate(Broker):
             quantity = response.get("orderQty", 0)
             action = response.get("action", "").lower()
             order_type = response.get("orderType", "market").lower()
-            limit_price = response.get("price")
-            stop_price = response.get("stopPrice")
+            response.get("price")
+            response.get("stopPrice")
 
             # Map raw status to Lumibot's order status using common aliases.
             raw_status = response.get("ordStatus", "").lower()
@@ -597,10 +598,9 @@ class Tradovate(Broker):
                 status = raw_status
 
             timestamp_str = response.get("timestamp")
-            date_created = None
             if timestamp_str:
                 # Replace the trailing 'Z' with '+00:00' to properly parse UTC time.
-                date_created = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
 
             # Create the Lumibot Order. For unknown fields, we simply leave them out.
             order_obj = Order(
@@ -1197,7 +1197,7 @@ class Tradovate(Broker):
 
         This method takes an Order object, extracts necessary details, builds the payload,
         and sends it to the Tradeovate API to place the order. On success, the order status
-        is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
+        is updated to 'submitted' and the raw response is attached to the order. Otherwise,
         the order is marked with an error.
         """
         # Pre-submission validation

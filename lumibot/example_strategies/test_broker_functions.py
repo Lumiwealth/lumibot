@@ -41,7 +41,7 @@ class BrokerTest(Strategy):
             # Get the current time
             current_time = self.get_datetime()
 
-            asset = Asset(symbol="SPY")
+            Asset(symbol="SPY")
             #self.broker.get_chains(asset=asset)
             # Get expiration (tomorrow, or the next trading day)
             expiration = self.get_next_trading_day(current_time.date())
@@ -64,8 +64,8 @@ class BrokerTest(Strategy):
                 right=Asset.OptionRight.CALL,
                 expiration=expiration,
             )
-            quote_option_2 = self.get_quote(option_asset_2)
-            order_2 = self.create_order(option_asset_2, 2, Order.OrderSide.BUY_TO_OPEN)
+            self.get_quote(option_asset_2)
+            self.create_order(option_asset_2, 2, Order.OrderSide.BUY_TO_OPEN)
 
             option_asset_3 = Asset(
                 symbol="SPY",
@@ -74,8 +74,8 @@ class BrokerTest(Strategy):
                 right=Asset.OptionRight.PUT,
                 expiration=expiration,
             )
-            quote_option_3 = self.get_quote(option_asset_3)
-            order_3 = self.create_order(option_asset_3, 2, Order.OrderSide.SELL_TO_OPEN)
+            self.get_quote(option_asset_3)
+            self.create_order(option_asset_3, 2, Order.OrderSide.SELL_TO_OPEN)
 
             option_asset_4 = Asset(
                 symbol="SPY",
@@ -84,7 +84,7 @@ class BrokerTest(Strategy):
                 right=Asset.OptionRight.CALL,
                 expiration=expiration,
             )
-            quote_option_4 = self.get_quote(option_asset_4)
+            self.get_quote(option_asset_4)
             order_4 = self.create_order(option_asset_4, 2, Order.OrderSide.SELL_TO_OPEN)
 
             option_asset_5 = Asset(
@@ -94,8 +94,8 @@ class BrokerTest(Strategy):
                 right=Asset.OptionRight.PUT,
                 expiration=expiration
             )
-            quote_option_5 = self.get_quote(option_asset_5)
-            order_5 = self.create_order(option_asset_5, 2, Order.OrderSide.BUY_TO_OPEN)
+            self.get_quote(option_asset_5)
+            self.create_order(option_asset_5, 2, Order.OrderSide.BUY_TO_OPEN)
 
             # Submit one of the orders
             # result = self.submit_order(order_5)

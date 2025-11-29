@@ -6,8 +6,9 @@ Supports historical data retrieval for futures contracts.
 """
 
 from datetime import datetime, timedelta
-import pandas as pd
 from typing import Dict, List
+
+import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources.data_source import DataSource
@@ -177,15 +178,15 @@ class ProjectXData(DataSource):
         )
 
     def get_bars(
-            self, 
-            assets, 
-            length, 
-            timestep="minute", 
-            timeshift=None, 
-            chunk_size=2, 
-            max_workers=2, 
-            quote=None, 
-            exchange=None, 
+            self,
+            assets,
+            length,
+            timestep="minute",
+            timeshift=None,
+            chunk_size=2,
+            max_workers=2,
+            quote=None,
+            exchange=None,
             include_after_hours=True,
             sleep_time=0.1
             ):

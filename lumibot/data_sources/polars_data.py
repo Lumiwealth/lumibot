@@ -5,9 +5,9 @@ from typing import Union
 
 import pandas as pd
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars, Quote
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -353,7 +353,7 @@ class PolarsData(DataSourceBacktesting):
 
         # Check if pandas_data is a dictionary
         if isinstance(pandas_data, dict):
-            for k, data in pandas_data.items():
+            for _k, data in pandas_data.items():
                 key = _get_new_pandas_data_key(data)
                 new_pandas_data[key] = data
 
@@ -503,7 +503,7 @@ class PolarsData(DataSourceBacktesting):
 
     def update_date_index(self):
         dt_index = None
-        for asset, data in self._data_store.items():
+        for _asset, data in self._data_store.items():
             if dt_index is None:
                 df = data.df
                 dt_index = df.index
@@ -736,7 +736,6 @@ class PolarsData(DataSourceBacktesting):
                 # CRITICAL: Integer timeshift represents BAR offsets, not minute deltas!
                 # Must calculate adjustment based on the actual timestep being requested.
                 if timeshift:
-                    from datetime import timedelta
                     if isinstance(timeshift, int):
                         # Calculate timedelta for one bar of this timestep
                         timestep_delta, _ = self.convert_timestep_str_to_timedelta(timestep)
@@ -906,7 +905,7 @@ class PolarsData(DataSourceBacktesting):
             Chains={"CALL": defaultdict(list), "PUT": defaultdict(list)},
         )
 
-        for store_item, data in self._data_store.items():
+        for store_item, _data in self._data_store.items():
             store_asset = store_item[0]
             if store_asset.asset_type != "option":
                 continue

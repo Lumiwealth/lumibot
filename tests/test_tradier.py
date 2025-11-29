@@ -1,5 +1,4 @@
 import datetime as dt
-import os
 from time import sleep
 
 import numpy as np
@@ -7,9 +6,8 @@ import pandas as pd
 import pytest
 
 from lumibot.brokers.tradier import Tradier
-from lumibot.data_sources.tradier_data import TradierData
-from lumibot.entities import Asset, Order, Position
 from lumibot.credentials import TRADIER_TEST_CONFIG
+from lumibot.entities import Asset, Order, Position
 
 
 def pytest_collection_modifyitems(config, items):
@@ -368,11 +366,11 @@ class TestTradierBroker:
         strategy = "strat_unittest"
         sleep_amt = 1.0  # Increased for CI stability
         broker._strategy_name = strategy
-        
+
         # Mock the stream object since connect_stream=False
         mock_stream = mocker.MagicMock()
         broker.stream = mock_stream
-        
+
         mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
         submit_response = {'id': 123, 'status': 'ok'}
         mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)

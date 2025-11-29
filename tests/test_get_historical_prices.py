@@ -1,23 +1,21 @@
-import os
 import logging
-import pytest
-import pytz
-from datetime import datetime, timedelta, time
+import os
+from datetime import datetime, timedelta
 
 import pandas as pd
+import pytest
+import pytz
 from pandas.testing import assert_series_equal
 
 from lumibot.backtesting import (
+    CcxtBacktesting,
     PolygonDataBacktesting,
     YahooDataBacktesting,
-    CcxtBacktesting,
 )
-from lumibot.data_sources import PandasData
-from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-from lumibot.entities import Asset
 from lumibot.credentials import POLYGON_CONFIG
-
+from lumibot.data_sources import PandasData
+from lumibot.entities import Asset
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 
 logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()

@@ -138,7 +138,29 @@ class DataSourceBacktesting(DataSource, ABC):
         start_date = end_date - period_length
         return start_date, end_date
 
-    def _update_datetime(self, new_datetime, cash=None, portfolio_value=None):
+    def _update_datetime(self, new_datetime, cash=None, portfolio_value=None, positions=None, initial_budget=None, orders=None):
+        """
+        Update the current datetime of the backtest and optionally log progress.
+
+        Parameters
+        ----------
+        new_datetime : datetime
+            The new datetime to set
+        cash : float, optional
+            Current cash balance
+        portfolio_value : float, optional
+            Current portfolio value
+        positions : list, optional
+            List of minimal position dicts from Position.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "qty": 100, "val": 15000.0, "pnl": 500.0}, ...]
+        initial_budget : float, optional
+            Initial budget for calculating return percentage
+        orders : list, optional
+            List of minimal order dicts from Order.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "side": "buy", "qty": 100, "type": "market", "status": "new"}, ...]
+        """
+        import json
+
         self._datetime = new_datetime
 
         total_seconds = max((self.datetime_end - self.datetime_start).total_seconds(), 1)
@@ -199,9 +221,73 @@ class DataSourceBacktesting(DataSource, ABC):
                             log_portfolio_value = str(portfolio_value)
                 else:
                     log_portfolio_value = ""
-                self.log_backtest_progress_to_csv(percent, elapsed, log_eta, log_portfolio_value)
 
-    def log_backtest_progress_to_csv(self, percent, elapsed, log_eta, portfolio_value):
+                # Calculate new fields - include both date AND time for minute-by-minute backtests
+                simulation_date = new_datetime.strftime("%Y-%m-%d %H:%M:%S") if new_datetime else None
+
+                # Calculate total return percentage
+                total_return_pct = None
+                if portfolio_value is not None and initial_budget is not None and initial_budget > 0:
+                    try:
+                        pv = float(str(portfolio_value).replace(',', ''))
+                        total_return_pct = ((pv / initial_budget) - 1) * 100
+                    except (ValueError, TypeError):
+                        pass
+
+                # Serialize positions and orders to JSON
+                positions_json = json.dumps(positions) if positions else "[]"
+                orders_json = json.dumps(orders) if orders else "[]"
+
+                self.log_backtest_progress_to_csv(
+                    percent,
+                    elapsed,
+                    log_eta,
+                    log_portfolio_value,
+                    simulation_date=simulation_date,
+                    cash=cash,
+                    total_return_pct=total_return_pct,
+                    positions_json=positions_json,
+                    orders_json=orders_json
+                )
+
+    def log_backtest_progress_to_csv(
+        self,
+        percent,
+        elapsed,
+        log_eta,
+        portfolio_value,
+        simulation_date=None,
+        cash=None,
+        total_return_pct=None,
+        positions_json=None,
+        orders_json=None
+    ):
+        """
+        Log backtest progress to CSV file.
+
+        Parameters
+        ----------
+        percent : float
+            Progress percentage (0-100)
+        elapsed : timedelta
+            Time elapsed since backtest started
+        log_eta : timedelta
+            Estimated time remaining
+        portfolio_value : str or float
+            Current portfolio value
+        simulation_date : str, optional
+            Current date/time in the backtest simulation (YYYY-MM-DD HH:MM:SS format)
+        cash : float, optional
+            Current cash balance
+        total_return_pct : float, optional
+            Running total return percentage
+        positions_json : str, optional
+            JSON string of minimal position data from Position.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "qty": 100, "val": 15000.0, "pnl": 500.0}, ...]
+        orders_json : str, optional
+            JSON string of minimal order data from Order.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "side": "buy", "qty": 100, "type": "market", "status": "new"}, ...]
+        """
         # If portfolio_value is None, use the last known value if available.
         if portfolio_value is None and hasattr(self, "_portfolio_value") and self._portfolio_value is not None:
             portfolio_value = self._portfolio_value
@@ -210,18 +296,55 @@ class DataSourceBacktesting(DataSource, ABC):
             self._portfolio_value = portfolio_value
 
         current_time = dt.datetime.now().isoformat()
+
+        # Get download status from ThetaData helper (if available)
+        download_status_json = "{}"
+        try:
+            from lumibot.tools.thetadata_helper import get_download_status
+            download_status = get_download_status()
+            if download_status.get("active"):
+                import json
+                download_status_json = json.dumps(download_status)
+        except ImportError:
+            # ThetaData helper not available, skip download status
+            pass
+        except Exception:
+            # Any other error, skip download status
+            pass
+
+        # Build row with all columns
         row = [
             current_time,
             f"{percent:.2f}",
             str(elapsed).split('.')[0],
             str(log_eta).split('.')[0] if log_eta else "",
-            portfolio_value
+            portfolio_value,
+            simulation_date if simulation_date else "",
+            f"{cash:.2f}" if cash is not None else "",
+            f"{total_return_pct:.2f}" if total_return_pct is not None else "",
+            positions_json if positions_json else "[]",
+            orders_json if orders_json else "[]",
+            download_status_json
         ]
+
         # Ensure the directory exists before opening the file.
         dir_path = os.path.dirname(self._progress_csv_path)
         if not os.path.exists(dir_path):
             os.makedirs(dir_path, exist_ok=True)
         with open(self._progress_csv_path, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(["timestamp", "percent", "elapsed", "eta", "portfolio_value"])
+            # Header with all columns including orders and download status
+            writer.writerow([
+                "timestamp",
+                "percent",
+                "elapsed",
+                "eta",
+                "portfolio_value",
+                "simulation_date",
+                "cash",
+                "total_return_pct",
+                "positions_json",
+                "orders_json",
+                "download_status"
+            ])
             writer.writerow(row)

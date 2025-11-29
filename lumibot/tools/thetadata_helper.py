@@ -29,6 +29,120 @@ from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
+# ==============================================================================
+# Download Status Tracking
+# ==============================================================================
+# This module tracks the current download status for ThetaData fetches.
+# The status is exposed via get_download_status() for progress reporting.
+#
+# NOTE: This pattern can be extended to other data sources (Yahoo, Polygon, etc.)
+# by implementing similar tracking in their respective helper modules.
+# See BACKTESTING_ARCHITECTURE.md for documentation on extending this.
+# ==============================================================================
+
+# Thread-safe lock for download status updates
+_download_status_lock = threading.Lock()
+
+# Current download status - updated during active fetches
+_download_status = {
+    "active": False,
+    "asset": None,        # Asset.to_minimal_dict() of what's being downloaded
+    "quote": None,        # Quote asset symbol (e.g., "USD")
+    "data_type": None,    # Type of data being fetched (e.g., "ohlc")
+    "timespan": None,     # Timespan (e.g., "minute", "day")
+    "progress": 0,        # Progress percentage (0-100)
+    "current": 0,         # Current chunk number
+    "total": 0,           # Total chunks to download
+}
+
+
+def get_download_status() -> dict:
+    """
+    Get the current ThetaData download status.
+
+    Returns a dictionary with the current download state, suitable for
+    including in progress CSV output for frontend display.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - active: bool - Whether a download is in progress
+        - asset: dict or None - Minimal asset dict being downloaded
+        - quote: str or None - Quote asset symbol
+        - data_type: str or None - Data type (e.g., "ohlc")
+        - timespan: str or None - Timespan (e.g., "minute", "day")
+        - progress: int - Progress percentage (0-100)
+        - current: int - Current chunk number
+        - total: int - Total chunks
+
+    Example
+    -------
+    >>> status = get_download_status()
+    >>> if status["active"]:
+    ...     print(f"Downloading {status['asset']['symbol']} - {status['progress']}%")
+    """
+    with _download_status_lock:
+        return dict(_download_status)
+
+
+def set_download_status(
+    asset,
+    quote_asset,
+    data_type: str,
+    timespan: str,
+    current: int,
+    total: int
+) -> None:
+    """
+    Update the current download status.
+
+    Called during ThetaData fetch operations to track progress.
+
+    Parameters
+    ----------
+    asset : Asset
+        The asset being downloaded
+    quote_asset : Asset or str
+        The quote asset (e.g., USD)
+    data_type : str
+        Type of data (e.g., "ohlc")
+    timespan : str
+        Timespan (e.g., "minute", "day")
+    current : int
+        Current chunk number (0-based)
+    total : int
+        Total number of chunks
+    """
+    with _download_status_lock:
+        _download_status["active"] = True
+        _download_status["asset"] = asset.to_minimal_dict() if asset and hasattr(asset, 'to_minimal_dict') else {"symbol": str(asset)}
+        _download_status["quote"] = str(quote_asset) if quote_asset else None
+        _download_status["data_type"] = data_type
+        _download_status["timespan"] = timespan
+        _download_status["progress"] = int((current / max(total, 1)) * 100)
+        _download_status["current"] = current
+        _download_status["total"] = total
+
+
+def clear_download_status() -> None:
+    """
+    Clear the download status when a fetch completes.
+
+    Should be called after a download finishes (success or failure)
+    to indicate no download is currently in progress.
+    """
+    with _download_status_lock:
+        _download_status["active"] = False
+        _download_status["asset"] = None
+        _download_status["quote"] = None
+        _download_status["data_type"] = None
+        _download_status["timespan"] = None
+        _download_status["progress"] = 0
+        _download_status["current"] = 0
+        _download_status["total"] = 0
+
+
 WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
@@ -766,6 +880,24 @@ def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     working = df.copy()
+
+    # Filter out special distributions (return of capital, etc.) where less_amount > 0
+    # Per ThetaData docs: non-zero less_amount indicates special adjustments
+    less_amount_col = _detect_column(working, ("less_amount",))
+    if less_amount_col and less_amount_col in working.columns:
+        less_vals = pd.to_numeric(working[less_amount_col], errors="coerce").fillna(0.0)
+        special_mask = less_vals > 0
+        if special_mask.any():
+            special_count = special_mask.sum()
+            logger.info(
+                "[THETA][DIVIDENDS] Filtering %d special distribution(s) with less_amount > 0 for %s",
+                special_count, symbol
+            )
+            working = working[~special_mask].copy()
+
+    if working.empty:
+        return pd.DataFrame()
+
     value_col = _detect_column(working, DIVIDEND_VALUE_COLUMNS) or DIVIDEND_VALUE_COLUMNS[0]
     date_col = _detect_column(working, DIVIDEND_DATE_COLUMNS)
     record_col = _detect_column(working, ("record_date", "record"))
@@ -790,6 +922,19 @@ def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
         normalized["frequency"] = working[freq_col]
     normalized["symbol"] = symbol
     normalized = normalized.dropna(subset=["event_date"])
+
+    # Deduplicate by ex_date - ThetaData sometimes returns multiple entries for same ex_date
+    # (e.g., 2019-03-20 appears 4 times with different 'date' values in raw response)
+    # Keep only the first occurrence per ex_date
+    before_dedup = len(normalized)
+    normalized = normalized.drop_duplicates(subset=["event_date"], keep="first")
+    after_dedup = len(normalized)
+    if before_dedup > after_dedup:
+        logger.info(
+            "[THETA][DIVIDENDS] Deduplicated %d duplicate dividend(s) by ex_date for %s",
+            before_dedup - after_dedup, symbol
+        )
+
     return normalized.sort_values("event_date")
 
 
@@ -982,37 +1127,21 @@ def _get_theta_dividends(asset: Asset, start_date: date, end_date: date, usernam
 
 
 def _get_theta_splits(asset: Asset, start_date: date, end_date: date, username: str, password: str) -> pd.DataFrame:
+    """Fetch split data from ThetaData only. No fallback to other data sources."""
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
 
-    # Try ThetaData first - the Data Downloader handles auth via API key, not basic auth
-    # So even if username/password are empty, the request may succeed via the downloader
     try:
         splits = _ensure_event_cache(asset, "splits", start_date, end_date, username, password)
         if splits is not None and not splits.empty:
             logger.info("[THETA][SPLITS] Got %d splits from ThetaData for %s", len(splits), asset.symbol)
             return splits
+        else:
+            logger.debug("[THETA][SPLITS] No splits found in ThetaData for %s", asset.symbol)
+            return pd.DataFrame()
     except Exception as e:
-        logger.debug("[THETA][SPLITS] ThetaData split fetch failed for %s: %s", asset.symbol, e)
-
-    # Fall back to Yahoo Finance for split data if ThetaData fails
-    try:
-        from ..tools.yahoo_helper import YahooHelper
-        logger.debug("[THETA][SPLITS] Falling back to Yahoo Finance for %s splits", asset.symbol)
-        yahoo_splits = YahooHelper.get_symbol_splits(asset.symbol)
-        if yahoo_splits is not None and not yahoo_splits.empty:
-            # Convert Yahoo format to our normalized format
-            normalized = pd.DataFrame()
-            normalized["event_date"] = pd.to_datetime(yahoo_splits.index).tz_localize(None).tz_localize("UTC")
-            # Yahoo returns split ratio as "new shares per old share" (e.g., 3.0 for 3-for-1)
-            normalized["ratio"] = yahoo_splits.values
-            normalized["symbol"] = asset.symbol
-            logger.info("[THETA][SPLITS] Got %d splits from Yahoo for %s", len(normalized), asset.symbol)
-            return normalized
-    except Exception as e:
-        logger.debug("[THETA][SPLITS] Yahoo fallback failed for %s: %s", asset.symbol, e)
-
-    return pd.DataFrame()
+        logger.warning("[THETA][SPLITS] ThetaData split fetch failed for %s: %s", asset.symbol, e)
+        return pd.DataFrame()
 
 
 def _apply_corporate_actions_to_frame(
@@ -1030,6 +1159,16 @@ def _apply_corporate_actions_to_frame(
             frame["dividend"] = 0.0
         if "stock_splits" not in frame.columns:
             frame["stock_splits"] = 0.0
+        return frame
+
+    # IDEMPOTENCY CHECK: If data has already been split-adjusted, skip adjustment.
+    # This prevents double/multiple adjustment when cached data is re-processed.
+    # The marker column is set at the end of this function after successful adjustment.
+    if "_split_adjusted" in frame.columns and frame["_split_adjusted"].any():
+        logger.debug(
+            "[THETA][SPLIT_ADJUST] Skipping adjustment for %s - data already split-adjusted",
+            asset.symbol
+        )
         return frame
 
     dividends = _get_theta_dividends(asset, start_day, end_day, username, password)
@@ -1116,8 +1255,22 @@ def _apply_corporate_actions_to_frame(
             # Also adjust volume (multiply instead of divide for splits)
             if "volume" in frame.columns:
                 frame["volume"] = frame["volume"] * cumulative_factor
+
+            # Also adjust dividends (divide by cumulative_factor like prices)
+            # ThetaData returns unadjusted dividend amounts, so a $1.22 dividend
+            # from 2015 that occurred before several splits needs to be divided
+            # by the cumulative split factor to get the per-share amount in today's terms.
+            if "dividend" in frame.columns:
+                frame["dividend"] = frame["dividend"] / cumulative_factor
+                logger.debug(
+                    "[THETA][SPLIT_ADJUST] Adjusted dividends for %s by cumulative split factor",
+                    asset.symbol
+                )
     else:
         frame["stock_splits"] = 0.0
+
+    # Mark data as split-adjusted to prevent re-adjustment on subsequent calls
+    frame["_split_adjusted"] = True
 
     return frame
 
@@ -1196,7 +1349,11 @@ def append_missing_markers(
         placeholder_df = pd.DataFrame(rows).set_index("datetime")
         for col in df_all.columns:
             if col not in placeholder_df.columns:
-                placeholder_df[col] = pd.NA if col != "missing" else True
+                if col == "missing":
+                    placeholder_df[col] = True
+                else:
+                    # Use np.nan instead of pd.NA to avoid FutureWarning about concat with all-NA columns
+                    placeholder_df[col] = np.nan
         placeholder_df = placeholder_df[df_all.columns]
         if len(df_all) == 0:
             df_all = placeholder_df
@@ -1961,6 +2118,13 @@ def get_price_data(
     )
     pbar = tqdm(total=max(1, total_queries), desc=description, dynamic_ncols=True)
 
+    # Track completed chunks for download status (thread-safe counter)
+    completed_chunks = [0]  # Use list to allow mutation in nested scope
+    completed_chunks_lock = threading.Lock()
+
+    # Set initial download status
+    set_download_status(asset, quote_asset, datastyle, timespan, 0, total_queries)
+
     def _fetch_chunk(chunk_start: datetime, chunk_end: datetime):
         return get_historical_data(
             asset,
@@ -2029,6 +2193,10 @@ def get_price_data(
                 )
                 df_all = append_missing_markers(df_all, missing_chunk)
                 pbar.update(1)
+                # Update download status
+                with completed_chunks_lock:
+                    completed_chunks[0] += 1
+                    set_download_status(asset, quote_asset, datastyle, timespan, completed_chunks[0], total_queries)
                 continue
 
             df_all = update_df(df_all, result_df)
@@ -2055,7 +2223,13 @@ def get_price_data(
                 elapsed,
             )
             pbar.update(1)
+            # Update download status
+            with completed_chunks_lock:
+                completed_chunks[0] += 1
+                set_download_status(asset, quote_asset, datastyle, timespan, completed_chunks[0], total_queries)
 
+    # Clear download status when fetch completes
+    clear_download_status()
     update_cache(cache_file, df_all, df_cached, remote_payload=remote_payload)
     if df_all is not None:
         logger.debug("[THETA][DEBUG][THETADATA-CACHE-WRITE] wrote %s rows=%d", cache_file, len(df_all))
@@ -2397,7 +2571,7 @@ def _build_sidecar_payload(
         "min": min_ts.isoformat() if hasattr(min_ts, "isoformat") else None,
         "max": max_ts.isoformat() if hasattr(max_ts, "isoformat") else None,
         "checksum": checksum,
-        "updated": datetime.utcnow().isoformat() + "Z",
+        "updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     return payload
 
@@ -2945,8 +3119,42 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                 status_code = response.status_code
                 # Status code 472 means "No data" - this is valid, return None
                 if status_code == 472:
-                    logger.warning(f"No data available for request: {response.text[:200]}")
-                    logger.debug("[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA")
+                    # Build a descriptive asset string from querystring parameters
+                    symbol = querystring.get("root", querystring.get("symbol", "unknown"))
+                    expiration = querystring.get("expiration", querystring.get("exp"))
+                    strike = querystring.get("strike")
+                    right = querystring.get("right")
+
+                    # Format asset description based on what we have
+                    if expiration and strike:
+                        # It's an option
+                        right_str = right.upper() if right else "?"
+                        asset_desc = f"{symbol} {expiration} ${strike} {right_str} (option)"
+                    elif expiration:
+                        asset_desc = f"{symbol} exp:{expiration}"
+                    else:
+                        asset_desc = f"{symbol} (stock/index)"
+
+                    # Format dates nicely (convert YYYYMMDD or YYYY-MM-DD to readable format)
+                    def format_date(d):
+                        if not d or d == "?":
+                            return "?"
+                        d_str = str(d).replace("-", "")
+                        if len(d_str) == 8:
+                            return f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
+                        return str(d)
+
+                    start_date = format_date(querystring.get("start_date", querystring.get("start", "?")))
+                    end_date = format_date(querystring.get("end_date", querystring.get("end", "?")))
+                    endpoint = url.split("/")[-1].split("?")[0] if url else "unknown"
+
+                    logger.warning(
+                        "[THETA][NO_DATA] No data for %s | endpoint: %s | date range: %s to %s | "
+                        "ThetaData returned no records for this request. This will be cached to avoid re-fetching.",
+                        asset_desc, endpoint, start_date, end_date
+                    )
+                    logger.debug("[THETA][DEBUG][API][RESPONSE] status=472 result=NO_DATA url=%s params=%s response=%s",
+                                url, querystring, response.text[:200])
                     consecutive_disconnects = 0
                     session_reset_in_progress = False
                     awaiting_session_validation = False

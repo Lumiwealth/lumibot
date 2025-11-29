@@ -257,9 +257,25 @@ class BacktestingBroker(Broker):
 
     # =========Internal functions==================
 
-    def _update_datetime(self, update_dt, cash=None, portfolio_value=None):
+    def _update_datetime(self, update_dt, cash=None, portfolio_value=None, positions=None, initial_budget=None, orders=None):
         """Works with either timedelta or datetime input
-        and updates the datetime of the broker"""
+        and updates the datetime of the broker.
+
+        Parameters
+        ----------
+        update_dt : timedelta, int, float, or datetime
+            The time to advance by (if timedelta/int/float) or the new datetime
+        cash : float, optional
+            Current cash balance
+        portfolio_value : float, optional
+            Current portfolio value
+        positions : list, optional
+            List of minimal position dicts from Position.to_minimal_dict()
+        initial_budget : float, optional
+            Initial budget for calculating return percentage
+        orders : list, optional
+            List of minimal order dicts from Order.to_minimal_dict()
+        """
         tz = self.datetime.tzinfo
         is_pytz = isinstance(tz, (pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo))
 
@@ -281,7 +297,14 @@ class BacktestingBroker(Broker):
             if is_pytz:
                 new_datetime = tz.normalize(new_datetime)
 
-        self.data_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
+        self.data_source._update_datetime(
+            new_datetime,
+            cash=cash,
+            portfolio_value=portfolio_value,
+            positions=positions,
+            initial_budget=initial_budget,
+            orders=orders
+        )
         if self.option_source:
             self.option_source._update_datetime(new_datetime, cash=cash, portfolio_value=portfolio_value)
 

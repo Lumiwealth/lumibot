@@ -10,6 +10,12 @@ Lumibot is a backtesting and trading library for stocks, options, crypto, future
 > **Contributor note:** Read `AGENTS.md` before running anything Theta-related. That file spells out the hard rules—never launch ThetaTerminal or the shared downloader locally, always point LumiBot at the AWS-hosted downloader, and wrap all long
 > commands with `/Users/robertgrzesik/bin/safe-timeout`. Breaking these rules kills the only licensed Theta session.
 
+## Architecture Documentation
+
+- `BACKTESTING_ARCHITECTURE.md` - Detailed documentation of the backtesting data flow (Yahoo, ThetaData, Polygon data sources, caching, and data flow diagrams)
+- `CLAUDE.md` - AI assistant instructions for working with the codebase
+- `AGENTS.md` - Critical rules for ThetaData and production safety
+
 ## Documentation - 👇 Start Here 👇
 
 To get started with Lumibot, you can check out our documentation below.

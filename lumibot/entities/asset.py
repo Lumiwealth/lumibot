@@ -391,6 +391,59 @@ class Asset:
         return True
 
     # ========= Serialization methods ===========
+    def to_minimal_dict(self) -> dict:
+        """
+        Return a minimal dictionary representation of the asset for progress logging.
+
+        This creates a lightweight representation suitable for real-time progress updates,
+        containing only the essential fields needed to identify the asset.
+
+        Returns
+        -------
+        dict
+            A minimal dictionary with keys:
+            - symbol: The asset symbol (e.g., "AAPL", "SPY")
+            - type: The asset type (e.g., "stock", "option", "future")
+            - For options: strike, exp (expiration), right (CALL/PUT), mult (multiplier)
+            - For futures: exp (expiration), mult (multiplier if != 1)
+
+        Example
+        -------
+        >>> asset = Asset(symbol="AAPL")
+        >>> asset.to_minimal_dict()
+        {'symbol': 'AAPL', 'type': 'stock'}
+
+        >>> option = Asset(symbol="AAPL", asset_type="option", strike=150,
+        ...                expiration=date(2024, 12, 20), right="CALL")
+        >>> option.to_minimal_dict()
+        {'symbol': 'AAPL', 'type': 'option', 'strike': 150.0, 'exp': '2024-12-20', 'right': 'CALL', 'mult': 100}
+        """
+        result = {
+            "symbol": self.symbol,
+            "type": str(self.asset_type) if self.asset_type else "stock",
+        }
+
+        # Add option-specific fields
+        if self.asset_type in (self.AssetType.OPTION, "option"):
+            if self.strike:
+                result["strike"] = float(self.strike)
+            if self.expiration:
+                result["exp"] = self.expiration.isoformat() if hasattr(self.expiration, 'isoformat') else str(self.expiration)
+            if self.right:
+                result["right"] = str(self.right)
+            if self.multiplier:
+                result["mult"] = self.multiplier
+
+        # Add future-specific fields
+        elif self.asset_type in (self.AssetType.FUTURE, self.AssetType.CONT_FUTURE,
+                                  self.AssetType.CRYPTO_FUTURE, "future", "cont_future", "crypto_future"):
+            if self.expiration:
+                result["exp"] = self.expiration.isoformat() if hasattr(self.expiration, 'isoformat') else str(self.expiration)
+            if self.multiplier and self.multiplier != 1:
+                result["mult"] = self.multiplier
+
+        return result
+
     def to_dict(self):
         return {
             "symbol": self.symbol,

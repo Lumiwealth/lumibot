@@ -164,8 +164,26 @@ class StrategyExecutor(Thread):
         if self.strategy.is_backtesting:
             self.process_queue()
 
+            # Get positions and serialize to minimal format for progress logging
+            # Use Position.to_minimal_dict() for proper asset info
+            positions = self.strategy.get_positions()
+            positions_minimal = [p.to_minimal_dict() for p in positions] if positions else None
+
+            # Get open orders and serialize to minimal format
+            # Use Order.to_minimal_dict() for proper asset info
+            orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
+            orders_minimal = [o.to_minimal_dict() for o in orders] if orders else None
+
+            # Get initial budget for return calculation
+            initial_budget = getattr(self.strategy, '_initial_budget', None)
+
             self.broker._update_datetime(
-                sleeptime, cash=self.strategy.cash, portfolio_value=self.strategy.get_portfolio_value()
+                sleeptime,
+                cash=self.strategy.cash,
+                portfolio_value=self.strategy.get_portfolio_value(),
+                positions=positions_minimal,
+                initial_budget=initial_budget,
+                orders=orders_minimal
             )
 
     def sync_broker(self):
@@ -1247,7 +1265,26 @@ class StrategyExecutor(Thread):
             return
 
         dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-        self.broker._update_datetime(dt, cash=self.strategy.cash, portfolio_value=self.strategy.get_portfolio_value())
+
+        # Get positions and serialize to minimal format for progress logging
+        positions = self.strategy.get_positions()
+        positions_minimal = [p.to_minimal_dict() for p in positions] if positions else None
+
+        # Get orders and serialize to minimal format for progress logging
+        orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
+        orders_minimal = [o.to_minimal_dict() for o in orders] if orders else None
+
+        # Get initial budget for return calculation
+        initial_budget = getattr(self.strategy, '_initial_budget', None)
+
+        self.broker._update_datetime(
+            dt,
+            cash=self.strategy.cash,
+            portfolio_value=self.strategy.get_portfolio_value(),
+            positions=positions_minimal,
+            initial_budget=initial_budget,
+            orders=orders_minimal
+        )
         self.strategy._update_cash_with_dividends()
 
         self._on_trading_iteration()

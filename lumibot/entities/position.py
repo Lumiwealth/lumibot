@@ -221,6 +221,54 @@ class Position:
             self.orders.append(order)
 
     # ========= Serialization methods ===========
+    def to_minimal_dict(self) -> dict:
+        """
+        Return a minimal dictionary representation of the position for progress logging.
+
+        This creates a lightweight representation suitable for real-time progress updates,
+        containing only the essential fields needed to display the position.
+
+        Returns
+        -------
+        dict
+            A minimal dictionary with keys:
+            - asset: Minimal asset dict (from asset.to_minimal_dict())
+            - qty: Position quantity
+            - val: Market value (rounded to 2 decimal places)
+            - pnl: Unrealized P&L (rounded to 2 decimal places)
+
+        Example
+        -------
+        >>> position = Position(strategy="MyStrategy", asset=Asset("AAPL"), quantity=100)
+        >>> position.to_minimal_dict()
+        {'asset': {'symbol': 'AAPL', 'type': 'stock'}, 'qty': 100, 'val': 15000.00, 'pnl': 500.00}
+        """
+        # Get market value
+        market_value = 0.0
+        if hasattr(self, 'market_value') and self.market_value is not None:
+            try:
+                market_value = float(self.market_value)
+            except (TypeError, ValueError):
+                pass
+
+        # Get unrealized P&L
+        pnl = 0.0
+        if hasattr(self, 'pnl') and self.pnl is not None:
+            try:
+                pnl = float(self.pnl)
+            except (TypeError, ValueError):
+                pass
+
+        # Build minimal dict
+        result = {
+            "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, 'to_minimal_dict') else {"symbol": str(self.symbol)},
+            "qty": float(self.quantity) if self.quantity else 0,
+            "val": round(market_value, 2),
+            "pnl": round(pnl, 2),
+        }
+
+        return result
+
     def to_dict(self):
         """
         Convert position to dictionary for serialization.

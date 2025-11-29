@@ -37,6 +37,17 @@ def test_get_price_data_returns_pandas_when_cache_hit(monkeypatch, tmp_path):
 
     mock_df = _mock_cache_frame(datetime(2025, 1, 1, tzinfo=timezone.utc))
 
+    # NOTE (2025-11-28): Mock the backtest cache to disable S3 remote cache interference.
+    # When S3 cache is enabled in the environment, it can affect test behavior.
+    class DisabledCacheManager:
+        enabled = False
+        mode = None
+        def ensure_local_file(self, *args, **kwargs):
+            return False
+        def on_local_update(self, *args, **kwargs):
+            return False
+    monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
+
     monkeypatch.setattr(
         thetadata_helper,
         "build_cache_filename",

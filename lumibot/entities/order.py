@@ -1166,6 +1166,49 @@ class Order:
 
     # ========= Serialization methods ===========
 
+    def to_minimal_dict(self) -> dict:
+        """
+        Return a minimal dictionary representation of the order for progress logging.
+
+        This creates a lightweight representation suitable for real-time progress updates,
+        containing only the essential fields needed to display the order.
+
+        Returns
+        -------
+        dict
+            A minimal dictionary with keys:
+            - asset: Minimal asset dict (from asset.to_minimal_dict())
+            - side: Order side (buy, sell, etc.)
+            - qty: Order quantity
+            - type: Order type (market, limit, stop, etc.)
+            - status: Order status (new, filled, canceled, etc.)
+            - limit: Limit price (only if set)
+            - stop: Stop price (only if set)
+
+        Example
+        -------
+        >>> order = Order(strategy="MyStrategy", asset=Asset("AAPL"), quantity=100,
+        ...               side="buy", order_type="limit", limit_price=150.00)
+        >>> order.to_minimal_dict()
+        {'asset': {'symbol': 'AAPL', 'type': 'stock'}, 'side': 'buy', 'qty': 100,
+         'type': 'limit', 'status': 'new', 'limit': 150.0}
+        """
+        result = {
+            "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, 'to_minimal_dict') else None,
+            "side": str(self.side) if self.side else None,
+            "qty": float(self.quantity) if self.quantity else 0,
+            "type": str(self.order_type) if self.order_type else "market",
+            "status": str(self.status) if self.status else "unprocessed",
+        }
+
+        # Only include prices if they're set
+        if self.limit_price is not None:
+            result["limit"] = float(self.limit_price)
+        if self.stop_price is not None:
+            result["stop"] = float(self.stop_price)
+
+        return result
+
     def to_dict(self):
         # Initialize an empty dictionary for serializable attributes
         order_dict = {}

@@ -98,7 +98,7 @@ DEFAULT_GENERAL_JSON_SCHEMA = {
 class PerplexityHelper:
     """
     A helper for querying Perplexity's API via an OpenAI-compatible client.
-
+    
     Supports two types of queries:
       - Financial news queries: Returns structured financial news data.
       - General queries: Returns structured responses based on a provided (or default) JSON schema.
@@ -107,13 +107,13 @@ class PerplexityHelper:
     def __init__(self, api_key: str):
         """
         Initializes the PerplexityHelper with your API key and creates an OpenAI-compatible client.
-
+        
         Parameters
         ----------
         api_key : str
             Your Perplexity API key. If not provided, the environment variable 'PERPLEXITY_API_KEY'
             will be used.
-
+        
         Raises
         ------
         ValueError
@@ -136,14 +136,14 @@ class PerplexityHelper:
     # --------------------------------------------------------------------------
     def _clean_response(self, response_text: str) -> str:
         """
-        Cleans the raw response by removing markdown code fences and any extraneous text
+        Cleans the raw response by removing markdown code fences and any extraneous text 
         preceding the first '{', so that only a valid JSON object remains.
-
+        
         Parameters
         ----------
         response_text : str
             The raw response text from the API.
-
+        
         Returns
         -------
         str
@@ -164,12 +164,12 @@ class PerplexityHelper:
     def _build_financial_news_prompt(self, user_query: str) -> str:
         """
         Builds a system prompt for financial news queries.
-
-        The prompt instructs the model to output ONLY valid JSON (with no markdown or extra text)
+        
+        The prompt instructs the model to output ONLY valid JSON (with no markdown or extra text) 
         following the schema below.
-
+        
         Schema:
-
+        
             {
               "query": "<string, echo the user's query>",
               "analysis_summary": "<string, a concise summary of the news findings>",
@@ -200,12 +200,12 @@ class PerplexityHelper:
                 }
               ]
             }
-
+        
         Parameters
         ----------
         user_query : str
             The financial news query.
-
+        
         Returns
         -------
         str
@@ -263,21 +263,21 @@ Return only valid JSON following the schema.
     def _build_general_prompt(self, user_query: str, custom_schema=None) -> str:
         """
         Constructs a system prompt for general queries.
-
+        
         You can provide a custom JSON schema as either a Python dictionary or a string.
         It is recommended that the schema thoroughly describes the expected JSON output, including detailed explanations for each field.
-
+        
         The default schema (if no custom schema is provided) is:
-
+        
             {
               "query": "<string, echo the user's query>",
               "response_summary": "<string, brief answer (1-3 sentences)>",
               "detailed_response": "<string, optional extended details>",
               "symbols": ["<string, list of relevant symbols>"]
             }
-
+        
         A sample custom schema (different from the default) might be:
-
+        
             {
               "query": "<string, echo the user's query>",
               "stocks": [
@@ -290,16 +290,16 @@ Return only valid JSON following the schema.
               ],
               "summary": "<string, overall summary of findings>"
             }
-
+        
         Additionally, instruct the model to return only the JSON object with no extra text or markdown.
-
+        
         Parameters
         ----------
         user_query : str
             The user's query.
         custom_schema : dict or str, optional
             The desired JSON schema for the response.
-
+        
         Returns
         -------
         str
@@ -418,25 +418,25 @@ Return only valid JSON following the schema.
     def execute_financial_news_query(self, user_query: str) -> dict:
         """
         Executes a financial news query.
-
+        
         This method performs the following steps:
-
-        1. **Prompt Construction:**
+        
+        1. **Prompt Construction:**  
            Builds the prompt using the `_build_financial_news_prompt` method.
-
-        2. **API Request:**
+        
+        2. **API Request:**  
            Sends the query to the Perplexity API using the `_send_request` method, which includes retry logic.
-
-        3. **Response Parsing:**
+        
+        3. **Response Parsing:**  
            Cleans and parses the returned JSON into a Python dictionary. If JSON decoding fails,
            logs the raw cleaned response and returns a dictionary with an error message in 'analysis_summary'
            and an empty 'items' list.
-
+        
         Parameters
         ----------
         user_query : str
             The financial news query.
-
+        
         Returns
         -------
         dict
@@ -470,23 +470,23 @@ Return only valid JSON following the schema.
     def execute_general_query(self, user_query: str, custom_schema=None, model: str = "sonar", max_tokens: int = 35000, stream: bool = None) -> dict:
         """
         Executes a general query using the Perplexity API.
-
+        
         This method performs the following steps:
-
-        1. **Prompt Construction:**
-           Builds a system prompt using the `_build_general_prompt` method. You may supply a custom JSON schema
-           (as a dict or a string) that thoroughly describes the expected JSON output. If no custom schema is provided,
+        
+        1. **Prompt Construction:**  
+           Builds a system prompt using the `_build_general_prompt` method. You may supply a custom JSON schema 
+           (as a dict or a string) that thoroughly describes the expected JSON output. If no custom schema is provided, 
            the default schema is used. The default schema is:
-
+        
                {
                  "query": "<string, echo the user's query>",
                  "response_summary": "<string, brief answer (1-3 sentences)>",
                  "detailed_response": "<string, optional extended details>",
                  "symbols": ["<string, list of relevant symbols>"]
                }
-
+        
            A sample custom schema (different from the default) might be:
-
+        
                {
                  "query": "<string, echo the user's query>",
                  "stocks": [
@@ -499,21 +499,21 @@ Return only valid JSON following the schema.
                  ],
                  "summary": "<string, overall summary of findings>"
                }
-
-        2. **API Request:**
+        
+        2. **API Request:**  
            Sends the query to the Perplexity API using the `_send_request` method, which includes retry logic.
-
-        3. **Response Parsing:**
+        
+        3. **Response Parsing:**  
            Cleans and parses the returned JSON into a Python dictionary. If errors occur during the API call or JSON parsing,
            a dictionary is returned with an error message in 'response_summary' and default empty values for the other fields.
-
+        
         Parameters
         ----------
         user_query : str
             The general query that you want to ask.
         custom_schema : dict or str, optional
             The desired JSON schema for the response. For example, a custom schema might be:
-
+            
                 {
                   "query": "<string, echo the user's query>",
                   "stocks": [
@@ -526,7 +526,7 @@ Return only valid JSON following the schema.
                   ],
                   "summary": "<string, overall summary of findings>"
                 }
-
+            
             If no custom schema is provided, the default schema (shown above) is used.
         model : str, optional
             The model to use for the query. Supported models include "sonar", "sonar-pro", "sonar-reasoning", etc.
@@ -535,23 +535,23 @@ Return only valid JSON following the schema.
             The maximum number of tokens to generate (default is 35000).
         stream : bool, optional
             Whether to enable streaming for longer responses (default is None, which enables streaming for large responses).
-
+        
         Returns
         -------
         dict
             A dictionary containing the API's response following the specified JSON schema.
             In case of an error, returns a dictionary with an error message in 'response_summary'
             and empty values for the other keys.
-
+        
         Raises
         ------
         Exception
             Propagates exceptions if the API call fails after the specified number of retries.
-
+        
         Examples
         --------
         Using the default schema:
-
+        
         >>> result = helper.execute_general_query("What factors are currently driving stock market volatility?")
         >>> print(result)
         {
@@ -560,9 +560,9 @@ Return only valid JSON following the schema.
           "detailed_response": "Additional factors include earnings reports, interest rate adjustments, and geopolitical tensions.",
           "symbols": []
         }
-
+        
         Using a custom schema:
-
+        
         >>> custom_schema = {
         ...     "query": "<string, echo the user's query>",
         ...     "stocks": [
@@ -643,11 +643,11 @@ Return only valid JSON following the schema.
     def _post_process_data(self, data: dict) -> None:
         """
         Processes the financial news response data to ensure numeric fields have the correct type.
-
+        
         Converts the following fields to integers:
           - confidence, sentiment_score, popularity_metric, magnitude, and volume_of_messages (if present)
         Also converts price target values to floats if provided.
-
+        
         Parameters
         ----------
         data : dict

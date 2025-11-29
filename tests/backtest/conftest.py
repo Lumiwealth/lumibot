@@ -3,9 +3,8 @@ Pytest configuration for backtest tests.
 Automatically tracks performance of all backtest tests.
 """
 import time
-from pathlib import Path
-
 import pytest
+from pathlib import Path
 
 # Import the performance tracker
 from .performance_tracker import record_backtest_performance

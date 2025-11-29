@@ -137,6 +137,7 @@ class Strangle(Strategy):
 
     def on_trading_iteration(self):
         portfolio_value = self.get_portfolio_value()
+        cash = self.cash
         positions = self.get_tracked_positions()
         filled_assets = [p.asset for p in positions]
         trade_cash = portfolio_value / (self.max_trades * 2)
@@ -320,7 +321,8 @@ class Strangle(Strategy):
     def asset_cycle(self, assets):
         # Used to cycle through the assets for investing, prevents starting
         # at the beginning of the asset list on each iteration.
-        yield from cycle(assets)
+        for asset in cycle(assets):
+            yield asset
 
     def call_put_strike(self, last_price, symbol, expiration_date):
         """Returns strikes for pair."""

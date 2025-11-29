@@ -6,9 +6,12 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from lumibot.backtesting import PandasDataBacktesting
-from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
+from lumibot.entities import Asset
 from lumibot.tools.indicators import _build_trade_marker_tooltip, plot_returns
+
+from tests.fixtures import pandas_data_fixture
+
 
 logger = logging.getLogger(__name__)
 

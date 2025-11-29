@@ -20,13 +20,11 @@ import datetime
 import os
 import shutil
 from pathlib import Path
-
 import yappi
 from dotenv import load_dotenv
-
-from lumibot.backtesting import PolygonDataBacktesting, ThetaDataBacktesting
-from lumibot.entities import Asset
 from lumibot.strategies import Strategy
+from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
+from lumibot.entities import Asset
 
 # Load environment variables from .env file
 load_dotenv()
@@ -139,7 +137,7 @@ def profile_backtest(data_source_class, name, profile_file, clear_cache_first=Tr
         print(f"  Profile saved to: {profile_file}")
 
         # Print top 30 time-consuming functions
-        print("\nTop 30 time-consuming functions:")
+        print(f"\nTop 30 time-consuming functions:")
         print("="*120)
         func_stats.sort("totaltime", "desc")
         # Print first 30 functions
@@ -173,8 +171,8 @@ def main():
     print("\n" + "="*80)
     print("PERFORMANCE PROFILING: ThetaData vs Polygon")
     print("="*80)
-    print("Date range: 2024-08-01 to 2024-08-02 (1 trading day)")
-    print("Strategy: Buy & hold 10 shares of AMZN")
+    print(f"Date range: 2024-08-01 to 2024-08-02 (1 trading day)")
+    print(f"Strategy: Buy & hold 10 shares of AMZN")
     print("="*80)
 
     results = {}

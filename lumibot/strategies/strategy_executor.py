@@ -1,4 +1,5 @@
 import inspect
+import logging
 import math
 import time
 import traceback
@@ -9,13 +10,15 @@ from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 import pandas_market_calendars as mcal
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
+from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
@@ -28,7 +31,7 @@ class StrategyExecutor(Thread):
     ERROR_ORDER = "error"
 
     def __init__(self, strategy):
-        super().__init__()
+        super(StrategyExecutor, self).__init__()
         self.daemon = True
         self.stop_event = Event()
         self.lock = Lock()
@@ -79,13 +82,13 @@ class StrategyExecutor(Thread):
     def _is_continuous_market(self, market_name):
         """
         Determine if a market trades continuously (24/7 or near-24/7) by checking its trading schedule.
-
+        
         This method uses pandas_market_calendars to check actual trading hours and caches results
         to avoid expensive repeated lookups during backtesting.
-
+        
         Args:
             market_name (str): Name of the market (e.g., 'NYSE', 'us_futures', '24/7')
-
+            
         Returns:
             bool: True if market trades continuously (>=20 hours per day), False otherwise
         """
@@ -210,6 +213,7 @@ class StrategyExecutor(Thread):
         cash_broker_max_retries = 3
         cash_broker_retries = 0
         orders_broker = []
+        positions_broker = []
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
             self.strategy
@@ -397,7 +401,7 @@ class StrategyExecutor(Thread):
                                     f"skipping auto-cancel (might be filling)"
                                 )
                                 continue
-
+                        
                         # Check if it's a market order that might have filled instantly
                         if order_lumi.order_type and order_lumi.order_type.lower() == "market":
                             self.strategy.logger.info(
@@ -405,7 +409,7 @@ class StrategyExecutor(Thread):
                                 f"likely filled instantly - skipping cancel"
                             )
                             continue
-
+                        
                         self.strategy.logger.info(
                             f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
                             f"(bkr cnt={len(orders_broker)}), canceling."
@@ -558,7 +562,7 @@ class StrategyExecutor(Thread):
         self._on_abrupt_closing(KeyboardInterrupt())
 
     def join(self, timeout=None):
-        super().join(timeout)
+        super(StrategyExecutor, self).join(timeout)
 
     # =======Decorators===========================
 
@@ -824,7 +828,7 @@ class StrategyExecutor(Thread):
                 print(f"Warning: Error shutting down scheduler: {e}")
                 # Force set to None even if shutdown failed
                 self.scheduler = None
-
+        
         if self.broker.IS_BACKTESTING_BROKER:
             self.strategy._dump_stats()
 
@@ -1479,10 +1483,10 @@ class StrategyExecutor(Thread):
                 if self.check_queue_thread.is_alive():
                     self.check_queue_stop_event.set()
                     self.check_queue_thread.join(timeout=5.0)
-
+            
             # Reset the stop event for the new thread
             self.check_queue_stop_event.clear()
-
+            
             # Start the check_queue thread which will run continuously in the background, checking if any items have
             # been added to the queue and executing them.
             self.check_queue_thread = Thread(target=self.check_queue)

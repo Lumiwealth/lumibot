@@ -1,14 +1,14 @@
 from __future__ import annotations
-
-import datetime as dt
 import os
 import re
 import sys
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import Decimal, ROUND_HALF_EVEN
+
+import pytz
+import datetime as dt
 
 import pandas as pd
 import pandas_market_calendars as mcal
-import pytz
 from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
@@ -34,11 +34,9 @@ def deduplicate_sequence(seq, key=""):
     pos = 0
 
     if key:
-        def get_ref(item):
-            return getattr(item, key)
+        get_ref = lambda item: getattr(item, key)
     else:
-        def get_ref(item):
-            return item
+        get_ref = lambda item: item
 
     for item in seq:
         ref = get_ref(item)
@@ -449,7 +447,7 @@ def parse_symbol(symbol):
     # Check that the symbol is a string
     if not isinstance(symbol, str):
         return {"type": None}
-
+    
     # Pattern to match the option symbol format
     option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
 

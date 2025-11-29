@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
-_FUTURES_MONTH_CODES: dict[int, str] = {
+_FUTURES_MONTH_CODES: Dict[int, str] = {
     1: "F",
     2: "G",
     3: "H",
@@ -30,13 +30,13 @@ _FUTURES_MONTH_CODES: dict[int, str] = {
 class RollRule:
     offset_business_days: int
     anchor: str
-    contract_months: tuple[int, ...] | None = None
+    contract_months: Optional[Tuple[int, ...]] = None
 
 
-_DEFAULT_CONTRACT_MONTHS: tuple[int, ...] = (3, 6, 9, 12)
+_DEFAULT_CONTRACT_MONTHS: Tuple[int, ...] = (3, 6, 9, 12)
 
 
-ROLL_RULES: dict[str, RollRule] = {
+ROLL_RULES: Dict[str, RollRule] = {
     symbol: RollRule(offset_business_days=8, anchor="third_friday", contract_months=_DEFAULT_CONTRACT_MONTHS)
     for symbol in {"ES", "MES", "NQ", "MNQ", "YM", "MYM"}
 }
@@ -65,7 +65,7 @@ def _to_timezone(dt: datetime, tz=pytz.timezone("America/New_York")) -> datetime
     return dt.astimezone(tz)
 
 
-def _normalize_reference_date(reference_date: datetime | None) -> datetime:
+def _normalize_reference_date(reference_date: Optional[datetime]) -> datetime:
     if reference_date is None:
         reference_date = datetime.utcnow()
     return _to_timezone(reference_date, LUMIBOT_DEFAULT_PYTZ)
@@ -124,13 +124,13 @@ def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
     return _subtract_business_days(anchor, rule.offset_business_days)
 
 
-def _get_contract_months(rule: RollRule | None) -> tuple[int, ...]:
+def _get_contract_months(rule: Optional[RollRule]) -> Tuple[int, ...]:
     if rule and rule.contract_months:
         return tuple(sorted(rule.contract_months))
     return _DEFAULT_CONTRACT_MONTHS
 
 
-def _advance_contract(current_month: int, current_year: int, months: tuple[int, ...]) -> YearMonth:
+def _advance_contract(current_month: int, current_year: int, months: Tuple[int, ...]) -> YearMonth:
     months_sorted = tuple(sorted(months))
     idx = months_sorted.index(current_month)
     next_idx = (idx + 1) % len(months_sorted)
@@ -139,7 +139,7 @@ def _advance_contract(current_month: int, current_year: int, months: tuple[int, 
     return next_year, next_month
 
 
-def _select_contract(year: int, month: int, months: tuple[int, ...]) -> YearMonth:
+def _select_contract(year: int, month: int, months: Tuple[int, ...]) -> YearMonth:
     for candidate in sorted(months):
         if month <= candidate:
             return year, candidate
@@ -147,6 +147,7 @@ def _select_contract(year: int, month: int, months: tuple[int, ...]) -> YearMont
 
 
 def _legacy_mid_month(reference_date: datetime) -> YearMonth:
+    quarter_months = [3, 6, 9, 12]
     year = reference_date.year
     month = reference_date.month
     day = reference_date.day
@@ -168,7 +169,7 @@ def _legacy_mid_month(reference_date: datetime) -> YearMonth:
     return year, 3
 
 
-def determine_contract_year_month(symbol: str, reference_date: datetime | None = None) -> YearMonth:
+def determine_contract_year_month(symbol: str, reference_date: Optional[datetime] = None) -> YearMonth:
     ref = _normalize_reference_date(reference_date)
     symbol_upper = symbol.upper()
     rule = ROLL_RULES.get(symbol_upper)
@@ -208,7 +209,7 @@ def resolve_symbol_for_datetime(asset, dt: datetime, year_digits: int = 2) -> st
     return build_contract_symbol(asset.symbol, year, month, year_digits=year_digits)
 
 
-def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits: int = 2) -> list[str]:
+def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits: int = 2) -> List[str]:
     if start is None or end is None:
         return []
 
@@ -217,7 +218,7 @@ def resolve_symbols_for_range(asset, start: datetime, end: datetime, year_digits
     if start > end:
         start, end = end, start
 
-    symbols: list[str] = []
+    symbols: List[str] = []
     seen: set[str] = set()
     cursor = start
     step = timedelta(days=30)
@@ -250,7 +251,7 @@ def build_roll_schedule(asset, start: datetime, end: datetime, year_digits: int 
 
     symbol_upper = asset.symbol.upper()
     rule = ROLL_RULES.get(symbol_upper)
-    _get_contract_months(rule)
+    contract_months = _get_contract_months(rule)
 
     schedule = []
     cursor = start

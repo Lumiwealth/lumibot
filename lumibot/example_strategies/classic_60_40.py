@@ -15,8 +15,8 @@ print_full_pandas_dataframes()
 """
 Strategy Description
 
-This is an implementation of a classic 60% stocks, 40% bonds portfolio.
-It demonstration the DriftRebalancer strategy and AlpacaBacktesting.
+This is an implementation of a classic 60% stocks, 40% bonds portfolio. 
+It demonstration the DriftRebalancer strategy and AlpacaBacktesting. 
 It rebalances a portfolio of assets to a target weight every time the asset drifts
 by a certain threshold. The strategy will sell the assets that has drifted the most and buy the
 assets that has drifted the least to bring the portfolio back to the target weights.

@@ -49,9 +49,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
             **kwargs
     ):
         """
-        Initializes a class instance for handling backtesting data and parameters. This initialization
-        process involves setting up key configurations, verifying account types, and preparing backtesting
-        timings, timezones, and historical data clients. Data caching and warm-up trading days are also
+        Initializes a class instance for handling backtesting data and parameters. This initialization 
+        process involves setting up key configurations, verifying account types, and preparing backtesting 
+        timings, timezones, and historical data clients. Data caching and warm-up trading days are also 
         appropriately configured.
 
         Args:
@@ -60,21 +60,21 @@ class AlpacaBacktesting(DataSourceBacktesting):
             backtesting_started (datetime | None): Represents the datetime when backtesting started. Defaults to None.
             config (dict | None): Configuration dictionary containing required API keys and account details.
                 Cannot be None as it's critical for API connections.
-            api_key (str | None): API key for authorized data access. Optional as it can typically be found
+            api_key (str | None): API key for authorized data access. Optional as it can typically be found 
                 within the provided config.
-            show_progress_bar (bool): Indicates whether to show a progress bar during data operations.
+            show_progress_bar (bool): Indicates whether to show a progress bar during data operations. 
                 Defaults to True.
-            delay (int | None): Delay in seconds added between operations to simulate real-world activity.
+            delay (int | None): Delay in seconds added between operations to simulate real-world activity. 
                 Defaults to None.
-            pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting
+            pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting 
                 without requiring external API calls.
             **kwargs: Additional keyword arguments, such as:
                 - timestep (str): Interval for data ("day" or "minute"). Defaults to "day".
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
-                - warm_up_trading_days (int): The number of trading days used for warm-up before processing
+                - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
                   the primary dataset. Defaults to 0.
                 - market (str): Indicates the stock exchange or market (e.g., "NYSE"). Defaults to "NYSE".
-                - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults
+                - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults 
                   to True.
                 remove_incomplete_current_bar (bool): Whether to remove the incomplete current bar from the data.
                   Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current
@@ -123,7 +123,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
-
+        
         if oauth_token:
             self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
             self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
@@ -581,12 +581,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
         """
         Loads OHLCV data from a cached file into the data store. If the loading is successful, returns True;
         otherwise, returns False.
-
+    
         Parameters
         ----------
         key : str
             The unique key for the cached data file.
-
+    
         Returns
         -------
         bool
@@ -707,7 +707,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
         if timestep not in ['day', 'minute']:
-            raise ValueError("The timestep must be 'day' or 'minute'.")
+            raise ValueError(f"The timestep must be 'day' or 'minute'.")
 
         # For daily bars, we want to preserve original timestamps but add missing days
         if timestep == 'day':

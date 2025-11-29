@@ -31,7 +31,7 @@ class PolarsMixin:
 
     def _store_data_polars(self, asset: Asset, df: pl.DataFrame, rename_columns: bool = True) -> pl.LazyFrame:
         """Store data as lazy frame with standardized column names.
-
+        
         Parameters
         ----------
         asset : Asset
@@ -277,7 +277,7 @@ class PolarsMixin:
 
     def _clear_cache_polars(self, asset: Optional[Asset] = None):
         """Clear cached data.
-
+        
         Parameters
         ----------
         asset : Optional[Asset]
@@ -300,7 +300,7 @@ class PolarsMixin:
 
     def _get_cached_last_price_polars(self, asset: Asset, current_dt: datetime, timestep: str = "minute") -> Optional[float]:
         """Get last price from cache if valid.
-
+        
         Parameters
         ----------
         asset : Asset
@@ -309,7 +309,7 @@ class PolarsMixin:
             Current datetime for cache validation
         timestep : str
             The timestep (for cache key generation)
-
+            
         Returns
         -------
         Optional[float]
@@ -335,7 +335,7 @@ class PolarsMixin:
 
     def _cache_last_price_polars(self, asset: Asset, price: float, current_dt: datetime, timestep: str = "minute"):
         """Cache the last price for an asset.
-
+        
         Parameters
         ----------
         asset : Asset
@@ -403,7 +403,7 @@ class PolarsMixin:
 
     def _enforce_storage_limit_polars(self, max_memory: Optional[int] = None):
         """Enforce memory storage limit by removing oldest data.
-
+        
         Parameters
         ----------
         max_memory : Optional[int]

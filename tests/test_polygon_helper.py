@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 import pytz
 
-from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.entities import Asset
+from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.entities.chains import normalize_option_chains
 from lumibot.tools import polygon_helper as ph
 
@@ -435,12 +435,12 @@ class TestPolygonPriceData:
         # Polygon is only called once for the same date range even when they are all missing.
         mock_polyclient.create().get_aggs.return_value = return_value
         df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-
+        
         mock1 = mock_polyclient.create()
         aggs = mock1.get_aggs
         call_count = aggs.call_count
         assert call_count == 1
-
+        
         assert expected_cachefile.exists()
         if df is None:
             df = pd.DataFrame()

@@ -1,15 +1,16 @@
 import logging
-import math
 import os
-from datetime import datetime, time, timedelta
+import pytest
+import math
+from datetime import datetime, timedelta, time
 
 import pandas as pd
-import pytest
 
-from lumibot.credentials import TRADIER_TEST_CONFIG
-from lumibot.data_sources import DataSource, TradierData
+from lumibot.data_sources import TradierData, DataSource
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Asset
-from lumibot.tools import get_trading_days, print_full_pandas_dataframes, set_pandas_float_display_precision
+from lumibot.tools import get_trading_days
+from lumibot.credentials import TRADIER_TEST_CONFIG
 from tests.fixtures import BaseDataSourceTester
 
 logger = logging.getLogger(__name__)
@@ -307,7 +308,7 @@ class TestTradierData(BaseDataSourceTester):
         ticker = 'SPY'
         asset = Asset("SPY")
         timestep = "day"
-        datetime.now(data_source.tzinfo)
+        now = datetime.now(data_source.tzinfo)
 
         # Get a 0dte option
         # calculate the last calendar day before today

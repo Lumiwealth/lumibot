@@ -4,6 +4,7 @@ from enum import Enum
 
 from lumibot.tools import parse_symbol
 
+
 FUTURES_MONTH_CODES = {
     1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
     7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z"
@@ -14,7 +15,7 @@ FUTURES_MONTH_CODES = {
 class StrEnum(str, Enum):
     """
     A string enum implementation that works with Python 3.9+
-
+    
     This class extends str and Enum to create string enums that:
     1. Can be used like strings (string methods, comparison)
     2. Are hashable (for use in dictionaries, sets, etc.)
@@ -473,12 +474,12 @@ class Asset:
     def _calculate_auto_expiry(self, auto_expiry):
         """
         Calculate automatic expiry date for futures contracts
-
+        
         Parameters
         ----------
         auto_expiry : str
             Type of auto expiry: 'front_month', 'next_quarter', 'auto', or True
-
+            
         Returns
         -------
         datetime.date
@@ -640,15 +641,15 @@ class Asset:
     def get_potential_futures_contracts(self, reference_date: datetime = None) -> list:
         """
         Get a list of potential futures contracts in order of preference.
-
+        
         This is useful for data sources or brokers that need to try multiple
         contract symbols to find available data.
-
+        
         Returns
         -------
         list
             List of potential contract symbols in order of preference
-
+            
         Raises
         ------
         ValueError
@@ -664,12 +665,12 @@ class Asset:
     def _generate_current_futures_contract(self, reference_date: datetime = None) -> str:
         """
         Generate the most appropriate futures contract for the given date.
-
+        
         Parameters
         ----------
         reference_date : datetime, optional
             Reference date for contract resolution. If None, uses current date.
-
+        
         Returns
         -------
         str
@@ -681,7 +682,7 @@ class Asset:
     def _generate_potential_contracts(self, reference_date: datetime = None) -> list:
         """
         Generate potential contract symbols in order of preference.
-
+        
         Returns
         -------
         list

@@ -1,10 +1,9 @@
-import os
-from datetime import datetime
-
-import duckdb
-import pytest
-
 from lumibot.tools import CcxtCacheDB
+import pytest
+import duckdb
+from datetime import datetime
+import os
+
 
 # PYTHONWARNINGS="ignore::DeprecationWarning"; pytest test/test_ccxt_store.py
 

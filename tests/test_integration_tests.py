@@ -1,11 +1,10 @@
 import datetime
 from decimal import Decimal
-
 import pytest
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.components.drift_rebalancer_logic import DriftType
-from lumibot.entities import Asset, Order
+from lumibot.entities import Order, Asset
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.traders import Trader
 

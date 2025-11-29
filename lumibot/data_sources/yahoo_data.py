@@ -81,17 +81,17 @@ class YahooData(DataSourceBacktesting):
     def _format_futures_symbol(self, symbol):
         """
         Format the futures symbol for Yahoo Finance.
-
+        
         Yahoo Finance futures symbols can be in different formats:
         - Continuous contracts: Root symbol + "=F" (e.g., "ES=F", "CL=F", "GC=F")
-        - Specific expiry contracts: Symbol + month code + year + exchange
+        - Specific expiry contracts: Symbol + month code + year + exchange 
           (e.g., "ESH25.CME" for the March 2025 E-mini S&P 500 contract)
-
+        
         Parameters
         ----------
         symbol : str
             The futures symbol
-
+            
         Returns
         -------
         list
@@ -153,18 +153,18 @@ class YahooData(DataSourceBacktesting):
     def _format_index_symbol(self, symbol):
         """
         Format the index symbol for Yahoo Finance.
-
+        
         Yahoo Finance index symbols typically use the "^" prefix:
         - SPX -> ^SPX (S&P 500 Index)
         - DJI -> ^DJI (Dow Jones Industrial Average)
         - IXIC -> ^IXIC (NASDAQ Composite)
         - RUT -> ^RUT (Russell 2000)
-
+        
         Parameters
         ----------
         symbol : str
             The index symbol
-
+            
         Returns
         -------
         list

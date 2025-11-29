@@ -5,18 +5,15 @@ No complex strategies, no indicators, no bracket orders.
 Just: Buy 1 contract → hold → sell → verify numbers match reality.
 """
 import datetime
-
 import pytest
 import pytz
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import (
-    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
-)
-from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
+from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -108,7 +105,7 @@ def test_ultra_simple_buy_hold_sell():
 
     trader = Trader(logfile="", backtest=True)
     trader.add_strategy(strat)
-    trader.run_all(
+    results = trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,
@@ -128,25 +125,25 @@ def test_ultra_simple_buy_hold_sell():
 
         # Calculate what we expect
         if snap['iteration'] == 1:
-            print("  ✓ Starting state (no position yet)")
+            print(f"  ✓ Starting state (no position yet)")
 
         elif snap['iteration'] == 2:
             # After buy
-            print("  → After BUY:")
-            print("    - Cash should drop by margin (~$1,300) + fee ($0.50)")
-            print("    - Portfolio should equal Cash (not cash + notional value)")
+            print(f"  → After BUY:")
+            print(f"    - Cash should drop by margin (~$1,300) + fee ($0.50)")
+            print(f"    - Portfolio should equal Cash (not cash + notional value)")
 
         elif snap['position_qty'] > 0:
             # Holding position
-            print("  → HOLDING position:")
-            print("    - Portfolio should track price movements")
-            print("    - Portfolio should equal Cash (mark-to-market)")
+            print(f"  → HOLDING position:")
+            print(f"    - Portfolio should track price movements")
+            print(f"    - Portfolio should equal Cash (mark-to-market)")
 
         elif snap['iteration'] > 5 and snap['position_qty'] == 0:
             # After sell
-            print("  → After SELL:")
-            print("    - Margin should be released")
-            print("    - Cash should reflect total P&L minus fees")
+            print(f"  → After SELL:")
+            print(f"    - Margin should be released")
+            print(f"    - Cash should reflect total P&L minus fees")
 
     print("\n" + "="*80)
     print("MANUAL CHECKS TO DO:")
@@ -172,12 +169,12 @@ def test_ultra_simple_buy_hold_sell():
 
         actual_final_cash = exit_snap['cash']
 
-        print("\nFINAL P&L CALCULATION:")
+        print(f"\nFINAL P&L CALCULATION:")
         print(f"  Entry price: ${entry_price:.2f}")
         print(f"  Exit price: ${exit_price:.2f}")
         print(f"  Price change: ${price_change:.2f}")
         print(f"  Expected P&L: ${expected_pnl:.2f} (price_change * 5)")
-        print("  Total fees: $1.00 (2 * $0.50)")
+        print(f"  Total fees: $1.00 (2 * $0.50)")
         print(f"  Expected final cash: ${expected_final_cash:,.2f}")
         print(f"  Actual final cash: ${actual_final_cash:,.2f}")
         print(f"  Difference: ${abs(expected_final_cash - actual_final_cash):.2f}")

@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import base64
 import json
-import re
 import time
 import traceback
 import urllib.parse
 import webbrowser
-from datetime import datetime
 from pathlib import Path
-
 from termcolor import colored
+import re
+from datetime import datetime
 
 from .lumibot_logger import get_logger
 
@@ -26,8 +25,7 @@ class SchwabHelper:
             "token": { ... }
         }
         """
-        import json
-        import time
+        import time, json
         if not token_path.exists():
             return
 
@@ -97,7 +95,7 @@ class SchwabHelper:
             "state": "lumibot_python_client_auth"
         }
         auth_url = f"{auth_url_base}?{urllib.parse.urlencode(params)}"
-
+        
         print(colored("Schwab Authorization Needed:", "yellow"))
         print(colored("This script will attempt to guide you through Schwab's OAuth2 flow.", "cyan"))
         print(colored("If you already have a Schwab token payload string, you can skip the interactive steps", "cyan"))
@@ -106,19 +104,19 @@ class SchwabHelper:
 
         logger.info(f"Opening Schwab authorization URL in your browser: {auth_url}")
         logger.info(f"Using redirect_uri for Schwab: {backend_callback_url}")
-
+        
         try:
             webbrowser.open(auth_url)
         except Exception as e:
             logger.error(f"Could not open browser: {e}. Please manually open the URL above.")
-
+        
         print(colored("1. Your browser should have opened to the Schwab authorization page.", "yellow"))
         print(colored(f"   If not, please manually navigate to: {auth_url}", "yellow"))
         print(colored(f"2. After authorizing Schwab, you will be redirected to a page (e.g., on your backend at '{backend_callback_url}').", "yellow"))
         print(colored("3. Your backend will automatically exchange that code for tokens and redirect you to a \"Schwab connected\" success page.", "yellow"))
         print(colored("4. On that page, click Copy to grab the displayed code.", "yellow"))
         print(colored("   Paste that payload below (or set it as SCHWAB_TOKEN in your environment).", "yellow"))
-
+        
         payload_str = ""
         try:
             payload_str = input(colored("5. Paste the copied payload string here and press Enter: ", "green")).strip()

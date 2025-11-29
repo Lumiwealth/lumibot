@@ -90,11 +90,11 @@ def get_price_data_from_polygon_polars(
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
     Optimized version using Polars instead of Pandas.
-
+    
     Data is cached locally (in LUMIBOT_CACHE_FOLDER/polygon) to avoid re-downloading data for dates
     that have already been checked. For any trading date with no data, a dummy row with a "missing"
     flag is stored in the cache. When returning data to the caller, dummy rows are filtered out.
-
+    
     Parameters
     ----------
     api_key : str
@@ -113,7 +113,7 @@ def get_price_data_from_polygon_polars(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
-
+        
     Returns
     -------
     Optional[pl.DataFrame]
@@ -193,7 +193,7 @@ def get_price_data_from_polygon_polars(
                     return None
 
     # Optimized batch processing with better memory management
-    min(max_workers * 2, len(chunks))
+    batch_size = min(max_workers * 2, len(chunks))
     results_buffer = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -456,11 +456,11 @@ def get_missing_dates_polars(
 ) -> List[datetime.date]:
     """
     Determine which trading dates are missing from the cache.
-
+    
     A date is considered "checked" if any row exists in the cache (whether it contains real
     data or a dummy row indicating a missing query). Trading dates are determined from the asset's
     calendar (via `get_trading_dates()`).
-
+    
     Parameters
     ----------
     df_all : Optional[pl.DataFrame]
@@ -471,7 +471,7 @@ def get_missing_dates_polars(
         The start datetime of the requested range.
     end : datetime
         The end datetime of the requested range.
-
+        
     Returns
     -------
     List[datetime.date]
@@ -495,17 +495,17 @@ def get_missing_dates_polars(
 def load_cache_polars(cache_file: Path) -> pl.DataFrame:
     """
     Load cached data from a Parquet file and return a DataFrame with datetime column.
-
+    
     Parameters
     ----------
     cache_file : Path
         The path to the Parquet cache file.
-
+        
     Returns
     -------
     pl.DataFrame
         The DataFrame containing the cached data.
-
+        
     Raises
     ------
     Exception
@@ -524,12 +524,12 @@ def update_cache_polars(
 ) -> pl.DataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
-
+    
     For each date in `missing_dates` that is not already present in the cache,
     a dummy row is added (with a "missing" flag set to True). This ensures that
     dates which were queried but returned no data are recorded, so that they
     will not be re-downloaded on subsequent runs.
-
+    
     Parameters
     ----------
     cache_file : Path
@@ -538,7 +538,7 @@ def update_cache_polars(
         The existing cached DataFrame (may be None or empty).
     missing_dates : Optional[List[datetime.date]]
         List of date objects for which data is missing.
-
+        
     Returns
     -------
     pl.DataFrame
@@ -592,7 +592,7 @@ def update_polygon_data_polars(df_all, result):
     """
     Update the DataFrame with the new data from Polygon.
     Optimized version with better memory handling.
-
+    
     Parameters
     ----------
     df_all : pl.DataFrame
@@ -600,7 +600,7 @@ def update_polygon_data_polars(df_all, result):
     result : list
         A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
-
+        
     Returns
     -------
     pl.DataFrame
@@ -655,7 +655,7 @@ def get_chains_cached(
     polygon_client: Optional["PolygonClient"] = None
 ) -> dict:
     """
-    Retrieve an option chain for a given asset and historical date using Polygon,
+    Retrieve an option chain for a given asset and historical date using Polygon, 
     with caching to reduce repeated downloads during backtests.
 
     Parameters
@@ -669,10 +669,10 @@ def get_chains_cached(
     exchange : str, optional
         The exchange to consider (e.g., "NYSE").
     current_date : datetime.date, optional
-        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function
+        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function 
         will return None immediately (no chain is fetched).
     polygon_client : PolygonClient, optional
-        A reusable PolygonClient instance; if None, one will be created using the
+        A reusable PolygonClient instance; if None, one will be created using the 
         given api_key.
 
     Returns
@@ -697,13 +697,13 @@ def get_chains_cached(
 
     Notes
     -----
-    1) We do *not* use the real system date in this function because it is purely
+    1) We do *not* use the real system date in this function because it is purely 
        historical/backtest-oriented.
-    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date
+    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
        exists, it is reused directly.
-    3) Otherwise, the function downloads fresh data from Polygon, then saves it under
+    3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
        `LUMIBOT_CACHE_FOLDER/polygon_polars/option_chains/{symbol}_{date}.parquet`.
-    4) By default, we fetch both 'expired=True' and 'expired=False', so you get
+    4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
        historical + near-future options for your specified date.
     """
     logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
@@ -715,6 +715,7 @@ def get_chains_cached(
 
     # 2) Ensure we have a PolygonClient
     if polygon_client is None:
+        from lumibot.tools.polygon_helper import PolygonClient
         logger.debug("No polygon_client provided; creating a new one.")
         polygon_client = PolygonClient.create(api_key=api_key)
 

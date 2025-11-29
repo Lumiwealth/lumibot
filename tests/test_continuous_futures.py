@@ -5,20 +5,19 @@ Strategy-dependent tests are skipped on GitHub CI where no broker/backtesting en
 """
 
 import os
-from datetime import date, datetime
-from unittest.mock import MagicMock, Mock
-
 import pytest
+from datetime import date, datetime
+from unittest.mock import Mock, MagicMock
 
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools.futures_symbols import (
-    build_ib_contract_variants,
+    parse_contract_symbol,
+    symbol_matches_root,
     from_ib_expiration_to_code,
     generate_symbol_variants,
     get_contract_priority_key,
-    parse_contract_symbol,
-    symbol_matches_root,
+    build_ib_contract_variants,
 )
 
 

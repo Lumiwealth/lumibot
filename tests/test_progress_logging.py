@@ -15,6 +15,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytz
 
@@ -150,7 +151,7 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
         # Read and verify CSV
         self.assertTrue(os.path.exists(self.progress_csv_path))
 
-        with open(self.progress_csv_path) as f:
+        with open(self.progress_csv_path, 'r') as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -176,7 +177,7 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             positions_json="[]"
         )
 
-        with open(self.progress_csv_path) as f:
+        with open(self.progress_csv_path, 'r') as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -202,7 +203,7 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             positions_json="[]"
         )
 
-        with open(self.progress_csv_path) as f:
+        with open(self.progress_csv_path, 'r') as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -234,7 +235,7 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             positions_json=positions_json
         )
 
-        with open(self.progress_csv_path) as f:
+        with open(self.progress_csv_path, 'r') as f:
             reader = csv.DictReader(f)
             row = next(reader)
 

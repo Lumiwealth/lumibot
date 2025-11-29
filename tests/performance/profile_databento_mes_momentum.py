@@ -6,20 +6,20 @@ This uses a real trading strategy (not a toy test) to find actual bottlenecks.
 from __future__ import annotations
 
 import argparse
-import math
 import time
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
-import pytz
 import yappi
+import pytz
+import pandas as pd
+import math
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktestingPandas, DataBentoDataBacktestingPolars
-from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
+from lumibot.credentials import DATABENTO_CONFIG
 
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -205,7 +205,7 @@ def run_mes_momentum_profile(mode: str) -> float:
     logfile = str(OUTPUT_DIR / f"mes_diag_{mode}")
     trader = Trader(logfile=logfile, backtest=True)
     trader.add_strategy(strat)
-    trader.run_all(
+    results = trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,

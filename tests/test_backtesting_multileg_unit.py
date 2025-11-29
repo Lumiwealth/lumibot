@@ -89,7 +89,7 @@ def test_multileg_parent_fills_after_all_children_complete():
     )
 
     strategy.submit_order(parent)
-
+    
     broker._execute_filled_order(child_buy, price=50.0, filled_quantity=Decimal("10"), strategy=strategy)
     strategy._executor.process_queue()
 
@@ -154,7 +154,7 @@ def test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral():
     )
 
     strategy.submit_order(parent)
-
+    
     _submit = broker._execute_filled_order
 
     _submit(buy_child, price=50.0, filled_quantity=Decimal("10"), strategy=strategy)

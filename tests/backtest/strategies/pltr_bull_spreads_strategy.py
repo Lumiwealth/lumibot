@@ -1,5 +1,5 @@
-import sys
 from pathlib import Path
+import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
@@ -7,18 +7,17 @@ if str(REPO_ROOT) not in sys.path:
 
 
 # -*- coding: utf-8 -*-
-import traceback
 from datetime import timedelta
-from typing import Dict, List, Tuple
-
 from zoneinfo import ZoneInfo
+from typing import Dict, List, Tuple
+import traceback
 
-from lumibot.backtesting import PolygonDataBacktesting
-from lumibot.components.options_helper import OptionsHelper
-from lumibot.credentials import IS_BACKTESTING
-from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
+from lumibot.entities import Asset, TradingFee, Order
+from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.components.options_helper import OptionsHelper
 
 """
 This code was refined based on the user prompt: 'make a bot that trades bull call spreads on pltr. it should get the chains on pltr that are 30 days to expiry to later and the buy call should be about 10% out of the money and the sell about 20% out of the money. it should keep buying these options every month and trade 20 spreads at a time. the initial budget should be $1000; the symbol should also be in the parameters'

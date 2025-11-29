@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, Union
@@ -5,6 +6,8 @@ from typing import Any, Dict, Union
 import numpy as np
 import pytz
 from pandas import DataFrame
+
+logger = logging.getLogger(__name__)
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import DataSourceBacktesting

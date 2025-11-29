@@ -10,11 +10,10 @@ from typing import Tuple
 import pytest
 import pytz
 from dotenv import load_dotenv
-
-from lumibot.backtesting import PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.tools.helpers import to_datetime_aware
+from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
 
 # Load environment variables from .env file
 load_dotenv()
@@ -73,7 +72,7 @@ class TestThetaDataStocks:
 
         assert df is not None and len(df) > 0, "No bars returned"
 
-        print("\nFirst 10 minutes of SPY:")
+        print(f"\nFirst 10 minutes of SPY:")
         print(f"{'Time':<25} {'Open':<10} {'High':<10} {'Low':<10} {'Close':<10} {'Volume':<15}")
         print("=" * 100)
 
@@ -89,8 +88,8 @@ class TestThetaDataStocks:
 
         # Verify market open spike
         # ThetaData has 1-minute offset (9:29 instead of 9:30), so check both first and second bar
-        df.iloc[0]
-        df.iloc[1]
+        first_bar = df.iloc[0]
+        second_bar = df.iloc[1]
 
         # Find the bar with highest volume in first 3 bars (market open spike)
         max_volume_idx = df.iloc[:3]['volume'].idxmax()
@@ -100,7 +99,7 @@ class TestThetaDataStocks:
         assert max_volume_bar['volume'] > 100000, \
             f"Market open spike has low volume ({max_volume_bar['volume']:,.0f})"
 
-        print("\n✓ Timestamp verification PASSED")
+        print(f"\n✓ Timestamp verification PASSED")
         print(f"  - Market open spike at {max_volume_bar.name}: {max_volume_bar['volume']:,.0f} volume")
 
     def test_noon_period_accuracy(self):
@@ -135,7 +134,7 @@ class TestThetaDataStocks:
             datetime.datetime(2024, 8, 1, 12, 10),
         ]
 
-        print("\nNoon period comparison for SPY:")
+        print(f"\nNoon period comparison for SPY:")
         print(f"{'Time':<25} {'ThetaData':<12} {'Polygon':<12} {'Diff':<10} {'Status'}")
         print("=" * 80)
 
@@ -163,7 +162,7 @@ class TestThetaDataStocks:
 
                 assert diff <= 0.01, f"Price difference ${diff:.4f} exceeds 1¢ tolerance"
 
-        print("\n✓ Noon period accuracy PASSED")
+        print(f"\n✓ Noon period accuracy PASSED")
 
     def test_multiple_symbols(self):
         """Test 2-3 symbols with different price ranges."""
@@ -184,7 +183,7 @@ class TestThetaDataStocks:
             ("AMD", "Stock ~$160"),
         ]
 
-        print("\nMultiple symbol test at market open:")
+        print(f"\nMultiple symbol test at market open:")
         print(f"{'Symbol':<10} {'Description':<20} {'Open':<10} {'Close':<10} {'Volume':<15} {'Status'}")
         print("=" * 90)
 
@@ -215,7 +214,7 @@ class TestThetaDataStocks:
             status = "✓ PASS"
             print(f"{symbol:<10} {description:<20} ${bar['open']:<9.2f} ${bar['close']:<9.2f} {bar['volume']:<15,.0f} {status}")
 
-        print("\n✓ Multiple symbols PASSED")
+        print(f"\n✓ Multiple symbols PASSED")
 
 
 @pytest.mark.apitest
@@ -238,7 +237,7 @@ class TestThetaDataMethods:
         asset = Asset("SPY", asset_type="stock")
         quote = theta.get_quote(asset, quote_asset=Asset("USD", asset_type="forex"))
 
-        print("\nget_quote() test for SPY:")
+        print(f"\nget_quote() test for SPY:")
         print(f"  Price: ${quote.price:.2f}")
         print(f"  Bid: ${quote.bid:.2f}" if quote.bid else "  Bid: None")
         print(f"  Ask: ${quote.ask:.2f}" if quote.ask else "  Ask: None")
@@ -249,7 +248,7 @@ class TestThetaDataMethods:
         assert quote.price > 0, "Quote price is zero or negative"
         assert quote.volume > 0, "Quote volume is zero"
 
-        print("\n✓ get_quote() PASSED")
+        print(f"\n✓ get_quote() PASSED")
 
     def test_get_chains(self):
         """Test get_chains() returns option chains."""
@@ -266,7 +265,7 @@ class TestThetaDataMethods:
         asset = Asset("SPY", asset_type="stock")
         chains = theta.get_chains(asset)
 
-        print("\nget_chains() test for SPY:")
+        print(f"\nget_chains() test for SPY:")
 
         assert chains is not None, "get_chains returned None"
 
@@ -293,7 +292,7 @@ class TestThetaDataMethods:
         assert len(expirations_list) > 0, "No expirations found"
         assert len(strikes) > 0, "No strikes found"
 
-        print("\n✓ get_chains() PASSED")
+        print(f"\n✓ get_chains() PASSED")
 
 
 @pytest.mark.apitest
@@ -316,7 +315,7 @@ class TestThetaDataOptions:
         underlying = Asset("SPY", asset_type="stock")
         underlying_price = theta.get_last_price(underlying)
 
-        print("\nOptions test for SPY:")
+        print(f"\nOptions test for SPY:")
         print(f"  Underlying price: ${underlying_price:.2f}")
 
         # Get chains
@@ -370,7 +369,7 @@ class TestThetaDataOptions:
         assert call_price > 0.05, "Call price suspiciously low (< $0.05)"
         assert put_price > 0.05, "Put price suspiciously low (< $0.05)"
 
-        print("\n✓ Options pricing PASSED")
+        print(f"\n✓ Options pricing PASSED")
 
 
 @pytest.mark.apitest
@@ -395,13 +394,13 @@ class TestThetaDataIndexes:
         # Test at market open
         open_price = theta.get_last_price(asset, quote_asset=Asset("USD", asset_type="forex"))
 
-        print("\nSPX index test:")
+        print(f"\nSPX index test:")
         print(f"  Market open (9:30): ${open_price:.2f}")
 
         assert open_price > 0, "SPX price is zero or negative"
         assert 4000 < open_price < 7000, f"SPX price ${open_price:.2f} is outside reasonable range"
 
-        print("\n✓ Index pricing PASSED")
+        print(f"\n✓ Index pricing PASSED")
 
 
 @pytest.mark.apitest
@@ -433,8 +432,8 @@ class TestThetaDataExtendedHours:
 
         df = bars.df if hasattr(bars, 'df') else bars
 
-        print("\nPre-market data test for SPY:")
-        print("  Bars from 9:00-9:05:")
+        print(f"\nPre-market data test for SPY:")
+        print(f"  Bars from 9:00-9:05:")
         for i in range(min(5, len(df))):
             bar = df.iloc[i]
             print(f"    {df.index[i]}: Open=${bar['open']:.2f}, Volume={bar['volume']:,.0f}")
@@ -443,7 +442,7 @@ class TestThetaDataExtendedHours:
         if len(df) > 0:
             avg_volume = df['volume'].mean()
             print(f"  Average pre-market volume: {avg_volume:,.0f}")
-            print("  ✓ Pre-market data available")
+            print(f"  ✓ Pre-market data available")
         else:
             pytest.skip("Pre-market data not available")
 
@@ -713,10 +712,10 @@ class TestThetaDataPagination:
         Test pagination logic by verifying the get_request function can handle
         multiple pages. This is a basic test to ensure the code structure is correct.
         """
+        from lumibot.tools import thetadata_helper
+
         # Just verify the function signature accepts the parameters and has pagination logic
         import inspect
-
-        from lumibot.tools import thetadata_helper
         source = inspect.getsource(thetadata_helper.get_request)
 
         # Check for pagination keywords in the source

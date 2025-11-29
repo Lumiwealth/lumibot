@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import lumibot.entities as entities
-from lumibot.entities.asset import StrEnum  #todo: this should be centralized, and not repeated in Asset and Position
+from lumibot.entities.asset import StrEnum #todo: this should be centralized, and not repeated in Asset and Position
 
 
 class Position:
@@ -92,7 +92,8 @@ class Position:
 
         if orders is not None and not isinstance(orders, list):
             raise ValueError(
-                f"orders parameter must be a list of orders. received type {type(orders)}"
+                "orders parameter must be a list of orders. received type %s"
+                % type(orders)
             )
         if orders is None:
             self.orders = []
@@ -100,7 +101,8 @@ class Position:
             for order in orders:
                 if not isinstance(order, entities.Order):
                     raise ValueError(
-                        f"orders must be a list of Order object, found {type(order)} object."
+                        "orders must be a list of Order object, found %s object."
+                        % type(order)
                     )
             self.orders = orders
 

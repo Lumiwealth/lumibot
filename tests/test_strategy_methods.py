@@ -25,6 +25,10 @@ class FakeSnapshotSource:
         return None
 
 
+# LEGACY TEST CLASS (created Aug 2023)
+# These tests explicitly test YahooDataBacktesting and must not be overridden
+# by the BACKTESTING_DATA_SOURCE environment variable.
+@pytest.mark.usefixtures("disable_datasource_override")
 class TestStrategyMethods:
     def _make_strategy_stub(self):
         strat = Strategy.__new__(Strategy)

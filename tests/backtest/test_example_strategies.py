@@ -19,6 +19,11 @@ from lumibot.entities import Asset, Order, TradingFee
 # API Key for testing Polygon.io
 from lumibot.credentials import POLYGON_CONFIG
 
+
+# LEGACY TEST CLASS (created Aug 2023)
+# These tests use specific data sources (Yahoo, Polygon) and must not be overridden
+# by the BACKTESTING_DATA_SOURCE environment variable.
+@pytest.mark.usefixtures("disable_datasource_override")
 class TestExampleStrategies:
 
     def test_stock_bracket(self):

@@ -28,7 +28,8 @@ def test_print_progress_bar_respects_quiet_logs():
         )
         output = captured_output.getvalue()
         assert "Test" in output
-        assert "Portfolio Val:" in output
+        # Progress bar uses abbreviated format: "Val:" instead of "Portfolio Val:"
+        assert "Val:" in output
         assert "50.00%" in output
     
     # Test 2: With BACKTESTING_QUIET_LOGS=true (progress bar should STILL print)

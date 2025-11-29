@@ -26,6 +26,9 @@ load_dotenv()
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
 
 
+# LEGACY TEST CLASS (created Aug 2023)
+# These tests explicitly test PolygonDataBacktesting and must not be overridden.
+@pytest.mark.usefixtures("disable_datasource_override")
 class PolygonBacktestStrat(Strategy):
     parameters = {"symbol": "AMZN"}
 

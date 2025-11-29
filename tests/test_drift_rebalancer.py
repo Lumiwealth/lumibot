@@ -1661,7 +1661,10 @@ class TestDriftOrderLogic:
         assert cash_position == Decimal("15000.66")
 
 
-# @pytest.mark.skip()
+# LEGACY TEST CLASS (created Nov 2024)
+# These tests explicitly test specific data sources (Yahoo, Polygon, Alpaca) and must not be overridden
+# by the BACKTESTING_DATA_SOURCE environment variable.
+@pytest.mark.usefixtures("disable_datasource_override")
 class TestDriftRebalancer:
     # Need to start two days after the first data point in pandas for backtesting
     backtesting_start = datetime(2019, 1, 2)

@@ -8,6 +8,9 @@ from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 
 
+# LEGACY TEST CLASS (created Nov 2023)
+# These tests explicitly test YahooDataBacktesting and must not be overridden.
+@pytest.mark.usefixtures("disable_datasource_override")
 class YahooPriceTest(Strategy):
     parameters = {
         "symbol": "SPY",  # The symbol to trade
@@ -28,6 +31,10 @@ class YahooPriceTest(Strategy):
         self.last_price = self.get_last_price(symbol)
 
 
+# LEGACY TEST CLASS (created Nov 2023)
+# These tests explicitly test YahooDataBacktesting and must not be overridden
+# by the BACKTESTING_DATA_SOURCE environment variable.
+@pytest.mark.usefixtures("disable_datasource_override")
 class TestYahooBacktestFull:
 
     def test_yahoo_no_future_bars_before_open(self, monkeypatch):

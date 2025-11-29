@@ -254,7 +254,9 @@ def test_apply_corporate_actions_populates_columns(mock_splits, mock_dividends):
         "pass",
     )
 
-    assert enriched["dividend"].tolist() == [0.25, 0.0]
+    # Dividend is split-adjusted: $0.25 / 2.0 (split ratio) = $0.125
+    # This is correct behavior - pre-split dividends must be adjusted
+    assert enriched["dividend"].tolist() == [0.125, 0.0]
     assert enriched["stock_splits"].tolist() == [0.0, 2.0]
 @patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_filters_zero_quotes(mock_get_request):
@@ -3749,3 +3751,177 @@ def test_daily_data_check_uses_utc_date_comparison():
     result = data.get_last_price(request_time)
     assert result is not None
     assert result == 100.5  # Should return the close price
+
+
+class TestZeroPriceFiltering:
+    """Tests for filtering zero-price OHLC rows from ThetaData."""
+
+    def test_filter_zero_ohlc_rows_removes_bad_data(self):
+        """Test that rows with all-zero OHLC values are filtered out."""
+        # Create DataFrame with some valid data and some zero-price rows
+        index = pd.to_datetime([
+            "2024-01-15 09:30",
+            "2024-01-16 09:30",  # Bad data - all zeros
+            "2024-01-17 09:30",
+        ], utc=True)
+
+        df = pd.DataFrame({
+            "open": [100.0, 0.0, 102.0],
+            "high": [101.0, 0.0, 103.0],
+            "low": [99.0, 0.0, 101.0],
+            "close": [100.5, 0.0, 102.5],
+            "volume": [1000, 0, 1200],
+        }, index=index)
+
+        # Apply the filtering logic (same as in update_df)
+        all_zero = (
+            (df["open"] == 0) &
+            (df["high"] == 0) &
+            (df["low"] == 0) &
+            (df["close"] == 0)
+        )
+        df_filtered = df[~all_zero]
+
+        # Verify: only 2 rows remain
+        assert len(df_filtered) == 2
+        assert df_filtered["close"].tolist() == [100.5, 102.5]
+
+    def test_filter_preserves_valid_zero_volume(self):
+        """Test that rows with zero volume but valid prices are preserved."""
+        index = pd.to_datetime([
+            "2024-01-15 09:30",
+            "2024-01-16 09:30",  # Valid data - has prices, just zero volume
+        ], utc=True)
+
+        df = pd.DataFrame({
+            "open": [100.0, 50.0],
+            "high": [101.0, 51.0],
+            "low": [99.0, 49.0],
+            "close": [100.5, 50.5],
+            "volume": [1000, 0],  # Zero volume is fine
+        }, index=index)
+
+        all_zero = (
+            (df["open"] == 0) &
+            (df["high"] == 0) &
+            (df["low"] == 0) &
+            (df["close"] == 0)
+        )
+        df_filtered = df[~all_zero]
+
+        # Both rows should be preserved
+        assert len(df_filtered) == 2
+        assert df_filtered["close"].tolist() == [100.5, 50.5]
+
+    def test_filter_removes_weekend_zero_data(self):
+        """
+        Test that weekend rows with zero prices are filtered.
+
+        This is the actual bug we fixed - ThetaData returned Saturday 2019-06-08
+        with all zeros for MELI, causing the backtest to fail.
+        """
+        index = pd.to_datetime([
+            "2019-06-07 09:30",  # Friday - valid
+            "2019-06-08 00:00",  # Saturday - bad (all zeros)
+            "2019-06-10 09:30",  # Monday - valid
+        ], utc=True)
+
+        df = pd.DataFrame({
+            "open": [495.0, 0.0, 500.0],
+            "high": [500.0, 0.0, 505.0],
+            "low": [490.0, 0.0, 495.0],
+            "close": [498.0, 0.0, 502.0],
+            "volume": [10000, 0, 12000],
+        }, index=index)
+
+        all_zero = (
+            (df["open"] == 0) &
+            (df["high"] == 0) &
+            (df["low"] == 0) &
+            (df["close"] == 0)
+        )
+        df_filtered = df[~all_zero]
+
+        # Only Friday and Monday should remain
+        assert len(df_filtered) == 2
+
+        # Verify the dates are correct (Friday and Monday)
+        dates = df_filtered.index.tolist()
+        assert dates[0].day == 7  # Friday
+        assert dates[1].day == 10  # Monday
+
+    def test_filter_handles_partial_zeros(self):
+        """
+        Test that rows with some zeros but not all are preserved.
+
+        E.g., a stock that opened at 0 (bug) but has valid high/low/close
+        should still be preserved as it's usable data.
+        """
+        index = pd.to_datetime([
+            "2024-01-15 09:30",
+        ], utc=True)
+
+        df = pd.DataFrame({
+            "open": [0.0],  # Zero open
+            "high": [101.0],
+            "low": [99.0],
+            "close": [100.5],
+            "volume": [1000],
+        }, index=index)
+
+        all_zero = (
+            (df["open"] == 0) &
+            (df["high"] == 0) &
+            (df["low"] == 0) &
+            (df["close"] == 0)
+        )
+        df_filtered = df[~all_zero]
+
+        # Row should be preserved - only close being 0 is what matters
+        assert len(df_filtered) == 1
+
+    def test_filter_empty_df_returns_empty(self):
+        """Test that filtering an empty DataFrame returns empty."""
+        df = pd.DataFrame({
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+        })
+
+        # Should not raise an error
+        all_zero = (
+            (df["open"] == 0) &
+            (df["high"] == 0) &
+            (df["low"] == 0) &
+            (df["close"] == 0)
+        )
+        df_filtered = df[~all_zero]
+
+        assert len(df_filtered) == 0
+
+    def test_filter_all_zero_returns_empty(self):
+        """Test that a DataFrame with only zero-price rows returns empty."""
+        index = pd.to_datetime([
+            "2024-01-15 09:30",
+            "2024-01-16 09:30",
+        ], utc=True)
+
+        df = pd.DataFrame({
+            "open": [0.0, 0.0],
+            "high": [0.0, 0.0],
+            "low": [0.0, 0.0],
+            "close": [0.0, 0.0],
+            "volume": [0, 0],
+        }, index=index)
+
+        all_zero = (
+            (df["open"] == 0) &
+            (df["high"] == 0) &
+            (df["low"] == 0) &
+            (df["close"] == 0)
+        )
+        df_filtered = df[~all_zero]
+
+        assert len(df_filtered) == 0

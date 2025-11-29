@@ -55,8 +55,9 @@ def _trade_log_df(strategy_obj) -> pd.DataFrame:
 
 def test_tqqq_theta_integration():
     _ensure_env_loaded()
-    backtesting_start = dt.datetime(2020, 10, 1)
-    backtesting_end = dt.datetime(2025, 11, 4)
+    # Use 2 weeks instead of 5 years to keep CI fast (~30min target)
+    backtesting_start = dt.datetime(2024, 10, 1)
+    backtesting_end = dt.datetime(2024, 10, 14)
 
     results, strat_obj = TQQQ200DayMAStrategy.run_backtest(
         ThetaDataBacktesting,
@@ -79,8 +80,9 @@ def test_tqqq_theta_integration():
 
 def test_meli_theta_integration(tmp_path_factory):
     _ensure_env_loaded()
-    backtesting_start = dt.datetime(2020, 10, 1)
-    backtesting_end = dt.datetime(2025, 11, 4)
+    # Use 2 weeks instead of 5 years to keep CI fast (~30min target)
+    backtesting_start = dt.datetime(2024, 10, 1)
+    backtesting_end = dt.datetime(2024, 10, 14)
 
     results, strat_obj = MELIDrawdownRecovery.run_backtest(
         ThetaDataBacktesting,
@@ -141,9 +143,9 @@ def test_pltr_minute_theta_integration():
 
 def test_iron_condor_minute_theta_integration():
     _ensure_env_loaded()
-    # Recent, shorter window to keep minute/options runtime reasonable
-    backtesting_start = dt.datetime(2025, 9, 8)
-    backtesting_end = dt.datetime(2025, 10, 10)
+    # Use 3 trading days for minute-level options (much faster than 1 month)
+    backtesting_start = dt.datetime(2024, 9, 9)
+    backtesting_end = dt.datetime(2024, 9, 11)
 
     results, strat_obj = IronCondor0DTE.run_backtest(
         ThetaDataBacktesting,

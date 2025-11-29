@@ -6,9 +6,10 @@ ensuring that the front_month and next_quarter options work correctly
 and handle edge cases appropriately.
 """
 
-import pytest
 from datetime import date, datetime
 from unittest.mock import patch
+
+import pytest
 
 from lumibot.entities.asset import Asset
 
@@ -24,12 +25,12 @@ class TestAssetAutoExpiry:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry=Asset.AutoExpiry.FRONT_MONTH
         )
-        
+
         # Should have an expiration date set
         assert asset.expiration is not None
         assert isinstance(asset.expiration, date)
         assert asset.auto_expiry == Asset.AutoExpiry.FRONT_MONTH
-        
+
         # The expiration should be a quarterly month (Mar, Jun, Sep, Dec)
         assert asset.expiration.month in [3, 6, 9, 12]
 
@@ -40,12 +41,12 @@ class TestAssetAutoExpiry:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry=Asset.AutoExpiry.NEXT_QUARTER
         )
-        
+
         # Should have an expiration date set
         assert asset.expiration is not None
         assert isinstance(asset.expiration, date)
         assert asset.auto_expiry == Asset.AutoExpiry.NEXT_QUARTER
-        
+
         # The expiration should be a quarterly month (Mar, Jun, Sep, Dec)
         assert asset.expiration.month in [3, 6, 9, 12]
 
@@ -56,7 +57,7 @@ class TestAssetAutoExpiry:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry=True
         )
-        
+
         # Should have an expiration date set (should default to front_month behavior)
         assert asset.expiration is not None
         assert isinstance(asset.expiration, date)
@@ -69,7 +70,7 @@ class TestAssetAutoExpiry:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry=Asset.AutoExpiry.AUTO
         )
-        
+
         # Should have an expiration date set (should default to front_month behavior)
         assert asset.expiration is not None
         assert isinstance(asset.expiration, date)
@@ -78,14 +79,14 @@ class TestAssetAutoExpiry:
     def test_manual_expiration_overrides_auto_expiry(self):
         """Test that manually provided expiration takes precedence over auto_expiry."""
         manual_expiry = date(2024, 6, 21)  # Specific date
-        
+
         asset = Asset(
             symbol="ES",
             asset_type=Asset.AssetType.FUTURE,
             expiration=manual_expiry,
             auto_expiry=Asset.AutoExpiry.FRONT_MONTH
         )
-        
+
         # Should use the manual expiration, not auto-calculated
         assert asset.expiration == manual_expiry
         assert asset.auto_expiry == Asset.AutoExpiry.FRONT_MONTH
@@ -100,7 +101,7 @@ class TestAssetAutoExpiry:
         )
         assert stock_asset.expiration is None
         assert stock_asset.auto_expiry == Asset.AutoExpiry.FRONT_MONTH
-        
+
         # Option without expiration should still be None (auto_expiry doesn't apply)
         option_asset = Asset(
             symbol="AAPL",
@@ -116,13 +117,13 @@ class TestAssetAutoExpiry:
         # Mock current date to March 1, 2024
         mock_date.today.return_value = date(2024, 3, 1)
         mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
-        
+
         asset = Asset(
             symbol="ES",
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="front_month"
         )
-        
+
         # Should get March 2024 expiry (3rd Friday)
         expected_expiry = date(2024, 3, 15)  # 3rd Friday of March 2024
         assert asset.expiration == expected_expiry
@@ -133,13 +134,13 @@ class TestAssetAutoExpiry:
         # Mock current date to March 16, 2024 (after 3rd Friday)
         mock_date.today.return_value = date(2024, 3, 16)
         mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
-        
+
         asset = Asset(
             symbol="ES",
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="front_month"
         )
-        
+
         # Should get June 2024 expiry (next quarter)
         expected_expiry = date(2024, 6, 21)  # 3rd Friday of June 2024
         assert asset.expiration == expected_expiry
@@ -150,13 +151,13 @@ class TestAssetAutoExpiry:
         # Mock current date to January 15, 2024
         mock_date.today.return_value = date(2024, 1, 15)
         mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
-        
+
         asset = Asset(
             symbol="ES",
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="front_month"
         )
-        
+
         # Should get March 2024 expiry (next quarterly month)
         expected_expiry = date(2024, 3, 15)  # 3rd Friday of March 2024
         assert asset.expiration == expected_expiry
@@ -167,13 +168,13 @@ class TestAssetAutoExpiry:
         # Mock current date to December 20, 2024 (after December expiry)
         mock_date.today.return_value = date(2024, 12, 20)
         mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
-        
+
         asset = Asset(
             symbol="ES",
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="front_month"
         )
-        
+
         # Should get March 2025 expiry (next year)
         expected_expiry = date(2025, 3, 21)  # 3rd Friday of March 2025
         assert asset.expiration == expected_expiry
@@ -181,13 +182,13 @@ class TestAssetAutoExpiry:
     def test_third_friday_calculation(self):
         """Test the _get_third_friday helper method."""
         asset = Asset("ES", asset_type=Asset.AssetType.FUTURE)
-        
+
         # Test known third Fridays
         assert asset._get_third_friday(2024, 3) == date(2024, 3, 15)
         assert asset._get_third_friday(2024, 6) == date(2024, 6, 21)
         assert asset._get_third_friday(2024, 9) == date(2024, 9, 20)
         assert asset._get_third_friday(2024, 12) == date(2024, 12, 20)
-        
+
         # Test edge case: February (short month)
         assert asset._get_third_friday(2024, 2) == date(2024, 2, 16)
 
@@ -198,7 +199,7 @@ class TestAssetAutoExpiry:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="invalid_option"
         )
-        
+
         # Should still have an expiration (defaults to front_month)
         assert asset.expiration is not None
         assert isinstance(asset.expiration, date)
@@ -207,13 +208,13 @@ class TestAssetAutoExpiry:
     def test_asset_with_datetime_expiration_conversion(self):
         """Test that datetime expiration is correctly converted to date."""
         dt_expiry = datetime(2024, 6, 21, 15, 30, 0)
-        
+
         asset = Asset(
             symbol="ES",
             asset_type=Asset.AssetType.FUTURE,
             expiration=dt_expiry
         )
-        
+
         # Should convert datetime to date
         assert asset.expiration == date(2024, 6, 21)
         assert isinstance(asset.expiration, date)
@@ -225,7 +226,7 @@ class TestAssetAutoExpiry:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="front_month"
         )
-        
+
         # Should be able to convert to string without errors
         asset_str = str(asset)
         assert "MES" in asset_str
@@ -236,13 +237,13 @@ class TestAssetAutoExpiry:
         # Create two assets with the same auto_expiry
         asset1 = Asset("ES", asset_type=Asset.AssetType.FUTURE, auto_expiry="front_month")
         asset2 = Asset("ES", asset_type=Asset.AssetType.FUTURE, auto_expiry="front_month")
-        
+
         # They should have the same calculated expiration
         assert asset1.expiration == asset2.expiration
-        
+
         # Create asset with manual expiration matching the auto-calculated one
         asset3 = Asset("ES", asset_type=Asset.AssetType.FUTURE, expiration=asset1.expiration)
-        
+
         # Should be equal since they have the same symbol, type, and expiration
         assert asset1.expiration == asset3.expiration
 
@@ -250,7 +251,7 @@ class TestAssetAutoExpiry:
         """Test that next_quarter and front_month produce the same result for quarterly futures."""
         asset_front = Asset("ES", asset_type=Asset.AssetType.FUTURE, auto_expiry="front_month")
         asset_quarter = Asset("ES", asset_type=Asset.AssetType.FUTURE, auto_expiry="next_quarter")
-        
+
         # For quarterly futures, both should give the same result
         assert asset_front.expiration == asset_quarter.expiration
 
@@ -260,7 +261,7 @@ class TestAssetAutoExpiry:
             symbol="MES",
             asset_type=Asset.AssetType.CONT_FUTURE
         )
-        
+
         # Continuous futures don't need expiration dates
         assert asset.expiration is None
         assert asset.asset_type == Asset.AssetType.CONT_FUTURE
@@ -270,14 +271,14 @@ class TestAssetAutoExpiry:
         """Test that continuous futures are simpler than auto-expiry futures."""
         # Continuous future (recommended for backtesting)
         cont_asset = Asset("ES", asset_type=Asset.AssetType.CONT_FUTURE)
-        
+
         # Auto-expiry future (more complex, for live trading)
         auto_asset = Asset("ES", asset_type=Asset.AssetType.FUTURE, auto_expiry=Asset.AutoExpiry.FRONT_MONTH)
-        
+
         # Continuous future is simpler - no expiration to manage
         assert cont_asset.expiration is None
         assert auto_asset.expiration is not None
-        
+
         # Both have the same symbol
         assert cont_asset.symbol == auto_asset.symbol == "ES"
 
@@ -295,7 +296,7 @@ class TestAssetAutoExpiryIntegration:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="front_month"
         )
-        
+
         assert asset.symbol == "MES"
         assert asset.expiration is not None
 
@@ -307,7 +308,7 @@ class TestAssetAutoExpiryIntegration:
             auto_expiry="front_month",
             multiplier=50
         )
-        
+
         assert asset.multiplier == 50
         assert asset.expiration is not None
 
@@ -318,7 +319,7 @@ class TestAssetAutoExpiryIntegration:
             asset_type=Asset.AssetType.FUTURE,
             auto_expiry="next_quarter"
         )
-        
+
         # The auto_expiry setting should be preserved
         assert asset.auto_expiry == "next_quarter"
         assert asset.expiration is not None
@@ -332,7 +333,7 @@ class TestAssetAutoExpiryIntegration:
             auto_expiry="front_month"
         )
         assert asset.asset_type == Asset.AssetType.FUTURE
-        
+
         # Invalid asset type should still raise error
         with pytest.raises(Exception):  # Should raise validation error
             Asset(

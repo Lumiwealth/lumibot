@@ -1,10 +1,13 @@
+import hashlib
+import json
 import os
 import time
-from typing import Dict, Any, Optional
-import hashlib
+from typing import Any, Dict, Optional
+
 import requests
-import json
+
 from lumibot.tools.lumibot_logger import get_logger
+
 
 class BitUnixClient:
     """

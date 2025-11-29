@@ -13,12 +13,14 @@ Run once indices subscription is active.
 
 import datetime
 import os
+
 import pytest
 from dotenv import load_dotenv
+
+from lumibot.backtesting import PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.tools.helpers import to_datetime_aware
-from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
 
 # Load environment variables from .env file
 load_dotenv()
@@ -94,7 +96,7 @@ class TestIndexDataVerification:
 
         assert df is not None and len(df) > 0, "No bars returned for SPX"
 
-        print(f"\n✓ Timestamp verification for SPX:")
+        print("\n✓ Timestamp verification for SPX:")
         print(f"{'Time':<25} {'Close':<10}")
         print("="*40)
 
@@ -120,7 +122,7 @@ class TestIndexDataVerification:
                 continue
             assert time_diff == 60, f"Bar {i} is {time_diff}s after bar {i-1}, expected 60s"
 
-        print(f"\n✓ Timestamps verified: First bar at 9:30, all bars 60s apart")
+        print("\n✓ Timestamps verified: First bar at 9:30, all bars 60s apart")
 
     def test_spx_vs_polygon_comparison(self):
         """
@@ -156,7 +158,7 @@ class TestIndexDataVerification:
             datetime.datetime(2024, 8, 1, 10, 0),
         ]
 
-        print(f"\n✓ SPX price comparison:")
+        print("\n✓ SPX price comparison:")
         print(f"{'Time':<25} {'ThetaData':<12} {'Polygon':<12} {'Diff':<10} {'Status'}")
         print("="*80)
 
@@ -229,7 +231,7 @@ class TestIndexDataVerification:
             datetime.datetime(2024, 8, 1, 10, 0),
         ]
 
-        print(f"\n✓ VIX price comparison:")
+        print("\n✓ VIX price comparison:")
         print(f"{'Time':<25} {'ThetaData':<12} {'Polygon':<12} {'Diff':<10} {'Status'}")
         print("="*80)
 

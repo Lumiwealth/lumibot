@@ -14,10 +14,11 @@ from schwab.client import Client
 from schwab.streaming import StreamClient
 from termcolor import colored
 
-from .broker import Broker
 from lumibot.data_sources import SchwabData  # Import YahooData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
+
+from .broker import Broker
 
 logger = get_logger(__name__)
 
@@ -35,7 +36,7 @@ LUMI_DEFAULT_CALLBACK = "https://api.botspot.trade/broker_oauth/schwab"
 class Schwab(Broker):
     """
     Broker implementation for Schwab API.
-    
+
     This class provides the integration with Schwab's trading platform,
     implementing all necessary methods required by the Lumibot framework
     to interact with the broker.
@@ -338,7 +339,7 @@ class Schwab(Broker):
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
         Get the actual cash balance at the broker.
-        
+
         Parameters
         ----------
         quote_asset : Asset
@@ -553,7 +554,7 @@ class Schwab(Broker):
                             quantity=net_quantity,
                             avg_fill_price=average_price,
                         )
-                        
+
                         pos_dict[key].pnl = pnl
                         pos_dict[key].market_value = market_value
 
@@ -582,7 +583,7 @@ class Schwab(Broker):
         -------
         Position
             The position object for the asset and strategy if found, otherwise None.
-            
+
         Notes
         -----
         This method compares different attributes based on asset type:
@@ -621,9 +622,9 @@ class Schwab(Broker):
         Returns
         -------
         list
-            A list of order responses from the broker query. These will be passed to 
+            A list of order responses from the broker query. These will be passed to
             _parse_broker_order() to be converted to Order objects.
-            
+
         Notes
         -----
         This method retrieves orders from the past 7 days by default to limit the
@@ -722,7 +723,7 @@ class Schwab(Broker):
         -------
         Order
             The order object created from the broker's response, or None if parsing fails.
-            
+
         Notes
         -----
         This method handles complex order structures including:
@@ -796,19 +797,19 @@ class Schwab(Broker):
     def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> List[Order]:
         """
         Parse a simple Schwab order (non-OCO) into Lumibot Order objects.
-        
+
         Parameters
         ----------
         schwab_order : dict
             The Schwab order data.
         strategy_name : str
             The name of the strategy for which to create the order.
-            
+
         Returns
         -------
         List[Order]
             A list of parsed order objects, or an empty list if parsing fails.
-            
+
         Notes
         -----
         This method handles conversion of:
@@ -816,7 +817,7 @@ class Schwab(Broker):
         - Order statuses (NEW, FILLED, CANCELED, etc.)
         - Asset types (STOCK, OPTION, FUTURE, etc.)
         - Order sides (BUY, SELL, BUY_TO_OPEN, etc.)
-        
+
         It also extracts important order details such as:
         - Timestamps (entry and close)
         - Prices (limit price, stop price)
@@ -1148,7 +1149,7 @@ class Schwab(Broker):
     def _submit_order(self, order: Order) -> Order:
         """
         Submit an order to the broker after necessary checks and input sanitization.
-        
+
         Parameters
         ----------
         order : Order
@@ -1357,14 +1358,14 @@ class Schwab(Broker):
                                    equity_buy_to_cover_market, equity_buy_to_cover_limit):
         """
         Prepare the order builder for stock orders using Schwab order templates.
-        
+
         Parameters
         ----------
         order : Order
             The order to prepare the builder for
         equity_buy_market, equity_buy_limit, etc. : function
             Schwab order template functions
-            
+
         Returns
         -------
         OrderBuilder
@@ -1462,7 +1463,7 @@ class Schwab(Broker):
                                    OptionSymbol):
         """
         Prepare the order builder for option orders using Schwab order templates.
-        
+
         Parameters
         ----------
         order : Order
@@ -1471,7 +1472,7 @@ class Schwab(Broker):
             Schwab option order template functions
         OptionSymbol : class
             The Schwab OptionSymbol class for constructing option symbols
-            
+
         Returns
         -------
         OrderBuilder
@@ -1620,14 +1621,14 @@ class Schwab(Broker):
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """
         Prepare the order builder for futures orders using Schwab generic order builder.
-        
+
         Parameters
         ----------
         order : Order
             The order to prepare the builder for
         OrderBuilder : class
             Schwab OrderBuilder class
-            
+
         Returns
         -------
         OrderBuilder
@@ -1708,7 +1709,7 @@ class Schwab(Broker):
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
         you must cancel the order and submit a new one.
-        
+
         Parameters
         ----------
         order : Order
@@ -1791,7 +1792,7 @@ class Schwab(Broker):
     def _prepare_replacement_order_spec(self, order, original_order_data, limit_price, stop_price):
         """
         Prepare a replacement order specification for order modification.
-        
+
         Parameters
         ----------
         order : Order
@@ -1802,7 +1803,7 @@ class Schwab(Broker):
             The new limit price, or None to keep original
         stop_price : float or None
             The new stop price, or None to keep original
-            
+
         Returns
         -------
         dict
@@ -1817,7 +1818,6 @@ class Schwab(Broker):
 
         # Use original values for prices if new ones are not provided
         final_limit_price = limit_price if limit_price is not None else order.limit_price
-        final_stop_price = stop_price if stop_price is not None else order.stop_price
 
         # Create the replacement order spec based on asset type
         if order.asset.asset_type == Asset.AssetType.STOCK:
@@ -1831,7 +1831,7 @@ class Schwab(Broker):
     def get_historical_account_value(self) -> dict:
         """
         Get the historical account value.
-        
+
         Returns
         -------
         dict
@@ -1843,7 +1843,7 @@ class Schwab(Broker):
     def cancel_order(self, order: Order) -> None:
         """
         Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
-        
+
         Parameters
         ----------
         order : Order

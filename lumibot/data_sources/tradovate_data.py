@@ -33,14 +33,14 @@ class TradovateData(DataSource):
     def _get_headers(self, with_auth=True, with_content_type=False):
         """
         Create headers for API requests.
-        
+
         Parameters
         ----------
         with_auth : bool
             Whether to include the Authorization header with the trading token
         with_content_type : bool
             Whether to include Content-Type header for JSON requests
-            
+
         Returns
         -------
         dict
@@ -63,7 +63,7 @@ class TradovateData(DataSource):
         """
         Retrieve historical chart data for the given asset via WebSocket using the md/getChart command.
         This method sends a WebSocket request to retrieve 'length' bars of historical data.
-        
+
         Note: Tradovate provides historical chart data via WebSocket, not via a REST GET.
         """
 

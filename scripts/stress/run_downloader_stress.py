@@ -3,11 +3,13 @@ import os
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, time as dt_time
+from datetime import datetime, timedelta
+from datetime import time as dt_time
 from pathlib import Path
 from typing import Dict, List
 
 import requests
+
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 

@@ -19,12 +19,14 @@ from lumibot.backtesting import BacktestingBroker
 from lumibot.backtesting.databento_backtesting_pandas import (
     DataBentoDataBacktestingPandas,
 )
-from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
-from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
+from lumibot.traders import Trader
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -224,14 +226,14 @@ class TestFuturesEdgeCases:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
+        trader.run_all(
             show_plot=False,
             show_tearsheet=False,
             show_indicators=False,
             save_tearsheet=False
         )
 
-        print(f"\n✓ Backtest completed")
+        print("\n✓ Backtest completed")
         print(f"  Snapshots: {len(strat.snapshots)}")
         print(f"  Trades: {len(strat.trades)}")
 
@@ -312,7 +314,7 @@ class TestFuturesEdgeCases:
             assert pytest.approx(expected_final_cash, abs=0.01) == float(exit_trade['cash_after']), \
                 "Cash reported in exit trade callback should match final ledger"
 
-            print(f"\n✓ PASS: Short selling P&L and cash bookkeeping are exact")
+            print("\n✓ PASS: Short selling P&L and cash bookkeeping are exact")
 
         print("\n" + "="*80)
         print("✓ SHORT SELLING TEST PASSED")
@@ -368,14 +370,14 @@ class TestFuturesEdgeCases:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
+        trader.run_all(
             show_plot=False,
             show_tearsheet=False,
             show_indicators=False,
             save_tearsheet=False
         )
 
-        print(f"\n✓ Backtest completed")
+        print("\n✓ Backtest completed")
         print(f"  Snapshots: {len(strat.snapshots)}")
         print(f"  Trades: {len(strat.trades)}")
 
@@ -463,7 +465,7 @@ class TestFuturesEdgeCases:
         assert pytest.approx(expected_final_cash, abs=0.01) == float(es_exit['cash_after']), \
             "Exit trade cash should match ledger final cash"
 
-        print(f"\n✓ PASS: Multiple simultaneous positions tracked with exact accounting")
+        print("\n✓ PASS: Multiple simultaneous positions tracked with exact accounting")
 
         # Verify we had both positions at the same time (iteration 3-4)
         snapshot_with_both = None

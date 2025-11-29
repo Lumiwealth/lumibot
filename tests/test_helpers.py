@@ -1,32 +1,34 @@
 import datetime as dt
 from decimal import Decimal
-from zoneinfo import ZoneInfo
-import pytz
+
 import pytest
+import pytz
+from zoneinfo import ZoneInfo
 
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools.helpers import (
-    has_more_than_n_decimal_places,
     date_n_trading_days_from_date,
+    get_timezone_from_datetime,
     get_trading_days,
     get_trading_times,
-    get_timezone_from_datetime,
-    quantize_to_num_decimals, is_market_open
+    has_more_than_n_decimal_places,
+    is_market_open,
+    quantize_to_num_decimals,
 )
 
 
 def test_has_more_than_n_decimal_places():
-    assert has_more_than_n_decimal_places(1.2, 0) == True
-    assert has_more_than_n_decimal_places(1.2, 1) == False
-    assert has_more_than_n_decimal_places(1.22, 0) == True
-    assert has_more_than_n_decimal_places(1.22, 1) == True
-    assert has_more_than_n_decimal_places(1.22, 5) == False
+    assert has_more_than_n_decimal_places(1.2, 0)
+    assert not has_more_than_n_decimal_places(1.2, 1)
+    assert has_more_than_n_decimal_places(1.22, 0)
+    assert has_more_than_n_decimal_places(1.22, 1)
+    assert not has_more_than_n_decimal_places(1.22, 5)
 
-    assert has_more_than_n_decimal_places(1.2345, 0) == True
-    assert has_more_than_n_decimal_places(1.2345, 1) == True
-    assert has_more_than_n_decimal_places(1.2345, 3) == True
-    assert has_more_than_n_decimal_places(1.2345, 4) == False
-    assert has_more_than_n_decimal_places(1.2345, 5) == False
+    assert has_more_than_n_decimal_places(1.2345, 0)
+    assert has_more_than_n_decimal_places(1.2345, 1)
+    assert has_more_than_n_decimal_places(1.2345, 3)
+    assert not has_more_than_n_decimal_places(1.2345, 4)
+    assert not has_more_than_n_decimal_places(1.2345, 5)
 
 
 def test_date_n_bars_from_date_valid_input(mocker):

@@ -1,7 +1,7 @@
 import os
 import pickle
-import time
 import random
+import time
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -9,8 +9,8 @@ import yfinance as yf
 from fp.fp import FreeProxy
 
 from ..constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from .lumibot_logger import get_logger
 from .helpers import get_lumibot_datetime
+from .lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -61,7 +61,7 @@ class YahooHelper:
         try:
             os.makedirs(LUMIBOT_YAHOO_CACHE_FOLDER)
             CACHING_ENABLED = True
-        except Exception as e:
+        except Exception:
             pass
     else:
         CACHING_ENABLED = True
@@ -90,7 +90,7 @@ class YahooHelper:
                     with open(pickle_file_path, "rb") as f:
                         return pickle.load(f)
                 except Exception as e:
-                    logger.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
+                    logger.error(f"Error while loading pickle file {pickle_file_path}: {e}")
                     # Remove the file because it is corrupted.  This will enable re-download.
                     os.remove(pickle_file_path)
                     return None
@@ -101,7 +101,7 @@ class YahooHelper:
     def dump_pickle_file(symbol, type, data):
         if YahooHelper.CACHING_ENABLED:
             yahoo_data = _YahooData(symbol, type, data)
-            file_name = "%s_%s.pickle" % (symbol, type.lower())
+            file_name = f"{symbol}_{type.lower()}.pickle"
             pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             with open(pickle_file_path, "wb") as f:
                 pickle.dump(yahoo_data, f)
@@ -411,7 +411,7 @@ class YahooHelper:
             # Pass the received auto_adjust value to format_df
             return YahooHelper.format_df(df, auto_adjust)
         else:
-            raise ValueError("Unknown interval %s" % interval)
+            raise ValueError(f"Unknown interval {interval}")
 
     @staticmethod
     def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
@@ -425,7 +425,7 @@ class YahooHelper:
         if interval in ["1m", "15m", "1d"]:
             return YahooHelper.get_symbols_data(symbols, interval=interval, auto_adjust=auto_adjust, caching=caching)
         else:
-            raise ValueError("Unknown interval %s" % interval)
+            raise ValueError(f"Unknown interval {interval}")
 
     @staticmethod
     def get_symbol_dividends(symbol, caching=True):

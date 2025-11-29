@@ -1,7 +1,8 @@
-import unittest
-from unittest.mock import Mock, patch
-import pandas as pd
 import datetime
+import unittest
+from unittest.mock import Mock
+
+import pandas as pd
 
 # Assuming lumibot.backtesting.Backtester and lumibot.strategies.Strategy exist
 # Adjust imports based on actual project structure
@@ -43,7 +44,7 @@ class MockBacktester:
         # Simulate a basic run loop - replace with actual backtester logic if possible
         print("Mock Backtester Run Start")
         # Simulate some iterations
-        for i in range(5):
+        for _i in range(5):
              self._clock.tick() # Simulate time progression
              self.strategy.on_trading_iteration()
              # Simulate order processing if applicable
@@ -82,7 +83,7 @@ class TestBacktestingFlowControl(unittest.TestCase):
         # and asserting the strategy's state and backtester progression.
 
         # Example: Simulate placing an order and receiving multiple updates
-        strategy = MockStrategy()
+        MockStrategy()
         # mock_order = Order(asset=Asset(symbol="AAPL", asset_type="stock"), quantity=10, side="buy")
         # mock_order.status = "submitted"
         # strategy.orders[mock_order.identifier] = mock_order
@@ -135,7 +136,7 @@ class TestBacktestingFlowControl(unittest.TestCase):
         mock_data = pd.DataFrame(index=dates, data={'AAPL': [100, 101]})
         data_source = MockDataSource(mock_data)
         backtester = MockBacktester(MockStrategy, data_source=data_source)
-        
+
         # Patch the instance method after it's created instead of the class method
         backtester.strategy.on_trading_iteration.side_effect = ValueError("Simulated strategy error")
 

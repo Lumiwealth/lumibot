@@ -1,11 +1,7 @@
 import datetime as dt
 import os
 from decimal import Decimal
-from typing import Optional, Union, List, Dict
-import os
-import datetime as dt
-import pandas as pd
-import pytz
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 import pytz
@@ -108,7 +104,7 @@ class AlpacaData(DataSource):
         error_message = str(e).lower()
         # Only treat specific authentication-related errors as auth failures
         is_auth_error = (
-            "unauthorized" in error_message or 
+            "unauthorized" in error_message or
             "401" in error_message or
             "403" in error_message or
             "invalid credentials" in error_message or
@@ -116,7 +112,7 @@ class AlpacaData(DataSource):
             "invalid api key" in error_message or
             "invalid token" in error_message
         )
-        
+
         if is_auth_error:
             auth_method = "OAuth token" if self.oauth_token else "API key/secret"
             error_msg = (
@@ -168,7 +164,7 @@ class AlpacaData(DataSource):
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
                 if any(auth_keyword in error_message for auth_keyword in [
-                    "unauthorized", "401", "403", "invalid credentials", 
+                    "unauthorized", "401", "403", "invalid credentials",
                     "authentication failed", "invalid api key", "invalid token"
                 ]):
                     self._handle_auth_error(e, "stock client initialization")
@@ -190,7 +186,7 @@ class AlpacaData(DataSource):
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
                 if any(auth_keyword in error_message for auth_keyword in [
-                    "unauthorized", "401", "403", "invalid credentials", 
+                    "unauthorized", "401", "403", "invalid credentials",
                     "authentication failed", "invalid api key", "invalid token"
                 ]):
                     self._handle_auth_error(e, "crypto client initialization")
@@ -214,7 +210,7 @@ class AlpacaData(DataSource):
                 # Only call auth error handler for actual auth errors
                 error_message = str(e).lower()
                 if any(auth_keyword in error_message for auth_keyword in [
-                    "unauthorized", "401", "403", "invalid credentials", 
+                    "unauthorized", "401", "403", "invalid credentials",
                     "authentication failed", "invalid api key", "invalid token"
                 ]):
                     self._handle_auth_error(e, "option client initialization")
@@ -240,10 +236,10 @@ class AlpacaData(DataSource):
         - config (dict): Configuration containing API keys for Alpaca.
         - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
         - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
-        - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
-          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. 
+        - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for.
+          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan.
           If not specified, uses DATA_SOURCE_DELAY environment variable or defaults to 16.
-        - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in 
+        - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in
           dataframes are adjusted to this timezone. Useful for setting UTC for crypto. Default is None.
         - remove_incomplete_current_bar (bool, optional): Default False.
           Whether to remove the incomplete current bar from the data.
@@ -492,16 +488,16 @@ class AlpacaData(DataSource):
             logger.error(f"Error retrieving option chains for {asset.symbol}: {e}")
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Full error details: {str(e)}")
-            
+
             # Check if this is specifically an authentication error
             error_message = str(e).lower()
-            
+
             # Be more specific about what constitutes an auth error
             # Don't treat every 401 as an auth error - could be data permissions, rate limits, etc.
             is_likely_auth_error = (
                 ("unauthorized" in error_message and (
-                    "invalid" in error_message or 
-                    "expired" in error_message or 
+                    "invalid" in error_message or
+                    "expired" in error_message or
                     "credentials" in error_message or
                     "api key" in error_message or
                     "token" in error_message
@@ -511,7 +507,7 @@ class AlpacaData(DataSource):
                 "invalid token" in error_message or
                 "invalid credentials" in error_message
             )
-            
+
             if is_likely_auth_error:
                 logger.error("This appears to be an authentication error - handling as auth failure")
                 # Handle authentication errors which will set _auth_failed flag
@@ -1043,8 +1039,8 @@ class AlpacaData(DataSource):
             strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
             date = asset.expiration.strftime("%y%m%d")
             symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-            
-            
+
+
             client = self._get_option_client()
             from alpaca.data.requests import OptionLatestQuoteRequest
             req = OptionLatestQuoteRequest(symbol_or_symbols=symbol)
@@ -1055,7 +1051,7 @@ class AlpacaData(DataSource):
 
             """
             structure of t:
-            {     
+            {
                 'ask_exchange': 'B',
                 'ask_price': 2.86,
                 'ask_size': 10.0,

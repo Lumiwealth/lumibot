@@ -9,17 +9,18 @@ This test verifies that the pandas implementation:
 This establishes the baseline before cloning to polars.
 """
 
+import json
 import os
 import shutil
-import json
 from datetime import datetime
 from pathlib import Path
+
 import pytest
 
 from lumibot.backtesting import ThetaDataBacktestingPandas
-from lumibot.strategies import Strategy
-from lumibot.entities import Asset
 from lumibot.credentials import THETADATA_CONFIG
+from lumibot.entities import Asset
+from lumibot.strategies import Strategy
 
 
 def get_cache_dir():

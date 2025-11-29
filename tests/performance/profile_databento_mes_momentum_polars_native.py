@@ -6,21 +6,20 @@ for maximum performance. Comparison with the pandas version shows the full optim
 
 from __future__ import annotations
 
-import argparse
+import math
 import time
 from datetime import datetime
 from pathlib import Path
 
-import yappi
-import pytz
 import polars as pl
-import math
+import pytz
+import yappi
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktestingPolars
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -210,9 +209,9 @@ def run_polars_native_profile() -> float:
     end = tzinfo.localize(datetime(2024, 1, 5, 16, 0))
 
     print(f"\n{'='*60}")
-    print(f"Starting POLARS-NATIVE backtest...")
+    print("Starting POLARS-NATIVE backtest...")
     print(f"Period: {start} to {end}")
-    print(f"Using return_polars=True with polars DataFrame operations")
+    print("Using return_polars=True with polars DataFrame operations")
     print(f"{'='*60}")
 
     yappi.clear_stats()
@@ -239,7 +238,7 @@ def run_polars_native_profile() -> float:
 
     trader = Trader(logfile="", backtest=True)
     trader.add_strategy(strat)
-    results = trader.run_all(
+    trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,
@@ -254,7 +253,7 @@ def run_polars_native_profile() -> float:
 
     # Print results
     print(f"\n{'='*60}")
-    print(f"MODE: POLARS-NATIVE")
+    print("MODE: POLARS-NATIVE")
     print(f"{'='*60}")
     print(f"Elapsed time: {elapsed:.2f}s")
     print(f"Profile saved: {profile_path}")
@@ -279,8 +278,8 @@ def main() -> None:
     print("POLARS-NATIVE PERFORMANCE")
     print(f"{'='*60}")
     print(f"Total time: {elapsed:.2f}s")
-    print(f"This uses return_polars=True and polars operations throughout")
-    print(f"Compare with standard profiler to see full speedup")
+    print("This uses return_polars=True and polars operations throughout")
+    print("Compare with standard profiler to see full speedup")
     print(f"{'='*60}\n")
 
 

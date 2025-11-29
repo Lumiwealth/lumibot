@@ -1,6 +1,6 @@
 import logging
-from types import SimpleNamespace
 import unittest
+from types import SimpleNamespace
 
 from lumibot.entities import Asset, Position
 from lumibot.strategies import Strategy

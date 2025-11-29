@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import QueryOrderStatus, PositionSide
+from alpaca.trading.enums import PositionSide, QueryOrderStatus
 from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
@@ -190,7 +190,7 @@ class Alpaca(Broker):
         temp_api_key = ""
         temp_api_secret = ""
         temp_oauth_token = ""
-        
+
         # Extract all credential values
         for key in value_dict:
             if key == "OAUTH_TOKEN":
@@ -207,7 +207,7 @@ class Alpaca(Broker):
                 attr = key.lower()
                 if hasattr(self, attr):
                     setattr(self, attr, config[key])
-        
+
         # Apply precedence logic: API key/secret takes precedence over OAuth token
         if temp_api_key and temp_api_secret:
             self.api_key = temp_api_key
@@ -409,7 +409,7 @@ class Alpaca(Broker):
         position.current_price = float(broker_position.current_price) if broker_position.current_price else None
         position.side = Position.PositionSide.LONG if broker_position.side == PositionSide.LONG else Position.PositionSide.SHORT
         position.market_value = float(broker_position.market_value) if broker_position.market_value else None
-        
+
 
         return position
 
@@ -704,21 +704,21 @@ class Alpaca(Broker):
             leg_gcd = reduce(gcd, leg_quantities)
             if leg_gcd > 1:
                 # Divide all ratio_qty by GCD to make them relatively prime
-                for i, leg in enumerate(legs):
+                for _i, leg in enumerate(legs):
                     orig_qty = int(leg["ratio_qty"])
                     new_qty = int(orig_qty // leg_gcd)
                     leg["ratio_qty"] = str(new_qty)
                 qty = str(int(qty) // leg_gcd)
         # For multi-leg orders, we need to set the primary asset info from the first leg
         first_order = orders[0]
-        
+
         # Map extended side values to simple buy/sell for Alpaca API
         side = first_order.side
         if side in ("buy_to_open", "buy_to_close"):
             side = "buy"
         elif side in ("sell_to_open", "sell_to_close"):
             side = "sell"
-        
+
         # multileg is not a valid order_class for Alpaca. It is mleg now, and cannot be combined with a symbol.
 
         # Compose order payload
@@ -779,7 +779,7 @@ class Alpaca(Broker):
         elif order.asset.asset_type == Asset.AssetType.OPTION:
             order.time_in_force = "day"
 
-        qty = str(order.quantity)
+        str(order.quantity)
 
         # Compose symbol for option
         if order.asset.asset_type == Asset.AssetType.OPTION:
@@ -1183,7 +1183,7 @@ class Alpaca(Broker):
 
                 # Skip if parsing returned None (invalid order data)
                 if order is None:
-                    logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
+                    logger.warning("OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
                     continue
 
                 logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")

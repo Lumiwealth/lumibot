@@ -1,19 +1,18 @@
-from decimal import Decimal
-from typing import List, Any
-from datetime import datetime, timedelta, time
-import pytz
-
-import pytest
-import logging
 import datetime
+import logging
+from datetime import datetime, time, timedelta
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
+import pytest
+import pytz
 
 from lumibot import LUMIBOT_SOURCE_PATH
-from lumibot.data_sources import DataSource
-from lumibot.entities import Data, Asset, Bars
 from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.data_sources import DataSource
+from lumibot.entities import Asset, Bars, Data
 from lumibot.strategies import Strategy
 from lumibot.tools.helpers import (
     get_trading_days,
@@ -28,14 +27,14 @@ def polygon_data_backtesting():
     datetime_end = datetime.datetime(2023, 2, 1)
     api_key = "fake_api_key"
     pandas_data = []
-    
+
     polygon_data_instance = PolygonDataBacktesting(
         datetime_start=datetime_start,
         datetime_end=datetime_end,
         pandas_data=pandas_data,
         api_key=api_key,
     )
-    
+
     return polygon_data_instance
 
 

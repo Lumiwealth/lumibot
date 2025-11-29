@@ -3,8 +3,8 @@ Test that Order.to_dict() properly excludes problematic fields
 that can cause DynamoDB 400KB limit errors.
 """
 import unittest
-from decimal import Decimal
-from lumibot.entities import Order, Asset
+
+from lumibot.entities import Asset, Order
 
 
 class TestOrderSerialization(unittest.TestCase):

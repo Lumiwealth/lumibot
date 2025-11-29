@@ -1,16 +1,14 @@
-import pytest
+import math
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from lumibot.entities import Asset, Order
+import pytest
+
 from lumibot.brokers.alpaca import Alpaca
-from lumibot.data_sources.alpaca_data import AlpacaData
-from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
-
-from datetime import datetime, timedelta
-
-import math
-
+from lumibot.data_sources.alpaca_data import AlpacaData
+from lumibot.entities import Asset, Order
+from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.tools import get_trading_days
 
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
@@ -120,14 +118,14 @@ class TestAlpacaBroker:
         assert broker.oauth_token == "test_oauth_token"
         assert broker.api_key == ""
         assert broker.api_secret == ""
-        assert broker.is_paper == True
-        assert broker.is_oauth_only == True
+        assert broker.is_paper
+        assert broker.is_oauth_only
 
     def test_oauth_mixed_credentials(self):
         """Test that mixed OAuth + API credentials work correctly (API keys take precedence)."""
         mixed_config = {
             "OAUTH_TOKEN": "test_oauth_token",
-            "API_KEY": "test_api_key", 
+            "API_KEY": "test_api_key",
             "API_SECRET": "test_api_secret",
             "PAPER": True
         }
@@ -137,14 +135,14 @@ class TestAlpacaBroker:
         assert broker.oauth_token == ""
         assert broker.api_key == "test_api_key"
         assert broker.api_secret == "test_api_secret"
-        assert broker.is_oauth_only == False  # Has API credentials
+        assert not broker.is_oauth_only  # Has API credentials
 
     def test_oauth_fallback_to_api_keys(self):
         """Test that broker falls back to API keys when OAuth token is empty."""
         fallback_config = {
             "OAUTH_TOKEN": "",  # Empty OAuth token
             "API_KEY": "test_api_key",
-            "API_SECRET": "test_api_secret", 
+            "API_SECRET": "test_api_secret",
             "PAPER": True
         }
 
@@ -152,7 +150,7 @@ class TestAlpacaBroker:
         assert broker.oauth_token == ""
         assert broker.api_key == "test_api_key"
         assert broker.api_secret == "test_api_secret"
-        assert broker.is_oauth_only == False
+        assert not broker.is_oauth_only
 
     def test_oauth_error_on_missing_credentials(self):
         """Test that proper error is raised when no credentials are provided."""
@@ -163,8 +161,9 @@ class TestAlpacaBroker:
 
     def test_oauth_stream_object_creation(self):
         """Test that correct stream object is created for OAuth vs API key configurations."""
-        from lumibot.trading_builtins import PollingStream
         from alpaca.trading.stream import TradingStream
+
+        from lumibot.trading_builtins import PollingStream
 
         # OAuth-only should use PollingStream
         oauth_config = {
@@ -175,7 +174,7 @@ class TestAlpacaBroker:
         stream_oauth = broker_oauth._get_stream_object()
         assert isinstance(stream_oauth, PollingStream)
 
-        # API key/secret should use TradingStream  
+        # API key/secret should use TradingStream
         api_config = {
             "API_KEY": "test_api_key",
             "API_SECRET": "test_api_secret",
@@ -188,7 +187,7 @@ class TestAlpacaBroker:
     def test_oauth_polling_interval(self):
         """Test that polling interval is properly set."""
         oauth_config = {
-            "OAUTH_TOKEN": "test_oauth_token", 
+            "OAUTH_TOKEN": "test_oauth_token",
             "PAPER": True
         }
 
@@ -208,8 +207,8 @@ class TestAlpacaBroker:
 
         # Create an order with custom_params
         order = Order(
-            asset=Asset("SPY"), 
-            quantity=10, 
+            asset=Asset("SPY"),
+            quantity=10,
             side=Order.OrderSide.BUY,
             strategy='test_strategy',
             custom_params={"extended_hours": True}
@@ -225,12 +224,12 @@ class TestAlpacaBroker:
 
     def test_custom_params_multiple_params(self):
         """Test that custom_params works with multiple parameters."""
-        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
 
         # Create an order with multiple custom_params
         order = Order(
-            asset=Asset("SPY"), 
-            quantity=10, 
+            asset=Asset("SPY"),
+            quantity=10,
             side=Order.OrderSide.BUY,
             strategy='test_strategy',
             custom_params={"extended_hours": True, "some_other_param": "test_value"}
@@ -241,12 +240,12 @@ class TestAlpacaBroker:
 
     def test_custom_params_none(self):
         """Test that orders work normally without custom_params."""
-        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
+        Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
 
         # Create an order without custom_params
         order = Order(
-            asset=Asset("SPY"), 
-            quantity=10, 
+            asset=Asset("SPY"),
+            quantity=10,
             side=Order.OrderSide.BUY,
             strategy='test_strategy'
         )

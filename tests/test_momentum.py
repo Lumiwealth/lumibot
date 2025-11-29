@@ -1,18 +1,14 @@
-import os
 import datetime
 import logging
+import os
 from typing import Any
 
-import pytest
-
 import pandas as pd
+import pytest
 from pandas.testing import assert_series_equal
 
+from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting
 from lumibot.strategies import Strategy
-from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
-from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-
 
 logger = logging.getLogger(__name__)
 # print_full_pandas_dataframes()
@@ -177,7 +173,7 @@ class TestMomentum:
 
         # Add print statements for the comparison_df
         print(f"\n{comparison_df}")
-        
+
         # Calculate and print difference
         diff_series = (comparison_df["actual_momo"] - comparison_df["expected_momo"]).abs()
         print(f"\nDifference Series (test_momo_yahoo_lookback_2):\n{diff_series.dropna().head()}")

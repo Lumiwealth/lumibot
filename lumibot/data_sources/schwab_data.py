@@ -32,7 +32,7 @@ class SchwabData(DataSource):
     def __init__(self, client=None, api_key=None, secret=None, account_number=None, **kwargs):
         """
         Initialize the Schwab data source with a client connection.
-        
+
         Args:
             client: Schwab API client instance
             api_key: Schwab API key (used if client is None)
@@ -55,12 +55,12 @@ class SchwabData(DataSource):
     def create_schwab_client(api_key=None, secret=None, account_number=None):
         """
         Create and return a Schwab client instance.
-        
+
         Args:
             api_key (str): Schwab API key
             secret (str): Schwab API secret
             account_number (str): Schwab account number
-            
+
         Returns:
             client: Configured Schwab client or None if credentials are missing
         """
@@ -100,7 +100,7 @@ class SchwabData(DataSource):
     def set_client(self, client):
         """
         Set the client for this data source.
-        
+
         Args:
             client: Schwab API client instance
         """
@@ -222,7 +222,7 @@ class SchwabData(DataSource):
                     chains["Chains"][option_type][exp_date] = []
 
                     # Add all available strikes for this expiration date
-                    for strike_str, strike_data in strikes_data.items():
+                    for strike_str, _strike_data in strikes_data.items():
                         strike = float(strike_str)
                         chains["Chains"][option_type][exp_date].append(strike)
 
@@ -273,10 +273,10 @@ class SchwabData(DataSource):
     def convert_timestep_str_to_timedelta(self, timestep_str):
         """
         Convert a timestep string to a timedelta object.
-        
+
         Args:
             timestep_str: String representing the timestep (e.g., '1minute', '1day')
-            
+
         Returns:
             tuple: (timedelta object, timestep_unit string)
         """
@@ -302,7 +302,7 @@ class SchwabData(DataSource):
     ) -> Bars:
         """
         Get historical price data for an asset from Schwab API.
-        
+
         Parameters
         ----------
         asset : Asset
@@ -320,7 +320,7 @@ class SchwabData(DataSource):
             The exchange to get the bars for.
         include_after_hours : bool
             Whether to include after hours data.
-            
+
         Returns
         -------
         Bars
@@ -372,7 +372,6 @@ class SchwabData(DataSource):
 
         try:
             # Map timestep to Schwab API parameters
-            period_type = None
             frequency_type = None
             frequency = None
 
@@ -498,12 +497,12 @@ class SchwabData(DataSource):
     def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         """
         Get the last price of an asset from Schwab API.
-        
+
         Args:
             asset: The asset to get the price for
             quote: The quote asset if applicable
             exchange: The exchange if applicable
-            
+
         Returns:
             The last price of the asset or None if it can't be retrieved
         """
@@ -541,7 +540,7 @@ class SchwabData(DataSource):
     def get_quote(self, asset, quote=None, exchange=None) -> Quote:
         """
         This function returns the quote of an asset as a Quote object.
-        
+
         Parameters
         ----------
         asset: Asset

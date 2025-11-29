@@ -10,26 +10,27 @@ Tests ACTUAL TRADING with multiple instruments, verifying:
 """
 import datetime
 import shutil
+from pathlib import Path
+
 import pytest
 import pytz
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import (
-    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
-)
 from lumibot.backtesting.databento_backtesting_pandas import (
     DataBentoDataBacktestingPandas,
 )
-from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
+from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -192,14 +193,14 @@ class TestDatabentoComprehensiveTrading:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
+        trader.run_all(
             show_plot=False,
             show_tearsheet=False,
             show_indicators=False,
             save_tearsheet=False
         )
 
-        print(f"\n✓ Backtest completed")
+        print("\n✓ Backtest completed")
         print(f"  Snapshots: {len(strat.snapshots)}")
         print(f"  Trades: {len(strat.trades)}")
 
@@ -227,7 +228,7 @@ class TestDatabentoComprehensiveTrading:
 
         # Analyze each instrument's trades
         for symbol, trades in trades_by_instrument.items():
-            print(f"\n" + "-"*80)
+            print("\n" + "-"*80)
             print(f"ANALYZING {symbol} TRADES")
             print("-"*80)
             print(f"Total trades for {symbol}: {len(trades)}")
@@ -244,7 +245,7 @@ class TestDatabentoComprehensiveTrading:
 
             if len(entries) > 0:
                 entry = entries[0]
-                print(f"\nENTRY TRADE:")
+                print("\nENTRY TRADE:")
                 print(f"  Price: ${entry['price']:.2f}")
                 print(f"  Multiplier: {entry['multiplier']} (expected: {expected_multiplier})")
                 print(f"  Cash after: ${entry['cash_after']:,.2f}")
@@ -272,7 +273,7 @@ class TestDatabentoComprehensiveTrading:
                 margin_deposit = cash_before_entry - entry_cash_after - fee_amount
                 expected_margin_total = expected_margin * float(entry["quantity"])
 
-                print(f"\nCASH / MARGIN STATE:")
+                print("\nCASH / MARGIN STATE:")
                 print(f"  Cash before entry: ${cash_before_entry:,.2f}")
                 print(f"  Cash after entry: ${entry_cash_after:,.2f}")
                 print(f"  Margin captured: ${margin_deposit:,.2f} (expected ${expected_margin_total:,.2f})")
@@ -303,7 +304,7 @@ class TestDatabentoComprehensiveTrading:
                 entry = entries[0]
                 exit_trade = exits[0]
 
-                print(f"\nEXIT TRADE:")
+                print("\nEXIT TRADE:")
                 print(f"  Price: ${exit_trade['price']:.2f}")
                 print(f"  Cash after: ${exit_trade['cash_after']:,.2f}")
                 print(f"  Portfolio after: ${exit_trade['portfolio_after']:,.2f}")
@@ -315,7 +316,7 @@ class TestDatabentoComprehensiveTrading:
                 price_change = exit_price - entry_price
                 expected_pnl = price_change * quantity * expected_multiplier
 
-                print(f"\nP&L VERIFICATION:")
+                print("\nP&L VERIFICATION:")
                 print(f"  Entry price: ${entry_price:.2f}")
                 print(f"  Exit price: ${exit_price:.2f}")
                 print(f"  Quantity: {quantity}")
@@ -329,7 +330,7 @@ class TestDatabentoComprehensiveTrading:
                     - fee_amount  # exit fee
                     + expected_pnl
                 )
-                print(f"\nCASH RECONCILIATION:")
+                print("\nCASH RECONCILIATION:")
                 print(f"  Expected cash after exit: ${expected_cash_after_exit:,.2f}")
                 actual_cash_after_exit = float(exit_trade["cash_after"])
                 print(f"  Actual cash after exit:   ${actual_cash_after_exit:,.2f}")
@@ -338,7 +339,7 @@ class TestDatabentoComprehensiveTrading:
                     f"got ${actual_cash_after_exit:,.2f}"
                 )
 
-        print(f"\n" + "="*80)
+        print("\n" + "="*80)
         print("✓ ALL INSTRUMENTS VERIFIED")
         print("="*80)
 
@@ -437,14 +438,14 @@ class TestDatabentoComprehensiveTradingDaily:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
+        trader.run_all(
             show_plot=False,
             show_tearsheet=False,
             show_indicators=False,
             save_tearsheet=False
         )
 
-        print(f"\n✓ Daily backtest completed")
+        print("\n✓ Daily backtest completed")
         print(f"  Trading days: {strat.day_count}")
         print(f"  Trades: {len(strat.trades)}")
 
@@ -458,7 +459,7 @@ class TestDatabentoComprehensiveTradingDaily:
                 f"{symbol} multiplier should be {expected_mult}, got {trade['multiplier']}"
             print(f"  ✓ {symbol}: multiplier {trade['multiplier']} correct")
 
-        print(f"\n" + "="*80)
+        print("\n" + "="*80)
         print("✓ DAILY DATA TEST PASSED")
         print("="*80)
 
@@ -505,14 +506,14 @@ class TestDatabentoComprehensiveTradingDaily:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
+        trader.run_all(
             show_plot=False,
             show_tearsheet=False,
             show_indicators=False,
             save_tearsheet=False
         )
 
-        print(f"\n✓ Backtest completed")
+        print("\n✓ Backtest completed")
         print(f"  Trades: {len(strat.trades)}")
 
         # Verify we got some trades
@@ -538,7 +539,7 @@ class TestDatabentoComprehensiveTradingDaily:
             assert asset.multiplier == expected_mult, \
                 f"{asset.symbol} asset.multiplier should be {expected_mult}, got {asset.multiplier}"
 
-        print(f"\n" + "="*80)
+        print("\n" + "="*80)
         print("✓ PANDAS VERSION TEST PASSED")
         print("="*80)
 

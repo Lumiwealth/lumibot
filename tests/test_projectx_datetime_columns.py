@@ -1,9 +1,12 @@
-import pandas as pd
-import types
-import pytest
-from lumibot.entities import Asset
-from lumibot.data_sources.projectx_data import ProjectXData
 import logging
+import types
+
+import pandas as pd
+import pytest
+
+from lumibot.data_sources.projectx_data import ProjectXData
+from lumibot.entities import Asset
+
 
 class DummyClientDT:
     def history_retrieve_bars(self, contract_id, start_datetime, end_datetime, unit, unit_number, limit, include_partial_bar, live, is_est):

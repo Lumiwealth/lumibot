@@ -8,7 +8,7 @@ from lumibot.strategies.strategy import Strategy
 """
 Strategy Description
 
-This strategy will buy a few symbols that have 2x or 3x returns (have leverage), but will 
+This strategy will buy a few symbols that have 2x or 3x returns (have leverage), but will
 also diversify and rebalance the portfolio often.
 """
 
@@ -62,7 +62,7 @@ class DiversifiedLeverage(Strategy):
     def on_trading_iteration(self):
         rebalance_period = self.parameters["rebalance_period"]
         # If the target number of days (period) has passed, rebalance the portfolio
-        if self.counter == rebalance_period or self.counter == None:
+        if self.counter == rebalance_period or self.counter is None:
             self.counter = 0
             self.rebalance_portfolio()
             self.log_message(

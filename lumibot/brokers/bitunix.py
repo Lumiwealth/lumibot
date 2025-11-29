@@ -6,12 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from .broker import Broker, LumibotBrokerAPIError
 from lumibot.data_sources.bitunix_data import BitunixData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import PollingStream
+
+from .broker import Broker, LumibotBrokerAPIError
 
 logger = get_logger(__name__)
 

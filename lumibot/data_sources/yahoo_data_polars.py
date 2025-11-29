@@ -55,7 +55,7 @@ class YahooDataPolars(PolarsMixin, DataSourceBacktesting):
 
     def _store_data(self, asset: Asset, data: pl.DataFrame) -> pl.LazyFrame:
         """Store data efficiently using lazy frames.
-        
+
         Returns lazy frame for efficient subsequent operations.
         """
         if not isinstance(data, pl.DataFrame):

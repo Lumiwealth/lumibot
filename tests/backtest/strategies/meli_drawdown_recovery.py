@@ -1,18 +1,17 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
+import math
+
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.credentials import IS_BACKTESTING
-
-from datetime import timedelta
-import math
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 """
 Strategy Description

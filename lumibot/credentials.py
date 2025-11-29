@@ -1,4 +1,4 @@
-# NOTE: 
+# NOTE:
 # This file is not meant to be modified. This file loads the credentials from the ".env" file or secrets and sets them as environment variables.
 # If you want to set the environment variables on your computer, you can do so by creating a ".env" file in the root directory of the project
 # and adding the variables described in the "Secrets Configuration" section of the README.md file like this (but without the "# " at the front):
@@ -9,18 +9,30 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradovate, Schwab, Bitunix, ProjectX
-from dotenv import load_dotenv
 import termcolor
 from dateutil import parser
+from dotenv import load_dotenv
 
 # Configure logging
 from lumibot.tools.lumibot_logger import get_logger
+
+from .brokers import (
+    Alpaca,
+    Bitunix,
+    Ccxt,
+    InteractiveBrokers,
+    InteractiveBrokersREST,
+    ProjectX,
+    Schwab,
+    Tradier,
+    Tradovate,
+)
+
 logger = get_logger(__name__)
 
 
 def find_and_load_dotenv(base_dir) -> bool:
-    for root, dirs, files in os.walk(base_dir):
+    for root, _dirs, files in os.walk(base_dir):
         logger.debug(f"Checking {root} for .env file")
         if '.env' in files:
             dotenv_path = os.path.join(root, '.env')
@@ -360,26 +372,26 @@ def get_projectx_config(firm: str = None) -> dict:
     # If no firm specified, try to get from environment
     if firm is None:
         firm = os.environ.get("PROJECTX_FIRM")
-    
+
     if not firm:
         # Try to auto-detect available firm
         available_firms = get_available_projectx_firms()
         if available_firms:
             firm = available_firms[0]  # Use first available
-    
+
     if not firm:
         return {}
-    
+
     firm_lower = firm.lower()
     firm_upper = firm.upper()
-    
+
     # Get URLs: Environment override OR built-in mapping
-    base_url = (os.environ.get(f"PROJECTX_{firm_upper}_BASE_URL") or 
+    base_url = (os.environ.get(f"PROJECTX_{firm_upper}_BASE_URL") or
                 PROJECTX_BASE_URLS.get(firm_lower))
-    
-    streaming_url = (os.environ.get(f"PROJECTX_{firm_upper}_STREAMING_BASE_URL") or 
+
+    streaming_url = (os.environ.get(f"PROJECTX_{firm_upper}_STREAMING_BASE_URL") or
                      PROJECTX_STREAMING_URLS.get(firm_lower))
-    
+
     return {
         "firm": firm_upper,
         "api_key": os.environ.get(f"PROJECTX_{firm_upper}_API_KEY"),
@@ -416,7 +428,7 @@ data_source = None
 is_backtesting = os.environ.get("IS_BACKTESTING")
 if not is_backtesting or is_backtesting.lower() == "false":
     IS_BACKTESTING = False
-    
+
     # Determine which trading broker to use based on TRADING_BROKER environment variable or available configs
     if trading_broker_name:
         # Create broker instance based on explicitly specified name
@@ -445,10 +457,10 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 # Get specified firm or use auto-detection
                 firm = os.environ.get("PROJECTX_FIRM")
                 config = get_projectx_config(firm)
-                
+
                 if not config or not config.get("api_key"):
                     raise ValueError("No valid ProjectX configuration found. Please set environment variables for at least one firm.")
-                
+
                 from .data_sources import ProjectXData
                 data_source = ProjectXData(config)
                 broker = ProjectX(config, data_source=data_source)
@@ -459,11 +471,11 @@ if not is_backtesting or is_backtesting.lower() == "false":
             try:
                 # Extract firm name from broker name (e.g., "projectx-topone" -> "topone")
                 firm_suffix = trading_broker_name.lower()[9:]  # Remove "projectx-" prefix
-                
+
                 # Map broker suffixes to firm names (must match Node.js mapping)
                 suffix_to_firm_mapping = {
                     'topstepx': 'TOPSTEPX',
-                    'topone': 'TOPONE', 
+                    'topone': 'TOPONE',
                     'tickticktrader': 'TICKTICKTRADER',
                     'alphaticks': 'ALPHATICKS',
                     'aquafutures': 'AQUAFUTURES',
@@ -485,16 +497,16 @@ if not is_backtesting or is_backtesting.lower() == "false":
                     'earn2trade': 'EARN2TRADE',
                     'uprofit': 'UPROFIT'
                 }
-                
+
                 if firm_suffix not in suffix_to_firm_mapping:
                     raise ValueError(f"Unknown ProjectX firm: {firm_suffix}. Supported firms: {list(suffix_to_firm_mapping.keys())}")
-                
+
                 firm = suffix_to_firm_mapping[firm_suffix]
                 config = get_projectx_config(firm)
-                
+
                 if not config or not config.get("api_key"):
                     raise ValueError(f"No valid ProjectX configuration found for firm {firm}. Please set environment variables.")
-                
+
                 from .data_sources import ProjectXData
                 data_source = ProjectXData(config)
                 broker = ProjectX(config, data_source=data_source)
@@ -551,7 +563,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 # Use first available ProjectX firm
                 available_firms = get_available_projectx_firms()
                 config = get_projectx_config(available_firms[0])
-                
+
                 if config.get("api_key") and config.get("username"):
                     from .data_sources import ProjectXData
                     data_source = ProjectXData(config)
@@ -559,7 +571,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
             except Exception as e:
                 colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
                 logger.error(colored_message)
-    
+
     # Determine if we should use a custom data source based on DATA_SOURCE environment variable
     if data_source_name:
         try:
@@ -590,11 +602,11 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 data_source = PolygonData(api_key=POLYGON_API_KEY)
             elif data_source_name.lower() == "yahoo":
                 from .data_sources import YahooData
-                
+
                 # Initialize YahooData without explicitly passing dates
                 # The class will handle defaults internally
                 data_source = YahooData()
-                
+
                 # Only set dates if they're explicitly provided in environment variables
                 if BACKTESTING_START and BACKTESTING_END:
                     data_source._update_datetime_limits(BACKTESTING_START, BACKTESTING_END)
@@ -641,7 +653,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 # Get specified firm or use auto-detection
                 firm = os.environ.get("PROJECTX_FIRM")
                 config = get_projectx_config(firm)
-                
+
                 if not config or not config.get("api_key"):
                     colored_message = termcolor.colored("No valid ProjectX configuration found for data source. Please set environment variables for at least one firm.", "red")
                     logger.error(colored_message)
@@ -656,13 +668,13 @@ if not is_backtesting or is_backtesting.lower() == "false":
         except ImportError as e:
             colored_message = termcolor.colored(f"Could not import data source {data_source_name}: {str(e)}", "red")
             logger.error(colored_message)
-    
+
     # If we have both a broker and a custom data source, set the broker's data source
     if broker and data_source:
         logger.info(termcolor.colored(f"Using {data_source_name} as data source for {broker.name} broker", "green"))
         # Store the original data source for reference
         original_broker_data_source = broker.data_source
-        
+
         # Set the custom data source
         broker.data_source = data_source
 

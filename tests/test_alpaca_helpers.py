@@ -17,7 +17,7 @@ def test_sanitize_base_and_quote_asset():
     # Create some Asset objects for testing
     stock_asset = Asset(symbol="AAPL")
     usd_asset = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
-    option_asset = Asset(symbol="AAPL230915C00150000", asset_type=Asset.AssetType.OPTION)
+    Asset(symbol="AAPL230915C00150000", asset_type=Asset.AssetType.OPTION)
     crypto_asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
 
     # Regular input with two Asset objects

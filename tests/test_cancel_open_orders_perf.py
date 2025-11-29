@@ -1,8 +1,8 @@
 import datetime
 from unittest.mock import MagicMock
 
-from lumibot.strategies import strategy as strategy_module
 from lumibot.strategies import _strategy as base_strategy_module
+from lumibot.strategies import strategy as strategy_module
 
 
 class _DummyOrder:

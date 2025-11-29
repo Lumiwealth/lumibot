@@ -2,6 +2,7 @@ import traceback
 from datetime import datetime, timedelta
 
 import pandas as pd
+from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import PandasData
@@ -9,9 +10,8 @@ from lumibot.entities import Asset, Data
 from lumibot.tools import databento_helper
 from lumibot.tools.databento_helper import DataBentoAuthenticationError
 from lumibot.tools.helpers import to_datetime_aware
-from termcolor import colored
-
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 START_BUFFER = timedelta(days=5)
@@ -20,7 +20,7 @@ START_BUFFER = timedelta(days=5)
 class DataBentoDataBacktestingPandas(PandasData):
     """
     Backtesting implementation of DataBento data source
-    
+
     This class extends PandasData to provide DataBento-specific backtesting functionality,
     including data retrieval, caching, and time-based filtering for historical simulations.
     """
@@ -37,7 +37,7 @@ class DataBentoDataBacktestingPandas(PandasData):
     ):
         """
         Initialize DataBento backtesting data source
-        
+
         Parameters
         ----------
         datetime_start : datetime
@@ -67,7 +67,7 @@ class DataBentoDataBacktestingPandas(PandasData):
         self._api_key = api_key
         self._timeout = timeout
         self._max_retries = max_retries
-        
+
         # Track which assets we've already fetched to avoid redundant requests
         self._prefetched_assets = set()
         # Track data requests to avoid repeated log messages
@@ -171,7 +171,7 @@ class DataBentoDataBacktestingPandas(PandasData):
         """
         Prefetch all required data for the specified assets for the entire backtest period.
         This reduces redundant API calls and log spam during backtesting.
-        
+
         Parameters
         ----------
         assets : list of Asset
@@ -181,25 +181,25 @@ class DataBentoDataBacktestingPandas(PandasData):
         """
         if not assets:
             return
-            
+
         logger.debug(f"Prefetching DataBento data for {len(assets)} assets...")
-        
+
         for asset in assets:
             # Create search key for the asset
             quote_asset = Asset("USD", "forex")
             search_asset = (asset, quote_asset)
-            
+
             # Skip if already prefetched
             if search_asset in self._prefetched_assets:
                 continue
-                
+
             try:
                 # Calculate start with buffer for better data coverage
                 start_datetime = self.datetime_start - START_BUFFER
                 end_datetime = self.datetime_end + timedelta(days=1)
-                
+
                 logger.debug(f"Fetching {asset.symbol} data from {start_datetime.date()} to {end_datetime.date()}")
-                
+
                 # Get data from DataBento for entire period
                 df = databento_helper.get_price_data_from_databento(
                     api_key=self._api_key,
@@ -216,7 +216,7 @@ class DataBentoDataBacktestingPandas(PandasData):
                     empty_df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume'])
                     # Create an empty DatetimeIndex with proper timezone
                     empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name='datetime')
-                    
+
                     data_obj = Data(
                         asset,
                         df=empty_df,
@@ -237,10 +237,10 @@ class DataBentoDataBacktestingPandas(PandasData):
                     )
                     self.pandas_data[search_asset] = data_obj
                     logger.debug(f"Cached {len(df)} rows for {asset.symbol}")
-                
+
                 # Mark as prefetched
                 self._prefetched_assets.add(search_asset)
-                
+
             except DataBentoAuthenticationError as e:
                 logger.error(colored(f"DataBento authentication failed while prefetching {asset.symbol}: {e}", "red"))
                 raise
@@ -289,7 +289,7 @@ class DataBentoDataBacktestingPandas(PandasData):
         if search_asset in self.pandas_data:
             asset_data = self.pandas_data[search_asset]
             asset_data_df = asset_data.df
-            
+
             # Only check if we have actual data (not empty DataFrame)
             if not asset_data_df.empty and len(asset_data_df.index) > 0:
                 data_start_datetime = asset_data_df.index[0]
@@ -303,17 +303,17 @@ class DataBentoDataBacktestingPandas(PandasData):
                     # Ensure both datetimes are timezone-aware for comparison
                     data_start_tz = to_datetime_aware(data_start_datetime)
                     data_end_tz = to_datetime_aware(data_end_datetime)
-                    
+
                     # Get the start datetime with buffer
                     start_datetime, _ = self.get_start_datetime_and_ts_unit(
                         length, timestep, start_dt, start_buffer=START_BUFFER
                     )
                     start_tz = to_datetime_aware(start_datetime)
-                    
+
                     # Check if existing data covers the needed time range with buffer
                     needed_start = start_tz - START_BUFFER
                     needed_end = self.datetime_end
-                    
+
                     if data_start_tz <= needed_start and data_end_tz >= needed_end:
                         # Data is already sufficient - return silently
                         return
@@ -321,21 +321,21 @@ class DataBentoDataBacktestingPandas(PandasData):
         # We need to fetch new data from DataBento
         # Create a unique key for logging to avoid spam
         log_key = f"{asset_separated.symbol}_{timestep}"
-        
+
         try:
             # Only log fetch message once per asset/timestep combination
             if log_key not in self._logged_requests:
                 logger.debug(f"Fetching {timestep} data for {asset_separated.symbol}")
                 self._logged_requests.add(log_key)
-            
+
             # Get the start datetime and timestep unit
             start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
                 length, timestep, start_dt, start_buffer=START_BUFFER
             )
-            
+
             # Calculate end datetime (use current backtest end or a bit beyond)
             end_datetime = self.datetime_end + timedelta(days=1)
-            
+
             # Get data from DataBento
             df = databento_helper.get_price_data_from_databento(
                 api_key=self._api_key,
@@ -353,7 +353,7 @@ class DataBentoDataBacktestingPandas(PandasData):
                 empty_df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume'])
                 # Create an empty DatetimeIndex with proper timezone
                 empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name='datetime')
-                
+
                 data_obj = Data(
                     asset_separated,
                     df=empty_df,
@@ -378,7 +378,7 @@ class DataBentoDataBacktestingPandas(PandasData):
                 timestep=ts_unit,
                 quote=quote_asset,
             )
-            
+
             self.pandas_data[search_asset] = data_obj
 
         except DataBentoAuthenticationError as e:
@@ -459,7 +459,7 @@ class DataBentoDataBacktestingPandas(PandasData):
                                 # OPTIMIZATION: Cache the result
                                 self._last_price_cache[cache_key] = price
                                 return price
-            
+
             # If no cached data, try to load it for the backtest window
             try:
                 fetched_bars = self.get_historical_prices(
@@ -493,7 +493,7 @@ class DataBentoDataBacktestingPandas(PandasData):
                 venue=exchange,
                 reference_date=current_dt_aware
             )
-            
+
         except DataBentoAuthenticationError as e:
             logger.error(colored(f"DataBento authentication failed while getting last price for {asset.symbol}: {e}", "red"))
             raise
@@ -504,16 +504,16 @@ class DataBentoDataBacktestingPandas(PandasData):
     def get_chains(self, asset, quote=None):
         """
         Get option chains for an asset
-        
+
         DataBento doesn't provide options chain data, so this returns an empty dict.
-        
+
         Parameters
         ----------
         asset : Asset
             Asset to get chains for
         quote : Asset, optional
             Quote asset
-            
+
         Returns
         -------
         dict
@@ -525,7 +525,7 @@ class DataBentoDataBacktestingPandas(PandasData):
     def _get_bars_dict(self, assets, length, timestep, timeshift=None):
         """
         Override parent method to handle DataBento-specific data retrieval
-        
+
         Parameters
         ----------
         assets : list
@@ -536,28 +536,28 @@ class DataBentoDataBacktestingPandas(PandasData):
             Timestep for the data
         timeshift : timedelta, optional
             Time shift to apply
-            
+
         Returns
         -------
         dict
             Dictionary mapping assets to their bar data
         """
         result = {}
-        
+
         for asset in assets:
             try:
                 # Update pandas data if needed
                 self._update_pandas_data(asset, None, length, timestep)
-                
+
                 # Get data from pandas_data
                 search_asset = asset
                 if not isinstance(search_asset, tuple):
                     search_asset = (search_asset, Asset("USD", "forex"))
-                
+
                 if search_asset in self.pandas_data:
                     asset_data = self.pandas_data[search_asset]
                     df = asset_data.df
-                    
+
                     if not df.empty:
                         # Apply timeshift if specified
                         current_dt = self.get_datetime()
@@ -569,19 +569,19 @@ class DataBentoDataBacktestingPandas(PandasData):
                             else:
                                 shift_seconds = timeshift.total_seconds()
                                 current_dt = current_dt - timeshift
-                        
+
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
-                        
+
                         # Filter data up to current backtest time (exclude current bar unless broker overrides)
                         include_current = getattr(self, "_include_current_bar_for_orders", False)
                         allow_current = include_current or shift_seconds > 0
                         mask = df.index <= current_dt_aware if allow_current else df.index < current_dt_aware
                         filtered_df = df[mask]
-                        
+
                         # Take the last 'length' bars
                         result_df = filtered_df.tail(length)
-                        
+
                         if not result_df.empty:
                             result[asset] = result_df
                         else:
@@ -593,14 +593,14 @@ class DataBentoDataBacktestingPandas(PandasData):
                 else:
                     logger.warning(f"No data found for {asset.symbol}")
                     result[asset] = None
-                    
+
             except DataBentoAuthenticationError as e:
                 logger.error(colored(f"DataBento authentication failed while getting bars for {asset}: {e}", "red"))
                 raise
             except Exception as e:
                 logger.error(f"Error getting bars for {asset}: {e}")
                 result[asset] = None
-        
+
         return result
 
     def _pull_source_symbol_bars(
@@ -730,12 +730,12 @@ class DataBentoDataBacktestingPandas(PandasData):
                 return None
         else:
             return None
-    
+
     def initialize_data_for_backtest(self, strategy_assets, timestep="minute"):
         """
         Convenience method to prefetch all required data for a backtest strategy.
         This should be called during strategy initialization to load all data up front.
-        
+
         Parameters
         ----------
         strategy_assets : list of Asset or list of str
@@ -756,8 +756,8 @@ class DataBentoDataBacktestingPandas(PandasData):
                     assets.append(Asset(asset, "stock"))
             else:
                 assets.append(asset)
-        
+
         # Prefetch data for all assets
         self.prefetch_data(assets, timestep)
-        
+
         logger.debug(f"Initialized DataBento backtesting with prefetched data for {len(assets)} assets")

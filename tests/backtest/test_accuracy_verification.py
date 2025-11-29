@@ -12,11 +12,13 @@ Goals:
 
 import datetime
 import os
+
 import pytest
 from dotenv import load_dotenv
-from lumibot.strategies import Strategy
+
 from lumibot.backtesting import PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
+from lumibot.strategies import Strategy
 
 # Load environment variables from .env file
 load_dotenv()
@@ -73,8 +75,8 @@ class TestAccuracyVerification:
         print("TEST 1: ONE YEAR ACCURACY VERIFICATION - AMZN")
         print("="*80)
         print(f"Period: {backtesting_start.date()} to {backtesting_end.date()}")
-        print(f"Symbol: AMZN")
-        print(f"Trading days: ~252")
+        print("Symbol: AMZN")
+        print("Trading days: ~252")
 
         # Run ThetaData backtest
         print("\n[1/2] Running ThetaData backtest...")
@@ -230,12 +232,12 @@ class TestAccuracyVerification:
         print("-"*80)
         print(f"Average Variance: {avg_pct:.4f}%")
         print(f"Maximum Variance: {max_pct:.4f}%")
-        print(f"Threshold:        0.01%")
+        print("Threshold:        0.01%")
 
         assert avg_pct < 0.01, f"Average variance {avg_pct:.4f}% exceeds 0.01%"
         assert max_pct < 0.01, f"Max variance {max_pct:.4f}% exceeds 0.01%"
 
-        print(f"\n✓ TEST PASSED: All symbols within acceptable variance")
+        print("\n✓ TEST PASSED: All symbols within acceptable variance")
         print("="*80 + "\n")
 
 

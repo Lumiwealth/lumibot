@@ -12,6 +12,7 @@ Tests a SINGLE trade from start to finish:
 This test should give us confidence that the basic mechanics are correct.
 """
 import datetime
+
 import pytest
 import pytz
 from dotenv import load_dotenv
@@ -20,11 +21,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -140,7 +143,7 @@ class TestFuturesSingleTrade:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
+        trader.run_all(
             show_plot=False,
             show_tearsheet=False,
             show_indicators=False,
@@ -195,7 +198,7 @@ class TestFuturesSingleTrade:
                 # During hold period - verify mark-to-market is working
                 # Get the entry snapshot (iteration 2, right after entry)
                 entry_snap = strat.snapshots[1]  # First snapshot with position
-                entry_fill_price = entry_snap['price']  # This should be close to fill price
+                entry_snap['price']  # This should be close to fill price
 
                 # Calculate unrealized P&L from actual fill
                 price_change = snap['price'] - strat.entry_price
@@ -246,7 +249,7 @@ class TestFuturesSingleTrade:
             print(f"Exit price: ${exit_price:.2f}")
             print(f"Price change: ${price_change:.2f}")
             print(f"Expected P&L: ${expected_pnl:.2f}")
-            print(f"Fees: $1.00")
+            print("Fees: $1.00")
             print(f"Expected final cash: ${expected_final_cash:,.2f}")
             print(f"Actual final cash: ${actual_final_cash:,.2f}")
             print(f"Difference: ${cash_diff:,.2f}")

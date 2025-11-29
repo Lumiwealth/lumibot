@@ -62,12 +62,12 @@ class Trader:
         self._strategies.append(strategy)
 
     def run_all(
-            self, 
-            async_=False, 
-            show_plot=True, 
-            show_tearsheet=True, 
-            save_tearsheet=True, 
-            show_indicators=True, 
+            self,
+            async_=False,
+            show_plot=True,
+            show_tearsheet=True,
+            save_tearsheet=True,
+            show_indicators=True,
             tearsheet_file=None,
             base_filename=None,
             ):
@@ -172,8 +172,8 @@ class Trader:
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
         # Import here to avoid circular imports
-        from lumibot.tools.lumibot_logger import set_log_level, set_console_log_level, add_file_handler
-        
+        from lumibot.tools.lumibot_logger import add_file_handler, set_log_level
+
         # Set external library log levels to reduce noise
         # NOTE: lumilogger.get_logger doesn't work with non-lumibot loggers, so we use logging.getLogger directly
         logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -201,7 +201,7 @@ class Trader:
             add_file_handler(str(self.logfile), level="DEBUG" if self.debug else "INFO")
 
         # Disable Interactive Brokers logs
-        for log_name, log_obj in logging.Logger.manager.loggerDict.items():
+        for log_name, _log_obj in logging.Logger.manager.loggerDict.items():
             if log_name.startswith("ibapi"):
                 iblogger = logging.getLogger(log_name)
                 iblogger.setLevel(logging.CRITICAL)
@@ -217,7 +217,7 @@ class Trader:
     def _join_pool(self):
         for strategy_thread in self._pool:
             strategy_thread.join()
-            
+
         # For backtesting, check if any strategy failed and raise exception
         if self.is_backtest_broker:
             for strategy_thread in self._pool:

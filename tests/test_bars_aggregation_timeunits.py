@@ -1,6 +1,6 @@
-import polars as pl
-import pytest
 from datetime import datetime, timezone
+
+import polars as pl
 
 from lumibot.entities.bars import Bars
 

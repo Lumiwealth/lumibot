@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import Optional, Union
 
 import numpy as np
-
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ

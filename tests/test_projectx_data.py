@@ -1,10 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, patch
-import pandas as pd
 import datetime as dt
+from unittest.mock import MagicMock, patch
 
-from lumibot.entities import Asset, Bars
+import pandas as pd
+import pytest
+
 from lumibot.data_sources.projectx_data import ProjectXData
+from lumibot.entities import Asset, Bars
 
 
 @pytest.fixture
@@ -13,7 +14,7 @@ def mock_projectx_config():
     return {
         "firm": "TEST",
         "api_key": "test_api_key",
-        "username": "test_user", 
+        "username": "test_user",
         "base_url": "https://test.projectx.com",
         "preferred_account_name": "TestAccount",
         "streaming_base_url": "wss://test.projectx.com/hub"
@@ -233,7 +234,7 @@ class TestProjectXDataSource:
             "success": True,
             "contract": {
                 "ContractId": "CON.F.US.MES.U25",
-                "Symbol": "MES", 
+                "Symbol": "MES",
                 "Description": "E-mini S&P 500 Future",
                 "TickSize": 0.25
             }
@@ -360,4 +361,4 @@ class TestProjectXDataSourceIntegration:
 
             # Should eventually find contract
             assert contract_id == "CON.F.US.MES.U25"
-            mock_contracts.assert_called_once() 
+            mock_contracts.assert_called_once()

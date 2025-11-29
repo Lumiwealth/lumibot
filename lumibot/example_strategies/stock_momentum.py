@@ -62,13 +62,13 @@ class Momentum(Strategy):
                     best_asset = self.asset
                     best_asset_data = current_asset_data
 
-            self.log_message("%s best symbol." % best_asset)
+            self.log_message(f"{best_asset} best symbol.")
 
             # If the asset with the highest momentum has changed, buy the new asset
             if best_asset != self.asset:
                 # Sell the current asset that we own
                 if self.asset:
-                    self.log_message("Swapping %s for %s." % (self.asset, best_asset))
+                    self.log_message(f"Swapping {self.asset} for {best_asset}.")
                     order = self.create_order(self.asset, self.quantity, "sell")
                     self.submit_order(order)
 

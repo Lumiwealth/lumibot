@@ -1,8 +1,10 @@
-import pandas as pd
 from types import SimpleNamespace
+
+import pandas as pd
 
 from lumibot.data_sources.projectx_data import ProjectXData
 from lumibot.entities.asset import Asset
+
 
 class DummyClient:
     def history_retrieve_bars(self, contract_id, start_datetime, end_datetime, unit, unit_number, limit, include_partial_bar, live, is_est):

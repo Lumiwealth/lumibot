@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Iterable
 
 
 class OptionsDataFormatError(ValueError):
@@ -18,7 +18,7 @@ class Chains(dict):
     unchanged.
     """
 
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: dict[str, Any]):
         # preserve original mapping
         super().__init__(data)
         # Keep commonly accessed fields as attributes for quick access
@@ -28,36 +28,36 @@ class Chains(dict):
     # ------------------------------------------------------------------
     # Convenience accessors
     # ------------------------------------------------------------------
-    def calls(self) -> Dict[str, List[float]]:
+    def calls(self) -> dict[str, list[float]]:
         """Return the CALL side of the chain {expiration (YYYY-MM-DD): [strikes]}"""
         return self.get("Chains", {}).get("CALL", {})
 
-    def puts(self) -> Dict[str, List[float]]:
+    def puts(self) -> dict[str, list[float]]:
         """Return the PUT side of the chain {expiration (YYYY-MM-DD): [strikes]}"""
         return self.get("Chains", {}).get("PUT", {})
 
-    def expirations(self, option_type: str = "CALL") -> List[str]:
+    def expirations(self, option_type: str = "CALL") -> list[str]:
         """List available expiration strings (YYYY-MM-DD) for the specified option type."""
         opts = self.get("Chains", {}).get(option_type.upper(), {})
         return sorted(opts.keys())
 
-    def strikes(self, expiration: Union[str, date, datetime], option_type: str = "CALL") -> List[float]:
+    def strikes(self, expiration: str | date | datetime, option_type: str = "CALL") -> list[float]:
         """Return the strikes list for a given expiration (accepts string YYYY-MM-DD or date)."""
         if isinstance(expiration, (date, datetime)):
             expiration = _normalise_expiry_key(expiration)
         return self.get("Chains", {}).get(option_type.upper(), {}).get(expiration, [])
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a shallow copy of the underlying dict."""
         return dict(self)
 
     # Internal helpers for date-based access
-    def expirations_as_dates(self, option_type: str = "CALL") -> List[date]:
+    def expirations_as_dates(self, option_type: str = "CALL") -> list[date]:
         """List expiration dates for internal use."""
         opts = self.get("Chains", {}).get(option_type.upper(), {})
         return sorted([_normalise_expiry(exp) for exp in opts.keys()])
 
-    def get_option_chain_by_date(self, expiry_date: date, option_type: str = "CALL") -> List[float]:
+    def get_option_chain_by_date(self, expiry_date: date, option_type: str = "CALL") -> list[float]:
         """Get strikes for a date object (internal helper)."""
         expiry_str = expiry_date.strftime("%Y-%m-%d")
         return self.get("Chains", {}).get(option_type.upper(), {}).get(expiry_str, [])
@@ -108,12 +108,12 @@ def _normalise_expiry_key(expiry: Any) -> str:
     return _normalise_expiry(expiry).strftime("%Y-%m-%d")
 
 
-def _copy_strike_map(strike_map: Any) -> Dict[str, List[float]]:
+def _copy_strike_map(strike_map: Any) -> dict[str, list[float]]:
     """Return a shallow copy of the expiration->strikes mapping with ISO string keys."""
     if not isinstance(strike_map, dict):
         return {}
 
-    copied: Dict[str, List[float]] = {}
+    copied: dict[str, list[float]] = {}
     for expiry, strikes in strike_map.items():
         expiry_key = _normalise_expiry_key(expiry)
         if isinstance(strikes, Iterable) and not isinstance(strikes, (str, bytes)):
@@ -134,7 +134,7 @@ def _copy_strike_map(strike_map: Any) -> Dict[str, List[float]]:
 def normalize_option_chains(data: Any) -> Chains:
     """Normalise arbitrary option-chain payloads into the standard structure."""
     if isinstance(data, Chains):
-        base: Dict[str, Any] = data.to_dict()
+        base: dict[str, Any] = data.to_dict()
     elif isinstance(data, dict):
         base = dict(data)
     else:

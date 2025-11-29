@@ -1,9 +1,9 @@
+import math
+import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import math
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
 
 from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
@@ -199,7 +199,7 @@ class OptionsHelper:
                         if price is not None:
                             self.strategy.log_message(f"Found valid option (via last price): {option.symbol} {option.right} {option.strike} exp {option.expiration}", color="green")
                             return option
-                    except Exception as e:
+                    except Exception:
                         pass
 
                     # If closest strike didn't work, this expiry might be invalid
@@ -367,41 +367,41 @@ class OptionsHelper:
         """
         self.strategy.log_message(
             f"🎯 STRIKE SEARCH: Finding strike for {underlying_asset.symbol} "
-            f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})", 
+            f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})",
             color="blue"
         )
-        
+
         # Validate input parameters
         if underlying_price <= 0:
             self.strategy.log_message(f"❌ ERROR: Invalid underlying price {underlying_price}", color="red")
             return None
-            
+
         if target_delta is None:
-            self.strategy.log_message(f"❌ ERROR: target_delta is None", color="red")
+            self.strategy.log_message("❌ ERROR: target_delta is None", color="red")
             return None
-            
+
         if abs(target_delta) > 1:
             self.strategy.log_message(f"❌ ERROR: Invalid target delta {target_delta} (should be between -1 and 1)", color="red")
             return None
-        
+
         low_strike = int(underlying_price - 20)
         high_strike = int(underlying_price + 30)
-        
+
         # Ensure strikes are positive
         low_strike = max(1, low_strike)
-        
+
         self.strategy.log_message(
-            f"🔍 Search range: strikes {low_strike} to {high_strike} (underlying=${underlying_price})", 
+            f"🔍 Search range: strikes {low_strike} to {high_strike} (underlying=${underlying_price})",
             color="blue"
         )
-        
+
         closest_strike: Optional[float] = None
         closest_delta: Optional[float] = None
 
         while low_strike <= high_strike:
             mid_strike = (low_strike + high_strike) // 2
             self.strategy.log_message(f"🔎 Trying strike {mid_strike} (range: {low_strike}-{high_strike})", color="blue")
-            
+
             mid_delta = self.get_delta_for_strike(underlying_asset, underlying_price, mid_strike, expiry, right)
             if mid_delta is None:
                 self.strategy.log_message(f"⚠️  Mid delta at strike {mid_strike} is None; adjusting search.", color="yellow")
@@ -427,10 +427,10 @@ class OptionsHelper:
         if closest_strike is not None:
             self.strategy.log_message(
                 f"✅ RESULT: Closest strike {closest_strike} with delta {closest_delta:.4f} "
-                f"(target was {target_delta})", 
+                f"(target was {target_delta})",
                 color="green"
             )
-            
+
             # Sanity check the result
             if underlying_price > 50 and closest_strike < 10:
                 self.strategy.log_message(
@@ -440,7 +440,7 @@ class OptionsHelper:
                 )
         else:
             self.strategy.log_message(f"❌ No valid strike found for target delta {target_delta}", color="red")
-            
+
         return closest_strike
 
     def calculate_multileg_limit_price(self, orders: List[Order], limit_type: str) -> Optional[float]:
@@ -804,7 +804,6 @@ class OptionsHelper:
                     if specific_chain:
                         expiration_dates = _try_resolve_expiration(specific_chain)
                         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
-                        chain_refetched = True
             if future_candidates:
                 self.strategy.log_message(
                     f"Extended chain request delivered {len(future_candidates)} expirations >= {dt}.",
@@ -1249,7 +1248,7 @@ class OptionsHelper:
         if limit_price is None:
             self.strategy.log_message("Warning: limit_price is None, defaulting to 'even' order type", color="yellow")
             return "even"
-            
+
         if limit_price > 0:
             return "debit"
         elif limit_price < 0:
@@ -1600,7 +1599,7 @@ class OptionsHelper:
         orders : List[Order]
             The list of orders that constitute the spread.
         contract_multiplier : int, optional
-            The Option contract multiplier to use (default is 100) 
+            The Option contract multiplier to use (default is 100)
 
         Returns
         -------
@@ -1614,7 +1613,7 @@ class OptionsHelper:
             if price is None:
                 self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
                 return None
-            multiplier = -1 if order.side.lower() == "buy" else 1
+            -1 if order.side.lower() == "buy" else 1
             current_value += price * order.quantity * contract_multiplier
         profit_pct = ((current_value - initial_cost) / initial_cost) * 100
         self.strategy.log_message(f"Spread profit percentage: {profit_pct:.2f}%", color="blue")

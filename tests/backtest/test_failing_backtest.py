@@ -1,9 +1,6 @@
 import datetime
+
 import pytest
-import subprocess
-import sys
-import os
-import tempfile
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.strategies import Strategy
@@ -12,7 +9,7 @@ from lumibot.traders import Trader
 
 class FailingInitializeStrategy(Strategy):
     """Strategy that fails during initialize() to test error handling"""
-    
+
     parameters = {
         "symbol": "SPY",
     }
@@ -30,7 +27,7 @@ class FailingInitializeStrategy(Strategy):
 
 class FailingTradingIterationStrategy(Strategy):
     """Strategy that fails during on_trading_iteration() to test error handling"""
-    
+
     parameters = {
         "symbol": "SPY",
     }
@@ -69,11 +66,11 @@ class TestFailingBacktest:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(failing_strategy)
-        
+
         # This should raise an exception
         with pytest.raises(Exception) as exc_info:
             trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file="")
-        
+
         # Verify the error message contains our intentional error
         assert "Intentional error in initialize() for testing" in str(exc_info.value)
 
@@ -99,11 +96,11 @@ class TestFailingBacktest:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(failing_strategy)
-        
+
         # This should raise an exception
         with pytest.raises(Exception) as exc_info:
             trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file="")
-        
+
         # Verify the error message contains our intentional error
         assert "Intentional error in on_trading_iteration() for testing" in str(exc_info.value)
 
@@ -124,7 +121,7 @@ class TestFailingBacktest:
                 show_tearsheet=False,
                 save_tearsheet=False,
             )
-        
+
         assert "Intentional error in initialize() for testing" in str(exc_info.value)
 
     def test_backtest_classmethod_trading_iteration_failure(self):
@@ -144,6 +141,6 @@ class TestFailingBacktest:
                 show_tearsheet=False,
                 save_tearsheet=False,
             )
-        
+
         assert "Intentional error in on_trading_iteration() for testing" in str(exc_info.value)
 

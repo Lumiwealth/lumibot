@@ -1,10 +1,9 @@
+
 import pytest
-from types import SimpleNamespace
-from unittest.mock import patch
 
 from lumibot.brokers.projectx import ProjectX
-from lumibot.entities import Asset, Order
 from lumibot.data_sources.data_source import DataSource
+from lumibot.entities import Asset, Order
 
 
 class DummyDataSource(DataSource):

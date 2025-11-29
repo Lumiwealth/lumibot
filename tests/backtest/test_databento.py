@@ -1,5 +1,4 @@
 import datetime
-
 import pytest
 import pytz
 from dotenv import load_dotenv
@@ -14,11 +13,11 @@ from lumibot.backtesting.databento_backtesting_pandas import (
 from lumibot.backtesting.databento_backtesting_polars import (
     DataBentoDataBacktestingPolars,
 )
-from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.tools.databento_helper import DataBentoAuthenticationError
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
-from lumibot.tools.databento_helper import DataBentoAuthenticationError
 from lumibot.traders import Trader
+from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 

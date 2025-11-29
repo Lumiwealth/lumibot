@@ -1,8 +1,7 @@
-import warnings
 from math import e, log
-
 import numpy as np
 
+import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 try:
@@ -50,11 +49,11 @@ def impliedVolatility(className, args, callPrice=None, putPrice=None, high=500.0
 class GK:
     """Garman-Kohlhagen
 	Used for pricing European options on currencies
-
+	
 	GK([underlyingPrice, strikePrice, domesticRate, foreignRate, \
 			daysToExpiration], volatility=x, callPrice=y, putPrice=z)
 
-	eg:
+	eg: 
 		c = mibian.GK([1.4565, 1.45, 1, 2, 30], volatility=20)
 		c.callPrice				# Returns the call price
 		c.putPrice				# Returns the put price
@@ -73,10 +72,10 @@ class GK:
 
 		c = mibian.GK([1.4565, 1.45, 1, 2, 30], callPrice=0.0359)
 		c.impliedVolatility		# Returns the implied volatility from the call price
-
+		
 		c = mibian.GK([1.4565, 1.45, 1, 2, 30], putPrice=0.03)
 		c.impliedVolatility		# Returns the implied volatility from the put price
-
+		
 		c = mibian.GK([1.4565, 1.45, 1, 2, 30], callPrice=0.0359, putPrice=0.03)
 		c.putCallParity			# Returns the put-call parity
 	"""
@@ -271,7 +270,7 @@ class BS:
 	BS([underlyingPrice, strikePrice, interestRate, daysToExpiration], \
 			volatility=x, callPrice=y, putPrice=z)
 
-	eg:
+	eg: 
 		c = mibian.BS([1.4565, 1.45, 1, 30], volatility=20)
 		c.callPrice				# Returns the call price
 		c.putPrice				# Returns the put price
@@ -288,10 +287,10 @@ class BS:
 
 		c = mibian.BS([1.4565, 1.45, 1, 30], callPrice=0.0359)
 		c.impliedVolatility		# Returns the implied volatility from the call price
-
+		
 		c = mibian.BS([1.4565, 1.45, 1, 30], putPrice=0.0306)
 		c.impliedVolatility		# Returns the implied volatility from the put price
-
+		
 		c = mibian.BS([1.4565, 1.45, 1, 30], callPrice=0.0359, putPrice=0.0306)
 		c.putCallParity			# Returns the put-call parity
 	"""
@@ -445,7 +444,7 @@ class Me:
 	Me([underlyingPrice, strikePrice, interestRate, annualDividends, \
 			daysToExpiration], volatility=x, callPrice=y, putPrice=z)
 
-	eg:
+	eg: 
 		c = mibian.Me([52, 50, 1, 1, 30], volatility=20)
 		c.callPrice				# Returns the call price
 		c.putPrice				# Returns the put price
@@ -462,10 +461,10 @@ class Me:
 
 		c = mibian.Me([52, 50, 1, 1, 30], callPrice=0.0359)
 		c.impliedVolatility		# Returns the implied volatility from the call price
-
+		
 		c = mibian.Me([52, 50, 1, 1, 30], putPrice=0.0306)
 		c.impliedVolatility		# Returns the implied volatility from the put price
-
+		
 		c = mibian.Me([52, 50, 1, 1, 30], callPrice=0.0359, putPrice=0.0306)
 		c.putCallParity			# Returns the put-call parity
 	"""

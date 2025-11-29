@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
-
+import pandas as pd
 import polars as pl
+from datetime import datetime, timedelta
 
 from lumibot.entities.asset import Asset
 from lumibot.entities.bars import Bars
@@ -49,4 +49,4 @@ def test_aggregate_rejects_unsupported_frequency():
     except ValueError as e:
         assert 'Unsupported frequency' in str(e)
     else:
-        raise AssertionError('Expected ValueError for unsupported frequency')
+        assert False, 'Expected ValueError for unsupported frequency'

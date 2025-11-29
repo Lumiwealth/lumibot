@@ -9,14 +9,13 @@ This test verifies that:
 5. Multiple symbols are handled correctly under memory pressure
 """
 
-from datetime import datetime, timedelta
-
-import polars as pl
 import pytest
+from datetime import datetime, timedelta
+import polars as pl
 
-from lumibot.data_sources.polars_data import PolarsData
 from lumibot.entities import Asset
 from lumibot.entities.data_polars import DataPolars
+from lumibot.data_sources.polars_data import PolarsData
 
 
 class TestLRUEviction:

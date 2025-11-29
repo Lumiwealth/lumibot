@@ -1,10 +1,9 @@
 import datetime
 import logging
-
 import pytest
 
-from lumibot.backtesting import YahooDataBacktesting
 from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
+from lumibot.backtesting import YahooDataBacktesting
 
 
 class TestLogging:

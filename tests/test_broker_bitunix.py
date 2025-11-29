@@ -1,11 +1,11 @@
 import unittest
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
+from decimal import Decimal
 
 from lumibot.brokers.bitunix import Bitunix
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.bitunix_helpers import BitUnixClient
-
+from lumibot.brokers.broker import LumibotBrokerAPIError
 
 class TestBitunixBroker(unittest.TestCase):
     def setUp(self):
@@ -65,7 +65,7 @@ class TestBitunixBroker(unittest.TestCase):
         }
         positions = broker._pull_positions(mock_strategy)
         self.assertEqual(len(positions), 2)
-
+        
         btc_pos = next(p for p in positions if p.asset.symbol == "BTCUSDT")
         eth_pos = next(p for p in positions if p.asset.symbol == "ETHUSDT")
 
@@ -123,9 +123,9 @@ class TestBitunixBroker(unittest.TestCase):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
-
+        
         broker = Bitunix(self.config)
-
+        
         raw_order_data = {
             "orderId": "98765",
             "symbol": "ETHUSDT",
@@ -139,9 +139,9 @@ class TestBitunixBroker(unittest.TestCase):
             "leverage": "5",
             "time": 1678886400000 # Example timestamp
         }
-
+        
         parsed_order = broker._parse_broker_order(raw_order_data, "test_strategy")
-
+        
         self.assertIsNotNone(parsed_order)
         self.assertEqual(parsed_order.identifier, "98765")
         self.assertEqual(parsed_order.asset.symbol, "ETHUSDT")

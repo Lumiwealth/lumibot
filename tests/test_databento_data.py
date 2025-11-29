@@ -22,7 +22,7 @@ class TestDataBentoData(unittest.TestCase):
         patch("lumibot.tools.databento_helper_polars._fetch_and_update_futures_multiplier", lambda *args, **kwargs: None),
         ]
         for patcher in patchers:
-            patcher.start()
+            patched = patcher.start()
             self.addCleanup(patcher.stop)
 
         import importlib
@@ -139,7 +139,7 @@ class TestDataBentoData(unittest.TestCase):
             )
 
         self.assertEqual(len(bars.df), 4)
-        self.assertTrue(bars.df.index[-1] > bars.df.index[0])
+        self.assertTrue((bars.df.index[-1] > bars.df.index[0]))
 
     # ------------------------------------------------------------------
     # Last price & quotes

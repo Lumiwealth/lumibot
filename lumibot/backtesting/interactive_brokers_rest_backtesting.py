@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
-from lumibot.data_sources import DataSourceBacktesting, InteractiveBrokersRESTData
+
+from lumibot.data_sources import InteractiveBrokersRESTData, DataSourceBacktesting
 from lumibot.entities import Asset, Data
 
 

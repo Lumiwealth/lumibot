@@ -4,9 +4,9 @@ from typing import Optional, Union
 
 import pandas as pd
 import polars as pl
-import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+import pytz
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 

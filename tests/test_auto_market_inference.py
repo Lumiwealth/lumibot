@@ -1,3 +1,4 @@
+import types
 
 class DummyDataSource:
     def __init__(self, cls_name):
@@ -7,7 +8,6 @@ class DummyDataSource:
         return datetime.datetime.utcnow()
 
 from lumibot.brokers.broker import Broker
-
 
 class DummyBroker(Broker):
     IS_BACKTESTING_BROKER = True  # avoid starting threads

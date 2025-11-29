@@ -1,10 +1,12 @@
 import datetime
 import logging
 
+from lumibot.traders.trader import Trader
+from lumibot.traders.debug_log_trader import DebugLogTrader
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
-from lumibot.traders.debug_log_trader import DebugLogTrader
-from lumibot.traders.trader import Trader
+
+from tests.fixtures import pandas_data_fixture
 
 logger = logging.getLogger(__name__)
 

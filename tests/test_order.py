@@ -53,7 +53,7 @@ class TestOrderBasics:
         )
         order.add_child_order(child_order_2)
 
-        # Print the order and child order
+        # Print the order and child order 
         order_text = str(order).lower()
         first_child_order = order.child_orders[0]
         first_child_order_text = str(first_child_order).lower()
@@ -104,7 +104,7 @@ class TestOrderBasics:
         buy_order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
 
         # No transactions
-        assert buy_order.get_fill_price() is None
+        assert buy_order.get_fill_price() == None
 
         buy_order.transactions = [
             Order.Transaction(quantity=50, price=20.0),

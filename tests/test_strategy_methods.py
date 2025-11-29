@@ -1,15 +1,15 @@
-import logging
 from datetime import date, datetime, timedelta
-from unittest.mock import MagicMock, patch
-
+import logging
+import uuid
+from unittest.mock import patch, MagicMock
 import pytest
-from apscheduler.triggers.cron import CronTrigger
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset, Order, Position
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
+from lumibot.entities import Asset, Order, Position
 from lumibot.strategies.strategy import Strategy
+from apscheduler.triggers.cron import CronTrigger
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
 
 class FakeSnapshotSource:
@@ -85,15 +85,15 @@ class TestStrategyMethods:
 
         # Create an order with None quantity
         order = Order(
-            asset=Asset("SPY"),
-            quantity=None,
-            side=Order.OrderSide.BUY,
+            asset=Asset("SPY"), 
+            quantity=None, 
+            side=Order.OrderSide.BUY, 
             strategy='test_strategy'
         )
 
         # Test that validation fails
         is_valid = strategy._validate_order(order)
-        assert not is_valid
+        assert is_valid == False
 
     def test_validate_order_with_zero_quantity(self):
         """
@@ -111,15 +111,15 @@ class TestStrategyMethods:
 
         # Create an order with zero quantity
         order = Order(
-            asset=Asset("SPY"),
-            quantity=0,
-            side=Order.OrderSide.BUY,
+            asset=Asset("SPY"), 
+            quantity=0, 
+            side=Order.OrderSide.BUY, 
             strategy='test_strategy'
         )
 
         # Test that validation fails
         is_valid = strategy._validate_order(order)
-        assert not is_valid
+        assert is_valid == False
 
     def test_validate_order_with_valid_quantity(self):
         """
@@ -137,15 +137,15 @@ class TestStrategyMethods:
 
         # Create an order with valid quantity
         order = Order(
-            asset=Asset("SPY"),
-            quantity=100,
-            side=Order.OrderSide.BUY,
+            asset=Asset("SPY"), 
+            quantity=100, 
+            side=Order.OrderSide.BUY, 
             strategy='test_strategy'
         )
 
         # Test that validation passes
         is_valid = strategy._validate_order(order)
-        assert is_valid
+        assert is_valid == True
 
     def test_validate_order_with_none_order(self):
         """
@@ -163,7 +163,7 @@ class TestStrategyMethods:
 
         # Test that validation fails for None order
         is_valid = strategy._validate_order(None)
-        assert not is_valid
+        assert is_valid == False
 
     def test_get_price_from_source_prefers_daily_cache(self):
         strat = self._make_strategy_stub()
@@ -226,7 +226,7 @@ class TestStrategyMethods:
 
         # Test that validation fails for non-Order object
         is_valid = strategy._validate_order("not an order")
-        assert not is_valid
+        assert is_valid == False
 
     @patch('uuid.uuid4')
     def test_register_cron_callback_returns_job_id(self, mock_uuid4):
@@ -491,7 +491,7 @@ class TestStrategyMethods:
         )
 
         # Ensure is_backtesting is True
-        assert strategy.is_backtesting
+        assert strategy.is_backtesting == True
 
         # Mock the scheduler's add_job method
         strategy._executor.scheduler.add_job = MagicMock(return_value=None)
@@ -514,5 +514,5 @@ class TestStrategyMethods:
 
         # Check that log_message was called with the expected message
         strategy.log_message.assert_called_once_with(
-            "Skipping registration of cron callback test_callback in backtesting mode"
+            f"Skipping registration of cron callback test_callback in backtesting mode"
         )

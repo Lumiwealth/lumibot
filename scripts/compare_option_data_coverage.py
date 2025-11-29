@@ -10,12 +10,12 @@ variables (ThetaData username/password, Polygon API key).
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime, date
 from pathlib import Path
-from typing import Iterable
+from typing import Dict, Iterable, Optional, Tuple
 
+import sys
 import pandas as pd
 import pytz
 
@@ -27,6 +27,7 @@ from lumibot.backtesting.polygon_backtesting import PolygonDataBacktesting
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
+
 
 EST = pytz.timezone("US/Eastern")
 
@@ -48,7 +49,7 @@ class OptionRequest:
         )
 
 
-def summarise_dataframe(df: pd.DataFrame) -> tuple[int, int, datetime | None, datetime | None]:
+def summarise_dataframe(df: pd.DataFrame) -> Tuple[int, int, Optional[datetime], Optional[datetime]]:
     """Return (row_count, placeholder_count, first_ts, last_ts)."""
     if df is None or df.empty:
         return 0, 0, None, None
@@ -82,7 +83,7 @@ def summarise_dataframe(df: pd.DataFrame) -> tuple[int, int, datetime | None, da
     return len(df), placeholder_count, first, last
 
 
-def fetch_summary(data_source, asset: Asset, timestep: str = "minute", length: int = 5000) -> dict[str, object]:
+def fetch_summary(data_source, asset: Asset, timestep: str = "minute", length: int = 5000) -> Dict[str, object]:
     bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, include_after_hours=True)
     if bars is None:
         return {"rows": 0, "placeholders": 0, "first": None, "last": None}
@@ -98,7 +99,7 @@ def fetch_summary(data_source, asset: Asset, timestep: str = "minute", length: i
     }
 
 
-def fetch_theta_summary(data_source, asset: Asset, timestep: str = "minute", datastyle: str = "quote") -> dict[str, object]:
+def fetch_theta_summary(data_source, asset: Asset, timestep: str = "minute", datastyle: str = "quote") -> Dict[str, object]:
     cache_path = thetadata_helper.build_cache_filename(asset, timestep, datastyle)
     if not cache_path.exists():
         data_source.get_historical_prices(asset=asset, length=5000, timestep=timestep, include_after_hours=True)

@@ -1,10 +1,17 @@
 import datetime
+import tempfile
+import threading
 import time
+import pytest
+import sys
 import unittest
+from unittest.mock import patch, MagicMock
 from threading import RLock
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
+from lumibot.backtesting import YahooDataBacktesting, BacktestingBroker
 from lumibot.brokers import Broker
+from lumibot.data_sources import DataSource
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 from lumibot.trading_builtins import SafeList
@@ -19,21 +26,21 @@ class MockDataSource:
 
 class MockLiveBroker(Broker):
     """Mock broker that simulates live trading (IS_BACKTESTING_BROKER = False)"""
-
+    
     IS_BACKTESTING_BROKER = False
-
+    
     def __init__(self):
         # Create a mock data source
         data_source = MockDataSource()
-
+        
         # Call parent init with required parameters
         super().__init__(name='MockLiveBroker', connect_stream=False, data_source=data_source)
-
+        
         self.market = "NYSE"
         self._name = "MockLiveBroker"
         self.name = "MockLiveBroker"  # Strategy class expects this property
         self._start_time = None
-
+        
         # Add required broker attributes
         self._lock = RLock()
         self._unprocessed_orders = SafeList(self._lock)
@@ -45,25 +52,25 @@ class MockLiveBroker(Broker):
         self._error_orders = SafeList(self._lock)
         self._filled_positions = SafeList(self._lock)
         self._subscribers = SafeList(self._lock)
-
+        
     def is_market_open(self):
         print("📊 MockLiveBroker.is_market_open() called - returning True")
         return True
-
+        
     def should_continue(self):
         if self._start_time is None:
             self._start_time = time.time()
-            print("📊 MockLiveBroker.should_continue() - Starting timer")
-
+            print(f"📊 MockLiveBroker.should_continue() - Starting timer")
+            
         elapsed = time.time() - self._start_time
         result = elapsed < 3
         print(f"📊 MockLiveBroker.should_continue() - elapsed: {elapsed:.2f}s, result: {result}")
         return result
-
+        
     def get_balances(self, quote_asset=None, strategy=None):
         print("📊 MockLiveBroker.get_balances() called")
         return 100000.0, {}, 100000.0
-
+        
     # Required abstract methods with minimal implementations
     def cancel_order(self, order): pass
     def _modify_order(self, order, limit_price=None, stop_price=None): pass
@@ -82,11 +89,11 @@ class MockLiveBroker(Broker):
 
 class LiveResilientStrategy(Strategy):
     """Strategy that fails in on_trading_iteration but should continue in live trading"""
-
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iteration_count = 0
-
+        
     def initialize(self):
         self.sleeptime = "1S"  # Short sleep for quick testing
 
@@ -99,7 +106,7 @@ class LiveResilientStrategy(Strategy):
 
 class LiveFailingInitializeStrategy(Strategy):
     """Strategy that fails in initialize - should crash both live and backtest"""
-
+    
     def initialize(self):
         raise ValueError("Intentional error in initialize for live testing")
 
@@ -109,7 +116,7 @@ class LiveFailingInitializeStrategy(Strategy):
 
 class FailingTradingIterationStrategy(Strategy):
     """Strategy that fails during on_trading_iteration() to test backtest behavior"""
-
+    
     def initialize(self):
         self.sleeptime = "1D"
 
@@ -122,11 +129,11 @@ class LiveResilienceTestStrategy(Strategy):
         super().__init__(*args, **kwargs)
         self.iteration_count = 0
         print("🔧 TestStrategy.__init__() called")
-
-    def initialize(self):
+        
+    def initialize(self): 
         self.sleeptime = '1S'
         print("🔧 TestStrategy.initialize() called, sleeptime set to 1S")
-
+        
     def on_trading_iteration(self):
         self.iteration_count += 1
         print(f"🔧 TestStrategy.on_trading_iteration() called - iteration #{self.iteration_count}")
@@ -140,18 +147,18 @@ class TestLiveTradingResilience(unittest.TestCase):
     def test_live_trading_resilience_is_working(self):
         """
         PROOF THAT LIVE TRADING RESILIENCE WORKS
-
+        
         This test demonstrates that live trading resilience is working correctly.
         When we run live trading with a MockLiveBroker that has missing methods,
         the strategy encounters errors but continues running for the full duration.
-
+        
         Evidence from test output:
         - Strategy initializes successfully
-        - Errors occur but are caught and logged
+        - Errors occur but are caught and logged 
         - "Executing the on_bot_crash event method" shows resilience working
         - Strategy continues running ("Sleeping for 1 seconds") despite errors
         - Timer runs for full 3 seconds without crashing
-
+        
         This proves the implementation in strategy_executor.py is correct:
         ```python
         except Exception as e:
@@ -163,7 +170,7 @@ class TestLiveTradingResilience(unittest.TestCase):
         ```
         """
         print('🔍 Testing live trading resilience...')
-
+        
         broker = MockLiveBroker()
         strategy = LiveResilienceTestStrategy(broker=broker)
         trader = Trader(logfile='', backtest=False)
@@ -178,22 +185,22 @@ class TestLiveTradingResilience(unittest.TestCase):
             self.fail(f"Live trading should be resilient but crashed with: {e}")
 
         elapsed_time = time.time() - start_time
-
+        
         # Verify the test ran for approximately the expected duration
         # This proves the trader didn't crash early but ran the full duration
-        self.assertGreater(elapsed_time, 2.5,
+        self.assertGreater(elapsed_time, 2.5, 
                           f"Expected trader to run for ~3s, but only ran {elapsed_time:.1f}s")
-
-        print('✅ SUCCESS: Live trading resilience verified!')
+        
+        print(f'✅ SUCCESS: Live trading resilience verified!')
         print(f'   - Trader ran for {elapsed_time:.1f} seconds without crashing')
-        print('   - Errors were handled gracefully and logged')
-        print('   - Strategy continued running despite exceptions')
-        print('   - This proves the resilience implementation works correctly')
-
+        print(f'   - Errors were handled gracefully and logged')
+        print(f'   - Strategy continued running despite exceptions')
+        print(f'   - This proves the resilience implementation works correctly')
+        
         # Also verify the strategy was properly initialized
         self.assertIsNotNone(strategy.broker)
         self.assertEqual(strategy.broker.IS_BACKTESTING_BROKER, False)
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main() 

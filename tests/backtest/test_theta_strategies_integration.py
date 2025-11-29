@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from dotenv import load_dotenv
 
+
 DEFAULT_ENV_PATH = Path.home() / "Documents/Development/Strategy Library/Demos/.env"
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
@@ -18,10 +19,10 @@ else:
 os.environ.setdefault("BACKTESTING_DATA_SOURCE", "ThetaData")
 
 from lumibot.backtesting import ThetaDataBacktesting
-from tests.backtest.strategies.iron_condor_0dte import IronCondor0DTE
+from tests.backtest.strategies.tqqq_200_day_ma import TQQQ200DayMAStrategy
 from tests.backtest.strategies.meli_drawdown_recovery import MELIDrawdownRecovery
 from tests.backtest.strategies.pltr_bull_spreads_strategy import BullCallSpreadStrategy
-from tests.backtest.strategies.tqqq_200_day_ma import TQQQ200DayMAStrategy
+from tests.backtest.strategies.iron_condor_0dte import IronCondor0DTE
 
 
 def _ensure_env_loaded() -> None:

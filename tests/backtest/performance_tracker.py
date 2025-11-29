@@ -4,6 +4,7 @@ Automatically records execution time and key metrics to CSV for long-term tracki
 """
 import csv
 import datetime
+import os
 from pathlib import Path
 
 
@@ -126,7 +127,7 @@ class PerformanceTracker:
         if not self.csv_path.exists():
             return []
 
-        with open(self.csv_path) as f:
+        with open(self.csv_path, 'r') as f:
             reader = csv.DictReader(f)
             records = list(reader)
 

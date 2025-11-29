@@ -1,8 +1,9 @@
-import atexit
+from datetime import datetime, timedelta
 import re
-from datetime import datetime
 from decimal import Decimal
-from typing import Set, Union
+from typing import Union, Set
+import warnings
+import atexit
 
 import numpy as np
 import pandas as pd
@@ -23,23 +24,23 @@ class PolarsConversionTracker:
     _warned_assets: Set[str] = set()
     _total_conversions: int = 0
     _first_warning_shown: bool = False
-
+    
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             # Register cleanup function to show summary
             atexit.register(cls._instance.show_summary)
         return cls._instance
-
+    
     def track_conversion(self, asset_symbol: str):
         """Track a conversion and show warning if needed."""
         self._total_conversions += 1
-
+        
         # Show warning on first encounter
         if not self._first_warning_shown:
             logger.warning(
                 "\n" + "="*70 + "\n"
-                "PERFORMANCE TIP: DataFrame Conversion Detected\n" +
+                "PERFORMANCE TIP: DataFrame Conversion Detected\n" + 
                 "="*70 + "\n"
                 "Polars DataFrames are being converted to Pandas, which adds overhead.\n"
                 "\n"
@@ -52,11 +53,11 @@ class PolarsConversionTracker:
                 "="*70
             )
             self._first_warning_shown = True
-
+        
         # Track which assets have been converted
         if asset_symbol not in self._warned_assets:
             self._warned_assets.add(asset_symbol)
-
+    
     def show_summary(self):
         """Show summary at the end if there were conversions."""
         if self._total_conversions > 0:
@@ -65,7 +66,7 @@ class PolarsConversionTracker:
             assets_str = ", ".join(assets_list)
             if unique_assets > 5:
                 assets_str += f", ... ({unique_assets - 5} more)"
-
+    
     @classmethod
     def reset(cls):
         """Reset the tracker (useful for testing)."""
@@ -182,16 +183,16 @@ class Bars:
         self._polars_cache = None
         self._pandas_cache = None
         self._tzinfo = self._normalize_tzinfo(tzinfo)
-
+        
         # Check if empty
         if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
            (isinstance(df, pd.DataFrame) and df.shape[0] == 0):
             logger.warning(f"Unable to get bar data for {asset} {source}")
-
+        
         if isinstance(df, pl.DataFrame):
             # Already polars, process it
             columns = df.columns
-
+            
             # Calculate derived columns using polars
             if "dividend" in columns:
                 df = df.with_columns([
@@ -203,7 +204,7 @@ class Bars:
                 df = df.with_columns([
                     pl.col("close").pct_change().alias("return")
                 ])
-
+            
             if "datetime" in df.columns and self._tzinfo is not None:
                 target_tz = getattr(self._tzinfo, "zone", None) or getattr(self._tzinfo, "key", None)
                 if target_tz:
@@ -222,7 +223,7 @@ class Bars:
                 # Convert to pandas and track the conversion
                 tracker = PolarsConversionTracker()
                 tracker.track_conversion(asset.symbol if hasattr(asset, 'symbol') else str(asset))
-
+                
                 self._df = df.to_pandas()
                 # Set datetime index if exists
                 for col_name in ['datetime', 'timestamp', 'date', 'time']:

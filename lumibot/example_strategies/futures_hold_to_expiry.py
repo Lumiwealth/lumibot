@@ -32,7 +32,7 @@ class FuturesHoldToExpiry(Strategy):
         buy_symbol = self.parameters["buy_symbol"]
         expiry = self.parameters["expiry"]
 
-        Asset(
+        underlying_asset = Asset(
             symbol=buy_symbol,
             asset_type="index"
         )

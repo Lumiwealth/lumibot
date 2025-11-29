@@ -1,22 +1,17 @@
-import datetime as dt
 import logging
-import math
 import os
+import pytest
+import math
+import datetime as dt
 from datetime import timedelta
+import pytz
 from unittest.mock import MagicMock
 
-import pytest
-import pytz
-
-from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.data_sources import AlpacaData, DataSource
+from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
 from lumibot.entities import Asset, Quote
-from lumibot.tools import (
-    get_trading_days,
-    is_market_open,
-    print_full_pandas_dataframes,
-    set_pandas_float_display_precision,
-)
+from lumibot.tools import get_trading_days, is_market_open
+from lumibot.credentials import ALPACA_TEST_CONFIG
 from tests.fixtures import BaseDataSourceTester
 
 logger = logging.getLogger(__name__)
@@ -144,10 +139,9 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_historical_prices_daily_bars_stock_split_adjusted(self):
         """Test that when get_historical_prices is called, it uses adjustment=Adjustment.ALL for stock bars."""
-        from unittest.mock import Mock
-
-        import pandas as pd
+        from unittest.mock import patch, Mock
         from alpaca.data.enums import Adjustment
+        import pandas as pd
 
         # Create a data source with auto_adjust=True to ensure it uses Adjustment.ALL
         data_source = self._create_data_source(remove_incomplete_current_bar=True)
@@ -375,7 +369,7 @@ class TestAlpacaData(BaseDataSourceTester):
         asset = Asset("SPY")
         timestep = "day"
         data_source = self._create_data_source()
-        dt.datetime.now(data_source.tzinfo)
+        now = dt.datetime.now(data_source.tzinfo)
 
         # Get a 0dte option
         # calculate the last calendar day before today
@@ -645,7 +639,7 @@ class TestAlpacaData(BaseDataSourceTester):
         assert data_source.oauth_token == "test_oauth_token_alpaca_data"
         assert data_source.api_key is None
         assert data_source.api_secret is None
-        assert data_source.is_paper
+        assert data_source.is_paper == True
 
     def test_oauth_client_initialization(self):
         """Test that OAuth clients are properly initialized."""

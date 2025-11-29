@@ -1,6 +1,5 @@
 import math
-
-from lumibot.components.options_helper import OptionMarketEvaluation, OptionsHelper
+from lumibot.components.options_helper import OptionsHelper, OptionMarketEvaluation
 
 
 class _GuardedStrategy:

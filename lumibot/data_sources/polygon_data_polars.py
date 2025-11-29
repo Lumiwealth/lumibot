@@ -109,7 +109,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
 
     def _store_data(self, asset: Asset, data: pl.DataFrame) -> pl.LazyFrame:
         """Store data efficiently using lazy frames.
-
+        
         Returns lazy frame for efficient subsequent operations.
         """
         # Use mixin's store method first
@@ -182,7 +182,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
     def is_data_cached(self, asset: Asset, start_dt, end_dt, timestep: str) -> bool:
         """
         Check if data is already cached for the given parameters.
-
+        
         Parameters
         ----------
         asset : Asset
@@ -193,7 +193,7 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
             End datetime
         timestep : str
             Time granularity
-
+            
         Returns
         -------
         bool
@@ -663,10 +663,10 @@ class PolygonDataPolars(PolarsMixin, DataSourceBacktesting):
     def batch_prefetch_data(self, prefetch_requests: List[tuple]):
         """
         Batch prefetch multiple data requests for maximum efficiency.
-
+        
         This method downloads multiple asset/time combinations concurrently,
         optimizing for speed by batching requests.
-
+        
         Parameters
         ----------
         prefetch_requests : List[tuple]

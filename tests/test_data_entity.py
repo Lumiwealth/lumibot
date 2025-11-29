@@ -6,12 +6,12 @@ when the close/open price is None or NaN. This is especially important
 for options where there may be quotes but no actual trades.
 """
 
-from datetime import datetime, timedelta
-
-import numpy as np
-import pandas as pd
 import pytest
+import pandas as pd
+import numpy as np
 import pytz
+from datetime import datetime, timedelta
+from unittest.mock import Mock, patch
 
 from lumibot.entities import Asset
 from lumibot.entities.data import Data

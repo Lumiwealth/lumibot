@@ -4,20 +4,23 @@ Ensures that datasource_class=None correctly auto-selects from the env var.
 """
 import os
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pandas as pd
-import pytest
 import pytz
+import pytest
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-from lumibot.backtesting import (
-    YahooDataBacktesting,
-)
 from lumibot.strategies import Strategy
+from lumibot.backtesting import (
+    PolygonDataBacktesting,
+    ThetaDataBacktesting,
+    YahooDataBacktesting,
+    AlpacaBacktesting,
+)
 
 
 @pytest.fixture
@@ -28,7 +31,7 @@ def restore_theta_credentials():
 
     # Save original credentials if file exists
     if os.path.exists(creds_path):
-        with open(creds_path) as f:
+        with open(creds_path, 'r') as f:
             original = f.read()
 
     yield
@@ -104,7 +107,6 @@ class TestBacktestingDataSourceEnv:
                    side_effect=self._fake_polygon_df):
             # Re-import credentials to pick up env change
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 
@@ -135,7 +137,6 @@ class TestBacktestingDataSourceEnv:
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'THETADATA'}):
             # Re-import credentials to pick up env change
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 
@@ -171,7 +172,6 @@ class TestBacktestingDataSourceEnv:
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'Yahoo'}):
             # Re-import credentials to pick up env change
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 
@@ -198,7 +198,6 @@ class TestBacktestingDataSourceEnv:
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'InvalidSource'}):
             # Re-import credentials to pick up env change
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 
@@ -223,7 +222,6 @@ class TestBacktestingDataSourceEnv:
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'polygon'}):
             # Re-import credentials to pick up env change
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 
@@ -252,7 +250,6 @@ class TestBacktestingDataSourceEnv:
 
         with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'none'}):
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 
@@ -284,7 +281,6 @@ class TestBacktestingDataSourceEnv:
         with patch.dict(os.environ, env_without_datasource, clear=True):
             # Re-import credentials to pick up env change
             from importlib import reload
-
             import lumibot.credentials
             reload(lumibot.credentials)
 

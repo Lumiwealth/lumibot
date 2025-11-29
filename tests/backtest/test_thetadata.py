@@ -1,18 +1,17 @@
 import datetime
 import os
-import subprocess
 from collections import defaultdict
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
-
-import pandas_market_calendars as mcal
-import pytest
 from dotenv import load_dotenv
-
+import pandas_market_calendars as mcal
+import subprocess
+from unittest.mock import MagicMock, patch
 from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
+import psutil
+import pytest
 
 # Load environment variables from .env file
 load_dotenv()

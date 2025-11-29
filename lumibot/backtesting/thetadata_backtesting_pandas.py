@@ -1,15 +1,15 @@
-import logging
-import subprocess
-from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union, List
 
+import logging
 import pandas as pd
 import pytz
+import subprocess
+from datetime import date, datetime, timedelta
 
-from lumibot.credentials import THETADATA_CONFIG
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, AssetsMapping, Data
+from lumibot.credentials import THETADATA_CONFIG
 from lumibot.tools import thetadata_helper
 
 logger = logging.getLogger(__name__)
@@ -1076,7 +1076,7 @@ class ThetaDataBacktestingPandas(PandasData):
                     include_after_hours=True,  # Default to True for extended hours data
                     preserve_full_history=True,
                 )
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "ThetaData quote download failed for %s / %s (%s)",
                     asset_separated,
@@ -1891,7 +1891,7 @@ class ThetaDataBacktestingPandas(PandasData):
             if candidate_data is None and isinstance(dataset_key, tuple) and len(dataset_key) == 3:
                 legacy_key = (dataset_key[0], dataset_key[1])
                 candidate_data = self.pandas_data.get(legacy_key)
-        self._normalize_default_timezone(start_requirement)
+        normalized_requirement = self._normalize_default_timezone(start_requirement)
         normalized_current_dt = self._normalize_default_timezone(current_dt)
         normalized_data_start = None
         if candidate_data is not None and getattr(candidate_data, "df", None) is not None and not candidate_data.df.empty:

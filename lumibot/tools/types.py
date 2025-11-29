@@ -37,9 +37,9 @@ def check_numeric(
 
 def check_positive(input, type, custom_message="", strict=False):
     if strict:
-        error_message = f"{input!r} is not a strictly positive value."
+        error_message = "%r is not a strictly positive value." % input
     else:
-        error_message = f"{input!r} is not a positive value."
+        error_message = "%r is not a positive value." % input
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 
@@ -52,7 +52,7 @@ def check_positive(input, type, custom_message="", strict=False):
     return result
 
 def check_quantity(quantity, custom_message=""):
-    error_message = f"{quantity!r} is not a positive Decimal."
+    error_message = "%r is not a positive Decimal." % quantity
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 
@@ -67,7 +67,7 @@ def check_quantity(quantity, custom_message=""):
 
 
 def check_price(price, custom_message="", nullable=True, allow_negative=True):
-    error_message = f"{price!r} is not a valid price."
+    error_message = "%r is not a valid price." % price
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 

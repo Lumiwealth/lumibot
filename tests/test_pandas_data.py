@@ -6,6 +6,8 @@ from lumibot.data_sources import PandasData
 from lumibot.entities import Asset
 from lumibot.entities.data import Data
 
+from tests.fixtures import pandas_data_fixture
+
 
 class TestPandasData:
 

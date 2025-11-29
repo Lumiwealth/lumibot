@@ -1,8 +1,8 @@
 from datetime import time
 from decimal import Decimal
 
-import numpy as np
 import pandas as pd
+import numpy as np
 
 
 def day_deduplicate(df_):

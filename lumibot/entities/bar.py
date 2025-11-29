@@ -91,7 +91,7 @@ class Bar(ComparaisonMixin):
             raise ValueError("Datetime property must be a datetime object.")
 
         if self.datetime.tzinfo != input.tzinfo:
-            raise ValueError(f"Datetime must be localized in {self.DEFAULT_TIMEZONE!r}")
+            raise ValueError("Datetime must be localized in %r" % self.DEFAULT_TIMEZONE)
 
         value = int(input.timestamp())
         self._raw["timestamp"] = value
@@ -214,6 +214,6 @@ class Bar(ComparaisonMixin):
             try:
                 value = type(value)
             except:
-                raise ValueError(f"{key} type does not fit to {type!r} type")
+                raise ValueError("%s type does not fit to %r type" % (key, type))
 
         return value

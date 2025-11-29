@@ -129,10 +129,10 @@ async def download_polygon_data_async(
 ) -> Optional[pl.DataFrame]:
     """
     Download Polygon data using async/await for maximum performance.
-
+    
     This function downloads data in parallel using asyncio, which is
     significantly faster than the threaded approach.
-
+    
     Parameters
     ----------
     api_key : str
@@ -149,7 +149,7 @@ async def download_polygon_data_async(
         Quote asset for forex/crypto
     symbol : Optional[str]
         Pre-computed Polygon symbol
-
+        
     Returns
     -------
     Optional[pl.DataFrame]
@@ -241,7 +241,7 @@ def get_price_data_from_polygon_async(
 ) -> Optional[pl.DataFrame]:
     """
     Wrapper function to use async download in sync context.
-
+    
     This function manages the event loop and calls the async download function.
     """
 

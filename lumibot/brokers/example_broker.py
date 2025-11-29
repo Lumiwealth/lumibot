@@ -2,11 +2,10 @@ from typing import Union
 
 from termcolor import colored
 
+from .broker import Broker
 from lumibot.data_sources import ExampleBrokerData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
-
-from .broker import Broker
 
 logger = get_logger(__name__)
 
@@ -36,7 +35,7 @@ class ExampleBroker(Broker):
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
         Get the actual cash balance at the broker.
-
+        
         Parameters
         ----------
         quote_asset : Asset
@@ -62,9 +61,9 @@ class ExampleBroker(Broker):
 
     def _get_stream_object(self):
         """
-        Get the broker stream connection. This method should return an object that handles
+        Get the broker stream connection. This method should return an object that handles 
         the streaming connection to the broker's API.
-
+        
         Returns
         -------
         object
@@ -101,7 +100,7 @@ class ExampleBroker(Broker):
         Returns
         -------
         list
-            A list of order responses from the broker query. These will be passed to
+            A list of order responses from the broker query. These will be passed to 
             _parse_broker_order() to be converted to Order objects.
         """
         logger.error(colored("Method '_pull_broker_all_orders' is not yet implemented.", "red"))
@@ -180,7 +179,7 @@ class ExampleBroker(Broker):
     def _submit_order(self, order: Order) -> Order:
         """
         Submit an order to the broker after necessary checks and input sanitization.
-
+        
         Parameters
         ----------
         order : Order
@@ -197,7 +196,7 @@ class ExampleBroker(Broker):
     def cancel_order(self, order: Order) -> None:
         """
         Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
-
+        
         Parameters
         ----------
         order : Order
@@ -216,7 +215,7 @@ class ExampleBroker(Broker):
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
         you must cancel the order and submit a new one.
-
+        
         Parameters
         ----------
         order : Order
@@ -236,7 +235,7 @@ class ExampleBroker(Broker):
     def get_historical_account_value(self) -> dict:
         """
         Get the historical account value of the account.
-
+        
         Returns
         -------
         dict

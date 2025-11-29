@@ -6,12 +6,11 @@ with timeshift=-2 parameter.
 """
 
 from datetime import datetime, timedelta, timezone
-
 import pandas as pd
 import polars as pl
 import pytest
 
-from lumibot.entities import Asset, Data, DataPolars
+from lumibot.entities import Data, DataPolars, Asset
 
 
 def _create_mock_ohlc_data(start: datetime, periods: int = 300) -> pd.DataFrame:
@@ -151,8 +150,8 @@ def test_data_polars_timeshift_timedelta():
         timeshift=timeshift_td
     )
 
-    assert len(df_pandas) == 2, "Pandas should return 2 rows with timedelta timeshift"
-    assert len(df_polars) == 2, "Polars should return 2 rows with timedelta timeshift"
+    assert len(df_pandas) == 2, f"Pandas should return 2 rows with timedelta timeshift"
+    assert len(df_polars) == 2, f"Polars should return 2 rows with timedelta timeshift"
     assert len(df_pandas) == len(df_polars), "Row count mismatch with timedelta timeshift"
 
 

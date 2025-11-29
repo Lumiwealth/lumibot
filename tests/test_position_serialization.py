@@ -3,8 +3,8 @@ Test that Position.to_dict() properly excludes problematic fields
 that can cause DynamoDB 400KB limit errors.
 """
 import unittest
-
-from lumibot.entities import Asset, Order, Position
+from decimal import Decimal
+from lumibot.entities import Position, Asset, Order
 
 
 class TestPositionSerialization(unittest.TestCase):

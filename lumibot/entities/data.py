@@ -409,7 +409,27 @@ class Data:
                 raise ValueError(
                     f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
                 )
-            if dt > self.datetime_end:
+
+            # For daily data, compare dates (not timestamps) to handle timezone issues.
+            # ThetaData daily bars are timestamped at 00:00 UTC, which when converted to EST
+            # appears as the previous day's evening. A bar for Nov 3 00:00 UTC represents
+            # trading on Nov 3 and should cover the entire Nov 3 trading day.
+            dt_exceeds_end = False
+            if self.timestep == "day":
+                # Convert datetime_end to UTC to get the actual date the bar represents
+                import pytz
+                utc = pytz.UTC
+                if hasattr(self.datetime_end, 'astimezone'):
+                    datetime_end_utc = self.datetime_end.astimezone(utc)
+                else:
+                    datetime_end_utc = self.datetime_end
+                datetime_end_date = datetime_end_utc.date()
+                dt_date = dt.date()
+                dt_exceeds_end = dt_date > datetime_end_date
+            else:
+                dt_exceeds_end = dt > self.datetime_end
+
+            if dt_exceeds_end:
                 strict_end_check = getattr(self, "strict_end_check", False)
                 if strict_end_check:
                     raise ValueError(
@@ -494,6 +514,21 @@ class Data:
             price = close_price
         else:
             price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+
+        # Handle zero/invalid prices by looking back for the last valid price.
+        # This can occur when data sources return placeholder rows (e.g., weekends with zeros).
+        if price is not None and price <= 0:
+            # Search backwards for a valid price
+            max_lookback = min(iter_count, 10)  # Look back up to 10 bars
+            for lookback in range(1, max_lookback + 1):
+                prev_idx = iter_count - lookback
+                if prev_idx < 0:
+                    break
+                prev_close = self.datalines["close"].dataline[prev_idx]
+                if prev_close is not None and prev_close > 0:
+                    price = prev_close
+                    break
+
         return price
 
     @check_data

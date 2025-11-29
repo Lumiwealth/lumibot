@@ -6213,3 +6213,6 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-11-26T02:22:15.699820,test_get_last_price_unchanged,ThetaData,,2.572,b09c8b6c,4.4.1,,,,,Auto-tracked from test_thetadata
 2025-11-26T02:23:13.928967,test_tqqq_theta_integration,unknown,,22.873,b09c8b6c,4.4.1,,,,,Auto-tracked from test_theta_strategies_integration
 2025-11-26T02:23:21.292925,test_meli_theta_integration,unknown,,7.258,b09c8b6c,4.4.1,,,,,Auto-tracked from test_theta_strategies_integration
+2025-11-28T06:33:49.932093,test_first_10_minutes_timestamps_and_prices,ThetaData,,6.727,aafec496,4.4.2,,,,,Auto-tracked from test_thetadata_comprehensive
+2025-11-28T06:34:05.111076,test_noon_period_accuracy,ThetaData,,15.048,aafec496,4.4.2,,,,,Auto-tracked from test_thetadata_comprehensive
+2025-11-28T06:34:19.143585,test_multiple_symbols,ThetaData,,13.536,aafec496,4.4.2,,,,,Auto-tracked from test_thetadata_comprehensive

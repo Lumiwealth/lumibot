@@ -1584,7 +1584,16 @@ class ThetaDataBacktestingPandas(PandasData):
         return bars
 
     def get_yesterday_dividends(self, assets, quote=None):
-        """Fetch Theta dividends via the corporate actions API to guarantee coverage."""
+        """Fetch Theta dividends via the corporate actions API to guarantee coverage.
+
+        IMPORTANT: ThetaData returns UNADJUSTED dividend amounts (pre-split).
+        We must adjust them by the cumulative split factor to get the correct
+        per-share amount in today's (post-split) terms.
+
+        NOTE: ThetaData has known data quality issues with phantom dividends
+        (e.g., TQQQ 2014-09-18 shows $0.41 that doesn't exist in other sources).
+        This is a ThetaData data quality issue that should be reported to their support.
+        """
         if not hasattr(self, "_theta_dividend_cache"):
             self._theta_dividend_cache = {}
 
@@ -1600,19 +1609,56 @@ class ThetaDataBacktestingPandas(PandasData):
                 end_date = end_day.date() if hasattr(end_day, "date") else current_date
                 try:
                     events = thetadata_helper._get_theta_dividends(asset, start_date, end_date, self._username, self._password)
+                    # Also fetch splits to adjust dividend amounts
+                    splits = thetadata_helper._get_theta_splits(asset, start_date, end_date, self._username, self._password)
+
+                    # Build cumulative split factor map (for each date, what factor to divide by)
+                    if splits is not None and not splits.empty:
+                        sorted_splits = splits.sort_values("event_date")
+                        # Calculate cumulative factor for each potential dividend date
+                        # A dividend on date D needs to be divided by all splits that occurred AFTER D
+                        split_dates = sorted_splits["event_date"].dt.date.tolist()
+                        split_ratios = sorted_splits["ratio"].tolist()
+
+                        def get_cumulative_factor(div_date):
+                            """Get the cumulative split factor for a dividend on div_date."""
+                            factor = 1.0
+                            for split_date, ratio in zip(split_dates, split_ratios):
+                                if split_date > div_date and ratio > 0 and ratio != 1.0:
+                                    factor *= ratio
+                            return factor
+                    else:
+                        def get_cumulative_factor(div_date):
+                            return 1.0
+
                     if events is not None and not events.empty:
                         for _, row in events.iterrows():
                             event_dt = row.get("event_date")
                             amount = row.get("cash_amount", 0)
                             if pd.notna(event_dt) and amount:
-                                cache[event_dt.date()] = float(amount)
-                        logger.debug(
-                            "[THETA][DIVIDENDS] cached %d entries for %s (%s -> %s)",
-                            len(cache),
-                            getattr(asset, "symbol", asset),
-                            min(cache.keys()),
-                            max(cache.keys()),
-                        )
+                                div_date = event_dt.date()
+
+                                # Adjust dividend amount by cumulative split factor
+                                cumulative_factor = get_cumulative_factor(div_date)
+                                adjusted_amount = float(amount) / cumulative_factor if cumulative_factor != 0 else float(amount)
+                                cache[div_date] = adjusted_amount
+                                if cumulative_factor != 1.0:
+                                    logger.debug(
+                                        "[THETA][DIVIDENDS] %s dividend on %s: raw=%.6f adjusted=%.6f (factor=%.2f)",
+                                        getattr(asset, "symbol", asset),
+                                        div_date,
+                                        amount,
+                                        adjusted_amount,
+                                        cumulative_factor,
+                                    )
+                        if cache:
+                            logger.debug(
+                                "[THETA][DIVIDENDS] cached %d entries for %s (%s -> %s)",
+                                len(cache),
+                                getattr(asset, "symbol", asset),
+                                min(cache.keys()),
+                                max(cache.keys()),
+                            )
                     else:
                         logger.debug(
                             "[THETA][DIVIDENDS] no dividend rows returned for %s between %s and %s",

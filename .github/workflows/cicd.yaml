@@ -44,6 +44,11 @@ jobs:
       POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
       THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+      # NOTE (2025-11-28): Data Downloader is a production proxy for ThetaData that allows
+      # shared access without requiring a local ThetaTerminal JAR. When these are set,
+      # ThetaData tests will use the remote downloader instead of spawning a local process.
+      DATADOWNLOADER_BASE_URL: ${{ secrets.DATADOWNLOADER_BASE_URL }}
+      DATADOWNLOADER_API_KEY: ${{ secrets.DATADOWNLOADER_API_KEY }}
       ALPACA_TEST_API_KEY: ${{secrets.ALPACA_TEST_API_KEY}} # Required for alpaca unit tests
       ALPACA_TEST_API_SECRET: ${{secrets.ALPACA_TEST_API_SECRET}} # Required for alpaca unit tests
       TRADIER_TEST_ACCESS_TOKEN: ${{secrets.TRADIER_TEST_ACCESS_TOKEN}} # Required for tradier unit tests

@@ -380,26 +380,41 @@ def print_progress_bar(
     else:
         eta_str = ""
 
+    # Make the simulation datetime string (value is the current backtest datetime)
+    sim_date_str = ""
+    if hasattr(value, 'strftime'):
+        sim_date_str = f"| Sim Time: {value.strftime('%Y-%m-%d %H:%M')}"
+
     # Make the portfolio value string
     if portfolio_value is not None:
-        portfolio_value_str = f"Portfolio Val: {portfolio_value:,.2f}"
+        portfolio_value_str = f"| Val: ${portfolio_value:,.0f}"
     else:
         portfolio_value_str = ""
 
     if not isinstance(length, int):
         try:
             terminal_length, _ = os.get_terminal_size()
-            length = max(
-                0,
-                terminal_length - len(prefix) - len(suffix) - decimals - len(eta_str) - len(portfolio_value_str) - 13,
-            )
+            # Calculate space needed for all components
+            fixed_chars = len(prefix) + len(suffix) + decimals + len(eta_str) + len(portfolio_value_str) + len(sim_date_str) + 20
+            length = max(10, terminal_length - fixed_chars)
         except:
-            length = 0
+            length = 30  # Default bar length if terminal size unavailable
 
     filled_length = int(length * percent / 100)
     bar = fill * filled_length + "-" * (length - filled_length)
 
-    line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {suffix} {eta_str} {portfolio_value_str}"
+    # Build the line and pad with spaces to clear any previous content
+    line = f"\r{prefix} |{colored(bar, 'green')}| {percent_str}% {eta_str} {sim_date_str} {portfolio_value_str}"
+    # Clear rest of line with ANSI escape code
+    line += "\033[K"
+
+    # Check if quiet logs mode is enabled
+    # When quiet_logs=true: no newline, progress bar overwrites itself in place
+    # When quiet_logs=false: add newline so log messages appear on their own lines
+    quiet_logs = os.environ.get("BACKTESTING_QUIET_LOGS", "true").lower() == "true"
+    if not quiet_logs:
+        line += "\n"
+
     file.write(line)
     file.flush()
 
@@ -567,3 +582,5 @@ def get_timezone_from_datetime(dtm: dt.datetime) -> pytz.timezone:
         return pytz.timezone(timezone_name)
     except (AttributeError, pytz.exceptions.UnknownTimeZoneError):
         return LUMIBOT_DEFAULT_PYTZ
+
+

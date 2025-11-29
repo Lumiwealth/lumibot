@@ -1006,6 +1006,14 @@ class _Strategy:
 
     def _update_cash_with_dividends(self):
         with self._executor.lock:
+            # IDEMPOTENCY CHECK: Track which (date, asset) combinations have already had dividends applied.
+            # This prevents double/multiple dividend application when this method is called multiple times
+            # per day from different locations in strategy_executor.py.
+            if not hasattr(self, '_dividends_applied_tracker'):
+                self._dividends_applied_tracker = set()
+
+            current_date = self.get_datetime().date() if hasattr(self.get_datetime(), 'date') else self.get_datetime()
+
             positions = self.broker.get_tracked_positions(self._name)
 
             assets = []
@@ -1023,11 +1031,24 @@ class _Strategy:
                 asset = position.asset
                 quantity = position.quantity
                 dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
+
+                # Skip if no dividend or already applied for this (date, asset) combination
+                if dividend_per_share == 0:
+                    continue
+
+                tracker_key = (current_date, getattr(asset, 'symbol', str(asset)))
+                if tracker_key in self._dividends_applied_tracker:
+                    continue  # Already applied dividend for this asset on this date
+
                 cash = self.cash
                 if cash is None:
                     cash = 0
                 cash += dividend_per_share * float(quantity)
                 self._set_cash_position(cash)
+
+                # Mark as applied
+                self._dividends_applied_tracker.add(tracker_key)
+
             return self.cash
 
     # =============Stats functions=====================

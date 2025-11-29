@@ -35,6 +35,8 @@ lumibot/
 └── entities/              # Data structures
     ├── asset.py                     # Asset class
     ├── bars.py                      # OHLCV bars
+    ├── data.py                      # Pandas-based Data class (ThetaData, Yahoo, Polygon)
+    ├── data_polars.py               # Polars-based DataPolars class (Databento ONLY)
     └── order.py                     # Order handling
 ```
 
@@ -97,12 +99,34 @@ The core broker for simulating trades during backtests:
 ```
 DataSource (ABC)
     └── DataSourceBacktesting (ABC)
-            ├── PandasData
+            ├── PandasData                        # Uses entities/data.py (Data class)
             │   ├── PolygonDataBacktesting
             │   └── ThetaDataBacktestingPandas
-            └── YahooData
-                └── YahooDataBacktesting
+            ├── YahooData
+            │   └── YahooDataBacktesting
+            └── PolarsData                        # Uses entities/data_polars.py (DataPolars class)
+                └── DatabentoBacktestingPolars
 ```
+
+### Entity Classes: Pandas vs Polars
+
+**IMPORTANT:** The `Data` class (pandas-based) and `DataPolars` class (polars-based) are NOT interchangeable.
+
+| Entity Class | File | Used By | Description |
+|--------------|------|---------|-------------|
+| `Data` | `entities/data.py` | ThetaData, Yahoo, Polygon, Alpaca, CCXT | Pandas-based OHLCV storage with bid/ask support |
+| `DataPolars` | `entities/data_polars.py` | Databento ONLY | Polars-based OHLCV storage (optimized for Databento's format) |
+
+**Why the distinction:**
+- Databento provides data in a format optimized for polars
+- Most other sources (ThetaData, Yahoo, Polygon) use pandas DataFrames
+- The two entity classes have similar interfaces but different internal implementations
+- **DO NOT** modify `data_polars.py` when fixing ThetaData issues
+
+**Key Methods Both Provide:**
+- `get_last_price(dt)` - Get price at datetime (Data has bid/ask fallback, DataPolars does not)
+- `get_price_snapshot(dt)` - Get OHLC + bid/ask snapshot
+- `get_iter_count(dt)` - Get iteration index for datetime
 
 ### 3. Yahoo Finance (`yahoo_backtesting.py` → `yahoo_data.py` → `yahoo_helper.py`)
 
@@ -178,6 +202,24 @@ ThetaData returns dividends on dates where Yahoo shows NONE:
 - 2015-07-02: $1.22 (Yahoo: no dividend)
 
 Even after split adjustment, these phantom dividends affect results. Consider disabling ThetaData dividends entirely or cross-validating with Yahoo.
+
+**Zero-Price Data Filtering (FIXED - Nov 28, 2025)**
+
+ThetaData sometimes returns rows with all-zero OHLC values (e.g., Saturday 2019-06-08 for MELI). This caused `ZeroDivisionError` when strategies tried to calculate position sizes.
+
+**Fix Applied:**
+1. Zero-price filtering when loading from cache (`thetadata_helper.py` lines ~2501-2513)
+2. Zero-price filtering when receiving new data (`thetadata_helper.py` lines ~2817-2829)
+3. Cache is self-healing - bad data automatically filtered on load
+
+**Filtering Logic:**
+```python
+# Filter rows where ALL OHLC values are zero
+all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
+df = df[~all_zero]
+```
+
+**Note:** Weekend filtering was intentionally NOT added because markets may trade on weekends in the future (crypto, futures). The issue is zero prices, not weekend dates.
 
 ### 5. Polygon (`polygon_backtesting.py` → `polygon_helper.py`)
 

@@ -902,7 +902,9 @@ class _Strategy:
             return ask_price
 
         if close_price is not None:
-            self.logger.warning(
+            # Use DEBUG - this is expected behavior in backtesting where historical data
+            # may not have fresh bid/ask timestamps. WARNING here creates excessive noise.
+            self.logger.debug(
                 "Using stale trade price for %s; last trade=%s, last bid=%s, last ask=%s (threshold=%ss).",
                 asset,
                 trade_time.isoformat() if trade_time else "unknown",

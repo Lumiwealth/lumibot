@@ -177,7 +177,33 @@ class TestOptionsHelper(unittest.TestCase):
         # Should have logged an error
         log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
         self.assertTrue(any("ERROR: Invalid target delta" in msg for msg in log_calls))
-    
+
+    def test_get_greeks_returns_none(self):
+        """Test handling when get_greeks returns None (e.g., missing option data)"""
+        # Mock get_greeks to return None (simulates unavailable option data)
+        self.mock_strategy.get_greeks = Mock(return_value=None)
+
+        underlying_asset = Asset("TEST", asset_type="stock")
+        underlying_price = 200.0
+        target_delta = -0.3
+        expiry = date.today() + timedelta(days=30)
+        right = "put"
+
+        result = self.options_helper.find_strike_for_delta(
+            underlying_asset=underlying_asset,
+            underlying_price=underlying_price,
+            target_delta=target_delta,
+            expiry=expiry,
+            right=right
+        )
+
+        # Should return None when Greeks unavailable
+        self.assertIsNone(result)
+
+        # Should have logged about Greeks being None
+        log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
+        self.assertTrue(any("greeks returned None" in msg for msg in log_calls))
+
     def test_warning_for_unrealistic_strike(self):
         """Test that warnings are generated for unrealistic strikes"""
         # Mock a scenario where we get an unrealistically low strike

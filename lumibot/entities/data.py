@@ -505,6 +505,9 @@ class Data:
         Returns
         -------
         float or Decimal or None
+            Returns the close price (or open price for intraday before bar completion).
+            Falls back to bid/ask midpoint if close/open is unavailable (useful for options
+            that may have quotes but no trades).
         """
         iter_count = self.get_iter_count(dt)
         open_price = self.datalines["open"].dataline[iter_count]
@@ -514,6 +517,33 @@ class Data:
             price = close_price
         else:
             price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+
+        # Check if price is valid (not None and not NaN)
+        def _is_valid_price(p):
+            if p is None:
+                return False
+            try:
+                return not pd.isna(p)
+            except (TypeError, ValueError):
+                return True
+
+        # If price is invalid, try to use bid/ask midpoint as fallback
+        # This is especially useful for options where there may be quotes but no trades
+        if not _is_valid_price(price):
+            bid = self.datalines.get("bid")
+            ask = self.datalines.get("ask")
+            if bid is not None and ask is not None:
+                bid_val = bid.dataline[iter_count]
+                ask_val = ask.dataline[iter_count]
+                if _is_valid_price(bid_val) and _is_valid_price(ask_val):
+                    try:
+                        bid_float = float(bid_val)
+                        ask_float = float(ask_val)
+                        if bid_float > 0 and ask_float > 0:
+                            price = (bid_float + ask_float) / 2.0
+                    except (TypeError, ValueError):
+                        pass
+
         return price
 
     @check_data

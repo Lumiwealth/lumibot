@@ -1441,7 +1441,8 @@ class ThetaDataBacktestingPandas(PandasData):
             days_behind = (end_requirement_cmp - coverage_end_cmp).days if end_requirement_cmp > coverage_end_cmp else 0
             END_TOLERANCE_DAYS = 3
             if days_behind > 0 and days_behind <= END_TOLERANCE_DAYS:
-                logger.warning(
+                # Use INFO - this is expected behavior (data lag within tolerance), not an error.
+                logger.info(
                     "[THETA][COVERAGE][TOLERANCE] asset=%s/%s (%s) data is %s day(s) behind target_end=%s; allowing within tolerance",
                     asset_separated,
                     quote_asset,

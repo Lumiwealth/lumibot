@@ -6252,3 +6252,16 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2025-11-28T22:17:51.791912,test_crypto_cash_regression_no_fees[price_map1],unknown,,0.367,e56487ba,4.4.2,,,,,Auto-tracked from test_crypto_cash_regressions
 2025-11-28T22:17:52.360957,test_crypto_cash_regression_with_fees,unknown,,0.369,e56487ba,4.4.2,,,,,Auto-tracked from test_crypto_cash_regressions
 2025-11-28T22:18:03.112730,test_daily_data_full_month_spx_index,unknown,,1.271,e56487ba,4.4.2,,,,,Auto-tracked from test_daily_data_timestamp_comparison
+2025-11-28T22:18:04.357652,test_daily_data_full_month_vix_index,unknown,,1.028,c60cd371,4.4.2,,,,,Auto-tracked from test_daily_data_timestamp_comparison
+2025-11-28T22:18:05.784336,test_daily_data_full_month_ndx_index,unknown,,1.208,c60cd371,4.4.2,,,,,Auto-tracked from test_daily_data_timestamp_comparison
+2025-11-28T22:18:07.410853,test_daily_data_spy_call_option,unknown,,1.419,c60cd371,4.4.2,,,,,Auto-tracked from test_daily_data_timestamp_comparison
+2025-11-28T22:18:08.533948,test_daily_data_spy_put_option,unknown,,0.914,c60cd371,4.4.2,,,,,Auto-tracked from test_daily_data_timestamp_comparison
+2025-11-28T22:18:11.228868,test_databento_auth_failure_propagates,Databento,,0.155,c60cd371,4.4.2,,,,,Auto-tracked from test_databento
+2025-11-28T22:18:16.872676,test_databento_continuous_futures_minute_data,Databento,,5.429,c60cd371,4.4.2,,,,,Auto-tracked from test_databento
+2025-11-28T22:18:26.053978,test_databento_continuous_futures_minute_data_polars,Databento,,8.956,c60cd371,4.4.2,,,,,Auto-tracked from test_databento
+2025-11-28T22:18:26.660588,test_databento_daily_continuous_futures,Databento,,0.374,c60cd371,4.4.2,,,,,Auto-tracked from test_databento
+2025-11-28T22:18:56.428913,test_multiple_instruments_minute_data[DataBentoDataBacktestingPolars],Databento,,29.531,c60cd371,4.4.2,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-11-28T22:23:19.717190,test_multiple_instruments_minute_data[DataBentoDataBacktestingPandas],Databento,,537.456,c60cd371,4.4.2,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-11-28T22:23:22.409962,test_multiple_instruments_minute_data[DataBentoDataBacktestingPandas],Databento,,265.743,c60cd371,4.4.2,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-11-28T22:23:29.655207,test_multiple_instruments_daily_data,Databento,,9.656,c60cd371,4.4.2,,,,,Auto-tracked from test_databento_comprehensive_trading
+2025-11-28T22:23:31.267763,test_multiple_instruments_daily_data,Databento,,8.608,c60cd371,4.4.2,,,,,Auto-tracked from test_databento_comprehensive_trading

@@ -130,6 +130,21 @@ Look at `*_tearsheet.csv` for CAGR and metrics.
 - `lumibot/backtesting/thetadata_backtesting_pandas.py` - `get_yesterday_dividends()`
 - `lumibot/strategies/_strategy.py` - `_update_cash_with_dividends()`
 
+### ✅ ThetaData Zero-Price Data Filtering (FIXED - Nov 28, 2025)
+
+**Status:** FIXED - Zero-price rows now filtered automatically
+
+**Root cause:** ThetaData sometimes returns rows with all-zero OHLC values (e.g., Saturday 2019-06-08 for MELI), which caused `ZeroDivisionError` when strategies tried to calculate positions.
+
+**Fix applied:**
+1. Added zero-price filtering when loading from cache (`thetadata_helper.py` lines ~2501-2513)
+2. Added zero-price filtering when receiving new data from ThetaData (`thetadata_helper.py` lines ~2817-2829)
+3. Cache is self-healing - bad data is filtered on load
+
+**Unit tests added:**
+- `TestZeroPriceFiltering` class with 6 tests covering all edge cases
+- Tests verify: zero-row removal, valid-zero-volume preservation, weekend-zero handling, partial-zeros, empty DF, all-zero DF
+
 ### Cache Version Mismatch
 
 Always ensure `.env` files have matching cache versions:
@@ -163,3 +178,73 @@ Results (tearsheet, trades, logs)
 ```
 
 See `BACKTESTING_ARCHITECTURE.md` for detailed data flow diagrams.
+
+## CRITICAL: MCP Servers (MUST USE)
+
+**ATTENTION CLAUDE:** These MCP servers are **ESSENTIAL** for working effectively on LumiBot. They have proven to make a **massive difference** in debugging complex data issues, validating financial data accuracy, and navigating this large codebase. **USE THEM PROACTIVELY AND FREQUENTLY.**
+
+**IF THESE MCP SERVERS ARE NOT AVAILABLE:** Inform the user immediately and strongly recommend they install them. The debugging experience without these tools is significantly degraded. Installation instructions can be found in the Claude Code documentation.
+
+### Why These Tools Matter for LumiBot
+
+LumiBot deals with:
+- Complex financial data from multiple sources (Yahoo, ThetaData, Polygon)
+- Split adjustments, dividend calculations, and corporate actions
+- Large codebase with intricate data flow paths
+- Data accuracy requirements where small errors compound over time
+
+Without MCP tools, debugging these issues is slow and error-prone. With them, you can validate data against external sources, systematically break down problems, and navigate the codebase efficiently.
+
+---
+
+### Sequential Thinking (`mcp__sequential-thinking__sequentialthinking`) - **USE THIS FIRST**
+
+**STRONGLY RECOMMENDED** for ANY complex debugging task. This tool has been critical for:
+- Breaking down backtesting discrepancies into systematic steps
+- Analyzing why ThetaData vs Yahoo results differ
+- Planning fixes that don't introduce regressions
+- Debugging split/dividend calculation issues
+
+**USE IT:** Before diving into complex code changes, use sequential thinking to plan your approach.
+
+### Perplexity (`mcp__perplexity__*`) - **ESSENTIAL FOR DATA VALIDATION**
+
+**CRITICAL** for validating financial data. LumiBot data issues often stem from incorrect source data. Perplexity lets you:
+- `perplexity_search` - Verify stock split dates and ratios
+- `perplexity_research` - Deep dive into dividend history discrepancies
+- `perplexity_ask` - Quick validation of corporate action data
+
+**REAL EXAMPLE:** We discovered ThetaData "phantom dividends" by using Perplexity to cross-reference against Yahoo, Bloomberg, and SEC filings. This identified data quality issues that would have been impossible to find otherwise.
+
+**USE IT:** Whenever you see unexpected financial data, validate it with Perplexity before assuming the code is wrong.
+
+### Memory (`mcp__memory__*`) - **TRACK YOUR FINDINGS**
+
+**HIGHLY RECOMMENDED** for maintaining context across debugging sessions:
+- Store known data source discrepancies
+- Record phantom dividend dates and amounts
+- Track cache version changes and their reasons
+- Remember which fixes were applied and why
+
+**USE IT:** When you discover an issue, store it in memory so future sessions don't have to rediscover it.
+
+### X-Ray (`mcp__xray__*`) - **NAVIGATE THE CODEBASE**
+
+**PARTIALLY USEFUL** for understanding the LumiBot codebase:
+- `explore_repo` - **WORKS** - Map the directory structure
+- `what_breaks` - **WORKS** - Find all usages of a function (text search)
+- `find_symbol` - **REQUIRES ast-grep** - If this fails, install: `brew install ast-grep`
+
+**USE IT:** Before modifying any function, use `what_breaks` to understand the impact. If `find_symbol` fails, use Grep tool instead.
+
+### Context7 (`mcp__context7__*`) - **GET CURRENT DOCS**
+
+**USEFUL** for library documentation:
+- `resolve-library-id` - Find library IDs
+- `get-library-docs` - Get current pandas, yfinance, polygon docs
+
+### Chrome DevTools (`mcp__chrome-devtools__*`)
+
+**USEFUL** for debugging Data Downloader issues:
+- Test API endpoints directly
+- Inspect network responses from ThetaData

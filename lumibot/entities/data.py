@@ -514,21 +514,6 @@ class Data:
             price = close_price
         else:
             price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
-
-        # Handle zero/invalid prices by looking back for the last valid price.
-        # This can occur when data sources return placeholder rows (e.g., weekends with zeros).
-        if price is not None and price <= 0:
-            # Search backwards for a valid price
-            max_lookback = min(iter_count, 10)  # Look back up to 10 bars
-            for lookback in range(1, max_lookback + 1):
-                prev_idx = iter_count - lookback
-                if prev_idx < 0:
-                    break
-                prev_close = self.datalines["close"].dataline[prev_idx]
-                if prev_close is not None and prev_close > 0:
-                    price = prev_close
-                    break
-
         return price
 
     @check_data

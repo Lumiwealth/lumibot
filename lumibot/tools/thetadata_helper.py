@@ -2498,6 +2498,20 @@ def load_cache(cache_file):
 
     df = ensure_missing_column(df)
 
+    # Filter out bad data from cached ThetaData:
+    # Rows where all OHLC values are zero indicates bad/placeholder data from ThetaData.
+    # NOTE: We intentionally do NOT filter weekend dates because markets may trade on
+    # weekends in the future (futures, crypto, etc.). The issue is zero prices, not weekends.
+    if not df.empty and all(col in df.columns for col in ["open", "high", "low", "close"]):
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
+        zero_count = all_zero.sum()
+        if zero_count > 0:
+            # Log the dates of the zero rows for debugging
+            zero_dates = df.index[all_zero].tolist()
+            logger.warning("[THETA][DATA_QUALITY][CACHE] Filtering %d all-zero OHLC rows: %s",
+                          zero_count, [str(d)[:10] for d in zero_dates[:5]])
+            df = df[~all_zero]
+
     min_ts = df.index.min() if len(df) > 0 else None
     max_ts = df.index.max() if len(df) > 0 else None
     placeholder_count = int(df["missing"].sum()) if "missing" in df.columns else 0
@@ -2799,6 +2813,20 @@ def update_df(df_all, result):
             df.index = df.index.tz_localize(ny_tz).tz_convert(pytz.utc)
         else:
             df.index = df.index.tz_convert(pytz.utc)
+
+        # Filter out bad data from ThetaData:
+        # Rows where all OHLC values are zero indicates bad/placeholder data from ThetaData.
+        # NOTE: We intentionally do NOT filter weekend dates because markets may trade on
+        # weekends in the future (futures, crypto, etc.). The issue is zero prices, not weekends.
+        if not df.empty and all(col in df.columns for col in ["open", "high", "low", "close"]):
+            all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
+            zero_count = all_zero.sum()
+            if zero_count > 0:
+                # Log the dates of the zero rows for debugging
+                zero_dates = df.index[all_zero].tolist()
+                logger.warning("[THETA][DATA_QUALITY] Filtering %d all-zero OHLC rows: %s",
+                              zero_count, [str(d)[:10] for d in zero_dates[:5]])
+                df = df[~all_zero]
 
         if df_all is not None:
             # set "datetime" column as index of df_all

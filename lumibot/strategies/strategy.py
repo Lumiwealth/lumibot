@@ -2642,8 +2642,11 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        Returns a dictionary with greeks as keys and greek values as
-        values.
+        dict or None
+            Returns a dictionary with greeks as keys and greek values as values.
+            **Returns None if the option price or underlying price is unavailable**
+            (e.g., no data from ThetaData for that strike/expiry).
+            Always check for None before accessing greek values.
 
         implied_volatility : float
             The implied volatility.
@@ -2668,11 +2671,14 @@ class Strategy(_Strategy):
         >>> # Will return the greeks for SPY
         >>> opt_asset = Asset("SPY", expiration=date(2021, 1, 1), strike=100, option_type="call"
         >>> greeks = self.get_greeks(opt_asset)
-        >>> implied_volatility = greeks["implied_volatility"]
-        >>> delta = greeks["delta"]
-        >>> gamma = greeks["gamma"]
-        >>> vega = greeks["vega"]
-        >>> theta = greeks["theta"]
+        >>> if greeks is None:
+        >>>     print("Greeks unavailable - option price or underlying price missing")
+        >>> else:
+        >>>     implied_volatility = greeks["implied_volatility"]
+        >>>     delta = greeks["delta"]
+        >>>     gamma = greeks["gamma"]
+        >>>     vega = greeks["vega"]
+        >>>     theta = greeks["theta"]
         """
         if asset.asset_type != "option":
             self.log_message(

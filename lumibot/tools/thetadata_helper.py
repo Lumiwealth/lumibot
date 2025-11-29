@@ -201,7 +201,9 @@ if REMOTE_DOWNLOADER_ENABLED:
             key_suffix,
         )
     else:
-        logger.warning("[THETA][CONFIG] Downloader API key missing (DATADOWNLOADER_API_KEY not set)")
+        # Use DEBUG level - this fires at module import time before ECS secrets injection.
+        # The key is typically available at runtime; a WARNING here creates noise in logs.
+        logger.debug("[THETA][CONFIG] Downloader API key not set at import time (DATADOWNLOADER_API_KEY)")
 HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
 READINESS_ENDPOINT = "/v3/terminal/mdds/status"
 READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
@@ -3176,7 +3178,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     end_date = format_date(querystring.get("end_date", querystring.get("end", "?")))
                     endpoint = url.split("/")[-1].split("?")[0] if url else "unknown"
 
-                    logger.warning(
+                    # Use INFO - no data for a date range is expected (e.g., no options for that strike/expiry).
+                    # This will be cached to avoid repeated queries.
+                    logger.info(
                         "[THETA][NO_DATA] No data for %s | endpoint: %s | date range: %s to %s | "
                         "ThetaData returned no records for this request. This will be cached to avoid re-fetching.",
                         asset_desc, endpoint, start_date, end_date

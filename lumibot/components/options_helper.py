@@ -330,6 +330,13 @@ class OptionsHelper:
             self.strategy.log_message(f"No price for option {option.symbol} at strike {strike}", color="yellow")
             return None
         greeks = self.strategy.get_greeks(option, underlying_price=underlying_price)
+        # Handle None from get_greeks - can happen when option price or underlying price unavailable
+        if greeks is None:
+            self.strategy.log_message(
+                f"Could not calculate Greeks for {option.symbol} at strike {strike} (greeks returned None)",
+                color="yellow"
+            )
+            return None
         delta = greeks.get("delta")
         self.strategy.log_message(f"Delta for strike {strike} is {delta}", color="blue")
         return delta

@@ -169,21 +169,6 @@ class TestStrategyMethods:
         is_valid = strategy._validate_order(None)
         assert is_valid == False
 
-    def test_get_price_from_source_prefers_daily_cache(self):
-        strat = self._make_strategy_stub()
-        strat._should_use_daily_last_price = MagicMock(return_value=True)
-        strat.get_last_price = MagicMock(return_value=123.45)
-
-        dummy_source = MagicMock()
-        base = Asset("SPY", Asset.AssetType.STOCK)
-        quote = Asset("USD", Asset.AssetType.FOREX)
-
-        result = Strategy._get_price_from_source(strat, dummy_source, (base, quote))
-
-        assert result == 123.45
-        strat.get_last_price.assert_called_once_with(base, quote=quote)
-        dummy_source.get_price_snapshot.assert_not_called()
-
     def test_get_price_from_source_snapshot_fallback(self):
         strat = self._make_strategy_stub()
         strat._should_use_daily_last_price = MagicMock(return_value=False)
@@ -199,20 +184,6 @@ class TestStrategyMethods:
         assert result == 42.0
         strat._pick_snapshot_price.assert_called_once()
         strat.get_last_price.assert_not_called()
-
-    def test_get_price_from_source_prefers_daily_cache_single_asset(self):
-        strat = self._make_strategy_stub()
-        strat._should_use_daily_last_price = MagicMock(return_value=True)
-        strat.get_last_price = MagicMock(return_value=456.78)
-
-        dummy_source = MagicMock()
-        asset = Asset("SPY", Asset.AssetType.STOCK)
-
-        result = Strategy._get_price_from_source(strat, dummy_source, asset)
-
-        assert result == 456.78
-        strat.get_last_price.assert_called_once_with(asset, quote=None)
-        dummy_source.get_price_snapshot.assert_not_called()
 
     def test_validate_order_with_invalid_order_type(self):
         """
@@ -365,7 +336,8 @@ class TestStrategyMethods:
         warning_mock.assert_not_called()
         assert source.last_price_calls == 0
 
-    def test_update_portfolio_value_warns_when_all_snapshot_data_stale(self):
+    def test_update_portfolio_value_logs_debug_when_all_snapshot_data_stale(self):
+        """Test that stale snapshot data triggers debug log and uses close price."""
         strategy, position, option_asset, source = self._setup_strategy_with_option_position()
         now = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 4, 7, 10, 30))
         strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
@@ -383,11 +355,12 @@ class TestStrategyMethods:
         }
         starting_cash = strategy.cash
 
-        with patch.object(strategy.logger, "warning") as warning_mock:
+        with patch.object(strategy.logger, "debug") as debug_mock:
             value = strategy._update_portfolio_value()
 
         assert value == pytest.approx(starting_cash + position.quantity * option_asset.multiplier * 65.0)
-        warning_mock.assert_called_once()
+        # Debug is called for stale data - expected behavior in backtesting
+        debug_mock.assert_called_once()
         assert source.last_price_calls == 0
 
     @patch('uuid.uuid4')

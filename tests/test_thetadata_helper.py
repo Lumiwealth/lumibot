@@ -2899,9 +2899,11 @@ def test_update_pandas_data_fetches_real_day_frames(monkeypatch):
 
     def fake_get_price_data(*args, **kwargs):
         captured["timespan"] = kwargs.get("timespan")
+        # Return data covering the full backtest period (2024-07-01 to 2024-11-05)
+        # to satisfy coverage validation checks
         eod_index = pd.date_range(
-            start=utc.localize(datetime.datetime(2024, 8, 1, 20, 0)),
-            periods=10,
+            start=utc.localize(datetime.datetime(2024, 7, 1, 20, 0)),
+            end=utc.localize(datetime.datetime(2024, 11, 5, 20, 0)),
             freq="D",
         )
         return pd.DataFrame(

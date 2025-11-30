@@ -41,6 +41,10 @@ jobs:
 
     env:
       AIOHTTP_NO_EXTENSIONS: 1
+      # CRITICAL: Set this to "none" so tests use their explicit data sources.
+      # Tests that want ThetaData must explicitly request it.
+      # Without this, the default is "ThetaData" which overrides ALL backtests.
+      BACKTESTING_DATA_SOURCE: none
       POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
       THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}

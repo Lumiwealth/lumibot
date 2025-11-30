@@ -1564,54 +1564,34 @@ class BacktestingBroker(Broker):
                         dt_col = 'datetime'  # fallback
 
                     # Filter for current time or future
-                    df = df_original.filter(pl.col(dt_col) <= self.datetime)
+                    df = df_original.filter(pl.col(dt_col) >= self.datetime)
 
                     # If the dataframe is empty, get the last row
                     if len(df) == 0:
-                        earliest_dt = df_original[dt_col].min()
-                        if earliest_dt is not None and self.datetime < earliest_dt:
-                            if strategy is not None:
-                                display_symbol = getattr(order.asset, "symbol", order.asset)
-                                strategy.log_message(
-                                    f"[DIAG] No historical coverage yet for {display_symbol} at {self.datetime}; "
-                                    f"waiting for first real bar {earliest_dt}",
-                                    color="yellow",
-                                )
-                            continue
                         df = df_original.tail(1)
 
                     # Get values
-                    dt = df[dt_col][-1]
-                    open = df["open"][-1]
-                    high = df["high"][-1]
-                    low = df["low"][-1]
-                    close = df["close"][-1]
-                    volume = df["volume"][-1]
+                    dt = df[dt_col][0]
+                    open = df["open"][0]
+                    high = df["high"][0]
+                    low = df["low"][0]
+                    close = df["close"][0]
+                    volume = df["volume"][0]
                 else:  # Pandas DataFrame
                     # Make sure that we are only getting the prices for the current time exactly or in the future
-                    df = df_original[df_original.index <= self.datetime]
+                    df = df_original[df_original.index >= self.datetime]
 
                     # If the dataframe is empty, then we should get the last row of the original dataframe
                     # because it is the best data we have
                     if len(df) == 0:
-                        earliest_dt = df_original.index.min()
-                        if earliest_dt is not None and self.datetime < earliest_dt:
-                            if strategy is not None:
-                                display_symbol = getattr(order.asset, "symbol", order.asset)
-                                strategy.log_message(
-                                    f"[DIAG] No historical coverage yet for {display_symbol} at {self.datetime}; "
-                                    f"waiting for first real bar {earliest_dt}",
-                                    color="yellow",
-                                )
-                            continue
                         df = df_original.iloc[-1:]
 
-                    dt = df.index[-1]
-                    open = df["open"].iloc[-1]
-                    high = df["high"].iloc[-1]
-                    low = df["low"].iloc[-1]
-                    close = df["close"].iloc[-1]
-                    volume = df["volume"].iloc[-1]
+                    dt = df.index[0]
+                    open = df["open"].iloc[0]
+                    high = df["high"].iloc[0]
+                    low = df["low"].iloc[0]
+                    close = df["close"].iloc[0]
+                    volume = df["volume"].iloc[0]
 
             #############################
             # Determine transaction price.

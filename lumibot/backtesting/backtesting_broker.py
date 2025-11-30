@@ -1495,41 +1495,13 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the PANDAS data source
             elif self.data_source.SOURCE == "PANDAS":
-                # Default to the current data source timestep, but force daily bars for daily-cadence strategies.
-                timestep = getattr(self.data_source, "_timestep", None) or self.data_source.get_timestep()
-                # Use a forward-looking window for fills. Default to -2 for daily, -3 for minute to ensure
-                # we see the next bar when pricing orders.
-                timeshift_value = -3 if timestep != "day" else -2
-                length_value = 3 if timestep != "day" else 2
-                if strategy is not None:
-                    use_daily = False
-                    cadence_seconds = None
-                    try:
-                        cadence_seconds = strategy._get_sleeptime_seconds()
-                    except Exception:
-                        cadence_seconds = None
-                    if cadence_seconds is not None and cadence_seconds >= 20 * 3600:
-                        use_daily = True
-                    base_asset = order.asset if not (isinstance(order.asset, tuple) and len(order.asset) > 0) else order.asset[0]
-                    if not use_daily:
-                        try:
-                            use_daily = strategy._should_use_daily_last_price(base_asset)
-                        except Exception:
-                            use_daily = False
-                    if not use_daily and getattr(self.data_source, "_timestep", None) == "day":
-                        use_daily = True
-                    if use_daily:
-                        timestep = "day"
-                        timeshift_value = -2
-                        length_value = 2
-
                 # This is a hack to get around the fact that we need to get the previous day's data to prevent lookahead bias.
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,
-                    length=length_value,
+                    length=2,
                     quote=order.quote,
-                    timeshift=timeshift_value,
-                    timestep=timestep,
+                    timeshift=-2,
+                    timestep=self.data_source._timestep,
                 )
                 # Check if we got any ohlc data
                 if ohlc is None or ohlc.empty:
@@ -1538,15 +1510,11 @@ class BacktestingBroker(Broker):
                         order_identifier = getattr(order, "identifier", None)
                         if order_identifier is None:
                             order_identifier = getattr(order, "id", "<unknown>")
-                        action = "holding" if timestep == "day" else "canceling"
                         strategy.log_message(
                             f"[DIAG] No pandas bars for {display_symbol} at {self.datetime}; "
-                            f"{action} {order.order_type} id={order_identifier}",
+                            f"canceling {order.order_type} id={order_identifier}",
                             color="yellow",
                         )
-                    if timestep == "day":
-                        # Leave the order pending so it can be re-priced on the next iteration when data is available.
-                        continue
                     self.cancel_order(order)
                     continue
 

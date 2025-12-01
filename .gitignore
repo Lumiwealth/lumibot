@@ -51,3 +51,7 @@ data/SRNE_Minute.csv
 .env
 token.json
 schwab_token.json
+
+# AI assistant instruction files (contain local paths)
+CLAUDE.md
+AGENTS.md

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import plotly.graph_objects as go
+import pytest
 
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.strategies.strategy import Strategy
@@ -399,3 +400,103 @@ class TestAddMarkerAndLineGuards:
             strat.add_line("bad_style", 10.0, color="lightblue", style="dot-dot")
         assert strat._chart_lines_list[0]["style"] == "solid"
         assert "Unsupported line style" in caplog.text
+
+    # Tests for asset parameter support
+    def test_add_marker_accepts_asset(self):
+        """Test that add_marker correctly stores Asset object fields."""
+        strat = _make_strategy_stub()
+        asset = Asset(symbol="SPY", asset_type="stock")
+        strat.add_marker("test_marker", 100.0, asset=asset)
+
+        assert len(strat._chart_markers_list) == 1
+        marker = strat._chart_markers_list[0]
+        assert marker["asset_symbol"] == "SPY"
+        assert marker["asset_type"] == "stock"
+        assert marker["asset_display_name"] == "SPY"
+        assert marker["asset_expiration"] is None
+        # Note: Asset class defaults strike to 0.0 for non-option assets
+        assert marker["asset_strike"] == 0.0
+        assert marker["asset_right"] is None
+
+    def test_add_marker_rejects_string_asset(self):
+        """Test that add_marker raises TypeError when asset is a string."""
+        strat = _make_strategy_stub()
+        with pytest.raises(TypeError, match="Asset must be an Asset object"):
+            strat.add_marker("test_marker", 100.0, asset="SPY")
+
+    def test_add_line_accepts_asset(self):
+        """Test that add_line correctly stores Asset object fields."""
+        strat = _make_strategy_stub()
+        asset = Asset(symbol="AAPL", asset_type="stock")
+        strat.add_line("SMA_20", 150.0, asset=asset)
+
+        assert len(strat._chart_lines_list) == 1
+        line = strat._chart_lines_list[0]
+        assert line["asset_symbol"] == "AAPL"
+        assert line["asset_type"] == "stock"
+        assert line["asset_display_name"] == "AAPL"
+
+    def test_add_line_rejects_string_asset(self):
+        """Test that add_line raises TypeError when asset is a string."""
+        strat = _make_strategy_stub()
+        with pytest.raises(TypeError, match="Asset must be an Asset object"):
+            strat.add_line("SMA_20", 150.0, asset="AAPL")
+
+    def test_add_marker_option_asset_fields(self):
+        """Test that add_marker correctly stores option asset fields."""
+        strat = _make_strategy_stub()
+        asset = Asset(
+            symbol="AAPL",
+            asset_type="option",
+            expiration="2024-12-20",
+            strike=150,
+            right="CALL"
+        )
+        strat.add_marker("iv_marker", 0.25, asset=asset)
+
+        marker = strat._chart_markers_list[0]
+        assert marker["asset_symbol"] == "AAPL"
+        assert marker["asset_type"] == "option"
+        assert marker["asset_expiration"] == "2024-12-20"
+        assert marker["asset_strike"] == 150
+        assert marker["asset_right"] == "CALL"
+        assert marker["asset_display_name"] == "AAPL 2024-12-20 150 CALL"
+
+    def test_add_line_future_asset_fields(self):
+        """Test that add_line correctly stores future asset fields."""
+        strat = _make_strategy_stub()
+        asset = Asset(
+            symbol="ES",
+            asset_type="future",
+            expiration="2024-12-20"
+        )
+        strat.add_line("price", 5000.0, asset=asset)
+
+        line = strat._chart_lines_list[0]
+        assert line["asset_symbol"] == "ES"
+        assert line["asset_type"] == "future"
+        assert line["asset_expiration"] == "2024-12-20"
+        assert line["asset_display_name"] == "ES 2024-12-20"
+        # Note: Asset class defaults strike to 0.0 for non-option assets
+        assert line["asset_strike"] == 0.0
+        assert line["asset_right"] is None
+
+    def test_add_marker_no_asset(self):
+        """Test that add_marker works without asset parameter (backwards compatibility)."""
+        strat = _make_strategy_stub()
+        strat.add_marker("test_marker", 100.0)
+
+        marker = strat._chart_markers_list[0]
+        assert marker["asset_symbol"] is None
+        assert marker["asset_type"] is None
+        assert marker["asset_display_name"] is None
+
+    def test_add_line_no_asset(self):
+        """Test that add_line works without asset parameter (backwards compatibility)."""
+        strat = _make_strategy_stub()
+        strat.add_line("test_line", 100.0)
+
+        line = strat._chart_lines_list[0]
+        assert line["asset_symbol"] is None
+        assert line["asset_type"] is None
+        assert line["asset_display_name"] is None

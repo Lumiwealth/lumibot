@@ -3077,7 +3077,8 @@ class Strategy(_Strategy):
             size: int = None,
             detail_text: str = None,
             dt: Union[datetime.datetime, pd.Timestamp] = None,
-            plot_name: str = "default_plot"
+            plot_name: str = "default_plot",
+            asset: Asset = None
             ):
         """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
 
@@ -3099,6 +3100,11 @@ class Strategy(_Strategy):
             The datetime of the marker. Default is the current datetime.
         plot_name : str
             The name of the subplot to add the marker to. If "default_plot" (the default value) or None, the marker will be added to the main plot.
+        asset : Asset, optional
+            The Asset object to associate with this marker. Indicators are almost always tied to specific assets,
+            so if you have an asset object, you should pass it here. This enables proper multi-symbol charting
+            where indicators can be displayed as overlays on their corresponding asset's price chart rather than
+            as separate subplots. Must be an Asset object, not a string.
 
         Note
         ----
@@ -3108,8 +3114,9 @@ class Strategy(_Strategy):
         -------
         >>> # Will add a marker to the chart
         >>> self.add_chart_marker("Overbought", symbol="circle", color="red", size=10)
+        >>> # Will add a marker associated with a specific asset
+        >>> self.add_marker("buy_signal", value=150.0, color="green", symbol="arrow-up", asset=my_asset)
         """
-
 
         # Check that the parameters are valid
         if not isinstance(name, str):
@@ -3152,6 +3159,12 @@ class Strategy(_Strategy):
             raise ValueError(
                 f"Invalid dt parameter in add_marker() method. Dt must be a datetime.datetime but instead got {dt}, "
                 f"which is a type {type(dt)}."
+            )
+
+        if asset is not None and not isinstance(asset, Asset):
+            raise TypeError(
+                f"Invalid asset parameter in add_marker() method. Asset must be an Asset object, not a string or other type. "
+                f"Got {asset}, which is a type {type(asset)}. Use Asset(symbol='SPY', asset_type='stock') to create an Asset."
             )
 
         color = self._normalize_plot_color(color, default="blue", context="marker")
@@ -3207,6 +3220,15 @@ class Strategy(_Strategy):
             "value": value,
             "detail_text": detail_text,
             "plot_name": plot_name,
+            # Asset fields for multi-symbol charting support
+            "asset_symbol": asset.symbol if asset else None,
+            "asset_type": asset.asset_type if asset else None,
+            "asset_expiration": str(asset.expiration) if asset and asset.expiration else None,
+            "asset_strike": asset.strike if asset else None,
+            "asset_right": asset.right if asset else None,
+            "asset_multiplier": asset.multiplier if asset else None,
+            "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+            "asset_display_name": str(asset) if asset else None,
         }
 
         self._chart_markers_list.append(new_marker)
@@ -3235,7 +3257,8 @@ class Strategy(_Strategy):
             width: int = None,
             detail_text: str = None,
             dt: Union[datetime.datetime, pd.Timestamp] = None,
-            plot_name: str = "default_plot"
+            plot_name: str = "default_plot",
+            asset: Asset = None
             ):
         """Adds a line data point to the indicator chart. This can be used to add lines such as bollinger bands, prices for specific assets, or any other line you want to add to the chart.
 
@@ -3257,6 +3280,11 @@ class Strategy(_Strategy):
             The datetime of the line. Default is the current datetime.
         plot_name : str
             The name of the subplot to add the line to. If "default_plot" (the default value) or None, the line will be added to the main plot.
+        asset : Asset, optional
+            The Asset object to associate with this line. Indicators are almost always tied to specific assets,
+            so if you have an asset object, you should pass it here. This enables proper multi-symbol charting
+            where indicators can be displayed as overlays on their corresponding asset's price chart rather than
+            as separate subplots. Must be an Asset object, not a string.
 
         Note
         ----
@@ -3266,6 +3294,8 @@ class Strategy(_Strategy):
         -------
         >>> # Will add a line to the chart
         >>> self.add_chart_line("Overbought", value=80, color="red", style="dotted", width=2)
+        >>> # Will add a line associated with a specific asset
+        >>> self.add_line("SMA_20", sma_value, color="blue", dt=dt, asset=my_asset)
         """
 
         # Check that the parameters are valid
@@ -3311,6 +3341,12 @@ class Strategy(_Strategy):
                 f"which is a type {type(dt)}."
             )
 
+        if asset is not None and not isinstance(asset, Asset):
+            raise TypeError(
+                f"Invalid asset parameter in add_line() method. Asset must be an Asset object, not a string or other type. "
+                f"Got {asset}, which is a type {type(asset)}. Use Asset(symbol='SPY', asset_type='stock') to create an Asset."
+            )
+
         if color is not None:
             color = self._normalize_plot_color(color, default="blue", context="line")
 
@@ -3342,6 +3378,15 @@ class Strategy(_Strategy):
                 "width": width,
                 "detail_text": detail_text,
                 "plot_name": plot_name,
+                # Asset fields for multi-symbol charting support
+                "asset_symbol": asset.symbol if asset else None,
+                "asset_type": asset.asset_type if asset else None,
+                "asset_expiration": str(asset.expiration) if asset and asset.expiration else None,
+                "asset_strike": asset.strike if asset else None,
+                "asset_right": asset.right if asset else None,
+                "asset_multiplier": asset.multiplier if asset else None,
+                "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+                "asset_display_name": str(asset) if asset else None,
             }
         )
 

@@ -238,6 +238,8 @@ THETA_REQUEST_SEMAPHORE = threading.BoundedSemaphore(THETADATA_CONCURRENCY_BUDGE
 QUEUE_FULL_BACKOFF_BASE = float(os.environ.get("THETADATA_QUEUE_FULL_BACKOFF_BASE", "1.0"))
 QUEUE_FULL_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_FULL_BACKOFF_MAX", "30.0"))
 QUEUE_FULL_BACKOFF_JITTER = float(os.environ.get("THETADATA_QUEUE_FULL_BACKOFF_JITTER", "0.5"))
+# Circuit breaker: max total time to wait on 503s before failing (default 5 minutes)
+SERVICE_UNAVAILABLE_MAX_WAIT = float(os.environ.get("THETADATA_503_MAX_WAIT", "300.0"))
 
 # Mapping between milliseconds and ThetaData interval labels
 INTERVAL_MS_TO_LABEL = {
@@ -3109,6 +3111,9 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     last_failure_detail: Optional[str] = None
     queue_full_attempts = 0
     queue_full_wait_total = 0.0
+    # Track ALL 503s for circuit breaker (not just queue_full)
+    service_unavailable_attempts = 0
+    service_unavailable_wait_total = 0.0
 
     # Lightweight liveness probe before issuing the request
     check_connection(username=username, password=password, wait_for_connection=False)
@@ -3279,33 +3284,75 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
                     raise RuntimeError(
                         f"ThetaData request rejected with status {status_code}: {response.text.strip()[:500]}"
                     )
-                elif status_code == 503 and REMOTE_DOWNLOADER_ENABLED:
+                elif status_code == 503:
+                    # Handle ALL 503s with exponential backoff (service unavailable, queue full, restarting, etc.)
+                    # This is critical for resilience when ThetaTerminal is restarting or ThetaData backend is down.
                     payload = {}
                     try:
                         payload = response.json()
                     except ValueError:
                         payload = {}
-                    if isinstance(payload, dict) and payload.get("error") == "queue_full":
-                        active = payload.get("active")
-                        waiting = payload.get("waiting")
-                        queue_delay = min(
-                            QUEUE_FULL_BACKOFF_MAX,
-                            max(QUEUE_FULL_BACKOFF_BASE, 0.1) * (2 ** min(queue_full_attempts, 6)),
-                        )
-                        queue_delay += random.uniform(0, max(QUEUE_FULL_BACKOFF_JITTER, 0.0))
+
+                    # Parse details for better logging
+                    is_queue_full = isinstance(payload, dict) and payload.get("error") == "queue_full"
+                    active = payload.get("active") if isinstance(payload, dict) else None
+                    waiting = payload.get("waiting") if isinstance(payload, dict) else None
+                    error_detail = payload.get("detail") if isinstance(payload, dict) else response.text[:200]
+
+                    # Calculate exponential backoff delay
+                    backoff_delay = min(
+                        QUEUE_FULL_BACKOFF_MAX,
+                        max(QUEUE_FULL_BACKOFF_BASE, 0.1) * (2 ** min(service_unavailable_attempts, 6)),
+                    )
+                    backoff_delay += random.uniform(0, max(QUEUE_FULL_BACKOFF_JITTER, 0.0))
+
+                    # Track queue_full specifically (for backward compatibility logging)
+                    if is_queue_full:
                         queue_full_attempts += 1
-                        queue_full_wait_total += queue_delay
+                        queue_full_wait_total += backoff_delay
+
+                    # Track ALL 503s for circuit breaker
+                    service_unavailable_attempts += 1
+                    service_unavailable_wait_total += backoff_delay
+
+                    # Check circuit breaker - fail if we've waited too long total
+                    if service_unavailable_wait_total > SERVICE_UNAVAILABLE_MAX_WAIT:
+                        logger.error(
+                            "Circuit breaker triggered: ThetaData 503 errors exceeded max wait time of %.0fs "
+                            "(total_wait=%.2fs attempts=%d). Failing request.",
+                            SERVICE_UNAVAILABLE_MAX_WAIT,
+                            service_unavailable_wait_total,
+                            service_unavailable_attempts,
+                        )
+                        raise ThetaRequestError(
+                            f"ThetaData service unavailable after {service_unavailable_wait_total:.0f}s of retries",
+                            status_code=503,
+                            body=error_detail,
+                        )
+
+                    # Log appropriately based on error type
+                    if is_queue_full:
                         logger.warning(
                             "Remote Theta downloader queue full (active=%s waiting=%s). "
-                            "Sleeping %.2fs before retry (total_wait=%.2fs attempt=%d).",
+                            "Sleeping %.2fs before retry (503_total_wait=%.2fs attempt=%d).",
                             active,
                             waiting,
-                            queue_delay,
-                            queue_full_wait_total,
-                            queue_full_attempts,
+                            backoff_delay,
+                            service_unavailable_wait_total,
+                            service_unavailable_attempts,
                         )
-                        time.sleep(queue_delay)
-                        continue
+                    else:
+                        logger.warning(
+                            "ThetaData returned 503 Service Unavailable: %s. "
+                            "Sleeping %.2fs before retry (503_total_wait=%.2fs attempt=%d).",
+                            error_detail,
+                            backoff_delay,
+                            service_unavailable_wait_total,
+                            service_unavailable_attempts,
+                        )
+
+                    time.sleep(backoff_delay)
+                    continue
                 # If status code is not 200, then we are not connected
                 elif status_code != 200:
                     logged_params = request_params if request_params is not None else querystring

@@ -1051,12 +1051,13 @@ def _download_corporate_events(
         return pd.DataFrame()
 
     endpoint = THETA_V2_DIVIDEND_ENDPOINT if event_type == "dividends" else THETA_V2_SPLIT_ENDPOINT
+    # Use v3-style parameter names (root->symbol, use_csv->format, pretty_time removed)
+    # ThetaData v2 endpoints now require v3 parameter naming convention
     querystring = {
-        "root": asset.symbol,
+        "symbol": asset.symbol,
         "start_date": window_start.strftime("%Y%m%d"),
         "end_date": window_end.strftime("%Y%m%d"),
-        "use_csv": "false",
-        "pretty_time": "false",
+        "format": "json",
     }
     headers = {"Accept": "application/json"}
     url = f"{_current_base_url()}{endpoint}"

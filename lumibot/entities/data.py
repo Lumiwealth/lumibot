@@ -306,11 +306,52 @@ class Data:
         else:
             df["volume"] = None
 
+        # CRITICAL FIX: Time-gap aware forward-fill for bid/ask columns
+        # Prevent stale weekend/after-hours quote data from being forward-filled
+        # into the first bar of a new trading session.
+        # The reindex above already did ffill, but we need to UNDO it for bid/ask
+        # where there's a large time gap (> 2 hours).
+        quote_cols = ["bid", "ask", "bid_size", "ask_size"]
+        quote_cols_present = [col for col in quote_cols if col in df.columns]
+
+        if quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
+            # Calculate time gaps between consecutive rows
+            time_diff = df.index.to_series().diff()
+            max_gap_minutes = 120  # 2 hours - allows filling within a session
+            gap_threshold = pd.Timedelta(minutes=max_gap_minutes)
+            session_boundaries = time_diff > gap_threshold
+
+            if session_boundaries.sum() > 0:
+                # At session boundaries, revert bid/ask to NaN (undo the reindex ffill)
+                # We need to get the ORIGINAL values from self.df to check if they were NaN
+                for col in quote_cols_present:
+                    if col in self.df.columns:
+                        # Create a series aligned to df's index
+                        original_values = self.df[col].reindex(df.index)
+                        # Where original was NaN AND we're at a session boundary, set to NaN
+                        # Actually simpler: where session boundary is True, just set to NaN
+                        # and let the subsequent ffill (below) NOT fill across boundaries
+                        df.loc[session_boundaries, col] = float('nan')
+
         # OPTIMIZATION: More efficient column selection and forward fill
         ohlc_cols = ["open", "high", "low"]
-        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols]
+        # MODIFIED: Exclude bid/ask from standard ffill - handle them separately
+        quote_cols_set = set(quote_cols)
+        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols and col not in quote_cols_set]
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
+
+        # For quote columns, do segment-wise ffill (don't fill across session boundaries)
+        if quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
+            time_diff = df.index.to_series().diff()
+            max_gap_minutes = 120
+            gap_threshold = pd.Timedelta(minutes=max_gap_minutes)
+            session_boundaries = time_diff > gap_threshold
+            segment_ids = session_boundaries.cumsum()
+
+            for col in quote_cols_present:
+                # Group by segment and forward-fill within each group only
+                df[col] = df.groupby(segment_ids)[col].ffill()
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:

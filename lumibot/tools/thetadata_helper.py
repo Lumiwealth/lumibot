@@ -3094,6 +3094,58 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     raise ThetaDataConnectionError("ThetaTerminal did not become ready in time.")
 
+def _convert_columnar_to_row_format(columnar_data: dict) -> dict:
+    """Convert ThetaData v3 columnar format to v2-style row format.
+
+    ThetaData v3 returns COLUMNAR format:
+        {"col1": [val1, val2, ...], "col2": [val1, val2, ...], ...}
+
+    But our processing code expects v2 ROW format:
+        {"header": {"format": ["col1", "col2", ...]}, "response": [[row1], [row2], ...]}
+
+    This function converts between the two formats.
+    """
+    if not columnar_data or not isinstance(columnar_data, dict):
+        return {"header": {"format": []}, "response": []}
+
+    # Get column names (keys) and ensure consistent ordering
+    columns = list(columnar_data.keys())
+
+    # Check if this is actually columnar data (all values should be lists of same length)
+    first_col = columnar_data.get(columns[0], [])
+    if not isinstance(first_col, list):
+        # Not columnar data, return as-is wrapped
+        return {"header": {"format": []}, "response": columnar_data}
+
+    num_rows = len(first_col)
+
+    # Verify all columns have the same length
+    for col in columns:
+        if not isinstance(columnar_data[col], list) or len(columnar_data[col]) != num_rows:
+            logger.warning(
+                "[THETA][QUEUE] Column %s has inconsistent length: expected %d, got %s",
+                col,
+                num_rows,
+                len(columnar_data[col]) if isinstance(columnar_data[col], list) else "not a list",
+            )
+            # Return as-is, let downstream handle the error
+            return {"header": {"format": []}, "response": columnar_data}
+
+    # Convert columns to rows by zipping
+    rows = []
+    for i in range(num_rows):
+        row = [columnar_data[col][i] for col in columns]
+        rows.append(row)
+
+    logger.debug(
+        "[THETA][QUEUE] Converted columnar format: %d columns x %d rows",
+        len(columns),
+        num_rows,
+    )
+
+    return {"header": {"format": columns}, "response": rows}
+
+
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
     """Make a request to ThetaData via the queue system.
 
@@ -3127,12 +3179,16 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     if result is not None:
         # Queue returned a result - ensure it's in the expected format
         if isinstance(result, dict):
-            # Check if result already has the expected structure
+            # Check if result already has the expected v2-style structure
             if "header" in result and "response" in result:
                 return result
-            # Wrap result in expected format if needed
-            return {"header": {"format": []}, "response": result}
-        # Wrap raw result
+
+            # ThetaData v3 returns COLUMNAR format without header/response wrapper
+            # e.g., {"open": [1.0, 2.0], "close": [1.1, 2.1], ...}
+            # Convert to the row format our code expects
+            return _convert_columnar_to_row_format(result)
+
+        # Wrap raw result (shouldn't happen, but be safe)
         return {"header": {"format": []}, "response": result}
 
     # Queue returned None (no data - status 472)

@@ -3093,6 +3093,26 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
     raise ThetaDataConnectionError("ThetaTerminal did not become ready in time.")
 
 def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
+    # Check if queue mode is enabled - use queue for more reliable processing
+    try:
+        from lumibot.tools.thetadata_queue_client import is_queue_enabled, queue_request
+        if is_queue_enabled():
+            logger.debug("Using queue mode for ThetaData request: %s", url)
+            result = queue_request(url, querystring, headers)
+            if result is not None:
+                # Queue returned a result, format it like the direct response
+                if isinstance(result, dict):
+                    # Return result in expected format
+                    return result
+                # Wrap raw result
+                return {"header": {"format": []}, "response": result}
+            # Queue returned None (no data or disabled)
+            return None
+    except ImportError:
+        pass  # Queue client not available, use direct requests
+    except Exception as exc:
+        logger.warning("Queue request failed, falling back to direct: %s", exc)
+
     all_responses = []
     next_page_url = None
     page_count = 0

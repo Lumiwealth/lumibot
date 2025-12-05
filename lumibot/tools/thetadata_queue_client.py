@@ -30,7 +30,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Configuration from environment
-QUEUE_ENABLED = os.environ.get("THETADATA_USE_QUEUE", "false").lower() in ("true", "1", "yes")
+# Queue mode is ALWAYS enabled - it's the only way to connect to ThetaData
 QUEUE_POLL_INTERVAL = float(os.environ.get("THETADATA_QUEUE_POLL_INTERVAL", "0.01"))  # 10ms default - fast polling
 QUEUE_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_TIMEOUT", "0"))  # 0 = wait forever (never fail)
 MAX_CONCURRENT_REQUESTS = int(os.environ.get("THETADATA_MAX_CONCURRENT", "8"))  # Max requests in flight
@@ -541,15 +541,12 @@ _queue_client: Optional[QueueClient] = None
 _client_lock = threading.Lock()
 
 
-def get_queue_client() -> Optional[QueueClient]:
+def get_queue_client() -> QueueClient:
     """Get or create the global queue client.
 
-    Returns None if queue mode is not enabled.
+    Queue mode is ALWAYS enabled - this is the only way to connect to ThetaData.
     """
     global _queue_client
-
-    if not QUEUE_ENABLED:
-        return None
 
     with _client_lock:
         if _queue_client is None:
@@ -573,8 +570,12 @@ def get_queue_client() -> Optional[QueueClient]:
 
 
 def is_queue_enabled() -> bool:
-    """Check if queue mode is enabled."""
-    return QUEUE_ENABLED
+    """Check if queue mode is enabled.
+
+    Always returns True - queue mode is the ONLY way to connect to ThetaData.
+    This function is kept for backward compatibility but the answer is always True.
+    """
+    return True
 
 
 def queue_request(
@@ -585,27 +586,26 @@ def queue_request(
 ) -> Optional[Dict[str, Any]]:
     """Submit a request via queue and wait for result.
 
-    This is a drop-in replacement for direct requests when queue mode is enabled.
-    It handles idempotency automatically - if the same request is already in queue,
-    it waits for that one instead of submitting a duplicate.
+    This is the ONLY way to make ThetaData requests. It handles:
+    - Idempotency automatically (same request in queue waits for existing one)
+    - Exponential backoff and retries for transient errors
+    - Permanent error detection (moves to DLQ, raises exception)
 
     Args:
         url: Full URL (e.g., http://44.192.43.146:8080/v3/stock/history/ohlc)
         querystring: Query parameters
         headers: Optional headers
-        timeout: Max seconds to wait
+        timeout: Max seconds to wait (0 = wait forever)
 
     Returns:
-        Response data if queue mode is enabled and request completed
-        None if queue mode is disabled or no data
+        Response data if request completed successfully
+        None if no data (status 472)
 
     Raises:
         TimeoutError if timeout exceeded
-        Exception if request permanently failed
+        Exception if request permanently failed (moved to DLQ)
     """
     client = get_queue_client()
-    if client is None:
-        return None
 
     # Extract path from URL
     from urllib.parse import urlparse

@@ -74,6 +74,7 @@ class QueueClient:
         poll_interval: float = QUEUE_POLL_INTERVAL,
         timeout: float = QUEUE_TIMEOUT,
         max_concurrent: int = MAX_CONCURRENT_REQUESTS,
+        client_id: Optional[str] = None,
     ) -> None:
         """Initialize the queue client.
 
@@ -84,6 +85,7 @@ class QueueClient:
             poll_interval: Seconds between status polls (default 10ms)
             timeout: Max seconds to wait for result (0 = wait forever)
             max_concurrent: Max requests allowed in flight at once (default 8)
+            client_id: Client identifier for round-robin fairness (e.g., strategy name)
         """
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -91,6 +93,7 @@ class QueueClient:
         self.poll_interval = poll_interval
         self.timeout = timeout
         self.max_concurrent = max_concurrent
+        self.client_id = client_id
         self._session = requests.Session()
 
         # Semaphore to limit concurrent requests
@@ -279,6 +282,7 @@ class QueueClient:
             "headers": headers or {},
             "body": body_encoded,
             "correlation_id": correlation_id,
+            "client_id": self.client_id,
         }
 
         resp = self._session.post(
@@ -541,10 +545,45 @@ _queue_client: Optional[QueueClient] = None
 _client_lock = threading.Lock()
 
 
-def get_queue_client() -> QueueClient:
+def _get_default_client_id() -> Optional[str]:
+    """Get default client_id from environment or script name.
+
+    Priority:
+    1. THETADATA_QUEUE_CLIENT_ID env var
+    2. Script filename (without path/extension) from sys.argv[0]
+    """
+    import sys
+
+    # First try environment variable
+    env_client_id = os.environ.get("THETADATA_QUEUE_CLIENT_ID")
+    if env_client_id:
+        return env_client_id
+
+    # Fall back to script name
+    try:
+        if sys.argv and sys.argv[0]:
+            script_path = sys.argv[0]
+            # Extract just the filename without path and extension
+            script_name = os.path.basename(script_path)
+            if script_name.endswith(".py"):
+                script_name = script_name[:-3]
+            if script_name:
+                return script_name
+    except Exception:
+        pass
+
+    return None
+
+
+def get_queue_client(client_id: Optional[str] = None) -> QueueClient:
     """Get or create the global queue client.
 
     Queue mode is ALWAYS enabled - this is the only way to connect to ThetaData.
+
+    Args:
+        client_id: Optional client identifier for round-robin fairness.
+                   If provided, updates the client_id on the existing client.
+                   Auto-detected from script name if not provided.
     """
     global _queue_client
 
@@ -553,20 +592,41 @@ def get_queue_client() -> QueueClient:
             base_url = os.environ.get("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:8080")
             api_key = os.environ.get("DATADOWNLOADER_API_KEY", "")
             api_key_header = os.environ.get("DATADOWNLOADER_API_KEY_HEADER", "X-Downloader-Key")
+            effective_client_id = client_id or _get_default_client_id()
 
             _queue_client = QueueClient(
                 base_url=base_url,
                 api_key=api_key,
                 api_key_header=api_key_header,
+                client_id=effective_client_id,
             )
             logger.info(
-                "Queue client initialized: base_url=%s poll_interval=%.3fs timeout=%.1fs",
+                "Queue client initialized: base_url=%s poll_interval=%.3fs timeout=%.1fs client_id=%s",
                 base_url,
                 _queue_client.poll_interval,
                 _queue_client.timeout,
+                _queue_client.client_id,
             )
+        elif client_id is not None:
+            # Update client_id on existing client
+            _queue_client.client_id = client_id
 
     return _queue_client
+
+
+def set_queue_client_id(client_id: str) -> None:
+    """Set the client_id for round-robin fairness.
+
+    Call this before making requests to identify which strategy/backtest
+    the requests belong to. This enables fair scheduling across multiple
+    concurrent backtests.
+
+    Args:
+        client_id: Client identifier (e.g., strategy name)
+    """
+    client = get_queue_client()
+    client.client_id = client_id
+    logger.info("Queue client_id set to: %s", client_id)
 
 
 def is_queue_enabled() -> bool:

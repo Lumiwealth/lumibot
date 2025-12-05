@@ -3728,7 +3728,7 @@ def build_historical_chain(
     expirations_resp = get_request(
         url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
         headers=headers,
-        querystring={"symbol": asset.symbol},
+        querystring={"symbol": asset.symbol, "format": "json"},
         username=username,
         password=password,
     )
@@ -3971,7 +3971,7 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
     )
 
     url = f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}"
-    querystring = {"symbol": ticker}
+    querystring = {"symbol": ticker, "format": "json"}
     headers = {"Accept": "application/json"}
     json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])

@@ -172,10 +172,12 @@ class StrategyExecutor(Thread):
             positions = self.strategy.get_positions()
             positions_minimal = [p.to_minimal_dict() for p in positions] if positions else None
 
-            # Get open orders and serialize to minimal format
-            # Use Order.to_minimal_dict() for proper asset info
+            # Get ACTIVE (open) orders only and serialize to minimal format
+            # Filter to is_active() to avoid serializing thousands of filled orders
+            # which can exceed CSV field size limits in high-frequency strategies
             orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
-            orders_minimal = [o.to_minimal_dict() for o in orders] if orders else None
+            active_orders = [o for o in orders if o.is_active()] if orders else []
+            orders_minimal = [o.to_minimal_dict() for o in active_orders] if active_orders else None
 
             # Get initial budget for return calculation
             initial_budget = getattr(self.strategy, '_initial_budget', None)
@@ -1273,9 +1275,12 @@ class StrategyExecutor(Thread):
         positions = self.strategy.get_positions()
         positions_minimal = [p.to_minimal_dict() for p in positions] if positions else None
 
-        # Get orders and serialize to minimal format for progress logging
+        # Get ACTIVE (open) orders only and serialize to minimal format for progress logging
+        # Filter to is_active() to avoid serializing thousands of filled orders
+        # which can exceed CSV field size limits in high-frequency strategies
         orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
-        orders_minimal = [o.to_minimal_dict() for o in orders] if orders else None
+        active_orders = [o for o in orders if o.is_active()] if orders else []
+        orders_minimal = [o.to_minimal_dict() for o in active_orders] if active_orders else None
 
         # Get initial budget for return calculation
         initial_budget = getattr(self.strategy, '_initial_budget', None)

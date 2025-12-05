@@ -1148,7 +1148,85 @@ class ThetaDataBacktestingPandas(PandasData):
                                 )
 
                     if should_ffill:
-                        df[forward_fill_columns] = df[forward_fill_columns].ffill()
+                        # IMPORTANT: Use TIME-GAP detection to prevent stale weekend/after-hours data
+                        # from being filled into the first trading bar of a new session.
+                        # Row-count limits don't work because there are no intermediate rows between
+                        # Friday close and Monday 9:30 AM - the data jumps directly.
+                        # Instead, we detect actual TIME gaps and prevent ffill across them.
+
+                        # Define max time gap threshold for forward-fill (in minutes)
+                        if ts_unit == "minute":
+                            max_gap_minutes = 120  # 2 hours - allows filling within a session
+                        elif ts_unit == "hour":
+                            max_gap_minutes = 240  # 4 hours
+                        elif ts_unit == "second":
+                            max_gap_minutes = 120  # 2 hours
+                        else:
+                            max_gap_minutes = 0  # No forward-fill for day+ data
+
+                        if max_gap_minutes > 0 and isinstance(df.index, pd.DatetimeIndex):
+                            # Calculate time gaps between consecutive rows
+                            time_diff = df.index.to_series().diff()
+
+                            # Identify "session boundaries" where gap exceeds threshold
+                            # These are places where we should NOT forward-fill
+                            gap_threshold = pd.Timedelta(minutes=max_gap_minutes)
+                            session_boundaries = time_diff > gap_threshold
+
+                            # Count how many session boundaries we found
+                            num_boundaries = session_boundaries.sum()
+                            if num_boundaries > 0:
+                                logger.debug(
+                                    "[THETA][DEBUG][THETADATA-PANDAS][FFILL] Found %d session boundaries (gaps > %d min) for %s/%s",
+                                    num_boundaries, max_gap_minutes, asset_separated, quote_asset,
+                                )
+
+                                # For rows at session boundaries, set quote columns to NaN BEFORE ffill
+                                # This breaks the ffill chain so stale data doesn't propagate across sessions
+                                for col in forward_fill_columns:
+                                    if col in df.columns:
+                                        # Set NaN at session boundaries to prevent stale data from propagating
+                                        # But only if the current value is already NaN (don't overwrite real data)
+                                        boundary_and_nan = session_boundaries & df[col].isna()
+                                        # Actually, we need to mark the BOUNDARY rows so ffill doesn't reach them
+                                        # The trick is: we temporarily set non-NaN values at boundaries to NaN,
+                                        # do ffill, then restore. But simpler: just don't ffill across boundaries.
+                                        pass  # We'll handle this differently below
+
+                                # Alternative approach: segment-wise ffill
+                                # Create segment IDs based on session boundaries
+                                segment_ids = session_boundaries.cumsum()
+
+                                # Forward fill within each segment only
+                                for col in forward_fill_columns:
+                                    if col in df.columns:
+                                        # Group by segment and forward-fill within each group
+                                        df[col] = df.groupby(segment_ids)[col].ffill()
+
+                                logger.debug(
+                                    "[THETA][DEBUG][THETADATA-PANDAS][FFILL] Applied segment-wise forward-fill for %s/%s (%s) across %d segments",
+                                    asset_separated, quote_asset, ts_unit, segment_ids.max() + 1 if len(segment_ids) > 0 else 0,
+                                )
+                            else:
+                                # No session boundaries - safe to ffill normally
+                                df[forward_fill_columns] = df[forward_fill_columns].ffill()
+                                logger.debug(
+                                    "[THETA][DEBUG][THETADATA-PANDAS][FFILL] Forward-filled quote columns for %s/%s (%s) - no session boundaries",
+                                    asset_separated, quote_asset, ts_unit,
+                                )
+                        elif max_gap_minutes > 0:
+                            # Index is not DatetimeIndex, fall back to simple ffill
+                            df[forward_fill_columns] = df[forward_fill_columns].ffill()
+                            logger.debug(
+                                "[THETA][DEBUG][THETADATA-PANDAS][FFILL] Forward-filled quote columns for %s/%s (%s) - non-datetime index",
+                                asset_separated, quote_asset, ts_unit,
+                            )
+                        else:
+                            logger.debug(
+                                "[THETA][DEBUG][THETADATA-PANDAS][FFILL] Skipping quote forward-fill for %s/%s (%s) - day+ data",
+                                asset_separated, quote_asset, ts_unit,
+                            )
+
                         quotes_ffilled = True
                         quotes_ffill_rows = len(df)
 
@@ -1157,7 +1235,7 @@ class ThetaDataBacktestingPandas(PandasData):
                             remaining_nulls = df[['bid', 'ask']].isna().sum().sum()
                             quotes_ffill_remaining = remaining_nulls
                             if remaining_nulls > 0:
-                                logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain at start of data.")
+                                logger.info(f"Forward-filled missing quote values for {asset_separated}. {remaining_nulls} nulls remain after time-gap-aware ffill.")
 
         if df is None or df.empty:
             return None

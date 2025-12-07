@@ -769,10 +769,15 @@ class ThetaDataBacktestingPandas(PandasData):
                 existing_rows
             )
 
-            start_ok = (
-                existing_start is not None
-                and (start_threshold is None or existing_start <= start_threshold)
-            )
+            # NOTE: Removed "existing_start <= start_threshold" check (2025-12-06)
+            # This check invalidated cache for assets like TQQQ where the requested start date
+            # (e.g., 2011-07-xx for 200-day MA lookback) is before the asset's inception date
+            # (TQQQ started 2012-05-31). The cache helper's _validate_cache_frame() already
+            # validates that all required trading days are present. If the asset didn't trade
+            # before 2012-05-31, there ARE no trading days to miss, so the cache is valid.
+            # The row count check (existing_rows >= requested_length) and end check (end_ok)
+            # are sufficient to determine cache validity.
+            start_ok = existing_start is not None
 
             # DEBUG-LOG: Start validation result
             logger.debug(
@@ -784,8 +789,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 start_ok,
                 existing_start.isoformat() if existing_start else None,
                 start_threshold.isoformat() if start_threshold else None,
-                "existing_start <= start_threshold" if start_ok else
-                ("start_threshold is None" if start_threshold is None else "existing_start > start_threshold")
+                "existing_start is not None (threshold check removed - see NOTE above)" if start_ok else "existing_start is None"
             )
 
             tail_placeholder = existing_meta.get("tail_placeholder", False)
@@ -902,7 +906,8 @@ class ThetaDataBacktestingPandas(PandasData):
                 return None
 
             reasons = []
-            if existing_start is None or (start_threshold is not None and existing_start > start_threshold):
+            # NOTE: Only check if existing_start is None (matching fix above at line 780)
+            if existing_start is None:
                 reasons.append("start")
             if existing_rows < requested_length:
                 reasons.append("rows")
@@ -1777,6 +1782,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_last_price aligned from minute to day for asset=%s",
                 asset,
             )
+
         self._update_pandas_data(asset, quote, sample_length, timestep, dt, require_quote_data=True)
         _, ts_unit = self.get_start_datetime_and_ts_unit(
             sample_length, timestep, dt, start_buffer=START_BUFFER
@@ -1843,6 +1849,7 @@ class ThetaDataBacktestingPandas(PandasData):
             frame_last_dt,
             float(frame_last_close) if frame_last_close is not None else None,
         )
+
         return value
 
     def get_price_snapshot(self, asset, quote=None, timestep="minute", **kwargs) -> Optional[Dict[str, object]]:
@@ -2036,10 +2043,10 @@ class ThetaDataBacktestingPandas(PandasData):
         """
         dt = self.get_datetime()
 
-        # [INSTRUMENTATION] Log full asset details for options
+        # Log quote request details for debugging (options vs other assets)
         if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION:
             logger.debug(
-                "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][OPTION_REQUEST] symbol=%s expiration=%s strike=%s right=%s current_dt=%s timestep=%s",
+                "[THETA][QUOTE] Option request: symbol=%s expiration=%s strike=%s right=%s dt=%s timestep=%s",
                 asset.symbol,
                 asset.expiration,
                 asset.strike,
@@ -2049,7 +2056,7 @@ class ThetaDataBacktestingPandas(PandasData):
             )
         else:
             logger.debug(
-                "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][REQUEST] asset=%s current_dt=%s timestep=%s",
+                "[THETA][QUOTE] Asset request: symbol=%s dt=%s timestep=%s",
                 getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
                 dt.isoformat() if hasattr(dt, 'isoformat') else dt,
                 timestep
@@ -2149,6 +2156,7 @@ class ThetaDataBacktestingPandas(PandasData):
             getattr(quote_obj, "last_price", None) if quote_obj else None,
             getattr(quote_obj, "source", None) if quote_obj else None,
         )
+
         return quote_obj
 
     def get_chains(self, asset):

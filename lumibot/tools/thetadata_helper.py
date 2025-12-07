@@ -1657,8 +1657,13 @@ def get_price_data(
             if missing_required:
                 return False, "missing_trading_days"
 
-            if requested_start_date < min_ts.date():
-                return False, "starts_after_requested"
+            # NOTE: Removed "starts_after_requested" check (2025-12-05)
+            # This check invalidated cache for assets like TQQQ where the requested start date
+            # (e.g., 2011-04-xx for 200-day MA lookback) is before the asset's inception date
+            # (TQQQ started 2012-05-31). The missing_required check above already catches
+            # actual missing trading days, so this check was redundant and caused cache to be
+            # invalidated and re-fetched on EVERY iteration, leading to 40-minute backtests.
+
             if requested_end_date > max_ts.date():
                 return False, "stale_max_date"
 
@@ -3155,6 +3160,7 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
     - Dead letter queue for permanent failures
     - Idempotency via correlation IDs
     - Concurrency limiting to prevent overload
+    - Automatic pagination following (merges all pages into single response)
 
     Args:
         url: The ThetaData API URL
@@ -3174,26 +3180,82 @@ def get_request(url: str, headers: dict, querystring: dict, username: str, passw
 
     logger.debug("[THETA][QUEUE] Making request via queue: %s params=%s", url, querystring)
 
-    result = queue_request(url, querystring, headers)
+    # =====================================================================================
+    # AUTOMATIC PAGINATION HANDLING (2025-12-07)
+    # =====================================================================================
+    # ThetaData returns large result sets across multiple pages. Each response includes a
+    # 'next_page' URL in the header if more data is available. This loop automatically
+    # follows all pagination links and merges results into a single response.
+    #
+    # Example: A 10-year daily price history might return 3 pages of ~1000 rows each.
+    # The caller receives a single response with all ~3000 rows merged.
+    # =====================================================================================
 
-    if result is not None:
-        # Queue returned a result - ensure it's in the expected format
+    all_responses = []  # Accumulates response data from each page
+    page_count = 0
+    next_page_url = None
+
+    while True:
+        # For first request, use original URL with querystring.
+        # For subsequent pages, use the next_page URL (which includes all params)
+        request_url = next_page_url if next_page_url else url
+        request_params = None if next_page_url else querystring
+
+        result = queue_request(request_url, request_params, headers)
+
+        if result is None:
+            # ThetaData returns None for "no data" (HTTP 472 status)
+            if page_count == 0:
+                logger.debug("[THETA][QUEUE] No data returned for request: %s", url)
+                return None
+            # If we already have pages, return what we have
+            break
+
+        # Normalize response format - ThetaData can return different structures
         if isinstance(result, dict):
-            # Check if result already has the expected v2-style structure
             if "header" in result and "response" in result:
-                return result
+                # Standard v2 format: {"header": {...}, "response": [...]}
+                processed_result = result
+            else:
+                # ThetaData v3 columnar format: {"open": [1.0, 2.0], "close": [1.1, 2.1]}
+                # Convert to row format that our code expects
+                processed_result = _convert_columnar_to_row_format(result)
+        else:
+            # Unexpected format - wrap for safety
+            processed_result = {"header": {"format": []}, "response": result}
 
-            # ThetaData v3 returns COLUMNAR format without header/response wrapper
-            # e.g., {"open": [1.0, 2.0], "close": [1.1, 2.1], ...}
-            # Convert to the row format our code expects
-            return _convert_columnar_to_row_format(result)
+        # Accumulate this page's data
+        page_count += 1
+        if processed_result.get("response"):
+            all_responses.append(processed_result["response"])
 
-        # Wrap raw result (shouldn't happen, but be safe)
-        return {"header": {"format": []}, "response": result}
+        # Check for more pages - ThetaData provides 'next_page' URL in header
+        next_page = None
+        if isinstance(processed_result, dict) and "header" in processed_result:
+            next_page = processed_result["header"].get("next_page")
 
-    # Queue returned None (no data - status 472)
-    logger.debug("[THETA][QUEUE] No data returned for request: %s", url)
-    return None
+        if next_page and next_page != "null" and next_page != "":
+            logger.info("[THETA][PAGINATION] Page %d downloaded, fetching next page: %s", page_count, next_page)
+            next_page_url = next_page
+        else:
+            # No more pages - exit pagination loop
+            break
+
+    # Merge all pages into a single response
+    if page_count > 1:
+        total_rows = sum(len(r) for r in all_responses if isinstance(r, list))
+        logger.info("[THETA][PAGINATION] Merged %d pages from ThetaData (%d total rows)", page_count, total_rows)
+        processed_result["response"] = []
+        for page_response in all_responses:
+            if isinstance(page_response, list):
+                processed_result["response"].extend(page_response)
+            else:
+                processed_result["response"].append(page_response)
+    elif page_count == 1 and all_responses:
+        # Single page - use as-is
+        processed_result["response"] = all_responses[0]
+
+    return processed_result
 
 
 def get_historical_eod_data(
@@ -3719,7 +3781,47 @@ def build_historical_chain(
     max_consecutive_misses: int = 10,
     chain_constraints: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Dict[str, List[float]]]:
-    """Build an as-of option chain by filtering live expirations against quote availability."""
+    """Build an option chain by fetching all future expirations and their strikes from ThetaData.
+
+    This function queries ThetaData for all available expirations and strikes for a given
+    underlying asset. It returns a chain structure that can be used to find tradeable options.
+
+    IMPORTANT DESIGN NOTE (2025-12-07):
+    This function does NOT validate quote data availability during chain building. This is
+    intentional - validation is deferred to point-of-use in get_expiration_on_or_after_date().
+
+    Why no quote validation here?
+    - Performance: Quote validation requires an API call per expiration, which is slow
+    - LEAPS support: Far-dated expirations (2+ years out) may not have quote data for every
+      historical date, but they ARE valid tradeable contracts. Validating during chain build
+      caused LEAPS expirations to be incorrectly filtered out.
+    - Efficiency: Strategies may only need 1-2 expirations from a chain with 100+ entries.
+      Validating all upfront wastes resources.
+
+    The consecutive_strike_misses counter only tracks failures to fetch strike lists (API errors),
+    NOT quote data availability. If ThetaData returns strikes for an expiration, it's added to
+    the chain regardless of whether quotes exist for the backtest date.
+
+    Args:
+        username: ThetaData API username
+        password: ThetaData API password
+        asset: The underlying asset (e.g., Asset("AAPL"))
+        as_of_date: The historical date to build the chain for
+        max_expirations: Maximum number of expirations to include (default: 120)
+        max_consecutive_misses: Stop scanning after this many consecutive strike fetch failures
+        chain_constraints: Optional dict with 'min_expiration_date' and/or 'max_expiration_date'
+            to filter the range of expirations included
+
+    Returns:
+        Dict with structure:
+        {
+            "Multiplier": 100,
+            "Exchange": "SMART",
+            "Chains": {"CALL": {expiry: [strikes]}, "PUT": {expiry: [strikes]}},
+            "UnderlyingSymbol": "AAPL"
+        }
+        Returns None if no expirations found.
+    """
 
     if as_of_date is None:
         raise ValueError("as_of_date must be provided to build a historical chain")
@@ -3768,20 +3870,14 @@ def build_historical_chain(
     min_hint_date = constraints.get("min_expiration_date")
     max_hint_date = constraints.get("max_expiration_date")
 
-    min_hint_int = (
-        int(min_hint_date.strftime("%Y%m%d"))
-        if isinstance(min_hint_date, date)
-        else None
-    )
     max_hint_int = (
         int(max_hint_date.strftime("%Y%m%d"))
         if isinstance(max_hint_date, date)
         else None
     )
 
+    # Start from as_of_date (only include future expirations)
     effective_start_int = as_of_int
-    if min_hint_int:
-        effective_start_int = max(effective_start_int, min_hint_int)
 
     logger.info(
         "[ThetaData] Building chain for %s @ %s (min_hint=%s, max_hint=%s, expirations=%d)",
@@ -3792,56 +3888,24 @@ def build_historical_chain(
         len(expiration_values),
     )
 
-    allowed_misses = max_consecutive_misses
-    if min_hint_int:
-        # Allow a deeper scan when callers request far-dated expirations (LEAPS).
-        allowed_misses = max(max_consecutive_misses, 50)
-
+    # Initialize the chain structure: {"CALL": {expiry: [strikes]}, "PUT": {expiry: [strikes]}}
     chains: Dict[str, Dict[str, List[float]]] = {"CALL": {}, "PUT": {}}
     expirations_added = 0
-    consecutive_misses = 0
-    hint_reached = False
 
-    def expiration_has_data(expiration_iso: str, strike_value: float, right: str) -> bool:
-        expiration_param = expiration_iso
-        querystring = {
-            "symbol": asset.symbol,
-            "expiration": expiration_param,
-            "strike": strike_value,
-            "right": "call" if right == "C" else "put",
-            "format": "json",
-        }
-        resp = get_request(
-            url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['dates_quote']}",
-            headers=headers,
-            querystring=querystring,
-            username=username,
-            password=password,
-        )
-        if not resp or resp.get("header", {}).get("error_type") == "NO_DATA":
-            return False
-        dates = []
-        data_rows = resp.get("response", [])
-        if data_rows and isinstance(data_rows[0], (list, tuple)):
-            # Responses converted via _coerce_json_payload
-            date_idx = 0
-            dates = [row[date_idx] for row in data_rows]
-        elif data_rows:
-            dates = data_rows
-        ints = []
-        for date_value in dates:
-            if not date_value:
-                continue
-            try:
-                ints.append(int(str(date_value).replace("-", "")[:8]))
-            except ValueError:
-                continue
-        return as_of_int in ints
+    # Track consecutive failures to fetch strike data (API errors only, not quote availability).
+    # If ThetaData can't return strikes for 10 consecutive expirations, we stop scanning
+    # to avoid wasting API calls on likely invalid/expired contract series.
+    consecutive_strike_misses = 0
 
     for expiration_iso in expiration_values:
         expiration_int = int(expiration_iso.replace("-", ""))
+
+        # Skip expirations that are in the past relative to our backtest date
         if expiration_int < effective_start_int:
             continue
+
+        # If a max_hint_date was provided (e.g., strategy only wants options within 2 years),
+        # stop scanning once we exceed it
         if max_hint_int and expiration_int > max_hint_int:
             logger.debug(
                 "[ThetaData] Reached max hint %s for %s; stopping chain build.",
@@ -3849,9 +3913,8 @@ def build_historical_chain(
                 asset.symbol,
             )
             break
-        if min_hint_int and not hint_reached and expiration_int >= min_hint_int:
-            hint_reached = True
 
+        # Fetch the list of available strikes for this expiration from ThetaData
         strike_resp = get_request(
             url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
@@ -3863,31 +3926,32 @@ def build_historical_chain(
             username=username,
             password=password,
         )
+
+        # Handle strike fetch failures - increment miss counter and potentially stop scanning
         if not strike_resp or not strike_resp.get("response"):
-            logger.debug(
-                "No strikes for %s exp %s; skipping.",
-                asset.symbol,
-                expiration_iso,
-            )
-            consecutive_misses += 1
-            if consecutive_misses >= max_consecutive_misses:
+            logger.debug("No strikes for %s exp %s; skipping.", asset.symbol, expiration_iso)
+            consecutive_strike_misses += 1
+            if consecutive_strike_misses >= 10:
+                logger.debug("[ThetaData] 10 consecutive expirations with no strikes; stopping scan.")
                 break
             continue
 
+        # Parse the strike response into a DataFrame
         strike_df = pd.DataFrame(strike_resp["response"], columns=strike_resp["header"]["format"])
         if strike_df.empty:
-            consecutive_misses += 1
-            if consecutive_misses >= max_consecutive_misses:
+            consecutive_strike_misses += 1
+            if consecutive_strike_misses >= 10:
                 break
             continue
 
         strike_col = _detect_column(strike_df, ("strike",))
         if not strike_col:
-            consecutive_misses += 1
-            if consecutive_misses >= max_consecutive_misses:
+            consecutive_strike_misses += 1
+            if consecutive_strike_misses >= 10:
                 break
             continue
 
+        # Extract and normalize strike prices (handles different formats from ThetaData)
         strike_values = sorted(
             {
                 strike
@@ -3898,45 +3962,23 @@ def build_historical_chain(
             }
         )
         if not strike_values:
-            consecutive_misses += 1
-            if consecutive_misses >= max_consecutive_misses:
+            consecutive_strike_misses += 1
+            if consecutive_strike_misses >= 10:
                 break
             continue
 
-        # Use the median strike to validate whether the expiration existed on the backtest date
-        median_index = len(strike_values) // 2
-        probe_strike = strike_values[median_index]
-
-        has_call_data = expiration_has_data(expiration_iso, probe_strike, "C")
-        has_put_data = has_call_data or expiration_has_data(expiration_iso, probe_strike, "P")
-
-        if not (has_call_data or has_put_data):
-            logger.debug(
-                "Expiration %s for %s not active on %s; skipping.",
-                expiration_iso,
-                asset.symbol,
-                as_of_date,
-            )
-            consecutive_misses += 1
-            if consecutive_misses >= allowed_misses:
-                if not min_hint_int or hint_reached:
-                    logger.debug(
-                        "[ThetaData] Encountered %d consecutive inactive expirations for %s (starting near %s); stopping scan.",
-                        allowed_misses,
-                        asset.symbol,
-                        expiration_iso,
-                    )
-                    break
-                # When we're still marching toward the requested hint, keep scanning.
-                continue
-            continue
-
+        # SUCCESS: Add this expiration and its strikes to the chain
+        # NOTE: We do NOT validate quote/price data here - that happens at point-of-use
+        # in get_expiration_on_or_after_date(). This is critical for LEAPS support.
+        # See docstring for rationale.
         chains["CALL"][expiration_iso] = strike_values
         chains["PUT"][expiration_iso] = list(strike_values)
         expirations_added += 1
-        consecutive_misses = 0
+        consecutive_strike_misses = 0
 
+        # Limit total expirations to avoid memory issues with very large chains
         if expirations_added >= max_expirations:
+            logger.debug("[ThetaData] Chain build hit max_expirations limit (%d)", max_expirations)
             break
 
     logger.debug(
@@ -3948,7 +3990,7 @@ def build_historical_chain(
 
     if not chains["CALL"] and not chains["PUT"]:
         logger.warning(
-            "No expirations with data found for %s on %s.",
+            "No expirations found for %s on %s.",
             asset.symbol,
             as_of_date,
         )
@@ -3958,6 +4000,7 @@ def build_historical_chain(
         "Multiplier": 100,
         "Exchange": "SMART",
         "Chains": chains,
+        "UnderlyingSymbol": asset.symbol,  # Add this for easier extraction later
     }
 
 

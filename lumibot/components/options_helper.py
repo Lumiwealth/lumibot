@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
 from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -788,6 +791,10 @@ class OptionsHelper:
         expiration_dates: List[Tuple[str, date]] = _try_resolve_expiration(specific_chain)
         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
 
+        # Log chain search (DEBUG level for details)
+        logger.debug("[OptionsHelper] Finding expiration >= %s: %d candidates from %d total expirations",
+                     dt, len(future_candidates), len(expiration_dates))
+
         # If we couldn't find any expirations beyond the requested date, attempt a deeper fetch
         if not future_candidates and underlying_asset is not None:
             self.strategy.log_message(
@@ -817,16 +824,34 @@ class OptionsHelper:
                 )
                 return None
 
-        # Check each candidate expiry to find one with valid data
+        # =====================================================================================
+        # POINT-OF-USE VALIDATION (2025-12-07)
+        # =====================================================================================
+        # This is where we validate that an expiration has actual tradeable data for the
+        # backtest date. This validation was moved here FROM build_historical_chain() because:
+        #
+        # 1. LEAPS SUPPORT: Far-dated expirations (2+ years out) may not have quote data
+        #    for every historical date. Previously, these were incorrectly filtered out
+        #    during chain building, causing strategies to buy short-term options instead.
+        #
+        # 2. EFFICIENCY: Strategies typically only need 1-2 expirations from a chain with
+        #    100+ entries. Validating only the candidates we need is much faster.
+        #
+        # 3. ACCURACY: We can now return the FIRST valid expiration, rather than pre-filtering
+        #    and potentially missing valid options.
+        # =====================================================================================
+
+        validation_attempts = 0
         for exp_str, exp_date in future_candidates:
             strikes = specific_chain.get(exp_str)
             if strikes and len(strikes) > 0:
-                # Check if at least one strike has valid data
-                # Pick a strike near the middle (likely to be ATM and have data)
+                # Pick a strike near the middle of the chain for testing (likely ATM, more
+                # likely to have liquidity and valid data)
                 test_strike = strikes[len(strikes) // 2] if isinstance(strikes, list) else list(strikes)[len(strikes) // 2]
+                validation_attempts += 1
 
-                # Try to get the underlying symbol from the first available asset
                 if underlying_symbol:
+                    # Build a test option contract to check for data availability
                     test_option = Asset(
                         underlying_symbol,
                         asset_type="option",
@@ -835,30 +860,31 @@ class OptionsHelper:
                         right=call_or_put,
                     )
 
-                    # Check if this option has tradeable data
+                    # First try: Check for quote data (bid/ask) - most reliable signal
                     try:
                         quote = self.strategy.get_quote(test_option)
                         has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
                         if has_valid_quote:
                             self.strategy.log_message(f"Found valid expiry {exp_date} with quote data for {call_or_put_caps}", color="blue")
                             return exp_date
-                    except:
-                        pass
+                    except Exception:
+                        pass  # Quote not available, try price data
 
-                    # Fallback to checking last price
+                    # Fallback: Check for last traded price data
                     try:
                         price = self.strategy.get_last_price(test_option)
                         if price is not None:
                             self.strategy.log_message(f"Found valid expiry {exp_date} with price data for {call_or_put_caps}", color="blue")
                             return exp_date
-                    except:
-                        pass
+                    except Exception:
+                        pass  # No price data either, try next expiration
                 else:
-                    # If we can't determine underlying, assume the expiry is valid (backward compatibility)
+                    # Backward compatibility: If no underlying symbol available, we can't
+                    # validate data availability. Assume the expiry is valid.
                     self.strategy.log_message(f"Cannot validate data without underlying symbol, returning {exp_date}", color="yellow")
                     return exp_date
 
-        # No future expirations with tradeable data; let the caller skip entries gracefully.
+        # No valid expirations found - all candidates lacked tradeable data for this date
         msg = f"No valid expirations on or after {dt} with tradeable data for {call_or_put_caps}; skipping."
         self.strategy.log_message(msg, color="yellow")
         return None

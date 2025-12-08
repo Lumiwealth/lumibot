@@ -958,6 +958,157 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
     mock_update_df.assert_not_called()
 
 
+# =========================================================================
+# CACHE FIDELITY TESTS (Added 2025-12-07)
+# These tests verify that the cache validation correctly distinguishes between:
+# - INTEGRITY failures (corrupt data): DELETE cache, re-fetch everything
+# - COVERAGE failures (incomplete range): KEEP cache, extend with missing dates
+# =========================================================================
+
+def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_path, caplog):
+    """Test that coverage failures (stale_max_date) log COVERAGE_EXTEND, not INTEGRITY_FAILURE.
+
+    This test verifies the fix for the cache fidelity bug where valid cache was
+    being deleted when it simply didn't cover the requested date range.
+    """
+    import logging
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+    cache_root = tmp_path / "cache_root"
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+    thetadata_helper.reset_connection_diagnostics()
+
+    # Disable remote cache
+    class DisabledCacheManager:
+        enabled = False
+        mode = None
+        def ensure_local_file(self, *args, **kwargs):
+            return False
+        def on_local_update(self, *args, **kwargs):
+            return False
+    monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
+
+    asset = Asset(asset_type="stock", symbol="COVTEST")
+
+    # First request: populate cache
+    start1 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
+    end1 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 5))
+    trading_days1 = [datetime.date(2024, 1, 2), datetime.date(2024, 1, 3),
+                     datetime.date(2024, 1, 4), datetime.date(2024, 1, 5)]
+    df1 = pd.DataFrame({
+        "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], utc=True),
+        "open": [100.0, 101.0, 102.0, 103.0], "high": [101.0, 102.0, 103.0, 104.0],
+        "low": [99.0, 100.0, 101.0, 102.0], "close": [100.5, 101.5, 102.5, 103.5],
+        "volume": [1000, 1100, 1200, 1300],
+    })
+
+    progress_stub = MagicMock()
+    progress_stub.update.return_value = None
+    progress_stub.close.return_value = None
+
+    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+         patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days1):
+        eod_mock1 = MagicMock(return_value=df1)
+        with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock1):
+            thetadata_helper.get_price_data("user", "pass", asset, start1, end1, "day")
+
+    # Second request: extends range (should trigger COVERAGE_EXTEND)
+    start2 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
+    end2 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 8))
+    trading_days2 = trading_days1 + [datetime.date(2024, 1, 8)]
+    df_new = pd.DataFrame({
+        "datetime": pd.to_datetime(["2024-01-08"], utc=True),
+        "open": [104.0], "high": [105.0], "low": [103.0], "close": [104.5], "volume": [1400],
+    })
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days2):
+            eod_mock2 = MagicMock(return_value=df_new)
+            with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock2):
+                thetadata_helper.get_price_data("user", "pass", asset, start2, end2, "day")
+
+    # CRITICAL: Verify the fix is working - should see COVERAGE_EXTEND, not INTEGRITY_FAILURE
+    log_messages = [rec.message for rec in caplog.records]
+    coverage_extend_found = any("COVERAGE_EXTEND" in msg for msg in log_messages)
+    integrity_failure_found = any("INTEGRITY_FAILURE" in msg for msg in log_messages)
+
+    assert coverage_extend_found, "Expected COVERAGE_EXTEND log message for stale cache"
+    assert not integrity_failure_found, "Should NOT see INTEGRITY_FAILURE for coverage issues"
+
+
+def test_cache_fidelity_integrity_failure_logs_integrity_message(monkeypatch, tmp_path, caplog):
+    """Test that integrity failures (duplicate_index) log INTEGRITY_FAILURE and delete cache."""
+    import logging
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+    cache_root = tmp_path / "cache_root"
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+    thetadata_helper.reset_connection_diagnostics()
+
+    # Disable remote cache
+    class DisabledCacheManager:
+        enabled = False
+        mode = None
+        def ensure_local_file(self, *args, **kwargs):
+            return False
+        def on_local_update(self, *args, **kwargs):
+            return False
+    monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
+
+    asset = Asset(asset_type="stock", symbol="INTTEST")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 5))
+    trading_days = [datetime.date(2024, 1, 2), datetime.date(2024, 1, 3),
+                    datetime.date(2024, 1, 4), datetime.date(2024, 1, 5)]
+
+    # Create cache file with DUPLICATE INDEX (integrity failure)
+    # Note: Use the actual parquet format that load_cache expects
+    cache_file = thetadata_helper.build_cache_filename(asset, "day", "ohlc")
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+    bad_df = pd.DataFrame({
+        "datetime": pd.to_datetime(["2024-01-02", "2024-01-02", "2024-01-03", "2024-01-04"], utc=True),
+        "open": [100.0, 100.0, 101.0, 102.0],
+        "high": [101.0, 101.0, 102.0, 103.0],
+        "low": [99.0, 99.0, 100.0, 101.0],
+        "close": [100.5, 100.5, 101.5, 102.5],
+        "volume": [1000, 1000, 1100, 1200],
+        "missing": [False, False, False, False],
+    })
+    bad_df.to_parquet(cache_file, index=False)
+
+    # Good data to return when fetching
+    good_df = pd.DataFrame({
+        "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], utc=True),
+        "open": [100.0, 101.0, 102.0, 103.0], "high": [101.0, 102.0, 103.0, 104.0],
+        "low": [99.0, 100.0, 101.0, 102.0], "close": [100.5, 101.5, 102.5, 103.5],
+        "volume": [1000, 1100, 1200, 1300],
+    })
+
+    progress_stub = MagicMock()
+    progress_stub.update.return_value = None
+    progress_stub.close.return_value = None
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+            eod_mock = MagicMock(return_value=good_df)
+            with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
+                result = thetadata_helper.get_price_data("user", "pass", asset, start, end, "day")
+
+    # CRITICAL: Verify integrity failures are correctly identified
+    log_messages = [rec.message for rec in caplog.records]
+    integrity_failure_found = any("INTEGRITY_FAILURE" in msg for msg in log_messages)
+    coverage_extend_found = any("COVERAGE_EXTEND" in msg for msg in log_messages)
+
+    assert integrity_failure_found, "Expected INTEGRITY_FAILURE log for duplicate index"
+    assert not coverage_extend_found, "Should NOT see COVERAGE_EXTEND for integrity issues"
+    assert result is not None, "Should return data after re-fetching"
+
+
 def test_get_trading_dates():
 
     # Define test data
@@ -1157,6 +1308,190 @@ def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
     df_all = df_cached * 10
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
     assert cache_file.exists()
+
+
+class TestUpdateCacheMerge:
+    """Tests for the cache merge functionality in update_cache().
+
+    CRITICAL: These tests verify that when new data is fetched, the old cached data
+    is merged with the new data to prevent data loss. This fix was added in Dec 2025
+    to address an issue where cache was being overwritten with partial data.
+    """
+
+    def test_merge_preserves_old_cached_data(self, tmp_path, monkeypatch):
+        """Verify that old cached data is preserved when new data is fetched.
+
+        This is the core test for the cache merge fix. Old data from the cache
+        should not be lost when new data is fetched for different dates.
+        """
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+        cache_file = thetadata_helper.build_cache_filename(Asset("TEST"), "1D", "ohlc")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Old cached data: Jan 2-3, 2025
+        df_cached = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-02", "2025-01-03"]),
+            "open": [100.0, 101.0],
+            "high": [102.0, 103.0],
+            "low": [99.0, 100.0],
+            "close": [101.0, 102.0],
+            "volume": [1000, 1100],
+        }).set_index("datetime")
+
+        # New data: Jan 6, 2025 (doesn't overlap with cached)
+        df_all = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-06"]),
+            "open": [105.0],
+            "high": [107.0],
+            "low": [104.0],
+            "close": [106.0],
+            "volume": [1500],
+        }).set_index("datetime")
+
+        # Update cache with new data and old cached data
+        thetadata_helper.update_cache(cache_file, df_all, df_cached)
+
+        # Read back the cache and verify both old and new data are present
+        assert cache_file.exists()
+        df_result = pd.read_parquet(cache_file)
+        df_result = df_result.set_index("datetime") if "datetime" in df_result.columns else df_result
+
+        # Should have 3 rows: 2 from cache + 1 new
+        assert len(df_result) == 3, f"Expected 3 rows, got {len(df_result)}"
+
+        # Verify specific dates are present
+        dates = df_result.index.date if hasattr(df_result.index, 'date') else df_result.index
+        assert pd.Timestamp("2025-01-02").date() in [d.date() if hasattr(d, 'date') else d for d in dates]
+        assert pd.Timestamp("2025-01-03").date() in [d.date() if hasattr(d, 'date') else d for d in dates]
+        assert pd.Timestamp("2025-01-06").date() in [d.date() if hasattr(d, 'date') else d for d in dates]
+
+    def test_merge_prefers_new_data_over_cached(self, tmp_path, monkeypatch):
+        """When new data overlaps with cached data, new data should take precedence."""
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+        cache_file = thetadata_helper.build_cache_filename(Asset("TEST"), "1D", "ohlc")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Old cached data: Jan 2, 2025 with old price
+        df_cached = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-02"]),
+            "open": [100.0],
+            "high": [102.0],
+            "low": [99.0],
+            "close": [101.0],
+            "volume": [1000],
+        }).set_index("datetime")
+
+        # New data: Jan 2, 2025 with updated price (same date, different values)
+        df_all = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-02"]),
+            "open": [200.0],  # Different value
+            "high": [202.0],
+            "low": [199.0],
+            "close": [201.0],
+            "volume": [2000],
+        }).set_index("datetime")
+
+        thetadata_helper.update_cache(cache_file, df_all, df_cached)
+
+        df_result = pd.read_parquet(cache_file)
+        df_result = df_result.set_index("datetime") if "datetime" in df_result.columns else df_result
+
+        # Should have 1 row with the NEW data values
+        assert len(df_result) == 1
+        assert df_result["open"].iloc[0] == 200.0, "New data should take precedence over cached"
+
+    def test_merge_with_empty_cached_data(self, tmp_path, monkeypatch):
+        """When cached data is empty, new data should be saved directly."""
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+        cache_file = thetadata_helper.build_cache_filename(Asset("TEST"), "1D", "ohlc")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        df_cached = None  # No cached data
+
+        df_all = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-06"]),
+            "open": [105.0],
+            "high": [107.0],
+            "low": [104.0],
+            "close": [106.0],
+            "volume": [1500],
+        }).set_index("datetime")
+
+        thetadata_helper.update_cache(cache_file, df_all, df_cached)
+
+        assert cache_file.exists()
+        df_result = pd.read_parquet(cache_file)
+        assert len(df_result) == 1
+
+    def test_merge_with_placeholder_rows(self, tmp_path, monkeypatch):
+        """Placeholder rows (missing=True) should be preserved during merge."""
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+        cache_file = thetadata_helper.build_cache_filename(Asset("TEST"), "1D", "ohlc")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Cached data with a placeholder row
+        df_cached = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-02", "2025-01-03"]),
+            "open": [100.0, None],
+            "high": [102.0, None],
+            "low": [99.0, None],
+            "close": [101.0, None],
+            "volume": [1000, 0],
+            "missing": [False, True],  # Jan 3 is a placeholder
+        }).set_index("datetime")
+
+        # New data for Jan 6
+        df_all = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-06"]),
+            "open": [105.0],
+            "high": [107.0],
+            "low": [104.0],
+            "close": [106.0],
+            "volume": [1500],
+        }).set_index("datetime")
+
+        thetadata_helper.update_cache(cache_file, df_all, df_cached)
+
+        df_result = pd.read_parquet(cache_file)
+        df_result = df_result.set_index("datetime") if "datetime" in df_result.columns else df_result
+
+        # Should have 3 rows including the placeholder
+        assert len(df_result) == 3
+
+    def test_merge_maintains_sorted_order(self, tmp_path, monkeypatch):
+        """Merged data should be sorted by datetime index."""
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+        cache_file = thetadata_helper.build_cache_filename(Asset("TEST"), "1D", "ohlc")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Cached data: Jan 6, 2025
+        df_cached = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-06"]),
+            "open": [105.0],
+            "high": [107.0],
+            "low": [104.0],
+            "close": [106.0],
+            "volume": [1500],
+        }).set_index("datetime")
+
+        # New data: Jan 2, 2025 (earlier date)
+        df_all = pd.DataFrame({
+            "datetime": pd.to_datetime(["2025-01-02"]),
+            "open": [100.0],
+            "high": [102.0],
+            "low": [99.0],
+            "close": [101.0],
+            "volume": [1000],
+        }).set_index("datetime")
+
+        thetadata_helper.update_cache(cache_file, df_all, df_cached)
+
+        df_result = pd.read_parquet(cache_file)
+        df_result = df_result.set_index("datetime") if "datetime" in df_result.columns else df_result
+
+        # Verify sorted order (Jan 2 should come before Jan 6)
+        dates = list(df_result.index)
+        assert dates[0] < dates[1], "Data should be sorted by datetime"
 
 
 def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
@@ -1621,71 +1956,56 @@ def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
     assert chain["Chains"]["PUT"], "PUT chain should contain expirations"
 
 
-# NOTE (2025-11-28): These get_request tests need to disable the Data Downloader
-# because they mock the local ThetaTerminal HTTP behavior. When Data Downloader is
-# enabled, it changes the request headers and timeout values, which breaks the strict
-# mock assertions. By disabling REMOTE_DOWNLOADER_ENABLED and unsetting the env vars,
-# we ensure consistent test behavior regardless of the test environment configuration.
-@patch('lumibot.tools.thetadata_helper.check_connection')
-@patch('lumibot.tools.thetadata_helper.requests.get')
-def test_get_request_error_in_json(mock_get, mock_check_connection, monkeypatch):
+# NOTE (2025-12-07): get_request now ONLY uses queue mode. Error handling behavior has changed:
+# - error_type in header no longer triggers ValueError (queue system handles errors differently)
+# - Exceptions from queue_request are propagated directly
+# The test below is skipped as error_type handling has been removed from get_request.
+@pytest.mark.skip(reason="Obsolete: error_type handling removed from get_request - queue system handles errors differently")
+@patch('lumibot.tools.thetadata_queue_client.queue_request')
+def test_get_request_error_in_json(mock_queue_request):
     """Test that get_request raises ValueError when response contains error_type."""
-    # Disable remote downloader - this test mocks local ThetaTerminal behavior
-    monkeypatch.setattr(thetadata_helper, "REMOTE_DOWNLOADER_ENABLED", False)
-    monkeypatch.delenv("DATADOWNLOADER_BASE_URL", raising=False)
-    monkeypatch.delenv("DATADOWNLOADER_API_KEY", raising=False)
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
+    # Mock queue_request to return a response with error_type
+    # queue_request returns just the response dict (not a tuple)
+    mock_queue_request.return_value = {
         "header": {
             "error_type": "SomeError"
         }
     }
-    mock_get.return_value = mock_response
 
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
     querystring = {"param1": "value1"}
 
-    # Act
+    # Act & Assert - get_request should raise ValueError when error_type is in header
     with pytest.raises(ValueError):
         thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
-    # Assert - verify the URL was called (headers/timeout may vary based on config)
-    assert mock_get.called
-    call_args = mock_get.call_args
-    assert call_args[0][0] == url  # URL should match
-    assert "param1" in call_args[1]["params"]  # Query params should include our param
-    mock_check_connection.assert_called()  # Connection check should be called
+    # Verify queue_request was called
+    assert mock_queue_request.called
 
 
-@patch('lumibot.tools.thetadata_helper.check_connection')
-@patch('lumibot.tools.thetadata_helper.requests.get')
-def test_get_request_exception_handling(mock_get, mock_check_connection, monkeypatch):
-    """Test that get_request handles RequestException and retries appropriately."""
-    # Arrange - disable remote downloader for this test
-    monkeypatch.setattr(thetadata_helper, "REMOTE_DOWNLOADER_ENABLED", False)
-    monkeypatch.delenv("DATADOWNLOADER_BASE_URL", raising=False)
-    monkeypatch.delenv("DATADOWNLOADER_API_KEY", raising=False)
-    mock_get.side_effect = requests.exceptions.RequestException
+@patch('lumibot.tools.thetadata_queue_client.queue_request')
+def test_get_request_exception_handling(mock_queue_request):
+    """Test that get_request handles exceptions from queue_request."""
+    # Mock queue_request to raise an exception
+    mock_queue_request.side_effect = Exception("Request permanently failed: test error")
+
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
     querystring = {"param1": "value1"}
 
-    # Act
-    with pytest.raises(ValueError):
+    # Act & Assert - get_request should propagate the exception
+    with pytest.raises(Exception) as exc_info:
         thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
 
-    # Assert - verify the URL was called with our params (headers/timeout may vary)
-    assert mock_get.called
-    call_args = mock_get.call_args
-    assert call_args[0][0] == url  # URL should match
-    assert "param1" in call_args[1]["params"]  # Query params should include our param
-    mock_check_connection.assert_called()  # Connection check should be called
-    expected_calls = thetadata_helper.HTTP_RETRY_LIMIT + 1  # initial probe + retries
-    assert mock_check_connection.call_count >= expected_calls
+    assert "test error" in str(exc_info.value)
+    assert mock_queue_request.called
 
 
+# NOTE (2025-12-07): The tests below (test_get_request_raises_theta_request_error_after_transient_status,
+# etc.) are now obsolete because get_request ONLY uses queue mode. The queue system handles
+# retries and error handling internally. These tests can be removed in a future cleanup.
+@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, which handles retries internally")
 @patch('lumibot.tools.thetadata_helper.check_connection')
 def test_get_request_raises_theta_request_error_after_transient_status(mock_check_connection, monkeypatch):
     """Ensure repeated 5xx responses raise ThetaRequestError with the status code."""

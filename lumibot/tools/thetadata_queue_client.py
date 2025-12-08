@@ -431,6 +431,16 @@ class QueueClient:
                 # Check terminal states
                 if status == "completed":
                     result, status_code, _ = self.get_result(request_id)
+                    # Log successful receipt from queue (fills logging gap for individual pieces)
+                    elapsed = time.time() - start_time
+                    result_size = len(result) if isinstance(result, (list, dict)) else 0
+                    logger.info(
+                        "[THETA][QUEUE] Received result: request_id=%s elapsed=%.1fs status_code=%d size=%d",
+                        request_id,
+                        elapsed,
+                        status_code,
+                        result_size,
+                    )
                     # Update local tracking
                     with self._lock:
                         if info.correlation_id in self._pending_requests:

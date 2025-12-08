@@ -4247,3 +4247,237 @@ class TestZeroPriceFiltering:
         df_filtered = df[~all_zero]
 
         assert len(df_filtered) == 0
+
+
+# =========================================================================
+# COVERAGE GAP GRACEFUL HANDLING TESTS (Added 2025-12-08)
+# These tests verify that data coverage gaps do NOT crash the backtest.
+# Data gaps are normal for options that don't trade every day.
+# See: thetadata_backtesting_pandas.py lines 1569-1643
+# =========================================================================
+
+class TestCoverageGapGracefulHandling:
+    """
+    Tests that verify backtests continue gracefully when data coverage is incomplete.
+
+    BACKGROUND: Options and illiquid securities frequently have data gaps.
+    If ThetaData doesn't have data for certain dates, the backtest should:
+    1. Log a warning (not an error)
+    2. Continue with available data
+    3. NOT crash with ValueError
+
+    This was fixed in Dec 2025 after a production crash on backtest 9cbe189c-4e8b-4ed5-8b32-9d1b49103430
+    where GOOG 2027-06-17 185.0 CALL had coverage ending 2025-11-25 but target was 2025-12-02.
+    """
+
+    def test_coverage_gap_beyond_tolerance_does_not_crash(self, monkeypatch, tmp_path, caplog):
+        """
+        Test that when data coverage ends more than 3 days before target_end,
+        the system logs a warning and continues (no ValueError raised).
+
+        Scenario: coverage_end = 2024-11-20, target_end = 2024-11-30 (10 days behind)
+        Expected: Warning logged, no exception raised
+        """
+        import logging
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+        from lumibot.backtesting import ThetaDataBacktesting
+
+        # Create a minimal mock setup
+        cache_root = tmp_path / "cache_root"
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+        thetadata_helper.reset_connection_diagnostics()
+
+        # Disable remote cache
+        class DisabledCacheManager:
+            enabled = False
+            mode = None
+            def ensure_local_file(self, *args, **kwargs):
+                return False
+            def on_local_update(self, *args, **kwargs):
+                return False
+        monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
+
+        # Create a CALL option asset (these frequently have data gaps)
+        asset = Asset(
+            asset_type="option",
+            symbol="GOOG",
+            expiration=datetime.date(2027, 6, 17),
+            strike=185.0,
+            right="CALL",
+        )
+
+        # Data ends Nov 20 but we request until Nov 30 (10 days gap, beyond 3-day tolerance)
+        start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 11, 1))
+        end_requirement = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 11, 30))
+
+        # Create mock data that ends at Nov 20
+        trading_days = [
+            datetime.date(2024, 11, 1), datetime.date(2024, 11, 4), datetime.date(2024, 11, 5),
+            datetime.date(2024, 11, 6), datetime.date(2024, 11, 7), datetime.date(2024, 11, 8),
+            datetime.date(2024, 11, 11), datetime.date(2024, 11, 12), datetime.date(2024, 11, 13),
+            datetime.date(2024, 11, 14), datetime.date(2024, 11, 15), datetime.date(2024, 11, 18),
+            datetime.date(2024, 11, 19), datetime.date(2024, 11, 20),
+            # Missing: Nov 21-30 (these would be placeholders/missing data)
+        ]
+
+        date_strs = [d.strftime("%Y-%m-%d") for d in trading_days]
+        df_data = pd.DataFrame({
+            "datetime": pd.to_datetime(date_strs, utc=True),
+            "open": [100.0 + i for i in range(len(trading_days))],
+            "high": [101.0 + i for i in range(len(trading_days))],
+            "low": [99.0 + i for i in range(len(trading_days))],
+            "close": [100.5 + i for i in range(len(trading_days))],
+            "volume": [1000 + i * 100 for i in range(len(trading_days))],
+        })
+
+        progress_stub = MagicMock()
+        progress_stub.update.return_value = None
+        progress_stub.close.return_value = None
+
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+                 patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+                eod_mock = MagicMock(return_value=df_data)
+                with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
+                    # This should NOT raise ValueError - it should log warning and continue
+                    try:
+                        result = thetadata_helper.get_price_data(
+                            "user", "pass", asset, start, end_requirement, "day"
+                        )
+                        exception_raised = False
+                    except ValueError as e:
+                        exception_raised = True
+                        error_message = str(e)
+
+        # CRITICAL ASSERTION: No ValueError should be raised
+        assert not exception_raised, (
+            f"ValueError should NOT be raised for data coverage gaps. "
+            f"Data gaps are normal for options that don't trade every day."
+        )
+
+    def test_no_end_timestamp_does_not_crash(self, monkeypatch, tmp_path, caplog):
+        """
+        Test that when metadata has no end timestamp,
+        the system logs a warning and continues (no crash).
+
+        This can happen when ThetaData returns empty or malformed data.
+        """
+        import logging
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+        cache_root = tmp_path / "cache_root"
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+        thetadata_helper.reset_connection_diagnostics()
+
+        class DisabledCacheManager:
+            enabled = False
+            mode = None
+            def ensure_local_file(self, *args, **kwargs):
+                return False
+            def on_local_update(self, *args, **kwargs):
+                return False
+        monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
+
+        asset = Asset(asset_type="stock", symbol="ILLIQUID")
+        start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
+        end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 10))
+
+        # Return empty DataFrame (no data available)
+        empty_df = pd.DataFrame({
+            "datetime": pd.to_datetime([], utc=True),
+            "open": [], "high": [], "low": [], "close": [], "volume": [],
+        })
+
+        progress_stub = MagicMock()
+        progress_stub.update.return_value = None
+        progress_stub.close.return_value = None
+
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+                 patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=[]):
+                eod_mock = MagicMock(return_value=empty_df)
+                with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
+                    try:
+                        result = thetadata_helper.get_price_data(
+                            "user", "pass", asset, start, end, "day"
+                        )
+                        exception_raised = False
+                    except ValueError as e:
+                        exception_raised = True
+
+        # Should not crash even with empty/no data
+        assert not exception_raised, (
+            "Empty data response should not crash. "
+            "Should log warning and continue with available (empty) data."
+        )
+
+    def test_tail_placeholder_does_not_crash(self, monkeypatch, tmp_path, caplog):
+        """
+        Test that when data ends with placeholders (missing tail dates),
+        the system logs a warning and continues (no crash).
+
+        Placeholders indicate dates where data was queried but not available.
+        This is normal for options that stop trading before expiration.
+        """
+        import logging
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+        cache_root = tmp_path / "cache_root"
+        monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+        thetadata_helper.reset_connection_diagnostics()
+
+        class DisabledCacheManager:
+            enabled = False
+            mode = None
+            def ensure_local_file(self, *args, **kwargs):
+                return False
+            def on_local_update(self, *args, **kwargs):
+                return False
+        monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
+
+        asset = Asset(asset_type="stock", symbol="TAILTEST")
+        start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
+        end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 10))
+
+        # Data for first 3 days only, then 4 placeholder days at the end
+        trading_days = [
+            datetime.date(2024, 1, 2), datetime.date(2024, 1, 3), datetime.date(2024, 1, 4),
+            datetime.date(2024, 1, 5), datetime.date(2024, 1, 8), datetime.date(2024, 1, 9),
+            datetime.date(2024, 1, 10),
+        ]
+
+        # Only return data for first 3 days - rest will become placeholders
+        partial_df = pd.DataFrame({
+            "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"], utc=True),
+            "open": [100.0, 101.0, 102.0],
+            "high": [101.0, 102.0, 103.0],
+            "low": [99.0, 100.0, 101.0],
+            "close": [100.5, 101.5, 102.5],
+            "volume": [1000, 1100, 1200],
+        })
+
+        progress_stub = MagicMock()
+        progress_stub.update.return_value = None
+        progress_stub.close.return_value = None
+
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
+                 patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+                eod_mock = MagicMock(return_value=partial_df)
+                with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
+                    try:
+                        result = thetadata_helper.get_price_data(
+                            "user", "pass", asset, start, end, "day"
+                        )
+                        exception_raised = False
+                    except ValueError as e:
+                        exception_raised = True
+
+        # Should not crash with tail placeholders
+        assert not exception_raised, (
+            "Tail placeholders should not crash. "
+            "This is normal for assets that stop trading."
+        )

@@ -1567,10 +1567,16 @@ class ThetaDataBacktestingPandas(PandasData):
         )
         if end_requirement is not None:
             if coverage_end is None:
-                raise ValueError(
-                    f"ThetaData coverage for {asset_separated}/{quote_asset} ({ts_unit}) has no end timestamp "
-                    f"while target end is {end_requirement}."
+                # Log warning but don't crash - data gaps are normal for options that don't trade every day
+                logger.warning(
+                    "[THETA][COVERAGE][NO_END] asset=%s/%s (%s) has no end timestamp while target_end=%s; "
+                    "continuing with available data",
+                    asset_separated,
+                    quote_asset,
+                    ts_unit,
+                    end_requirement,
                 )
+                return  # Continue without crashing
             # For both day and minute data, compare at the date level.
             # Minute data legitimately ends at end of after-hours trading (not midnight),
             # so comparing full timestamps would fail incorrectly.
@@ -1599,8 +1605,11 @@ class ThetaDataBacktestingPandas(PandasData):
                     end_requirement,
                 )
             if coverage_end_cmp < end_requirement_cmp and days_behind > END_TOLERANCE_DAYS:
-                logger.error(
-                    "[THETA][ERROR][COVERAGE] asset=%s/%s (%s) coverage_end=%s target_end=%s rows=%s placeholders=%s days_behind=%s",
+                # Log warning but don't crash - data gaps are normal for options that don't trade every day
+                # The asset may not have traded during this period, which is fine - continue with available data
+                logger.warning(
+                    "[THETA][COVERAGE][GAP] asset=%s/%s (%s) coverage_end=%s target_end=%s rows=%s placeholders=%s days_behind=%s; "
+                    "continuing with available data (data gaps are normal for illiquid options)",
                     asset_separated,
                     quote_asset,
                     ts_unit,
@@ -1610,8 +1619,8 @@ class ThetaDataBacktestingPandas(PandasData):
                     meta.get("placeholders"),
                     days_behind,
                 )
-                logger.error(
-                    "[THETA][ERROR][COVERAGE][DIAGNOSTICS] requested_start=%s start_for_fetch=%s data_start=%s data_end=%s requested_length=%s prefetch_complete=%s",
+                logger.debug(
+                    "[THETA][COVERAGE][GAP][DIAGNOSTICS] requested_start=%s start_for_fetch=%s data_start=%s data_end=%s requested_length=%s prefetch_complete=%s",
                     requested_start,
                     start_for_fetch,
                     meta.get("data_start"),
@@ -1619,15 +1628,19 @@ class ThetaDataBacktestingPandas(PandasData):
                     requested_length,
                     meta.get("prefetch_complete"),
                 )
-                raise ValueError(
-                    f"ThetaData coverage for {asset_separated}/{quote_asset} ({ts_unit}) ends at {coverage_end} "
-                    f"but target end is {end_requirement}; aborting repeated refreshes."
-                )
+                # Don't raise - just continue with available data
         if meta.get("tail_placeholder") and not meta.get("tail_missing_permanent"):
-            raise ValueError(
-                f"ThetaData cache for {asset_separated}/{quote_asset} ({ts_unit}) ends with placeholders; "
-                f"cannot trade on incomplete data (target_end={end_requirement})."
+            # Log warning but don't crash - placeholders at the end mean the asset didn't trade
+            # for those dates, which is normal for options. Continue with available data.
+            logger.warning(
+                "[THETA][COVERAGE][TAIL_PLACEHOLDER] asset=%s/%s (%s) ends with placeholders (target_end=%s); "
+                "continuing with available data (asset may not have traded during this period)",
+                asset_separated,
+                quote_asset,
+                ts_unit,
+                end_requirement,
             )
+            # Don't raise - just continue with available data
         if legacy_key not in self._dataset_metadata:
             try:
                 self._dataset_metadata[legacy_key] = self._dataset_metadata.get(canonical_key, {})

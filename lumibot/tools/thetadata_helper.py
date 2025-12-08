@@ -1551,7 +1551,10 @@ def get_price_data(
             )
 
         try:
-            cache_manager.ensure_local_file(sidecar_file, payload=remote_payload, force_download=True)
+            # PERFORMANCE FIX (2025-12-07): Removed force_download=True for sidecar files.
+            # This was causing unnecessary S3 downloads on every backtest run.
+            # The sidecar will be downloaded if missing; if out-of-sync, validation will catch it.
+            cache_manager.ensure_local_file(sidecar_file, payload=remote_payload)
         except Exception as exc:
             logger.debug(
                 "[THETA][DEBUG][CACHE][REMOTE_SIDECAR_ERROR] asset=%s sidecar=%s error=%s",
@@ -1599,22 +1602,38 @@ def get_price_data(
     sidecar_data = _load_cache_sidecar(cache_file)
     cache_checksum = _hash_file(cache_file)
 
+    # INTEGRITY_FAILURES: Data corruption that requires cache deletion
+    # COVERAGE_FAILURES: Cache is valid but doesn't cover requested range - can extend
+    INTEGRITY_FAILURES = {"unparseable_index", "duplicate_index", "sidecar_mismatch"}
+    COVERAGE_FAILURES = {"empty", "missing_trading_days", "stale_max_date", "too_few_rows"}
+
     def _validate_cache_frame(
         frame: Optional[pd.DataFrame],
         requested_start_dt: datetime,
         requested_end_dt: datetime,
         span: str,
-    ) -> Tuple[bool, str]:
-        """Return (is_valid, reason). Only applies sanity checks when a frame exists."""
+    ) -> Tuple[bool, str, bool]:
+        """Return (is_valid, reason, is_integrity_failure).
+
+        Integrity failures = corrupt/inconsistent data that MUST be deleted.
+        Coverage failures = cache is valid but doesn't cover requested range - can be extended.
+
+        This distinction is critical for cache fidelity:
+        - Integrity failures (unparseable_index, duplicate_index, sidecar_mismatch): DELETE cache
+        - Coverage failures (missing_trading_days, stale_max_date, too_few_rows): KEEP cache, extend it
+
+        Added 2025-12-07 to fix cache fidelity bug where valid cache was deleted when
+        it simply didn't cover the requested date range.
+        """
         if frame is None or frame.empty:
-            return False, "empty"
+            return False, "empty", False  # Not an integrity failure - just no data
 
         frame = ensure_missing_column(frame)
 
         try:
             frame_index = pd.to_datetime(frame.index)
         except Exception:
-            return False, "unparseable_index"
+            return False, "unparseable_index", True  # INTEGRITY FAILURE
 
         if frame_index.tz is None:
             frame_index = frame_index.tz_localize(pytz.UTC)
@@ -1622,7 +1641,7 @@ def get_price_data(
             frame_index = frame_index.tz_convert(pytz.UTC)
 
         if frame_index.has_duplicates:
-            return False, "duplicate_index"
+            return False, "duplicate_index", True  # INTEGRITY FAILURE
 
         min_ts = frame_index.min()
         max_ts = frame_index.max()
@@ -1642,7 +1661,7 @@ def get_price_data(
             min_match = sidecar_data.get("min") is None or sidecar_data.get("min") == (min_ts.isoformat() if hasattr(min_ts, "isoformat") else None)
             max_match = sidecar_data.get("max") is None or sidecar_data.get("max") == (max_ts.isoformat() if hasattr(max_ts, "isoformat") else None)
             if not all([rows_match, placeholders_match, checksum_match, min_match, max_match]):
-                return False, "sidecar_mismatch"
+                return False, "sidecar_mismatch", True  # INTEGRITY FAILURE
 
         if span == "day":
             trading_days = get_trading_dates(asset, requested_start_dt, requested_end_dt)
@@ -1654,8 +1673,36 @@ def get_price_data(
                 if d not in index_dates:
                     missing_required.append(d)
 
+            # DEBUG: Log detailed cache validation info for OPTIONS
+            is_option = getattr(asset, 'asset_type', None) == 'option'
+            if is_option or missing_required:
+                logger.info(
+                    "[THETA][DEBUG][CACHE_VALIDATION] asset=%s | "
+                    "requested_range=%s to %s | "
+                    "trading_days_count=%d | "
+                    "index_dates_count=%d | "
+                    "placeholder_dates_count=%d | "
+                    "missing_required_count=%d | "
+                    "first_5_missing=%s | "
+                    "cache_min_date=%s | cache_max_date=%s | "
+                    "first_5_index_dates=%s | "
+                    "first_5_placeholder_dates=%s",
+                    asset,
+                    requested_start_date,
+                    requested_end_date,
+                    len(trading_days),
+                    len(index_dates),
+                    len(placeholder_dates),
+                    len(missing_required),
+                    sorted(missing_required)[:5] if missing_required else [],
+                    min(index_dates) if len(index_dates) > 0 else None,
+                    max(index_dates) if len(index_dates) > 0 else None,
+                    sorted(set(index_dates))[:5] if len(index_dates) > 0 else [],
+                    sorted(placeholder_dates)[:5] if placeholder_dates else [],
+                )
+
             if missing_required:
-                return False, "missing_trading_days"
+                return False, "missing_trading_days", False  # COVERAGE FAILURE - can extend
 
             # NOTE: Removed "starts_after_requested" check (2025-12-05)
             # This check invalidated cache for assets like TQQQ where the requested start date
@@ -1665,17 +1712,17 @@ def get_price_data(
             # invalidated and re-fetched on EVERY iteration, leading to 40-minute backtests.
 
             if requested_end_date > max_ts.date():
-                return False, "stale_max_date"
+                return False, "stale_max_date", False  # COVERAGE FAILURE - can extend
 
             expected_days = len(trading_days)
             # Use total_rows (including placeholders) for coverage check since placeholders
             # represent permanently missing data that we've already identified
             too_few_rows = expected_days > 0 and total_rows < max(5, int(expected_days * 0.9))
             if too_few_rows:
-                return False, "too_few_rows"
-        return True, ""
+                return False, "too_few_rows", False  # COVERAGE FAILURE - can extend
+        return True, "", False
 
-    cache_ok, cache_reason = _validate_cache_frame(df_all, requested_start, requested_end, timespan)
+    cache_ok, cache_reason, is_integrity_failure = _validate_cache_frame(df_all, requested_start, requested_end, timespan)
     if cache_ok and df_all is not None and _load_cache_sidecar(cache_file) is None:
         # Backfill a missing sidecar for a valid cache.
         try:
@@ -1688,24 +1735,37 @@ def get_price_data(
             )
 
     if not cache_ok and df_all is not None:
-        cache_invalid = True
-        try:
-            cache_file.unlink()
-        except Exception:
-            pass
-        try:
-            _cache_sidecar_path(cache_file).unlink()
-        except Exception:
-            pass
-        df_all = None
-        df_cached = None
-        logger.warning(
-            "[THETA][CACHE][INVALID] asset=%s span=%s reason=%s rows=%d",
-            asset,
-            timespan,
-            cache_reason,
-            cached_rows,
-        )
+        if is_integrity_failure:
+            # INTEGRITY FAILURE: Cache is corrupt/inconsistent - must delete and re-fetch all
+            cache_invalid = True
+            try:
+                cache_file.unlink()
+            except Exception:
+                pass
+            try:
+                _cache_sidecar_path(cache_file).unlink()
+            except Exception:
+                pass
+            df_all = None
+            df_cached = None
+            logger.warning(
+                "[THETA][CACHE][INTEGRITY_FAILURE] asset=%s span=%s reason=%s rows=%d - deleting corrupt cache",
+                asset,
+                timespan,
+                cache_reason,
+                cached_rows,
+            )
+        else:
+            # COVERAGE FAILURE: Cache is valid but doesn't cover requested range - extend it
+            # Keep df_all intact so we can use it as a base for fetching missing dates
+            cache_invalid = False  # NOT invalid, just incomplete
+            logger.info(
+                "[THETA][CACHE][COVERAGE_EXTEND] asset=%s span=%s reason=%s rows=%d - will extend cache",
+                asset,
+                timespan,
+                cache_reason,
+                cached_rows,
+            )
 
     logger.debug(
         "[THETA][DEBUG][THETADATA-CACHE] pre-fetch rows=%d placeholders=%d for %s %s %s",
@@ -2045,6 +2105,29 @@ def get_price_data(
         if future_dates:
             missing_within_range.extend(future_dates)
         placeholder_count = len(missing_within_range)
+
+        # DEBUG: Log placeholder creation for OPTIONS
+        is_option = getattr(asset, 'asset_type', None) == 'option'
+        if is_option or placeholder_count > 0:
+            logger.info(
+                "[THETA][DEBUG][PLACEHOLDER_CREATE] asset=%s | "
+                "trading_days_count=%d | covered_days_count=%d | "
+                "placeholders_to_create=%d | "
+                "first_5_missing=%s | last_5_missing=%s | "
+                "first_5_covered=%s | last_5_covered=%s | "
+                "effective_range=%s to %s",
+                asset,
+                len(trading_days),
+                len(covered_days),
+                placeholder_count,
+                sorted(missing_within_range)[:5] if missing_within_range else [],
+                sorted(missing_within_range)[-5:] if missing_within_range else [],
+                sorted(covered_days)[:5] if covered_days else [],
+                sorted(covered_days)[-5:] if covered_days else [],
+                effective_start.date() if hasattr(effective_start, 'date') else effective_start,
+                effective_end.date() if hasattr(effective_end, 'date') else effective_end,
+            )
+
         df_all = append_missing_markers(df_all, missing_within_range)
 
         update_cache(
@@ -2271,15 +2354,30 @@ def get_price_data(
 
 
 
-@functools.lru_cache(maxsize=512)
+# PERFORMANCE FIX (2025-12-07): Cache calendar objects to avoid rebuilding them.
+# mcal.get_calendar() is slow; caching the calendar objects saves significant time.
+_CALENDAR_CACHE: Dict[str, object] = {}
+
+
+def _get_cached_calendar(name: str):
+    """Get or create a cached market calendar object."""
+    if name not in _CALENDAR_CACHE:
+        _CALENDAR_CACHE[name] = mcal.get_calendar(name)
+    return _CALENDAR_CACHE[name]
+
+
+@functools.lru_cache(maxsize=2048)  # Increased from 512 for longer backtests
 def _cached_trading_dates(asset_type: str, start_date: date, end_date: date) -> List[date]:
-    """Memoized trading-day resolver to avoid rebuilding calendars every call."""
+    """Memoized trading-day resolver to avoid rebuilding calendars every call.
+
+    PERFORMANCE FIX (2025-12-07): Increased cache size and use cached calendars.
+    """
     if asset_type == "crypto":
         return [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
     if asset_type == "stock" or asset_type == "option" or asset_type == "index":
-        cal = mcal.get_calendar("NYSE")
+        cal = _get_cached_calendar("NYSE")
     elif asset_type == "forex":
-        cal = mcal.get_calendar("CME_FX")
+        cal = _get_cached_calendar("CME_FX")
     else:
         raise ValueError(f"Unsupported asset type for thetadata: {asset_type}")
     df = cal.schedule(start_date=start_date, end_date=end_date)
@@ -2554,21 +2652,51 @@ _ALLOWED_HISTORICAL_PLACEHOLDER_DATES = {
 }
 
 
+# PERFORMANCE FIX (2025-12-07): Cache file hashes to avoid recomputing for same file.
+# Key: (str(path), mtime), Value: hash string
+_FILE_HASH_CACHE: Dict[Tuple[str, float], str] = {}
+
+
 def _hash_file(path: Path) -> Optional[str]:
-    """Compute a SHA256 checksum for the given file."""
+    """Compute a SHA256 checksum for the given file.
+
+    PERFORMANCE FIX (2025-12-07): Caches hash by (path, mtime) to avoid
+    recomputing the same file's hash multiple times in a session.
+    """
     if not path.exists() or not path.is_file():
         return None
-    digest = hashlib.sha256()
+
     try:
+        mtime = path.stat().st_mtime
+        cache_key = (str(path), mtime)
+
+        # Check cache first
+        if cache_key in _FILE_HASH_CACHE:
+            return _FILE_HASH_CACHE[cache_key]
+
+        # Compute hash
+        digest = hashlib.sha256()
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 if not chunk:
                     break
                 digest.update(chunk)
+        hash_value = digest.hexdigest()
+
+        # Cache for future calls
+        _FILE_HASH_CACHE[cache_key] = hash_value
+
+        # Limit cache size to prevent memory bloat
+        if len(_FILE_HASH_CACHE) > 1000:
+            # Remove oldest entries (first 500)
+            keys_to_remove = list(_FILE_HASH_CACHE.keys())[:500]
+            for key in keys_to_remove:
+                _FILE_HASH_CACHE.pop(key, None)
+
+        return hash_value
     except Exception as exc:
         logger.debug("[THETA][DEBUG][CACHE][HASH_FAIL] path=%s error=%s", path, exc)
         return None
-    return digest.hexdigest()
 
 
 def _load_cache_sidecar(cache_file: Path) -> Optional[Dict[str, Any]]:
@@ -2672,6 +2800,24 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
             cache_file.name
         )
         return
+
+    # CRITICAL FIX: Merge old cached data with new data to prevent data loss
+    # Without this, cache would be overwritten with only new data, losing historical data
+    # This is essential for LEAP options where ThetaData may return partial data
+    if df_cached is not None and len(df_cached) > 0:
+        df_cached_normalized = ensure_missing_column(df_cached.copy())
+        # Remove rows from cached that will be replaced by new data
+        # Keep cached rows whose index is NOT in the new data
+        cached_only = df_cached_normalized[~df_cached_normalized.index.isin(df_working.index)]
+        if len(cached_only) > 0:
+            logger.debug(
+                "[THETA][DEBUG][CACHE][UPDATE_MERGE] cache_file=%s | "
+                "merging %d cached rows with %d new rows",
+                cache_file.name,
+                len(cached_only),
+                len(df_working)
+            )
+            df_working = pd.concat([cached_only, df_working]).sort_index()
 
     df_cached_cmp = None
     if df_cached is not None and len(df_cached) > 0:

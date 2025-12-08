@@ -73,6 +73,17 @@ class ThetaDataBacktestingPandas(PandasData):
         # Set data_source to self since this class acts as both broker and data source
         self.data_source = self
 
+        # CRITICAL FIX (2025-12-07): Set a unique client_id for queue fairness.
+        # This ensures each backtest instance gets fair treatment in the queue,
+        # even when multiple backtests are running concurrently.
+        import uuid
+        from lumibot.tools.thetadata_queue_client import set_queue_client_id
+        unique_id = uuid.uuid4().hex[:8]
+        strategy_name = kwargs.get('name', 'Backtest')
+        client_id = f"{strategy_name}_{unique_id}"
+        set_queue_client_id(client_id)
+        logger.info(f"[THETA][QUEUE] Set unique client_id for queue fairness: {client_id}")
+
         self.kill_processes_by_name("ThetaTerminal.jar")
         thetadata_helper.reset_theta_terminal_tracking()
 
@@ -679,6 +690,14 @@ class ThetaDataBacktestingPandas(PandasData):
         # Fast-path reuse: if we already have a dataframe that covers the needed window, skip all fetch/ffill work.
         # IMPORTANT: Only reuse if the cached data's timestep matches what we're requesting.
         # Otherwise we might reuse day data when minute data was requested (or vice versa).
+        #
+        # CRITICAL FIX (2025-12-07): For OPTIONS, we must be extra careful about fast-reuse.
+        # Each option strike/expiration is a unique instrument that needs its own data.
+        # Don't reuse cached data for options unless it's for the EXACT same strike/expiration.
+        # The canonical_key includes the full Asset (with strike/expiration), but we add an
+        # explicit check here as a defensive measure.
+        is_option = getattr(asset_separated, 'asset_type', None) == 'option'
+
         if existing_data is not None and existing_data.timestep == ts_unit:
             df_idx = existing_data.df.index
             if len(df_idx):
@@ -713,23 +732,69 @@ class ThetaDataBacktestingPandas(PandasData):
                     and coverage_start <= requested_start + START_BUFFER
                     and end_ok
                 ):
-                    meta = self._dataset_metadata.get(canonical_key, {}) or {}
-                    if not meta.get("ffilled"):
-                        meta["ffilled"] = True
-                    if meta.get("prefetch_complete") is None:
-                        meta["prefetch_complete"] = True
-                    self._dataset_metadata[canonical_key] = meta
-                    logger.info(
-                        "[THETA][CACHE][FAST_REUSE] asset=%s/%s (%s) covers start=%s end=%s needed_start=%s needed_end=%s -> reuse (date-level comparison)",
-                        asset_separated,
-                        quote_asset,
-                        ts_unit,
-                        coverage_start,
-                        coverage_end,
-                        requested_start,
-                        end_requirement,
-                    )
-                    return None
+                    # CRITICAL FIX (2025-12-07): For options, verify the cached data is for
+                    # the EXACT same strike/expiration. Options are unique instruments and
+                    # data for one strike cannot be reused for another.
+                    if is_option:
+                        # Get the asset that was used to cache this data
+                        cached_asset = None
+                        if isinstance(dataset_key, tuple) and len(dataset_key) >= 1:
+                            cached_asset = dataset_key[0]
+
+                        # Verify strike and expiration match exactly
+                        if cached_asset is None or not isinstance(cached_asset, Asset):
+                            logger.info(
+                                "[THETA][CACHE][FAST_REUSE][OPTION_SKIP] Cannot verify cached asset for option %s - fetching fresh data",
+                                asset_separated,
+                            )
+                            # Don't use fast-reuse, continue to fetch
+                        elif (
+                            getattr(cached_asset, 'strike', None) != getattr(asset_separated, 'strike', None)
+                            or getattr(cached_asset, 'expiration', None) != getattr(asset_separated, 'expiration', None)
+                            or getattr(cached_asset, 'right', None) != getattr(asset_separated, 'right', None)
+                        ):
+                            logger.info(
+                                "[THETA][CACHE][FAST_REUSE][OPTION_MISMATCH] Cached data for %s does not match requested option %s - fetching fresh data",
+                                cached_asset,
+                                asset_separated,
+                            )
+                            # Don't use fast-reuse, continue to fetch
+                        else:
+                            # Option matches exactly, safe to reuse
+                            meta = self._dataset_metadata.get(canonical_key, {}) or {}
+                            if not meta.get("ffilled"):
+                                meta["ffilled"] = True
+                            if meta.get("prefetch_complete") is None:
+                                meta["prefetch_complete"] = True
+                            self._dataset_metadata[canonical_key] = meta
+                            logger.info(
+                                "[THETA][CACHE][FAST_REUSE][OPTION] asset=%s/%s (%s) strike=%s exp=%s -> reuse",
+                                asset_separated,
+                                quote_asset,
+                                ts_unit,
+                                getattr(asset_separated, 'strike', None),
+                                getattr(asset_separated, 'expiration', None),
+                            )
+                            return None
+                    else:
+                        # Non-option asset - use standard fast-reuse
+                        meta = self._dataset_metadata.get(canonical_key, {}) or {}
+                        if not meta.get("ffilled"):
+                            meta["ffilled"] = True
+                        if meta.get("prefetch_complete") is None:
+                            meta["prefetch_complete"] = True
+                        self._dataset_metadata[canonical_key] = meta
+                        logger.info(
+                            "[THETA][CACHE][FAST_REUSE] asset=%s/%s (%s) covers start=%s end=%s needed_start=%s needed_end=%s -> reuse (date-level comparison)",
+                            asset_separated,
+                            quote_asset,
+                            ts_unit,
+                            coverage_start,
+                            coverage_end,
+                            requested_start,
+                            end_requirement,
+                        )
+                        return None
 
         if cached_data is not None and existing_meta is None:
             has_quotes = self._frame_has_quote_columns(cached_data.df)

@@ -700,6 +700,11 @@ class _Strategy:
             return
 
         with self._executor.lock:
+            # Initialize last known prices tracker for forward-fill fallback.
+            # This is used when OHLC data is missing (common for illiquid options like LEAPS).
+            if not hasattr(self, '_last_known_prices'):
+                self._last_known_prices = {}
+
             # Used for traditional brokers, for crypto this could be 0
             portfolio_value = self.cash
 
@@ -744,32 +749,48 @@ class _Strategy:
                     elif isinstance(asset, Asset) and asset == self._quote_asset:
                         price = 0
 
+                # Track valid prices for forward-fill fallback
+                if price is not None:
+                    self._last_known_prices[asset] = price
+
                 if self.is_backtesting and price is None:
-                    if isinstance(asset, Asset):
-                        asset_details = (
-                            f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
-                            f"expiration: {asset.expiration}, strike: {asset.strike}"
-                        )
+                    # Forward-fill fallback: use last known price when current price is unavailable.
+                    # This is critical for illiquid options (LEAPS) that may not trade for days.
+                    if asset in self._last_known_prices:
+                        price = self._last_known_prices[asset]
+                        base_asset = asset[0] if isinstance(asset, tuple) else asset
+                        asset_symbol = getattr(base_asset, 'symbol', str(base_asset))
                         self.logger.warning(
-                            "Skipping valuation for asset (%s) because no price was available at %s.",
-                            asset_details,
-                            self.broker.datetime,
+                            "Using forward-filled price %.4f for %s at %s (no current price available).",
+                            price, asset_symbol, self.broker.datetime,
                         )
-                    elif isinstance(asset, tuple):
-                        base_asset = asset[0] if asset else None
-                        if isinstance(base_asset, Asset):
+                    else:
+                        # No price history - must skip this position
+                        if isinstance(asset, Asset):
                             asset_details = (
-                                f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
-                                f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
+                                f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
+                                f"expiration: {asset.expiration}, strike: {asset.strike}"
                             )
-                        else:
-                            asset_details = str(asset)
-                        self.logger.warning(
-                            "Skipping valuation for pair (%s) because no price was available at %s.",
-                            asset_details,
-                            self.broker.datetime,
-                        )
-                    continue
+                            self.logger.warning(
+                                "Skipping valuation for asset (%s) because no price was available at %s.",
+                                asset_details,
+                                self.broker.datetime,
+                            )
+                        elif isinstance(asset, tuple):
+                            base_asset = asset[0] if asset else None
+                            if isinstance(base_asset, Asset):
+                                asset_details = (
+                                    f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
+                                    f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
+                                )
+                            else:
+                                asset_details = str(asset)
+                            self.logger.warning(
+                                "Skipping valuation for pair (%s) because no price was available at %s.",
+                                asset_details,
+                                self.broker.datetime,
+                            )
+                        continue
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
@@ -837,7 +858,35 @@ class _Strategy:
 
         get_last_price = getattr(source, "get_last_price", None)
         if callable(get_last_price):
-            return get_last_price(asset)
+            price = get_last_price(asset)
+            if price is not None:
+                return price
+
+        # Quote fallback for options when OHLC is missing.
+        # Options often have sparse OHLC data (LEAPS may not trade for days),
+        # but bid/ask quotes from market makers are typically available.
+        # This calls get_quote() which loads minute-level quote data.
+        base_asset = asset[0] if isinstance(asset, tuple) else asset
+        if hasattr(base_asset, 'asset_type') and base_asset.asset_type == 'option':
+            try:
+                get_quote = getattr(source, 'get_quote', None)
+                if callable(get_quote):
+                    quote = get_quote(base_asset, timestep="minute")
+                    if quote is not None:
+                        bid = getattr(quote, 'bid', None)
+                        ask = getattr(quote, 'ask', None)
+                        if bid is not None and ask is not None:
+                            try:
+                                mid_price = (float(bid) + float(ask)) / 2
+                                self.logger.debug(
+                                    "Using quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
+                                    mid_price, base_asset, float(bid), float(ask)
+                                )
+                                return mid_price
+                            except (TypeError, ValueError):
+                                pass
+            except Exception as e:
+                self.logger.debug("Quote fallback failed for %s: %s", base_asset, e)
 
         self.logger.warning(
             "Data source %s for asset %s does not provide get_last_price; returning None.",

@@ -371,44 +371,45 @@ class ProjectXData(DataSource):
             return self._contract_cache[cache_key]
 
         try:
-            contract_id = None
+            # Start with the API client lookup because ProjectX only allows a single contract per symbol and
+            # near the end of the quarter it is hard to predict which contract will be active. Result will be cached
+            # to avoid repeated API lookups.
+            contract_id = self.client.find_contract_by_symbol(asset.symbol)
 
-            # Handle continuous futures using Asset class logic
-            if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-                self.logger.debug(f"🔄 Resolving continuous future {asset.symbol} using Asset class")
-
-                try:
-                    # Use Asset class method to get potential contracts
-                    potential_contracts = asset.get_potential_futures_contracts()
-
-                    for contract_symbol in potential_contracts:
-                        # Convert to ProjectX format if needed
-                        if not contract_symbol.startswith("CON.F.US."):
-                            # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
-                            if len(contract_symbol) >= 4:
-                                base_symbol = contract_symbol[:-3]  # Remove last 3 chars
-                                month_year = contract_symbol[-3:]   # Get month + year code
-                                if len(month_year) == 3:
-                                    month_code = month_year[0]
-                                    year_code = month_year[1:]
-                                    contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
-                                else:
-                                    contract_id = f"CON.F.US.{asset.symbol}.{month_year}"
-                            else:
-                                contract_id = f"CON.F.US.{asset.symbol}.U25"  # Fallback
-                        else:
-                            contract_id = contract_symbol
-
-                        # Use the first potential contract
-                        self.logger.debug(f"✅ Using Asset class contract: {contract_id}")
-                        break
-
-                except Exception as asset_error:
-                    self.logger.warning(f"⚠️ Asset class resolution failed: {asset_error}")
-
-            # Fallback to client method if Asset class didn't work or for other asset types
+            # Fallback to asset method if client lookup didn't work or for other asset types
             if not contract_id:
-                contract_id = self.client.find_contract_by_symbol(asset.symbol)
+                # Handle continuous futures using Asset class logic
+                if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+                    self.logger.debug(f"🔄 Resolving continuous future {asset.symbol} using Asset class")
+
+                    try:
+                        # Use Asset class method to get potential contracts
+                        potential_contracts = asset.get_potential_futures_contracts()
+
+                        for contract_symbol in potential_contracts:
+                            # Convert to ProjectX format if needed
+                            if not contract_symbol.startswith("CON.F.US."):
+                                # Parse symbol like "MESU25" -> "CON.F.US.MES.U25"
+                                if len(contract_symbol) >= 4:
+                                    base_symbol = contract_symbol[:-3]  # Remove last 3 chars
+                                    month_year = contract_symbol[-3:]   # Get month + year code
+                                    if len(month_year) == 3:
+                                        month_code = month_year[0]
+                                        year_code = month_year[1:]
+                                        contract_id = f"CON.F.US.{base_symbol}.{month_code}{year_code}"
+                                    else:
+                                        contract_id = f"CON.F.US.{asset.symbol}.{month_year}"
+                                else:
+                                    contract_id = f"CON.F.US.{asset.symbol}.U25"  # Fallback
+                            else:
+                                contract_id = contract_symbol
+
+                            # Use the first potential contract
+                            self.logger.debug(f"✅ Using Asset class contract: {contract_id}")
+                            break
+
+                    except Exception as asset_error:
+                        self.logger.warning(f"⚠️ Asset class resolution failed: {asset_error}")
 
             if contract_id:
                 # Cache the result with asset type for better cache key

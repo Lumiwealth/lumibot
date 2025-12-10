@@ -151,6 +151,9 @@ class ProjectX(Broker):
         # Bracket tracking maps (synthetic implementation)
         self._bracket_parent_by_child_id = {}
         self._bracket_meta = {}  # parent_id -> meta dict (persistent across conversions)
+        # Asset cache for contract ID lookups
+        self._asset_cache = {}
+        self._contract_cache = {}
 
         # Thread management
         self.max_workers = max_workers
@@ -303,7 +306,8 @@ class ProjectX(Broker):
                 return False
 
             # Get contract tick size for price rounding
-            contract_id = self._get_contract_id_from_asset(order.asset)
+            # contract_id = self._get_contract_id_from_asset(order.asset)
+            contract_id = self.data_source._get_contract_id_from_asset(order.asset)
             if contract_id:
                 tick_size = self.client.get_contract_tick_size(contract_id)
 
@@ -344,7 +348,7 @@ class ProjectX(Broker):
         """Submit a new order to the broker."""
         try:
             # Get contract ID from asset
-            contract_id = self._get_contract_id_from_asset(order.asset)
+            contract_id = self.data_source._get_contract_id_from_asset(order.asset)
             if not contract_id:
                 order.status = "rejected"
                 order.error = f"Could not find contract for {order.asset.symbol}"
@@ -831,12 +835,21 @@ class ProjectX(Broker):
             return []
 
     def _get_contract_id_from_asset(self, asset: Asset) -> str:
-        """Get ProjectX contract ID from Lumibot asset."""
+        """Get ProjectX contract ID from Lumibot asset. DEPRICATED: use data_source method."""
+        self.logger.warning(f"⚠️ _get_contract_id_from_asset is deprecated in broker; use data_source method instead.")
         try:
             symbol = asset.symbol
+            cache_key = f"{symbol}_{asset.asset_type}"
+            if cache_key in self._contract_cache:
+                return self._contract_cache[cache_key]
+
+            # Start with the API client lookup because ProjectX only allows a single contract per symbol and
+            # near the end of the quarter it is hard to predict which contract will be active. Result will be cached
+            # to avoid repeated API lookups.
+            contract_id = self.client.find_contract_by_symbol(symbol)
 
             # Handle continuous futures using Asset class logic
-            if asset.asset_type == Asset.AssetType.CONT_FUTURE:
+            if not contract_id and asset.asset_type == Asset.AssetType.CONT_FUTURE:
                 self.logger.debug(f"Converting continuous future {symbol} to specific contract")
 
                 try:
@@ -862,17 +875,16 @@ class ProjectX(Broker):
                             contract_id = contract_symbol
 
                         self.logger.debug(f"✅ Using Asset class contract: {contract_id}")
-                        return contract_id
 
                 except Exception as asset_error:
                     self.logger.warning(f"⚠️ Asset class resolution failed, falling back to client method: {asset_error}")
 
-            # For non-continuous futures or fallback, use client method
-            contract_id = self.client.find_contract_by_symbol(symbol)
-
             if not contract_id:
                 self.logger.error(f"Contract not found for asset: {asset.symbol} (type: {asset.asset_type})")
                 return ""
+
+            # Update the cache
+            self._contract_cache[cache_key] = contract_id
 
             self.logger.debug(f"✅ Found contract ID: {contract_id} for {symbol}")
             return contract_id
@@ -1075,12 +1087,8 @@ class ProjectX(Broker):
             return None
 
         # Check if we already have this in our asset cache
-        if hasattr(self, '_asset_cache') and contract_id in self._asset_cache:
+        if contract_id in self._asset_cache:
             return self._asset_cache[contract_id]
-
-        # Initialize asset cache if not exists
-        if not hasattr(self, '_asset_cache'):
-            self._asset_cache = {}
 
         try:
             # Try to extract symbol from common contract ID patterns

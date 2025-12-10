@@ -42,39 +42,6 @@ class TestProjectXDataSource:
             assert data_source.name == "data_source"  # Inherited from parent DataSource class
             assert data_source.firm == "TEST"
 
-    def test_asset_to_contract_id_no_hardcoded_mappings(self, projectx_data_source):
-        """
-        Test that asset resolution doesn't use hardcoded contract mappings.
-        Previously had: 'MES': 'CON.F.US.MES.U25' which would expire.
-        """
-        # Mock the Asset class method for dynamic contract resolution
-        with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
-            mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
-
-            # Test asset conversion
-            asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
-            contract_id = projectx_data_source._get_contract_id_from_asset(asset)
-
-            # Should use Asset class logic, not hardcoded mappings
-            mock_contracts.assert_called_once()
-            assert contract_id  # Should return a valid contract ID
-
-    def test_contract_id_generation_dynamic(self, projectx_data_source):
-        """Test dynamic contract ID generation using Asset class.
-
-        Make it deterministic by mocking the Asset generator so the first
-        candidate is MESU25, ensuring we don't depend on current calendar/roll date.
-        """
-
-        # Even if the client fallback is present, the Asset path is preferred
-        projectx_data_source.client.find_contract_by_symbol = MagicMock(return_value="CON.F.US.MES.Z25")
-
-        with patch.object(Asset, 'get_potential_futures_contracts', return_value=['MESU25', 'MES.U25', 'MESU2025']):
-            asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
-            contract_id = projectx_data_source._get_contract_id_from_asset(asset)
-            # Should use the first Asset-provided contract (MESU25)
-            assert contract_id == "CON.F.US.MES.U25"
-
     def test_timespan_parsing(self, projectx_data_source):
         """Test timespan parsing for ProjectX unit conversion"""
 
@@ -195,17 +162,34 @@ class TestProjectXDataSource:
 
         # Mock Asset class to return multiple potential formats
         with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
-            mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
+            with patch.object(projectx_data_source.client, "find_contract_by_symbol") as mock_api_lookup:
+                mock_api_lookup.return_value = "CON.F.US.MES.Z25"
+                mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
 
-            # Mock client method to return valid contract
-            projectx_data_source.client.find_contract_by_symbol = MagicMock(return_value="CON.F.US.MES.U25")
+                # Mock client method to return valid contract
+                assert not projectx_data_source._contract_cache
+                asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
+                contract_id = projectx_data_source._get_contract_id_from_asset(asset)
 
-            asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
-            contract_id = projectx_data_source._get_contract_id_from_asset(asset)
+                # Should find contract using API logic
+                assert contract_id == "CON.F.US.MES.Z25"
+                assert mock_api_lookup.call_count == 1
+                mock_contracts.assert_not_called()
+                assert projectx_data_source._contract_cache
 
-            # Should find contract using Asset class logic
-            assert contract_id == "CON.F.US.MES.U25"
-            mock_contracts.assert_called_once()
+                # Subsequent call should hit cache
+                mock_api_lookup.reset_mock()
+                contract_id = projectx_data_source._get_contract_id_from_asset(asset)
+                assert contract_id == "CON.F.US.MES.Z25"
+                mock_api_lookup.assert_not_called()
+                mock_contracts.assert_not_called()
+
+                # Test Asset method called if cache cleared
+                projectx_data_source._contract_cache.clear()
+                mock_api_lookup.return_value = None
+                contract_id = projectx_data_source._get_contract_id_from_asset(asset)
+                mock_contracts.assert_called_once()
+                assert contract_id == "CON.F.US.MES.U25"
 
     def test_error_handling_no_contracts_found(self, projectx_data_source):
         """Test error handling when no contracts are found"""
@@ -344,20 +328,3 @@ class TestProjectXDataSourceIntegration:
         assert len(bars.df) == 2
         assert bars.asset.symbol == "MES"
         assert bars.source == "PROJECTX"  # Source is uppercase
-
-    def test_asset_resolution_workflow_with_fallbacks(self, projectx_data_source):
-        """Test asset resolution workflow with multiple format fallbacks"""
-
-        # Mock Asset class to return multiple formats
-        with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
-            mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
-
-            # Mock client to eventually succeed
-            projectx_data_source.client.find_contract_by_symbol = MagicMock(return_value="CON.F.US.MES.U25")
-
-            asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
-            contract_id = projectx_data_source._get_contract_id_from_asset(asset)
-
-            # Should eventually find contract
-            assert contract_id == "CON.F.US.MES.U25"
-            mock_contracts.assert_called_once() 

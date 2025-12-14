@@ -2066,8 +2066,8 @@ class _Strategy:
         else:
             time_since_last_account_summary = None
 
-        # Check if it has been at least 24 hours since the last account summary
-        if self.last_account_summary_dt is None or time_since_last_account_summary.total_seconds() >= 86400: # 24 hours
+        # Check if it has been at least 24 hours - 5mins since the last account summary
+        if self.last_account_summary_dt is None or time_since_last_account_summary.total_seconds() >= (86400 - 300):
             # Set the last account summary datetime to now
             self.last_account_summary_dt = now
 

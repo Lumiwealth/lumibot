@@ -269,6 +269,18 @@ class StrategyExecutor(Thread):
         # so bot_manager knows we attempted liquidation
         self._update_status_to_liquidated()
 
+        # Signal the executor to stop and clean up broker streams
+        # This prevents websocket reconnection errors during shutdown
+        self.stop_event.set()
+        if hasattr(self.broker, 'cleanup_streams'):
+            try:
+                self.broker.cleanup_streams()
+            except Exception as e:
+                self.strategy.log_message(
+                    f"Kill switch: Error cleaning up streams: {e}",
+                    color="yellow"
+                )
+
         return True
 
     @property

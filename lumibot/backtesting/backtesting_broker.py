@@ -1602,7 +1602,7 @@ class BacktestingBroker(Broker):
             # Fill the order.
             #############################
 
-            if price is None and self._should_attempt_quote_fallback(open, high, low):
+            if (price is None or self._is_invalid_price(price)) and self._should_attempt_quote_fallback(open, high, low):
                 price = self._try_fill_with_quote(order, strategy, open, high, low)
 
             # If the price is set, then the order has been filled
@@ -1644,7 +1644,7 @@ class BacktestingBroker(Broker):
             return value
 
     def _is_invalid_price(self, value):
-        """Determine whether a price is unusable (None or NaN)."""
+        """Determine whether a price is unusable (None, NaN, or non-positive)."""
         if value is None:
             return True
         if isinstance(value, Decimal):
@@ -1659,6 +1659,11 @@ class BacktestingBroker(Broker):
                 return True
         except Exception:
             pass
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return False
+        return numeric_value <= 0
         return False
 
     def _bar_has_missing_prices(self, *values) -> bool:
@@ -1694,7 +1699,7 @@ class BacktestingBroker(Broker):
             return None
         if not self._bar_has_missing_prices(open_, high_, low_):
             return None
-        if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT):
+        if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT, Order.OrderType.MARKET):
             return None
         if not (order.is_buy_order() or order.is_sell_order()):
             return None
@@ -1712,19 +1717,30 @@ class BacktestingBroker(Broker):
         ask = self._coerce_price(getattr(quote, "ask", None))
 
         is_buy = order.is_buy_order()
-        fill_price = ask if is_buy else bid
+
+        fill_price: Optional[float] = None
+        if order.order_type == Order.OrderType.MARKET:
+            fill_price = ask if is_buy else bid
+        else:
+            limit_price = self._coerce_price(order.limit_price)
+            if is_buy:
+                if ask is not None and limit_price is not None and limit_price >= ask:
+                    fill_price = ask
+                elif bid is not None and limit_price is not None and limit_price >= bid:
+                    fill_price = limit_price
+            else:
+                if bid is not None and limit_price is not None and limit_price <= bid:
+                    fill_price = bid
+                elif ask is not None and limit_price is not None and limit_price <= ask:
+                    fill_price = limit_price
+
         if fill_price is None or self._is_invalid_price(fill_price):
             return None
 
-        limit_price = self._coerce_price(order.limit_price)
-        if limit_price is not None:
-            if is_buy and fill_price > limit_price:
-                return None
-            if not is_buy and fill_price < limit_price:
-                return None
-
         spread_key = "max_spread_buy_pct" if is_buy else "max_spread_sell_pct"
         spread_limit = self._get_spread_limit(strategy, spread_key)
+        if spread_limit is None:
+            spread_limit = self._get_spread_limit(strategy, "max_spread_pct")
         if spread_limit is not None and bid is not None and ask is not None:
             mid = (ask + bid) / 2
             if mid > 0:

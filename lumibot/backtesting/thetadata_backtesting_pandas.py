@@ -569,16 +569,35 @@ class ThetaDataBacktestingPandas(PandasData):
         requested_length = max(length, 1)
         requested_start = self._normalize_default_timezone(start_datetime)
         window_start = self._normalize_default_timezone(self.datetime_start - START_BUFFER)
-        if requested_start is None or (window_start is not None and window_start < requested_start):
+        if requested_start is None:
+            requested_start = window_start
+        elif asset_separated.asset_type != "option" and window_start is not None and window_start < requested_start:
+            # For non-options, prefetch the full backtest window once for performance.
             requested_start = window_start
         start_threshold = requested_start + START_BUFFER if requested_start is not None else None
         start_for_fetch = requested_start or start_datetime
-        # Always target full backtest coverage on first fetch; reuse thereafter
+        # For non-options we target full backtest coverage on first fetch; reuse thereafter.
+        # Options are too numerous/expensive to prefetch to backtest end, so only fetch up to the current sim time.
+        end_anchor = current_dt
+        if start_dt is not None:
+            try:
+                end_anchor = self._normalize_default_timezone(start_dt) or current_dt
+            except Exception:
+                end_anchor = current_dt
+        if end_anchor is not None and self.datetime_end is not None:
+            try:
+                normalized_end = self._normalize_default_timezone(self.datetime_end)
+                if normalized_end is not None and end_anchor > normalized_end:
+                    end_anchor = normalized_end
+            except Exception:
+                pass
+
         if ts_unit == "day":
             try:
-                end_date = self.datetime_end.date() if hasattr(self.datetime_end, "date") else self.datetime_end
+                end_date_source = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
+                end_date = end_date_source.date() if hasattr(end_date_source, "date") else end_date_source
             except Exception:
-                end_date = self.datetime_end
+                end_date = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
             end_requirement = datetime.combine(end_date, datetime.max.time())
             try:
                 end_requirement = self.tzinfo.localize(end_requirement)
@@ -586,7 +605,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 end_requirement = end_requirement.replace(tzinfo=getattr(self, "tzinfo", None))
             end_requirement = self.to_default_timezone(end_requirement) if hasattr(self, "to_default_timezone") else end_requirement
         else:
-            end_requirement = self._normalize_default_timezone(self.datetime_end)
+            end_requirement = end_anchor if asset_separated.asset_type == "option" else self._normalize_default_timezone(self.datetime_end)
         # Align day requests to the last known trading day before datetime_end to avoid off-by-one churn.
         if ts_unit == "day":
             try:
@@ -1090,8 +1109,6 @@ class ThetaDataBacktestingPandas(PandasData):
             end_requirement,
         )
         df_ohlc = thetadata_helper.get_price_data(
-            self._username,
-            self._password,
             asset_separated,
             start_for_fetch,
             end_requirement,
@@ -1101,6 +1118,13 @@ class ThetaDataBacktestingPandas(PandasData):
             datastyle="ohlc",
             include_after_hours=True,  # Default to True for extended hours data
             preserve_full_history=True,
+            # Day bars use Theta's EOD endpoint which can return `close=0` on days with no trades.
+            # For options we still need NBBO (bid/ask) so `get_last_price()` can fall back to mid-quote.
+            include_eod_nbbo=bool(
+                getattr(self, "_use_quote_data", False)
+                and ts_unit == "day"
+                and getattr(asset_separated, "asset_type", None) == "option"
+            ),
         )
 
         if df_ohlc is None or df_ohlc.empty:
@@ -1134,8 +1158,6 @@ class ThetaDataBacktestingPandas(PandasData):
         if self._use_quote_data and ts_unit in ["minute", "hour", "second"] and quotes_enabled:
             try:
                 df_quote = thetadata_helper.get_price_data(
-                    self._username,
-                    self._password,
                     asset_separated,
                     start_for_fetch,
                     end_requirement,
@@ -1433,7 +1455,10 @@ class ThetaDataBacktestingPandas(PandasData):
                     data_end_candidate,
                 ) = _process_frame(merged_df)
         data = Data(asset_separated, cleaned_df, timestep=ts_unit, quote=quote_asset)
-        data.strict_end_check = True
+        # For minute data we want strict cache boundary enforcement so missing bars force a refresh.
+        # For daily data, the backtester queries intraday timestamps (09:30/16:00) while the latest
+        # completed daily bar represents the prior session; allow Data.check_data's tolerance window.
+        data.strict_end_check = ts_unit != "day"
         logger.debug(
             "[THETA][DEBUG][DATA_OBJ] asset=%s/%s (%s) rows=%s idx_min=%s idx_max=%s placeholders=%s ffilled=%s",
             asset_separated,
@@ -1566,17 +1591,23 @@ class ThetaDataBacktestingPandas(PandasData):
             meta.get("placeholders"),
         )
         if end_requirement is not None:
+            is_option_asset = str(getattr(asset_separated, "asset_type", "")).lower() == "option"
             if coverage_end is None:
-                # Log warning but don't crash - data gaps are normal for options that don't trade every day
-                logger.warning(
-                    "[THETA][COVERAGE][NO_END] asset=%s/%s (%s) has no end timestamp while target_end=%s; "
-                    "continuing with available data",
-                    asset_separated,
-                    quote_asset,
-                    ts_unit,
-                    end_requirement,
+                if is_option_asset:
+                    # Data gaps are normal for options that don't trade every day.
+                    logger.warning(
+                        "[THETA][COVERAGE][NO_END] asset=%s/%s (%s) has no end timestamp while target_end=%s; "
+                        "continuing with available data",
+                        asset_separated,
+                        quote_asset,
+                        ts_unit,
+                        end_requirement,
+                    )
+                    return  # Continue without crashing
+                raise ValueError(
+                    f"[THETA][COVERAGE][NO_END] asset={asset_separated}/{quote_asset} ({ts_unit}) has no end timestamp "
+                    f"while target_end={end_requirement}; refusing to proceed for non-option asset."
                 )
-                return  # Continue without crashing
             # For both day and minute data, compare at the date level.
             # Minute data legitimately ends at end of after-hours trading (not midnight),
             # so comparing full timestamps would fail incorrectly.
@@ -1605,42 +1636,51 @@ class ThetaDataBacktestingPandas(PandasData):
                     end_requirement,
                 )
             if coverage_end_cmp < end_requirement_cmp and days_behind > END_TOLERANCE_DAYS:
-                # Log warning but don't crash - data gaps are normal for options that don't trade every day
-                # The asset may not have traded during this period, which is fine - continue with available data
+                if is_option_asset:
+                    # Data gaps are normal for options that don't trade every day.
+                    logger.warning(
+                        "[THETA][COVERAGE][GAP] asset=%s/%s (%s) coverage_end=%s target_end=%s rows=%s placeholders=%s days_behind=%s; "
+                        "continuing with available data (data gaps are normal for illiquid options)",
+                        asset_separated,
+                        quote_asset,
+                        ts_unit,
+                        coverage_end,
+                        end_requirement,
+                        meta.get("rows"),
+                        meta.get("placeholders"),
+                        days_behind,
+                    )
+                    logger.debug(
+                        "[THETA][COVERAGE][GAP][DIAGNOSTICS] requested_start=%s start_for_fetch=%s data_start=%s data_end=%s requested_length=%s prefetch_complete=%s",
+                        requested_start,
+                        start_for_fetch,
+                        meta.get("data_start"),
+                        meta.get("data_end"),
+                        requested_length,
+                        meta.get("prefetch_complete"),
+                    )
+                else:
+                    raise ValueError(
+                        f"[THETA][COVERAGE][GAP] asset={asset_separated}/{quote_asset} ({ts_unit}) coverage_end={coverage_end} "
+                        f"target_end={end_requirement} rows={meta.get('rows')} placeholders={meta.get('placeholders')} "
+                        f"days_behind={days_behind}; refusing to proceed for non-option asset."
+                    )
+        if meta.get("tail_placeholder") and not meta.get("tail_missing_permanent"):
+            if is_option_asset:
+                # Placeholders at the end mean the option didn't trade for those dates; continue.
                 logger.warning(
-                    "[THETA][COVERAGE][GAP] asset=%s/%s (%s) coverage_end=%s target_end=%s rows=%s placeholders=%s days_behind=%s; "
-                    "continuing with available data (data gaps are normal for illiquid options)",
+                    "[THETA][COVERAGE][TAIL_PLACEHOLDER] asset=%s/%s (%s) ends with placeholders (target_end=%s); "
+                    "continuing with available data (asset may not have traded during this period)",
                     asset_separated,
                     quote_asset,
                     ts_unit,
-                    coverage_end,
                     end_requirement,
-                    meta.get("rows"),
-                    meta.get("placeholders"),
-                    days_behind,
                 )
-                logger.debug(
-                    "[THETA][COVERAGE][GAP][DIAGNOSTICS] requested_start=%s start_for_fetch=%s data_start=%s data_end=%s requested_length=%s prefetch_complete=%s",
-                    requested_start,
-                    start_for_fetch,
-                    meta.get("data_start"),
-                    meta.get("data_end"),
-                    requested_length,
-                    meta.get("prefetch_complete"),
+            else:
+                raise ValueError(
+                    f"[THETA][COVERAGE][TAIL_PLACEHOLDER] asset={asset_separated}/{quote_asset} ({ts_unit}) ends with placeholders "
+                    f"(target_end={end_requirement}); refusing to proceed for non-option asset."
                 )
-                # Don't raise - just continue with available data
-        if meta.get("tail_placeholder") and not meta.get("tail_missing_permanent"):
-            # Log warning but don't crash - placeholders at the end mean the asset didn't trade
-            # for those dates, which is normal for options. Continue with available data.
-            logger.warning(
-                "[THETA][COVERAGE][TAIL_PLACEHOLDER] asset=%s/%s (%s) ends with placeholders (target_end=%s); "
-                "continuing with available data (asset may not have traded during this period)",
-                asset_separated,
-                quote_asset,
-                ts_unit,
-                end_requirement,
-            )
-            # Don't raise - just continue with available data
         if legacy_key not in self._dataset_metadata:
             try:
                 self._dataset_metadata[legacy_key] = self._dataset_metadata.get(canonical_key, {})
@@ -1853,15 +1893,27 @@ class ThetaDataBacktestingPandas(PandasData):
         dt = self.get_datetime()
         # In day mode, use day data for price lookups instead of defaulting to minute.
         # This prevents unnecessary minute data downloads at end of day-mode backtests.
+        # FIX (2025-12-12): Also check if we're effectively in day mode by looking at existing data
+        # or the data store. This fixes options not getting day data when _timestep hasn't been set yet.
         current_mode = getattr(self, "_timestep", None)
+
+        # Additional check: if any data in the store uses "day" timestep, we're in day mode
+        if current_mode != "day":
+            for data in self.pandas_data.values():
+                if hasattr(data, "timestep") and data.timestep == "day":
+                    current_mode = "day"
+                    break
+
         if current_mode == "day" and timestep == "minute":
             timestep = "day"
-            logger.debug(
+            logger.info(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_last_price aligned from minute to day for asset=%s",
                 asset,
             )
 
-        self._update_pandas_data(asset, quote, sample_length, timestep, dt, require_quote_data=True)
+        # Trade-only: do not require quote columns. Quotes are used explicitly via get_quote()/snapshots
+        # for mark-to-market and fills, never via get_last_price().
+        self._update_pandas_data(asset, quote, sample_length, timestep, dt, require_quote_data=False)
         _, ts_unit = self.get_start_datetime_and_ts_unit(
             sample_length, timestep, dt, start_buffer=START_BUFFER
         )
@@ -1879,34 +1931,51 @@ class ThetaDataBacktestingPandas(PandasData):
                     legacy_hit = True
             elif isinstance(tuple_key, tuple) and len(tuple_key) != 3:
                 legacy_hit = True
-            if data is not None and hasattr(data, "df"):
-                close_series = data.df.get("close")
-                if close_series is None:
-                    return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
-                closes = close_series.dropna()
-                # Remove placeholder rows (missing=True) from consideration.
-                if "missing" in data.df.columns:
-                    missing_mask = data.df.loc[closes.index, "missing"]
-                    closes = closes[~missing_mask.fillna(True)]
-                # Ignore non-positive prices which indicate bad ticks.
-                closes = closes[closes > 0]
-                if closes.empty:
-                    logger.debug(
-                        "[THETA][DEBUG][THETADATA-PANDAS] get_last_price found no valid closes for %s/%s; returning None (likely expired).",
-                        asset,
-                        quote or Asset("USD", "forex"),
-                    )
-                    return None
-                closes = closes.tail(sample_length)
-                source = "pandas_dataset"
-                if len(closes):
-                    frame_last_dt = closes.index[-1]
-                    frame_last_close = closes.iloc[-1]
+            if data is not None and hasattr(data, "df") and data.df is not None:
+                df = data.df
+                close_series = df.get("close")
+                if close_series is not None and len(df.index) > 0:
                     try:
-                        frame_last_dt = frame_last_dt.isoformat()
-                    except AttributeError:
-                        frame_last_dt = str(frame_last_dt)
-        value = super().get_last_price(asset=asset, quote=quote, exchange=exchange)
+                        iter_count = data.get_iter_count(dt)
+                        closes = close_series.iloc[: iter_count + 1]
+                        if "missing" in df.columns:
+                            try:
+                                missing_mask = df["missing"].iloc[: iter_count + 1].astype(bool)
+                            except Exception:
+                                missing_mask = df["missing"].iloc[: iter_count + 1] == 1
+                            closes = closes[~missing_mask.fillna(True)]
+                    except Exception:
+                        # Defensive fallback: filter by timestamp if iter lookup fails.
+                        try:
+                            closes = close_series.loc[close_series.index <= dt]
+                        except Exception:
+                            closes = close_series
+
+                    closes = pd.to_numeric(closes, errors="coerce").dropna()
+                    closes = closes[closes > 0]
+                    source = "pandas_dataset"
+                    if len(closes):
+                        frame_last_dt = closes.index[-1]
+                        frame_last_close = closes.iloc[-1]
+                        try:
+                            frame_last_dt = frame_last_dt.isoformat()
+                        except AttributeError:
+                            frame_last_dt = str(frame_last_dt)
+                        value = float(frame_last_close)
+                    else:
+                        value = None
+                else:
+                    value = None
+            else:
+                value = None
+        else:
+            value = None
+
+        # As a fallback (e.g., empty dataframe), defer to the base implementation which is
+        # still trade-based (no quote/mid contamination).
+        if value is None:
+            value = super().get_last_price(asset=asset, quote=quote, exchange=exchange)
+
         logger.debug(
             "[THETA][DEBUG][THETADATA-PANDAS] get_last_price resolved via %s for %s/%s (close=%s)",
             source or "super",
@@ -1936,14 +2005,32 @@ class ThetaDataBacktestingPandas(PandasData):
         dt = self.get_datetime()
         # In day mode, use day data for price snapshots instead of defaulting to minute.
         # This prevents unnecessary minute data downloads at end of day-mode backtests.
+        # FIX (2025-12-12): Also check if any existing data uses "day" timestep to detect day mode
         current_mode = getattr(self, "_timestep", None)
+
+        # Additional check: if any data in the store uses "day" timestep, we're in day mode
+        if current_mode != "day":
+            for data in self.pandas_data.values():
+                if hasattr(data, "timestep") and data.timestep == "day":
+                    current_mode = "day"
+                    break
+
         if current_mode == "day" and timestep == "minute":
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_price_snapshot aligned from minute to day for asset=%s",
                 asset,
             )
-        self._update_pandas_data(asset, quote, sample_length, timestep, dt)
+        asset_for_check = asset[0] if isinstance(asset, tuple) else asset
+        require_quote_data = getattr(asset_for_check, "asset_type", None) == "option"
+        self._update_pandas_data(
+            asset,
+            quote,
+            sample_length,
+            timestep,
+            dt,
+            require_quote_data=require_quote_data,
+        )
         _, ts_unit = self.get_start_datetime_and_ts_unit(
             sample_length, timestep, dt, start_buffer=START_BUFFER
         )
@@ -2097,7 +2184,7 @@ class ThetaDataBacktestingPandas(PandasData):
         )
         return bars
 
-    def get_quote(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+    def get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
         """
         Get quote data for an asset during backtesting.
 
@@ -2105,12 +2192,13 @@ class ThetaDataBacktestingPandas(PandasData):
         ----------
         asset : Asset object
             The asset for which the quote is needed.
-        timestep : str, optional
-            The timestep to use for the data.
         quote : Asset object, optional
             The quote asset for cryptocurrency pairs.
         exchange : str, optional
             The exchange to get the quote from.
+        timestep : str, optional
+            The timestep to use for the data. Defaults to ``"minute"`` but is auto-aligned to ``"day"``
+            when the backtest is running in daily cadence.
         **kwargs : dict
             Additional keyword arguments.
 
@@ -2120,6 +2208,25 @@ class ThetaDataBacktestingPandas(PandasData):
             A Quote object with the quote information.
         """
         dt = self.get_datetime()
+
+        # FIX (2025-12-12): In day mode, use day data for quote lookups instead of minute.
+        # This prevents 472 (no data) errors when ThetaData doesn't have minute quote data
+        # for historical options, but does have EOD data.
+        current_mode = getattr(self, "_timestep", None)
+
+        # Additional check: if any data in the store uses "day" timestep, we're in day mode
+        if current_mode != "day":
+            for data in self.pandas_data.values():
+                if hasattr(data, "timestep") and data.timestep == "day":
+                    current_mode = "day"
+                    break
+
+        if current_mode == "day" and timestep == "minute":
+            timestep = "day"
+            logger.info(
+                "[THETA][DEBUG][TIMESTEP_ALIGN] get_quote aligned from minute to day for asset=%s",
+                getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
+            )
 
         # Log quote request details for debugging (options vs other assets)
         if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION:
@@ -2269,8 +2376,6 @@ class ThetaDataBacktestingPandas(PandasData):
 
         constraints = getattr(self, "_chain_constraints", None)
         chains_dict = thetadata_helper.get_chains_cached(
-            username=self._username,
-            password=self._password,
             asset=asset,
             current_date=self.get_datetime().date(),
             chain_constraints=constraints,

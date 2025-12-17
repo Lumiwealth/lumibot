@@ -326,12 +326,15 @@ class Data:
                 # We need to get the ORIGINAL values from self.df to check if they were NaN
                 for col in quote_cols_present:
                     if col in self.df.columns:
-                        # Create a series aligned to df's index
+                        # Create a series aligned to df's index. Values will be NaN for newly
+                        # introduced rows during the reindex/ffill step.
                         original_values = self.df[col].reindex(df.index)
-                        # Where original was NaN AND we're at a session boundary, set to NaN
-                        # Actually simpler: where session boundary is True, just set to NaN
-                        # and let the subsequent ffill (below) NOT fill across boundaries
-                        df.loc[session_boundaries, col] = float('nan')
+
+                        # Only clear values that were forward-filled across a large time gap.
+                        # Do NOT wipe real quotes that exist on the boundary bar (common for daily EOD NBBO).
+                        clear_mask = session_boundaries & original_values.isna()
+                        if clear_mask.any():
+                            df.loc[clear_mask, col] = float("nan")
 
         # OPTIMIZATION: More efficient column selection and forward fill
         ohlc_cols = ["open", "high", "low"]
@@ -547,8 +550,9 @@ class Data:
         -------
         float or Decimal or None
             Returns the close price (or open price for intraday before bar completion).
-            Falls back to bid/ask midpoint if close/open is unavailable (useful for options
-            that may have quotes but no trades).
+
+            IMPORTANT: This method is trade/bar based only. It never falls back to bid/ask
+            quotes. Use `get_quote()` / `get_price_snapshot()` for quote/mark pricing.
         """
         iter_count = self.get_iter_count(dt)
         open_price = self.datalines["open"].dataline[iter_count]
@@ -559,31 +563,13 @@ class Data:
         else:
             price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
 
-        # Check if price is valid (not None and not NaN)
-        def _is_valid_price(p):
-            if p is None:
-                return False
-            try:
-                return not pd.isna(p)
-            except (TypeError, ValueError):
-                return True
-
-        # If price is invalid, try to use bid/ask midpoint as fallback
-        # This is especially useful for options where there may be quotes but no trades
-        if not _is_valid_price(price):
-            bid = self.datalines.get("bid")
-            ask = self.datalines.get("ask")
-            if bid is not None and ask is not None:
-                bid_val = bid.dataline[iter_count]
-                ask_val = ask.dataline[iter_count]
-                if _is_valid_price(bid_val) and _is_valid_price(ask_val):
-                    try:
-                        bid_float = float(bid_val)
-                        ask_float = float(ask_val)
-                        if bid_float > 0 and ask_float > 0:
-                            price = (bid_float + ask_float) / 2.0
-                    except (TypeError, ValueError):
-                        pass
+        if price is None:
+            return None
+        try:
+            if pd.isna(price):
+                return None
+        except (TypeError, ValueError):
+            pass
 
         return price
 

@@ -30,6 +30,7 @@ from ..backtesting import (
     InteractiveBrokersRESTBacktesting,
     PolygonDataBacktesting,
     ThetaDataBacktesting,
+    ThetaDataBacktestingPandas,
 )
 from ..credentials import (
     BACKTESTING_END,
@@ -851,7 +852,19 @@ class _Strategy:
                     type(source).__name__,
                 )
             else:
-                snapshot_price = self._pick_snapshot_price(asset, snapshot)
+                # ThetaData backtests: options often have no prints, but NBBO quotes exist.
+                # Portfolio mark-to-market should use mark (mid) when bid/ask are available.
+                base_asset = asset[0] if isinstance(asset, tuple) else asset
+                base_asset_type = getattr(base_asset, "asset_type", None)
+                is_option_asset = base_asset_type in ("option", Asset.AssetType.OPTION)
+                if (
+                    self.is_backtesting
+                    and is_option_asset
+                    and isinstance(source, ThetaDataBacktestingPandas)
+                ):
+                    snapshot_price = self._pick_thetadata_option_mark_price(base_asset, snapshot)
+                else:
+                    snapshot_price = self._pick_snapshot_price(asset, snapshot)
 
         if snapshot_price is not None:
             return snapshot_price
@@ -893,6 +906,47 @@ class _Strategy:
             type(source).__name__,
             asset,
         )
+        return None
+
+    def _pick_thetadata_option_mark_price(self, option_asset: Asset, snapshot):
+        """ThetaData backtests: prefer mark (NBBO mid) for option MTM when available."""
+        if not snapshot:
+            return None
+
+        def _positive(value):
+            value = self._coerce_snapshot_price(value)
+            if value is None:
+                return None
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return None
+            if math.isnan(numeric) or numeric <= 0:
+                return None
+            return numeric
+
+        bid = _positive(snapshot.get("bid"))
+        ask = _positive(snapshot.get("ask"))
+        close = _positive(snapshot.get("close"))
+
+        if bid is not None and ask is not None:
+            return (bid + ask) / 2.0
+        if bid is not None:
+            return bid
+        if ask is not None:
+            return ask
+        if close is not None:
+            return close
+
+        expiry = getattr(option_asset, "expiration", None)
+        now_dt = getattr(self.broker, "datetime", None)
+        if expiry is not None and now_dt is not None:
+            try:
+                if now_dt.date() >= expiry:
+                    return 0.0
+            except Exception:
+                pass
+
         return None
 
     def _pick_snapshot_price(self, asset, snapshot):

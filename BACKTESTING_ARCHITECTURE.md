@@ -124,8 +124,8 @@ DataSource (ABC)
 - **DO NOT** modify `data_polars.py` when fixing ThetaData issues
 
 **Key Methods Both Provide:**
-- `get_last_price(dt)` - Get price at datetime (Data has bid/ask fallback, DataPolars does not)
-- `get_price_snapshot(dt)` - Get OHLC + bid/ask snapshot
+- `get_last_price(dt)` - Get the last *trade-based* price at datetime (close/open from bars; never bid/ask)
+- `get_price_snapshot(dt)` - Get OHLC + bid/ask snapshot (used for mark/MTM and quote-based fills)
 - `get_iter_count(dt)` - Get iteration index for datetime
 
 ### 3. Yahoo Finance (`yahoo_backtesting.py` → `yahoo_data.py` → `yahoo_helper.py`)
@@ -149,6 +149,23 @@ DataSource (ABC)
 **Key Functions:**
 - `get_price_data()` - Main entry point (line 1248)
 - `_apply_corporate_actions_to_frame()` - Handles splits (line 1018)
+
+## Pricing Semantics (CRITICAL)
+
+LumiBot intentionally separates *trade-based* pricing from *quote/mark* pricing:
+
+- **`get_last_price()` = last traded price only**
+  - Backtests: bar-derived last trade (usually `close`, or `open` before bar completion for intraday).
+  - Never uses `bid`, `ask`, or `mid` as a fallback.
+  - Options can be stale for long periods (no prints); that is realistic.
+
+- **`get_quote()` / snapshots = bid/ask/mark**
+  - Quotes can exist even when there are no trades (especially for options).
+  - Quote-derived mark pricing (mid) is the correct input for:
+    - mark-to-market portfolio valuation, and
+    - quote-based fills in illiquid markets (ThetaData backtests only).
+
+This is essential to ensure ThetaData backtests behave like live brokers: brokers return stale last trades, and only quote endpoints provide NBBO/mark.
 
 **Split Handling (FIXED - Nov 28, 2025)**
 
@@ -174,9 +191,25 @@ The `_apply_corporate_actions_to_frame()` function applies split adjustments wit
 | With idempotency fix | 55.07% | -18.69% | ✅ CORRECT |
 | Yahoo baseline | 56% | -27% | ✅ CORRECT |
 
-**Dividend Handling (FIXED - Nov 28, 2025)**
+**Option Splits (ThetaData)**
 
-ThetaData returns **UNADJUSTED dividend amounts** (pre-split), but they were being applied directly without split adjustment.
+ThetaData option history requires special handling around splits:
+
+- Option chains are queried using strikes normalized to strategy inputs.
+- Option OHLC and NBBO are normalized in the ThetaData data pipeline so that option series
+  remain continuous across splits (matching split-adjusted underlier prices).
+- **Backtesting must not apply option split events a second time** (no quantity/cost-basis adjustments
+  in the broker layer when using ThetaData-normalized option series).
+
+**Dividend Handling (ThetaData)**
+
+LumiBot treats dividends as **cash events** in backtests.
+
+- ThetaData returns **UNADJUSTED dividend amounts** (pre-split).
+- Dividend amounts are **split-adjusted** so the per-share dividend matches the split-adjusted
+  price series used in backtests (Yahoo-style share units).
+- **ThetaData OHLC is NOT dividend-adjusted**. Dividend-adjusting prices *and* crediting cash dividends
+  double-counts return and inflates CAGR.
 
 **Issues Found & Fixed:**
 
@@ -192,8 +225,8 @@ ThetaData returns **UNADJUSTED dividend amounts** (pre-split), but they were bei
 | Condition | CAGR | Best Day | Status |
 |-----------|------|----------|--------|
 | Dividends not adjusted | 51.71% | +24.4% | Inflated by raw dividends |
-| With dividend split-adjustment | 47.92% | +18.43% | Better but still differs |
-| Yahoo baseline | ~56% | ~30% | Target |
+| With dividend split-adjustment | 47.92% | +18.43% | Baseline for cash-dividend model |
+| Yahoo baseline | ~56% | ~30% | (Varies by window/settings) |
 
 **REMAINING ISSUE: ThetaData Phantom Dividends**
 

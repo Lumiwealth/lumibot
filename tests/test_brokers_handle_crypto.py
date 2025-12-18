@@ -133,12 +133,13 @@ class TestBrokerHandlesCrypto:
         broker.cancel_order(order)
 
     @pytest.mark.xfail(reason="need to handle github timezone")
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
     )
     def test_alpaca_broker_with_base_and_quote(self):
-        broker = Alpaca(ALPACA_TEST_CONFIG)
+        broker = Alpaca(ALPACA_TEST_CONFIG, connect_stream=False)
 
         # test_get_last_price
         last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)

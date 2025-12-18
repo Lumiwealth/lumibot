@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 print_full_pandas_dataframes()
 set_pandas_float_display_precision()
 
+pytestmark = pytest.mark.apitest
+
 if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
 

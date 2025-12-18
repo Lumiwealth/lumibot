@@ -2,22 +2,35 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DOWNLOADER_BASE_URL = "http://data-downloader.lumiwealth.com:8080"
+
+
+def _normalize_downloader_base_url(value: Optional[str]) -> str:
+    if not value:
+        return DEFAULT_DOWNLOADER_BASE_URL
+
+    # Standardize away from ephemeral/incorrect endpoints.
+    if "44.192.43.146" in value or "test-server" in value:
+        return DEFAULT_DOWNLOADER_BASE_URL
+
+    return value
 
 
 @pytest.mark.downloader
 def test_remote_downloader_stock_smoke(tmp_path):
     """Run a tiny stock history fetch through the shared downloader to ensure it stays healthy."""
-    base_url = os.environ.get("DATADOWNLOADER_BASE_URL")
+    base_url = _normalize_downloader_base_url(os.environ.get("DATADOWNLOADER_BASE_URL"))
     api_key = os.environ.get("DATADOWNLOADER_API_KEY")
     username = os.environ.get("THETADATA_USERNAME")
     password = os.environ.get("THETADATA_PASSWORD")
 
-    if not base_url or not api_key:
-        pytest.skip("Downloader base URL/API key not configured")
+    if not api_key:
+        pytest.skip("Downloader API key not configured")
     if not username or not password:
         pytest.skip("ThetaData dev credentials not available")
 
@@ -82,13 +95,13 @@ print(f"remote rows={len(df)} first_ts={df.index[0]}")
 @pytest.mark.downloader
 def test_remote_downloader_handles_long_eod_spans(tmp_path):
     """Ensure the downloader handles >365-day EOD ranges via chunking."""
-    base_url = os.environ.get("DATADOWNLOADER_BASE_URL")
+    base_url = _normalize_downloader_base_url(os.environ.get("DATADOWNLOADER_BASE_URL"))
     api_key = os.environ.get("DATADOWNLOADER_API_KEY")
     username = os.environ.get("THETADATA_USERNAME")
     password = os.environ.get("THETADATA_PASSWORD")
 
-    if not base_url or not api_key:
-        pytest.skip("Downloader base URL/API key not configured")
+    if not api_key:
+        pytest.skip("Downloader API key not configured")
     if not username or not password:
         pytest.skip("ThetaData dev credentials not available")
 
@@ -117,7 +130,8 @@ assert thetadata_helper.REMOTE_DOWNLOADER_ENABLED, "Remote downloader flag must 
 
 asset = Asset(asset_type="index", symbol="SPX")
 start = pytz.UTC.localize(datetime.datetime(2023, 1, 3))
-end = pytz.UTC.localize(datetime.datetime(2024, 12, 31, 23, 59))
+# Slightly > 365 days to exercise chunking without turning this into a multi-minute download.
+end = pytz.UTC.localize(datetime.datetime(2024, 2, 15, 23, 59))
 
 df = thetadata_helper.get_historical_eod_data(
     asset=asset,
@@ -127,7 +141,7 @@ df = thetadata_helper.get_historical_eod_data(
     password="%s",
 )
 
-assert df is not None and len(df) > 400, f"Expected multi-year EOD rows, got {0 if df is None else len(df)}"
+assert df is not None and len(df) > 250, f"Expected >365-day EOD rows, got {0 if df is None else len(df)}"
 print(f"long_eod_rows={len(df)} first={df.index.min()} last={df.index.max()}")
 """
 
@@ -140,7 +154,7 @@ print(f"long_eod_rows={len(df)} first={df.index.min()} last={df.index.max()}")
         capture_output=True,
         env=env,
         check=True,
-        timeout=240,
+        timeout=180,
     )
 
     assert "long_eod_rows=" in result.stdout

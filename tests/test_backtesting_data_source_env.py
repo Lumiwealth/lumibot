@@ -134,7 +134,14 @@ class TestBacktestingDataSourceEnv:
         import logging
         caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
 
-        with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'THETADATA'}):
+        class _FastFailThetaDataBacktesting:
+            def __init__(self, *args, **kwargs):
+                raise RuntimeError("Fast-fail ThetaDataBacktesting stub (env selection test)")
+
+        with patch.dict(os.environ, {'BACKTESTING_DATA_SOURCE': 'THETADATA'}), patch(
+            "lumibot.backtesting.ThetaDataBacktesting",
+            _FastFailThetaDataBacktesting,
+        ):
             # Re-import credentials to pick up env change
             from importlib import reload
             import lumibot.credentials
@@ -278,7 +285,14 @@ class TestBacktestingDataSourceEnv:
         import logging
         caplog.set_level(logging.INFO, logger='lumibot.strategies._strategy')
 
-        with patch.dict(os.environ, env_without_datasource, clear=True):
+        class _FastFailThetaDataBacktesting:
+            def __init__(self, *args, **kwargs):
+                raise RuntimeError("Fast-fail ThetaDataBacktesting stub (default selection test)")
+
+        with patch.dict(os.environ, env_without_datasource, clear=True), patch(
+            "lumibot.backtesting.ThetaDataBacktesting",
+            _FastFailThetaDataBacktesting,
+        ):
             # Re-import credentials to pick up env change
             from importlib import reload
             import lumibot.credentials

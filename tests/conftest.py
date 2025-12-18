@@ -11,6 +11,35 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Prevent Alpaca TradingStream from opening websocket connections during test collection.
+# Under xdist this can inadvertently trigger many concurrent connections and rate limiting.
+try:
+    from alpaca.trading.stream import TradingStream as _AlpacaTradingStream
+except Exception:
+    _AlpacaTradingStream = None
+    _ALPACA_TRADING_STREAM_ORIGINAL_RUN = None
+    _ALPACA_TRADING_STREAM_ORIGINAL_CLOSE = None
+    _ALPACA_TRADING_STREAM_ORIGINAL_RUN_FOREVER = None
+else:
+    _ALPACA_TRADING_STREAM_ORIGINAL_RUN = _AlpacaTradingStream.run
+    _ALPACA_TRADING_STREAM_ORIGINAL_CLOSE = getattr(_AlpacaTradingStream, "close", None)
+    _ALPACA_TRADING_STREAM_ORIGINAL_RUN_FOREVER = getattr(_AlpacaTradingStream, "_run_forever", None)
+
+    async def _alpaca_trading_stream_run_noop(self, *args, **kwargs):
+        return None
+
+    async def _alpaca_trading_stream_run_forever_noop(self, *args, **kwargs):
+        return None
+
+    async def _alpaca_trading_stream_close_noop(self, *args, **kwargs):
+        return None
+
+    _AlpacaTradingStream.run = _alpaca_trading_stream_run_noop
+    if _ALPACA_TRADING_STREAM_ORIGINAL_RUN_FOREVER is not None:
+        _AlpacaTradingStream._run_forever = _alpaca_trading_stream_run_forever_noop
+    if _ALPACA_TRADING_STREAM_ORIGINAL_CLOSE is not None:
+        _AlpacaTradingStream.close = _alpaca_trading_stream_close_noop
+
 # Load .env file at the very beginning, before any imports
 # This ensures environment variables are available for all tests
 project_root = Path(__file__).parent.parent
@@ -20,6 +49,10 @@ if env_file.exists():
     print(f"Loaded .env file from: {env_file}")
 else:
     print(f"Warning: .env file not found at {env_file}")
+
+# Tests should not be impacted by the user-facing BACKTESTING_DATA_SOURCE override.
+# CI enforces this via workflow env; do the same for local runs.
+os.environ["BACKTESTING_DATA_SOURCE"] = "none"
 
 # Ensure working directory is set to project root for tests
 # This fixes issues with ConfigsHelper and other path-dependent code
@@ -129,3 +162,14 @@ def disable_datasource_override(monkeypatch):
     They expect specific data sources and will fail if overridden.
     """
     monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "none")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _restore_alpaca_trading_stream():
+    yield
+    if _AlpacaTradingStream is not None and _ALPACA_TRADING_STREAM_ORIGINAL_RUN is not None:
+        _AlpacaTradingStream.run = _ALPACA_TRADING_STREAM_ORIGINAL_RUN
+    if _AlpacaTradingStream is not None and _ALPACA_TRADING_STREAM_ORIGINAL_CLOSE is not None:
+        _AlpacaTradingStream.close = _ALPACA_TRADING_STREAM_ORIGINAL_CLOSE
+    if _AlpacaTradingStream is not None and _ALPACA_TRADING_STREAM_ORIGINAL_RUN_FOREVER is not None:
+        _AlpacaTradingStream._run_forever = _ALPACA_TRADING_STREAM_ORIGINAL_RUN_FOREVER

@@ -106,18 +106,16 @@ class TestAssetPotentialContracts:
         quarterly_codes = ["H", "M", "U", "Z"]
         first_quarterly = None
         for c in contracts:
-            for q in quarterly_codes:
-                # Two-digit year variant pattern, e.g., MNQZ25 or MNQ.Z25
-                if f"{q}25" in c:
-                    first_quarterly = (q, "25")
-                    break
-            if first_quarterly:
+            parsed = parse_contract_symbol(c)
+            if not parsed:
+                continue
+            if parsed.get("month_code") in quarterly_codes and parsed.get("year_2d"):
+                first_quarterly = (parsed["month_code"], parsed["year_2d"], parsed["year_1d"])
                 break
 
         assert first_quarterly is not None, f"No quarterly 2-digit variant found in: {contracts}"
 
-        q_code, y2 = first_quarterly
-        y1 = y2[-1]
+        q_code, y2, y1 = first_quarterly
         # Check that the corresponding single-digit variant exists for the same quarter
         single_digit_found = any(f"{q_code}{y1}" in c for c in contracts)
         double_digit_found = any(f"{q_code}{y2}" in c for c in contracts)

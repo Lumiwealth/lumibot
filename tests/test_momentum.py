@@ -154,6 +154,7 @@ class TestMomentum:
             rtol=0
         )
 
+    @pytest.mark.apitest
     @pytest.mark.xfail(reason="yahoo sucks")
     def test_momo_yahoo_lookback_2(self, pandas_data_fixture):
         parameters = {
@@ -191,6 +192,7 @@ class TestMomentum:
             rtol=0
         )
 
+    @pytest.mark.apitest
     @pytest.mark.xfail(reason="yahoo sucks")
     def test_momo_yahoo_lookback_30(self, pandas_data_fixture):
         parameters = {

@@ -1473,6 +1473,52 @@ def _strip_placeholder_rows(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame
     return restore_numeric_dtypes(cleaned)
 
 
+def _market_close_utc_for_date(trading_date: date) -> datetime:
+    """Return a UTC timestamp for the US equity market close on `trading_date`.
+
+    ThetaData EOD payloads are keyed by trading date, but many responses are timestamped at
+    `00:00 UTC`. When later converted to America/New_York this lands on the prior evening,
+    which makes the full-day OHLC/NBBO appear available before the market session begins.
+
+    For day-cadence backtests that run at market open, that behavior creates lookahead bias.
+    We normalize all day bars (and placeholder rows) to 16:00 America/New_York so the bar is
+    associated with the correct trading date and only becomes observable after the session ends.
+    """
+    close_local = LUMIBOT_DEFAULT_PYTZ.localize(
+        datetime(trading_date.year, trading_date.month, trading_date.day, 16, 0)
+    )
+    return close_local.astimezone(pytz.UTC)
+
+
+def _align_day_index_to_market_close_utc(frame: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Normalize a day-cadence ThetaData frame to market-close timestamps in UTC.
+
+    This transform is date-keyed and idempotent: applying it multiple times yields the same
+    index values for the same set of trading dates.
+    """
+    if frame is None or frame.empty:
+        return frame
+
+    if not isinstance(frame.index, pd.DatetimeIndex):
+        frame = frame.copy()
+        frame.index = pd.to_datetime(frame.index, utc=True)
+
+    idx_utc = pd.to_datetime(frame.index, utc=True)
+    new_index = pd.DatetimeIndex(
+        [_market_close_utc_for_date(d) for d in idx_utc.date],
+        name=frame.index.name,
+    )
+
+    if frame.index.equals(new_index):
+        return frame
+
+    aligned = frame.copy()
+    aligned.index = new_index
+    if "datetime" in aligned.columns:
+        aligned["datetime"] = new_index
+    return aligned
+
+
 def append_missing_markers(
     df_all: Optional[pd.DataFrame],
     missing_dates: List[datetime.date],
@@ -1494,7 +1540,7 @@ def append_missing_markers(
 
     rows = []
     for d in missing_dates:
-        dt = datetime(d.year, d.month, d.day, tzinfo=pytz.UTC)
+        dt = _market_close_utc_for_date(d)
         row = {col: pd.NA for col in df_all.columns if col != "missing"}
         row["datetime"] = dt
         row["missing"] = True
@@ -1745,11 +1791,15 @@ def get_price_data(
         )
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
+            if timespan == "day":
+                # Normalize cached day bars (and placeholders) to market-close timestamps to avoid lookahead.
+                df_cached = _align_day_index_to_market_close_utc(df_cached)
             df_all = df_cached.copy() # Make a copy so we can check the original later for differences
             # Ensure cached daily data is corporate-action adjusted BEFORE any merge/update.
             # This prevents mixing adjusted and unadjusted rows (and partial `_split_adjusted` markers)
             # when we append new EOD data over time, especially for options that span splits.
             if timespan == "day":
+                df_all = _align_day_index_to_market_close_utc(df_all)
                 try:
                     cache_index_dates = pd.to_datetime(df_all.index, utc=True).date
                     start_for_adjust = min(cache_index_dates) if len(cache_index_dates) else start.date()
@@ -2132,6 +2182,9 @@ def get_price_data(
                 asset, result_frame, start_day, end_day
             )
 
+        if result_frame is not None and not result_frame.empty and timespan == "day":
+            result_frame = _align_day_index_to_market_close_utc(result_frame)
+
         return result_frame
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
@@ -2221,6 +2274,9 @@ def get_price_data(
             0 if result_df is None else len(result_df),
             asset,
         )
+
+        if result_df is not None and not result_df.empty:
+            result_df = _align_day_index_to_market_close_utc(result_df)
 
         if result_df is None or result_df.empty:
             expired_range = (

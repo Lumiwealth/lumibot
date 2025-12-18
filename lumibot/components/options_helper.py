@@ -172,9 +172,95 @@ class OptionsHelper:
                         expiry_attempts += 1
                         continue
 
-                    # Find the closest strike to our target
-                    closest_strike = min(available_strikes, key=lambda x: abs(x - rounded_underlying_price))
-                    self.strategy.log_message(f"Target strike {rounded_underlying_price} -> Closest available strike: {closest_strike}", color="green")
+                    # In ThetaData day-mode backtests, some strikes can be listed but effectively untradeable
+                    # (e.g., bid==0 with ask>0). To avoid strategies getting "stuck" selecting those strikes,
+                    # prefer the nearest strike that has a usable two-sided quote (bid>0 and ask>0).
+                    prefer_actionable = False
+                    if getattr(self.strategy, "is_backtesting", False):
+                        broker = getattr(self.strategy, "broker", None)
+                        data_source = getattr(broker, "data_source", None) if broker is not None else None
+                        prefer_actionable = (
+                            data_source is not None
+                            and data_source.__class__.__name__ == "ThetaDataBacktestingPandas"
+                        )
+
+                    max_spread_pct = None
+                    params = getattr(self.strategy, "parameters", None)
+                    if isinstance(params, dict):
+                        for key in ("max_option_spread_pct", "max_spread_pct"):
+                            if params.get(key) is None:
+                                continue
+                            try:
+                                max_spread_pct = float(params[key])
+                                break
+                            except (TypeError, ValueError):
+                                max_spread_pct = None
+
+                    def _has_actionable_two_sided_quote(q) -> bool:
+                        if q is None:
+                            return False
+                        try:
+                            bid = float(q.bid) if getattr(q, "bid", None) is not None else None
+                            ask = float(q.ask) if getattr(q, "ask", None) is not None else None
+                        except (TypeError, ValueError):
+                            return False
+                        if not (
+                            bid is not None
+                            and ask is not None
+                            and math.isfinite(bid)
+                            and math.isfinite(ask)
+                            and bid > 0
+                            and ask > 0
+                        ):
+                            return False
+
+                        if max_spread_pct is None:
+                            return True
+
+                        mid = (bid + ask) / 2.0
+                        if mid <= 0:
+                            return False
+                        spread_pct = (ask - bid) / mid
+                        return spread_pct <= max_spread_pct
+
+                    strikes_sorted = sorted(
+                        [float(s) for s in available_strikes if s is not None],
+                        key=lambda s: abs(s - float(rounded_underlying_price)),
+                    )
+
+                    closest_strike = strikes_sorted[0] if strikes_sorted else None
+
+                    if prefer_actionable and strikes_sorted:
+                        for candidate_strike in strikes_sorted[:10]:
+                            option = Asset(
+                                underlying_asset.symbol,
+                                asset_type="option",
+                                expiration=expiry,
+                                strike=candidate_strike,
+                                right=put_or_call,
+                                underlying_asset=underlying_asset,
+                            )
+
+                            try:
+                                quote = self.strategy.get_quote(option)
+                            except Exception:
+                                quote = None
+
+                            if _has_actionable_two_sided_quote(quote):
+                                self.strategy.log_message(
+                                    f"Target strike {rounded_underlying_price} -> Using actionable strike: {candidate_strike}",
+                                    color="green",
+                                )
+                                return option
+
+                    # Default: Find the closest strike to our target
+                    if closest_strike is None:
+                        return None
+
+                    self.strategy.log_message(
+                        f"Target strike {rounded_underlying_price} -> Closest available strike: {closest_strike}",
+                        color="green",
+                    )
 
                     # Create option with the closest available strike
                     option = Asset(

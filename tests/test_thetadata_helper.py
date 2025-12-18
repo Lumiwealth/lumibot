@@ -809,7 +809,7 @@ def test_get_price_data_preserve_full_history_returns_full_cache(
     mock_get_historical_data.assert_not_called()
 
 
-def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path):
+def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path):
     from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
     cache_root = tmp_path / "cache_root"
@@ -890,7 +890,7 @@ def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path
             missing_dates = {idx.date() for idx, flag in loaded["missing"].items() if flag}
             assert missing_dates == {datetime.date(2024, 1, 15)}
 
-        # Second run should reuse cache entirely
+        # Second run should attempt to refetch the placeholder day (for past dates).
         eod_second_mock = MagicMock(return_value=partial_df)
         with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
              patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days), \
@@ -902,7 +902,7 @@ def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path
                 "day",
             )
 
-            assert eod_second_mock.call_count == 0
+            assert eod_second_mock.call_count == 1
             assert len(second) == 9  # 9 real data rows
             assert set(second.index.date) == expected_dates
 
@@ -998,7 +998,7 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
     })
 
     caplog.clear()
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO, logger="lumibot.tools.thetadata_helper"):
         with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
              patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days2):
             eod_mock2 = MagicMock(return_value=df_new)
@@ -1068,7 +1068,7 @@ def test_cache_fidelity_integrity_failure_logs_integrity_message(monkeypatch, tm
     progress_stub.close.return_value = None
 
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
         with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
              patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
             eod_mock = MagicMock(return_value=good_df)

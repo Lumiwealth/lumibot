@@ -148,6 +148,7 @@ WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 DEFAULT_THETA_BASE = "http://127.0.0.1:25503"
+DEFAULT_DOWNLOADER_BASE_URL = "http://data-downloader.lumiwealth.com:8080"
 _downloader_base_env = os.environ.get("DATADOWNLOADER_BASE_URL")
 _theta_fallback_base = os.environ.get("THETADATA_BASE_URL", DEFAULT_THETA_BASE)
 
@@ -158,6 +159,9 @@ def _normalize_base_url(raw: Optional[str]) -> str:
     raw = raw.strip()
     if not raw:
         return DEFAULT_THETA_BASE
+    # Standardize away from deprecated/ephemeral endpoints.
+    if "44.192.43.146" in raw or "test-server" in raw:
+        raw = DEFAULT_DOWNLOADER_BASE_URL
     if not raw.startswith(("http://", "https://")):
         raw = f"http://{raw}"
     return raw.rstrip("/")
@@ -2068,16 +2072,26 @@ def get_price_data(
     ):
         placeholder_dates = set(pd.Index(df_all[df_all["missing"].astype(bool)].index.date))
         if placeholder_dates:
-            before = len(missing_dates)
-            missing_dates = [d for d in missing_dates if d not in placeholder_dates]
-            after = len(missing_dates)
-            logger.debug(
-                "[THETA][DEBUG][CACHE][PLACEHOLDER_SUPPRESS] asset=%s timespan=%s removed=%d missing=%d",
-                asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                timespan,
-                before - after,
-                after,
-            )
+            today_utc = datetime.now(pytz.UTC).date()
+            suppress_dates: set[date] = {d for d in placeholder_dates if d > today_utc}
+            if getattr(asset, "asset_type", None) == "option" and getattr(asset, "expiration", None) is not None:
+                try:
+                    exp = asset.expiration
+                    suppress_dates |= {d for d in placeholder_dates if d > exp}
+                except Exception:
+                    pass
+
+            if suppress_dates:
+                before = len(missing_dates)
+                missing_dates = [d for d in missing_dates if d not in suppress_dates]
+                after = len(missing_dates)
+                logger.debug(
+                    "[THETA][DEBUG][CACHE][PLACEHOLDER_SUPPRESS] asset=%s timespan=%s removed=%d missing=%d",
+                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    timespan,
+                    before - after,
+                    after,
+                )
 
     logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
@@ -2790,9 +2804,15 @@ def get_missing_dates(df_all, asset, start, end):
     # It is possible to have full day gap in the data if previous queries were far apart
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
-    dates_series = pd.Series(df_working.index.date)
-    # Treat placeholder rows as known coverage; missing dates are considered permanently absent once written.
-    real_dates = dates_series.unique()
+    dates_series = pd.Series(df_working.index.date, index=df_working.index)
+    placeholder_mask = (
+        df_working["missing"].astype(bool) if "missing" in df_working.columns else pd.Series(False, index=df_working.index)
+    )
+    placeholder_dates = set(dates_series[placeholder_mask].unique()) if hasattr(placeholder_mask, "__len__") else set()
+    # Placeholder rows should be treated as missing coverage for past dates so we can refetch real data
+    # (e.g. when caches were populated during an outage). We suppress future/expired-placeholder refetch
+    # later when computing missing_dates.
+    real_dates = dates_series[~placeholder_mask].unique()
     cached_dates_count = len(real_dates)
     cached_first = min(real_dates) if len(real_dates) > 0 else None
     cached_last = max(real_dates) if len(real_dates) > 0 else None
@@ -2807,6 +2827,12 @@ def get_missing_dates(df_all, asset, start, end):
     )
 
     missing_dates = sorted(set(trading_dates) - set(real_dates))
+
+    if placeholder_dates and missing_dates:
+        today_utc = datetime.now(pytz.UTC).date()
+        suppress_dates = {d for d in placeholder_dates if d > today_utc}
+        if suppress_dates:
+            missing_dates = [d for d in missing_dates if d not in suppress_dates]
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":

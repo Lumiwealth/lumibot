@@ -978,7 +978,6 @@ class OptionsHelper:
         # 3. ACCURACY: We can now return the FIRST valid expiration, rather than pre-filtering
         #    and potentially missing valid options.
         # =====================================================================================
-
         underlying_price: Optional[float] = None
         if underlying_symbol:
             try:
@@ -1023,6 +1022,7 @@ class OptionsHelper:
                     test_strike = strike_candidates[len(strike_candidates) // 2]
 
                 if underlying_symbol:
+                    # Build a test option contract to check for data availability
                     test_option = Asset(
                         underlying_symbol,
                         asset_type="option",
@@ -1031,6 +1031,7 @@ class OptionsHelper:
                         right=call_or_put,
                     )
 
+                    # First try: Check for quote data (bid/ask) - most reliable signal
                     try:
                         quote = self.strategy.get_quote(test_option)
                         has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
@@ -1041,8 +1042,9 @@ class OptionsHelper:
                             )
                             return exp_date
                     except Exception:
-                        pass
+                        pass  # Quote not available, try price data
 
+                    # Fallback: Check for last traded price data
                     try:
                         price = self.strategy.get_last_price(test_option)
                         if price is not None:

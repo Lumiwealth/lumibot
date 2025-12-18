@@ -592,12 +592,12 @@ class ThetaDataBacktestingPandas(PandasData):
             except Exception:
                 pass
 
-        if ts_unit == "day":
-            try:
-                end_date_source = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
-                end_date = end_date_source.date() if hasattr(end_date_source, "date") else end_date_source
-            except Exception:
-                end_date = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
+            if ts_unit == "day":
+                try:
+                    end_date_source = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
+                    end_date = end_date_source.date() if hasattr(end_date_source, "date") else end_date_source
+                except Exception:
+                    end_date = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
             end_requirement = datetime.combine(end_date, datetime.max.time())
             try:
                 end_requirement = self.tzinfo.localize(end_requirement)
@@ -1712,24 +1712,17 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        # ThetaData day-mode backtests frequently trigger accidental intraday requests
-        # (e.g., helper methods defaulting to minute bars). In day mode we silently
-        # align any minute/hour/second requests to day bars to avoid unnecessary
-        # downloads and coverage errors.
+        # When timestep is not explicitly specified, align to the current backtesting mode
+        # to avoid accidental minute-for-day fallback. Explicit minute/hour requests are
+        # allowed - if a strategy explicitly asks for minute data, that's intentional.
         current_mode = getattr(self, "_timestep", None)
-        requested_timestep = (
-            (timestep or "minute").lower()
-            if isinstance(timestep, str) or timestep is None
-            else timestep
-        )
-        if current_mode == "day" and requested_timestep in {"minute", "hour", "second"}:
+        if timestep is None and current_mode == "day":
+            timestep = "day"
             logger.debug(
-                "[THETA][DEBUG][TIMESTEP_ALIGN] Aligning %s request to day mode for asset=%s length=%s",
-                requested_timestep,
+                "[THETA][DEBUG][TIMESTEP_ALIGN] Implicit request aligned to day mode for asset=%s length=%s",
                 asset,
                 length,
             )
-            timestep = "day"
         dt = self.get_datetime()
         requested_length = self.estimate_requested_length(length, timestep=timestep)
         logger.debug(
@@ -1826,12 +1819,9 @@ class ThetaDataBacktestingPandas(PandasData):
                 start_date = start_day.date() if hasattr(start_day, "date") else current_date - timedelta(days=365)
                 end_date = end_day.date() if hasattr(end_day, "date") else current_date
                 try:
-                    events = thetadata_helper._get_theta_dividends(asset, start_date, end_date)
+                    events = thetadata_helper._get_theta_dividends(asset, start_date, end_date, self._username, self._password)
                     # Also fetch splits to adjust dividend amounts
-                    # IMPORTANT: Use splits up to today's date, not the backtest end date.
-                    # We normalize price/dividend series to today's share units (Yahoo-style split adjustment),
-                    # so dividends must be adjusted by all future splits as well.
-                    splits = thetadata_helper._get_theta_splits(asset, start_date, date.today())
+                    splits = thetadata_helper._get_theta_splits(asset, start_date, end_date, self._username, self._password)
 
                     # Build cumulative split factor map (for each date, what factor to divide by)
                     if splits is not None and not splits.empty:
@@ -1925,7 +1915,7 @@ class ThetaDataBacktestingPandas(PandasData):
 
         if current_mode == "day" and timestep == "minute":
             timestep = "day"
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_last_price aligned from minute to day for asset=%s",
                 asset,
             )
@@ -2076,7 +2066,6 @@ class ThetaDataBacktestingPandas(PandasData):
                 if hasattr(data, "timestep") and data.timestep == "day":
                     current_mode = "day"
                     break
-
         if current_mode == "day" and timestep == "minute":
             timestep = "day"
             logger.debug(
@@ -2285,7 +2274,7 @@ class ThetaDataBacktestingPandas(PandasData):
 
         if current_mode == "day" and timestep == "minute":
             timestep = "day"
-            logger.info(
+            logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_quote aligned from minute to day for asset=%s",
                 getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
             )

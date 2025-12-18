@@ -2641,50 +2641,73 @@ class _Strategy:
     def load_variables_from_db(self):
         if self.is_backtesting:
             return
-
+    
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
-
+    
         try:
             if not hasattr(self, 'db_engine') or not self.db_engine:
                 self.db_engine = create_engine(self.db_connection_str)
-
+    
             # Check if backup table exists
             inspector = inspect(self.db_engine)
             if not inspector.has_table(self.backup_table_name):
                 self.logger.info(f"Backup for {self._name} does not exist in the database. Not restoring")
                 return
-
-             # Query the latest entry from the backup table
+    
+            # Query the latest entry from the backup table
             query = text(
-                f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1')
-
+                f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1'
+            )
+    
             params = {'strategy_id': self._name}
             df = pd.read_sql_query(query, self.db_engine, params=params)
-
+    
             if df.empty:
                 self.logger.debug("No data found in the backup")
-            else:
-                # Parse the JSON data
-                json_data = df['variables'].iloc[0]
-                # Decode any special types we stored using our SafeJSONEncoder
-                data = json.loads(json_data, object_hook=lambda d: {
-                    k: (
-                        datetime.datetime.fromisoformat(v) if isinstance(v, str) and 'T' in v
-                        else datetime.datetime.strptime(v, '%Y-%m-%d').date() if isinstance(v, str) and '-' in v
-                        else v
-                    ) for k, v in d.items()
-                })
-
-                # Update self.vars dictionary
-                for key, value in data.items():
-                    self.vars.set(key, value)
-
-                current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
-                self._last_backup_state = current_state
-
-                self.logger.info("Variables loaded successfully from database")
-
+                return
+    
+            json_data = df['variables'].iloc[0]
+    
+            import re
+    
+            iso_dt_re = re.compile(r"^\d{4}-\d{2}-\d{2}T")      # datetime prefix
+            iso_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")    # date only
+    
+            def _coerce_value(v):
+                if not isinstance(v, str):
+                    return v
+    
+                # ISO datetime (support trailing Z)
+                if iso_dt_re.match(v):
+                    try:
+                        v2 = v.replace("Z", "+00:00") if v.endswith("Z") else v
+                        return datetime.datetime.fromisoformat(v2)
+                    except Exception:
+                        return v
+    
+                # ISO date (YYYY-MM-DD)
+                if iso_date_re.match(v):
+                    try:
+                        return datetime.datetime.strptime(v, "%Y-%m-%d").date()
+                    except Exception:
+                        return v
+    
+                return v
+    
+            # Decode any special types we stored using our SafeJSONEncoder,
+            # but only parse strings that actually look like ISO dates/datetimes.
+            data = json.loads(json_data, object_hook=lambda d: {k: _coerce_value(v) for k, v in d.items()})
+    
+            # Update self.vars dictionary
+            for key, value in data.items():
+                self.vars.set(key, value)
+    
+            current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
+            self._last_backup_state = current_state
+    
+            self.logger.info("Variables loaded successfully from database")
+    
         except Exception as e:
             self.logger.error(f"Error loading variables from database: {e}", exc_info=True)
 

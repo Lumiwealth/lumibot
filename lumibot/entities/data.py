@@ -550,7 +550,7 @@ class Data:
         -------
         float or Decimal or None
             Returns the close price (or open price for intraday before bar completion).
-
+            
             IMPORTANT: This method is trade/bar based only. It never falls back to bid/ask
             quotes. Use `get_quote()` / `get_price_snapshot()` for quote/mark pricing.
         """

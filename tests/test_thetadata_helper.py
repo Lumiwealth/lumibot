@@ -314,7 +314,7 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
     monkeypatch.setattr(
         thetadata_helper,
         "_apply_corporate_actions_to_frame",
-        lambda asset, frame, start, end: frame,
+        lambda asset, frame, *_, **__: frame,
     )
 
     asset = Asset(asset_type="stock", symbol="PLTR")
@@ -342,7 +342,7 @@ def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
     monkeypatch.setattr(
         thetadata_helper,
         "_apply_corporate_actions_to_frame",
-        lambda asset, frame, start, end: frame,
+        lambda asset, frame, *_, **__: frame,
     )
 
     asset = Asset(asset_type="stock", symbol="PLTR")
@@ -375,7 +375,7 @@ def test_get_historical_eod_data_falls_back_to_date_when_created_missing(monkeyp
     monkeypatch.setattr(
         thetadata_helper,
         "_apply_corporate_actions_to_frame",
-        lambda asset, frame, start, end: frame,
+        lambda asset, frame, *_, **__: frame,
     )
 
     asset = Asset(asset_type="stock", symbol="AAPL")
@@ -4280,9 +4280,7 @@ class TestCoverageGapGracefulHandling:
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     # This should NOT raise ValueError - it should log warning and continue
                     try:
-                        result = thetadata_helper.get_price_data(
-                            asset, start, end_requirement, "day"
-                        )
+                        result = thetadata_helper.get_price_data(asset, start, end_requirement, "day")
                         exception_raised = False
                     except ValueError as e:
                         exception_raised = True
@@ -4338,9 +4336,7 @@ class TestCoverageGapGracefulHandling:
                 eod_mock = MagicMock(return_value=empty_df)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
-                        result = thetadata_helper.get_price_data(
-                            asset, start, end, "day"
-                        )
+                        result = thetadata_helper.get_price_data(asset, start, end, "day")
                         exception_raised = False
                     except ValueError as e:
                         exception_raised = True
@@ -4407,9 +4403,7 @@ class TestCoverageGapGracefulHandling:
                 eod_mock = MagicMock(return_value=partial_df)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
-                        result = thetadata_helper.get_price_data(
-                            asset, start, end, "day"
-                        )
+                        result = thetadata_helper.get_price_data(asset, start, end, "day")
                         exception_raised = False
                     except ValueError as e:
                         exception_raised = True

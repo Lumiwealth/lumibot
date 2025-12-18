@@ -960,7 +960,32 @@ class ProjectXClient:
             
             symbol_upper = symbol.upper()
             self.logger.info(f"🔍 Searching for contract: {symbol} -> {symbol_upper}")
-            
+
+            # Search using the contract search API
+            self.logger.info(f"🔍 Searching via API for: {symbol}")
+            try:
+                contracts = self.search_contracts(symbol)
+                if contracts:
+                    self.logger.info(f"📋 Found {len(contracts)} contracts via search")
+
+                    # Find the most recent/active contract (usually sorted by expiry)
+                    active_contracts = [c for c in contracts if c.get('active', True)]
+                    to_search = active_contracts if active_contracts else contracts
+                    # If the 'name' field exists, try to match symbol
+                    to_search = [c for c in to_search if c.get('name', '').startswith(symbol_upper)] or to_search
+
+                    # Try different possible field names for contract ID
+                    contract_id = (to_search[0].get('contractId') or
+                                   to_search[0].get('id') or
+                                   to_search[0].get('symbol') or '')
+                    self.logger.info(f"✅ Using active contract: {contract_id}")
+                    return contract_id
+
+                else:
+                    self.logger.warning(f"⚠️ No contracts found via API search, falling back to search Asset logic")
+            except Exception as search_e:
+                self.logger.error(f"❌ API search failed: {search_e}, falling back to search Asset logic")
+
             # Use Asset class logic for continuous futures resolution
             try:
                 # Create continuous futures asset
@@ -996,56 +1021,7 @@ class ProjectXClient:
                     return contract_id
                 
             except Exception as asset_error:
-                self.logger.warning(f"⚠️ Asset class method failed: {asset_error}, falling back to API search")
-            
-            # Fallback: Use hardcoded mapping for immediate compatibility
-            common_futures_fallback = {
-                'MES': 'CON.F.US.MES.U25',
-                'ES': 'CON.F.US.ES.U25',    
-                'NQ': 'CON.F.US.NQ.U25',    
-                'YM': 'CON.F.US.YM.U25',    
-                'RTY': 'CON.F.US.RTY.U25',  
-            }
-            
-            if symbol_upper in common_futures_fallback:
-                contract_id = common_futures_fallback[symbol_upper]
-                self.logger.debug(f"📋 Using fallback mapping: {contract_id}")
-                self._contract_cache[contract_id] = {"id": contract_id, "symbol": symbol_upper}
-                return contract_id
-            
-            # Search using the contract search API
-            self.logger.info(f"🔍 Searching via API for: {symbol}")
-            try:
-                contracts = self.search_contracts(symbol)
-                if contracts:
-                    self.logger.info(f"📋 Found {len(contracts)} contracts via search")
-                    
-                    # Find the most recent/active contract (usually sorted by expiry)  
-                    active_contracts = [c for c in contracts if c.get('active', True)]
-                    if active_contracts:
-                        # Try different possible field names for contract ID
-                        contract_id = (active_contracts[0].get('contractId') or 
-                                     active_contracts[0].get('id') or 
-                                     active_contracts[0].get('symbol') or '')
-                        self.logger.info(f"✅ Using active contract: {contract_id}")
-                        return contract_id
-                    elif contracts:
-                        # Try different possible field names for contract ID
-                        contract_id = (contracts[0].get('contractId') or 
-                                     contracts[0].get('id') or 
-                                     contracts[0].get('symbol') or '')
-                        self.logger.info(f"✅ Using first contract: {contract_id}")
-                        return contract_id
-                else:
-                    self.logger.warning(f"⚠️ No contracts found via API search")
-            except Exception as search_e:
-                self.logger.error(f"❌ API search failed: {search_e}")
-            
-            # If all else fails, return the hardcoded mapping anyway (might work for orders)
-            if symbol_upper in common_futures_fallback:
-                fallback_contract = common_futures_fallback[symbol_upper]
-                self.logger.info(f"🔄 Fallback to hardcoded mapping (last resort): {fallback_contract}")
-                return fallback_contract
+                self.logger.warning(f"⚠️ Asset class method failed: {asset_error}")
             
             self.logger.error(f"❌ No contract found for symbol: {symbol}")
             return ''

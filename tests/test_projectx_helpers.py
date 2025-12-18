@@ -287,15 +287,22 @@ class TestProjectXClient:
 
         mock_contracts = [
             {
-                "ContractId": "CON.F.US.MES.U25",
-                "Symbol": "MES"
+                "contractId": "CON.F.US.MES.Z25",
+                "id": "CON.F.US.MES.Z25",
+                "symbol": "MES",
+                "name": "MESZ25",
             }
         ]
         mock_client.api.contract_search = MagicMock(return_value={"success": True, "contracts": mock_contracts})
 
         with patch.object(Asset, 'get_potential_futures_contracts', return_value=['MESU25', 'MES.U25', 'MESU2025']):
             contract_id = mock_client.find_contract_by_symbol("MES")
-            assert contract_id == "CON.F.US.MES.U25"
+            assert contract_id == "CON.F.US.MES.Z25"
+
+            # No API info found, fallback to asset logic
+            mock_client.api.contract_search.return_value = {"success": True, "contracts": []}
+            contract_id = mock_client.find_contract_by_symbol("MES")
+            assert contract_id == "CON.F.US.MES.U25"  # From mocked Asset
 
     def test_contract_id_conversion_no_hardcoded_mappings(self, mock_client):
         """

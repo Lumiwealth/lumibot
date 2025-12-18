@@ -20,13 +20,13 @@ from lumibot.entities.data import Data
 class TestDataGetLastPriceTradeOnly:
     def _create_data_with_prices(
         self,
-        asset,
+        asset: Asset,
         close_prices,
         open_prices=None,
         bid_prices=None,
         ask_prices=None,
-        timestep="day",
-    ):
+        timestep: str = "day",
+    ) -> Data:
         if open_prices is None:
             open_prices = close_prices
 
@@ -149,9 +149,13 @@ class TestDataGetLastPriceTradeOnly:
         close_prices = [5.0, 5.0, 5.0]
         bid_prices = [10.0, 11.0, 12.0]
         ask_prices = [11.0, 12.0, 13.0]
-        data = self._create_data_with_prices(asset, close_prices, bid_prices=bid_prices, ask_prices=ask_prices)
+        data = self._create_data_with_prices(
+            asset,
+            close_prices,
+            bid_prices=bid_prices,
+            ask_prices=ask_prices,
+        )
 
         tz = pytz.timezone("America/New_York")
         dt = tz.localize(datetime(2024, 1, 3, 9, 30))
         assert data.get_last_price(dt) == 5.0
-

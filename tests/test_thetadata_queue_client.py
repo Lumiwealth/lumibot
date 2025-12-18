@@ -502,7 +502,6 @@ class TestSubmitRetry:
         assert was_pending is False
         assert mock_post.call_count == 2
 
-
 class TestThreadSafety:
     """Tests for thread safety."""
 

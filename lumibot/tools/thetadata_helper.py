@@ -1042,6 +1042,8 @@ def _download_corporate_events(
     event_type: str,
     window_start: date,
     window_end: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> pd.DataFrame:
     """Fetch corporate actions via Theta's v2 REST endpoints."""
 
@@ -1069,6 +1071,8 @@ def _download_corporate_events(
             url=url,
             headers=headers,
             querystring=querystring,
+            username=username,
+            password=password,
         )
     except ThetaRequestError as exc:
         if exc.status_code in {404, 410}:
@@ -1089,6 +1093,8 @@ def _ensure_event_cache(
     event_type: str,
     start_date: date,
     end_date: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> pd.DataFrame:
     cache_path, meta_path = _event_cache_paths(asset, event_type)
     cache_df = _load_event_cache_frame(cache_path)
@@ -1103,6 +1109,8 @@ def _ensure_event_cache(
             event_type,
             padded_start,
             padded_end,
+            username,
+            password,
         )
         if data_frame is not None and not data_frame.empty:
             new_frames.append(data_frame)
@@ -1122,19 +1130,31 @@ def _ensure_event_cache(
     return cache_df.loc[mask].copy()
 
 
-def _get_theta_dividends(asset: Asset, start_date: date, end_date: date) -> pd.DataFrame:
+def _get_theta_dividends(
+    asset: Asset,
+    start_date: date,
+    end_date: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> pd.DataFrame:
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
-    return _ensure_event_cache(asset, "dividends", start_date, end_date)
+    return _ensure_event_cache(asset, "dividends", start_date, end_date, username, password)
 
 
-def _get_theta_splits(asset: Asset, start_date: date, end_date: date) -> pd.DataFrame:
+def _get_theta_splits(
+    asset: Asset,
+    start_date: date,
+    end_date: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> pd.DataFrame:
     """Fetch split data from ThetaData only. No fallback to other data sources."""
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
 
     try:
-        splits = _ensure_event_cache(asset, "splits", start_date, end_date)
+        splits = _ensure_event_cache(asset, "splits", start_date, end_date, username, password)
         if splits is not None and not splits.empty:
             logger.info("[THETA][SPLITS] Got %d splits from ThetaData for %s", len(splits), asset.symbol)
             return splits
@@ -1247,6 +1267,8 @@ def _apply_corporate_actions_to_frame(
     frame: pd.DataFrame,
     start_day: date,
     end_day: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> pd.DataFrame:
     if frame is None or frame.empty:
         return frame
@@ -1260,6 +1282,8 @@ def _apply_corporate_actions_to_frame(
         return frame
 
     # IDEMPOTENCY CHECK: If data has already been split-adjusted, skip adjustment.
+    # This prevents double/multiple adjustment when cached data is re-processed.
+    # The marker column is set at the end of this function after successful adjustment.
     if "_split_adjusted" in frame.columns and frame["_split_adjusted"].any():
         logger.debug(
             "[THETA][SPLIT_ADJUST] Skipping adjustment for %s - data already split-adjusted",
@@ -1301,7 +1325,7 @@ def _apply_corporate_actions_to_frame(
         from datetime import date as date_type
 
         today = date_type.today()
-        splits = _get_theta_splits(underlying_asset, start_day, today)
+        splits = _get_theta_splits(underlying_asset, start_day, today, username, password)
 
         if splits is None or splits.empty:
             frame["stock_splits"] = frame["stock_splits"].fillna(0.0)
@@ -1336,15 +1360,14 @@ def _apply_corporate_actions_to_frame(
         frame["_split_adjusted"] = True
         return frame
 
-    dividends = _get_theta_dividends(asset, start_day, end_day)
+    dividends = _get_theta_dividends(asset, start_day, end_day, username, password)
     # CRITICAL: Fetch splits up to TODAY, not the data's end date!
     # When fetching March 2020 data, we still need to know about the July 2022 split
     # so we can adjust historical prices to be comparable to current prices.
     # This matches Yahoo Finance behavior where Adj Close always reflects current splits.
     from datetime import date as date_type
     today = date_type.today()
-    splits = _get_theta_splits(asset, start_day, today)
-
+    splits = _get_theta_splits(asset, start_day, today, username, password)
     if "dividend" not in frame.columns:
         frame["dividend"] = 0.0
     if not dividends.empty:
@@ -1376,15 +1399,14 @@ def _apply_corporate_actions_to_frame(
             # so that historical prices are comparable to current split-adjusted prices.
             # This matches how Yahoo Finance calculates Adj Close - it always reflects
             # the current share count, not what the shares were worth at that time.
-            from datetime import date as date_type
-            today = date_type.today()
             applicable_splits = sorted_splits[sorted_splits["event_date"].dt.date <= today]
 
             if len(applicable_splits) < len(sorted_splits):
                 skipped = len(sorted_splits) - len(applicable_splits)
                 logger.debug(
                     "[THETA][SPLIT_ADJUST] Skipping %d future split(s) after today=%s",
-                    skipped, today
+                    skipped,
+                    today,
                 )
 
             # Calculate cumulative split factor for each date in the frame
@@ -2179,12 +2201,10 @@ def get_price_data(
             start_day = start.date() if hasattr(start, "date") else start
             end_day = end.date() if hasattr(end, "date") else end
             result_frame = _apply_corporate_actions_to_frame(
-                asset, result_frame, start_day, end_day
+                asset, result_frame, start_day, end_day, username, password
             )
-
         if result_frame is not None and not result_frame.empty and timespan == "day":
             result_frame = _align_day_index_to_market_close_utc(result_frame)
-
         return result_frame
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
@@ -2266,6 +2286,10 @@ def get_price_data(
             end_dt=effective_end,
             datastyle=datastyle,
         )
+        if username is not None:
+            eod_kwargs["username"] = username
+        if password is not None:
+            eod_kwargs["password"] = password
         if include_eod_nbbo:
             eod_kwargs["include_nbbo"] = True
         result_df = get_historical_eod_data(**eod_kwargs)
@@ -2477,14 +2501,12 @@ def get_price_data(
     set_download_status(asset, quote_asset, datastyle, timespan, 0, total_queries)
 
     def _fetch_chunk(chunk_start: datetime, chunk_end: datetime):
-        return get_historical_data(
-            asset,
-            chunk_start,
-            chunk_end,
-            interval_ms,
-            datastyle=datastyle,
-            include_after_hours=include_after_hours,
-        )
+        kwargs = {"datastyle": datastyle, "include_after_hours": include_after_hours}
+        if username is not None:
+            kwargs["username"] = username
+        if password is not None:
+            kwargs["password"] = password
+        return get_historical_data(asset, chunk_start, chunk_end, interval_ms, **kwargs)
 
     with ThreadPoolExecutor(max_workers=chunk_workers) as executor:
         future_map: Dict[Any, Tuple[datetime, datetime, float]] = {}
@@ -2896,7 +2918,6 @@ def load_cache(cache_file):
                     [str(d)[:10] for d in bad_dates[:5]],
                 )
                 df = df[~bad_zero_rows]
-
     min_ts = df.index.min() if len(df) > 0 else None
     max_ts = df.index.max() if len(df) > 0 else None
     placeholder_count = int(df["missing"].sum()) if "missing" in df.columns else 0
@@ -4026,7 +4047,7 @@ def get_historical_eod_data(
         )
 
     if apply_corporate_actions:
-        df = _apply_corporate_actions_to_frame(asset, df, start_day, end_day)
+        df = _apply_corporate_actions_to_frame(asset, df, start_day, end_day, username, password)
 
     return df
 

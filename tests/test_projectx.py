@@ -194,15 +194,27 @@ class TestProjectXBroker:
         """
         # Mock the Asset class method
         with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
-            mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
-            
-            # Test contract ID generation
-            asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
-            contract_id = projectx_broker._get_contract_id_from_asset(asset)
-            
-            # Should use Asset class logic, not hardcoded mappings
-            mock_contracts.assert_called_once()
-            assert contract_id  # Should return a valid contract ID
+            with patch.object(projectx_broker.client, "find_contract_by_symbol") as mock_api_lookup:
+                mock_api_lookup.return_value = None
+                mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
+
+                # Test contract ID generation
+                assert not projectx_broker._contract_cache
+                asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
+                contract_id = projectx_broker._get_contract_id_from_asset(asset)
+                assert projectx_broker._contract_cache
+
+                # Should use Asset class logic, not hardcoded mappings
+                mock_contracts.assert_called_once()
+                assert contract_id  # Should return a valid contract ID
+
+                # 2nd query just uses the cache
+                mock_api_lookup.reset_mock()
+                mock_contracts.reset_mock()
+                contract_id = projectx_broker._get_contract_id_from_asset(asset)
+                assert contract_id
+                assert not mock_contracts.call_count
+                assert not mock_api_lookup.call_count
 
     @pytest.mark.skipif(needs_creds, reason=skip_reason)
     def test_order_tracking_sync_functionality(self, projectx_broker):

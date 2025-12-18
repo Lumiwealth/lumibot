@@ -1602,7 +1602,7 @@ class BacktestingBroker(Broker):
             # Fill the order.
             #############################
 
-            if (price is None or self._is_invalid_price(price)) and self._should_attempt_quote_fallback(open, high, low):
+            if (price is None or self._is_invalid_price(price)) and self._should_attempt_quote_fallback(order, open, high, low):
                 price = self._try_fill_with_quote(order, strategy, open, high, low)
 
             # If the price is set, then the order has been filled
@@ -1669,8 +1669,29 @@ class BacktestingBroker(Broker):
     def _bar_has_missing_prices(self, *values) -> bool:
         return any(self._is_invalid_price(val) for val in values)
 
-    def _should_attempt_quote_fallback(self, open_, high_, low_) -> bool:
-        return self._is_thetadata_source() and self._bar_has_missing_prices(open_, high_, low_)
+    def _is_option_asset(self, asset) -> bool:
+        if asset is None:
+            return False
+        return str(getattr(asset, "asset_type", "")).lower() == "option"
+
+    def _should_attempt_quote_fallback(self, order, open_, high_, low_) -> bool:
+        """Determine whether to attempt quote-based fills.
+
+        We primarily use quote fills for ThetaData when OHLC bars are missing. Additionally, for ThetaData
+        option day-bars, trade prints can be sparse (limits may not cross a trade even when NBBO is actionable),
+        so we allow quote fills for option limit orders in daily cadence when a quote is available.
+        """
+        if not self._is_thetadata_source():
+            return False
+        if self._bar_has_missing_prices(open_, high_, low_):
+            return True
+
+        asset = getattr(order, "asset", None) if order is not None else None
+        if not self._is_option_asset(asset):
+            return False
+
+        timestep = getattr(self.data_source, "_timestep", None)
+        return timestep == "day"
 
     def _is_thetadata_source(self) -> bool:
         if ThetaDataBacktestingPandas is None:
@@ -1697,7 +1718,8 @@ class BacktestingBroker(Broker):
         """Attempt to fill an order using ThetaData quotes when OHLC bars are missing."""
         if not self._is_thetadata_source():
             return None
-        if not self._bar_has_missing_prices(open_, high_, low_):
+        is_option = self._is_option_asset(getattr(order, "asset", None))
+        if not (self._bar_has_missing_prices(open_, high_, low_) or is_option):
             return None
         if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT, Order.OrderType.MARKET):
             return None

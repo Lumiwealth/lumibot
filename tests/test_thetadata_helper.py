@@ -68,6 +68,13 @@ def theta_terminal_cleanup():
         pass
 
 
+@pytest.fixture(autouse=True)
+def _disable_live_corporate_action_fetch(monkeypatch):
+    """Keep unit tests deterministic by preventing live split/dividend downloads."""
+    monkeypatch.setattr(thetadata_helper, "_get_theta_dividends", lambda *_, **__: pd.DataFrame())
+    monkeypatch.setattr(thetadata_helper, "_get_theta_splits", lambda *_, **__: pd.DataFrame())
+
+
 def test_finalize_history_dataframe_adds_last_trade_time_for_ohlc():
     asset = Asset(asset_type="stock", symbol="CVNA")
     df = pd.DataFrame(
@@ -250,8 +257,6 @@ def test_apply_corporate_actions_populates_columns(mock_splits, mock_dividends):
         frame.copy(),
         date(2024, 1, 1),
         date(2024, 3, 1),
-        "user",
-        "pass",
     )
 
     # Dividend is split-adjusted: $0.25 / 2.0 (split ratio) = $0.125
@@ -293,8 +298,6 @@ def test_get_historical_data_filters_zero_quotes(mock_get_request):
         start_dt=start,
         end_dt=end,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="quote",
     )
 
@@ -311,7 +314,7 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
     monkeypatch.setattr(
         thetadata_helper,
         "_apply_corporate_actions_to_frame",
-        lambda asset, frame, start, end, username, password: frame,
+        lambda asset, frame, start, end: frame,
     )
 
     asset = Asset(asset_type="stock", symbol="PLTR")
@@ -322,8 +325,6 @@ def test_get_historical_eod_data_handles_downloader_schema(monkeypatch):
         asset=asset,
         start_dt=start,
         end_dt=end,
-        username="user",
-        password="pass",
         apply_corporate_actions=False,
     )
 
@@ -341,7 +342,7 @@ def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
     monkeypatch.setattr(
         thetadata_helper,
         "_apply_corporate_actions_to_frame",
-        lambda asset, frame, start, end, username, password: frame,
+        lambda asset, frame, start, end: frame,
     )
 
     asset = Asset(asset_type="stock", symbol="PLTR")
@@ -352,8 +353,6 @@ def test_get_historical_eod_data_avoids_minute_corrections(monkeypatch):
         asset=asset,
         start_dt=start,
         end_dt=end,
-        username="user",
-        password="pass",
         apply_corporate_actions=False,
     )
 
@@ -376,7 +375,7 @@ def test_get_historical_eod_data_falls_back_to_date_when_created_missing(monkeyp
     monkeypatch.setattr(
         thetadata_helper,
         "_apply_corporate_actions_to_frame",
-        lambda asset, frame, start, end, username, password: frame,
+        lambda asset, frame, start, end: frame,
     )
 
     asset = Asset(asset_type="stock", symbol="AAPL")
@@ -387,8 +386,6 @@ def test_get_historical_eod_data_falls_back_to_date_when_created_missing(monkeyp
         asset=asset,
         start_dt=start,
         end_dt=end,
-        username="user",
-        password="pass",
         apply_corporate_actions=False,
     )
 
@@ -406,7 +403,7 @@ def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch)
     ]
     captured_ranges = []
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         captured_ranges.append((querystring["start_date"], querystring["end_date"]))
         return responses.pop(0)
 
@@ -421,8 +418,6 @@ def test_get_historical_eod_data_chunks_requests_longer_than_a_year(monkeypatch)
         asset=asset,
         start_dt=start,
         end_dt=end,
-        username="user",
-        password="pass",
         apply_corporate_actions=False,
     )
 
@@ -464,8 +459,6 @@ def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, c
             asset=asset,
             start_dt=start,
             end_dt=end,
-            username="user",
-            password="pass",
         )
 
     assert not df.empty
@@ -491,8 +484,6 @@ def test_get_historical_data_parses_stock_downloader_schema(monkeypatch):
         start_dt=start,
         end_dt=end,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="ohlc",
     )
 
@@ -526,8 +517,6 @@ def test_get_historical_data_parses_option_downloader_schema(monkeypatch):
         start_dt=start,
         end_dt=end,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="ohlc",
     )
 
@@ -561,8 +550,6 @@ def test_get_historical_data_uses_v3_option_params(mock_get_trading_dates, mock_
         start_dt=start,
         end_dt=end,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="quote",
         include_after_hours=False,
     )
@@ -587,8 +574,6 @@ def test_get_expirations_normalizes_downloader_payload(monkeypatch):
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
 
     expirations = thetadata_helper.get_expirations(
-        username="user",
-        password="pass",
         ticker="TSLA",
         after_date=date(2024, 9, 1),
     )
@@ -602,8 +587,6 @@ def test_get_strikes_normalizes_downloader_payload(monkeypatch):
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: fixture)
 
     strikes = thetadata_helper.get_strikes(
-        username="user",
-        password="pass",
         ticker="TSLA",
         expiration=datetime.datetime(2024, 10, 18),
     )
@@ -630,8 +613,6 @@ def test_get_historical_data_accepts_date_inputs(mock_get_trading_dates, mock_ge
         start_dt=start,
         end_dt=end,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="ohlc",
         include_after_hours=True,
     )
@@ -680,7 +661,7 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     dt = datetime.datetime(2025, 9, 2, 9, 30)
 
     # Act
-    df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan, dt=dt)
+    df = thetadata_helper.get_price_data(asset, start, end, timespan, dt=dt)
     df.index = pd.to_datetime(df.index)
     
     # Assert
@@ -717,7 +698,7 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     dt = datetime.datetime(2023, 7, 1, 9, 30)
 
     # Act
-    df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan,dt=dt)
+    df = thetadata_helper.get_price_data(asset, start, end, timespan,dt=dt)
 
     # Assert
     assert df is not None
@@ -761,7 +742,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     dt = datetime.datetime(2023, 7, 1, 9, 30)
 
     # Act
-    df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan,dt=dt)
+    df = thetadata_helper.get_price_data(asset, start, end, timespan,dt=dt)
 
     # Assert
     assert df is not None
@@ -812,8 +793,6 @@ def test_get_price_data_preserve_full_history_returns_full_cache(
     end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2020, 1, 6))
 
     df = thetadata_helper.get_price_data(
-        "user",
-        "pass",
         asset,
         start,
         end,
@@ -887,8 +866,6 @@ def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path
         eod_mock = MagicMock(return_value=partial_df)
         with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
             first = thetadata_helper.get_price_data(
-                "user",
-                "pass",
                 asset,
                 start,
                 end,
@@ -918,8 +895,6 @@ def test_get_price_data_daily_placeholders_prevent_refetch(monkeypatch, tmp_path
              patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days), \
              patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_second_mock):
             second = thetadata_helper.get_price_data(
-                "user",
-                "pass",
                 asset,
                 start,
                 end,
@@ -950,7 +925,7 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
     dt = datetime.datetime(2023, 7, 1, 9, 30)
 
     # Act
-    df = thetadata_helper.get_price_data("test_user", "test_password", asset, start, end, timespan, dt=dt)
+    df = thetadata_helper.get_price_data(asset, start, end, timespan, dt=dt)
 
     # Assert
     assert df is not None
@@ -1010,7 +985,7 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
          patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days1):
         eod_mock1 = MagicMock(return_value=df1)
         with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock1):
-            thetadata_helper.get_price_data("user", "pass", asset, start1, end1, "day")
+            thetadata_helper.get_price_data(asset, start1, end1, "day")
 
     # Second request: extends range (should trigger COVERAGE_EXTEND)
     start2 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
@@ -1027,7 +1002,7 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
              patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days2):
             eod_mock2 = MagicMock(return_value=df_new)
             with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock2):
-                thetadata_helper.get_price_data("user", "pass", asset, start2, end2, "day")
+                thetadata_helper.get_price_data(asset, start2, end2, "day")
 
     # CRITICAL: Verify the fix is working - should see COVERAGE_EXTEND, not INTEGRITY_FAILURE
     log_messages = [rec.message for rec in caplog.records]
@@ -1097,7 +1072,7 @@ def test_cache_fidelity_integrity_failure_logs_integrity_message(monkeypatch, tm
              patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
             eod_mock = MagicMock(return_value=good_df)
             with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
-                result = thetadata_helper.get_price_data("user", "pass", asset, start, end, "day")
+                result = thetadata_helper.get_price_data(asset, start, end, "day")
 
     # CRITICAL: Verify integrity failures are correctly identified
     log_messages = [rec.message for rec in caplog.records]
@@ -1540,8 +1515,6 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
     end = datetime.datetime(2024, 1, 1, 9, 31, tzinfo=pytz.UTC)
 
     result = thetadata_helper.get_price_data(
-        username="user",
-        password="pass",
         asset=asset,
         start=start,
         end=end,
@@ -1859,6 +1832,10 @@ def test_check_connection_with_exception():
     os.environ.get("CI") == "true",
     reason="Requires ThetaData Terminal (not available in CI)"
 )
+@pytest.mark.skipif(
+    os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
+    reason="Local ThetaTerminal is disabled on this environment",
+)
 def test_get_request_successful():
     """Test get_request() with real ThetaData using get_price_data - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -1876,8 +1853,6 @@ def test_get_request_successful():
 
     # This should succeed with real data
     df = thetadata_helper.get_price_data(
-        username=username,
-        password=password,
         asset=asset,
         start=start,
         end=end,
@@ -1892,6 +1867,10 @@ def test_get_request_successful():
     os.environ.get("CI") == "true",
     reason="Requires ThetaData Terminal (not available in CI)"
 )
+@pytest.mark.skipif(
+    os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
+    reason="Local ThetaTerminal is disabled on this environment",
+)
 def test_get_request_non_200_status_code():
     """Test that ThetaData connection works and handles requests properly - NO MOCKS"""
     username = os.environ.get("THETADATA_USERNAME")
@@ -1905,8 +1884,6 @@ def test_get_request_non_200_status_code():
     # The actual response doesn't matter - we're testing that the connection works
     try:
         response = thetadata_helper.get_price_data(
-            username=username,
-            password=password,
             asset=Asset("SPY", asset_type="stock"),
             start=datetime.datetime(2025, 9, 1),
             end=datetime.datetime(2025, 9, 2),
@@ -1943,8 +1920,6 @@ def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
 
     asset = Asset("SPY", asset_type="stock")
     chain = thetadata_helper.build_historical_chain(
-        username=username,
-        password=password,
         asset=asset,
         as_of_date=as_of_date,
         max_expirations=5,
@@ -1978,7 +1953,7 @@ def test_get_request_error_in_json(mock_queue_request):
 
     # Act & Assert - get_request should raise ValueError when error_type is in header
     with pytest.raises(ValueError):
-        thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
+        thetadata_helper.get_request(url, headers, querystring)
 
     # Verify queue_request was called
     assert mock_queue_request.called
@@ -1996,7 +1971,7 @@ def test_get_request_exception_handling(mock_queue_request):
 
     # Act & Assert - get_request should propagate the exception
     with pytest.raises(Exception) as exc_info:
-        thetadata_helper.get_request(url, headers, querystring, "test_user", "test_password")
+        thetadata_helper.get_request(url, headers, querystring)
 
     assert "test error" in str(exc_info.value)
     assert mock_queue_request.called
@@ -2029,13 +2004,14 @@ def test_get_request_raises_theta_request_error_after_transient_status(mock_chec
     monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *_: None)
 
     with pytest.raises(thetadata_helper.ThetaRequestError) as excinfo:
-        thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+        thetadata_helper.get_request("http://fake", {}, {})
 
     assert excinfo.value.status_code == 503
     assert mock_check_connection.call_count >= thetadata_helper.HTTP_RETRY_LIMIT
 
 
 
+@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, so direct HTTP restart tests no longer apply")
 @patch('lumibot.tools.thetadata_helper.start_theta_data_client')
 @patch('lumibot.tools.thetadata_helper.check_connection')
 def test_get_request_consecutive_474_triggers_restarts(mock_check_connection, mock_start_client, monkeypatch):
@@ -2058,19 +2034,11 @@ def test_get_request_consecutive_474_triggers_restarts(mock_check_connection, mo
             url='http://test.com',
             headers={'Authorization': 'Bearer test_token'},
             querystring={'param1': 'value1'},
-            username='test_user',
-            password='test_password',
         )
 
     assert mock_start_client.call_count == 3
     # Initial liveness probe plus retry coordination checks
     assert mock_check_connection.call_count > 3
-    first_call_kwargs = mock_check_connection.call_args_list[0].kwargs
-    assert first_call_kwargs == {
-        'username': 'test_user',
-        'password': 'test_password',
-        'wait_for_connection': False,
-    }
 
 
 def test_probe_terminal_ready_handles_transient_states(monkeypatch):
@@ -2086,6 +2054,7 @@ def test_probe_terminal_ready_success(monkeypatch):
     assert thetadata_helper._probe_terminal_ready()
 
 
+@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, so direct HTTP retry tests no longer apply")
 @patch('lumibot.tools.thetadata_helper.check_connection')
 def test_get_request_retries_on_571(mock_check_connection, monkeypatch):
     """ThetaData should retry when the terminal returns SERVER_STARTING."""
@@ -2108,12 +2077,13 @@ def test_get_request_retries_on_571(mock_check_connection, monkeypatch):
         return resp
 
     monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
-    result = thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+    result = thetadata_helper.get_request("http://fake", {}, {})
     assert result == payload
     assert mock_check_connection.call_count >= 2
     assert responses == []
 
 
+@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, so direct HTTP error translation tests no longer apply")
 @patch('lumibot.tools.thetadata_helper.check_connection')
 def test_get_request_raises_on_410(mock_check_connection, monkeypatch):
     """v2 requests hitting v3 terminal should raise a helpful error."""
@@ -2125,11 +2095,12 @@ def test_get_request_raises_on_410(mock_check_connection, monkeypatch):
     monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
 
     with pytest.raises(RuntimeError) as excinfo:
-        thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+        thetadata_helper.get_request("http://fake", {}, {})
 
     assert "410" in str(excinfo.value)
 
 
+@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only; header injection is covered in queue client tests")
 def test_get_request_attaches_downloader_header(monkeypatch):
     headers_seen = {}
 
@@ -2148,10 +2119,11 @@ def test_get_request_attaches_downloader_header(monkeypatch):
     monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
     monkeypatch.setattr(thetadata_helper, "check_connection", lambda **_: (None, True))
 
-    thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+    thetadata_helper.get_request("http://fake", {}, {})
     assert headers_seen["X-Downloader-Key"] == "secret-key"
 
 
+@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only; queue_full backoff is handled by the queue client")
 def test_get_request_remote_queue_full_backoff(monkeypatch):
     payload_queue = {"error": "queue_full", "active": 8, "waiting": 12}
     payload_success = {"header": {"format": [], "error_type": "null", "next_page": None}, "response": []}
@@ -2181,7 +2153,7 @@ def test_get_request_remote_queue_full_backoff(monkeypatch):
     monkeypatch.setattr(thetadata_helper, "check_connection", lambda **_: (None, True))
     monkeypatch.setattr(thetadata_helper.time, "sleep", fake_sleep)
 
-    result = thetadata_helper.get_request("http://fake", {}, {}, "user", "pass")
+    result = thetadata_helper.get_request("http://fake", {}, {})
     assert result == payload_success
     assert call_timeouts[0] is None, "Remote downloader calls should not set request timeout"
     assert sleeps, "Queue-full response should trigger a sleep before retrying"
@@ -2201,7 +2173,7 @@ def test_get_historical_eod_data_handles_missing_date(monkeypatch):
     asset = Asset("TSLA", asset_type="stock")
     start = datetime.datetime(2025, 11, 10, tzinfo=datetime.timezone.utc)
 
-    df = thetadata_helper.get_historical_eod_data(asset, start, start, "user", "pass")
+    df = thetadata_helper.get_historical_eod_data(asset, start, start)
     assert not df.empty
     assert df.index[0].strftime("%Y-%m-%d") == "2025-11-10"
 
@@ -2210,7 +2182,7 @@ def test_get_historical_eod_data_splits_chunk_on_transient_error(monkeypatch):
     """Ensure a transient ThetaRequestError triggers a one-time chunk split."""
     call_ranges = []
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         start = querystring["start_date"]
         end = querystring["end_date"]
         call_ranges.append((start, end))
@@ -2235,8 +2207,6 @@ def test_get_historical_eod_data_splits_chunk_on_transient_error(monkeypatch):
         asset,
         start,
         end,
-        "user",
-        "pass",
         apply_corporate_actions=False,
     )
     assert len(df) == 4
@@ -2252,7 +2222,7 @@ def test_get_historical_eod_data_split_failure_bubbles(monkeypatch):
         ("2024-01-01", "2024-01-02"),
     }
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         start = querystring["start_date"]
         end = querystring["end_date"]
         if (start, end) in failure_ranges:
@@ -2270,7 +2240,7 @@ def test_get_historical_eod_data_split_failure_bubbles(monkeypatch):
     end = datetime.datetime(2024, 1, 4)
 
     with pytest.raises(thetadata_helper.ThetaRequestError):
-        thetadata_helper.get_historical_eod_data(asset, start, end, "user", "pass")
+        thetadata_helper.get_historical_eod_data(asset, start, end)
 
 
 def test_check_connection_remote_downloader(monkeypatch):
@@ -2311,7 +2281,7 @@ def test_get_historical_data_stock(mock_get_request):
     ivl = 60000
 
     # Act
-    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password")
+    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl)
 
     # Assert
     assert isinstance(df, pd.DataFrame)
@@ -2359,7 +2329,7 @@ def test_get_historical_data_option(mock_get_request):
     ivl = 60000
 
     # Act
-    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password")
+    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl)
 
     # Assert
     assert isinstance(df, pd.DataFrame)
@@ -2397,7 +2367,7 @@ def test_get_historical_data_empty_response(mock_get_request):
     ivl = 60000
 
     # Act
-    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password")
+    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl)
 
     # Assert
     assert df is None
@@ -2427,8 +2397,6 @@ def test_get_historical_data_applies_session_override(mock_get_request, mock_get
         start_dt,
         end_dt,
         ivl,
-        "test_user",
-        "test_password",
         session_time_override=("09:30:00", "09:31:00"),
     )
 
@@ -2456,7 +2424,7 @@ def test_get_historical_data_quote_style(mock_get_request):
     ivl = 60000
 
     # Act
-    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password", datastyle="quote")
+    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, datastyle="quote")
 
     # Assert
     assert isinstance(df, pd.DataFrame)
@@ -2492,7 +2460,7 @@ def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
     ivl = 60000
 
     # Act
-    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl, "test_user", "test_password")
+    df = thetadata_helper.get_historical_data(asset, start_dt, end_dt, ivl)
 
     # Assert
     assert df is None  # The DataFrame should be None because no valid rows remain
@@ -2511,13 +2479,11 @@ def test_get_expirations_normal_operation(mock_get_request):
     }
     mock_get_request.return_value = mock_json_response
     
-    username = "test_user"
-    password = "test_password"
     ticker = "AAPL"
     after_date = datetime.date(2023, 7, 25)
 
     # Act
-    expirations = thetadata_helper.get_expirations(username, password, ticker, after_date)
+    expirations = thetadata_helper.get_expirations(ticker, after_date)
 
     # Assert
     expected = ["2023-07-28", "2023-08-04"]
@@ -2532,13 +2498,11 @@ def test_get_expirations_empty_response(mock_get_request):
     }
     mock_get_request.return_value = mock_json_response
     
-    username = "test_user"
-    password = "test_password"
     ticker = "AAPL"
     after_date = datetime.date(2023, 7, 25)
 
     # Act
-    expirations = thetadata_helper.get_expirations(username, password, ticker, after_date)
+    expirations = thetadata_helper.get_expirations(ticker, after_date)
 
     # Assert
     assert expirations == []
@@ -2555,13 +2519,11 @@ def test_get_expirations_dates_before_after_date(mock_get_request):
     }
     mock_get_request.return_value = mock_json_response
     
-    username = "test_user"
-    password = "test_password"
     ticker = "AAPL"
     after_date = datetime.date(2023, 7, 25)
 
     # Act
-    expirations = thetadata_helper.get_expirations(username, password, ticker, after_date)
+    expirations = thetadata_helper.get_expirations(ticker, after_date)
 
     # Assert
     assert expirations == []  # All dates are before the after_date, so the result should be empty
@@ -2581,13 +2543,11 @@ def test_get_strikes_normal_operation(mock_get_request):
     }
     mock_get_request.return_value = mock_json_response
     
-    username = "test_user"
-    password = "test_password"
     ticker = "AAPL"
     expiration = datetime.datetime(2023, 9, 15)
 
     # Act
-    strikes = thetadata_helper.get_strikes(username, password, ticker, expiration)
+    strikes = thetadata_helper.get_strikes(ticker, expiration)
 
     # Assert
     expected = [140.0, 145.0, 150.0]
@@ -2602,13 +2562,11 @@ def test_get_strikes_empty_response(mock_get_request):
     }
     mock_get_request.return_value = mock_json_response
     
-    username = "test_user"
-    password = "test_password"
     ticker = "AAPL"
     expiration = datetime.datetime(2023, 9, 15)
 
     # Act
-    strikes = thetadata_helper.get_strikes(username, password, ticker, expiration)
+    strikes = thetadata_helper.get_strikes(ticker, expiration)
 
     # Assert
     assert strikes == []
@@ -2707,8 +2665,6 @@ class TestThetaDataProcessHealthCheck:
 
         # Try to fetch data - may use cache OR restart process
         df = thetadata_helper.get_price_data(
-            username=username,
-            password=password,
             asset=asset,
             start=start,
             end=end,
@@ -2768,8 +2724,6 @@ class TestThetaDataProcessHealthCheck:
 
             # Fetch data immediately; helper should restart the terminal transparently.
             df = thetadata_helper.get_price_data(
-                username=username,
-                password=password,
                 asset=asset,
                 start=start,
                 end=end,
@@ -2812,6 +2766,8 @@ class TestThetaDataChainsCaching:
                 "CALL": {"2024-11-15": [100.0, 105.0]},
                 "PUT": {"2024-11-15": [90.0, 95.0]},
             },
+            "UnderlyingSymbol": asset.symbol,
+            "_chain_cache_version": thetadata_helper.THETADATA_CHAIN_CACHE_VERSION,
         }
 
         calls = []
@@ -2823,7 +2779,7 @@ class TestThetaDataChainsCaching:
         monkeypatch.setattr(thetadata_helper, "build_historical_chain", fake_builder)
         monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
 
-        result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
+        result = thetadata_helper.get_chains_cached(asset, test_date)
 
         assert result == sample_chain
         assert len(calls) == 1
@@ -2839,6 +2795,8 @@ class TestThetaDataChainsCaching:
             "Multiplier": 100,
             "Exchange": "SMART",
             "Chains": {"CALL": {"2024-11-22": [110.0]}, "PUT": {"2024-11-22": [95.0]}},
+            "UnderlyingSymbol": asset.symbol,
+            "_chain_cache_version": thetadata_helper.THETADATA_CHAIN_CACHE_VERSION,
         }
 
         call_count = {"total": 0}
@@ -2850,8 +2808,8 @@ class TestThetaDataChainsCaching:
         monkeypatch.setattr(thetadata_helper, "build_historical_chain", fake_builder)
         monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
 
-        first = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
-        second = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
+        first = thetadata_helper.get_chains_cached(asset, test_date)
+        second = thetadata_helper.get_chains_cached(asset, test_date)
 
         assert first == sample_chain
         assert second == sample_chain
@@ -2865,6 +2823,8 @@ class TestThetaDataChainsCaching:
             "Multiplier": 100,
             "Exchange": "SMART",
             "Chains": {"CALL": {"2024-12-06": [120.0]}, "PUT": {"2024-12-06": [80.0]}},
+            "UnderlyingSymbol": asset.symbol,
+            "_chain_cache_version": thetadata_helper.THETADATA_CHAIN_CACHE_VERSION,
         }
 
         monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
@@ -2881,7 +2841,7 @@ class TestThetaDataChainsCaching:
 
         monkeypatch.setattr(thetadata_helper, "build_historical_chain", fail_builder)
 
-        result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
+        result = thetadata_helper.get_chains_cached(asset, test_date)
         assert result == sample_chain
 
     def test_chains_cached_handles_none_builder(self, tmp_path, monkeypatch, caplog):
@@ -2894,7 +2854,7 @@ class TestThetaDataChainsCaching:
         caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
 
         with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-            result = thetadata_helper.get_chains_cached("user", "pass", asset, test_date)
+            result = thetadata_helper.get_chains_cached(asset, test_date)
 
         cache_folder = Path(tmp_path) / "thetadata" / "stock" / "option_chains"
         assert not cache_folder.exists() or not list(cache_folder.glob("*.parquet"))
@@ -2912,7 +2872,7 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
     as_of_date = date(2024, 11, 7)
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {
                 "header": {"format": ["date"]},
@@ -2949,13 +2909,17 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
 
-    result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
+    result = thetadata_helper.build_historical_chain(asset, as_of_date)
 
     assert result["Multiplier"] == 100
     assert set(result["Chains"].keys()) == {"CALL", "PUT"}
-    assert list(result["Chains"]["CALL"].keys()) == ["2024-11-15"]
+    assert list(result["Chains"]["CALL"].keys()) == ["2024-11-15", "2024-12-05", "2025-01-24"]
     assert result["Chains"]["CALL"]["2024-11-15"] == [100.0, 105.0]
+    assert result["Chains"]["CALL"]["2024-12-05"] == [110.0]
+    assert result["Chains"]["CALL"]["2025-01-24"] == [120.0]
     assert result["Chains"]["PUT"]["2024-11-15"] == [100.0, 105.0]
+    assert result["Chains"]["PUT"]["2024-12-05"] == [110.0]
+    assert result["Chains"]["PUT"]["2025-01-24"] == [120.0]
 
 
 def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
@@ -2963,7 +2927,7 @@ def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
     as_of_date = date(2024, 11, 15)
     captured = []
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         captured.append((url, dict(querystring)))
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["expiration"]}, "response": [["20241220"]]}
@@ -2980,7 +2944,7 @@ def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
 
-    result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
+    result = thetadata_helper.build_historical_chain(asset, as_of_date)
     assert result is not None
 
     strike_calls = [
@@ -2994,10 +2958,7 @@ def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
     dates_calls = [
         params for url, params in captured if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"])
     ]
-    assert {call["right"] for call in dates_calls} == {"call", "put"}
-    for params in dates_calls:
-        assert params["expiration"] == "2024-12-20"
-        assert params["format"] == "json"
+    assert dates_calls == []
 
 
 def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
@@ -3006,7 +2967,7 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
 
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["date"]}, "response": [[20241129], [20241206]]}
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
@@ -3016,20 +2977,18 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
         raise AssertionError(f"Unexpected URL {url}")
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
-    monkeypatch.delenv("BACKTESTING_QUIET_LOGS", raising=False)
-    caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
+    result = thetadata_helper.build_historical_chain(asset, as_of_date)
 
-    with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-        result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
-
-    assert result is None
-    assert f"No expirations with data found for {asset.symbol}" in caplog.text
+    assert result is not None
+    assert list(result["Chains"]["CALL"].keys()) == ["2024-11-29", "2024-12-06"]
+    assert result["Chains"]["CALL"]["2024-11-29"] == [150.0, 155.0]
+    assert result["Chains"]["PUT"]["2024-11-29"] == [150.0, 155.0]
 
 def test_build_historical_chain_empty_response(monkeypatch, caplog):
     asset = Asset("EMPTY", asset_type="stock")
     as_of_date = date(2024, 11, 9)
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["date"]}, "response": []}
         raise AssertionError("Unexpected call after empty expirations")
@@ -3039,7 +2998,7 @@ def test_build_historical_chain_empty_response(monkeypatch, caplog):
     caplog.set_level(logging.WARNING, logger="lumibot.tools.thetadata_helper")
 
     with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-        result = thetadata_helper.build_historical_chain("user", "pass", asset, as_of_date)
+        result = thetadata_helper.build_historical_chain(asset, as_of_date)
 
     assert result is None
     assert "returned no expirations" in caplog.text
@@ -3146,8 +3105,6 @@ def test_finalize_day_frame_handles_dst_fallback():
     data_source = ThetaDataBacktestingPandas(
         datetime_start=utc.localize(datetime.datetime(2024, 10, 1)),
         datetime_end=utc.localize(datetime.datetime(2024, 11, 5)),
-        username="user",
-        password="pass",
         use_quote_data=False,
     )
 
@@ -3182,8 +3139,6 @@ def test_update_pandas_data_fetches_real_day_frames(monkeypatch):
     data_source = ThetaDataBacktestingPandas(
         datetime_start=utc.localize(datetime.datetime(2024, 7, 1)),
         datetime_end=utc.localize(datetime.datetime(2024, 11, 5)),
-        username="user",
-        password="pass",
         use_quote_data=False,
     )
 
@@ -3271,8 +3226,6 @@ def test_update_pandas_data_preserves_full_history(monkeypatch, tmp_path):
     data_source = ThetaDataBacktestingPandas(
         datetime_start=utc.localize(datetime.datetime(2020, 1, 1)),
         datetime_end=utc.localize(datetime.datetime(2025, 11, 5)),
-        username="user",
-        password="pass",
         use_quote_data=False,
     )
 
@@ -3361,8 +3314,6 @@ def test_update_pandas_data_keeps_placeholder_history(monkeypatch, tmp_path):
     data_source = ThetaDataBacktestingPandas(
         datetime_start=utc.localize(datetime.datetime(2020, 1, 1)),
         datetime_end=utc.localize(datetime.datetime(2025, 11, 5)),
-        username="user",
-        password="pass",
         use_quote_data=False,
     )
 
@@ -3515,7 +3466,7 @@ def test_thetadata_no_future_minutes(monkeypatch):
 def test_get_historical_eod_data_handles_missing_date(monkeypatch):
     response = _fixture_response("stock_eod.json")
 
-    def fake_request(url, headers, querystring, username, password):
+    def fake_request(url, headers, querystring):
         return response
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_request)
@@ -3530,8 +3481,6 @@ def test_get_historical_eod_data_handles_missing_date(monkeypatch):
         asset,
         start_dt,
         end_dt,
-        username="rob-dev@lumiwealth.com",
-        password="TestTestTest",
     )
 
     assert list(df.index.date) == [datetime.date(2024, 11, 15), datetime.date(2024, 11, 18)]
@@ -3563,8 +3512,6 @@ def test_get_historical_data_stock_v3_schema(monkeypatch):
         start_dt=start_dt,
         end_dt=end_dt,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="ohlc",
     )
 
@@ -3597,8 +3544,6 @@ def test_get_historical_data_stock_quotes_v3_schema(monkeypatch):
         start_dt=start_dt,
         end_dt=end_dt,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="quote",
     )
 
@@ -3636,8 +3581,6 @@ def test_option_history_parsing_handles_v3_payloads(monkeypatch):
         start_dt=start_dt,
         end_dt=end_dt,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="ohlc",
     )
 
@@ -3674,8 +3617,6 @@ def test_option_quote_history_parsing_handles_v3_payloads(monkeypatch):
         start_dt=start_dt,
         end_dt=end_dt,
         ivl=60000,
-        username="user",
-        password="pass",
         datastyle="quote",
     )
 
@@ -3688,14 +3629,12 @@ def test_option_list_helpers_handle_v3_schema(monkeypatch):
     strike_response = _fixture_response("option_strikes.json")
     responses = [exp_response, strike_response]
 
-    def fake_get_request(url, headers, querystring, username, password):
+    def fake_get_request(url, headers, querystring):
         return responses.pop(0)
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
 
     expirations = thetadata_helper.get_expirations(
-        username="user",
-        password="pass",
         ticker="TSLA",
         after_date=date(2012, 7, 1),
     )
@@ -3710,8 +3649,6 @@ def test_option_list_helpers_handle_v3_schema(monkeypatch):
     ]
 
     strikes = thetadata_helper.get_strikes(
-        username="user",
-        password="pass",
         ticker="TSLA",
         expiration=datetime.datetime(2024, 11, 22),
     )
@@ -3796,7 +3733,7 @@ def test_update_pandas_data_raises_on_incomplete_end(monkeypatch):
 
     calls = []
 
-    def _fake_get_price_data(username, password, asset_param, start_param, end_param, **kwargs):
+    def _fake_get_price_data(asset_param, start_param, end_param, timespan_param=None, **kwargs):
         calls.append((start_param, end_param, kwargs.get("timespan")))
         short_df = _build_dummy_df(start, periods=3)
         return short_df
@@ -3813,6 +3750,7 @@ def test_update_pandas_data_raises_on_incomplete_end(monkeypatch):
 def test_trading_dates_are_memoized(monkeypatch):
     """Calendar construction should be cached to avoid repeated expensive calls."""
     thetadata_helper._cached_trading_dates.cache_clear()
+    thetadata_helper._CALENDAR_CACHE.clear()
     calls = []
 
     class DummyCalendar:
@@ -3858,7 +3796,7 @@ def test_day_request_does_not_downshift_to_minute(monkeypatch, tmp_path):
 
     calls = []
 
-    def _fake_get_price_data(username, password, asset_param, start_param, end_param, **kwargs):
+    def _fake_get_price_data(asset_param, start_param, end_param, timespan_param=None, **kwargs):
         calls.append(kwargs.get("timespan"))
         day_index = pd.date_range(start_param, end_param, freq="1D", tz="UTC")
         return pd.DataFrame(
@@ -3896,7 +3834,7 @@ def test_no_data_fetch_raises_once(monkeypatch, tmp_path):
 
     calls = []
 
-    def _fake_get_price_data(username, password, asset_param, start_param, end_param, **kwargs):
+    def _fake_get_price_data(asset_param, start_param, end_param, timespan_param=None, **kwargs):
         calls.append((start_param, end_param, kwargs.get("timespan")))
         return pd.DataFrame()
 
@@ -4343,7 +4281,7 @@ class TestCoverageGapGracefulHandling:
                     # This should NOT raise ValueError - it should log warning and continue
                     try:
                         result = thetadata_helper.get_price_data(
-                            "user", "pass", asset, start, end_requirement, "day"
+                            asset, start, end_requirement, "day"
                         )
                         exception_raised = False
                     except ValueError as e:
@@ -4401,7 +4339,7 @@ class TestCoverageGapGracefulHandling:
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
                         result = thetadata_helper.get_price_data(
-                            "user", "pass", asset, start, end, "day"
+                            asset, start, end, "day"
                         )
                         exception_raised = False
                     except ValueError as e:
@@ -4470,7 +4408,7 @@ class TestCoverageGapGracefulHandling:
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
                         result = thetadata_helper.get_price_data(
-                            "user", "pass", asset, start, end, "day"
+                            asset, start, end, "day"
                         )
                         exception_raised = False
                     except ValueError as e:

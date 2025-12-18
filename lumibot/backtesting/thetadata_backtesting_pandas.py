@@ -1119,7 +1119,8 @@ class ThetaDataBacktestingPandas(PandasData):
             include_after_hours=True,  # Default to True for extended hours data
             preserve_full_history=True,
             # Day bars use Theta's EOD endpoint which can return `close=0` on days with no trades.
-            # For options we still need NBBO (bid/ask) so `get_last_price()` can fall back to mid-quote.
+            # For options we still need NBBO (bid/ask) so `get_quote()` and ThetaData option
+            # mark-to-market / fill logic can price illiquid days even when there are no trades.
             include_eod_nbbo=bool(
                 getattr(self, "_use_quote_data", False)
                 and ts_unit == "day"
@@ -1711,17 +1712,24 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        # When timestep is not explicitly specified, align to the current backtesting mode
-        # to avoid accidental minute-for-day fallback. Explicit minute/hour requests are
-        # allowed - if a strategy explicitly asks for minute data, that's intentional.
+        # ThetaData day-mode backtests frequently trigger accidental intraday requests
+        # (e.g., helper methods defaulting to minute bars). In day mode we silently
+        # align any minute/hour/second requests to day bars to avoid unnecessary
+        # downloads and coverage errors.
         current_mode = getattr(self, "_timestep", None)
-        if timestep is None and current_mode == "day":
-            timestep = "day"
+        requested_timestep = (
+            (timestep or "minute").lower()
+            if isinstance(timestep, str) or timestep is None
+            else timestep
+        )
+        if current_mode == "day" and requested_timestep in {"minute", "hour", "second"}:
             logger.debug(
-                "[THETA][DEBUG][TIMESTEP_ALIGN] Implicit request aligned to day mode for asset=%s length=%s",
+                "[THETA][DEBUG][TIMESTEP_ALIGN] Aligning %s request to day mode for asset=%s length=%s",
+                requested_timestep,
                 asset,
                 length,
             )
+            timestep = "day"
         dt = self.get_datetime()
         requested_length = self.estimate_requested_length(length, timestep=timestep)
         logger.debug(
@@ -1758,6 +1766,14 @@ class ThetaDataBacktestingPandas(PandasData):
         start_date=None,
         end_date=None,
     ):
+        current_mode = getattr(self, "_timestep", None)
+        if current_mode == "day" and isinstance(timestep, str) and timestep.lower() in {"minute", "hour", "second"}:
+            logger.debug(
+                "[THETA][DEBUG][TIMESTEP_ALIGN] Aligning %s between-dates request to day mode for asset=%s",
+                timestep,
+                asset,
+            )
+            timestep = "day"
         inferred_length = self.estimate_requested_length(
             None, start_date=start_date, end_date=end_date, timestep=timestep
         )
@@ -1810,9 +1826,12 @@ class ThetaDataBacktestingPandas(PandasData):
                 start_date = start_day.date() if hasattr(start_day, "date") else current_date - timedelta(days=365)
                 end_date = end_day.date() if hasattr(end_day, "date") else current_date
                 try:
-                    events = thetadata_helper._get_theta_dividends(asset, start_date, end_date, self._username, self._password)
+                    events = thetadata_helper._get_theta_dividends(asset, start_date, end_date)
                     # Also fetch splits to adjust dividend amounts
-                    splits = thetadata_helper._get_theta_splits(asset, start_date, end_date, self._username, self._password)
+                    # IMPORTANT: Use splits up to today's date, not the backtest end date.
+                    # We normalize price/dividend series to today's share units (Yahoo-style split adjustment),
+                    # so dividends must be adjusted by all future splits as well.
+                    splits = thetadata_helper._get_theta_splits(asset, start_date, date.today())
 
                     # Build cumulative split factor map (for each date, what factor to divide by)
                     if splits is not None and not splits.empty:

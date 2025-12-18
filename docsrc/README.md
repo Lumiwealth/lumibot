@@ -14,4 +14,7 @@ In terminal enter
 1. `cd docsrc`
 2. `make github`
 
-This will have generated new files in `docs/`. To see the docs, open `index.html`
+This will generate new files in `generated-docs/`. To see the docs, open `generated-docs/index.html`.
+
+Note: The canonical documentation site should be built and deployed by GitHub Actions (on `dev`),
+so contributors typically should not commit generated HTML output.

@@ -3,7 +3,7 @@
 Utility script to verify ThetaData EOD chunking against the shared downloader.
 
 Usage:
-    DATADOWNLOADER_BASE_URL=http://44.192.43.146:8080 \\
+    DATADOWNLOADER_BASE_URL=http://data-downloader.lumiwealth.com:8080 \\
     DATADOWNLOADER_API_KEY=... \\
     DATADOWNLOADER_SKIP_LOCAL_START=true \\
     THETADATA_USERNAME=... \\

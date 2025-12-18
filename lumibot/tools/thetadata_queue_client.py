@@ -88,7 +88,7 @@ class QueueClient:
         """Initialize the queue client.
 
         Args:
-            base_url: Data Downloader base URL (e.g., http://44.192.43.146:8080)
+            base_url: Data Downloader base URL (e.g., http://data-downloader.lumiwealth.com:8080)
             api_key: API key for Data Downloader
             api_key_header: Header name for API key
             poll_interval: Seconds between status polls (default 10ms)
@@ -784,7 +784,7 @@ def queue_request(
     - Permanent error detection (moves to DLQ, raises exception)
 
     Args:
-        url: Full URL (e.g., http://44.192.43.146:8080/v3/stock/history/ohlc)
+        url: Full URL (e.g., http://data-downloader.lumiwealth.com:8080/v3/stock/history/ohlc)
         querystring: Query parameters
         headers: Optional headers
         timeout: Max seconds to wait (0 = wait forever)

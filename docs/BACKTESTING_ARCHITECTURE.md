@@ -150,6 +150,17 @@ DataSource (ABC)
 - `get_price_data()` - Main entry point (line 1248)
 - `_apply_corporate_actions_to_frame()` - Handles splits (line 1018)
 
+### ThetaData Data Downloader (remote service)
+
+Backtests are intended to use the **remote downloader** service, not a locally-started ThetaTerminal.
+
+- Base URL: `http://data-downloader.lumiwealth.com:8080`
+- Avoid hard-coded downloader IPs (they can change on redeploy)
+- Local downloader code checkout: `Documents/Development/botspot_data_downloader`
+
+Infrastructure notes (read-only):
+- DNS is typically controlled via AWS Route53; when investigating, use AWS CLI **read-only** commands to inspect record sets (do not mutate).
+
 ## Pricing Semantics (CRITICAL)
 
 LumiBot intentionally separates *trade-based* pricing from *quote/mark* pricing:
@@ -166,6 +177,38 @@ LumiBot intentionally separates *trade-based* pricing from *quote/mark* pricing:
     - quote-based fills in illiquid markets (ThetaData backtests only).
 
 This is essential to ensure ThetaData backtests behave like live brokers: brokers return stale last trades, and only quote endpoints provide NBBO/mark.
+
+## Backtesting Portfolio Valuation (Mark-to-Market)
+
+During backtests, portfolio value is recalculated in strategy code (not fetched from a broker):
+
+- Primary location: `lumibot/strategies/_strategy.py`
+  - `_update_portfolio_value()` iterates tracked positions and calls `_get_price_from_source()` per asset.
+  - `_get_price_from_source()` prefers a **snapshot** when the data source supports it (faster and richer than `get_last_price()`).
+
+For ThetaData option backtests specifically:
+- The MTM path prefers **quote-derived mark** (mid) when bid/ask are available (broker-like option MTM).
+- If bid/ask are unavailable, it falls back to **last trade** (trade-only).
+- If no current price is available, the backtester may **forward-fill the last known price** for that asset to avoid valuing an illiquid option at 0.
+  - This forward-fill behavior can create a “boxy” equity curve (flat stretches then jumps) if the option cannot be priced on many days.
+  - To diagnose, run with `BACKTESTING_QUIET_LOGS=false` and look for forward-fill warnings, and confirm option day EOD frames contain actionable bid/ask.
+
+## Daily Bars: Timestamp Alignment (CRITICAL)
+
+ThetaData’s EOD day data is keyed by trading date, but returned timestamps may not be aligned to the actual market session close.
+
+**Failure mode (lookahead bias):**
+- If “day” bars are timestamped at `00:00 UTC`, the bar becomes observable in New York time **before** the session, effectively leaking the full day OHLC.
+
+**Fix direction (implemented for ThetaData day bars):**
+- Align all ThetaData “day” frames to the **market close timestamp** (`16:00 America/New_York`, converted to UTC).
+- Ensure the transform is idempotent and applies consistently on:
+  - cache load,
+  - cache hit return,
+  - fresh EOD fetch results,
+  - placeholder rows.
+
+Primary location: `lumibot/tools/thetadata_helper.py` (day-index alignment helpers).
 
 **Split Handling (FIXED - Nov 28, 2025)**
 
@@ -382,12 +425,21 @@ BACKTESTING_DATA_SOURCE=thetadata  # Options: yahoo, thetadata, polygon, etc.
                                     # Set to "none" to use code-specified class
 ```
 
+### Backtest output artifacts (HTML/CSV)
+```bash
+SHOW_PLOT=True        # trades.html + trades.csv
+SHOW_INDICATORS=True  # indicators.html + indicators.csv
+SHOW_TEARSHEET=True   # tearsheet.html + tearsheet.csv
+BACKTESTING_QUIET_LOGS=false  # useful when debugging (otherwise logs may be empty)
+```
+
 ### ThetaData Configuration
 ```bash
 THETADATA_USERNAME=xxx
 THETADATA_PASSWORD=xxx
-DATADOWNLOADER_BASE_URL=http://44.192.43.146:8080  # Data Downloader URL
+DATADOWNLOADER_BASE_URL=http://data-downloader.lumiwealth.com:8080  # Data Downloader URL (preferred)
 DATADOWNLOADER_API_KEY=xxx
+DATADOWNLOADER_API_KEY_HEADER=X-Downloader-Key  # default header name used by downloader
 DATADOWNLOADER_SKIP_LOCAL_START=true  # Don't start local ThetaTerminal
 ```
 
@@ -457,3 +509,28 @@ If seeing wrong prices:
 - `AGENTS.md` - Critical rules for ThetaData usage
 - `CLAUDE.md` - AI assistant instructions
 - `CHANGELOG.md` - Version history
+
+## Tooling Notes (merge/debug workflows)
+
+### GitHub CLI (`gh`)
+Useful for reviewing PR conflicts/checks without opening the browser:
+```bash
+gh pr view 914
+gh pr diff 914
+gh pr checks 914
+```
+Avoid `gh pr checkout` because it invokes `git checkout` under the hood (banned in this workspace).
+
+### AWS CLI (read-only)
+For diagnosing downloader DNS issues (do not modify records):
+```bash
+aws route53 list-hosted-zones
+aws route53 list-resource-record-sets --hosted-zone-id <ZONEID>
+```
+
+## Documentation Layout
+
+- `docs/` = human/AI-authored markdown (architecture, investigations, handoffs, ops notes)
+- `docsrc/` = Sphinx source for the public documentation site
+- `generated-docs/` = local build output from `docsrc/` (gitignored)
+- GitHub Pages should be built + deployed by GitHub Actions on pushes to `dev`

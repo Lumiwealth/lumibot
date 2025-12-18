@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 #
 # NOTE: This pattern can be extended to other data sources (Yahoo, Polygon, etc.)
 # by implementing similar tracking in their respective helper modules.
-# See BACKTESTING_ARCHITECTURE.md for documentation on extending this.
+# See docs/BACKTESTING_ARCHITECTURE.md for documentation on extending this.
 # ==============================================================================
 
 # Thread-safe lock for download status updates

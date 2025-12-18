@@ -118,9 +118,8 @@ Implication:
     - `theta_*_base_url` (usually loopback inside downloader container)
     - `concurrency` settings
 
-### 3.3 Stale endpoint observed
-- `http://44.192.43.146:8080/version` timed out in this environment.
-  - Treat as stale / old IP unless confirmed otherwise.
+### 3.3 Deprecated endpoint notes
+- Avoid hard-coded downloader IPs (they can change on redeploy). Use `http://data-downloader.lumiwealth.com:8080`.
 
 ### 3.4 How LumiBot decides “remote downloader”
 File: `/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/lumibot/tools/thetadata_helper.py`
@@ -428,4 +427,3 @@ All long commands must use safe-timeout, e.g.:
 ## Appendix B — Critical Reminder
 
 Do **not** “fix” missing option prints by silently converting `get_last_price()` into a mark price. That is exactly how you get “it backtests but doesn’t trade live.”
-

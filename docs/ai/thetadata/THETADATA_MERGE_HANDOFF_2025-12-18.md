@@ -322,7 +322,7 @@ git add -A
 git commit -m "Merge dev into theta-bug-fixes (resolve conflicts)"
 
 # Run tests (wrap in safe-timeout to avoid runaway)
-/Users/robertgrzesik/bin/safe-timeout 3600s pytest -q
+/Users/robertgrzesik/bin/safe-timeout 1200s pytest -q
 ```
 
 Then re-run the 3 acceptance backtests (commands in §3).
@@ -365,7 +365,7 @@ This is the full “merge to dev” execution plan, in the order it should be do
    - `pytest -q tests/test_thetadata_get_last_price_trade_only.py`
    - `pytest -q tests/test_options_helper_thetadata_actionable_strikes.py`
 8) Run the full test suite locally (must pass before merge):
-   - `/Users/robertgrzesik/bin/safe-timeout 3600s pytest -q`
+   - `/Users/robertgrzesik/bin/safe-timeout 1200s pytest -q`
 9) If tests fail:
    - Fix only what is necessary to make tests pass.
    - Keep changes **ThetaData-backtesting-only**; do not alter live broker implementations.

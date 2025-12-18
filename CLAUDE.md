@@ -38,7 +38,8 @@ LumiBot is a trading and backtesting framework supporting multiple data sources 
    - Username: `rob-dev@lumiwealth.com` / Password: `TestTestTest`
    - Safe to use locally without affecting production
    - Verified working Dec 7, 2025 with STOCK.PRO, OPTION.PRO, INDEX.PRO bundle
-5. See `AGENTS.md` for complete rules
+5. **Wrap long commands with safe-timeout (20m default max).** Use `/Users/robertgrzesik/bin/safe-timeout 1200s …` and split work into smaller chunks if it would run longer.
+6. See `AGENTS.md` for complete rules
 
 ### Data Source Selection
 

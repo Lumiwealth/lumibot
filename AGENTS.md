@@ -33,7 +33,7 @@ rm -rf /tmp/theta-dev-test
 **Do NOT use for:** Running backtests (always use prod Data Downloader for consistent results).
 3. **Respect the queue/backoff contract.** LumiBot no longer enforces a 30 s client timeout; instead it listens for the downloader’s `{"error":"queue_full"}` responses and retries with exponential backoff. If you add new downloader
    integrations, reuse that helper so we never DDoS the server.
-4. **Long commands = safe-timeout.** Wrap backtests/pytest/stress jobs with `/Users/robertgrzesik/bin/safe-timeout <duration> …` to ensure we never spawn orphaned processes.
+4. **Long commands = safe-timeout (20m default max).** Wrap backtests/pytest/stress jobs with `/Users/robertgrzesik/bin/safe-timeout 1200s …` and break work into smaller chunks if it would run longer. Only use longer timeouts when absolutely necessary (e.g., explicit full-window acceptance backtests).
 5. **Artifacts.** When demonstrating fixes, capture `Strategy\ Library/logs/*.log`, tear sheets, and downloader stress JSONs so the accuracy/dividend/resilience story stays reproducible.
 
 Failure to follow these rules will break everyone's workflows—double-check env vars before running anything.

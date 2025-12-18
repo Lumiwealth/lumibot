@@ -35,4 +35,4 @@ These metrics are accompanied by various graphs such as:
    - **Condor Martingale Strategy:** Creates an Iron Condor with a defined delta, adjusting quantities based on previous performance. It uses a 1 DTE Iron Condor expiring daily.
    - **Crypto BBands v2 Strategy:** Uses Bollinger Bands and exponential moving averages to determine buy and sell points.
 
-   Interested in implementing these strategies? Visit our website at `Lumiwealth <https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_backtesting_section>`_ to access the code and start optimizing your investments. For any questions, email us at support@lumiwealth.com.
+   Interested in implementing these strategies? Our AI agent can help you build similar strategies in minutes. `Claim your free trial <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_backtesting_section>`_ while spots last at BotSpot.trade. For any questions, email us at support@lumiwealth.com.

@@ -1,18 +1,25 @@
 What is Lumibot?
 ****************
 
-Lumibot is a Python library made by `Lumiwealth <https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.
+Lumibot is a Python library that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.
 
 Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.
 
-Lumiwealth
-**********
+Need Help Building Strategies?
+******************************
 
-At Lumiwealth, you can join our **community of traders**, take comprehensive **courses on algorithmic trading**, and access our library of **profitable trading bots**. Our strategies have shown exceptional results, with some achieving over **100% annual returns** and others reaching up to **1,000% in backtesting**. 
+Our **AI agent** was built specifically for LumiBot and can help you create strategies in minutes—no coding required. Just describe your strategy in plain English, and the AI generates the Python code for you.
+
+At `BotSpot <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_, you can:
+
+- **Build strategies with AI** — Describe what you want in plain English, and our AI creates the code
+- **Explore our marketplace** — Access 50+ proven trading strategies built by our community
+- **Join 2,400+ traders** — Connect with other builders in our Discord community
+- **Take our AI Bootcamp** — Live hands-on training to master automated trading
 
 .. important::
 
-   Visit `Lumiwealth <https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ to learn more, and discover how you can enhance your trading skills and potentially achieve high returns with our expert guidance and resources.
+   `Claim your free trial <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ while spots last at BotSpot.trade.
 
 Getting Started With Lumibot
 *****************************

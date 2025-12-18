@@ -1941,54 +1941,97 @@ class ThetaDataBacktestingPandas(PandasData):
         legacy_hit = False
         frame_last_dt = None
         frame_last_close = None
-        if tuple_key is not None:
-            data = self.pandas_data.get(tuple_key)
-            if data is None and isinstance(tuple_key, tuple) and len(tuple_key) == 3:
-                legacy_tuple_key = (tuple_key[0], tuple_key[1])
-                data = self.pandas_data.get(legacy_tuple_key)
-                if data is not None:
-                    legacy_hit = True
-            elif isinstance(tuple_key, tuple) and len(tuple_key) != 3:
-                legacy_hit = True
-            if data is not None and hasattr(data, "df") and data.df is not None:
-                df = data.df
-                close_series = df.get("close")
-                if close_series is not None and len(df.index) > 0:
-                    try:
-                        iter_count = data.get_iter_count(dt)
-                        closes = close_series.iloc[: iter_count + 1]
-                        if "missing" in df.columns:
-                            try:
-                                missing_mask = df["missing"].iloc[: iter_count + 1].astype(bool)
-                            except Exception:
-                                missing_mask = df["missing"].iloc[: iter_count + 1] == 1
-                            closes = closes[~missing_mask.fillna(True)]
-                    except Exception:
-                        # Defensive fallback: filter by timestamp if iter lookup fails.
-                        try:
-                            closes = close_series.loc[close_series.index <= dt]
-                        except Exception:
-                            closes = close_series
 
-                    closes = pd.to_numeric(closes, errors="coerce").dropna()
-                    closes = closes[closes > 0]
-                    source = "pandas_dataset"
-                    if len(closes):
-                        frame_last_dt = closes.index[-1]
-                        frame_last_close = closes.iloc[-1]
-                        try:
-                            frame_last_dt = frame_last_dt.isoformat()
-                        except AttributeError:
-                            frame_last_dt = str(frame_last_dt)
-                        value = float(frame_last_close)
-                    else:
-                        value = None
-                else:
-                    value = None
-            else:
-                value = None
+        def _resolve_last_trade_close(key: object) -> Optional[float]:
+            """Return the most recent positive close (trade) at-or-before dt for the dataset key."""
+            nonlocal frame_last_dt, frame_last_close
+
+            data_obj = self.pandas_data.get(key)
+            if data_obj is None and isinstance(key, tuple) and len(key) == 3:
+                data_obj = self.pandas_data.get((key[0], key[1]))
+            if data_obj is None or not hasattr(data_obj, "df") or data_obj.df is None:
+                return None
+
+            df = data_obj.df
+            close_series = df.get("close")
+            if close_series is None or len(df.index) == 0:
+                return None
+
+            try:
+                iter_count = data_obj.get_iter_count(dt)
+                closes = close_series.iloc[: iter_count + 1]
+                if "missing" in df.columns:
+                    try:
+                        missing_mask = df["missing"].iloc[: iter_count + 1].astype(bool)
+                    except Exception:
+                        missing_mask = df["missing"].iloc[: iter_count + 1] == 1
+                    closes = closes[~missing_mask.fillna(True)]
+            except Exception:
+                # Defensive fallback: filter by timestamp if iter lookup fails.
+                try:
+                    closes = close_series.loc[close_series.index <= dt]
+                except Exception:
+                    closes = close_series
+
+            closes = pd.to_numeric(closes, errors="coerce").dropna()
+            closes = closes[closes > 0]
+            if len(closes) == 0:
+                return None
+
+            frame_last_dt = closes.index[-1]
+            frame_last_close = closes.iloc[-1]
+            try:
+                frame_last_dt = frame_last_dt.isoformat()
+            except AttributeError:
+                frame_last_dt = str(frame_last_dt)
+            return float(frame_last_close)
+        if tuple_key is not None:
+            if isinstance(tuple_key, tuple) and len(tuple_key) != 3:
+                legacy_hit = True
+
+            value = _resolve_last_trade_close(tuple_key)
+            source = "pandas_dataset" if value is not None else None
         else:
             value = None
+
+        # If we still don't have a last trade for an option in day-cadence, progressively expand lookback.
+        #
+        # Rationale: live brokers commonly return the most recent prior trade even when the current day has no
+        # prints. Many options (especially far OTM LEAPS) can go weeks/months without prints. Returning None here
+        # causes strategies to incorrectly treat contracts as untradeable (even when a stale last trade exists).
+        if (
+            value is None
+            and getattr(asset, "asset_type", None) == Asset.AssetType.OPTION
+            and timestep == "day"
+            and tuple_key is not None
+        ):
+            meta = self._dataset_metadata.setdefault(tuple_key, {})
+            attempted = bool(meta.get("last_trade_lookback_attempted", False))
+
+            if not attempted:
+                meta["last_trade_lookback_attempted"] = True
+
+                for lookback_days in (30, 252):
+                    if lookback_days <= sample_length:
+                        continue
+
+                    try:
+                        self._update_pandas_data(
+                            asset,
+                            quote,
+                            lookback_days,
+                            timestep,
+                            dt,
+                            require_quote_data=False,
+                        )
+                    except Exception:
+                        continue
+
+                    value = _resolve_last_trade_close(tuple_key)
+                    if value is not None:
+                        source = f"pandas_dataset_lookback_{lookback_days}"
+                        meta["last_trade_lookback_days"] = lookback_days
+                        break
 
         # As a fallback (e.g., empty dataframe), defer to the base implementation which is
         # still trade-based (no quote/mid contamination).
@@ -2347,6 +2390,20 @@ class ThetaDataBacktestingPandas(PandasData):
             )
 
         quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
+
+        # ThetaData day bars can have close=0 when there were no trades. Keep Quote.price aligned to the most recent
+        # trade-based value (potentially stale) so consumers relying on quote.price or quote.mid_price fallback do not
+        # incorrectly see 0.0.
+        if quote_obj is not None and getattr(asset, "asset_type", None) == Asset.AssetType.OPTION:
+            try:
+                numeric_price = float(quote_obj.price) if quote_obj.price is not None else None
+            except (TypeError, ValueError):
+                numeric_price = None
+
+            if numeric_price is None or numeric_price <= 0:
+                last_trade = self.get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange)
+                if last_trade is not None:
+                    quote_obj.price = float(last_trade)
 
         # [INSTRUMENTATION] Final quote result with all details
         logger.debug(

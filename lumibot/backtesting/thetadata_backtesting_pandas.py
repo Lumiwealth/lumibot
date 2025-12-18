@@ -598,14 +598,22 @@ class ThetaDataBacktestingPandas(PandasData):
                     end_date = end_date_source.date() if hasattr(end_date_source, "date") else end_date_source
                 except Exception:
                     end_date = end_anchor if asset_separated.asset_type == "option" else self.datetime_end
-            end_requirement = datetime.combine(end_date, datetime.max.time())
-            try:
-                end_requirement = self.tzinfo.localize(end_requirement)
-            except Exception:
-                end_requirement = end_requirement.replace(tzinfo=getattr(self, "tzinfo", None))
-            end_requirement = self.to_default_timezone(end_requirement) if hasattr(self, "to_default_timezone") else end_requirement
+                end_requirement = datetime.combine(end_date, datetime.max.time())
+                try:
+                    end_requirement = self.tzinfo.localize(end_requirement)
+                except Exception:
+                    end_requirement = end_requirement.replace(tzinfo=getattr(self, "tzinfo", None))
+                end_requirement = (
+                    self.to_default_timezone(end_requirement) if hasattr(self, "to_default_timezone") else end_requirement
+                )
+            else:
+                end_requirement = end_anchor
         else:
-            end_requirement = end_anchor if asset_separated.asset_type == "option" else self._normalize_default_timezone(self.datetime_end)
+            end_requirement = (
+                end_anchor
+                if asset_separated.asset_type == "option"
+                else self._normalize_default_timezone(self.datetime_end)
+            )
         # Align day requests to the last known trading day before datetime_end to avoid off-by-one churn.
         if ts_unit == "day":
             try:
@@ -1712,11 +1720,22 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        # When timestep is not explicitly specified, align to the current backtesting mode
-        # to avoid accidental minute-for-day fallback. Explicit minute/hour requests are
-        # allowed - if a strategy explicitly asks for minute data, that's intentional.
+        # Align requests to the current backtesting mode to avoid accidental intraday downloads
+        # during day-cadence backtests.
         current_mode = getattr(self, "_timestep", None)
-        if timestep is None and current_mode == "day":
+        if (
+            current_mode == "day"
+            and isinstance(timestep, str)
+            and timestep.lower() in {"minute", "hour", "second"}
+        ):
+            logger.debug(
+                "[THETA][DEBUG][TIMESTEP_ALIGN] Aligning %s request to day mode for asset=%s length=%s",
+                timestep,
+                asset,
+                length,
+            )
+            timestep = "day"
+        elif timestep is None and current_mode == "day":
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] Implicit request aligned to day mode for asset=%s length=%s",

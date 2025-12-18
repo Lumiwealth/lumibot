@@ -803,8 +803,9 @@ def test_get_price_data_preserve_full_history_returns_full_cache(
 
     assert df is not None
     assert len(df) == len(df_cache)
-    assert df.index.min() == date_index.min()
-    assert df.index.max() == date_index.max()
+    expected_index = thetadata_helper._align_day_index_to_market_close_utc(df_cache).index
+    assert df.index.min() == expected_index.min()
+    assert df.index.max() == expected_index.max()
     mock_get_historical_data.assert_not_called()
 
 

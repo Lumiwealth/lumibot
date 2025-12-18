@@ -2300,6 +2300,10 @@ def get_price_data(
         )
 
         if result_df is not None and not result_df.empty:
+            if "datetime" in result_df.columns and not isinstance(result_df.index, pd.DatetimeIndex):
+                result_df = result_df.copy()
+                result_df["datetime"] = pd.to_datetime(result_df["datetime"], utc=True, errors="coerce")
+                result_df = result_df.dropna(subset=["datetime"]).set_index("datetime").sort_index()
             result_df = _align_day_index_to_market_close_utc(result_df)
 
         if result_df is None or result_df.empty:

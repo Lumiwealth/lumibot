@@ -1,67 +1,43 @@
-# .github/workflows/lumibot-ci-cd.yml
-# ------------------------------------------------------------------
+# .github/workflows/cicd.yaml
 name: LumiBot CI/CD
 
-# ──────────────────────────────────────────────────────────────────
-# Run the workflow on:
-#   • every PR targeting our main branches         – as before
-#   • every direct push to those branches          – NEW (so the
-#     default-branch README can find a successful
-#     run and the workflow can commit coverage.svg)
-# ──────────────────────────────────────────────────────────────────
 on:
   push:
     branches: [dev, main]
   pull_request:
     branches: [dev, main]
 
-# ──────────────────────────────────────────────────────────────────
-# Give GITHUB_TOKEN write rights so the job can push coverage.svg
-# (read-only is the default for workflows since Oct 2023)
-# ──────────────────────────────────────────────────────────────────
 permissions:
-  contents: write
-# permissions:
-#   # Gives the action the necessary permissions for publishing new
-#   # comments in pull requests.
-#   pull-requests: write
-#   # Gives the action the necessary permissions for editing existing
-#   # comments (to avoid publishing multiple comments in the same PR)
-#   contents: write
-#   # Gives the action the necessary permissions for looking up the
-#   # workflow that launched this workflow, and download the related
-#   # artifact that contains the comment to be published
-#   actions: read
+  contents: read
+
+env:
+  AIOHTTP_NO_EXTENSIONS: 1
+  # CRITICAL: Set this to "none" so tests use their explicit data sources.
+  # Tests that want ThetaData must explicitly request it.
+  # Without this, the default is "ThetaData" which overrides ALL backtests.
+  BACKTESTING_DATA_SOURCE: none
+  # Progress bars can produce huge logs and slow CI.
+  BACKTESTING_SHOW_PROGRESS_BAR: "false"
+  POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+  THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
+  THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+  # NOTE (2025-11-28): Data Downloader is a production proxy for ThetaData that allows
+  # shared access without requiring a local ThetaTerminal JAR. When these are set,
+  # ThetaData tests will use the remote downloader instead of spawning a local process.
+  DATADOWNLOADER_BASE_URL: ${{ secrets.DATADOWNLOADER_BASE_URL }}
+  DATADOWNLOADER_API_KEY: ${{ secrets.DATADOWNLOADER_API_KEY }}
+  ALPACA_TEST_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }} # Required for alpaca unit tests
+  ALPACA_TEST_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }} # Required for alpaca unit tests
+  TRADIER_TEST_ACCESS_TOKEN: ${{ secrets.TRADIER_TEST_ACCESS_TOKEN }} # Required for tradier unit tests
+  TRADIER_TEST_ACCOUNT_NUMBER: ${{ secrets.TRADIER_TEST_ACCOUNT_NUMBER }} # Required for tradier unit tests
 
 jobs:
-  LintAndTest:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     environment: unit-tests
-
-    env:
-      AIOHTTP_NO_EXTENSIONS: 1
-      # CRITICAL: Set this to "none" so tests use their explicit data sources.
-      # Tests that want ThetaData must explicitly request it.
-      # Without this, the default is "ThetaData" which overrides ALL backtests.
-      BACKTESTING_DATA_SOURCE: none
-      # Progress bars can produce huge logs and slow CI.
-      BACKTESTING_SHOW_PROGRESS_BAR: "false"
-      POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
-      THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
-      THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
-      # NOTE (2025-11-28): Data Downloader is a production proxy for ThetaData that allows
-      # shared access without requiring a local ThetaTerminal JAR. When these are set,
-      # ThetaData tests will use the remote downloader instead of spawning a local process.
-      DATADOWNLOADER_BASE_URL: ${{ secrets.DATADOWNLOADER_BASE_URL }}
-      DATADOWNLOADER_API_KEY: ${{ secrets.DATADOWNLOADER_API_KEY }}
-      ALPACA_TEST_API_KEY: ${{secrets.ALPACA_TEST_API_KEY}} # Required for alpaca unit tests
-      ALPACA_TEST_API_SECRET: ${{secrets.ALPACA_TEST_API_SECRET}} # Required for alpaca unit tests
-      TRADIER_TEST_ACCESS_TOKEN: ${{secrets.TRADIER_TEST_ACCESS_TOKEN}} # Required for tradier unit tests
-      TRADIER_TEST_ACCOUNT_NUMBER: ${{secrets.TRADIER_TEST_ACCOUNT_NUMBER}} # Required for tradier unit tests
-
     steps:
-      # ------------------------------------------------------------
       - uses: actions/checkout@v3
 
       - name: Set up Python 3.10
@@ -76,10 +52,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
           pip install -r requirements_dev.txt
-          # python setup.py install   # <-- keep commented if still flaky
 
-      # ------------------------------------------------------------
-      - name: Run Linter
+      - name: Run Ruff (ThetaData scope)
         run: |
           # NOTE: The repo currently has a large backlog of Ruff violations outside the
           # ThetaData backtesting surface area. To keep CI meaningful without blocking
@@ -96,81 +70,143 @@ jobs:
             tests/test_options_helper_thetadata_actionable_strikes.py \
             tests/test_thetadata_queue_client.py
 
-      # ------------------------------------------------------------
-      - name: Run Unit Tests
+  unit-tests:
+    name: Unit Tests (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: unit-tests
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
+          python -m pip install --upgrade pip
+          pip install requests
+          pip install -r requirements_dev.txt
+
+      - name: Run unit tests (sharded)
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: "4"
         run: |
           set -euo pipefail
 
-          # Run tests with explicit timeouts and better error handling.
-          # Keep PR runs fast by skipping coverage. Coverage + badge generation runs only on pushes
-          # to dev/main.
-          echo "Starting test execution at $(date)"
-          echo "Python version: $(python --version)"
-          echo "Pytest version: $(python -m pytest --version)"
+          # CI target: keep PR checks fast and deterministic.
+          # Downloader + apitests are run separately / opt-in.
+          PYTEST_MARKERS='not apitest and not downloader'
+          export PYTEST_MARKERS
 
-          EVENT_NAME="${{ github.event_name }}"
-          PYTEST_MARKERS='not apitest'
+          echo "Shard ${SHARD_INDEX}/${SHARD_TOTAL} markers=${PYTEST_MARKERS}"
 
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "=== PR: Run unit tests (no coverage) ==="
-            timeout 2400 python -m pytest tests/ -m "$PYTEST_MARKERS" --ignore=tests/backtest/ --tb=short -q --durations=30 -x
-            timeout 1200 python -m pytest tests/backtest/ -m "$PYTEST_MARKERS" --tb=short -q --durations=30 -x
-          else
-            echo "=== Push: Run unit tests with coverage ==="
-            timeout 1200 python -m pytest tests/ -m "$PYTEST_MARKERS" --ignore=tests/backtest/ --tb=short -q --durations=20 -x --cov=lumibot --cov-report=xml --cov-report=html:Lumibot
-            timeout 1200 python -m pytest tests/backtest/ -m "$PYTEST_MARKERS" --tb=short -q --durations=20 -x --cov=lumibot --cov-append --cov-report=xml --cov-report=html:Lumibot
-          fi
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+          from collections import Counter
 
-      # Make the HTML report downloadable from the Actions artefacts tab
-      - name: Upload coverage HTML
-        uses: actions/upload-artifact@v4
+          shard_index = int(os.environ["SHARD_INDEX"])
+          shard_total = int(os.environ["SHARD_TOTAL"])
+          markers = os.environ.get("PYTEST_MARKERS", "not apitest and not downloader")
+
+          collect_cmd = [
+              "pytest",
+              "tests/",
+              "--ignore=tests/backtest/",
+              "-m",
+              markers,
+              "--collect-only",
+              "-q",
+          ]
+          proc = subprocess.run(collect_cmd, capture_output=True, text=True)
+          if proc.returncode != 0:
+              sys.stdout.write(proc.stdout)
+              sys.stderr.write(proc.stderr)
+              raise SystemExit(proc.returncode)
+
+          nodeids = [line.strip() for line in proc.stdout.splitlines() if "::" in line]
+          counts = Counter(nodeid.split("::", 1)[0] for nodeid in nodeids)
+          files = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+
+          bins = [{"count": 0, "files": []} for _ in range(shard_total)]
+          for path, count in files:
+              target_bin = min(bins, key=lambda b: (b["count"], len(b["files"])))
+              target_bin["files"].append(path)
+              target_bin["count"] += count
+
+          selected_files = bins[shard_index]["files"]
+          with open("shard_files.txt", "w", encoding="utf-8") as handle:
+              handle.write("\n".join(selected_files))
+              handle.write("\n")
+
+          print(
+              f"selected_files={len(selected_files)} total_tests={bins[shard_index]['count']} "
+              f"bins={[b['count'] for b in bins]}"
+          )
+          PY
+
+          echo "Running $(wc -l shard_files.txt | awk '{print $1}') files"
+          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_files.txt)
+
+  backtest-tests:
+    name: Backtest Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: unit-tests
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
         with:
-          name: coverage-html
-          path: Lumibot
-          retention-days: 7
+          python-version: "3.10"
+          cache: pip
 
-      # ------------------------------------------------------------
-      # Create / update the SVG badge (only on direct pushes to our
-      # main branches, never on PRs/forks so we avoid permission woes)
-      # ------------------------------------------------------------
-      - name: Generate coverage badge
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
-        uses: tj-actions/coverage-badge-py@v2
-        with:
-          output: coverage.svg
-
-      # Only commit if the badge actually changed
-      - name: Detect changed badge
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
-        id: verify
-        uses: tj-actions/verify-changed-files@v16
-        with:
-          files: coverage.svg
-
-      # Commit updated badge to badge branch
-      - name: Commit updated badge to badge branch
-        if: steps.verify.outputs.files_changed == 'true'
+      - name: Install dependencies
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          # Save the coverage.svg file temporarily
-          mv coverage.svg coverage.svg.tmp
-          # Try to fetch the badge branch, create it if it doesn't exist
-          git fetch origin badge || echo "Badge branch doesn't exist yet"
-          # Check if badge branch exists locally
-          if git show-ref --verify --quiet refs/heads/badge; then
-            git switch badge
-            # Pull latest changes to avoid non-fast-forward rejection
-            git pull origin badge --no-rebase || echo "Could not pull from badge branch, it might be new"
-          else
-            # Create a new orphan branch if it doesn't exist
-            git switch --orphan badge
-            git rm -rf .
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
+          python -m pip install --upgrade pip
+          pip install requests
+          pip install -r requirements_dev.txt
+
+      - name: Run backtest tests
+        run: |
+          set -euo pipefail
+          PYTEST_MARKERS='not apitest and not downloader'
+          timeout 1500 python -m pytest tests/backtest/ -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x
+
+  LintAndTest:
+    name: LintAndTest
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, unit-tests, backtest-tests]
+    steps:
+      - name: Check results
+        run: |
+          echo "lint: ${{ needs.lint.result }}"
+          echo "unit-tests: ${{ needs.unit-tests.result }}"
+          echo "backtest-tests: ${{ needs.backtest-tests.result }}"
+
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            exit 1
           fi
-          # Restore the coverage.svg file
-          mv coverage.svg.tmp coverage.svg
-          git add coverage.svg
-          git commit -m "ci: update coverage badge" || echo "No changes to commit"
-          # Force push with lease to handle potential conflicts while still being safe
-          git push --force-with-lease origin badge
-          git switch $GITHUB_REF_NAME
+          if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+            exit 1
+          fi
+          if [ "${{ needs.backtest-tests.result }}" != "success" ]; then
+            exit 1
+          fi

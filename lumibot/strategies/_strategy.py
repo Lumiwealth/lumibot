@@ -27,10 +27,13 @@ from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 from ..backtesting import (
     AlpacaBacktesting,
     BacktestingBroker,
+    CcxtBacktesting,
+    DataBentoDataBacktesting,
     InteractiveBrokersRESTBacktesting,
     PolygonDataBacktesting,
     ThetaDataBacktesting,
     ThetaDataBacktestingPandas,
+    YahooDataBacktesting,
 )
 from ..credentials import (
     BACKTESTING_END,
@@ -1208,7 +1211,6 @@ class _Strategy:
         return self._stats
 
     def _dump_stats(self):
-        logger = get_logger(__name__)
         # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()
@@ -1637,15 +1639,6 @@ class _Strategy:
             env_override_name = _DEFAULT_BACKTESTING_DATA_SOURCE.lower()
 
         if env_override_name is not None:
-            from lumibot.backtesting import (
-                PolygonDataBacktesting,
-                ThetaDataBacktesting,
-                YahooDataBacktesting,
-                AlpacaBacktesting,
-                CcxtBacktesting,
-                DataBentoDataBacktesting,
-            )
-
             datasource_map = {
                 "polygon": PolygonDataBacktesting,
                 "thetadata": ThetaDataBacktesting,
@@ -2149,7 +2142,7 @@ class _Strategy:
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 400:
-            self.logger.error(f"❌ Bad request - Invalid data format")
+            self.logger.error("❌ Bad request - Invalid data format")
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 413:

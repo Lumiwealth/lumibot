@@ -9,11 +9,10 @@ Tests cover:
 - Local tracking of pending requests
 - Error handling
 """
-import json
 import os
 import threading
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -24,12 +23,12 @@ os.environ["DATADOWNLOADER_BASE_URL"] = "http://test-server:8080"
 os.environ["DATADOWNLOADER_API_KEY"] = "test-api-key"
 
 from lumibot.tools.thetadata_queue_client import (
+    QUEUE_POLL_INTERVAL,
     QueueClient,
     QueuedRequestInfo,
     get_queue_client,
     is_queue_enabled,
     queue_request,
-    QUEUE_POLL_INTERVAL,
 )
 
 

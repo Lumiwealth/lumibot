@@ -1,10 +1,10 @@
+import logging
+import math
+import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import logging
-import math
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
 
 from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
@@ -288,7 +288,7 @@ class OptionsHelper:
                         if price is not None:
                             self.strategy.log_message(f"Found valid option (via last price): {option.symbol} {option.right} {option.strike} exp {option.expiration}", color="green")
                             return option
-                    except Exception as e:
+                    except Exception:
                         pass
 
                     # If closest strike didn't work, this expiry might be invalid
@@ -466,7 +466,7 @@ class OptionsHelper:
             return None
             
         if target_delta is None:
-            self.strategy.log_message(f"❌ ERROR: target_delta is None", color="red")
+            self.strategy.log_message("❌ ERROR: target_delta is None", color="red")
             return None
             
         if abs(target_delta) > 1:
@@ -949,7 +949,6 @@ class OptionsHelper:
                     if specific_chain:
                         expiration_dates = _try_resolve_expiration(specific_chain)
                         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
-                        chain_refetched = True
             if future_candidates:
                 self.strategy.log_message(
                     f"Extended chain request delivered {len(future_candidates)} expirations >= {dt}.",
@@ -1843,7 +1842,6 @@ class OptionsHelper:
             if price is None:
                 self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
                 return None
-            multiplier = -1 if order.side.lower() == "buy" else 1
             current_value += price * order.quantity * contract_multiplier
         profit_pct = ((current_value - initial_cost) / initial_cost) * 100
         self.strategy.log_message(f"Spread profit percentage: {profit_pct:.2f}%", color="blue")

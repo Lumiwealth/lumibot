@@ -24,7 +24,6 @@ import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlencode
 
 import requests
 from requests import exceptions as requests_exceptions

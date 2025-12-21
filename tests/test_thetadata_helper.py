@@ -4281,16 +4281,15 @@ class TestCoverageGapGracefulHandling:
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     # This should NOT raise ValueError - it should log warning and continue
                     try:
-                        result = thetadata_helper.get_price_data(asset, start, end_requirement, "day")
+                        thetadata_helper.get_price_data(asset, start, end_requirement, "day")
                         exception_raised = False
-                    except ValueError as e:
+                    except ValueError:
                         exception_raised = True
-                        error_message = str(e)
 
         # CRITICAL ASSERTION: No ValueError should be raised
         assert not exception_raised, (
-            f"ValueError should NOT be raised for data coverage gaps. "
-            f"Data gaps are normal for options that don't trade every day."
+            "ValueError should NOT be raised for data coverage gaps. "
+            "Data gaps are normal for options that don't trade every day."
         )
 
     def test_no_end_timestamp_does_not_crash(self, monkeypatch, tmp_path, caplog):
@@ -4300,8 +4299,6 @@ class TestCoverageGapGracefulHandling:
 
         This can happen when ThetaData returns empty or malformed data.
         """
-        import logging
-        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
         cache_root = tmp_path / "cache_root"
         monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
@@ -4337,9 +4334,9 @@ class TestCoverageGapGracefulHandling:
                 eod_mock = MagicMock(return_value=empty_df)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
-                        result = thetadata_helper.get_price_data(asset, start, end, "day")
+                        thetadata_helper.get_price_data(asset, start, end, "day")
                         exception_raised = False
-                    except ValueError as e:
+                    except ValueError:
                         exception_raised = True
 
         # Should not crash even with empty/no data
@@ -4356,8 +4353,6 @@ class TestCoverageGapGracefulHandling:
         Placeholders indicate dates where data was queried but not available.
         This is normal for options that stop trading before expiration.
         """
-        import logging
-        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
         cache_root = tmp_path / "cache_root"
         monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
@@ -4404,9 +4399,9 @@ class TestCoverageGapGracefulHandling:
                 eod_mock = MagicMock(return_value=partial_df)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
-                        result = thetadata_helper.get_price_data(asset, start, end, "day")
+                        thetadata_helper.get_price_data(asset, start, end, "day")
                         exception_raised = False
-                    except ValueError as e:
+                    except ValueError:
                         exception_raised = True
 
         # Should not crash with tail placeholders

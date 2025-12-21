@@ -1,14 +1,13 @@
 # This file contains helper functions for getting data from Polygon.io
-import os
 import functools
 import hashlib
 import json
+import os
 import random
 import re
 import signal
-import time
 import threading
-from collections import defaultdict
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -22,9 +21,10 @@ import pandas_market_calendars as mcal
 import pytz
 import requests
 from dateutil import parser as dateutil_parser
+from tqdm import tqdm
+
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
-from tqdm import tqdm
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -1432,7 +1432,6 @@ def _apply_corporate_actions_to_frame(
             # Apply the adjustment to price columns
             for col in available_price_cols:
                 if col in frame.columns:
-                    original_values = frame[col].copy()
                     frame[col] = frame[col] / cumulative_factor
                     # Log significant adjustments for debugging
                     max_adjustment = cumulative_factor.max()
@@ -1855,11 +1854,6 @@ def get_price_data(
     sidecar_data = _load_cache_sidecar(cache_file)
     cache_checksum = _hash_file(cache_file)
 
-    # INTEGRITY_FAILURES: Data corruption that requires cache deletion
-    # COVERAGE_FAILURES: Cache is valid but doesn't cover requested range - can extend
-    INTEGRITY_FAILURES = {"unparseable_index", "duplicate_index", "sidecar_mismatch"}
-    COVERAGE_FAILURES = {"empty", "missing_trading_days", "stale_max_date", "too_few_rows"}
-
     def _validate_cache_frame(
         frame: Optional[pd.DataFrame],
         requested_start_dt: datetime,
@@ -1901,7 +1895,6 @@ def get_price_data(
         total_rows = len(frame)
         placeholder_mask = frame["missing"].astype(bool) if "missing" in frame.columns else pd.Series(False, index=frame.index)
         placeholder_rows = int(placeholder_mask.sum()) if hasattr(placeholder_mask, "sum") else 0
-        real_rows = total_rows - placeholder_rows
 
         requested_start_date = requested_start_dt.date()
         requested_end_date = requested_end_dt.date()
@@ -3353,7 +3346,6 @@ def update_df(df_all, result):
 def is_process_alive():
     """Check if ThetaTerminal Java process is still running"""
     import os
-    import subprocess
 
     if REMOTE_DOWNLOADER_ENABLED:
         # Remote downloader handles lifecycle; treat as always alive locally.

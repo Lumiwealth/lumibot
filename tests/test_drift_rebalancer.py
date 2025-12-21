@@ -1863,7 +1863,6 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[2]["symbol"] == "SPY"
         assert filled_orders.iloc[2]["filled_quantity"] == 8.347327921
 
-    @pytest.mark.apitest
     @pytest.mark.xfail(reason="yahoo sucks")
     def test_crypto_50_50_with_yahoo(self):
         parameters = {
@@ -1915,7 +1914,6 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["symbol"] == "ETH-USD"
 
     # @pytest.mark.skip()
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_CONFIG["API_KEY"],
         reason="This test requires a Polygon.io API key"
@@ -1975,7 +1973,6 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
@@ -2046,7 +2043,6 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
@@ -2128,7 +2124,6 @@ class TestDriftRebalancer:
         assert strat_obj.cash > 0
         assert strat_obj.cash / final_value < 0.01
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"

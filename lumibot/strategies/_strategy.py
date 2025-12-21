@@ -869,6 +869,39 @@ class _Strategy:
         if snapshot_price is not None:
             return snapshot_price
 
+        # ThetaData backtesting: for options, prefer quote-based mark pricing over stale last-trade.
+        # Many LEAPS options have sparse/no prints on some days, but actionable NBBO exists.
+        base_asset = asset[0] if isinstance(asset, tuple) else asset
+        if (
+            self.is_backtesting
+            and isinstance(source, ThetaDataBacktestingPandas)
+            and hasattr(base_asset, "asset_type")
+            and base_asset.asset_type == "option"
+        ):
+            try:
+                get_quote = getattr(source, "get_quote", None)
+                if callable(get_quote):
+                    quote = get_quote(base_asset, timestep=timestep_hint or "minute")
+                    if quote is not None:
+                        bid = getattr(quote, "bid", None)
+                        ask = getattr(quote, "ask", None)
+                        if bid is not None and ask is not None:
+                            try:
+                                mid_price = (float(bid) + float(ask)) / 2
+                                if mid_price > 0:
+                                    self.logger.debug(
+                                        "Using ThetaData quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
+                                        mid_price,
+                                        base_asset,
+                                        float(bid),
+                                        float(ask),
+                                    )
+                                    return mid_price
+                            except (TypeError, ValueError):
+                                pass
+            except Exception as e:
+                self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
+
         get_last_price = getattr(source, "get_last_price", None)
         if callable(get_last_price):
             price = get_last_price(asset)
@@ -879,12 +912,11 @@ class _Strategy:
         # Options often have sparse OHLC data (LEAPS may not trade for days),
         # but bid/ask quotes from market makers are typically available.
         # This calls get_quote() which loads minute-level quote data.
-        base_asset = asset[0] if isinstance(asset, tuple) else asset
         if hasattr(base_asset, 'asset_type') and base_asset.asset_type == 'option':
             try:
                 get_quote = getattr(source, 'get_quote', None)
                 if callable(get_quote):
-                    quote = get_quote(base_asset, timestep="minute")
+                    quote = get_quote(base_asset, timestep=timestep_hint or "minute")
                     if quote is not None:
                         bid = getattr(quote, 'bid', None)
                         ask = getattr(quote, 'ask', None)

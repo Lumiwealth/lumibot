@@ -36,7 +36,7 @@ permissions:
 jobs:
   LintAndTest:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 45
     environment: unit-tests
 
     env:
@@ -45,6 +45,8 @@ jobs:
       # Tests that want ThetaData must explicitly request it.
       # Without this, the default is "ThetaData" which overrides ALL backtests.
       BACKTESTING_DATA_SOURCE: none
+      # Progress bars can produce huge logs and slow CI.
+      BACKTESTING_SHOW_PROGRESS_BAR: "false"
       POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
       THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
       THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
@@ -79,26 +81,32 @@ jobs:
       # ------------------------------------------------------------
       - name: Run Linter
         run: |
-          # Remove -e flag to fail the run if issues are found
-          ruff check . -e
+          ruff check .
 
       # ------------------------------------------------------------
       - name: Run Unit Tests
         run: |
-          # Run tests with explicit timeout and better error handling
+          set -euo pipefail
+
+          # Run tests with explicit timeouts and better error handling.
+          # Keep PR runs fast by skipping coverage. Coverage + badge generation runs only on pushes
+          # to dev/main.
           echo "Starting test execution at $(date)"
           echo "Python version: $(python --version)"
           echo "Pytest version: $(python -m pytest --version)"
 
-          # Run tests with explicit timeouts and in smaller chunks
-          echo "=== Step 1: Running non-backtest unit tests ==="
-          timeout 600 python -m pytest tests/ -m "not apitest" --ignore=tests/backtest/ --tb=short -x --durations=20 || echo "Non-backtest tests completed with status $?"
+          EVENT_NAME="${{ github.event_name }}"
+          PYTEST_MARKERS='not apitest'
 
-          echo "=== Step 2: Running backtest tests ==="
-          timeout 600 python -m pytest tests/backtest/ -m "not apitest" --tb=short -x --durations=20 || echo "Backtest tests completed with status $?"
-
-          echo "=== Step 3: Final verification run ==="
-          python -m pytest tests/ -m "not apitest" --tb=no -q --cov=lumibot --cov-report=xml --cov-report=html:Lumibot
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "=== PR: Run unit tests (no coverage) ==="
+            timeout 2400 python -m pytest tests/ -m "$PYTEST_MARKERS" --ignore=tests/backtest/ --tb=short -q --durations=30 -x
+            timeout 1200 python -m pytest tests/backtest/ -m "$PYTEST_MARKERS" --tb=short -q --durations=30 -x
+          else
+            echo "=== Push: Run unit tests with coverage ==="
+            timeout 1200 python -m pytest tests/ -m "$PYTEST_MARKERS" --ignore=tests/backtest/ --tb=short -q --durations=20 -x --cov=lumibot --cov-report=xml --cov-report=html:Lumibot
+            timeout 1200 python -m pytest tests/backtest/ -m "$PYTEST_MARKERS" --tb=short -q --durations=20 -x --cov=lumibot --cov-append --cov-report=xml --cov-report=html:Lumibot
+          fi
 
       # Make the HTML report downloadable from the Actions artefacts tab
       - name: Upload coverage HTML
@@ -138,12 +146,12 @@ jobs:
           git fetch origin badge || echo "Badge branch doesn't exist yet"
           # Check if badge branch exists locally
           if git show-ref --verify --quiet refs/heads/badge; then
-            git checkout badge
+            git switch badge
             # Pull latest changes to avoid non-fast-forward rejection
             git pull origin badge --no-rebase || echo "Could not pull from badge branch, it might be new"
           else
             # Create a new orphan branch if it doesn't exist
-            git checkout --orphan badge
+            git switch --orphan badge
             git rm -rf .
           fi
           # Restore the coverage.svg file
@@ -152,4 +160,4 @@ jobs:
           git commit -m "ci: update coverage badge" || echo "No changes to commit"
           # Force push with lease to handle potential conflicts while still being safe
           git push --force-with-lease origin badge
-          git checkout $GITHUB_REF_NAME
+          git switch $GITHUB_REF_NAME

@@ -71,7 +71,7 @@ jobs:
             tests/test_thetadata_queue_client.py
 
   unit-tests:
-    name: Unit Tests (shard ${{ matrix.shard }}/4)
+    name: Unit Tests (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: unit-tests
@@ -79,7 +79,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
 
     steps:
       - uses: actions/checkout@v3
@@ -100,7 +100,7 @@ jobs:
       - name: Run unit tests (sharded)
         env:
           SHARD_INDEX: ${{ matrix.shard }}
-          SHARD_TOTAL: "4"
+          SHARD_TOTAL: "6"
         run: |
           set -euo pipefail
 

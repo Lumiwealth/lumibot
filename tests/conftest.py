@@ -8,8 +8,13 @@ import gc
 import atexit
 import threading
 import os
+import json
 from pathlib import Path
 from dotenv import load_dotenv
+from collections import defaultdict
+
+
+_TEST_DURATIONS_SECONDS = defaultdict(float)
 
 # Prevent Alpaca TradingStream from opening websocket connections during test collection.
 # Under xdist this can inadvertently trigger many concurrent connections and rate limiting.
@@ -105,6 +110,51 @@ def cleanup_all_threads():
                         pass
     except Exception:
         pass
+
+
+def pytest_runtest_logreport(report):
+    """Collect per-test runtimes (setup+call+teardown) for slow-test visibility."""
+    if report.when not in {"setup", "call", "teardown"}:
+        return
+    try:
+        _TEST_DURATIONS_SECONDS[report.nodeid] += float(report.duration or 0.0)
+    except Exception:
+        # Never let timing/reporting break the suite.
+        return
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Emit a slow-test summary and persist durations for future reference.
+
+    This is gated to CI by default to avoid noisy local output, but can be enabled locally via:
+      LUMIBOT_PYTEST_REPORT_DURATIONS=1
+    """
+    should_report = os.environ.get("LUMIBOT_PYTEST_REPORT_DURATIONS") or os.environ.get("CI")
+    if not should_report:
+        return
+
+    try:
+        top_n = int(os.environ.get("LUMIBOT_PYTEST_REPORT_DURATIONS_TOP", "30"))
+    except Exception:
+        top_n = 30
+
+    durations = sorted(_TEST_DURATIONS_SECONDS.items(), key=lambda kv: kv[1], reverse=True)
+    if durations:
+        print("\n=== Slowest tests (total setup+call+teardown) ===")
+        for nodeid, seconds in durations[:top_n]:
+            print(f"{seconds:8.2f}s  {nodeid}")
+
+    output_path = os.environ.get(
+        "LUMIBOT_PYTEST_DURATIONS_FILE",
+        str(Path(session.config.rootpath) / ".pytest_cache" / "lumibot_pytest_durations.json"),
+    )
+    try:
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(json.dumps({"exitstatus": exitstatus, "durations": durations}, indent=2))
+    except Exception:
+        # Never fail the suite on reporting issues.
+        return
 
 
 @pytest.fixture(scope="session", autouse=True)

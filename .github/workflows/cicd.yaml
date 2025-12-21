@@ -19,6 +19,10 @@ env:
   # Progress bars can produce huge logs and slow CI.
   BACKTESTING_SHOW_PROGRESS_BAR: "false"
   POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+  # Prevent CI hangs if Polygon hits transient rate limits / retry storms.
+  POLYGON_MAX_RETRY_ATTEMPTS: "12"
+  POLYGON_MAX_RETRY_SLEEP_SECONDS: "120"
+  POLYGON_WAIT_SECONDS_RETRY: "10"
   THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
   THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
   # NOTE (2025-11-28): Data Downloader is a production proxy for ThetaData that allows

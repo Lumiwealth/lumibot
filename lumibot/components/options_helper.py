@@ -426,6 +426,7 @@ class OptionsHelper:
             return numeric
 
         option_price = _coerce_price(self.strategy.get_last_price(option))
+        used_quote_price = False
         if option_price is None:
             quote = None
             try:
@@ -437,16 +438,16 @@ class OptionsHelper:
             ask = _coerce_price(getattr(quote, "ask", None)) if quote else None
             if bid is not None and ask is not None:
                 option_price = (bid + ask) / 2
+                used_quote_price = True
 
         if option_price is None:
             self.strategy.log_message(f"No price for option {option.symbol} at strike {strike}", color="yellow")
             return None
 
-        greeks = self.strategy.get_greeks(
-            option,
-            asset_price=option_price,
-            underlying_price=underlying_price,
-        )
+        greeks_kwargs = {"underlying_price": underlying_price}
+        if used_quote_price:
+            greeks_kwargs["asset_price"] = option_price
+        greeks = self.strategy.get_greeks(option, **greeks_kwargs)
         # Handle None from get_greeks - can happen when option price or underlying price unavailable
         if greeks is None:
             self.strategy.log_message(

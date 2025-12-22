@@ -299,7 +299,8 @@ OPTION_LIST_ENDPOINTS = {
 }
 
 # Bump this to invalidate old chain cache files when the chain schema/normalization changes.
-THETADATA_CHAIN_CACHE_VERSION = 2
+# v3 (2025-12-21): SPX index options need SPXW expirations for 0DTE strategies.
+THETADATA_CHAIN_CACHE_VERSION = 3
 
 DEFAULT_SESSION_HOURS = {
     True: ("04:00:00", "20:00:00"),   # include extended hours
@@ -1208,6 +1209,12 @@ def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None)
 
     original_strike = float(option_asset.strike)
 
+    # Index options do not have splits. Avoid unnecessary (and potentially invalid)
+    # split lookups for SPX/SPXW contracts.
+    underlying_symbol = str(getattr(option_asset, "symbol", "") or "").upper()
+    if underlying_symbol in {"SPX", "SPXW"}:
+        return original_strike
+
     # Get the underlying stock asset
     underlying_asset = Asset(option_asset.symbol, asset_type="stock")
 
@@ -1264,6 +1271,41 @@ def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None)
                     )
 
     return original_strike
+
+
+def _is_third_friday(expiration_date: date) -> bool:
+    """Return True when the given date is the standard monthly options expiration (3rd Friday)."""
+    try:
+        # Friday=4; the third Friday falls between the 15th and 21st.
+        return expiration_date.weekday() == 4 and 15 <= expiration_date.day <= 21
+    except Exception:
+        return False
+
+
+def _thetadata_option_root_symbol(option_asset: Asset) -> str:
+    """Resolve ThetaData option root symbol (e.g., SPX vs SPXW) for a given option contract."""
+    symbol = str(getattr(option_asset, "symbol", "") or "").upper()
+    expiration = getattr(option_asset, "expiration", None)
+
+    # Default behavior for equities/most underlyings.
+    if symbol != "SPX":
+        return getattr(option_asset, "symbol", symbol)
+
+    if not expiration:
+        return "SPX"
+
+    exp_date = expiration
+    if isinstance(exp_date, datetime):
+        exp_date = exp_date.date()
+    elif hasattr(exp_date, "date") and not isinstance(exp_date, date):
+        # pandas.Timestamp
+        exp_date = exp_date.date()
+
+    if isinstance(exp_date, date) and not _is_third_friday(exp_date):
+        # SPX weeklies/0DTE expirations live under SPXW.
+        return "SPXW"
+
+    return "SPX"
 
 
 def _apply_corporate_actions_to_frame(
@@ -3799,6 +3841,8 @@ def get_historical_eod_data(
     if asset_type == "option":
         if not asset.expiration or asset.strike is None:
             raise ValueError(f"Option asset {asset} missing expiration or strike for EOD request")
+        # SPX weeklies/0DTE expirations are queried under SPXW on ThetaData.
+        base_query["symbol"] = _thetadata_option_root_symbol(asset)
         base_query["expiration"] = asset.expiration.strftime("%Y-%m-%d")
         # REVERSE SPLIT ADJUSTMENT (2025-12-12): Convert split-adjusted strike back to original
         # for ThetaData API query. The strategy sees split-adjusted strikes (e.g., $66), but
@@ -4140,7 +4184,7 @@ def get_historical_data(
         # Uses start_dt from enclosing scope as the simulation datetime
         query_strike = _get_option_query_strike(asset, sim_datetime=start_dt)
         return {
-            "symbol": asset.symbol,
+            "symbol": _thetadata_option_root_symbol(asset),
             "expiration": asset.expiration.strftime("%Y-%m-%d"),
             "strike": _format_option_strike(query_strike),
             "right": "call" if right.startswith("C") else "put",
@@ -4336,13 +4380,46 @@ def build_historical_chain(
         raise ValueError("as_of_date must be provided to build a historical chain")
 
     headers = {"Accept": "application/json"}
-    expirations_resp = get_request(
-        url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
-        headers=headers,
-        querystring={"symbol": asset.symbol, "format": "json"},
-    )
 
-    if not expirations_resp or not expirations_resp.get("response"):
+    def _fetch_expiration_values(symbol: str) -> List[str]:
+        expirations_resp = get_request(
+            url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
+            headers=headers,
+            querystring={"symbol": symbol, "format": "json"},
+        )
+        if not expirations_resp or not expirations_resp.get("response"):
+            return []
+
+        exp_df = pd.DataFrame(expirations_resp["response"], columns=expirations_resp["header"]["format"])
+        if exp_df.empty:
+            return []
+
+        expiration_col = _detect_column(exp_df, ("expiration", "exp", "date"))
+        if not expiration_col:
+            logger.warning("ThetaData expiration payload missing expected columns for %s.", symbol)
+            return []
+
+        values: List[str] = []
+        for raw_value in exp_df[expiration_col].tolist():
+            normalized = _normalize_expiration_value(raw_value)
+            if normalized:
+                values.append(normalized)
+        return sorted({value for value in values})
+
+    primary_symbol = asset.symbol
+    symbols_to_merge = [primary_symbol]
+    spxw_symbol = None
+    if str(primary_symbol).upper() == "SPX":
+        # ThetaData stores SPX weeklies/0DTE expirations under SPXW.
+        spxw_symbol = "SPXW"
+        symbols_to_merge.append(spxw_symbol)
+
+    expirations_by_symbol: Dict[str, List[str]] = {
+        symbol: _fetch_expiration_values(symbol) for symbol in symbols_to_merge
+    }
+
+    expiration_values = sorted({exp for exps in expirations_by_symbol.values() for exp in exps})
+    if not expiration_values:
         logger.warning(
             "ThetaData returned no expirations for %s; cannot build chain for %s.",
             asset.symbol,
@@ -4350,26 +4427,8 @@ def build_historical_chain(
         )
         return None
 
-    exp_df = pd.DataFrame(expirations_resp["response"], columns=expirations_resp["header"]["format"])
-    if exp_df.empty:
-        logger.warning(
-            "ThetaData returned empty expiration list for %s; cannot build chain for %s.",
-            asset.symbol,
-            as_of_date,
-        )
-        return None
-
-    expiration_col = _detect_column(exp_df, ("expiration", "exp", "date"))
-    if not expiration_col:
-        logger.warning("ThetaData expiration payload missing expected columns for %s.", asset.symbol)
-        return None
-
-    expiration_values: List[str] = []
-    for raw_value in exp_df[expiration_col].tolist():
-        normalized = _normalize_expiration_value(raw_value)
-        if normalized:
-            expiration_values.append(normalized)
-    expiration_values = sorted({value for value in expiration_values})
+    spx_expirations = set(expirations_by_symbol.get(primary_symbol, []))
+    spxw_expirations = set(expirations_by_symbol.get(spxw_symbol, [])) if spxw_symbol else set()
 
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
@@ -4422,11 +4481,23 @@ def build_historical_chain(
             break
 
         # Fetch the list of available strikes for this expiration from ThetaData
+        strike_symbol = primary_symbol
+        if spxw_symbol and str(primary_symbol).upper() == "SPX":
+            try:
+                exp_date = date.fromisoformat(expiration_iso)
+            except ValueError:
+                exp_date = None
+
+            if exp_date and _is_third_friday(exp_date) and expiration_iso in spx_expirations:
+                strike_symbol = "SPX"
+            elif expiration_iso in spxw_expirations:
+                strike_symbol = "SPXW"
+
         strike_resp = get_request(
             url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
             querystring={
-                "symbol": asset.symbol,
+                "symbol": strike_symbol,
                 "expiration": expiration_iso,
                 "format": "json",
             },
@@ -4434,7 +4505,7 @@ def build_historical_chain(
 
         # Handle strike fetch failures - increment miss counter and potentially stop scanning
         if not strike_resp or not strike_resp.get("response"):
-            logger.debug("No strikes for %s exp %s; skipping.", asset.symbol, expiration_iso)
+            logger.debug("No strikes for %s exp %s; skipping.", strike_symbol, expiration_iso)
             consecutive_strike_misses += 1
             if consecutive_strike_misses >= 10:
                 logger.debug("[ThetaData] 10 consecutive expirations with no strikes; stopping scan.")

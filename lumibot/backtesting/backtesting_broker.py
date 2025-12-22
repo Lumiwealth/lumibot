@@ -983,8 +983,24 @@ class BacktestingBroker(Broker):
         else:
             underlying_asset = position.asset.underlying_asset
 
-        # Get the price of the underlying asset
-        underlying_price = self.get_last_price(underlying_asset)
+        # Get the price of the underlying asset.
+        #
+        # ThetaData index options (e.g., SPX) can arrive without an explicit underlying_asset,
+        # and legacy code defaulted to creating a stock Asset(symbol=SPX). That yields no data
+        # and can trigger the ThetaData "tail placeholder" coverage guard. If that happens,
+        # retry using an index asset type.
+        try:
+            underlying_price = self.get_last_price(underlying_asset)
+        except ValueError as exc:
+            message = str(exc)
+            if (
+                "[THETA][COVERAGE][TAIL_PLACEHOLDER]" in message
+                and getattr(underlying_asset, "asset_type", None) != "index"
+            ):
+                underlying_asset_index = Asset(symbol=underlying_asset.symbol, asset_type="index")
+                underlying_price = self.get_last_price(underlying_asset_index)
+            else:
+                raise
 
         # Calculate profit/loss per contract
         if position.asset.right == "CALL":

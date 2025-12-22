@@ -74,10 +74,11 @@ class TestBrokerHandlesCrypto:
 
         def _fake_polygon(api_key, asset, start_datetime, end_datetime, timespan="day", quote_asset=None, **kwargs):
             tz = start_datetime.tzinfo or pytz.timezone("America/New_York")
-            freq = {"minute": "min", "hour": "H"}.get(timespan, "D")
-            periods = 20
-            index = pd.date_range(start_datetime, periods=periods, freq=freq, tz=tz)
-            base = pd.Series(range(periods), index=index).astype(float)
+            freq = {"minute": "min", "hour": "H", "day": "D"}.get(timespan, "D")
+            index = pd.date_range(start_datetime, end_datetime, freq=freq, tz=tz)
+            if index.empty:
+                index = pd.DatetimeIndex([pd.Timestamp(start_datetime, tz=tz)])
+            base = pd.Series(range(len(index)), index=index).astype(float)
             data = {
                 "open": 200 + base,
                 "high": 201 + base,
@@ -87,50 +88,52 @@ class TestBrokerHandlesCrypto:
             }
             return pd.DataFrame(data, index=index)
 
-        with patch('lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon',
-                   side_effect=_fake_polygon):
+        with patch(
+            "lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon",
+            side_effect=_fake_polygon,
+        ):
             data_source = PolygonDataBacktesting(
                 datetime_start=start,
                 datetime_end=end,
-                api_key=POLYGON_CONFIG["API_KEY"]
+                api_key=POLYGON_CONFIG["API_KEY"],
             )
-        broker = BacktestingBroker(data_source=data_source)
+            broker = BacktestingBroker(data_source=data_source)
 
-        # test_get_last_price
-        last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)
-        assert isinstance(last_price, float)
-        assert last_price > 0.0
+            # test_get_last_price
+            last_price = broker.data_source.get_last_price(asset=self.base, quote=self.quote)
+            assert isinstance(last_price, float)
+            assert last_price > 0.0
 
-        # test_get_historical_prices
-        bars = broker.data_source.get_historical_prices(
-            asset=self.base,
-            length=self.length,
-            timestep=self.timestep,
-            quote=self.quote
-        )
+            # test_get_historical_prices
+            bars = broker.data_source.get_historical_prices(
+                asset=self.base,
+                length=self.length,
+                timestep=self.timestep,
+                quote=self.quote,
+            )
 
-        assert isinstance(bars, Bars)
-        assert len(bars.df) == self.length
-        # get the date of the last bar, which should be the day before the start date
-        last_date = bars.df.index[-1]
-        assert last_date.date() == (start - timedelta(days=1)).date()
-        last_price = bars.df['close'].iloc[-1]
-        assert last_price > 0.0
+            assert isinstance(bars, Bars)
+            assert len(bars.df) == self.length
+            # get the date of the last bar, which should be the day before the start date
+            last_date = bars.df.index[-1]
+            assert last_date.date() == (start - timedelta(days=1)).date()
+            last_price = bars.df["close"].iloc[-1]
+            assert last_price > 0.0
 
-        # test_submit_limit_order
-        limit_price = 1.0  # Make sure we never hit this price
-        order = Order(
-            strategy="test",
-            asset=self.base,
-            quantity=1,
-            side=Order.OrderSide.BUY,
-            limit_price=limit_price,
-            quote=self.quote
-        )
-        assert order.status == "unprocessed"
-        broker.submit_order(order)
-        assert order.status == "new"
-        broker.cancel_order(order)
+            # test_submit_limit_order
+            limit_price = 1.0  # Make sure we never hit this price
+            order = Order(
+                strategy="test",
+                asset=self.base,
+                quantity=1,
+                side=Order.OrderSide.BUY,
+                limit_price=limit_price,
+                quote=self.quote,
+            )
+            assert order.status == "unprocessed"
+            broker.submit_order(order)
+            assert order.status == "new"
+            broker.cancel_order(order)
 
     @pytest.mark.xfail(reason="need to handle github timezone")
     @pytest.mark.apitest

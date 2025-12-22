@@ -22,6 +22,52 @@ from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 
 
+def _ensure_strategy_log_message_accepts_framework_kwargs(strategy) -> None:
+    """Ensure framework log calls don't crash user strategies that override `log_message`.
+
+    Some user strategies override `log_message(self, message)` without accepting the newer
+    framework keyword arguments like `color` or `broadcast`. The framework uses these
+    kwargs throughout execution (including during initialization), so we defensively
+    wrap the strategy's `log_message` method to drop unsupported kwargs.
+    """
+
+    log_message = getattr(strategy, "log_message", None)
+    if not callable(log_message):
+        return
+
+    if getattr(log_message, "_lumibot_kwarg_compat_wrapper", False):
+        return
+
+    try:
+        signature = inspect.signature(log_message)
+    except (TypeError, ValueError):
+        return
+
+    accepts_var_kwargs = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values()
+    )
+    if accepts_var_kwargs:
+        return
+
+    allowed_kwargs = {
+        name
+        for name, param in signature.parameters.items()
+        if param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+
+    @wraps(log_message)
+    def _wrapped(message, *args, **kwargs):
+        if kwargs:
+            kwargs = {key: value for key, value in kwargs.items() if key in allowed_kwargs}
+        return log_message(message, *args, **kwargs)
+
+    _wrapped._lumibot_kwarg_compat_wrapper = True
+    try:
+        setattr(strategy, "log_message", _wrapped)
+    except Exception:
+        return
+
+
 class StrategyExecutor(Thread):
     # Trading events flags
     NEW_ORDER = "new"
@@ -38,6 +84,7 @@ class StrategyExecutor(Thread):
         self.queue = Queue()
 
         self.strategy = strategy
+        _ensure_strategy_log_message_accepts_framework_kwargs(self.strategy)
         self._strategy_context = None
         self.broker = self.strategy.broker
         self.result = {}

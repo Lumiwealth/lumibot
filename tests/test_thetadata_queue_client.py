@@ -9,11 +9,10 @@ Tests cover:
 - Local tracking of pending requests
 - Error handling
 """
-import json
 import os
 import threading
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -24,12 +23,12 @@ os.environ["DATADOWNLOADER_BASE_URL"] = "http://test-server:8080"
 os.environ["DATADOWNLOADER_API_KEY"] = "test-api-key"
 
 from lumibot.tools.thetadata_queue_client import (
+    QUEUE_POLL_INTERVAL,
     QueueClient,
     QueuedRequestInfo,
     get_queue_client,
     is_queue_enabled,
     queue_request,
-    QUEUE_POLL_INTERVAL,
 )
 
 
@@ -449,6 +448,58 @@ class TestGlobalFunctions:
         assert result == {"data": "test"}
         mock_execute.assert_called_once()
 
+    @patch("lumibot.tools.thetadata_queue_client.QueueClient.execute_request")
+    def test_queue_request_parses_query_from_url_when_querystring_none(self, mock_execute):
+        """Test queue_request parses query params from URL when querystring is None."""
+        mock_execute.return_value = ({"data": "test"}, 200)
+
+        result = queue_request(
+            url="http://test:8080/v3/stock/history/ohlc?symbol=AAPL&start=2024-01-01",
+            querystring=None,
+        )
+
+        assert result == {"data": "test"}
+        mock_execute.assert_called_once()
+        _, kwargs = mock_execute.call_args
+        assert kwargs["path"] == "v3/stock/history/ohlc"
+        assert kwargs["query_params"]["symbol"] == "AAPL"
+        assert kwargs["query_params"]["start"] == "2024-01-01"
+
+
+class TestSubmitRetry:
+    """Tests for retry/backoff behavior during submit."""
+
+    @patch.object(time, "sleep", return_value=None)
+    @patch.object(requests.Session, "post")
+    def test_submit_request_retries_on_queue_full(self, mock_post, _mock_sleep):
+        """Test _submit_request retries when downloader returns queue_full."""
+        queue_full_response = MagicMock()
+        queue_full_response.status_code = 503
+        queue_full_response.headers = {}
+        queue_full_response.json.return_value = {"error": "queue_full", "retry_after": 0}
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.headers = {}
+        success_response.json.return_value = {
+            "request_id": "req-123",
+            "status": "pending",
+            "queue_position": 5,
+        }
+
+        mock_post.side_effect = [queue_full_response, success_response]
+
+        client = QueueClient("http://test:8080", "test-key")
+        request_id, status, was_pending = client.check_or_submit(
+            method="GET",
+            path="v3/stock/history/ohlc",
+            query_params={"symbol": "AAPL", "start": "2024-01-01"},
+        )
+
+        assert request_id == "req-123"
+        assert status == "pending"
+        assert was_pending is False
+        assert mock_post.call_count == 2
 
 class TestThreadSafety:
     """Tests for thread safety."""

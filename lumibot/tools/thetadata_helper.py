@@ -1,14 +1,13 @@
 # This file contains helper functions for getting data from Polygon.io
-import os
 import functools
 import hashlib
 import json
+import os
 import random
 import re
 import signal
-import time
 import threading
-from collections import defaultdict
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -22,9 +21,10 @@ import pandas_market_calendars as mcal
 import pytz
 import requests
 from dateutil import parser as dateutil_parser
+from tqdm import tqdm
+
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
-from tqdm import tqdm
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 #
 # NOTE: This pattern can be extended to other data sources (Yahoo, Polygon, etc.)
 # by implementing similar tracking in their respective helper modules.
-# See BACKTESTING_ARCHITECTURE.md for documentation on extending this.
+# See docs/BACKTESTING_ARCHITECTURE.md for documentation on extending this.
 # ==============================================================================
 
 # Thread-safe lock for download status updates
@@ -148,6 +148,7 @@ WAIT_TIME = 60
 MAX_DAYS = 30
 CACHE_SUBFOLDER = "thetadata"
 DEFAULT_THETA_BASE = "http://127.0.0.1:25503"
+DEFAULT_DOWNLOADER_BASE_URL = "http://data-downloader.lumiwealth.com:8080"
 _downloader_base_env = os.environ.get("DATADOWNLOADER_BASE_URL")
 _theta_fallback_base = os.environ.get("THETADATA_BASE_URL", DEFAULT_THETA_BASE)
 
@@ -158,6 +159,9 @@ def _normalize_base_url(raw: Optional[str]) -> str:
     raw = raw.strip()
     if not raw:
         return DEFAULT_THETA_BASE
+    # Standardize away from deprecated/ephemeral endpoints.
+    if "44.192.43.146" in raw or "test-server" in raw:
+        raw = DEFAULT_DOWNLOADER_BASE_URL
     if not raw.startswith(("http://", "https://")):
         raw = f"http://{raw}"
     return raw.rstrip("/")
@@ -293,6 +297,10 @@ OPTION_LIST_ENDPOINTS = {
     "strikes": "/v3/option/list/strikes",
     "dates_quote": "/v3/option/list/dates/quote",
 }
+
+# Bump this to invalidate old chain cache files when the chain schema/normalization changes.
+# v3 (2025-12-21): SPX index options need SPXW expirations for 0DTE strategies.
+THETADATA_CHAIN_CACHE_VERSION = 3
 
 DEFAULT_SESSION_HOURS = {
     True: ("04:00:00", "20:00:00"),   # include extended hours
@@ -1039,8 +1047,8 @@ def _download_corporate_events(
     event_type: str,
     window_start: date,
     window_end: date,
-    username: str,
-    password: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> pd.DataFrame:
     """Fetch corporate actions via Theta's v2 REST endpoints."""
 
@@ -1090,8 +1098,8 @@ def _ensure_event_cache(
     event_type: str,
     start_date: date,
     end_date: date,
-    username: str,
-    password: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> pd.DataFrame:
     cache_path, meta_path = _event_cache_paths(asset, event_type)
     cache_df = _load_event_cache_frame(cache_path)
@@ -1127,13 +1135,25 @@ def _ensure_event_cache(
     return cache_df.loc[mask].copy()
 
 
-def _get_theta_dividends(asset: Asset, start_date: date, end_date: date, username: str, password: str) -> pd.DataFrame:
+def _get_theta_dividends(
+    asset: Asset,
+    start_date: date,
+    end_date: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> pd.DataFrame:
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
     return _ensure_event_cache(asset, "dividends", start_date, end_date, username, password)
 
 
-def _get_theta_splits(asset: Asset, start_date: date, end_date: date, username: str, password: str) -> pd.DataFrame:
+def _get_theta_splits(
+    asset: Asset,
+    start_date: date,
+    end_date: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> pd.DataFrame:
     """Fetch split data from ThetaData only. No fallback to other data sources."""
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
@@ -1151,17 +1171,156 @@ def _get_theta_splits(asset: Asset, start_date: date, end_date: date, username: 
         return pd.DataFrame()
 
 
+def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None) -> float:
+    """
+    Convert a split-adjusted option strike back to the original (unadjusted) strike for ThetaData queries.
+
+    REVERSE SPLIT ADJUSTMENT FOR OPTION PRICE QUERIES (2025-12-11):
+    When stock prices are split-adjusted, options strikes in the chain are ALSO adjusted (via build_historical_chain).
+    However, ThetaData stores historical option data using the ORIGINAL strikes.
+
+    Example for GOOG (20:1 split in July 2022):
+    - Strategy sees split-adjusted stock price: ~$55 (March 2020)
+    - build_historical_chain adjusted strikes: $1320 / 20 = $66
+    - Strategy wants to buy $66 strike option
+    - But ThetaData has the option under $1320 strike
+    - This function converts $66 -> $1320 for the API query
+
+    FIX (2025-12-12): Use sim_datetime (not expiration) to determine split range.
+    When querying for options in March 2020 for GOOG with expiration in 2024,
+    we need splits from March 2020 to today (catching the July 2022 split),
+    NOT from 2024 to today (which would miss the split entirely).
+
+    Parameters
+    ----------
+    option_asset : Asset
+        The option asset with a split-adjusted strike
+    sim_datetime : datetime, optional
+        The simulation datetime - used to determine which splits apply.
+        If not provided, falls back to expiration date (legacy behavior).
+
+    Returns
+    -------
+    float
+        The original (unadjusted) strike for ThetaData API queries
+    """
+    if option_asset.strike is None:
+        raise ValueError(f"Option asset {option_asset} missing strike")
+
+    original_strike = float(option_asset.strike)
+
+    # Index options do not have splits. Avoid unnecessary (and potentially invalid)
+    # split lookups for SPX/SPXW contracts.
+    underlying_symbol = str(getattr(option_asset, "symbol", "") or "").upper()
+    if underlying_symbol in {"SPX", "SPXW"}:
+        return original_strike
+
+    # Get the underlying stock asset
+    underlying_asset = Asset(option_asset.symbol, asset_type="stock")
+
+    from datetime import date as date_type
+    today = date_type.today()
+
+    # FIX (2025-12-12): Use sim_datetime as the reference date for split lookup.
+    # This ensures we catch all splits between the simulation date and today.
+    # Previously, we used option expiration, which missed splits that occurred
+    # BEFORE the expiration but AFTER the sim_datetime.
+    if sim_datetime is not None:
+        # Use the simulation date - this is the date we're "at" in the backtest
+        as_of_date = sim_datetime.date() if hasattr(sim_datetime, 'date') else sim_datetime
+    elif option_asset.expiration:
+        # Fallback to expiration (legacy behavior, but less accurate)
+        as_of_date = option_asset.expiration
+    else:
+        as_of_date = today
+
+    # Fetch splits from as_of_date to today
+    splits = _get_theta_splits(underlying_asset, as_of_date, today)
+
+    if splits is not None and not splits.empty:
+        # Calculate cumulative split factor for splits after the option's reference date
+        if "event_date" in splits.columns:
+            as_of_datetime = pd.Timestamp(as_of_date)
+            # Convert event_date column to datetime if needed
+            if splits["event_date"].dtype != "datetime64[ns]" and not str(splits["event_date"].dtype).startswith("datetime64"):
+                splits["event_date"] = pd.to_datetime(splits["event_date"])
+            # Make as_of_datetime timezone-aware to match event_date if needed
+            if hasattr(splits["event_date"].dt, "tz") and splits["event_date"].dt.tz is not None:
+                if as_of_datetime.tzinfo is None:
+                    as_of_datetime = as_of_datetime.tz_localize(splits["event_date"].dt.tz)
+            future_splits = splits[splits["event_date"] > as_of_datetime]
+
+            if not future_splits.empty:
+                cumulative_split_factor = future_splits["ratio"].prod()
+
+                if cumulative_split_factor != 1.0:
+                    # FIX (2025-12-12): Handle BOTH forward AND reverse splits
+                    # Forward splits: factor > 1 (e.g., GOOG 20:1 → factor=20, strike $127.50 → $2550)
+                    # Reverse splits: factor < 1 (e.g., GE 1:8 → factor=0.125, strike $80 → $10)
+                    # Multiply current strike by factor to get original pre-split strike
+                    original_strike = original_strike * cumulative_split_factor
+
+                    logger.info(
+                        "[ThetaData] Split adjustment for option query: %s strike $%.2f -> $%.2f "
+                        "(factor %.4f from %d splits)",
+                        option_asset.symbol,
+                        float(option_asset.strike),
+                        original_strike,
+                        cumulative_split_factor,
+                        len(future_splits),
+                    )
+
+    return original_strike
+
+
+def _is_third_friday(expiration_date: date) -> bool:
+    """Return True when the given date is the standard monthly options expiration (3rd Friday)."""
+    try:
+        # Friday=4; the third Friday falls between the 15th and 21st.
+        return expiration_date.weekday() == 4 and 15 <= expiration_date.day <= 21
+    except Exception:
+        return False
+
+
+def _thetadata_option_root_symbol(option_asset: Asset) -> str:
+    """Resolve ThetaData option root symbol (e.g., SPX vs SPXW) for a given option contract."""
+    symbol = str(getattr(option_asset, "symbol", "") or "").upper()
+    expiration = getattr(option_asset, "expiration", None)
+
+    # Default behavior for equities/most underlyings.
+    if symbol != "SPX":
+        return getattr(option_asset, "symbol", symbol)
+
+    if not expiration:
+        return "SPX"
+
+    exp_date = expiration
+    if isinstance(exp_date, datetime):
+        exp_date = exp_date.date()
+    elif hasattr(exp_date, "date") and not isinstance(exp_date, date):
+        # pandas.Timestamp
+        exp_date = exp_date.date()
+
+    if isinstance(exp_date, date) and not _is_third_friday(exp_date):
+        # SPX weeklies/0DTE expirations live under SPXW.
+        return "SPXW"
+
+    return "SPX"
+
+
 def _apply_corporate_actions_to_frame(
     asset: Asset,
     frame: pd.DataFrame,
     start_day: date,
     end_day: date,
-    username: str,
-    password: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> pd.DataFrame:
     if frame is None or frame.empty:
         return frame
-    if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
+
+    asset_type = str(getattr(asset, "asset_type", "stock")).lower()
+    if asset_type not in {"stock", "option"}:
         if "dividend" not in frame.columns:
             frame["dividend"] = 0.0
         if "stock_splits" not in frame.columns:
@@ -1178,9 +1337,6 @@ def _apply_corporate_actions_to_frame(
         )
         return frame
 
-    dividends = _get_theta_dividends(asset, start_day, end_day, username, password)
-    splits = _get_theta_splits(asset, start_day, end_day, username, password)
-
     tz_index = frame.index
     if isinstance(tz_index, pd.DatetimeIndex):
         index_dates = tz_index
@@ -1192,6 +1348,72 @@ def _apply_corporate_actions_to_frame(
         index_dates = index_dates.tz_convert("UTC")
     index_dates = index_dates.date
 
+    if asset_type == "option":
+        # Options use split-normalized strikes in strategy code (e.g., GOOG strike 130 post-split).
+        # Theta stores historical option data under the pre-split strike (e.g., 2600), so we:
+        # 1) query the correct strike for the date range, then
+        # 2) split-adjust the returned OHLC/NBBO so the option price series is continuous in
+        #    post-split terms (matching split-adjusted underlying prices).
+        #
+        # This prevents false stop-loss triggers and portfolio cliffs on split dates.
+        if "dividend" not in frame.columns:
+            frame["dividend"] = 0.0
+        else:
+            frame["dividend"] = 0.0
+
+        if "stock_splits" not in frame.columns:
+            frame["stock_splits"] = 0.0
+
+        underlying_asset = getattr(asset, "underlying_asset", None)
+        if underlying_asset is None:
+            underlying_asset = Asset(getattr(asset, "symbol", ""), asset_type="stock")
+
+        from datetime import date as date_type
+
+        today = date_type.today()
+        splits = _get_theta_splits(underlying_asset, start_day, today, username, password)
+
+        if splits is None or splits.empty:
+            frame["stock_splits"] = frame["stock_splits"].fillna(0.0)
+            frame["_split_adjusted"] = True
+            return frame
+
+        split_map = splits.groupby(splits["event_date"].dt.date)["ratio"].prod().to_dict()
+        frame["stock_splits"] = [float(split_map.get(day, 0.0)) for day in index_dates]
+
+        sorted_splits = splits.sort_values("event_date")
+        applicable_splits = sorted_splits[sorted_splits["event_date"].dt.date <= today]
+        split_dates = applicable_splits["event_date"].dt.date.tolist()
+        split_ratios = applicable_splits["ratio"].tolist()
+
+        cumulative_factor = pd.Series(1.0, index=frame.index)
+        for split_date, ratio in zip(reversed(split_dates), reversed(split_ratios)):
+            if ratio > 0 and ratio != 1.0:
+                mask = pd.Series(index_dates) < split_date
+                cumulative_factor.loc[mask.values] *= ratio
+
+        price_columns = ["open", "high", "low", "close", "bid", "ask", "mid_price"]
+        available_price_cols = [col for col in price_columns if col in frame.columns]
+        for col in available_price_cols:
+            frame[col] = pd.to_numeric(frame[col], errors="coerce") / cumulative_factor
+
+        if "strike" in frame.columns:
+            frame["strike"] = pd.to_numeric(frame["strike"], errors="coerce") / cumulative_factor
+
+        if "volume" in frame.columns:
+            frame["volume"] = pd.to_numeric(frame["volume"], errors="coerce") * cumulative_factor
+
+        frame["_split_adjusted"] = True
+        return frame
+
+    dividends = _get_theta_dividends(asset, start_day, end_day, username, password)
+    # CRITICAL: Fetch splits up to TODAY, not the data's end date!
+    # When fetching March 2020 data, we still need to know about the July 2022 split
+    # so we can adjust historical prices to be comparable to current prices.
+    # This matches Yahoo Finance behavior where Adj Close always reflects current splits.
+    from datetime import date as date_type
+    today = date_type.today()
+    splits = _get_theta_splits(asset, start_day, today, username, password)
     if "dividend" not in frame.columns:
         frame["dividend"] = 0.0
     if not dividends.empty:
@@ -1218,16 +1440,19 @@ def _apply_corporate_actions_to_frame(
             # Sort splits by date (oldest first)
             sorted_splits = splits.sort_values("event_date")
 
-            # Filter out future splits (splits that occur AFTER the data's end date)
-            # These haven't happened yet, so prices shouldn't be adjusted for them
-            data_end_date = max(index_dates)
-            applicable_splits = sorted_splits[sorted_splits["event_date"].dt.date <= data_end_date]
+            # IMPORTANT: Apply ALL splits up to TODAY's date, not the data's end date.
+            # When we fetch March 2020 data in 2025, we need to apply the July 2022 split
+            # so that historical prices are comparable to current split-adjusted prices.
+            # This matches how Yahoo Finance calculates Adj Close - it always reflects
+            # the current share count, not what the shares were worth at that time.
+            applicable_splits = sorted_splits[sorted_splits["event_date"].dt.date <= today]
 
             if len(applicable_splits) < len(sorted_splits):
                 skipped = len(sorted_splits) - len(applicable_splits)
                 logger.debug(
-                    "[THETA][SPLIT_ADJUST] Skipping %d future split(s) after data_end=%s",
-                    skipped, data_end_date
+                    "[THETA][SPLIT_ADJUST] Skipping %d future split(s) after today=%s",
+                    skipped,
+                    today,
                 )
 
             # Calculate cumulative split factor for each date in the frame
@@ -1249,7 +1474,6 @@ def _apply_corporate_actions_to_frame(
             # Apply the adjustment to price columns
             for col in available_price_cols:
                 if col in frame.columns:
-                    original_values = frame[col].copy()
                     frame[col] = frame[col] / cumulative_factor
                     # Log significant adjustments for debugging
                     max_adjustment = cumulative_factor.max()
@@ -1316,6 +1540,52 @@ def _strip_placeholder_rows(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame
     return restore_numeric_dtypes(cleaned)
 
 
+def _market_close_utc_for_date(trading_date: date) -> datetime:
+    """Return a UTC timestamp for the US equity market close on `trading_date`.
+
+    ThetaData EOD payloads are keyed by trading date, but many responses are timestamped at
+    `00:00 UTC`. When later converted to America/New_York this lands on the prior evening,
+    which makes the full-day OHLC/NBBO appear available before the market session begins.
+
+    For day-cadence backtests that run at market open, that behavior creates lookahead bias.
+    We normalize all day bars (and placeholder rows) to 16:00 America/New_York so the bar is
+    associated with the correct trading date and only becomes observable after the session ends.
+    """
+    close_local = LUMIBOT_DEFAULT_PYTZ.localize(
+        datetime(trading_date.year, trading_date.month, trading_date.day, 16, 0)
+    )
+    return close_local.astimezone(pytz.UTC)
+
+
+def _align_day_index_to_market_close_utc(frame: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Normalize a day-cadence ThetaData frame to market-close timestamps in UTC.
+
+    This transform is date-keyed and idempotent: applying it multiple times yields the same
+    index values for the same set of trading dates.
+    """
+    if frame is None or frame.empty:
+        return frame
+
+    if not isinstance(frame.index, pd.DatetimeIndex):
+        frame = frame.copy()
+        frame.index = pd.to_datetime(frame.index, utc=True)
+
+    idx_utc = pd.to_datetime(frame.index, utc=True)
+    new_index = pd.DatetimeIndex(
+        [_market_close_utc_for_date(d) for d in idx_utc.date],
+        name=frame.index.name,
+    )
+
+    if frame.index.equals(new_index):
+        return frame
+
+    aligned = frame.copy()
+    aligned.index = new_index
+    if "datetime" in aligned.columns:
+        aligned["datetime"] = new_index
+    return aligned
+
+
 def append_missing_markers(
     df_all: Optional[pd.DataFrame],
     missing_dates: List[datetime.date],
@@ -1337,7 +1607,7 @@ def append_missing_markers(
 
     rows = []
     for d in missing_dates:
-        dt = datetime(d.year, d.month, d.day, tzinfo=pytz.UTC)
+        dt = _market_close_utc_for_date(d)
         row = {col: pd.NA for col in df_all.columns if col != "missing"}
         row["datetime"] = dt
         row["missing"] = True
@@ -1444,8 +1714,6 @@ CONNECTION_DIAGNOSTICS = {
 
 
 def get_price_data(
-    username: str,
-    password: str,
     asset: Asset,
     start: datetime,
     end: datetime,
@@ -1456,6 +1724,9 @@ def get_price_data(
     include_after_hours: bool = True,
     return_polars: bool = False,
     preserve_full_history: bool = False,
+    include_eod_nbbo: bool = False,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> Optional[pd.DataFrame]:
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
@@ -1467,10 +1738,6 @@ def get_price_data(
 
     Parameters
     ----------
-    username : str
-        Your ThetaData username
-    password : str
-        Your ThetaData password
     asset : Asset
         The asset we are getting data for
     start : datetime
@@ -1491,6 +1758,14 @@ def get_price_data(
     preserve_full_history : bool
         When True, skip trimming the cached frame to [start, end]. Useful for callers (like the backtester)
         that want to keep the full historical coverage in memory.
+    include_eod_nbbo : bool
+        When True, keep NBBO quote columns (bid/ask/etc) returned by Theta's EOD endpoint for day bars.
+        This is primarily used to enable `get_quote()` for options in day-mode backtests where trade
+        prices can be missing but quotes are still present.
+    username : Optional[str]
+        ThetaData username (backwards compatible; ignored when using the remote data downloader).
+    password : Optional[str]
+        ThetaData password (backwards compatible; ignored when using the remote data downloader).
 
     Returns
     -------
@@ -1583,7 +1858,26 @@ def get_price_data(
         )
         df_cached = load_cache(cache_file)
         if df_cached is not None and not df_cached.empty:
+            if timespan == "day":
+                # Normalize cached day bars (and placeholders) to market-close timestamps to avoid lookahead.
+                df_cached = _align_day_index_to_market_close_utc(df_cached)
             df_all = df_cached.copy() # Make a copy so we can check the original later for differences
+            # Ensure cached daily data is corporate-action adjusted BEFORE any merge/update.
+            # This prevents mixing adjusted and unadjusted rows (and partial `_split_adjusted` markers)
+            # when we append new EOD data over time, especially for options that span splits.
+            if timespan == "day":
+                df_all = _align_day_index_to_market_close_utc(df_all)
+                try:
+                    cache_index_dates = pd.to_datetime(df_all.index, utc=True).date
+                    start_for_adjust = min(cache_index_dates) if len(cache_index_dates) else start.date()
+                    end_for_adjust = max(cache_index_dates) if len(cache_index_dates) else end.date()
+                    df_all = _apply_corporate_actions_to_frame(asset, df_all, start_for_adjust, end_for_adjust)
+                except Exception:
+                    logger.debug(
+                        "[THETA][SPLIT_ADJUST] Failed to apply corporate actions to cached frame for %s",
+                        asset,
+                        exc_info=True,
+                    )
 
     cached_rows = 0 if df_all is None else len(df_all)
     placeholder_rows = 0
@@ -1601,11 +1895,6 @@ def get_price_data(
 
     sidecar_data = _load_cache_sidecar(cache_file)
     cache_checksum = _hash_file(cache_file)
-
-    # INTEGRITY_FAILURES: Data corruption that requires cache deletion
-    # COVERAGE_FAILURES: Cache is valid but doesn't cover requested range - can extend
-    INTEGRITY_FAILURES = {"unparseable_index", "duplicate_index", "sidecar_mismatch"}
-    COVERAGE_FAILURES = {"empty", "missing_trading_days", "stale_max_date", "too_few_rows"}
 
     def _validate_cache_frame(
         frame: Optional[pd.DataFrame],
@@ -1648,7 +1937,6 @@ def get_price_data(
         total_rows = len(frame)
         placeholder_mask = frame["missing"].astype(bool) if "missing" in frame.columns else pd.Series(False, index=frame.index)
         placeholder_rows = int(placeholder_mask.sum()) if hasattr(placeholder_mask, "sum") else 0
-        real_rows = total_rows - placeholder_rows
 
         requested_start_date = requested_start_dt.date()
         requested_end_date = requested_end_dt.date()
@@ -1776,6 +2064,26 @@ def get_price_data(
         datastyle,
     )
 
+    # Schema upgrade: historical option EOD caches created before NBBO support do not contain bid/ask columns.
+    # When the caller requires NBBO columns (for option quotes), force a refresh of the requested window so
+    # we can populate quote columns and avoid "No valid price" downstream.
+    if (
+        include_eod_nbbo
+        and timespan == "day"
+        and datastyle == "ohlc"
+        and df_all is not None
+        and not df_all.empty
+        and str(getattr(asset, "asset_type", "stock")).lower() == "option"
+        and not {"bid", "ask"}.issubset(df_all.columns)
+    ):
+        cache_invalid = True
+        logger.info(
+            "[THETA][CACHE][SCHEMA_UPGRADE] asset=%s span=%s datastyle=%s missing_nbbo_cols=True; forcing refresh to include bid/ask",
+            asset,
+            timespan,
+            datastyle,
+        )
+
     # Check if we need to get more data
     logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_START] asset=%s | "
@@ -1792,22 +2100,33 @@ def get_price_data(
 
     if (
         timespan == "day"
+        and not cache_invalid
         and df_all is not None
         and "missing" in df_all.columns
         and missing_dates
     ):
         placeholder_dates = set(pd.Index(df_all[df_all["missing"].astype(bool)].index.date))
         if placeholder_dates:
-            before = len(missing_dates)
-            missing_dates = [d for d in missing_dates if d not in placeholder_dates]
-            after = len(missing_dates)
-            logger.debug(
-                "[THETA][DEBUG][CACHE][PLACEHOLDER_SUPPRESS] asset=%s timespan=%s removed=%d missing=%d",
-                asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                timespan,
-                before - after,
-                after,
-            )
+            today_utc = datetime.now(pytz.UTC).date()
+            suppress_dates: set[date] = {d for d in placeholder_dates if d > today_utc}
+            if getattr(asset, "asset_type", None) == "option" and getattr(asset, "expiration", None) is not None:
+                try:
+                    exp = asset.expiration
+                    suppress_dates |= {d for d in placeholder_dates if d > exp}
+                except Exception:
+                    pass
+
+            if suppress_dates:
+                before = len(missing_dates)
+                missing_dates = [d for d in missing_dates if d not in suppress_dates]
+                after = len(missing_dates)
+                logger.debug(
+                    "[THETA][DEBUG][CACHE][PLACEHOLDER_SUPPRESS] asset=%s timespan=%s removed=%d missing=%d",
+                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    timespan,
+                    before - after,
+                    after,
+                )
 
     logger.debug(
         "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
@@ -1933,7 +2252,8 @@ def get_price_data(
             result_frame = _apply_corporate_actions_to_frame(
                 asset, result_frame, start_day, end_day, username, password
             )
-
+        if result_frame is not None and not result_frame.empty and timespan == "day":
+            result_frame = _align_day_index_to_market_close_utc(result_frame)
         return result_frame
 
     logger.info("ThetaData cache MISS for %s %s %s; fetching %d interval(s) from ThetaTerminal.", asset, timespan, datastyle, len(missing_dates))
@@ -2008,19 +2328,32 @@ def get_price_data(
         )
 
         # Use EOD endpoint for official daily OHLC
-        result_df = get_historical_eod_data(
+        # Only pass include_nbbo when enabled to preserve backwards compatibility with mocks.
+        eod_kwargs = dict(
             asset=asset,
             start_dt=effective_start,
             end_dt=effective_end,
-            username=username,
-            password=password,
-            datastyle=datastyle
+            datastyle=datastyle,
         )
+        if username is not None:
+            eod_kwargs["username"] = username
+        if password is not None:
+            eod_kwargs["password"] = password
+        if include_eod_nbbo:
+            eod_kwargs["include_nbbo"] = True
+        result_df = get_historical_eod_data(**eod_kwargs)
         logger.debug(
             "[THETA][DEBUG][THETADATA-EOD] fetched rows=%s for %s",
             0 if result_df is None else len(result_df),
             asset,
         )
+
+        if result_df is not None and not result_df.empty:
+            if "datetime" in result_df.columns and not isinstance(result_df.index, pd.DatetimeIndex):
+                result_df = result_df.copy()
+                result_df["datetime"] = pd.to_datetime(result_df["datetime"], utc=True, errors="coerce")
+                result_df = result_df.dropna(subset=["datetime"]).set_index("datetime").sort_index()
+            result_df = _align_day_index_to_market_close_utc(result_df)
 
         if result_df is None or result_df.empty:
             expired_range = (
@@ -2221,16 +2554,12 @@ def get_price_data(
     set_download_status(asset, quote_asset, datastyle, timespan, 0, total_queries)
 
     def _fetch_chunk(chunk_start: datetime, chunk_end: datetime):
-        return get_historical_data(
-            asset,
-            chunk_start,
-            chunk_end,
-            interval_ms,
-            username,
-            password,
-            datastyle=datastyle,
-            include_after_hours=include_after_hours,
-        )
+        kwargs = {"datastyle": datastyle, "include_after_hours": include_after_hours}
+        if username is not None:
+            kwargs["username"] = username
+        if password is not None:
+            kwargs["password"] = password
+        return get_historical_data(asset, chunk_start, chunk_end, interval_ms, **kwargs)
 
     with ThreadPoolExecutor(max_workers=chunk_workers) as executor:
         future_map: Dict[Any, Tuple[datetime, datetime, float]] = {}
@@ -2510,9 +2839,15 @@ def get_missing_dates(df_all, asset, start, end):
     # It is possible to have full day gap in the data if previous queries were far apart
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
     # Whole days are easy to check for because we can just check the dates in the index
-    dates_series = pd.Series(df_working.index.date)
-    # Treat placeholder rows as known coverage; missing dates are considered permanently absent once written.
-    real_dates = dates_series.unique()
+    dates_series = pd.Series(df_working.index.date, index=df_working.index)
+    placeholder_mask = (
+        df_working["missing"].astype(bool) if "missing" in df_working.columns else pd.Series(False, index=df_working.index)
+    )
+    placeholder_dates = set(dates_series[placeholder_mask].unique()) if hasattr(placeholder_mask, "__len__") else set()
+    # Placeholder rows should be treated as missing coverage for past dates so we can refetch real data
+    # (e.g. when caches were populated during an outage). We suppress future/expired-placeholder refetch
+    # later when computing missing_dates.
+    real_dates = dates_series[~placeholder_mask].unique()
     cached_dates_count = len(real_dates)
     cached_first = min(real_dates) if len(real_dates) > 0 else None
     cached_last = max(real_dates) if len(real_dates) > 0 else None
@@ -2527,6 +2862,12 @@ def get_missing_dates(df_all, asset, start, end):
     )
 
     missing_dates = sorted(set(trading_dates) - set(real_dates))
+
+    if placeholder_dates and missing_dates:
+        today_utc = datetime.now(pytz.UTC).date()
+        suppress_dates = {d for d in placeholder_dates if d > today_utc}
+        if suppress_dates:
+            missing_dates = [d for d in missing_dates if d not in suppress_dates]
 
     # For Options, don't need any dates passed the expiration date
     if asset.asset_type == "option":
@@ -2608,20 +2949,40 @@ def load_cache(cache_file):
 
     df = ensure_missing_column(df)
 
-    # Filter out bad data from cached ThetaData:
-    # Rows where all OHLC values are zero indicates bad/placeholder data from ThetaData.
-    # NOTE: We intentionally do NOT filter weekend dates because markets may trade on
-    # weekends in the future (futures, crypto, etc.). The issue is zero prices, not weekends.
+    # Filter out bad ThetaData cache rows.
+    #
+    # IMPORTANT: For options, Theta EOD responses may legitimately contain OHLC=0 while still
+    # providing actionable NBBO (bid/ask). We must NOT drop those rows, otherwise quote-based
+    # pricing/fills fail and strategies stop trading. Similarly, we must preserve placeholder
+    # rows (`missing==1`) used to maintain trading-day coverage in the cache.
     if not df.empty and all(col in df.columns for col in ["open", "high", "low", "close"]):
-        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
-        zero_count = all_zero.sum()
-        if zero_count > 0:
-            # Log the dates of the zero rows for debugging
-            zero_dates = df.index[all_zero].tolist()
-            logger.warning("[THETA][DATA_QUALITY][CACHE] Filtering %d all-zero OHLC rows: %s",
-                          zero_count, [str(d)[:10] for d in zero_dates[:5]])
-            df = df[~all_zero]
+        all_zero_ohlc = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
+        if all_zero_ohlc.any():
+            is_placeholder = pd.Series(False, index=df.index)
+            if "missing" in df.columns:
+                try:
+                    is_placeholder = df["missing"].astype(bool)
+                except Exception:
+                    is_placeholder = df["missing"] == 1
 
+            has_actionable_quote = pd.Series(False, index=df.index)
+            if "bid" in df.columns:
+                bid_numeric = pd.to_numeric(df["bid"], errors="coerce").fillna(0)
+                has_actionable_quote |= bid_numeric > 0
+            if "ask" in df.columns:
+                ask_numeric = pd.to_numeric(df["ask"], errors="coerce").fillna(0)
+                has_actionable_quote |= ask_numeric > 0
+
+            bad_zero_rows = all_zero_ohlc & ~is_placeholder & ~has_actionable_quote
+            bad_count = int(bad_zero_rows.sum())
+            if bad_count > 0:
+                bad_dates = df.index[bad_zero_rows].tolist()
+                logger.warning(
+                    "[THETA][DATA_QUALITY][CACHE] Filtering %d all-zero OHLC rows with no quote data: %s",
+                    bad_count,
+                    [str(d)[:10] for d in bad_dates[:5]],
+                )
+                df = df[~bad_zero_rows]
     min_ts = df.index.min() if len(df) > 0 else None
     max_ts = df.index.max() if len(df) > 0 else None
     placeholder_count = int(df["missing"].sum()) if "missing" in df.columns else 0
@@ -2977,14 +3338,26 @@ def update_df(df_all, result):
         # NOTE: We intentionally do NOT filter weekend dates because markets may trade on
         # weekends in the future (futures, crypto, etc.). The issue is zero prices, not weekends.
         if not df.empty and all(col in df.columns for col in ["open", "high", "low", "close"]):
-            all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
-            zero_count = all_zero.sum()
+            all_zero_ohlc = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
+            drop_mask = all_zero_ohlc
+
+            # If quote columns are present, preserve rows with valid quotes even if OHLC is all zeros.
+            # Many illiquid options will have no trades on a day (OHLC=0) but still have NBBO quotes.
+            if "bid" in df.columns and "ask" in df.columns:
+                bid = pd.to_numeric(df["bid"], errors="coerce")
+                ask = pd.to_numeric(df["ask"], errors="coerce")
+                has_quote = ((bid > 0) | (ask > 0)).fillna(False)
+                drop_mask = all_zero_ohlc & ~has_quote
+
+            zero_count = int(drop_mask.sum()) if hasattr(drop_mask, "sum") else 0
             if zero_count > 0:
-                # Log the dates of the zero rows for debugging
-                zero_dates = df.index[all_zero].tolist()
-                logger.warning("[THETA][DATA_QUALITY] Filtering %d all-zero OHLC rows: %s",
-                              zero_count, [str(d)[:10] for d in zero_dates[:5]])
-                df = df[~all_zero]
+                zero_dates = df.index[drop_mask].tolist()
+                logger.warning(
+                    "[THETA][DATA_QUALITY] Filtering %d all-zero OHLC row(s) with no quotes: %s",
+                    zero_count,
+                    [str(d)[:10] for d in zero_dates[:5]],
+                )
+                df = df[~drop_mask]
 
         if df_all is not None:
             # set "datetime" column as index of df_all
@@ -3015,7 +3388,6 @@ def update_df(df_all, result):
 def is_process_alive():
     """Check if ThetaTerminal Java process is still running"""
     import os
-    import subprocess
 
     if REMOTE_DOWNLOADER_ENABLED:
         # Remote downloader handles lifecycle; treat as always alive locally.
@@ -3297,7 +3669,13 @@ def _convert_columnar_to_row_format(columnar_data: dict) -> dict:
     return {"header": {"format": columns}, "response": rows}
 
 
-def get_request(url: str, headers: dict, querystring: dict, username: str, password: str):
+def get_request(
+    url: str,
+    headers: dict,
+    querystring: dict,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+):
     """Make a request to ThetaData via the queue system.
 
     This function ONLY uses queue mode - there is no fallback to direct requests.
@@ -3408,10 +3786,11 @@ def get_historical_eod_data(
     asset: Asset,
     start_dt: datetime,
     end_dt: datetime,
-    username: str,
-    password: str,
     datastyle: str = "ohlc",
     apply_corporate_actions: bool = True,
+    include_nbbo: bool = False,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ):
     """
     Get EOD (End of Day) data from ThetaData using the /v3/.../history/eod endpoints.
@@ -3428,12 +3807,14 @@ def get_historical_eod_data(
         The start date for the data we want
     end_dt : datetime
         The end date for the data we want
-    username : str
-        Your ThetaData username
-    password : str
-        Your ThetaData password
     datastyle : str
         The style of data to retrieve (default "ohlc")
+    include_nbbo : bool
+        When True, keep NBBO quote columns (bid/ask/etc) if present in the EOD response.
+    username : Optional[str]
+        ThetaData username (backwards compatible; ignored when using the remote data downloader).
+    password : Optional[str]
+        ThetaData password (backwards compatible; ignored when using the remote data downloader).
 
     Returns
     -------
@@ -3460,8 +3841,16 @@ def get_historical_eod_data(
     if asset_type == "option":
         if not asset.expiration or asset.strike is None:
             raise ValueError(f"Option asset {asset} missing expiration or strike for EOD request")
+        # SPX weeklies/0DTE expirations are queried under SPXW on ThetaData.
+        base_query["symbol"] = _thetadata_option_root_symbol(asset)
         base_query["expiration"] = asset.expiration.strftime("%Y-%m-%d")
-        base_query["strike"] = _format_option_strike(float(asset.strike))
+        # REVERSE SPLIT ADJUSTMENT (2025-12-12): Convert split-adjusted strike back to original
+        # for ThetaData API query. The strategy sees split-adjusted strikes (e.g., $66), but
+        # ThetaData stores data under original strikes (e.g., $1320 for GOOG).
+        # FIX: Pass start_dt as sim_datetime so split lookup uses the correct date range.
+        # Without this, querying March 2020 options would miss the July 2022 GOOG split.
+        query_strike = _get_option_query_strike(asset, sim_datetime=start_dt)
+        base_query["strike"] = _format_option_strike(query_strike)
         right = str(getattr(asset, "right", "CALL")).upper()
         base_query["right"] = "call" if right.startswith("C") else "put"
 
@@ -3495,8 +3884,6 @@ def get_historical_eod_data(
             url=url,
             headers=headers,
             querystring=querystring,
-            username=username,
-            password=password,
         )
 
     def _collect_chunk_payloads(chunk_start: date, chunk_end: date, *, allow_split: bool = True) -> List[Optional[Dict[str, Any]]]:
@@ -3701,12 +4088,29 @@ def get_historical_eod_data(
     # Set datetime as the index
     df = df.set_index("datetime")
 
+    # Theta EOD endpoints may emit duplicate rows for the same trading day (often exact duplicates).
+    # Cache consumers expect a unique datetime index; keep the last row for each date.
+    if df.index.has_duplicates:
+        df = df[~df.index.duplicated(keep="last")]
+
     # Drop the ms_of_day, ms_of_day2, and date columns (not needed for daily bars)
     df = df.drop(columns=["ms_of_day", "ms_of_day2", "date"], errors='ignore')
 
-    # Drop bid/ask columns if present (EOD includes NBBO but we only need OHLC)
-    df = df.drop(columns=["bid_size", "bid_exchange", "bid", "bid_condition",
-                          "ask_size", "ask_exchange", "ask", "ask_condition"], errors='ignore')
+    # Drop bid/ask columns unless explicitly requested (EOD includes NBBO).
+    if not include_nbbo:
+        df = df.drop(
+            columns=[
+                "bid_size",
+                "bid_exchange",
+                "bid",
+                "bid_condition",
+                "ask_size",
+                "ask_exchange",
+                "ask",
+                "ask_condition",
+            ],
+            errors="ignore",
+        )
 
     if apply_corporate_actions:
         df = _apply_corporate_actions_to_frame(asset, df, start_day, end_day, username, password)
@@ -3719,11 +4123,11 @@ def get_historical_data(
     start_dt: datetime,
     end_dt: datetime,
     ivl: int,
-    username: str,
-    password: str,
     datastyle: str = "ohlc",
     include_after_hours: bool = True,
     session_time_override: Optional[Tuple[str, str]] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ):
     """
     Fetch intraday history from ThetaData using the v3 REST endpoints.
@@ -3776,10 +4180,13 @@ def get_historical_data(
         if asset.strike is None:
             raise ValueError(f"Strike missing for option asset {asset}")
         right = str(getattr(asset, "right", "CALL")).upper()
+        # FIX (2025-12-12): Convert split-adjusted strike back to original for ThetaData API query
+        # Uses start_dt from enclosing scope as the simulation datetime
+        query_strike = _get_option_query_strike(asset, sim_datetime=start_dt)
         return {
-            "symbol": asset.symbol,
+            "symbol": _thetadata_option_root_symbol(asset),
             "expiration": asset.expiration.strftime("%Y-%m-%d"),
-            "strike": _format_option_strike(float(asset.strike)),
+            "strike": _format_option_strike(query_strike),
             "right": "call" if right.startswith("C") else "put",
         }
 
@@ -3796,8 +4203,6 @@ def get_historical_data(
             url=url,
             headers=headers,
             querystring=querystring,
-            username=username,
-            password=password,
         )
         if not json_resp:
             return None
@@ -3806,6 +4211,14 @@ def get_historical_data(
 
     frames: List[pd.DataFrame] = []
     option_params = build_option_params() if asset_type == "option" else None
+
+    # DEBUG: Log option params to verify strike conversion
+    if option_params:
+        logger.info(
+            "[THETA][OPTION_PARAMS] asset=%s option_params=%s",
+            asset,
+            option_params,
+        )
 
     for trading_day in trading_days:
         querystring: Dict[str, Any] = {
@@ -3838,8 +4251,6 @@ def get_historical_data(
             url=url,
             headers=headers,
             querystring=querystring,
-            username=username,
-            password=password,
         )
         if not json_resp:
             continue
@@ -3919,11 +4330,9 @@ def _detect_column(df: pd.DataFrame, candidates: Tuple[str, ...]) -> Optional[st
 
 
 def build_historical_chain(
-    username: str,
-    password: str,
     asset: Asset,
     as_of_date: date,
-    max_expirations: int = 120,
+    max_expirations: int = 250,
     max_consecutive_misses: int = 10,
     chain_constraints: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Dict[str, List[float]]]:
@@ -3949,11 +4358,9 @@ def build_historical_chain(
     the chain regardless of whether quotes exist for the backtest date.
 
     Args:
-        username: ThetaData API username
-        password: ThetaData API password
         asset: The underlying asset (e.g., Asset("AAPL"))
         as_of_date: The historical date to build the chain for
-        max_expirations: Maximum number of expirations to include (default: 120)
+        max_expirations: Maximum number of expirations to include (default: 250, increased to support LEAPS 2+ years out)
         max_consecutive_misses: Stop scanning after this many consecutive strike fetch failures
         chain_constraints: Optional dict with 'min_expiration_date' and/or 'max_expiration_date'
             to filter the range of expirations included
@@ -3973,15 +4380,46 @@ def build_historical_chain(
         raise ValueError("as_of_date must be provided to build a historical chain")
 
     headers = {"Accept": "application/json"}
-    expirations_resp = get_request(
-        url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
-        headers=headers,
-        querystring={"symbol": asset.symbol, "format": "json"},
-        username=username,
-        password=password,
-    )
 
-    if not expirations_resp or not expirations_resp.get("response"):
+    def _fetch_expiration_values(symbol: str) -> List[str]:
+        expirations_resp = get_request(
+            url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
+            headers=headers,
+            querystring={"symbol": symbol, "format": "json"},
+        )
+        if not expirations_resp or not expirations_resp.get("response"):
+            return []
+
+        exp_df = pd.DataFrame(expirations_resp["response"], columns=expirations_resp["header"]["format"])
+        if exp_df.empty:
+            return []
+
+        expiration_col = _detect_column(exp_df, ("expiration", "exp", "date"))
+        if not expiration_col:
+            logger.warning("ThetaData expiration payload missing expected columns for %s.", symbol)
+            return []
+
+        values: List[str] = []
+        for raw_value in exp_df[expiration_col].tolist():
+            normalized = _normalize_expiration_value(raw_value)
+            if normalized:
+                values.append(normalized)
+        return sorted({value for value in values})
+
+    primary_symbol = asset.symbol
+    symbols_to_merge = [primary_symbol]
+    spxw_symbol = None
+    if str(primary_symbol).upper() == "SPX":
+        # ThetaData stores SPX weeklies/0DTE expirations under SPXW.
+        spxw_symbol = "SPXW"
+        symbols_to_merge.append(spxw_symbol)
+
+    expirations_by_symbol: Dict[str, List[str]] = {
+        symbol: _fetch_expiration_values(symbol) for symbol in symbols_to_merge
+    }
+
+    expiration_values = sorted({exp for exps in expirations_by_symbol.values() for exp in exps})
+    if not expiration_values:
         logger.warning(
             "ThetaData returned no expirations for %s; cannot build chain for %s.",
             asset.symbol,
@@ -3989,26 +4427,8 @@ def build_historical_chain(
         )
         return None
 
-    exp_df = pd.DataFrame(expirations_resp["response"], columns=expirations_resp["header"]["format"])
-    if exp_df.empty:
-        logger.warning(
-            "ThetaData returned empty expiration list for %s; cannot build chain for %s.",
-            asset.symbol,
-            as_of_date,
-        )
-        return None
-
-    expiration_col = _detect_column(exp_df, ("expiration", "exp", "date"))
-    if not expiration_col:
-        logger.warning("ThetaData expiration payload missing expected columns for %s.", asset.symbol)
-        return None
-
-    expiration_values: List[str] = []
-    for raw_value in exp_df[expiration_col].tolist():
-        normalized = _normalize_expiration_value(raw_value)
-        if normalized:
-            expiration_values.append(normalized)
-    expiration_values = sorted({value for value in expiration_values})
+    spx_expirations = set(expirations_by_symbol.get(primary_symbol, []))
+    spxw_expirations = set(expirations_by_symbol.get(spxw_symbol, [])) if spxw_symbol else set()
 
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
@@ -4061,21 +4481,31 @@ def build_historical_chain(
             break
 
         # Fetch the list of available strikes for this expiration from ThetaData
+        strike_symbol = primary_symbol
+        if spxw_symbol and str(primary_symbol).upper() == "SPX":
+            try:
+                exp_date = date.fromisoformat(expiration_iso)
+            except ValueError:
+                exp_date = None
+
+            if exp_date and _is_third_friday(exp_date) and expiration_iso in spx_expirations:
+                strike_symbol = "SPX"
+            elif expiration_iso in spxw_expirations:
+                strike_symbol = "SPXW"
+
         strike_resp = get_request(
             url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['strikes']}",
             headers=headers,
             querystring={
-                "symbol": asset.symbol,
+                "symbol": strike_symbol,
                 "expiration": expiration_iso,
                 "format": "json",
             },
-            username=username,
-            password=password,
         )
 
         # Handle strike fetch failures - increment miss counter and potentially stop scanning
         if not strike_resp or not strike_resp.get("response"):
-            logger.debug("No strikes for %s exp %s; skipping.", asset.symbol, expiration_iso)
+            logger.debug("No strikes for %s exp %s; skipping.", strike_symbol, expiration_iso)
             consecutive_strike_misses += 1
             if consecutive_strike_misses >= 10:
                 logger.debug("[ThetaData] 10 consecutive expirations with no strikes; stopping scan.")
@@ -4142,15 +4572,120 @@ def build_historical_chain(
         )
         return None
 
+    # SPLIT ADJUSTMENT FOR OPTIONS STRIKES (2025-12-11)
+    # When stock prices are split-adjusted, options strikes must also be adjusted to match.
+    # For example, GOOG had a 20:1 split in July 2022. When backtesting March 2020:
+    # - Stock price is split-adjusted: ~$55 (original ~$1100)
+    # - ThetaData strikes are NOT adjusted: $1320
+    # - Strategy calculates target strike: $55 * 1.20 = $66
+    # - Without this fix, the strategy tries to buy $1320 strike (wrong!)
+    # - With this fix, strikes are adjusted: $1320 / 20 = $66 (correct!)
+    #
+    # We fetch splits from as_of_date to TODAY and apply the cumulative ratio.
+    from datetime import date as date_type
+    today = date_type.today()
+
+    # Fetch splits that occurred AFTER the backtest date
+    splits = _get_theta_splits(asset, as_of_date, today)
+
+    if splits is not None and not splits.empty:
+        # Calculate cumulative split factor for splits after as_of_date
+        # Filter to splits that actually occurred after our backtest date
+        if "event_date" in splits.columns:
+            as_of_datetime = pd.Timestamp(as_of_date)
+            if splits["event_date"].dtype != "datetime64[ns]":
+                splits["event_date"] = pd.to_datetime(splits["event_date"])
+            # Make as_of_datetime timezone-aware if event_date is timezone-aware
+            if hasattr(splits["event_date"].dt, "tz") and splits["event_date"].dt.tz is not None:
+                if as_of_datetime.tzinfo is None:
+                    as_of_datetime = as_of_datetime.tz_localize(splits["event_date"].dt.tz)
+            future_splits = splits[splits["event_date"] > as_of_datetime]
+
+            if not future_splits.empty:
+                cumulative_split_factor = future_splits["ratio"].prod()
+
+                # FIX (2025-12-12): Handle BOTH forward AND reverse splits
+                # Forward splits (e.g., 20:1): factor > 1.0, strikes are divided
+                # Reverse splits (e.g., 1:8): factor < 1.0, strikes are divided (increases them)
+                if cumulative_split_factor != 1.0:
+                    # Theta's strike lists can contain a mix of pre- and post-split scales,
+                    # especially for expirations that span a split. We normalize per-strike
+                    # by choosing the representation (raw vs raw/factor) that is closer in
+                    # log-space to the underlying's split-adjusted price on as_of_date.
+                    reference_price = None
+                    try:
+                        ref_asset = Asset(asset.symbol, asset_type="stock")
+                        ref_dt = datetime(as_of_date.year, as_of_date.month, as_of_date.day)
+                        ref_df = get_price_data(
+                            asset=ref_asset,
+                            start=ref_dt,
+                            end=ref_dt,
+                            timespan="day",
+                            datastyle="ohlc",
+                            include_after_hours=False,
+                        )
+                        if ref_df is not None and not ref_df.empty:
+                            for col in ("close", "Close", "adj_close", "Adj Close"):
+                                if col in ref_df.columns:
+                                    reference_price = float(ref_df[col].iloc[-1])
+                                    break
+                    except Exception as exc:
+                        logger.debug(
+                            "[ThetaData] Unable to fetch reference price for strike normalization (%s @ %s): %s",
+                            asset.symbol,
+                            as_of_date,
+                            exc,
+                        )
+
+                    logger.info(
+                        "[ThetaData] Adjusting option strikes for %s: cumulative split factor %.4f "
+                        "(from %d splits after %s)",
+                        asset.symbol,
+                        cumulative_split_factor,
+                        len(future_splits),
+                        as_of_date,
+                    )
+
+                    import math
+
+                    def _select_normalized_strike(raw_strike: float) -> float:
+                        adjusted = raw_strike / cumulative_split_factor
+                        if reference_price and reference_price > 0:
+                            try:
+                                raw_score = abs(math.log(raw_strike / reference_price))
+                                adjusted_score = abs(math.log(adjusted / reference_price))
+                            except (ValueError, ZeroDivisionError):
+                                return adjusted
+                            return adjusted if adjusted_score < raw_score else raw_strike
+                        return adjusted
+
+                    # Normalize strikes per-expiration to match split-adjusted underlying prices.
+                    for option_type in ["CALL", "PUT"]:
+                        for expiry_date, strikes in chains[option_type].items():
+                            normalized = {
+                                round(_select_normalized_strike(float(strike)), 2)
+                                for strike in strikes
+                                if strike is not None
+                            }
+                            chains[option_type][expiry_date] = sorted(normalized)
+
+                    logger.debug(
+                        "[ThetaData] Strike adjustment example for %s: %.2f -> %.2f",
+                        asset.symbol,
+                        1320.0,  # Example pre-split strike
+                        1320.0 / cumulative_split_factor,
+                    )
+
     return {
         "Multiplier": 100,
         "Exchange": "SMART",
         "Chains": chains,
         "UnderlyingSymbol": asset.symbol,  # Add this for easier extraction later
+        "_chain_cache_version": THETADATA_CHAIN_CACHE_VERSION,
     }
 
 
-def get_expirations(username: str, password: str, ticker: str, after_date: date):
+def get_expirations(ticker: str, after_date: date):
     """Legacy helper retained for backward compatibility; prefer build_historical_chain."""
     logger.warning(
         "get_expirations is deprecated and provides live expirations only. "
@@ -4162,7 +4697,7 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
     url = f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}"
     querystring = {"symbol": ticker, "format": "json"}
     headers = {"Accept": "application/json"}
-    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
+    json_resp = get_request(url=url, headers=headers, querystring=querystring)
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
     expiration_col = _detect_column(df, ("expiration", "date", "exp"))
     if not expiration_col:
@@ -4182,16 +4717,12 @@ def get_expirations(username: str, password: str, ticker: str, after_date: date)
     return expirations_final
 
 
-def get_strikes(username: str, password: str, ticker: str, expiration: datetime):
+def get_strikes(ticker: str, expiration: datetime):
     """
     Get a list of strike prices for the given ticker and expiration date
 
     Parameters
     ----------
-    username : str
-        Your ThetaData username
-    password : str
-        Your ThetaData password
     ticker : str
         The ticker for the asset we are getting data for
     expiration : date
@@ -4210,7 +4741,7 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
     headers = {"Accept": "application/json"}
 
     # Send the request
-    json_resp = get_request(url=url, headers=headers, querystring=querystring, username=username, password=password)
+    json_resp = get_request(url=url, headers=headers, querystring=querystring)
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
@@ -4229,11 +4760,8 @@ def get_strikes(username: str, password: str, ticker: str, expiration: datetime)
 
 
 def get_chains_cached(
-    username: str,
-    password: str,
     asset: Asset,
-    current_date: date = None
-    ,
+    current_date: date = None,
     chain_constraints: Optional[Dict[str, Any]] = None,
 ) -> dict:
     """
@@ -4247,10 +4775,6 @@ def get_chains_cached(
 
     Parameters
     ----------
-    username : str
-        ThetaData username
-    password : str
-        ThetaData password
     asset : Asset
         Underlying asset (e.g., Asset("SPY"))
     current_date : date
@@ -4311,6 +4835,19 @@ def get_chains_cached(
 
                 # Convert back to dict with lists (not numpy arrays)
                 data = df_cached["data"][0]
+                if isinstance(data, dict):
+                    cache_version = int(data.get("_chain_cache_version", 0) or 0)
+                    if cache_version < THETADATA_CHAIN_CACHE_VERSION:
+                        logger.debug(
+                            "Skipping outdated ThetaData chain cache %s (version=%s < %s)",
+                            fpath,
+                            cache_version,
+                            THETADATA_CHAIN_CACHE_VERSION,
+                        )
+                        continue
+                # Backfill for older cache files created before UnderlyingSymbol was added.
+                if isinstance(data, dict) and "UnderlyingSymbol" not in data:
+                    data["UnderlyingSymbol"] = asset.symbol
                 for right in data["Chains"]:
                     for exp_date in data["Chains"][right]:
                         data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
@@ -4326,8 +4863,6 @@ def get_chains_cached(
     )
 
     chains_dict = build_historical_chain(
-        username=username,
-        password=password,
         asset=asset,
         as_of_date=current_date,
         chain_constraints=constraints if hint_present else None,

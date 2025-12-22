@@ -1949,17 +1949,37 @@ class TestDriftRebalancer:
         end_date = datetime.now() - timedelta(days=1)
         start_date = end_date - timedelta(days=5)
 
+        def _fake_polygon(api_key, asset, start_datetime, end_datetime, timespan="day", quote_asset=None, **kwargs):
+            tz = start_datetime.tzinfo or pytz.timezone("America/New_York")
+            freq = {"minute": "min", "hour": "H", "day": "D"}.get(timespan, "D")
+            index = pd.date_range(start_datetime, end_datetime, freq=freq, tz=tz)
+            if index.empty:
+                index = pd.DatetimeIndex([pd.Timestamp(start_datetime, tz=tz)])
+            base = pd.Series(range(len(index)), index=index).astype(float)
+            data = {
+                "open": 200 + base,
+                "high": 201 + base,
+                "low": 199 + base,
+                "close": 200.5 + base,
+                "volume": 1000 + base * 10,
+            }
+            return pd.DataFrame(data, index=index)
+
         strat_obj: Strategy
-        results, strat_obj = DriftRebalancer.run_backtest(
-            datasource_class=PolygonDataBacktesting,
-            polygon_api_key=POLYGON_CONFIG["API_KEY"],
-            backtesting_start=start_date,
-            backtesting_end=end_date,
-            parameters=parameters,
-            benchmark_asset=None,
-            analyze_backtest=False,
-            show_progress_bar=False,
-        )
+        with patch(
+            "lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon",
+            side_effect=_fake_polygon,
+        ):
+            results, strat_obj = DriftRebalancer.run_backtest(
+                datasource_class=PolygonDataBacktesting,
+                polygon_api_key=POLYGON_CONFIG["API_KEY"],
+                backtesting_start=start_date,
+                backtesting_end=end_date,
+                parameters=parameters,
+                benchmark_asset=None,
+                analyze_backtest=False,
+                show_progress_bar=False,
+            )
 
         trades_df = strat_obj.broker._trade_event_log_df
 

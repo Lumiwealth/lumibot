@@ -12,7 +12,7 @@ Lumibot is a backtesting and trading library for stocks, options, crypto, future
 
 ## Architecture Documentation
 
-- `BACKTESTING_ARCHITECTURE.md` - Detailed documentation of the backtesting data flow (Yahoo, ThetaData, Polygon data sources, caching, and data flow diagrams)
+- `docs/BACKTESTING_ARCHITECTURE.md` - Detailed documentation of the backtesting data flow (Yahoo, ThetaData, Polygon data sources, caching, and data flow diagrams)
 - `CLAUDE.md` - AI assistant instructions for working with the codebase
 - `AGENTS.md` - Critical rules for ThetaData and production safety
 
@@ -33,11 +33,12 @@ Want to build trading bots without code? Check out our new platform [BotSpot](ht
 
 **Visit [BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started building AI-powered trading bots today!**
 
-## Blog
+## Learn More
 
-Our blog has lots of example strategies and shows you how to run a bot using LumiBot. Check the blog out here:
+Check out example strategies and tutorials on our blog, or use our AI agent to build strategies for you:
 
-**https://lumiwealth.com/blog/**
+**Blog:** https://lumiwealth.com/blog/
+**AI Strategy Builder:** https://www.botspot.trade/?utm_source=github&utm_medium=referral&utm_campaign=lumibot_readme
 
 ## Run a backtest
 
@@ -242,17 +243,21 @@ If you want to learn more about Lumibot or Algorithmic Trading then you will lov
 
 **Build AI-powered trading bots on [BotSpot.trade](https://botspot.trade/)** - Our platform for creating, testing, and deploying trading strategies with AI assistance!
 
-## Courses
+## AI Bootcamp
 
-If you need extra help building your algorithm, we have courses to help you out.
+Need hands-on help building your trading bots? Join our **AI Bootcamp** where you'll learn to build, backtest, and deploy trading strategies using AI—no coding required.
 
-**For our Algorithmic Trading course: <https://lumiwealth.com/algorithmic-trading-landing-page>**
+**What you'll learn:**
+- Build stock, crypto, options, and futures bots using plain English prompts
+- Master professional tools like VS Code with Copilot and Cursor
+- Backtest and deploy your strategies to live brokers
+- Join 2,400+ traders in our community
 
-**For our Machine Learning for Trading course: <https://www.lumiwealth.com/product-category/machine-learning-purchase/>**
+**[Learn more about the AI Bootcamp](https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=referral&utm_campaign=lumibot_readme)**
 
-**For our Options Trading course: <https://www.lumiwealth.com/product-category/options-trading-purchase/>**
+---
 
-**Looking for a no-code solution? Build trading bots with AI on [BotSpot](https://botspot.trade/)**
+**Just want to try the AI?** [Start your free trial at BotSpot.trade](https://www.botspot.trade/?utm_source=github&utm_medium=referral&utm_campaign=lumibot_readme) — build strategies in minutes, no coding required.
 
 ## License
 

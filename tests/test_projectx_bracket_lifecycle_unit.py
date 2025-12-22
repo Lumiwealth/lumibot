@@ -14,6 +14,8 @@ class DummyDataSource(DataSource):
         return None
     def get_last_price(self, asset, quote=None, exchange=None):
         return 0.0
+    def _get_contract_id_from_asset(self, asset):
+        return f"CON.F.US.{asset.symbol}.Z25"
 
 
 class StubClient:

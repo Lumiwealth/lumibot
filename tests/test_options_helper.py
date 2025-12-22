@@ -353,6 +353,24 @@ class TestOptionsHelper(unittest.TestCase):
         result = self.options_helper.get_expiration_on_or_after_date(target, expiries, "call")
         self.assertIsNone(result)
 
+    def test_get_expiration_on_or_after_date_allows_prior_fallback(self):
+        from datetime import date as _date
+
+        expiries = {
+            "Chains": {
+                "CALL": {
+                    "2024-01-02": [100.0],
+                    "2024-01-09": [101.0],
+                }
+            }
+        }
+
+        target = _date(2024, 2, 1)
+        result = self.options_helper.get_expiration_on_or_after_date(
+            target, expiries, "call", allow_prior=True
+        )
+        self.assertEqual(result, _date(2024, 1, 9))
+
     def test_chains_backward_compatibility_string_access(self):
         """Test that existing code using string keys still works."""
         chains = normalize_option_chains({
@@ -424,8 +442,8 @@ class TestOptionsHelper(unittest.TestCase):
         self.assertIn("PUT", chains_partial["Chains"])
 
     @pytest.mark.skipif(
-        os.environ.get("CI") == "true",
-        reason="Requires ThetaData Terminal (not available in CI)"
+        os.environ.get("RUN_THETADATA_TERMINAL_TESTS") != "true",
+        reason="Disabled by default: requires local ThetaTerminal; set RUN_THETADATA_TERMINAL_TESTS=true to enable.",
     )
     def test_find_next_valid_option_checks_quote_first(self):
         """Test that find_next_valid_option checks quote before last_price using REAL ThetaData"""
@@ -445,6 +463,8 @@ class TestOptionsHelper(unittest.TestCase):
             self.skipTest("ThetaData username not configured")
         if not password or password.lower() in {"", "pwd"}:
             self.skipTest("ThetaData password not configured")
+        if username != "rob-dev@lumiwealth.com":
+            self.skipTest("Safety: integration test only runs with dev ThetaData credentials (rob-dev@lumiwealth.com)")
 
         # Create a simple strategy that uses OptionsHelper with REAL data
         class TestStrategy(Strategy):
@@ -504,8 +524,8 @@ class TestOptionsHelper(unittest.TestCase):
         self.assertIsNotNone(strategy.option_found, "Should find valid option using real ThetaData")
 
     @pytest.mark.skipif(
-        os.environ.get("CI") == "true",
-        reason="Requires ThetaData Terminal (not available in CI)"
+        os.environ.get("RUN_THETADATA_TERMINAL_TESTS") != "true",
+        reason="Disabled by default: requires local ThetaTerminal; set RUN_THETADATA_TERMINAL_TESTS=true to enable.",
     )
     def test_find_next_valid_option_falls_back_to_last_price(self):
         """Test fallback to last_price when quote has no bid/ask using REAL ThetaData"""
@@ -525,6 +545,8 @@ class TestOptionsHelper(unittest.TestCase):
             self.skipTest("ThetaData username not configured")
         if not password or password.lower() in {"", "pwd"}:
             self.skipTest("ThetaData password not configured")
+        if username != "rob-dev@lumiwealth.com":
+            self.skipTest("Safety: integration test only runs with dev ThetaData credentials (rob-dev@lumiwealth.com)")
 
         # Create a simple strategy that uses OptionsHelper with REAL data
         class TestStrategy(Strategy):

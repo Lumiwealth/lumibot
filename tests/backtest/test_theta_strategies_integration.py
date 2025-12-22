@@ -6,6 +6,8 @@ import pandas as pd
 import pytest
 from dotenv import load_dotenv
 
+pytestmark = [pytest.mark.apitest, pytest.mark.downloader]
+
 
 DEFAULT_ENV_PATH = Path.home() / "Documents/Development/Strategy Library/Demos/.env"
 LOG_DIR = Path(__file__).resolve().parent / "logs"

@@ -55,7 +55,7 @@ def test_verify_backtest_inputs_accepts_mixed_timezones():
     _Strategy.verify_backtest_inputs(naive_start, aware_end)
 
 
-def test_run_backtest_normalizes_mixed_timezones():
+def test_run_backtest_normalizes_mixed_timezones(disable_datasource_override):
     """Strategy.run_backtest should normalize naive/aware datetimes before validation."""
     naive_start = datetime.datetime(2025, 1, 1)
     aware_end = datetime.datetime(2025, 9, 30, tzinfo=datetime.timezone.utc)

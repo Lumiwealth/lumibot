@@ -983,8 +983,35 @@ class BacktestingBroker(Broker):
         else:
             underlying_asset = position.asset.underlying_asset
 
-        # Get the price of the underlying asset
-        underlying_price = self.get_last_price(underlying_asset)
+        # Get the price of the underlying asset.
+        #
+        # ThetaData index options (e.g., SPX) can arrive without an explicit underlying_asset,
+        # and legacy code defaulted to creating a stock Asset(symbol=SPX). That yields no data
+        # and can trigger the ThetaData "tail placeholder" coverage guard. If that happens,
+        # retry using an index asset type.
+        try:
+            underlying_price = self.get_last_price(underlying_asset)
+        except ValueError as exc:
+            message = str(exc)
+            if (
+                "[THETA][COVERAGE][TAIL_PLACEHOLDER]" in message
+                and getattr(underlying_asset, "asset_type", None) != "index"
+            ):
+                underlying_asset_index = Asset(symbol=underlying_asset.symbol, asset_type="index")
+                underlying_price = self.get_last_price(underlying_asset_index)
+            else:
+                raise
+
+        # If the underlying was mis-typed (e.g., SPX created as stock), some data sources
+        # return None instead of raising. Retry as an index before settling.
+        if underlying_price is None and getattr(underlying_asset, "asset_type", None) != "index":
+            underlying_asset_index = Asset(symbol=underlying_asset.symbol, asset_type="index")
+            underlying_price = self.get_last_price(underlying_asset_index)
+
+        if underlying_price is None:
+            raise ValueError(
+                f"Unable to price underlying {underlying_asset} for cash settlement of {position.asset}"
+            )
 
         # Calculate profit/loss per contract
         if position.asset.right == "CALL":
@@ -1602,7 +1629,7 @@ class BacktestingBroker(Broker):
             # Fill the order.
             #############################
 
-            if price is None and self._should_attempt_quote_fallback(open, high, low):
+            if (price is None or self._is_invalid_price(price)) and self._should_attempt_quote_fallback(order, open, high, low):
                 price = self._try_fill_with_quote(order, strategy, open, high, low)
 
             # If the price is set, then the order has been filled
@@ -1644,7 +1671,7 @@ class BacktestingBroker(Broker):
             return value
 
     def _is_invalid_price(self, value):
-        """Determine whether a price is unusable (None or NaN)."""
+        """Determine whether a price is unusable (None, NaN, or non-positive)."""
         if value is None:
             return True
         if isinstance(value, Decimal):
@@ -1659,13 +1686,39 @@ class BacktestingBroker(Broker):
                 return True
         except Exception:
             pass
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return False
+        return numeric_value <= 0
         return False
 
     def _bar_has_missing_prices(self, *values) -> bool:
         return any(self._is_invalid_price(val) for val in values)
 
-    def _should_attempt_quote_fallback(self, open_, high_, low_) -> bool:
-        return self._is_thetadata_source() and self._bar_has_missing_prices(open_, high_, low_)
+    def _is_option_asset(self, asset) -> bool:
+        if asset is None:
+            return False
+        return str(getattr(asset, "asset_type", "")).lower() == "option"
+
+    def _should_attempt_quote_fallback(self, order, open_, high_, low_) -> bool:
+        """Determine whether to attempt quote-based fills.
+
+        We primarily use quote fills for ThetaData when OHLC bars are missing. Additionally, for ThetaData
+        option day-bars, trade prints can be sparse (limits may not cross a trade even when NBBO is actionable),
+        so we allow quote fills for option limit orders in daily cadence when a quote is available.
+        """
+        if not self._is_thetadata_source():
+            return False
+        if self._bar_has_missing_prices(open_, high_, low_):
+            return True
+
+        asset = getattr(order, "asset", None) if order is not None else None
+        if not self._is_option_asset(asset):
+            return False
+
+        timestep = getattr(self.data_source, "_timestep", None)
+        return timestep == "day"
 
     def _is_thetadata_source(self) -> bool:
         if ThetaDataBacktestingPandas is None:
@@ -1692,9 +1745,10 @@ class BacktestingBroker(Broker):
         """Attempt to fill an order using ThetaData quotes when OHLC bars are missing."""
         if not self._is_thetadata_source():
             return None
-        if not self._bar_has_missing_prices(open_, high_, low_):
+        is_option = self._is_option_asset(getattr(order, "asset", None))
+        if not (self._bar_has_missing_prices(open_, high_, low_) or is_option):
             return None
-        if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT):
+        if order.order_type not in (Order.OrderType.LIMIT, Order.OrderType.STOP_LIMIT, Order.OrderType.MARKET):
             return None
         if not (order.is_buy_order() or order.is_sell_order()):
             return None
@@ -1712,19 +1766,30 @@ class BacktestingBroker(Broker):
         ask = self._coerce_price(getattr(quote, "ask", None))
 
         is_buy = order.is_buy_order()
-        fill_price = ask if is_buy else bid
+
+        fill_price: Optional[float] = None
+        if order.order_type == Order.OrderType.MARKET:
+            fill_price = ask if is_buy else bid
+        else:
+            limit_price = self._coerce_price(order.limit_price)
+            if is_buy:
+                if ask is not None and limit_price is not None and limit_price >= ask:
+                    fill_price = ask
+                elif bid is not None and limit_price is not None and limit_price >= bid:
+                    fill_price = limit_price
+            else:
+                if bid is not None and limit_price is not None and limit_price <= bid:
+                    fill_price = bid
+                elif ask is not None and limit_price is not None and limit_price <= ask:
+                    fill_price = limit_price
+
         if fill_price is None or self._is_invalid_price(fill_price):
             return None
 
-        limit_price = self._coerce_price(order.limit_price)
-        if limit_price is not None:
-            if is_buy and fill_price > limit_price:
-                return None
-            if not is_buy and fill_price < limit_price:
-                return None
-
         spread_key = "max_spread_buy_pct" if is_buy else "max_spread_sell_pct"
         spread_limit = self._get_spread_limit(strategy, spread_key)
+        if spread_limit is None:
+            spread_limit = self._get_spread_limit(strategy, "max_spread_pct")
         if spread_limit is not None and bid is not None and ask is not None:
             mid = (ask + bid) / 2
             if mid > 0:

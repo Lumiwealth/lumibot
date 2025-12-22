@@ -1,10 +1,10 @@
+import logging
+import math
+import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import logging
-import math
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
 
 from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
@@ -172,9 +172,95 @@ class OptionsHelper:
                         expiry_attempts += 1
                         continue
 
-                    # Find the closest strike to our target
-                    closest_strike = min(available_strikes, key=lambda x: abs(x - rounded_underlying_price))
-                    self.strategy.log_message(f"Target strike {rounded_underlying_price} -> Closest available strike: {closest_strike}", color="green")
+                    # In ThetaData day-mode backtests, some strikes can be listed but effectively untradeable
+                    # (e.g., bid==0 with ask>0). To avoid strategies getting "stuck" selecting those strikes,
+                    # prefer the nearest strike that has a usable two-sided quote (bid>0 and ask>0).
+                    prefer_actionable = False
+                    if getattr(self.strategy, "is_backtesting", False):
+                        broker = getattr(self.strategy, "broker", None)
+                        data_source = getattr(broker, "data_source", None) if broker is not None else None
+                        prefer_actionable = (
+                            data_source is not None
+                            and data_source.__class__.__name__ == "ThetaDataBacktestingPandas"
+                        )
+
+                    max_spread_pct = None
+                    params = getattr(self.strategy, "parameters", None)
+                    if isinstance(params, dict):
+                        for key in ("max_option_spread_pct", "max_spread_pct"):
+                            if params.get(key) is None:
+                                continue
+                            try:
+                                max_spread_pct = float(params[key])
+                                break
+                            except (TypeError, ValueError):
+                                max_spread_pct = None
+
+                    def _has_actionable_two_sided_quote(q) -> bool:
+                        if q is None:
+                            return False
+                        try:
+                            bid = float(q.bid) if getattr(q, "bid", None) is not None else None
+                            ask = float(q.ask) if getattr(q, "ask", None) is not None else None
+                        except (TypeError, ValueError):
+                            return False
+                        if not (
+                            bid is not None
+                            and ask is not None
+                            and math.isfinite(bid)
+                            and math.isfinite(ask)
+                            and bid > 0
+                            and ask > 0
+                        ):
+                            return False
+
+                        if max_spread_pct is None:
+                            return True
+
+                        mid = (bid + ask) / 2.0
+                        if mid <= 0:
+                            return False
+                        spread_pct = (ask - bid) / mid
+                        return spread_pct <= max_spread_pct
+
+                    strikes_sorted = sorted(
+                        [float(s) for s in available_strikes if s is not None],
+                        key=lambda s: abs(s - float(rounded_underlying_price)),
+                    )
+
+                    closest_strike = strikes_sorted[0] if strikes_sorted else None
+
+                    if prefer_actionable and strikes_sorted:
+                        for candidate_strike in strikes_sorted[:10]:
+                            option = Asset(
+                                underlying_asset.symbol,
+                                asset_type="option",
+                                expiration=expiry,
+                                strike=candidate_strike,
+                                right=put_or_call,
+                                underlying_asset=underlying_asset,
+                            )
+
+                            try:
+                                quote = self.strategy.get_quote(option)
+                            except Exception:
+                                quote = None
+
+                            if _has_actionable_two_sided_quote(quote):
+                                self.strategy.log_message(
+                                    f"Target strike {rounded_underlying_price} -> Using actionable strike: {candidate_strike}",
+                                    color="green",
+                                )
+                                return option
+
+                    # Default: Find the closest strike to our target
+                    if closest_strike is None:
+                        return None
+
+                    self.strategy.log_message(
+                        f"Target strike {rounded_underlying_price} -> Closest available strike: {closest_strike}",
+                        color="green",
+                    )
 
                     # Create option with the closest available strike
                     option = Asset(
@@ -202,7 +288,7 @@ class OptionsHelper:
                         if price is not None:
                             self.strategy.log_message(f"Found valid option (via last price): {option.symbol} {option.right} {option.strike} exp {option.expiration}", color="green")
                             return option
-                    except Exception as e:
+                    except Exception:
                         pass
 
                     # If closest strike didn't work, this expiry might be invalid
@@ -329,10 +415,39 @@ class OptionsHelper:
             right=right,
             underlying_asset=underlying_asset,
         )
-        if self.strategy.get_last_price(option) is None:
+
+        def _coerce_price(value: Any) -> Optional[float]:
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(numeric) or numeric <= 0:
+                return None
+            return numeric
+
+        option_price = _coerce_price(self.strategy.get_last_price(option))
+        used_quote_price = False
+        if option_price is None:
+            quote = None
+            try:
+                quote = self.strategy.get_quote(option)
+            except Exception:
+                quote = None
+
+            bid = _coerce_price(getattr(quote, "bid", None)) if quote else None
+            ask = _coerce_price(getattr(quote, "ask", None)) if quote else None
+            if bid is not None and ask is not None:
+                option_price = (bid + ask) / 2
+                used_quote_price = True
+
+        if option_price is None:
             self.strategy.log_message(f"No price for option {option.symbol} at strike {strike}", color="yellow")
             return None
-        greeks = self.strategy.get_greeks(option, underlying_price=underlying_price)
+
+        greeks_kwargs = {"underlying_price": underlying_price}
+        if used_quote_price:
+            greeks_kwargs["asset_price"] = option_price
+        greeks = self.strategy.get_greeks(option, **greeks_kwargs)
         # Handle None from get_greeks - can happen when option price or underlying price unavailable
         if greeks is None:
             self.strategy.log_message(
@@ -380,70 +495,112 @@ class OptionsHelper:
             return None
             
         if target_delta is None:
-            self.strategy.log_message(f"❌ ERROR: target_delta is None", color="red")
+            self.strategy.log_message("❌ ERROR: target_delta is None", color="red")
             return None
             
         if abs(target_delta) > 1:
             self.strategy.log_message(f"❌ ERROR: Invalid target delta {target_delta} (should be between -1 and 1)", color="red")
             return None
-        
-        low_strike = int(underlying_price - 20)
-        high_strike = int(underlying_price + 30)
-        
-        # Ensure strikes are positive
-        low_strike = max(1, low_strike)
-        
+
+        strike_min = max(1.0, float(underlying_price) - 20.0)
+        strike_max = float(underlying_price) + 30.0
+
+        # Prefer the actual strikes from the option chain to avoid querying non-existent strikes
+        # (e.g., contracts that only list strikes every $5.00).
+        candidate_strikes: List[float] = []
+        chains = None
+        try:
+            chains = self.strategy.get_chains(underlying_asset)
+        except Exception:
+            chains = None
+
+        option_type = str(right).upper()
+        if option_type.startswith("C"):
+            option_type = "CALL"
+        elif option_type.startswith("P"):
+            option_type = "PUT"
+
+        if chains:
+            strikes_raw = []
+            try:
+                strikes_raw = chains.strikes(expiry, option_type)
+            except Exception:
+                if isinstance(chains, dict):
+                    strike_map = chains.get("Chains", {}).get(option_type, {})
+                    strikes_raw = strike_map.get(expiry.strftime("%Y-%m-%d"), []) if strike_map else []
+
+            if not isinstance(strikes_raw, (list, tuple, set)):
+                strikes_raw = []
+
+            for value in strikes_raw or []:
+                try:
+                    numeric = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if numeric > 0:
+                    candidate_strikes.append(numeric)
+
+        candidate_strikes = sorted(set(candidate_strikes))
+        if candidate_strikes:
+            filtered = [s for s in candidate_strikes if strike_min <= s <= strike_max]
+            if filtered:
+                candidate_strikes = filtered
+        else:
+            # Fallback for data sources that don't provide chains: preserve original behavior.
+            candidate_strikes = [float(s) for s in range(int(strike_min), int(strike_max) + 1)]
+
         self.strategy.log_message(
-            f"🔍 Search range: strikes {low_strike} to {high_strike} (underlying=${underlying_price})", 
-            color="blue"
+            f"🔍 Search range: strikes {strike_min:.2f} to {strike_max:.2f} (underlying=${underlying_price})",
+            color="blue",
         )
-        
+        self.strategy.log_message(
+            f"🔍 Search strikes: {len(candidate_strikes)} candidates (range {strike_min:.2f}-{strike_max:.2f})",
+            color="blue",
+        )
+
         closest_strike: Optional[float] = None
         closest_delta: Optional[float] = None
 
-        while low_strike <= high_strike:
-            mid_strike = (low_strike + high_strike) // 2
-            self.strategy.log_message(f"🔎 Trying strike {mid_strike} (range: {low_strike}-{high_strike})", color="blue")
-            
-            mid_delta = self.get_delta_for_strike(underlying_asset, underlying_price, mid_strike, expiry, right)
+        for strike in candidate_strikes:
+            self.strategy.log_message(
+                f"🔎 Trying strike {strike:g} (range: {strike_min:.2f}-{strike_max:.2f})",
+                color="blue",
+            )
+            mid_delta = self.get_delta_for_strike(underlying_asset, underlying_price, strike, expiry, right)
             if mid_delta is None:
-                self.strategy.log_message(f"⚠️  Mid delta at strike {mid_strike} is None; adjusting search.", color="yellow")
-                high_strike -= 1
                 continue
 
-            self.strategy.log_message(f"📈 Strike {mid_strike} has delta {mid_delta:.4f} (target: {target_delta})", color="blue")
+            self.strategy.log_message(
+                f"📈 Strike {strike:g} has delta {mid_delta:.4f} (target: {target_delta})",
+                color="blue",
+            )
 
             if abs(mid_delta - target_delta) < 0.001:
-                self.strategy.log_message(f"🎯 Exact match found at strike {mid_strike} with delta {mid_delta:.4f}", color="green")
-                return mid_strike
-
-            if mid_delta < target_delta:
-                high_strike = mid_strike - 1
-            else:
-                low_strike = mid_strike + 1
+                self.strategy.log_message(
+                    f"🎯 Exact match found at strike {strike:g} with delta {mid_delta:.4f}",
+                    color="green",
+                )
+                return float(strike)
 
             if closest_delta is None or abs(mid_delta - target_delta) < abs(closest_delta - target_delta):
                 closest_delta = mid_delta
-                closest_strike = mid_strike
-                self.strategy.log_message(f"📊 New closest strike: {mid_strike} (delta {mid_delta:.4f})", color="blue")
+                closest_strike = float(strike)
 
-        if closest_strike is not None:
-            self.strategy.log_message(
-                f"✅ RESULT: Closest strike {closest_strike} with delta {closest_delta:.4f} "
-                f"(target was {target_delta})", 
-                color="green"
-            )
-            
-            # Sanity check the result
-            if underlying_price > 50 and closest_strike < 10:
-                self.strategy.log_message(
-                    f"⚠️  WARNING: Strike {closest_strike} seems too low for underlying price ${underlying_price}. "
-                    f"This might indicate a data issue.",
-                    color="red"
-                )
-        else:
+        if closest_strike is None:
             self.strategy.log_message(f"❌ No valid strike found for target delta {target_delta}", color="red")
-            
+            return None
+
+        self.strategy.log_message(
+            f"✅ RESULT: Closest strike {closest_strike:g} with delta {closest_delta:.4f} (target was {target_delta})",
+            color="green",
+        )
+        if underlying_price > 50 and closest_strike < 10:
+            self.strategy.log_message(
+                f"⚠️  WARNING: Strike {closest_strike:g} seems too low for underlying price ${underlying_price}. "
+                f"This might indicate a data issue.",
+                color="red",
+            )
+
         return closest_strike
 
     def calculate_multileg_limit_price(self, orders: List[Order], limit_type: str) -> Optional[float]:
@@ -719,7 +876,14 @@ class OptionsHelper:
 
         return _ChainHintContext(data_source, min_expiration_date)
 
-    def get_expiration_on_or_after_date(self, dt: Union[date, datetime], chains: Union[Dict[str, Any], Chains], call_or_put: str, underlying_asset: Optional[Asset] = None) -> Optional[date]:
+    def get_expiration_on_or_after_date(
+        self,
+        dt: Union[date, datetime],
+        chains: Union[Dict[str, Any], Chains],
+        call_or_put: str,
+        underlying_asset: Optional[Asset] = None,
+        allow_prior: bool = False,
+    ) -> Optional[date]:
         """
         Get the expiration date that is on or after a given date, validating that the option has tradeable data.
 
@@ -733,6 +897,9 @@ class OptionsHelper:
             One of "call" or "put".
         underlying_asset : Asset, optional
             The underlying asset to validate option data. If provided, will verify option has tradeable data.
+        allow_prior : bool, optional
+            When True, if no valid expiration exists on/after ``dt`` (often because far-dated expirations were not
+            listed yet at the backtest date), fall back to the latest valid expiration before ``dt``.
 
         Returns
         -------
@@ -811,7 +978,6 @@ class OptionsHelper:
                     if specific_chain:
                         expiration_dates = _try_resolve_expiration(specific_chain)
                         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
-                        chain_refetched = True
             if future_candidates:
                 self.strategy.log_message(
                     f"Extended chain request delivered {len(future_candidates)} expirations >= {dt}.",
@@ -840,15 +1006,55 @@ class OptionsHelper:
         # 3. ACCURACY: We can now return the FIRST valid expiration, rather than pre-filtering
         #    and potentially missing valid options.
         # =====================================================================================
+        underlying_price: Optional[float] = None
+        if underlying_symbol:
+            try:
+                validation_underlying = (
+                    underlying_asset
+                    if underlying_asset is not None
+                    else Asset(underlying_symbol, asset_type=Asset.AssetType.STOCK)
+                )
+                price_value = self.strategy.get_last_price(validation_underlying)
+                if price_value is not None:
+                    underlying_price = float(price_value)
+                    if not math.isfinite(underlying_price) or underlying_price <= 0:
+                        underlying_price = None
+            except Exception:
+                underlying_price = None
 
-        validation_attempts = 0
-        for exp_str, exp_date in future_candidates:
-            strikes = specific_chain.get(exp_str)
-            if strikes and len(strikes) > 0:
-                # Pick a strike near the middle of the chain for testing (likely ATM, more
-                # likely to have liquidity and valid data)
-                test_strike = strikes[len(strikes) // 2] if isinstance(strikes, list) else list(strikes)[len(strikes) // 2]
-                validation_attempts += 1
+        def _validate_candidates(candidates: List[Tuple[str, date]]) -> Optional[date]:
+            for exp_str, exp_date in candidates:
+                strikes = specific_chain.get(exp_str)
+                if not strikes:
+                    continue
+
+                # Prefer a strike near the underlying's current price for validation.
+                # Middle-of-chain can be far OTM when chains include very wide strike ranges,
+                # leading to false "no data" results during backtests.
+                strike_candidates: List[float] = []
+                try:
+                    iterable = strikes if isinstance(strikes, (list, tuple, set)) else list(strikes)
+                except Exception:
+                    iterable = strikes
+                for raw_strike in iterable:
+                    try:
+                        strike_candidates.append(float(raw_strike))
+                    except (TypeError, ValueError):
+                        continue
+                if not strike_candidates:
+                    continue
+                strike_candidates.sort()
+                if underlying_price is not None:
+                    near_strikes = [
+                        s
+                        for s in strike_candidates
+                        if (underlying_price * 0.5) <= s <= (underlying_price * 1.5)
+                    ]
+                    if not near_strikes:
+                        continue
+                    test_strike = min(near_strikes, key=lambda s: abs(s - underlying_price))
+                else:
+                    test_strike = strike_candidates[len(strike_candidates) // 2]
 
                 if underlying_symbol:
                     # Build a test option contract to check for data availability
@@ -865,7 +1071,10 @@ class OptionsHelper:
                         quote = self.strategy.get_quote(test_option)
                         has_valid_quote = quote and (quote.bid is not None or quote.ask is not None)
                         if has_valid_quote:
-                            self.strategy.log_message(f"Found valid expiry {exp_date} with quote data for {call_or_put_caps}", color="blue")
+                            self.strategy.log_message(
+                                f"Found valid expiry {exp_date} with quote data for {call_or_put_caps}",
+                                color="blue",
+                            )
                             return exp_date
                     except Exception:
                         pass  # Quote not available, try price data
@@ -874,17 +1083,46 @@ class OptionsHelper:
                     try:
                         price = self.strategy.get_last_price(test_option)
                         if price is not None:
-                            self.strategy.log_message(f"Found valid expiry {exp_date} with price data for {call_or_put_caps}", color="blue")
+                            self.strategy.log_message(
+                                f"Found valid expiry {exp_date} with price data for {call_or_put_caps}",
+                                color="blue",
+                            )
                             return exp_date
                     except Exception:
-                        pass  # No price data either, try next expiration
+                        pass
                 else:
                     # Backward compatibility: If no underlying symbol available, we can't
                     # validate data availability. Assume the expiry is valid.
-                    self.strategy.log_message(f"Cannot validate data without underlying symbol, returning {exp_date}", color="yellow")
+                    self.strategy.log_message(
+                        f"Cannot validate data without underlying symbol, returning {exp_date}",
+                        color="yellow",
+                    )
                     return exp_date
 
-        # No valid expirations found - all candidates lacked tradeable data for this date
+            return None
+
+        resolved = _validate_candidates(future_candidates)
+        if resolved is not None:
+            return resolved
+
+        broker = getattr(self.strategy, "broker", None)
+        data_source = getattr(broker, "data_source", None) if broker is not None else None
+        is_backtesting = (
+            getattr(broker, "IS_BACKTESTING_BROKER", False) is True
+            or getattr(data_source, "IS_BACKTESTING_DATA_SOURCE", False) is True
+        )
+
+        if allow_prior or is_backtesting:
+            prior_candidates = [(s, d) for s, d in expiration_dates if d < dt]
+            prior_candidates.sort(key=lambda x: x[1], reverse=True)
+            resolved = _validate_candidates(prior_candidates)
+            if resolved is not None:
+                self.strategy.log_message(
+                    f"Falling back to prior valid expiry {resolved} (< {dt}) for {call_or_put_caps}.",
+                    color="yellow",
+                )
+                return resolved
+
         msg = f"No valid expirations on or after {dt} with tradeable data for {call_or_put_caps}; skipping."
         self.strategy.log_message(msg, color="yellow")
         return None
@@ -1640,7 +1878,6 @@ class OptionsHelper:
             if price is None:
                 self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
                 return None
-            multiplier = -1 if order.side.lower() == "buy" else 1
             current_value += price * order.quantity * contract_multiplier
         profit_pct = ((current_value - initial_cost) / initial_cost) * 100
         self.strategy.log_message(f"Spread profit percentage: {profit_pct:.2f}%", color="blue")

@@ -1,4 +1,5 @@
 # This file contains helper functions for getting data from Polygon.io
+import os
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -898,12 +899,26 @@ class PolygonClient(RESTClient):
         Override to handle rate-limits by sleeping 60s, but *throttle*
         the log message so it isn't repeated too frequently.
         """
+        max_attempts = int(os.environ.get("POLYGON_MAX_RETRY_ATTEMPTS", "0") or "0")
+        max_total_sleep = int(os.environ.get("POLYGON_MAX_RETRY_SLEEP_SECONDS", "0") or "0")
+        wait_seconds = int(os.environ.get("POLYGON_WAIT_SECONDS_RETRY", str(PolygonClient.WAIT_SECONDS_RETRY)) or "0")
+
+        attempts = 0
+        slept = 0
         while True:
             try:
                 # Normal get from polygon-api-client
                 return super()._get(*args, **kwargs)
 
             except MaxRetryError as e:
+                attempts += 1
+
+                if max_attempts and attempts > max_attempts:
+                    raise
+
+                if max_total_sleep and slept >= max_total_sleep:
+                    raise
+
                 # We interpret MaxRetryError as a rate-limit or server rejection
                 url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
 
@@ -935,8 +950,16 @@ class PolygonClient(RESTClient):
                     # If it's too soon, skip logging again
                     pass
 
-                # Sleep for WAIT_SECONDS_RETRY, then try again
-                time.sleep(PolygonClient.WAIT_SECONDS_RETRY)
+                # Sleep before retrying. In CI/tests, keep this bounded so jobs don't hang forever.
+                sleep_for = wait_seconds if wait_seconds > 0 else PolygonClient.WAIT_SECONDS_RETRY
+                if max_total_sleep:
+                    remaining = max_total_sleep - slept
+                    if remaining <= 0:
+                        raise
+                    sleep_for = min(sleep_for, remaining)
+
+                time.sleep(sleep_for)
+                slept += sleep_for
 
             except BadResponse as e:
                 # Handle Polygon BadResponse errors specifically

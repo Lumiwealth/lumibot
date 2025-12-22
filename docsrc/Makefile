@@ -21,4 +21,6 @@ help:
 
  github:
 	@make html
-	@cp -a _build/html/. ../docs
+	@rm -rf ../generated-docs
+	@mkdir -p ../generated-docs
+	@cp -a _build/html/. ../generated-docs

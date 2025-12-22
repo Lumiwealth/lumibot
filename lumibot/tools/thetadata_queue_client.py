@@ -19,13 +19,14 @@ import hashlib
 import json
 import logging
 import os
+import random
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlencode
 
 import requests
+from requests import exceptions as requests_exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,13 @@ logger = logging.getLogger(__name__)
 QUEUE_POLL_INTERVAL = float(os.environ.get("THETADATA_QUEUE_POLL_INTERVAL", "0.01"))  # 10ms default - fast polling
 QUEUE_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_TIMEOUT", "0"))  # 0 = wait forever (never fail)
 MAX_CONCURRENT_REQUESTS = int(os.environ.get("THETADATA_MAX_CONCURRENT", "8"))  # Max requests in flight
+QUEUE_SUBMIT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_HTTP_TIMEOUT", "120"))
+QUEUE_STATUS_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_STATUS_HTTP_TIMEOUT", "10"))
+QUEUE_RESULT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_RESULT_HTTP_TIMEOUT", "120"))
+QUEUE_SUBMIT_MAX_WAIT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_MAX_WAIT", "0"))  # 0 = wait forever
+QUEUE_SUBMIT_BACKOFF_BASE = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_BASE", "0.5"))
+QUEUE_SUBMIT_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_MAX", "30"))
+QUEUE_SUBMIT_BACKOFF_JITTER_PCT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_JITTER_PCT", "0.1"))
 
 
 @dataclass
@@ -79,7 +87,7 @@ class QueueClient:
         """Initialize the queue client.
 
         Args:
-            base_url: Data Downloader base URL (e.g., http://44.192.43.146:8080)
+            base_url: Data Downloader base URL (e.g., http://data-downloader.lumiwealth.com:8080)
             api_key: API key for Data Downloader
             api_key_header: Header name for API key
             poll_interval: Seconds between status polls (default 10ms)
@@ -198,7 +206,7 @@ class QueueClient:
             resp = self._session.get(
                 f"{self.base_url}/queue/stats",
                 headers={self.api_key_header: self.api_key},
-                timeout=5,
+                timeout=(5, QUEUE_STATUS_HTTP_TIMEOUT),
             )
             resp.raise_for_status()
             return resp.json()
@@ -260,6 +268,32 @@ class QueueClient:
 
         return request_id, status, False
 
+    @staticmethod
+    def _compute_backoff_delay(
+        attempt: int,
+        base_delay: float,
+        max_delay: float,
+        jitter_pct: float,
+        retry_after: Optional[Any] = None,
+    ) -> float:
+        """Compute exponential backoff delay with jitter and optional retry-after."""
+        delay = min(max_delay, base_delay * (2 ** max(0, attempt - 1)))
+
+        retry_after_s: Optional[float] = None
+        if retry_after is not None:
+            try:
+                retry_after_s = float(retry_after)
+            except Exception:
+                retry_after_s = None
+
+        if retry_after_s is not None and retry_after_s > delay:
+            delay = retry_after_s
+
+        if jitter_pct > 0:
+            delay += delay * jitter_pct * random.random()
+
+        return max(0.0, delay)
+
     def _submit_request(
         self,
         method: str,
@@ -285,18 +319,105 @@ class QueueClient:
             "client_id": self.client_id,
         }
 
-        resp = self._session.post(
-            submit_url,
-            json=payload,
-            headers={self.api_key_header: self.api_key},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        start_time = time.time()
+        attempt = 0
+        last_error: Optional[BaseException] = None
 
-        request_id = data["request_id"]
-        status = data["status"]
-        queue_position = data.get("queue_position")
+        while True:
+            attempt += 1
+            elapsed = time.time() - start_time
+            if QUEUE_SUBMIT_MAX_WAIT > 0 and elapsed > QUEUE_SUBMIT_MAX_WAIT:
+                raise TimeoutError(
+                    f"Timed out submitting request to downloader after {elapsed:.1f}s (attempts={attempt})"
+                ) from last_error
+
+            try:
+                resp = self._session.post(
+                    submit_url,
+                    json=payload,
+                    headers={self.api_key_header: self.api_key},
+                    timeout=(5, QUEUE_SUBMIT_HTTP_TIMEOUT),
+                )
+            except (
+                requests_exceptions.ReadTimeout,
+                requests_exceptions.ConnectTimeout,
+                requests_exceptions.ConnectionError,
+            ) as exc:
+                last_error = exc
+                delay = self._compute_backoff_delay(
+                    attempt=attempt,
+                    base_delay=QUEUE_SUBMIT_BACKOFF_BASE,
+                    max_delay=QUEUE_SUBMIT_BACKOFF_MAX,
+                    jitter_pct=QUEUE_SUBMIT_BACKOFF_JITTER_PCT,
+                )
+                logger.info(
+                    "[THETA][QUEUE] Submit network timeout; retrying in %.2fs (attempt=%d): %s",
+                    delay,
+                    attempt,
+                    exc,
+                )
+                time.sleep(delay)
+                continue
+
+            data: Optional[Dict[str, Any]] = None
+            try:
+                parsed = resp.json()
+                if isinstance(parsed, dict):
+                    data = parsed
+            except Exception:
+                data = None
+
+            # Respect downloader "queue_full" backoff contract
+            if data and data.get("error") == "queue_full":
+                delay = self._compute_backoff_delay(
+                    attempt=attempt,
+                    base_delay=QUEUE_SUBMIT_BACKOFF_BASE,
+                    max_delay=QUEUE_SUBMIT_BACKOFF_MAX,
+                    jitter_pct=QUEUE_SUBMIT_BACKOFF_JITTER_PCT,
+                    retry_after=data.get("retry_after") or resp.headers.get("Retry-After"),
+                )
+                logger.info(
+                    "[THETA][QUEUE] Downloader queue full; retrying submit in %.2fs (attempt=%d)",
+                    delay,
+                    attempt,
+                )
+                time.sleep(delay)
+                continue
+
+            try:
+                resp.raise_for_status()
+            except requests_exceptions.HTTPError as exc:
+                last_error = exc
+                status_code = getattr(resp, "status_code", None)
+                should_retry = status_code in (408, 425, 429, 500, 502, 503, 504) or (
+                    isinstance(status_code, int) and 500 <= status_code < 600
+                )
+                if not should_retry:
+                    raise
+
+                delay = self._compute_backoff_delay(
+                    attempt=attempt,
+                    base_delay=QUEUE_SUBMIT_BACKOFF_BASE,
+                    max_delay=QUEUE_SUBMIT_BACKOFF_MAX,
+                    jitter_pct=QUEUE_SUBMIT_BACKOFF_JITTER_PCT,
+                    retry_after=resp.headers.get("Retry-After"),
+                )
+                logger.info(
+                    "[THETA][QUEUE] Submit transient HTTP %s; retrying in %.2fs (attempt=%d)",
+                    status_code,
+                    delay,
+                    attempt,
+                )
+                time.sleep(delay)
+                continue
+
+            if not data:
+                raise ValueError(f"Downloader submit response was not JSON: {resp.text[:200]}")
+
+            request_id = data["request_id"]
+            status = data["status"]
+            queue_position = data.get("queue_position")
+            break
 
         # Track locally
         with self._lock:
@@ -324,7 +445,7 @@ class QueueClient:
             resp = self._session.get(
                 f"{self.base_url}/queue/status/{request_id}",
                 headers={self.api_key_header: self.api_key},
-                timeout=5,
+                timeout=(5, QUEUE_STATUS_HTTP_TIMEOUT),
             )
             if resp.status_code == 404:
                 # Request not found, remove from tracking
@@ -360,7 +481,7 @@ class QueueClient:
             resp = self._session.get(
                 f"{self.base_url}/queue/{request_id}/result",
                 headers={self.api_key_header: self.api_key},
-                timeout=30,
+                timeout=(5, QUEUE_RESULT_HTTP_TIMEOUT),
             )
             data = resp.json()
             status_code = resp.status_code
@@ -650,7 +771,7 @@ def is_queue_enabled() -> bool:
 
 def queue_request(
     url: str,
-    querystring: Dict[str, Any],
+    querystring: Optional[Dict[str, Any]],
     headers: Optional[Dict[str, str]] = None,
     timeout: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -662,7 +783,7 @@ def queue_request(
     - Permanent error detection (moves to DLQ, raises exception)
 
     Args:
-        url: Full URL (e.g., http://44.192.43.146:8080/v3/stock/history/ohlc)
+        url: Full URL (e.g., http://data-downloader.lumiwealth.com:8080/v3/stock/history/ohlc)
         querystring: Query parameters
         headers: Optional headers
         timeout: Max seconds to wait (0 = wait forever)
@@ -678,14 +799,19 @@ def queue_request(
     client = get_queue_client()
 
     # Extract path from URL
-    from urllib.parse import urlparse
+    from urllib.parse import parse_qsl, urlparse
     parsed = urlparse(url)
     path = parsed.path.lstrip("/")
+    url_query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    merged_query_params: Dict[str, Any] = {}
+    merged_query_params.update(url_query_params)
+    if querystring:
+        merged_query_params.update(querystring)
 
     result, status_code = client.execute_request(
         method="GET",
         path=path,
-        query_params=querystring,
+        query_params=merged_query_params,
         headers=headers,
         timeout=timeout,
     )

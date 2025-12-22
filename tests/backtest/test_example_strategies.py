@@ -287,6 +287,7 @@ class TestExampleStrategies:
         POLYGON_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires a Polygon.io API key"
     )
+    @pytest.mark.apitest
     def test_options_hold_to_expiry(self):
         """
         Test the example strategy OptionsHoldToExpiry by running a backtest and checking that the strategy object is

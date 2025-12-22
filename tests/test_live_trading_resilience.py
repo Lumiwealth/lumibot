@@ -16,6 +16,8 @@ from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 from lumibot.trading_builtins import SafeList
 
+pytestmark = pytest.mark.apitest
+
 
 class MockDataSource:
     def get_last_price(self, asset, quote=None, exchange=None): return 100.0

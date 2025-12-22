@@ -24,6 +24,8 @@ class Chains(dict):
         # Keep commonly accessed fields as attributes for quick access
         self.multiplier: int | None = data.get("Multiplier")
         self.exchange: str | None = data.get("Exchange")
+        # Optional metadata (used by options helpers to validate historical expirations)
+        self.underlying_symbol: str | None = data.get("UnderlyingSymbol")
 
     # ------------------------------------------------------------------
     # Convenience accessors
@@ -147,6 +149,7 @@ def normalize_option_chains(data: Any) -> Chains:
     normalized = {
         "Multiplier": base.get("Multiplier"),
         "Exchange": base.get("Exchange"),
+        "UnderlyingSymbol": base.get("UnderlyingSymbol"),
         "Chains": {
             "CALL": _copy_strike_map(chains_section.get("CALL")),
             "PUT": _copy_strike_map(chains_section.get("PUT")),

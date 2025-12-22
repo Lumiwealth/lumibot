@@ -31,6 +31,7 @@ def test_s3_truncated_cache_forces_refetch(monkeypatch, tmp_path):
     # Use an isolated cache folder for the test
     monkeypatch.setattr(th, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(th, "_apply_corporate_actions_to_frame", lambda *args, **kwargs: args[1])
 
     class StubManager:
         def __init__(self):
@@ -103,6 +104,7 @@ def test_placeholder_rows_trigger_refetch_and_sidecar(monkeypatch, tmp_path):
     # Use an isolated cache folder for the test
     monkeypatch.setattr(th, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(th, "_apply_corporate_actions_to_frame", lambda *args, **kwargs: args[1])
 
     class StubManager:
         def __init__(self):

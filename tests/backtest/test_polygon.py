@@ -263,6 +263,7 @@ class TestPolygonBacktestFull:
         assert results
         self.verify_backtest_results(poly_strat_obj)
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -296,6 +297,7 @@ class TestPolygonBacktestFull:
         # Assert the end datetime is before the market open of the next trading day.
         assert broker.datetime == datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -330,6 +332,7 @@ class TestPolygonBacktestFull:
         assert results
         self.verify_backtest_results(poly_strat_obj)
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -403,6 +406,7 @@ class TestPolygonBacktestFull:
 
 class TestPolygonDataSource:
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -458,7 +462,11 @@ class TestPolygonDataSource:
     # We have NOT modified existing tests or code, only appended these tests.
     ########################################################################################
 
-    @pytest.mark.skipif(POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
+    @pytest.mark.apitest
+    @pytest.mark.skipif(
+        not POLYGON_API_KEY or POLYGON_API_KEY == "<your key here>",
+        reason="This test requires a Polygon.io API key",
+    )
     def test_get_chains_spy_expected_data(self):
         """
         Test that get_chains() returns the expected option chain data for SPY when the backtesting date is 2025-01-13.

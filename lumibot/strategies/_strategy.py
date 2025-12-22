@@ -27,9 +27,13 @@ from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 from ..backtesting import (
     AlpacaBacktesting,
     BacktestingBroker,
+    CcxtBacktesting,
+    DataBentoDataBacktesting,
     InteractiveBrokersRESTBacktesting,
     PolygonDataBacktesting,
     ThetaDataBacktesting,
+    ThetaDataBacktestingPandas,
+    YahooDataBacktesting,
 )
 from ..credentials import (
     BACKTESTING_END,
@@ -700,6 +704,11 @@ class _Strategy:
             return
 
         with self._executor.lock:
+            # Initialize last known prices tracker for forward-fill fallback.
+            # This is used when OHLC data is missing (common for illiquid options like LEAPS).
+            if not hasattr(self, '_last_known_prices'):
+                self._last_known_prices = {}
+
             # Used for traditional brokers, for crypto this could be 0
             portfolio_value = self.cash
 
@@ -744,32 +753,48 @@ class _Strategy:
                     elif isinstance(asset, Asset) and asset == self._quote_asset:
                         price = 0
 
+                # Track valid prices for forward-fill fallback
+                if price is not None:
+                    self._last_known_prices[asset] = price
+
                 if self.is_backtesting and price is None:
-                    if isinstance(asset, Asset):
-                        asset_details = (
-                            f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
-                            f"expiration: {asset.expiration}, strike: {asset.strike}"
-                        )
+                    # Forward-fill fallback: use last known price when current price is unavailable.
+                    # This is critical for illiquid options (LEAPS) that may not trade for days.
+                    if asset in self._last_known_prices:
+                        price = self._last_known_prices[asset]
+                        base_asset = asset[0] if isinstance(asset, tuple) else asset
+                        asset_symbol = getattr(base_asset, 'symbol', str(base_asset))
                         self.logger.warning(
-                            "Skipping valuation for asset (%s) because no price was available at %s.",
-                            asset_details,
-                            self.broker.datetime,
+                            "Using forward-filled price %.4f for %s at %s (no current price available).",
+                            price, asset_symbol, self.broker.datetime,
                         )
-                    elif isinstance(asset, tuple):
-                        base_asset = asset[0] if asset else None
-                        if isinstance(base_asset, Asset):
+                    else:
+                        # No price history - must skip this position
+                        if isinstance(asset, Asset):
                             asset_details = (
-                                f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
-                                f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
+                                f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
+                                f"expiration: {asset.expiration}, strike: {asset.strike}"
                             )
-                        else:
-                            asset_details = str(asset)
-                        self.logger.warning(
-                            "Skipping valuation for pair (%s) because no price was available at %s.",
-                            asset_details,
-                            self.broker.datetime,
-                        )
-                    continue
+                            self.logger.warning(
+                                "Skipping valuation for asset (%s) because no price was available at %s.",
+                                asset_details,
+                                self.broker.datetime,
+                            )
+                        elif isinstance(asset, tuple):
+                            base_asset = asset[0] if asset else None
+                            if isinstance(base_asset, Asset):
+                                asset_details = (
+                                    f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
+                                    f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
+                                )
+                            else:
+                                asset_details = str(asset)
+                            self.logger.warning(
+                                "Skipping valuation for pair (%s) because no price was available at %s.",
+                                asset_details,
+                                self.broker.datetime,
+                            )
+                        continue
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
@@ -830,20 +855,133 @@ class _Strategy:
                     type(source).__name__,
                 )
             else:
-                snapshot_price = self._pick_snapshot_price(asset, snapshot)
+                # ThetaData backtests: options often have no prints, but NBBO quotes exist.
+                # Portfolio mark-to-market should use mark (mid) when bid/ask are available.
+                base_asset = asset[0] if isinstance(asset, tuple) else asset
+                base_asset_type = getattr(base_asset, "asset_type", None)
+                is_option_asset = base_asset_type in ("option", Asset.AssetType.OPTION)
+                if (
+                    self.is_backtesting
+                    and is_option_asset
+                    and isinstance(source, ThetaDataBacktestingPandas)
+                ):
+                    snapshot_price = self._pick_thetadata_option_mark_price(base_asset, snapshot)
+                else:
+                    snapshot_price = self._pick_snapshot_price(asset, snapshot)
 
         if snapshot_price is not None:
             return snapshot_price
 
+        # ThetaData backtesting: for options, prefer quote-based mark pricing over stale last-trade.
+        # Many LEAPS options have sparse/no prints on some days, but actionable NBBO exists.
+        base_asset = asset[0] if isinstance(asset, tuple) else asset
+        if (
+            self.is_backtesting
+            and isinstance(source, ThetaDataBacktestingPandas)
+            and hasattr(base_asset, "asset_type")
+            and base_asset.asset_type == "option"
+        ):
+            try:
+                get_quote = getattr(source, "get_quote", None)
+                if callable(get_quote):
+                    quote = get_quote(base_asset, timestep=timestep_hint or "minute")
+                    if quote is not None:
+                        bid = getattr(quote, "bid", None)
+                        ask = getattr(quote, "ask", None)
+                        if bid is not None and ask is not None:
+                            try:
+                                mid_price = (float(bid) + float(ask)) / 2
+                                if mid_price > 0:
+                                    self.logger.debug(
+                                        "Using ThetaData quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
+                                        mid_price,
+                                        base_asset,
+                                        float(bid),
+                                        float(ask),
+                                    )
+                                    return mid_price
+                            except (TypeError, ValueError):
+                                pass
+            except Exception as e:
+                self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
+
         get_last_price = getattr(source, "get_last_price", None)
         if callable(get_last_price):
-            return get_last_price(asset)
+            price = get_last_price(asset)
+            if price is not None:
+                return price
+
+        # Quote fallback for options when OHLC is missing.
+        # Options often have sparse OHLC data (LEAPS may not trade for days),
+        # but bid/ask quotes from market makers are typically available.
+        # This calls get_quote() which loads minute-level quote data.
+        if hasattr(base_asset, 'asset_type') and base_asset.asset_type == 'option':
+            try:
+                get_quote = getattr(source, 'get_quote', None)
+                if callable(get_quote):
+                    quote = get_quote(base_asset, timestep=timestep_hint or "minute")
+                    if quote is not None:
+                        bid = getattr(quote, 'bid', None)
+                        ask = getattr(quote, 'ask', None)
+                        if bid is not None and ask is not None:
+                            try:
+                                mid_price = (float(bid) + float(ask)) / 2
+                                self.logger.debug(
+                                    "Using quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
+                                    mid_price, base_asset, float(bid), float(ask)
+                                )
+                                return mid_price
+                            except (TypeError, ValueError):
+                                pass
+            except Exception as e:
+                self.logger.debug("Quote fallback failed for %s: %s", base_asset, e)
 
         self.logger.warning(
             "Data source %s for asset %s does not provide get_last_price; returning None.",
             type(source).__name__,
             asset,
         )
+        return None
+
+    def _pick_thetadata_option_mark_price(self, option_asset: Asset, snapshot):
+        """ThetaData backtests: prefer mark (NBBO mid) for option MTM when available."""
+        if not snapshot:
+            return None
+
+        def _positive(value):
+            value = self._coerce_snapshot_price(value)
+            if value is None:
+                return None
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return None
+            if math.isnan(numeric) or numeric <= 0:
+                return None
+            return numeric
+
+        bid = _positive(snapshot.get("bid"))
+        ask = _positive(snapshot.get("ask"))
+        close = _positive(snapshot.get("close"))
+
+        if bid is not None and ask is not None:
+            return (bid + ask) / 2.0
+        if bid is not None:
+            return bid
+        if ask is not None:
+            return ask
+        if close is not None:
+            return close
+
+        expiry = getattr(option_asset, "expiration", None)
+        now_dt = getattr(self.broker, "datetime", None)
+        if expiry is not None and now_dt is not None:
+            try:
+                if now_dt.date() >= expiry:
+                    return 0.0
+            except Exception:
+                pass
+
         return None
 
     def _pick_snapshot_price(self, asset, snapshot):
@@ -1073,7 +1211,6 @@ class _Strategy:
         return self._stats
 
     def _dump_stats(self):
-        logger = get_logger(__name__)
         # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()
@@ -1502,15 +1639,6 @@ class _Strategy:
             env_override_name = _DEFAULT_BACKTESTING_DATA_SOURCE.lower()
 
         if env_override_name is not None:
-            from lumibot.backtesting import (
-                PolygonDataBacktesting,
-                ThetaDataBacktesting,
-                YahooDataBacktesting,
-                AlpacaBacktesting,
-                CcxtBacktesting,
-                DataBentoDataBacktesting,
-            )
-
             datasource_map = {
                 "polygon": PolygonDataBacktesting,
                 "thetadata": ThetaDataBacktesting,
@@ -2014,7 +2142,7 @@ class _Strategy:
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 400:
-            self.logger.error(f"❌ Bad request - Invalid data format")
+            self.logger.error("❌ Bad request - Invalid data format")
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 413:

@@ -1002,6 +1002,17 @@ class BacktestingBroker(Broker):
             else:
                 raise
 
+        # If the underlying was mis-typed (e.g., SPX created as stock), some data sources
+        # return None instead of raising. Retry as an index before settling.
+        if underlying_price is None and getattr(underlying_asset, "asset_type", None) != "index":
+            underlying_asset_index = Asset(symbol=underlying_asset.symbol, asset_type="index")
+            underlying_price = self.get_last_price(underlying_asset_index)
+
+        if underlying_price is None:
+            raise ValueError(
+                f"Unable to price underlying {underlying_asset} for cash settlement of {position.asset}"
+            )
+
         # Calculate profit/loss per contract
         if position.asset.right == "CALL":
             profit_loss_per_contract = underlying_price - position.asset.strike

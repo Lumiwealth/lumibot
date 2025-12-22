@@ -90,3 +90,41 @@ def test_cash_settle_index_option_retries_underlying_as_index(monkeypatch):
 
     broker.cash_settle_options_contract(position, strategy)
     assert get_last_price_calls == ["stock", "index"]
+
+
+def test_cash_settle_index_option_retries_when_stock_price_is_none(monkeypatch):
+    option = Asset(
+        symbol="SPX",
+        asset_type="option",
+        expiration=date(2025, 2, 14),
+        strike=6000.0,
+        right="CALL",
+    )
+    option.underlying_asset = None
+    option.multiplier = getattr(option, "multiplier", 100) or 100
+
+    position = SimpleNamespace(asset=option, quantity=1)
+
+    broker = BacktestingBroker.__new__(BacktestingBroker)
+    broker.IS_BACKTESTING_BROKER = True
+    broker.CASH_SETTLED = "CASH_SETTLED"
+
+    get_last_price_calls: list[str] = []
+
+    def fake_get_last_price(asset):
+        get_last_price_calls.append(asset.asset_type)
+        if asset.asset_type == "stock":
+            return None
+        return 6100.0
+
+    broker.get_last_price = fake_get_last_price
+    broker.stream = SimpleNamespace(dispatch=lambda *args, **kwargs: None)
+
+    strategy = SimpleNamespace(
+        get_cash=lambda: 0,
+        _set_cash_position=lambda value: None,
+        create_order=lambda *args, **kwargs: SimpleNamespace(child_orders=[]),
+    )
+
+    broker.cash_settle_options_contract(position, strategy)
+    assert get_last_price_calls == ["stock", "index"]

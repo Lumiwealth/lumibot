@@ -415,10 +415,38 @@ class OptionsHelper:
             right=right,
             underlying_asset=underlying_asset,
         )
-        if self.strategy.get_last_price(option) is None:
+
+        def _coerce_price(value: Any) -> Optional[float]:
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(numeric) or numeric <= 0:
+                return None
+            return numeric
+
+        option_price = _coerce_price(self.strategy.get_last_price(option))
+        if option_price is None:
+            quote = None
+            try:
+                quote = self.strategy.get_quote(option)
+            except Exception:
+                quote = None
+
+            bid = _coerce_price(getattr(quote, "bid", None)) if quote else None
+            ask = _coerce_price(getattr(quote, "ask", None)) if quote else None
+            if bid is not None and ask is not None:
+                option_price = (bid + ask) / 2
+
+        if option_price is None:
             self.strategy.log_message(f"No price for option {option.symbol} at strike {strike}", color="yellow")
             return None
-        greeks = self.strategy.get_greeks(option, underlying_price=underlying_price)
+
+        greeks = self.strategy.get_greeks(
+            option,
+            asset_price=option_price,
+            underlying_price=underlying_price,
+        )
         # Handle None from get_greeks - can happen when option price or underlying price unavailable
         if greeks is None:
             self.strategy.log_message(
@@ -1016,7 +1044,14 @@ class OptionsHelper:
                     continue
                 strike_candidates.sort()
                 if underlying_price is not None:
-                    test_strike = min(strike_candidates, key=lambda s: abs(s - underlying_price))
+                    near_strikes = [
+                        s
+                        for s in strike_candidates
+                        if (underlying_price * 0.5) <= s <= (underlying_price * 1.5)
+                    ]
+                    if not near_strikes:
+                        continue
+                    test_strike = min(near_strikes, key=lambda s: abs(s - underlying_price))
                 else:
                     test_strike = strike_candidates[len(strike_candidates) // 2]
 

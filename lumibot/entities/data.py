@@ -313,8 +313,12 @@ class Data:
         # where there's a large time gap (> 2 hours).
         quote_cols = ["bid", "ask", "bid_size", "ask_size"]
         quote_cols_present = [col for col in quote_cols if col in df.columns]
+        apply_quote_session_boundaries = self.timestep == "minute"
 
-        if quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
+        # NOTE: Only apply session-boundary quote clearing for minute data.
+        # Daily datasets (e.g., option EOD NBBO) are intentionally sparse and must be forward-filled
+        # across sessions so mark-to-market pricing remains stable between observations.
+        if apply_quote_session_boundaries and quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
             # Calculate time gaps between consecutive rows
             time_diff = df.index.to_series().diff()
             max_gap_minutes = 120  # 2 hours - allows filling within a session
@@ -345,7 +349,7 @@ class Data:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
 
         # For quote columns, do segment-wise ffill (don't fill across session boundaries)
-        if quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
+        if apply_quote_session_boundaries and quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
             time_diff = df.index.to_series().diff()
             max_gap_minutes = 120
             gap_threshold = pd.Timedelta(minutes=max_gap_minutes)

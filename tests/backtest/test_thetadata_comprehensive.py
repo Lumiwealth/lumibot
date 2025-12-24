@@ -46,7 +46,6 @@ def theta_credentials():
     return _require_theta_credentials()
 
 
-@pytest.mark.apitest
 class TestThetaDataStocks:
     """Test stock data accuracy."""
 
@@ -217,7 +216,6 @@ class TestThetaDataStocks:
         print(f"\n✓ Multiple symbols PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataMethods:
     """Test key methods work correctly."""
 
@@ -295,7 +293,6 @@ class TestThetaDataMethods:
         print(f"\n✓ get_chains() PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataOptions:
     """Test options pricing."""
 
@@ -372,7 +369,6 @@ class TestThetaDataOptions:
         print(f"\n✓ Options pricing PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataIndexes:
     """Test index data."""
 
@@ -403,7 +399,6 @@ class TestThetaDataIndexes:
         print(f"\n✓ Index pricing PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataExtendedHours:
     """Test pre-market and after-hours data."""
 
@@ -447,7 +442,6 @@ class TestThetaDataExtendedHours:
             pytest.skip("Pre-market data not available")
 
 
-@pytest.mark.apitest
 class TestThetaDataQuoteContinuity:
     """Test that quote data is continuous across multiple days for options."""
 
@@ -515,7 +509,6 @@ class TestThetaDataQuoteContinuity:
         assert coverage_ratio >= 0.8, f"Quote data only covers {coverage_ratio:.1%} of OHLC dates. Pagination may be broken."
 
 
-@pytest.mark.apitest
 class TestThetaDataHelperLive:
     """Live validation for thetadata_helper utilities."""
 
@@ -703,7 +696,6 @@ class TestThetaDataHelperLive:
         assert all(isinstance(value, float) for value in strikes)
 
 
-@pytest.mark.apitest
 class TestThetaDataPagination:
     """Test that pagination follows next_page header correctly."""
 

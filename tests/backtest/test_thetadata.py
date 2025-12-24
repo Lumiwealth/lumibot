@@ -304,7 +304,6 @@ class TestThetaDataBacktestFull:
         )
         assert "fill" not in theta_strat_obj.order_time_tracker[stoploss_order_id]
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -339,12 +338,10 @@ class TestThetaDataBacktestFull:
         assert results
         self.verify_backtest_results(strat_obj)
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
     )
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -374,7 +371,6 @@ class TestThetaDataBacktestFull:
 class TestThetaDataSource:
     """Additional tests for ThetaData data source functionality"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -401,7 +397,6 @@ class TestThetaDataSource:
         assert day_prices is not None
         assert len(day_prices.df) > 0
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -432,7 +427,6 @@ class TestThetaDataSource:
         assert min(strikes) > 300
         assert max(strikes) < 700
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -457,7 +451,6 @@ class TestThetaDataSource:
         assert price1 == price2
         assert price1 > 0
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -486,7 +479,6 @@ class TestThetaDataSource:
         # Prices should be identical
         assert (prices1.df['close'].values == prices2.df['close'].values).all()
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",

@@ -103,7 +103,6 @@ class SingleTradeTracker(Strategy):
 class TestFuturesSingleTrade:
     """Test a single futures trade from start to finish"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"

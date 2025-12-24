@@ -271,7 +271,12 @@ def run_backtest(data_source_class, **params):
     return strategy.data_points
 
 
-@pytest.mark.apitest
+@pytest.mark.skipif(
+    not os.environ.get("POLYGON_API_KEY")
+    or not os.environ.get("THETADATA_USERNAME")
+    or not os.environ.get("THETADATA_PASSWORD"),
+    reason="Requires Polygon + ThetaData credentials",
+)
 class TestThetaDataVsPolygonComparison:
     """Comparison tests between ThetaData and Polygon."""
 

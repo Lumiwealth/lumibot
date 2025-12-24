@@ -174,7 +174,6 @@ class MultiplePositionsStrategy(Strategy):
 class TestFuturesEdgeCases:
     """Test edge cases in futures trading"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"
@@ -318,7 +317,6 @@ class TestFuturesEdgeCases:
         print("✓ SHORT SELLING TEST PASSED")
         print("="*80)
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"

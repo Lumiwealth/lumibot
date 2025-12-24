@@ -24,7 +24,10 @@ from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
 load_dotenv()
 
 
-@pytest.mark.apitest
+@pytest.mark.skipif(
+    not os.environ.get("THETADATA_USERNAME") or not os.environ.get("THETADATA_PASSWORD"),
+    reason="Requires ThetaData credentials",
+)
 class TestIndexDataVerification:
     """Comprehensive index data verification tests."""
 

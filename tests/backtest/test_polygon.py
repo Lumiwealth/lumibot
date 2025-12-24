@@ -226,7 +226,6 @@ class TestPolygonBacktestFull:
             # Order should have been either canceled or filled
             assert False, f"Stoploss order {stoploss_order_id} was neither canceled nor filled"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -263,7 +262,6 @@ class TestPolygonBacktestFull:
         assert results
         self.verify_backtest_results(poly_strat_obj)
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -297,7 +295,6 @@ class TestPolygonBacktestFull:
         # Assert the end datetime is before the market open of the next trading day.
         assert broker.datetime == datetime.datetime.fromisoformat("2024-02-12 08:30:00-05:00")
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -332,7 +329,6 @@ class TestPolygonBacktestFull:
         assert results
         self.verify_backtest_results(poly_strat_obj)
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -406,7 +402,6 @@ class TestPolygonBacktestFull:
 
 class TestPolygonDataSource:
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -462,7 +457,6 @@ class TestPolygonDataSource:
     # We have NOT modified existing tests or code, only appended these tests.
     ########################################################################################
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY or POLYGON_API_KEY == "<your key here>",
         reason="This test requires a Polygon.io API key",
@@ -502,7 +496,6 @@ class TestPolygonDataSource:
         assert call_strikes[-1] == expected_last, f"CALL strikes for {expected_expiry} expected last strike {expected_last}, got {call_strikes[-1]}"
         assert put_strikes[-1] == expected_last, f"PUT strikes for {expected_expiry} expected last strike {expected_last}, got {put_strikes[-1]}"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(not POLYGON_API_KEY or POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_last_price_unchanged(self):
         """
@@ -528,7 +521,6 @@ class TestPolygonDataSource:
         # AMZN price was around $161-175 on 2024-08-02
         assert 160.0 < last_price < 180.0, f"Expected AMZN price between 160 and 180 on 2024-08-02, got {last_price}"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(not POLYGON_API_KEY or POLYGON_API_KEY == '<your key here>', reason="This test requires a Polygon.io API key")
     def test_get_historical_prices_unchanged_for_amzn(self):
         """

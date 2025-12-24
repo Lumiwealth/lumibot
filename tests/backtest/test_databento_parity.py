@@ -30,7 +30,6 @@ def _clear_databento_caches():
             shutil.rmtree(path)
 
 
-@pytest.mark.apitest
 @pytest.mark.skipif(
     not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
     reason="This test requires a Databento API key",

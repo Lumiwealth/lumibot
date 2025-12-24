@@ -49,7 +49,6 @@ class AccuracyTestStrategy(Strategy):
             self.bought = True
 
 
-@pytest.mark.apitest
 @pytest.mark.skipif(
     not POLYGON_API_KEY or not THETADATA_USERNAME or not THETADATA_PASSWORD,
     reason="Requires both Polygon and ThetaData credentials"

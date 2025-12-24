@@ -146,7 +146,6 @@ class TestDividends:
             print(f"  ✗ {data_source_name}: No dividend increase detected (cash change: ${final_cash - cash_after_purchase:.2f})")
             return False
     
-    @pytest.mark.apitest
     def test_yahoo_finance_dividends(self):
         """Test dividend handling with Yahoo Finance data source"""
         # Run the backtest
@@ -161,7 +160,6 @@ class TestDividends:
         if not dividend_handled:
             print("WARNING: Yahoo Finance does not appear to handle dividends properly")
     
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"
@@ -187,7 +185,6 @@ class TestDividends:
         if not dividend_handled:
             print("WARNING: Polygon does not appear to handle dividends properly")
     
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not POLYGON_API_KEY,
         reason="This test requires a Polygon.io API key"

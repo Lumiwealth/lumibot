@@ -30,7 +30,12 @@ from lumibot.tools.polygon_helper import get_price_data_from_polygon as polygon_
 load_dotenv()
 
 
-@pytest.mark.apitest
+@pytest.mark.skipif(
+    not os.environ.get("POLYGON_API_KEY")
+    or not os.environ.get("THETADATA_USERNAME")
+    or not os.environ.get("THETADATA_PASSWORD"),
+    reason="Requires Polygon + ThetaData credentials",
+)
 class TestDailyDataTimestampComparison:
     """
     Comprehensive daily data comparison between ThetaData and Polygon.
@@ -604,7 +609,12 @@ class TestDailyDataTimestampComparison:
         print(f"{'='*80}\n")
 
 
-@pytest.mark.apitest
+@pytest.mark.skipif(
+    not os.environ.get("POLYGON_API_KEY")
+    or not os.environ.get("THETADATA_USERNAME")
+    or not os.environ.get("THETADATA_PASSWORD"),
+    reason="Requires Polygon + ThetaData credentials",
+)
 class TestIntradayDataComparison:
     """
     Comprehensive intraday interval comparison (5min, 10min, 15min, 30min, hour).

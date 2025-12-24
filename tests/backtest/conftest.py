@@ -2,12 +2,16 @@
 Pytest configuration for backtest tests.
 Automatically tracks performance of all backtest tests.
 """
+import os
 import time
 import pytest
 from pathlib import Path
 
 # Import the performance tracker
 from .performance_tracker import record_backtest_performance
+
+_CI_TIMING_ENABLED = os.environ.get("CI", "").lower() in {"1", "true", "yes"}
+_CI_TIMING_START: dict[str, float] = {}
 
 
 @pytest.fixture(autouse=True)
@@ -72,3 +76,23 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     rep = outcome.get_result()
     setattr(item, f"rep_{rep.when}", rep)
+
+
+def pytest_runtest_logstart(nodeid, location):
+    """Emit per-test start markers in CI so timeouts show the last running test."""
+    if not _CI_TIMING_ENABLED:
+        return
+    _CI_TIMING_START[nodeid] = time.perf_counter()
+    print(f"[BACKTEST][START] {nodeid}", flush=True)
+
+
+def pytest_runtest_logfinish(nodeid, location):
+    """Emit per-test completion markers in CI to make slow tests obvious in logs."""
+    if not _CI_TIMING_ENABLED:
+        return
+    started_at = _CI_TIMING_START.pop(nodeid, None)
+    if started_at is None:
+        print(f"[BACKTEST][DONE] {nodeid}", flush=True)
+        return
+    duration = time.perf_counter() - started_at
+    print(f"[BACKTEST][DONE] {nodeid} ({duration:.2f}s)", flush=True)

@@ -476,9 +476,25 @@ class DataSource(ABC):
                 if asset not in self._dividend_cache:
                     # First time seeing this asset - fetch ALL its historical data and cache dividends
                     # Get enough bars to cover the entire backtest period
-                    # Most backtests are < 1000 days, fetch 2000 to be safe
+                    # Most backtests are < 1000 days; limit the fetch to what's needed for this backtest
+                    # to avoid slow API calls (especially Polygon) and keep CI fast.
                     try:
-                        bars = self.get_bars([asset], 2000, timestep="day", quote=quote).get(asset)
+                        # Default to a conservative upper bound, but shrink for short backtests.
+                        length = 2000
+                        if (
+                            hasattr(self, "datetime_start")
+                            and hasattr(self, "datetime_end")
+                            and getattr(self, "datetime_start", None) is not None
+                            and getattr(self, "datetime_end", None) is not None
+                        ):
+                            try:
+                                span_days = (self.datetime_end.date() - self.datetime_start.date()).days + 1
+                                # Add a small cushion for weekends/holidays; ensure at least ~1 month.
+                                length = min(2000, max(span_days + 10, 30))
+                            except Exception:
+                                length = 2000
+
+                        bars = self.get_bars([asset], length, timestep="day", quote=quote).get(asset)
 
                         # Extract all dividends from the bars and store by date
                         asset_dividends = {}

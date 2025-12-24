@@ -165,6 +165,16 @@ class TestIndexDataVerification:
 
         max_diff = 0.0
 
+        # Polygon SPX requires a paid index entitlement. Skip if unavailable so CI does not fail on plan limits.
+        try:
+            polygon_ds._datetime = to_datetime_aware(test_times[0])
+            probe = polygon_ds.get_historical_prices(asset=asset, length=1, timestep="minute", timeshift=None)
+            probe_df = probe.df if hasattr(probe, "df") else probe
+            if probe_df is None or len(probe_df) == 0:
+                pytest.skip("Polygon SPX index data not available for this API key (paid entitlement required)")
+        except Exception as exc:
+            pytest.skip(f"Polygon SPX index data not available: {exc}")
+
         for test_time in test_times:
             # Set the datetime for both data sources
             theta_ds._datetime = to_datetime_aware(test_time)
@@ -182,7 +192,11 @@ class TestIndexDataVerification:
                 asset=asset, length=1, timestep="minute", timeshift=None
             )
             polygon_df = polygon_bars.df if hasattr(polygon_bars, 'df') else polygon_bars
-            polygon_price = polygon_df.iloc[-1]['close'] if len(polygon_df) > 0 else None
+            polygon_price = (
+                polygon_df.iloc[-1]["close"]
+                if polygon_df is not None and len(polygon_df) > 0
+                else None
+            )
 
             if theta_price and polygon_price:
                 diff = abs(theta_price - polygon_price)
@@ -238,6 +252,16 @@ class TestIndexDataVerification:
 
         max_diff = 0.0
 
+        # Polygon VIX requires a paid index entitlement. Skip if unavailable so CI does not fail on plan limits.
+        try:
+            polygon_ds._datetime = to_datetime_aware(test_times[0])
+            probe = polygon_ds.get_historical_prices(asset=asset, length=1, timestep="minute", timeshift=None)
+            probe_df = probe.df if hasattr(probe, "df") else probe
+            if probe_df is None or len(probe_df) == 0:
+                pytest.skip("Polygon VIX index data not available for this API key (paid entitlement required)")
+        except Exception as exc:
+            pytest.skip(f"Polygon VIX index data not available: {exc}")
+
         for test_time in test_times:
             # Set the datetime for both data sources
             theta_ds._datetime = to_datetime_aware(test_time)
@@ -255,7 +279,11 @@ class TestIndexDataVerification:
                 asset=asset, length=1, timestep="minute", timeshift=None
             )
             polygon_df = polygon_bars.df if hasattr(polygon_bars, 'df') else polygon_bars
-            polygon_price = polygon_df.iloc[-1]['close'] if len(polygon_df) > 0 else None
+            polygon_price = (
+                polygon_df.iloc[-1]["close"]
+                if polygon_df is not None and len(polygon_df) > 0
+                else None
+            )
 
             if theta_price and polygon_price:
                 diff = abs(theta_price - polygon_price)

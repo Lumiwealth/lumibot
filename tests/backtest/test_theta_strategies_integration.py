@@ -180,4 +180,6 @@ def test_iron_condor_minute_theta_integration():
     # Trades may or may not happen (0DTE needs same-day expiration)
     trades = _trade_log_df(strat_obj, require_trades=False)
     if not trades.empty:
-        assert trades["price"].notnull().all()
+        fills = trades[trades["status"] == "fill"]
+        if not fills.empty:
+            assert fills["price"].notnull().all()

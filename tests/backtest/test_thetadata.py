@@ -486,6 +486,7 @@ class TestThetaDataSource:
     def test_pull_source_symbol_bars_with_api_call(self, mocker):
         """Test that thetadata_helper.get_price_data() is called with correct parameters"""
         import pytz
+        import pandas as pd
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         end = tzinfo.localize(datetime.datetime(2024, 8, 5))
@@ -501,10 +502,23 @@ class TestThetaDataSource:
             return_value=data_source.datetime_start
         )
 
-        # Mock the helper function
+        # Mock the helper function with a non-empty DataFrame so the backtesting code can proceed.
+        # The point of this test is to validate call parameters, not to exercise live downloader IO.
+        mock_index = pd.date_range("2024-07-25", "2024-08-05", freq="B", tz="UTC")
+        mock_df = pd.DataFrame(
+            {
+                "open": [1.0] * len(mock_index),
+                "high": [1.0] * len(mock_index),
+                "low": [1.0] * len(mock_index),
+                "close": [1.0] * len(mock_index),
+                "volume": [0] * len(mock_index),
+                "_missing": [False] * len(mock_index),
+            },
+            index=mock_index,
+        )
         mocked_get_price_data = mocker.patch(
-            'lumibot.tools.thetadata_helper.get_price_data',
-            return_value=MagicMock()
+            "lumibot.tools.thetadata_helper.get_price_data",
+            return_value=mock_df,
         )
 
         asset = Asset(symbol="AAPL", asset_type="stock")

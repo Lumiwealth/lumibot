@@ -43,6 +43,21 @@ QUEUE_SUBMIT_BACKOFF_BASE = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF
 QUEUE_SUBMIT_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_MAX", "30"))
 QUEUE_SUBMIT_BACKOFF_JITTER_PCT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_JITTER_PCT", "0.1"))
 
+STABLE_DOWNLOADER_BASE_URL = "http://data-downloader.lumiwealth.com:8080"
+_LEGACY_DOWNLOADER_BASE_URLS = {
+    "44.192.43.146:8080",
+    "http://44.192.43.146:8080",
+    "https://44.192.43.146:8080",
+}
+
+
+def _normalize_downloader_base_url(base_url: str) -> str:
+    """Normalize the downloader base URL and rewrite known legacy IPs to the stable DNS name."""
+    normalized = (base_url or "").strip().rstrip("/")
+    if normalized in _LEGACY_DOWNLOADER_BASE_URLS:
+        return STABLE_DOWNLOADER_BASE_URL
+    return normalized
+
 
 @dataclass
 class QueuedRequestInfo:
@@ -721,6 +736,7 @@ def get_queue_client(client_id: Optional[str] = None) -> QueueClient:
     with _client_lock:
         if _queue_client is None:
             base_url = os.environ.get("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:8080")
+            base_url = _normalize_downloader_base_url(base_url)
             api_key = os.environ.get("DATADOWNLOADER_API_KEY", "")
             api_key_header = os.environ.get("DATADOWNLOADER_API_KEY_HEADER", "X-Downloader-Key")
             effective_client_id = client_id or _get_default_client_id()

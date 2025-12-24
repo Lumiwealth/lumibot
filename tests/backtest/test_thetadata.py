@@ -380,7 +380,9 @@ class TestThetaDataSource:
         import pytz
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
-        end = tzinfo.localize(datetime.datetime(2024, 8, 5))
+        # DataSourceBacktesting treats datetime_end as an exclusive bound by subtracting 1 minute.
+        # Use 2024-08-06 so the Aug 5 session is in-range when dt is set to 2024-08-05 10:00.
+        end = tzinfo.localize(datetime.datetime(2024, 8, 6))
 
         data_source = ThetaDataBacktesting(
             start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD

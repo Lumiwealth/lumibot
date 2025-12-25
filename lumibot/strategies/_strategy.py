@@ -835,6 +835,15 @@ class _Strategy:
 
         snapshot_price = None
         timestep_hint = None
+        base_asset = asset[0] if isinstance(asset, tuple) else asset
+        base_asset_type = getattr(base_asset, "asset_type", None)
+        is_option_asset = base_asset_type in ("option", Asset.AssetType.OPTION)
+        is_thetadata_option_backtest = (
+            self.is_backtesting
+            and is_option_asset
+            and isinstance(source, ThetaDataBacktestingPandas)
+        )
+
         # Determine if this strategy is effectively daily cadence.
         try:
             cadence_seconds = self._get_sleeptime_seconds()
@@ -857,14 +866,7 @@ class _Strategy:
             else:
                 # ThetaData backtests: options often have no prints, but NBBO quotes exist.
                 # Portfolio mark-to-market should use mark (mid) when bid/ask are available.
-                base_asset = asset[0] if isinstance(asset, tuple) else asset
-                base_asset_type = getattr(base_asset, "asset_type", None)
-                is_option_asset = base_asset_type in ("option", Asset.AssetType.OPTION)
-                if (
-                    self.is_backtesting
-                    and is_option_asset
-                    and isinstance(source, ThetaDataBacktestingPandas)
-                ):
+                if is_thetadata_option_backtest:
                     snapshot_price = self._pick_thetadata_option_mark_price(base_asset, snapshot)
                 else:
                     snapshot_price = self._pick_snapshot_price(asset, snapshot)
@@ -872,38 +874,50 @@ class _Strategy:
         if snapshot_price is not None:
             return snapshot_price
 
+        def _thetadata_quote_mark(quote_obj):
+            if quote_obj is None:
+                return None
+            bid = getattr(quote_obj, "bid", None)
+            ask = getattr(quote_obj, "ask", None)
+            try:
+                bid_val = float(bid) if bid is not None else None
+                ask_val = float(ask) if ask is not None else None
+            except (TypeError, ValueError):
+                bid_val = None
+                ask_val = None
+            if bid_val is not None and bid_val <= 0:
+                bid_val = None
+            if ask_val is not None and ask_val <= 0:
+                ask_val = None
+            if bid_val is not None and ask_val is not None:
+                mid_val = (bid_val + ask_val) / 2
+                return mid_val if mid_val > 0 else None
+            if bid_val is not None:
+                return bid_val
+            if ask_val is not None:
+                return ask_val
+            return None
+
         # ThetaData backtesting: for options, prefer quote-based mark pricing over stale last-trade.
-        # Many LEAPS options have sparse/no prints on some days, but actionable NBBO exists.
-        base_asset = asset[0] if isinstance(asset, tuple) else asset
-        if (
-            self.is_backtesting
-            and isinstance(source, ThetaDataBacktestingPandas)
-            and hasattr(base_asset, "asset_type")
-            and base_asset.asset_type == "option"
-        ):
+        # If we still can't price the option, return None so the strategy-level MTM forward-fill can apply.
+        if is_thetadata_option_backtest:
             try:
                 get_quote = getattr(source, "get_quote", None)
                 if callable(get_quote):
                     quote = get_quote(base_asset, timestep=timestep_hint or "minute")
-                    if quote is not None:
-                        bid = getattr(quote, "bid", None)
-                        ask = getattr(quote, "ask", None)
-                        if bid is not None and ask is not None:
-                            try:
-                                mid_price = (float(bid) + float(ask)) / 2
-                                if mid_price > 0:
-                                    self.logger.debug(
-                                        "Using ThetaData quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
-                                        mid_price,
-                                        base_asset,
-                                        float(bid),
-                                        float(ask),
-                                    )
-                                    return mid_price
-                            except (TypeError, ValueError):
-                                pass
+                    quote_mark = _thetadata_quote_mark(quote)
+                    if quote_mark is not None:
+                        self.logger.debug(
+                            "Using ThetaData quote mark %.4f for %s (bid=%s, ask=%s)",
+                            quote_mark,
+                            base_asset,
+                            getattr(quote, "bid", None) if quote else None,
+                            getattr(quote, "ask", None) if quote else None,
+                        )
+                        return quote_mark
             except Exception as e:
                 self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
+            return None
 
         get_last_price = getattr(source, "get_last_price", None)
         if callable(get_last_price):

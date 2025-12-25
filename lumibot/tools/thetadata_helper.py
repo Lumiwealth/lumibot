@@ -1964,7 +1964,7 @@ def get_price_data(
             # DEBUG: Log detailed cache validation info for OPTIONS
             is_option = getattr(asset, 'asset_type', None) == 'option'
             if is_option or missing_required:
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][CACHE_VALIDATION] asset=%s | "
                     "requested_range=%s to %s | "
                     "trading_days_count=%d | "

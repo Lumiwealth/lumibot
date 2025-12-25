@@ -44,3 +44,34 @@ def test_tearsheet_preserves_initial_equity():
 
     # Ensure at least one daily return reflects the real gains
     assert (strategy_returns.abs() > 0).any()
+
+
+def test_tearsheet_uses_forward_fill_for_weekends():
+    """Weekend rows should carry Friday's value so Monday captures the weekend gap."""
+    strategy_df = pd.DataFrame(
+        {"portfolio_value": [100_000, 110_000]},
+        index=pd.to_datetime(
+            [
+                "2025-01-03 15:59:00-05:00",  # Friday
+                "2025-01-06 15:59:00-05:00",  # Monday
+            ]
+        ),
+    )
+
+    benchmark_df = pd.DataFrame(
+        {"symbol_cumprod": [1.0, 1.05]},
+        index=pd.to_datetime(
+            [
+                "2025-01-03 15:59:00-05:00",
+                "2025-01-06 15:59:00-05:00",
+            ]
+        ),
+    )
+
+    df_final = _prepare_tearsheet_returns(strategy_df, benchmark_df)
+
+    assert df_final is not None
+    monday = pd.Timestamp("2025-01-06")
+    assert monday in df_final.index
+    # Monday should reflect the move from Friday -> Monday, not 0 (which would imply backfill).
+    assert df_final.loc[monday, "strategy"] != 0

@@ -64,7 +64,6 @@ class DebugStrategy(Strategy):
         print(f"    position.quantity = {position.quantity}")
 
 
-@pytest.mark.apitest
 @pytest.mark.skipif(
     not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
     reason="This test requires a Databento API key"

@@ -937,16 +937,28 @@ class _Strategy:
                     if quote is not None:
                         bid = getattr(quote, 'bid', None)
                         ask = getattr(quote, 'ask', None)
-                        if bid is not None and ask is not None:
-                            try:
-                                mid_price = (float(bid) + float(ask)) / 2
-                                self.logger.debug(
-                                    "Using quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
-                                    mid_price, base_asset, float(bid), float(ask)
-                                )
-                                return mid_price
-                            except (TypeError, ValueError):
-                                pass
+                        try:
+                            bid_val = float(bid) if bid is not None else None
+                            ask_val = float(ask) if ask is not None else None
+                        except (TypeError, ValueError):
+                            bid_val = None
+                            ask_val = None
+
+                        # IMPORTANT: Treat 0/negative bid/ask as "no actionable quote".
+                        # Returning 0 here causes positions to be valued at $0 and breaks
+                        # the forward-fill MTM fallback, producing sawtooth equity curves.
+                        if bid_val is None or ask_val is None:
+                            return None
+                        if bid_val <= 0 or ask_val <= 0:
+                            return None
+
+                        mid_price = (bid_val + ask_val) / 2
+                        if mid_price > 0:
+                            self.logger.debug(
+                                "Using quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
+                                mid_price, base_asset, bid_val, ask_val
+                            )
+                            return mid_price
             except Exception as e:
                 self.logger.debug("Quote fallback failed for %s: %s", base_asset, e)
 
@@ -1398,11 +1410,31 @@ class _Strategy:
             self.logger.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
             # Get the strategy parameters
-            strategy_parameters = self.parameters
+            strategy_parameters = dict(self.parameters) if isinstance(self.parameters, dict) else {}
 
             # Remove pandas_data from the strategy parameters if it exists
             if "pandas_data" in strategy_parameters:
                 del strategy_parameters["pandas_data"]
+
+            # Always include backtest context in the QuantStats "Parameters Used" table.
+            # This keeps reports self-describing (especially important when comparing sources).
+            try:
+                if self.is_backtesting:
+                    strategy_parameters.setdefault(
+                        "BACKTESTING_DATA_SOURCE",
+                        os.environ.get("BACKTESTING_DATA_SOURCE") or type(self.broker.data_source).__name__,
+                    )
+                    if getattr(self.broker, "option_source", None) is not None:
+                        strategy_parameters.setdefault(
+                            "OPTION_DATA_SOURCE",
+                            type(self.broker.option_source).__name__,
+                        )
+                    base_url = os.environ.get("DATADOWNLOADER_BASE_URL")
+                    if base_url:
+                        strategy_parameters.setdefault("DATADOWNLOADER_BASE_URL", base_url)
+            except Exception:
+                # Never fail tearsheet generation due to metadata/diagnostics.
+                pass
 
             strat_name = self._name if self._name is not None else "Strategy"
 

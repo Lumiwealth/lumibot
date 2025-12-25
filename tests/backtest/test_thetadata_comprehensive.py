@@ -46,7 +46,6 @@ def theta_credentials():
     return _require_theta_credentials()
 
 
-@pytest.mark.apitest
 class TestThetaDataStocks:
     """Test stock data accuracy."""
 
@@ -217,7 +216,6 @@ class TestThetaDataStocks:
         print(f"\n✓ Multiple symbols PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataMethods:
     """Test key methods work correctly."""
 
@@ -295,7 +293,6 @@ class TestThetaDataMethods:
         print(f"\n✓ get_chains() PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataOptions:
     """Test options pricing."""
 
@@ -372,7 +369,6 @@ class TestThetaDataOptions:
         print(f"\n✓ Options pricing PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataIndexes:
     """Test index data."""
 
@@ -403,7 +399,6 @@ class TestThetaDataIndexes:
         print(f"\n✓ Index pricing PASSED")
 
 
-@pytest.mark.apitest
 class TestThetaDataExtendedHours:
     """Test pre-market and after-hours data."""
 
@@ -447,19 +442,18 @@ class TestThetaDataExtendedHours:
             pytest.skip("Pre-market data not available")
 
 
-@pytest.mark.apitest
 class TestThetaDataQuoteContinuity:
     """Test that quote data is continuous across multiple days for options."""
 
     def test_multi_day_option_quote_coverage(self):
         """
-        CRITICAL: Verify quote data covers the same date range as OHLC data.
-        This test ensures pagination is working correctly.
+        CRITICAL: Verify option day bars include EOD NBBO columns across a multi-day window.
+        This is a key guard against MTM "sawtooth" behavior in day-cadence option strategies.
         """
         username = os.environ.get("THETADATA_USERNAME")
         password = os.environ.get("THETADATA_PASSWORD")
 
-        # Test a liquid option over 10+ trading days
+        # Test a liquid option over multiple trading days (keep CI runtime reasonable).
         asset = Asset(
             symbol="SPY",
             asset_type="option",
@@ -468,54 +462,32 @@ class TestThetaDataQuoteContinuity:
             right="CALL"
         )
 
-        start = datetime.datetime(2024, 8, 26, 9, 30)
-        end = datetime.datetime(2024, 9, 12, 16, 0)
+        start = datetime.datetime(2024, 8, 1)
+        end = datetime.datetime(2024, 8, 16)
 
-        # Get OHLC data
-        df_ohlc = thetadata_helper.get_price_data(
+        df = thetadata_helper.get_price_data(
             username=username,
             password=password,
             asset=asset,
             start=start,
             end=end,
-            timespan="minute",
-            datastyle="ohlc"
+            timespan="day",
+            datastyle="ohlc",
+            include_eod_nbbo=True,
         )
 
-        # Get quote data
-        df_quote = thetadata_helper.get_price_data(
-            username=username,
-            password=password,
-            asset=asset,
-            start=start,
-            end=end,
-            timespan="minute",
-            datastyle="quote"
-        )
+        assert df is not None and len(df) > 0, "No option day data returned"
+        assert {"bid", "ask"}.issubset(df.columns), f"Expected bid/ask columns, got: {sorted(df.columns)}"
 
-        assert df_ohlc is not None and len(df_ohlc) > 0, "No OHLC data returned"
-        assert df_quote is not None and len(df_quote) > 0, "No quote data returned"
+        # Basic coverage checks
+        assert df.index.min().date() <= start.date()
+        assert df.index.max().date() >= end.date()
 
-        # Check date coverage
-        ohlc_dates = df_ohlc.index.date
-        quote_dates = df_quote.index.date
-
-        ohlc_unique_dates = sorted(set(ohlc_dates))
-        quote_unique_dates = sorted(set(quote_dates))
-
-        print(f"\nOHLC date coverage: {len(ohlc_unique_dates)} unique dates")
-        print(f"Quote date coverage: {len(quote_unique_dates)} unique dates")
-        print(f"OHLC rows: {len(df_ohlc)}")
-        print(f"Quote rows: {len(df_quote)}")
-
-        # Quote data should cover at least 80% of OHLC dates (allow some tolerance)
-        coverage_ratio = len(quote_unique_dates) / len(ohlc_unique_dates)
-        print(f"Quote coverage ratio: {coverage_ratio:.1%}")
-
-        assert coverage_ratio >= 0.8, f"Quote data only covers {coverage_ratio:.1%} of OHLC dates. Pagination may be broken."
+        # Sanity: at least one day has actionable quotes.
+        actionable = (df["bid"] > 0) & (df["ask"] > 0)
+        assert actionable.any(), "No actionable bid/ask rows found in option day data"
 
 
-@pytest.mark.apitest
 class TestThetaDataHelperLive:
     """Live validation for thetadata_helper utilities."""
 
@@ -557,11 +529,14 @@ class TestThetaDataHelperLive:
         assert extended_local.min().time() <= datetime.time(4, 5), "Extended data missing premarket rows"
         assert rth_local.min().time() >= datetime.time(9, 29), "Regular-hours data unexpectedly includes premarket rows"
 
-    def test_get_price_data_multi_chunk_fetch(self, theta_credentials):
+    def test_get_price_data_multi_chunk_fetch(self, theta_credentials, monkeypatch):
         username, password = theta_credentials
         asset = Asset("SPY", asset_type="stock")
-        start = datetime.datetime(2025, 8, 1)
-        end = datetime.datetime(2025, 8, 20)
+        start = datetime.datetime(2024, 8, 1)
+        end = datetime.datetime(2024, 8, 9)
+
+        # Force multiple chunks without requesting a huge window (keeps CI runtime reasonable).
+        monkeypatch.setattr(thetadata_helper, "MAX_DAYS", 2)
 
         df = thetadata_helper.get_price_data(
             username=username,
@@ -676,12 +651,9 @@ class TestThetaDataHelperLive:
         assert df is None
 
     def test_get_expirations_and_strikes_live(self, theta_credentials):
-        username, password = theta_credentials
         after_date = datetime.date(2024, 8, 1)
 
         expirations = thetadata_helper.get_expirations(
-            username=username,
-            password=password,
             ticker="AAPL",
             after_date=after_date,
         )
@@ -693,8 +665,6 @@ class TestThetaDataHelperLive:
         assert first_expiration.date() >= after_date
 
         strikes = thetadata_helper.get_strikes(
-            username=username,
-            password=password,
             ticker="AAPL",
             expiration=first_expiration,
         )
@@ -703,7 +673,6 @@ class TestThetaDataHelperLive:
         assert all(isinstance(value, float) for value in strikes)
 
 
-@pytest.mark.apitest
 class TestThetaDataPagination:
     """Test that pagination follows next_page header correctly."""
 

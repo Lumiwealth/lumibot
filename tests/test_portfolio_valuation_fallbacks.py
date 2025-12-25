@@ -124,6 +124,36 @@ class TestQuoteFallback:
         assert result == pytest.approx(150.0)  # Mid-price: (148.50 + 151.50) / 2
         assert source.get_quote_calls == 1
 
+    def test_quote_fallback_ignores_zero_bid_ask(self):
+        """
+        Quote fallback should treat bid=0/ask=0 as no actionable quote and return None.
+
+        Returning 0 would incorrectly value positions at $0 and defeat forward-fill pricing.
+        """
+        strat = self._make_strategy_stub()
+        strat._should_use_daily_last_price = MagicMock(return_value=False)
+        strat.get_last_price = MagicMock(return_value=None)
+        strat._pick_snapshot_price = MagicMock(return_value=None)
+        strat._get_sleeptime_seconds = MagicMock(return_value=86400)  # Daily
+
+        source = FakeSourceWithQuote()
+        source.snapshot = None
+        source.last_price = None
+        source.quote = FakeQuote(bid=0, ask=0)
+
+        option_asset = Asset(
+            "GOOG",
+            asset_type="option",
+            expiration=date(2027, 6, 17),
+            strike=185.0,
+            right="CALL",
+        )
+
+        result = Strategy._get_price_from_source(strat, source, option_asset)
+
+        assert result is None
+        assert source.get_quote_calls == 1
+
     def test_quote_fallback_not_used_for_stocks(self):
         """
         Quote fallback should NOT be used for stocks - only for options.

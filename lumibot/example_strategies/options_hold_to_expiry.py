@@ -31,8 +31,14 @@ class OptionsHoldToExpiry(Strategy):
         expiry = self.parameters["expiry"]
 
         # What to do each iteration
-        underlying_price = self.get_last_price(buy_symbol)
+        underlying_asset = Asset(buy_symbol)
+        bars = self.get_historical_prices(underlying_asset, 1, "day")
+        underlying_price = None
+        if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
+            underlying_price = float(bars.df["close"].iloc[-1])
         self.log_message(f"The value of {buy_symbol} is {underlying_price}")
+        if underlying_price is None:
+            return
 
         if self.first_iteration:
             # Calculate the strike price (round to nearest 1)

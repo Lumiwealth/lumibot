@@ -1,6 +1,7 @@
 import inspect
 import logging
 import math
+import os
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -20,6 +21,14 @@ from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
 from lumibot.entities import Asset
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
+
+# Optional boto3 import for DynamoDB kill switch signal handling
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
 
 
 class StrategyExecutor(Thread):
@@ -78,6 +87,27 @@ class StrategyExecutor(Thread):
 
         # Cache for market type detection to avoid repeated expensive calendar lookups
         self._market_type_cache = {}
+
+        # Kill switch liquidation signal handling via DynamoDB
+        # When bot_manager sets status to "liquidating", the bot should sell all positions
+        self._kill_switch_bot_id = os.environ.get("BOT_ID")
+        self._kill_switch_environment = os.environ.get("ENVIRONMENT", "dev")
+        self._kill_switch_region = os.environ.get("AWS_REGION", "us-east-1")
+        self._kill_switch_dynamodb = None
+        self._kill_switch_table_name = None
+        self._liquidation_triggered = False
+
+        # Initialize DynamoDB client if BOT_ID is set (indicates we're running in managed environment)
+        if self._kill_switch_bot_id and BOTO3_AVAILABLE:
+            try:
+                self._kill_switch_dynamodb = boto3.resource(
+                    "dynamodb",
+                    region_name=self._kill_switch_region
+                )
+                self._kill_switch_table_name = f"{self._kill_switch_environment}-bots"
+            except Exception as e:
+                # Log but don't fail - kill switch is optional
+                pass
 
     def _is_continuous_market(self, market_name):
         """
@@ -142,6 +172,119 @@ class StrategyExecutor(Thread):
 
             self._market_type_cache[market_name] = False
             return False
+
+    def _check_kill_switch_signal(self):
+        """
+        Check DynamoDB for kill switch liquidation signal.
+
+        When the bot_manager sets the bot's status to "liquidating", this method
+        returns True to signal that all positions should be sold before shutdown.
+
+        Returns:
+            bool: True if liquidation signal detected, False otherwise
+        """
+        if not self._kill_switch_dynamodb or not self._kill_switch_bot_id:
+            return False
+
+        if self._liquidation_triggered:
+            # Already handled liquidation, don't check again
+            return False
+
+        try:
+            table = self._kill_switch_dynamodb.Table(self._kill_switch_table_name)
+            response = table.get_item(Key={"bot_id": self._kill_switch_bot_id})
+
+            if "Item" in response:
+                status = response["Item"].get("status", "")
+                if status == "liquidating":
+                    self.strategy.log_message(
+                        "Kill switch liquidation signal received. Selling all positions...",
+                        color="red"
+                    )
+                    return True
+
+            return False
+
+        except Exception as e:
+            # Log error but don't interrupt trading - kill switch check is best-effort
+            if hasattr(self.strategy, "logger"):
+                self.strategy.logger.warning(f"Kill switch check failed: {e}")
+            return False
+
+    def _update_status_to_liquidated(self):
+        """
+        Update DynamoDB status to "liquidated" to confirm positions have been closed.
+
+        This signals to bot_manager that liquidation is complete and the bot can be
+        safely terminated.
+        """
+        if not self._kill_switch_dynamodb or not self._kill_switch_bot_id:
+            return
+
+        try:
+            table = self._kill_switch_dynamodb.Table(self._kill_switch_table_name)
+            table.update_item(
+                Key={"bot_id": self._kill_switch_bot_id},
+                UpdateExpression="SET #status = :status, #ts = :ts",
+                ExpressionAttributeNames={
+                    "#status": "status",
+                    "#ts": "timestamp"
+                },
+                ExpressionAttributeValues={
+                    ":status": "liquidated",
+                    ":ts": int(time.time())
+                }
+            )
+            self.strategy.log_message(
+                "Kill switch: All positions liquidated. Status updated to 'liquidated'.",
+                color="yellow"
+            )
+        except Exception as e:
+            if hasattr(self.strategy, "logger"):
+                self.strategy.logger.error(f"Failed to update status to liquidated: {e}")
+
+    def _handle_kill_switch_liquidation(self):
+        """
+        Handle the kill switch liquidation process.
+
+        Sells all positions and updates DynamoDB status. Returns True if liquidation
+        was triggered and handled, False otherwise.
+        """
+        if not self._check_kill_switch_signal():
+            return False
+
+        self._liquidation_triggered = True
+
+        try:
+            # Sell all positions
+            self.strategy.sell_all(cancel_open_orders=True)
+            self.strategy.log_message(
+                "Kill switch: sell_all() executed successfully.",
+                color="yellow"
+            )
+        except Exception as e:
+            self.strategy.log_message(
+                f"Kill switch: Error during sell_all(): {e}",
+                color="red"
+            )
+
+        # Update status to liquidated regardless of sell_all success
+        # so bot_manager knows we attempted liquidation
+        self._update_status_to_liquidated()
+
+        # Signal the executor to stop and clean up broker streams
+        # This prevents websocket reconnection errors during shutdown
+        self.stop_event.set()
+        if hasattr(self.broker, 'cleanup_streams'):
+            try:
+                self.broker.cleanup_streams()
+            except Exception as e:
+                self.strategy.log_message(
+                    f"Kill switch: Error cleaning up streams: {e}",
+                    color="yellow"
+                )
+
+        return True
 
     @property
     def name(self):
@@ -669,6 +812,16 @@ class StrategyExecutor(Thread):
     @trace_stats
     def _on_trading_iteration(self):
         self._in_trading_iteration = True
+
+        # Check for kill switch liquidation signal at start of each iteration
+        # This ensures responsive handling even during long trading sessions
+        if self._handle_kill_switch_liquidation():
+            self.strategy.log_message(
+                "Kill switch triggered during trading iteration. Bot will stop after cleanup.",
+                color="red"
+            )
+            self._in_trading_iteration = False
+            return
 
         # If we are running live, we need to check if it's time to execute the trading iteration.
         if not self.strategy.is_backtesting:
@@ -1599,6 +1752,15 @@ class StrategyExecutor(Thread):
             is_continuous_market = market_name and self._is_continuous_market(market_name)
 
             while self.broker.should_continue() and self.should_continue:
+                # Check for kill switch liquidation signal before each trading session
+                # This allows the bot to gracefully sell all positions when kill switch triggers
+                if self._handle_kill_switch_liquidation():
+                    self.strategy.log_message(
+                        "Kill switch liquidation complete. Stopping bot.",
+                        color="red"
+                    )
+                    break
+
                 try:
                     self._run_trading_session()
 

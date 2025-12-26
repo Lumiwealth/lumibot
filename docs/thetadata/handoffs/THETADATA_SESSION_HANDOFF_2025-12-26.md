@@ -6,30 +6,25 @@ Do not delete: this file is referenced by humans when continuing work.
 
 # ThetaData Backtesting (LumiBot) — Session Handoff (2025-12-26)
 
-This handoff captures the current state of **ThetaData backtesting** work in LumiBot, the **validation backtests** we use as acceptance criteria, and the most important gotchas for continuing safely.
+This handoff captures the current state of **ThetaData backtesting** work in LumiBot, the **acceptance backtests** we use as end-to-end validation, and the most important gotchas for continuing safely.
 
 ## Hard constraints / guardrails (do not violate)
 
 - **Never run `git checkout`** (or any tool that shells out to it such as `gh pr checkout`).
-- Stay on branch `theta-bug-fixes` unless explicitly instructed otherwise; prefer `git switch` if needed.
 - **Do not edit demo strategy files** under:
   - `/Users/robertgrzesik/Documents/Development/Strategy Library/Demos/*`
 - Backtesting + tests: always use the **stable** downloader URL:
   - `DATADOWNLOADER_BASE_URL=http://data-downloader.lumiwealth.com:8080`
   - Do not use the legacy numeric IP (it can change on redeploy).
 - Wrap long commands with `/Users/robertgrzesik/bin/safe-timeout …` (20m default; longer only when truly necessary).
+- **Never start ThetaTerminal locally with production credentials.** Backtests should use the Data Downloader; local ThetaTerminal testing must use dev creds only (see `AGENTS.md`).
 
 ## Repos / file locations
 
-### LumiBot repo (this PR)
+### LumiBot repo (library)
 
 - Repo root:
   - `/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot`
-- Branch:
-  - `theta-bug-fixes`
-- Single PR to merge:
-  - https://github.com/Lumiwealth/lumibot/pull/918
-  - CI status (as of 2025-12-26): `gh pr checks 918` is **green** (unit shards + backtest tests).
 
 ### Strategy Library (acceptance backtests)
 
@@ -42,7 +37,7 @@ This handoff captures the current state of **ThetaData backtesting** work in Lum
 
 - Stable endpoint used by backtests:
   - `http://data-downloader.lumiwealth.com:8080`
-- Local checkout (codebase, not part of this PR unless explicitly requested):
+- Local checkout (codebase; edit only if explicitly requested):
   - `/Users/robertgrzesik/Documents/Development/botspot_data_downloader`
 
 ## What this work is trying to guarantee (high level)
@@ -63,7 +58,45 @@ ThetaData backtests should behave broker-like:
   - `AGENTS.md`
   - `CLAUDE.md`
 
-## Key code changes included in PR #918 (where to look)
+## How backtesting works (mental model)
+
+If you’re lost, start with `docs/BACKTESTING_ARCHITECTURE.md`. The short version:
+
+1. A strategy calls `Strategy.backtest()` / `Strategy.run_backtest()` (internals in `lumibot/strategies/_strategy.py`).
+2. The backtest constructs a `DataSourceBacktesting` implementation based on:
+   - the strategy’s explicit data source class **unless**
+   - `BACKTESTING_DATA_SOURCE` is set (this env var overrides strategy code).
+3. The broker is `BacktestingBroker`, which drives fills and portfolio accounting.
+4. Bars/quotes load through the data source and become `Data` objects (pandas-backed frames).
+5. Portfolio value is recomputed in the strategy engine each bar (mark-to-market), not fetched from a broker.
+
+## Key correctness rules (don’t regress these)
+
+### 1) `get_last_price()` is trade-only
+
+- `get_last_price()` must **never** silently fall back to bid/ask/mid.
+- Quote-derived marks are for `get_quote()` / snapshot / MTM, not “last trade”.
+
+### 2) No lookahead on daily bars
+
+- ThetaData daily bars must be timestamp-aligned so a “day bar” is not visible before the session (avoid lookahead bias).
+
+### 3) Options MTM must be quote-based when actionable
+
+- Options often have no prints; `get_last_price(option)` can be stale or missing.
+- When bid/ask exist, MTM should use a quote-derived mark (mid) for realism and stability.
+- When an option is unpriceable at the current bar, valuation should forward-fill (not flip to 0).
+
+### 4) The “sawtooth” equity curve is a red-alert signal
+
+Sawtooth PV (big down/up flips day-to-day) is almost always an MTM pricing bug:
+- quote columns getting dropped/mis-filled,
+- bad fallback to zero,
+- or unstable “sometimes last trade, sometimes quote, sometimes nothing”.
+
+The architecture doc includes a dedicated “Sawtooth” section and how to detect it from `*_stats.csv`.
+
+## Key fixes in the current ThetaData backtesting work (where to look)
 
 ### 1) ThetaData option MTM “sawtooth” fix (MELI was the repro)
 
@@ -83,15 +116,12 @@ We eliminate hard-coded numeric IP usage.
 - File: `lumibot/tools/thetadata_queue_client.py`
   - Rewrites numeric IP `DATADOWNLOADER_BASE_URL` to `http://data-downloader.lumiwealth.com:8080`.
 
-### 3) PR consolidation
-
-There were multiple PRs open (916/917/918). They were consolidated into **one** PR:
-- Kept as single PR: **#918**
-- Closed as superseded:
-  - https://github.com/Lumiwealth/lumibot/pull/916
-  - https://github.com/Lumiwealth/lumibot/pull/917
-
 ## Unit tests (local + CI)
+
+### Philosophy (critical)
+
+- **Preserve legacy coverage.** If a test existed before ~May 2025, treat it as “legacy”: fix code first; only change the test with a clear, documented reason.
+- “Make CI faster” must mean “make the code/tests faster”, not “turn off half the suite”.
 
 ### Local tests run (targeted, fast, and relevant)
 
@@ -102,7 +132,37 @@ These passed locally (each wrapped in `safe-timeout 1200s`):
 - `pytest -q tests/test_portfolio_valuation_fallbacks.py`
 - `pytest -q tests/backtest/test_theta_strategies_integration.py`
 
-### CI (GitHub Actions) gotchas
+### Running tests locally (recommended workflow)
+
+1. Run the smallest relevant subset first:
+   - `pytest -q tests/<test_file>.py`
+2. Use durations to find slow offenders (without custom instrumentation):
+   - `pytest -q --durations=25`
+   - `pytest -q --durations-min=1.0`
+3. Only at the end, run broader suites (still under a timeout guard):
+   - `pytest -q tests`
+   - `pytest -q tests/backtest`
+
+### CI (GitHub Actions): how to verify it’s truly green
+
+“Green check” is the final boss. Always confirm:
+- **Lint** passes
+- **Unit test shards** pass
+- **Backtest Tests** job passes (these are the slow/high-value tests)
+
+If you have a PR open:
+```bash
+/Users/robertgrzesik/bin/safe-timeout 600s gh pr checks <PR_NUMBER>
+```
+
+If you don’t have a PR number (or you’re validating a branch directly):
+```bash
+/Users/robertgrzesik/bin/safe-timeout 600s gh run list --branch <branch> --limit 5
+# then:
+/Users/robertgrzesik/bin/safe-timeout 600s gh run view <run_id>
+```
+
+### Backtest test timing file gotcha
 
 - CI is sharded into unit test shards + a separate **Backtest Tests** job.
 - Backtest tests write timing info to:
@@ -229,14 +289,31 @@ Comparison to the known-bad sawtooth run:
 - New run (fixed): `Strategy Library/logs/MeliDeepDrawdownCalls_2025-12-25_20-38_33bGtY_stats.csv`
   - 2024: 4 daily swings ≥20%, 0 sawtooth pairs.
 
-## Quick “sanity commands” for the next session
+## Common backtesting gotchas (high value)
 
-Check PR and CI:
+### 1) `BACKTESTING_DATA_SOURCE` overrides strategy code
+
+If you’re confused why a strategy is using ThetaData/Yahoo/Polygon:
+- Check env vars and `.env` loading (Strategy Library `Demos/.env` is often loaded automatically).
+
+### 2) “Lumibot version X.Y.Z” print may not match the repo code you’re running
+
+The printed version comes from installed package metadata. If you’re running the repo via `PYTHONPATH` (common for local backtests), the metadata can lag.
+
+To confirm the import is coming from the repo you expect:
 ```bash
-cd "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot"
-/Users/robertgrzesik/bin/safe-timeout 600s gh pr view 918
-/Users/robertgrzesik/bin/safe-timeout 600s gh pr checks 918
+python3 -c 'import lumibot; print(lumibot.__file__)'
 ```
+
+### 3) `*_logs.csv` is sometimes not a real CSV
+
+Some runs produce a line-based log file with commas, pipes, etc. Use `head`/`rg` to inspect rather than pandas `read_csv()` unless you know it’s structured.
+
+### 4) ThetaData cache + schema upgrades
+
+Option-day caches may exist without NBBO columns (older caches). When the system requires NBBO, it may “schema upgrade” by forcing a refresh for that window, which can be noisy but is expected.
+
+## Quick “sanity commands” for the next session
 
 Check you’re using local source (not the installed wheel):
 ```bash
@@ -244,4 +321,3 @@ python3 -c 'import lumibot; import inspect; print(lumibot.__file__)'
 ```
 
 (Note: `Lumibot version X.Y.Z` printed at runtime comes from installed package metadata; it may not reflect `setup.py` unless you install the branch into your environment.)
-

@@ -4,6 +4,11 @@
 
 LumiBot is a trading and backtesting framework. This document focuses on the **backtesting architecture**, specifically how data flows from external sources (Yahoo, ThetaData, Polygon) into the backtesting engine.
 
+## Related Docs
+
+- ThetaData handoffs: `docs/thetadata/handoffs/`
+- ThetaData investigations: `docs/thetadata/investigations/`
+
 ## Directory Structure
 
 ```

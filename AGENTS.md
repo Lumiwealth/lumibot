@@ -42,7 +42,9 @@ Failure to follow these rules will break everyone's workflows—double-check env
 
 ## Documentation Layout
 
-- `docs/` = human/AI-authored markdown (start with `docs/BACKTESTING_ARCHITECTURE.md`)
+- `docs/` = hand-authored markdown (architecture, investigations, handoffs, ops notes); start with `docs/BACKTESTING_ARCHITECTURE.md`
+- ThetaData handoffs: `docs/thetadata/handoffs/`
+- ThetaData investigations: `docs/thetadata/investigations/`
 - `docsrc/` = Sphinx source for the public docs site
 - `generated-docs/` = local build output from `docsrc/` (gitignored)
 - Docs publishing should happen via GitHub Actions on `dev` (avoid committing generated HTML)

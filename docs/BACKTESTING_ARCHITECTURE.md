@@ -193,6 +193,89 @@ For ThetaData option backtests specifically:
   - This forward-fill behavior can create a “boxy” equity curve (flat stretches then jumps) if the option cannot be priced on many days.
   - To diagnose, run with `BACKTESTING_QUIET_LOGS=false` and look for forward-fill warnings, and confirm option day EOD frames contain actionable bid/ask.
 
+## ThetaData Option MTM “Sawtooth” Failure Mode (FIXED - Dec 2025)
+
+**Symptom:** the backtest equity curve “sawtooths” (sharp down/up flips day-to-day), typically when holding options.
+
+This is almost always **mark-to-market pricing instability**, where the same option position is sometimes priced correctly and sometimes effectively priced at/near 0 (or forced into a bad fallback path). The result looks like the portfolio is repeatedly losing and regaining a large portion of value even though the underlying didn’t move that much.
+
+### Primary root cause (ThetaData day cadence)
+
+For ThetaData daily option pricing, we rely heavily on **EOD NBBO bid/ask** columns (quotes can exist even when there are no prints).
+
+One major failure mode is in the data normalization/repair path:
+- `Data.repair_times_and_fill()` (in `lumibot/entities/data.py`) historically treated quote columns like OHLC and could incorrectly clear or mis-fill `bid`/`ask` across session gaps.
+- Once `bid`/`ask` are missing for some bars, option MTM becomes intermittently “unpriceable”.
+
+### Fixes that prevent the sawtooth
+
+These fixes keep MTM stable without changing strategy logic:
+
+1. **Preserve daily option quote columns across session gaps**
+   - File: `lumibot/entities/data.py`
+   - Behavior: daily quote columns (`bid`, `ask`, etc.) survive the repair/fill process instead of being cleared.
+   - Regression test: `tests/test_data_repair_times_and_fill_daily_quotes.py`
+
+2. **Option MTM prefers quote-derived mark and avoids “bad zeros”**
+   - File: `lumibot/strategies/_strategy.py`
+   - Behavior (ThetaData options): prefer mid from bid/ask when actionable; ignore bid/ask zeros; if still unpriceable, return `None` so the backtester forward-fills rather than flipping to 0; do not fall back to a stale last-trade in a way that creates discontinuities.
+   - Regression test: `tests/test_thetadata_option_mtm_prefers_quote_mark.py`
+
+### How to confirm it’s fixed (quick analysis)
+
+From the backtest `*_stats.csv`:
+- Slice one row per trading day (typically the `16:00:00` America/New_York row).
+- Compute daily returns.
+- The sawtooth shows up as **many** days with very large absolute moves (e.g., ≥20%), often alternating sign on adjacent days.
+
+## Validation Backtests (Acceptance Suite)
+
+These are **manual acceptance backtests** run from the Strategy Library (do not edit the demo strategies). They validate the full data → pricing → order simulation pipeline, not just unit tests.
+
+Artifacts are written to:
+- `/Users/robertgrzesik/Documents/Development/Strategy Library/logs/`
+
+### 1) Deep Dip Calls (GOOG; file name says AAPL)
+
+- Demo file: `Strategy Library/Demos/AAPL Deep Dip Calls (Copy 4).py`
+- Required window: `2020-01-01 → 2025-12-01`
+- Checks:
+  - At least **3** option-entry buys across the 2020 / 2022 / early-2025 dip windows.
+  - No catastrophic portfolio-value “split cliff” around the GOOG split (mid-July 2022).
+  - Trades/indicators/tearsheet artifacts exist.
+
+### 2) Alpha Picks LEAPS (Call Debit Spreads)
+
+- Demo file: `Strategy Library/Demos/Leaps Buy Hold (Alpha Picks).py`
+- Required short window: `2025-10-01 → 2025-10-15`
+  - Checks: UBER/CLS/MFC each opens a spread with **both legs filled**.
+- Optional 1-year window (debugging + confidence): `2025-01-01 → 2025-12-01`
+  - Checks: STRL/APP may skip for strategy-logic reasons (DTE constraint / budget cap / no valid long-dated expiration), but should not fail due to missing-data regressions.
+
+### 3) TQQQ SMA200 (ThetaData vs Yahoo)
+
+- Demo file: `Strategy Library/Demos/TQQQ 200-Day MA.py`
+- Window: `2013-01-01 → 2025-12-01`
+- Checks:
+  - ThetaData results should not be obviously inflated vs Yahoo.
+  - Goal is “close-ish” parity (ThetaData can be slightly better/worse).
+
+### 4) Backdoor Butterfly 0DTE (Index/Index Options Coverage)
+
+- Demo file: `Strategy Library/Demos/Backdoor Butterfly 0 DTE (Copy).py`
+- Window: `2025-01-01 → 2025-12-01`
+- Checks:
+  - Backtest completes without `[THETA][COVERAGE][TAIL_PLACEHOLDER]` aborts for SPX index data.
+  - Artifacts exist.
+
+### 5) MELI Deep Drawdown Calls (Legacy strategy; MTM + tearsheet sanity)
+
+- Demo file: `Strategy Library/Demos/Meli Deep Drawdown Calls.py`
+- Window: `2013-01-01 → 2025-12-18` (or through Dec 2025)
+- Checks:
+  - No option MTM sawtooth pattern during 2024 (see “Sawtooth” section above).
+  - Tearsheets render and the strategy’s trade cadence looks plausible for the drawdown logic.
+
 ## Daily Bars: Timestamp Alignment (CRITICAL)
 
 ThetaData’s EOD day data is keyed by trading date, but returned timestamps may not be aligned to the actual market session close.

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -24,6 +25,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 import requests
 from requests import exceptions as requests_exceptions
@@ -44,19 +46,33 @@ QUEUE_SUBMIT_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_
 QUEUE_SUBMIT_BACKOFF_JITTER_PCT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_JITTER_PCT", "0.1"))
 
 STABLE_DOWNLOADER_BASE_URL = "http://data-downloader.lumiwealth.com:8080"
-_LEGACY_DOWNLOADER_BASE_URLS = {
-    "44.192.43.146:8080",
-    "http://44.192.43.146:8080",
-    "https://44.192.43.146:8080",
-}
 
 
 def _normalize_downloader_base_url(base_url: str) -> str:
-    """Normalize the downloader base URL and rewrite known legacy IPs to the stable DNS name."""
+    """Normalize the downloader base URL and rewrite legacy numeric IPs to the stable DNS name."""
     normalized = (base_url or "").strip().rstrip("/")
-    if normalized in _LEGACY_DOWNLOADER_BASE_URLS:
-        return STABLE_DOWNLOADER_BASE_URL
-    return normalized
+    if not normalized:
+        return normalized
+
+    has_scheme = "://" in normalized
+    normalized_with_scheme = normalized if has_scheme else f"http://{normalized}"
+    parsed = urlparse(normalized_with_scheme)
+
+    host = parsed.hostname or ""
+    if host.lower() in {"localhost", "127.0.0.1", "0.0.0.0"}:
+        return normalized_with_scheme
+
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return normalized_with_scheme
+
+    logger.warning(
+        "DATADOWNLOADER_BASE_URL uses a numeric IP (%s); rewriting to %s",
+        host,
+        STABLE_DOWNLOADER_BASE_URL,
+    )
+    return STABLE_DOWNLOADER_BASE_URL
 
 
 @dataclass

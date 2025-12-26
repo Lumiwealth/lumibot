@@ -730,6 +730,12 @@ class BacktestingBroker(Broker):
         """
         BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
         """
+        # If the order has a "buy_to_open" or "buy_to_close" side, then we should change it to "buy"
+        if order.is_buy_order():
+            order.side = Order.OrderSide.BUY
+        # If the order has a "sell_to_open" or "sell_to_close" side, then we should change it to "sell"
+        if order.is_sell_order():
+            order.side = Order.OrderSide.SELL
         # This is a parent order, typically for a Multileg strategy. The parent order itself is expected to be
         # filled after all child orders are filled.
         if order.is_parent() and order.order_class in [Order.OrderClass.MULTILEG, Order.OrderClass.OCO]:

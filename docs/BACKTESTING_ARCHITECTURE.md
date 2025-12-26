@@ -6,8 +6,9 @@ LumiBot is a trading and backtesting framework. This document focuses on the **b
 
 ## Related Docs
 
-- ThetaData handoffs: `docs/thetadata/handoffs/`
-- ThetaData investigations: `docs/thetadata/investigations/`
+- Handoffs: `docs/handoffs/`
+- Investigations: `docs/investigations/`
+- Latest session handoff: `docs/handoffs/THETADATA_SESSION_HANDOFF_2025-12-26.md`
 
 ## Directory Structure
 

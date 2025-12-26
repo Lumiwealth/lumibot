@@ -5,9 +5,9 @@ This folder contains **human-authored** documentation (architecture, investigati
 Start here:
 - `docs/BACKTESTING_ARCHITECTURE.md`
 
-ThetaData docs:
-- Handoffs: `docs/thetadata/handoffs/`
-- Investigations: `docs/thetadata/investigations/`
+Additional docs:
+- Handoffs: `docs/handoffs/`
+- Investigations: `docs/investigations/`
 
 Public documentation site:
 - `docsrc/` contains the Sphinx source.

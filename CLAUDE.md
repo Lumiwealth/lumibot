@@ -9,8 +9,8 @@
 ## Documentation Layout
 
 - `docs/` = hand-authored markdown (architecture, investigations, handoffs, ops notes)
-- ThetaData handoffs: `docs/thetadata/handoffs/`
-- ThetaData investigations: `docs/thetadata/investigations/`
+- Handoffs: `docs/handoffs/`
+- Investigations: `docs/investigations/`
 - `docsrc/` = Sphinx source for the public docs site
 - `generated-docs/` = local build output from `docsrc/` (gitignored)
 - Docs publishing should happen via GitHub Actions on `dev` (avoid committing generated HTML)

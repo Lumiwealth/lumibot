@@ -54,9 +54,17 @@ ThetaData backtests should behave broker-like:
 
 - Backtesting architecture:
   - `docs/BACKTESTING_ARCHITECTURE.md`
+- Session handoff (this file):
+  - `docs/handoffs/THETADATA_SESSION_HANDOFF_2025-12-26.md`
 - ThetaData rules and safety:
   - `AGENTS.md`
   - `CLAUDE.md`
+
+## Docs layout (where things go)
+
+- `docs/` is for **human-authored** markdown (architecture, handoffs, investigations, ops notes).
+- Put session handoffs in `docs/handoffs/` and investigations in `docs/investigations/`.
+- Do **not** create “ai” folders (`docs/ai/...`); use `docs/handoffs/` instead.
 
 ## How backtesting works (mental model)
 
@@ -161,6 +169,11 @@ If you don’t have a PR number (or you’re validating a branch directly):
 # then:
 /Users/robertgrzesik/bin/safe-timeout 600s gh run view <run_id>
 ```
+
+When CI output looks “green but scary” (e.g., the GitHub UI shows repeated `Error:` blocks):
+- Use `gh run view <run_id> --log-failed` to pull only failing step logs.
+- Confirm each job’s conclusion is `success` and there are no `pytest` failures hidden by retries or conditional steps.
+- If a shard times out, `--durations` summaries won’t print; fix the hang first, then use timings.
 
 ### Backtest test timing file gotcha
 
@@ -312,6 +325,20 @@ Some runs produce a line-based log file with commas, pipes, etc. Use `head`/`rg`
 ### 4) ThetaData cache + schema upgrades
 
 Option-day caches may exist without NBBO columns (older caches). When the system requires NBBO, it may “schema upgrade” by forcing a refresh for that window, which can be noisy but is expected.
+
+## Caches and invalidation (ThetaData)
+
+There are multiple caching layers, and they can mask bugs if you don’t know they exist:
+
+- Local cache (macOS typical):
+  - `~/Library/Caches/lumibot/1.0/thetadata`
+  - Some cache entries have a `.meta.json` sidecar; mismatches can trigger self-healing deletes.
+- S3 cache (via downloader / hydrator):
+  - `LUMIBOT_CACHE_S3_VERSION` (or similar) is commonly used to invalidate remote caches.
+- If you suspect “impossible” behavior, confirm:
+  - you’re running the code you think you’re running (`lumibot.__file__`),
+  - the cache was rebuilt after the code change (bump cache version or clear local cache),
+  - option-day frames actually contain `bid`/`ask` columns when you expect quote-based MTM.
 
 ## Quick “sanity commands” for the next session
 

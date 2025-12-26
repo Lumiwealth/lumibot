@@ -544,12 +544,6 @@ class ThetaDataBacktestingPandas(PandasData):
         dict
             A dictionary with the keys being the asset and the values being the PandasData objects.
         """
-        # DEBUG: Log when strike 157 is requested
-        if hasattr(asset, 'strike') and asset.strike == 157:
-            import traceback
-            logger.info(f"\n[DEBUG STRIKE 157] _update_pandas_data called for asset: {asset}")
-            logger.info(f"[DEBUG STRIKE 157] Traceback:\n{''.join(traceback.format_stack())}")
-
         asset_separated = asset
         quote_asset = quote if quote is not None else Asset("USD", "forex")
 
@@ -2319,84 +2313,6 @@ class ThetaDataBacktestingPandas(PandasData):
             )
 
         self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
-
-        # [INSTRUMENTATION] Capture in-memory dataframe state after _update_pandas_data
-        debug_enabled = True
-
-        base_asset = asset[0] if isinstance(asset, tuple) else asset
-        quote_asset = quote if quote else Asset("USD", "forex")
-        _, ts_unit = self.get_start_datetime_and_ts_unit(1, timestep, dt, start_buffer=START_BUFFER)
-        canonical_key, legacy_key = self._build_dataset_keys(base_asset, quote_asset, ts_unit)
-        data_obj = self.pandas_data.get(canonical_key)
-        if data_obj is None:
-            data_obj = self.pandas_data.get(legacy_key)
-        if data_obj is not None and hasattr(data_obj, 'df'):
-            df = data_obj.df
-            if df is not None and len(df) > 0:
-                # Get first and last 5 rows
-                head_df = df.head(5)
-                tail_df = df.tail(5)
-
-                # Format columns to show
-                cols_to_show = ['bid', 'ask', 'mid_price', 'close'] if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION else ['close']
-                available_cols = [col for col in cols_to_show if col in df.columns]
-
-                # Get timezone info
-                tz_info = "NO_TZ"
-                if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
-                    tz_info = str(df.index.tz)
-
-                logger.debug(
-                    "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][DATAFRAME_STATE] asset=%s | total_rows=%d | timestep=%s | index_type=%s | timezone=%s",
-                    getattr(asset, "symbol", asset),
-                    len(df),
-                    data_obj.timestep,
-                    type(df.index).__name__,
-                    tz_info
-                )
-
-                # Log datetime range with timezone
-                if isinstance(df.index, pd.DatetimeIndex):
-                    first_dt_str = df.index[0].isoformat() if hasattr(df.index[0], 'isoformat') else str(df.index[0])
-                    last_dt_str = df.index[-1].isoformat() if hasattr(df.index[-1], 'isoformat') else str(df.index[-1])
-                    logger.debug(
-                        "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][DATETIME_RANGE] asset=%s | first_dt=%s | last_dt=%s | tz=%s",
-                        getattr(asset, "symbol", asset),
-                        first_dt_str,
-                        last_dt_str,
-                        tz_info
-                    )
-
-                    # CRITICAL: Show tail with explicit datetime index to catch time-travel bug
-                    if debug_enabled and len(available_cols) > 0:
-                        logger.debug(
-                            "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][DATAFRAME_HEAD] asset=%s | first_5_rows (with datetime index):\n%s",
-                            getattr(asset, "symbol", asset),
-                            head_df[available_cols].to_string()
-                        )
-                        logger.debug(
-                            "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][DATAFRAME_TAIL] asset=%s | last_5_rows (with datetime index):\n%s",
-                            getattr(asset, "symbol", asset),
-                            tail_df[available_cols].to_string()
-                        )
-
-                        # Show tail datetime values explicitly
-                        tail_datetimes = [dt.isoformat() if hasattr(dt, 'isoformat') else str(dt) for dt in tail_df.index]
-                        logger.debug(
-                            "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][TAIL_DATETIMES] asset=%s | tail_index=%s",
-                            getattr(asset, "symbol", asset),
-                            tail_datetimes
-                        )
-            else:
-                logger.debug(
-                    "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][DATAFRAME_STATE] asset=%s | EMPTY_DATAFRAME",
-                    getattr(asset, "symbol", asset)
-                )
-        else:
-            logger.debug(
-                "[THETA][DEBUG][QUOTE][THETA][DEBUG][PANDAS][DATAFRAME_STATE] asset=%s | NO_DATA_FOUND_IN_STORE",
-                getattr(asset, "symbol", asset)
-            )
 
         quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
 

@@ -146,7 +146,6 @@ def _clear_polars_cache():
 class TestDatabentoComprehensiveTrading:
     """Comprehensive futures trading tests with full verification"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"
@@ -346,7 +345,6 @@ class TestDatabentoComprehensiveTrading:
 class TestDatabentoComprehensiveTradingDaily:
     """Comprehensive futures trading tests with daily data"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"
@@ -462,7 +460,6 @@ class TestDatabentoComprehensiveTradingDaily:
         print("✓ DAILY DATA TEST PASSED")
         print("="*80)
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
         reason="This test requires a Databento API key"

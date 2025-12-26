@@ -304,7 +304,6 @@ class TestThetaDataBacktestFull:
         )
         assert "fill" not in theta_strat_obj.order_time_tracker[stoploss_order_id]
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -339,12 +338,10 @@ class TestThetaDataBacktestFull:
         assert results
         self.verify_backtest_results(strat_obj)
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
     )
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -374,7 +371,6 @@ class TestThetaDataBacktestFull:
 class TestThetaDataSource:
     """Additional tests for ThetaData data source functionality"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -384,7 +380,9 @@ class TestThetaDataSource:
         import pytz
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
-        end = tzinfo.localize(datetime.datetime(2024, 8, 5))
+        # DataSourceBacktesting treats datetime_end as an exclusive bound by subtracting 1 minute.
+        # Use 2024-08-06 so the Aug 5 session is in-range when dt is set to 2024-08-05 10:00.
+        end = tzinfo.localize(datetime.datetime(2024, 8, 6))
 
         data_source = ThetaDataBacktesting(
             start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
@@ -401,7 +399,6 @@ class TestThetaDataSource:
         assert day_prices is not None
         assert len(day_prices.df) > 0
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -432,7 +429,6 @@ class TestThetaDataSource:
         assert min(strikes) > 300
         assert max(strikes) < 700
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -457,7 +453,6 @@ class TestThetaDataSource:
         assert price1 == price2
         assert price1 > 0
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -486,7 +481,6 @@ class TestThetaDataSource:
         # Prices should be identical
         assert (prices1.df['close'].values == prices2.df['close'].values).all()
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         secrets_not_found,
         reason="Skipping test because ThetaData API credentials not found in environment variables",
@@ -494,6 +488,7 @@ class TestThetaDataSource:
     def test_pull_source_symbol_bars_with_api_call(self, mocker):
         """Test that thetadata_helper.get_price_data() is called with correct parameters"""
         import pytz
+        import pandas as pd
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         end = tzinfo.localize(datetime.datetime(2024, 8, 5))
@@ -509,10 +504,23 @@ class TestThetaDataSource:
             return_value=data_source.datetime_start
         )
 
-        # Mock the helper function
+        # Mock the helper function with a non-empty DataFrame so the backtesting code can proceed.
+        # The point of this test is to validate call parameters, not to exercise live downloader IO.
+        mock_index = pd.date_range("2024-07-25", "2024-08-05", freq="B", tz="UTC")
+        mock_df = pd.DataFrame(
+            {
+                "open": [1.0] * len(mock_index),
+                "high": [1.0] * len(mock_index),
+                "low": [1.0] * len(mock_index),
+                "close": [1.0] * len(mock_index),
+                "volume": [0] * len(mock_index),
+                "_missing": [False] * len(mock_index),
+            },
+            index=mock_index,
+        )
         mocked_get_price_data = mocker.patch(
-            'lumibot.tools.thetadata_helper.get_price_data',
-            return_value=MagicMock()
+            "lumibot.tools.thetadata_helper.get_price_data",
+            return_value=mock_df,
         )
 
         asset = Asset(symbol="AAPL", asset_type="stock")

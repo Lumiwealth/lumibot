@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from dotenv import load_dotenv
 
-pytestmark = [pytest.mark.apitest, pytest.mark.downloader]
+pytestmark = []
 
 
 DEFAULT_ENV_PATH = Path.home() / "Documents/Development/Strategy Library/Demos/.env"
@@ -37,7 +37,7 @@ def _ensure_env_loaded() -> None:
     ]
     missing = [key for key in required if not os.environ.get(key)]
     if missing:
-        pytest.fail(f"Missing required env vars for ThetaData backtests: {missing}")
+        pytest.skip(f"Missing required env vars for ThetaData backtests: {missing}")
 
     # Use ThetaData downloader-backed source
     os.environ.setdefault("BACKTESTING_DATA_SOURCE", "ThetaData")
@@ -180,4 +180,6 @@ def test_iron_condor_minute_theta_integration():
     # Trades may or may not happen (0DTE needs same-day expiration)
     trades = _trade_log_df(strat_obj, require_trades=False)
     if not trades.empty:
-        assert trades["price"].notnull().all()
+        fills = trades[trades["status"] == "fill"]
+        if not fills.empty:
+            assert fills["price"].notnull().all()

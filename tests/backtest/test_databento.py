@@ -79,7 +79,6 @@ class SimpleContinuousFutures(Strategy):
 class TestDatabentoBacktestFull:
     """Test suite for Databento data source with continuous futures"""
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY,
         reason="This test requires a Databento API key"
@@ -133,7 +132,6 @@ class TestDatabentoBacktestFull:
         for price in strat_obj.prices:
             assert price is not None and price > 0, f"Expected valid price, got {price}"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY,
         reason="This test requires a Databento API key"
@@ -185,7 +183,6 @@ class TestDatabentoBacktestFull:
         for price in strat_obj.prices:
             assert price is not None and price > 0, f"Expected valid price, got {price}"
 
-    @pytest.mark.apitest
     @pytest.mark.skipif(
         not DATABENTO_API_KEY,
         reason="This test requires a Databento API key"

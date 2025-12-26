@@ -373,7 +373,8 @@ This is the full “merge to dev” execution plan, in the order it should be do
 
 **Phase D — Documentation cleanup + docs folder restructure**
 10) Clean up repo-root “AI markdown” files (user request):
-   - Move `THETADATA_INVESTIGATION_2025-12-11.md`, `THETADATA_BACKTESTING_HANDOFF_2025-12-17.md`, and this handoff into a stable home under a human-maintained docs folder (recommended: `docs/ai/` or `docs/backtesting/`).
+   - Move `THETADATA_INVESTIGATION_2025-12-11.md` into `docs/investigations/`.
+   - Move `THETADATA_BACKTESTING_HANDOFF_2025-12-17.md` (and other handoffs) into `docs/handoffs/`.
 11) Implement the docs folder split so generated docs no longer collide with human/AI docs:
    - Target structure:
      - `generated-docs/` = output built from `docsrc/`

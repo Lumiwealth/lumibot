@@ -401,17 +401,23 @@ def _compute_session_bounds(
 ) -> Tuple[str, str]:
     default_start, default_end = DEFAULT_SESSION_HOURS[include_after_hours]
     tz = LUMIBOT_DEFAULT_PYTZ
-    start_default = datetime.combine(day, datetime.strptime(default_start, "%H:%M:%S").time(), tz)
-    end_default = datetime.combine(day, datetime.strptime(default_end, "%H:%M:%S").time(), tz)
+    start_default_naive = datetime.combine(day, datetime.strptime(default_start, "%H:%M:%S").time())
+    end_default_naive = datetime.combine(day, datetime.strptime(default_end, "%H:%M:%S").time())
+    if hasattr(tz, "localize"):
+        start_default = tz.localize(start_default_naive)
+        end_default = tz.localize(end_default_naive)
+    else:
+        start_default = start_default_naive.replace(tzinfo=tz)
+        end_default = end_default_naive.replace(tzinfo=tz)
 
     session_start = start_default
     session_end = end_default
 
     if not prefer_full_session:
         if start_dt.date() == day:
-            session_start = start_dt
+            session_start = max(start_default, start_dt)
         if end_dt.date() == day:
-            session_end = end_dt
+            session_end = min(end_default, end_dt)
 
     if session_end < session_start:
         session_end = session_start
@@ -1964,7 +1970,7 @@ def get_price_data(
             # DEBUG: Log detailed cache validation info for OPTIONS
             is_option = getattr(asset, 'asset_type', None) == 'option'
             if is_option or missing_required:
-                logger.info(
+                logger.debug(
                     "[THETA][DEBUG][CACHE_VALIDATION] asset=%s | "
                     "requested_range=%s to %s | "
                     "trading_days_count=%d | "

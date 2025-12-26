@@ -8,7 +8,9 @@
 
 ## Documentation Layout
 
-- `docs/` = human/AI-authored markdown (architecture, investigations, handoffs, ops notes)
+- `docs/` = hand-authored markdown (architecture, investigations, handoffs, ops notes)
+- Handoffs: `docs/handoffs/`
+- Investigations: `docs/investigations/`
 - `docsrc/` = Sphinx source for the public docs site
 - `generated-docs/` = local build output from `docsrc/` (gitignored)
 - Docs publishing should happen via GitHub Actions on `dev` (avoid committing generated HTML)

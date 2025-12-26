@@ -241,54 +241,6 @@ class PandasData(DataSourceBacktesting):
                 dt = self.get_datetime()
                 price = data.get_last_price(dt)
 
-                # Temporary debug instrumentation to trace MELI price selection during backtests.
-                # This helps diagnose missing trades by exposing the datetime lookup and bar used.
-                if getattr(asset, "symbol", None) == "MELI":
-                    debug_count = getattr(self, "_meli_debug_count", 0)
-                    if debug_count < 50:
-                        iter_lookup = None
-                        iter_count = None
-                        snapshot_err = None
-                        open_p = high_p = low_p = close_p = bid_p = ask_p = None
-                        try:
-                            iter_lookup = getattr(data, "iter_index", None)
-                            iter_lookup = iter_lookup.asof(dt) if iter_lookup is not None else None
-                        except Exception as exc:
-                            snapshot_err = f"iter_index_err={exc}"
-                        try:
-                            iter_count = data.get_iter_count(dt)
-                        except Exception as exc:
-                            snapshot_err = f"{snapshot_err}|iter_count_err={exc}" if snapshot_err else f"iter_count_err={exc}"
-                        try:
-                            snapshot = data.get_price_snapshot(dt)
-                            if isinstance(snapshot, dict):
-                                open_p = snapshot.get("open")
-                                high_p = snapshot.get("high")
-                                low_p = snapshot.get("low")
-                                close_p = snapshot.get("close")
-                                bid_p = snapshot.get("bid")
-                                ask_p = snapshot.get("ask")
-                        except Exception as exc:
-                            snapshot_err = f"{snapshot_err}|snapshot_exc={exc}" if snapshot_err else f"snapshot_exc={exc}"
-                        message = (
-                            "[THETA][DEBUG][MELI][LAST_PRICE] dt=%s iter_dt=%s iter_count=%s open=%s high=%s low=%s close=%s bid=%s ask=%s err=%s"
-                            % (
-                                dt,
-                                iter_lookup,
-                                iter_count,
-                                open_p,
-                                high_p,
-                                low_p,
-                                close_p,
-                                bid_p,
-                                ask_p,
-                                snapshot_err,
-                            )
-                        )
-                        print(message)
-                        logger.warning(message)
-                        self._meli_debug_count = debug_count + 1
-
                 # Check if price is NaN
                 if pd.isna(price):
                     # Provide more specific error message for index assets

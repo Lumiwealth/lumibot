@@ -986,9 +986,14 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         df = pd.concat([anchor_row, df], axis=0, sort=True)
         df = df[~df.index.duplicated(keep="last")]
 
+    # Resample to daily cadence and forward-fill non-trading days.
+    # NOTE: Use forward-fill (not backfill) so weekends/holidays carry the last known value.
+    # Backfilling would leak future values into prior days and can distort volatility-matched charts.
     df = df.resample("D").last()
-    df["strategy"] = df["portfolio_value"].bfill().pct_change(fill_method=None).fillna(0)
-    df["benchmark"] = df["symbol_cumprod"].bfill().pct_change(fill_method=None).fillna(0)
+    df["portfolio_value"] = df["portfolio_value"].ffill()
+    df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
+    df["strategy"] = df["portfolio_value"].pct_change(fill_method=None).fillna(0)
+    df["benchmark"] = df["symbol_cumprod"].pct_change(fill_method=None).fillna(0)
 
     df_final = df.loc[:, ["strategy", "benchmark"]]
     df_final.index = pd.to_datetime(df_final.index)

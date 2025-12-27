@@ -27,23 +27,6 @@ from ._strategy import _Strategy
 
 matplotlib.use("Agg")
 
-_LOG_THROTTLE_IMPORTANT_KEYWORDS = (
-    "filled",
-    "fill ",
-    "submitted",
-    "placing",
-    "closing",
-    "attempting entry",
-    "entry time matched",
-    "entry attempt",
-    "order",
-    "cash_settled",
-    "error",
-    "exception",
-    "[diag]",
-    "[theta]",
-)
-
 class Strategy(_Strategy):
     @property
     def name(self):
@@ -398,68 +381,6 @@ class Strategy(_Strategy):
         # This respects BACKTESTING_QUIET_LOGS via StrategyLoggerAdapter.isEnabledFor().
         if not self.logger.isEnabledFor(logging.INFO):
             return message
-
-        # Backtesting performance: INFO logs can dominate runtime for minute-cadence strategies,
-        # especially when CloudWatch/stdout is the sink (Bot Manager prod backtests).
-        #
-        # We keep the existing behaviour by default, but when running backtests we enable a
-        # conservative rate-limit that only affects low-signal chatter. Important logs (errors,
-        # warnings, and trading actions) bypass the limiter.
-        #
-        # Controls:
-        # - BACKTESTING_LOG_MAX_PER_SECOND: explicit override (0 disables throttling)
-        # - Default behaviour: if IS_BACKTESTING=True and LOG_BACKTEST_PROGRESS_TO_FILE=True,
-        #   throttle to 10 msgs/sec unless explicitly disabled.
-        try:
-            is_backtesting = os.environ.get("IS_BACKTESTING", "").lower() == "true"
-            if is_backtesting:
-                explicit_limit = os.environ.get("BACKTESTING_LOG_MAX_PER_SECOND")
-                if explicit_limit is None:
-                    # Bot Manager backtest containers set LOG_BACKTEST_PROGRESS_TO_FILE=True.
-                    # Use that as a signal to enable safe throttling by default.
-                    default_limit = 10 if os.environ.get("LOG_BACKTEST_PROGRESS_TO_FILE", "").lower() == "true" else 0
-                    max_per_second = default_limit
-                else:
-                    try:
-                        max_per_second = int(float(explicit_limit))
-                    except (TypeError, ValueError):
-                        max_per_second = 0
-
-                if max_per_second > 0:
-                    # Allowlist: never throttle high-signal logs.
-                    important = broadcast or (color in {"red", "yellow"})
-                    if not important:
-                        msg_lower = message.lower() if isinstance(message, str) else str(message).lower()
-                        important = any(k in msg_lower for k in _LOG_THROTTLE_IMPORTANT_KEYWORDS)
-
-                    if not important:
-                        state = getattr(self, "_log_throttle_state", None)
-                        if state is None:
-                            state = {
-                                "window_start": 0.0,
-                                "emitted": 0,
-                                "suppressed": 0,
-                            }
-                            setattr(self, "_log_throttle_state", state)
-
-                        now = time.monotonic()
-                        # 1-second fixed window.
-                        if now - state["window_start"] >= 1.0:
-                            # Emit a one-line summary when we suppressed logs in the prior window.
-                            suppressed = int(state.get("suppressed", 0) or 0)
-                            if suppressed > 0:
-                                self.logger.info(f"[LOG_THROTTLE] suppressed {suppressed} info log(s) in the last 1s")
-                            state["window_start"] = now
-                            state["emitted"] = 0
-                            state["suppressed"] = 0
-
-                        if state["emitted"] >= max_per_second:
-                            state["suppressed"] += 1
-                            return message
-                        state["emitted"] += 1
-        except Exception:
-            # Logging must never break strategy execution.
-            pass
 
         if color:
             if color in COLORS:

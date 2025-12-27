@@ -479,19 +479,12 @@ To add download status tracking to other data sources (Yahoo, Polygon, etc.):
    from lumibot.tools.thetadata_helper import (
        get_download_status, set_download_status, clear_download_status
    )
+   ```
 
 ## Backtest Performance Notes (Prod)
 
 Minute-cadence option strategies can execute **~100k+ iterations** per backtest window. In production
 (`Bot Manager` + CloudWatch/stdout logging), log volume is often the dominant performance bottleneck.
-
-### Backtest log throttling
-
-To keep backtests fast without fully disabling logs, LumiBot supports a simple INFO-log rate limit:
-
-- `BACKTESTING_LOG_MAX_PER_SECOND` (int, default `0` = disabled)
-- When `IS_BACKTESTING=True` and `LOG_BACKTEST_PROGRESS_TO_FILE=True`, a conservative default throttle may be enabled
-  even if `BACKTESTING_QUIET_LOGS=false` (so progress/UI logs stay visible without flooding CloudWatch).
 
 ### Per-iteration heartbeat logs
 
@@ -500,7 +493,6 @@ opt-in:
 
 - `BACKTESTING_LOG_ITERATION_HEARTBEAT=true` enables per-iteration start/end logs
 - Default during backtesting: disabled
-   ```
 
 2. Call `set_download_status()` during fetch operations with current progress
 

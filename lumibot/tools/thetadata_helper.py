@@ -442,6 +442,24 @@ def _format_option_strike(strike: float) -> str:
     return text or "0"
 
 
+# ThetaData uses distinct “root” symbols for some index option trading classes (e.g. SPXW),
+# but index *price/OHLC* history endpoints expect the index root (e.g. SPX).
+# This mapping is intentionally ThetaData-only and only applied for AssetType.INDEX history calls.
+_THETADATA_INDEX_ROOT_ALIASES: Dict[str, str] = {
+    "SPXW": "SPX",
+    # Common Cboe-style weekly/PM-settled roots (keep limited + safe; index history typically uses the base root).
+    "RUTW": "RUT",
+    "VIXW": "VIX",
+    # Nasdaq-100 PM-settled program root used by some systems.
+    "NDXP": "NDX",
+}
+
+
+def _thetadata_index_root_symbol(asset: Asset) -> str:
+    symbol = str(getattr(asset, "symbol", "") or "").strip().upper()
+    return _THETADATA_INDEX_ROOT_ALIASES.get(symbol, symbol)
+
+
 def _extract_timestamp_series(
     df: pd.DataFrame,
     target_tz: timezone = LUMIBOT_DEFAULT_PYTZ,
@@ -3681,6 +3699,7 @@ def get_request(
     querystring: dict,
     username: Optional[str] = None,
     password: Optional[str] = None,
+    timeout: Optional[float] = None,
 ):
     """Make a request to ThetaData via the queue system.
 
@@ -3710,6 +3729,40 @@ def get_request(
 
     logger.debug("[THETA][QUEUE] Making request via queue: %s params=%s", url, querystring)
 
+    # -------------------------------------------------------------------------------------
+    # BOUNDED WAITS (2025-12-26)
+    # -------------------------------------------------------------------------------------
+    # The queue client defaults to waiting forever (QUEUE_TIMEOUT=0). That is dangerous in
+    # production: a single stuck downloader/Theta request can make a backtest appear "running"
+    # forever with no progress. We therefore apply conservative per-endpoint defaults unless
+    # an explicit timeout is provided by the caller.
+    #
+    # Override knobs (seconds; set to 0 to disable):
+    # - THETADATA_QUEUE_LIST_TIMEOUT (default 600)
+    # - THETADATA_QUEUE_HISTORY_TIMEOUT (default 1800)
+    # - THETADATA_QUEUE_DEFAULT_TIMEOUT (default 900)
+    # -------------------------------------------------------------------------------------
+    effective_timeout = timeout
+    if effective_timeout is None:
+        try:
+            list_timeout = float(os.environ.get("THETADATA_QUEUE_LIST_TIMEOUT", "600"))
+            history_timeout = float(os.environ.get("THETADATA_QUEUE_HISTORY_TIMEOUT", "1800"))
+            default_timeout = float(os.environ.get("THETADATA_QUEUE_DEFAULT_TIMEOUT", "900"))
+        except Exception:
+            list_timeout = 600.0
+            history_timeout = 1800.0
+            default_timeout = 900.0
+
+        from urllib.parse import urlparse
+
+        request_path = (urlparse(url).path or "").lower()
+        if "/option/list/" in request_path:
+            effective_timeout = list_timeout if list_timeout > 0 else None
+        elif "/history/" in request_path:
+            effective_timeout = history_timeout if history_timeout > 0 else None
+        else:
+            effective_timeout = default_timeout if default_timeout > 0 else None
+
     # =====================================================================================
     # AUTOMATIC PAGINATION HANDLING (2025-12-07)
     # =====================================================================================
@@ -3731,7 +3784,13 @@ def get_request(
         request_url = next_page_url if next_page_url else url
         request_params = None if next_page_url else querystring
 
-        result = queue_request(request_url, request_params, headers)
+        try:
+            result = queue_request(request_url, request_params, headers, timeout=effective_timeout)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"ThetaData queue request timed out after {effective_timeout}s "
+                f"(url={request_url}, params={request_params or querystring})"
+            ) from exc
 
         if result is None:
             # ThetaData returns None for "no data" (HTTP 472 status)
@@ -4160,6 +4219,15 @@ def get_historical_data(
     start_local = _normalize_market_datetime(start_dt)
     end_local = _normalize_market_datetime(end_dt)
     trading_days = get_trading_dates(asset, start_dt, end_dt)
+    query_symbol = asset.symbol
+    if asset_type == "index":
+        query_symbol = _thetadata_index_root_symbol(asset)
+        if query_symbol != str(asset.symbol).strip().upper():
+            logger.debug(
+                "[THETA][SYMBOL][INDEX_ROOT] Mapping index symbol %s -> %s for history endpoints",
+                asset.symbol,
+                query_symbol,
+            )
 
     if not trading_days:
         logger.debug(
@@ -4198,7 +4266,7 @@ def get_historical_data(
 
     if asset_type == "index" and datastyle == "ohlc":
         querystring = {
-            "symbol": asset.symbol,
+            "symbol": query_symbol,
             "start_date": start_local.strftime("%Y-%m-%d"),
             "end_date": end_local.strftime("%Y-%m-%d"),
             "interval": interval_label,
@@ -4228,7 +4296,7 @@ def get_historical_data(
 
     for trading_day in trading_days:
         querystring: Dict[str, Any] = {
-            "symbol": asset.symbol,
+            "symbol": query_symbol,
             "date": trading_day.strftime("%Y-%m-%d"),
             "interval": interval_label,
             "format": "json",
@@ -4238,7 +4306,7 @@ def get_historical_data(
         if asset_type == "index":
             # Index quote/price endpoint expects 'date' per request similar to options/stocks
             querystring.pop("symbol", None)
-            querystring["symbol"] = asset.symbol
+            querystring["symbol"] = query_symbol
 
         if session_time_override:
             session_start, session_end = session_time_override
@@ -4442,19 +4510,28 @@ def build_historical_chain(
     min_hint_date = constraints.get("min_expiration_date")
     max_hint_date = constraints.get("max_expiration_date")
 
+    min_hint_int = (
+        int(min_hint_date.strftime("%Y%m%d"))
+        if isinstance(min_hint_date, date)
+        else None
+    )
     max_hint_int = (
         int(max_hint_date.strftime("%Y%m%d"))
         if isinstance(max_hint_date, date)
         else None
     )
 
-    # Start from as_of_date (only include future expirations)
-    effective_start_int = as_of_int
+    # Start from as_of_date (only include future expirations), but allow callers to hint
+    # that they only care about expirations at/after a later date (performance).
+    effective_start_int = max(as_of_int, min_hint_int) if min_hint_int else as_of_int
+    effective_start_date = (
+        max(as_of_date, min_hint_date) if isinstance(min_hint_date, date) else as_of_date
+    )
 
     logger.info(
         "[ThetaData] Building chain for %s @ %s (min_hint=%s, max_hint=%s, expirations=%d)",
         asset.symbol,
-        as_of_date,
+        effective_start_date,
         min_hint_date,
         max_hint_date,
         len(expiration_values),
@@ -4469,15 +4546,36 @@ def build_historical_chain(
     # to avoid wasting API calls on likely invalid/expired contract series.
     consecutive_strike_misses = 0
 
+    # Use the queue client's ability to keep multiple requests in-flight to dramatically speed up
+    # chain building for underlyings with dense expiration schedules (e.g., SPXW daily expirations).
+    from lumibot.tools.thetadata_queue_client import get_queue_client
+
+    queue_client = get_queue_client()
+    strikes_path = OPTION_LIST_ENDPOINTS["strikes"].lstrip("/")
+    strikes_timeout = float(os.environ.get("THETADATA_CHAIN_STRIKES_TIMEOUT", "300"))
+    configured_batch_size = int(os.environ.get("THETADATA_CHAIN_STRIKES_BATCH_SIZE", "0"))
+    batch_size = configured_batch_size if configured_batch_size > 0 else getattr(queue_client, "max_concurrent", 8)
+    batch_size = max(1, batch_size)
+
+    def _normalize_queue_payload(result: Optional[Any]) -> Optional[Dict[str, Any]]:
+        if result is None:
+            return None
+        if isinstance(result, dict):
+            if "header" in result and "response" in result:
+                return result
+            return _convert_columnar_to_row_format(result)
+        return {"header": {"format": []}, "response": result}
+
+    expiration_candidates: List[Tuple[str, str]] = []
     for expiration_iso in expiration_values:
         expiration_int = int(expiration_iso.replace("-", ""))
 
-        # Skip expirations that are in the past relative to our backtest date
+        # Skip expirations that are in the past relative to our backtest date (or min-hint).
         if expiration_int < effective_start_int:
             continue
 
         # If a max_hint_date was provided (e.g., strategy only wants options within 2 years),
-        # stop scanning once we exceed it
+        # stop scanning once we exceed it.
         if max_hint_int and expiration_int > max_hint_int:
             logger.debug(
                 "[ThetaData] Reached max hint %s for %s; stopping chain build.",
@@ -4486,7 +4584,6 @@ def build_historical_chain(
             )
             break
 
-        # Fetch the list of available strikes for this expiration from ThetaData
         strike_symbol = primary_symbol
         if spxw_symbol and str(primary_symbol).upper() == "SPX":
             try:
@@ -4499,69 +4596,110 @@ def build_historical_chain(
             elif expiration_iso in spxw_expirations:
                 strike_symbol = "SPXW"
 
-        strike_resp = get_request(
-            url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['strikes']}",
-            headers=headers,
-            querystring={
-                "symbol": strike_symbol,
-                "expiration": expiration_iso,
-                "format": "json",
-            },
-        )
+        expiration_candidates.append((expiration_iso, strike_symbol))
 
-        # Handle strike fetch failures - increment miss counter and potentially stop scanning
-        if not strike_resp or not strike_resp.get("response"):
-            logger.debug("No strikes for %s exp %s; skipping.", strike_symbol, expiration_iso)
-            consecutive_strike_misses += 1
-            if consecutive_strike_misses >= 10:
-                logger.debug("[ThetaData] 10 consecutive expirations with no strikes; stopping scan.")
-                break
-            continue
-
-        # Parse the strike response into a DataFrame
-        strike_df = pd.DataFrame(strike_resp["response"], columns=strike_resp["header"]["format"])
-        if strike_df.empty:
-            consecutive_strike_misses += 1
-            if consecutive_strike_misses >= 10:
-                break
-            continue
-
-        strike_col = _detect_column(strike_df, ("strike",))
-        if not strike_col:
-            consecutive_strike_misses += 1
-            if consecutive_strike_misses >= 10:
-                break
-            continue
-
-        # Extract and normalize strike prices (handles different formats from ThetaData)
-        strike_values = sorted(
-            {
-                strike
-                for strike in (
-                    _normalize_strike_value(value) for value in strike_df[strike_col].tolist()
-                )
-                if strike
-            }
-        )
-        if not strike_values:
-            consecutive_strike_misses += 1
-            if consecutive_strike_misses >= 10:
-                break
-            continue
-
-        # SUCCESS: Add this expiration and its strikes to the chain
-        # NOTE: We do NOT validate quote/price data here - that happens at point-of-use
-        # in get_expiration_on_or_after_date(). This is critical for LEAPS support.
-        # See docstring for rationale.
-        chains["CALL"][expiration_iso] = strike_values
-        chains["PUT"][expiration_iso] = list(strike_values)
-        expirations_added += 1
-        consecutive_strike_misses = 0
-
-        # Limit total expirations to avoid memory issues with very large chains
+    idx = 0
+    while idx < len(expiration_candidates):
         if expirations_added >= max_expirations:
             logger.debug("[ThetaData] Chain build hit max_expirations limit (%d)", max_expirations)
             break
+        if consecutive_strike_misses >= max_consecutive_misses:
+            logger.debug(
+                "[ThetaData] %d consecutive expirations with no strikes; stopping scan.",
+                max_consecutive_misses,
+            )
+            break
+
+        remaining_needed = max_expirations - expirations_added
+        batch = expiration_candidates[idx: idx + min(batch_size, remaining_needed)]
+
+        requests: List[Tuple[str, str, str]] = []  # (request_id, expiration_iso, strike_symbol)
+        for expiration_iso, strike_symbol in batch:
+            request_id, _status, _was_pending = queue_client.check_or_submit(
+                method="GET",
+                path=strikes_path,
+                query_params={
+                    "symbol": strike_symbol,
+                    "expiration": expiration_iso,
+                    "format": "json",
+                },
+                headers=headers,
+            )
+            requests.append((request_id, expiration_iso, strike_symbol))
+
+        for request_id, expiration_iso, strike_symbol in requests:
+            strike_resp = None
+            try:
+                result, status_code = queue_client.wait_for_result(
+                    request_id=request_id,
+                    timeout=strikes_timeout,
+                )
+                if status_code == 472:
+                    strike_resp = None
+                else:
+                    strike_resp = _normalize_queue_payload(result)
+            except TimeoutError:
+                logger.warning(
+                    "[ThetaData] Timeout waiting for strike list (symbol=%s exp=%s request_id=%s timeout=%.1fs)",
+                    strike_symbol,
+                    expiration_iso,
+                    request_id,
+                    strikes_timeout,
+                )
+                strike_resp = None
+            except Exception:
+                logger.debug(
+                    "[ThetaData] Error fetching strike list (symbol=%s exp=%s request_id=%s)",
+                    strike_symbol,
+                    expiration_iso,
+                    request_id,
+                    exc_info=True,
+                )
+                strike_resp = None
+
+            # Handle strike fetch failures - increment miss counter and potentially stop scanning.
+            if not strike_resp or not strike_resp.get("response"):
+                logger.debug("No strikes for %s exp %s; skipping.", strike_symbol, expiration_iso)
+                consecutive_strike_misses += 1
+                if consecutive_strike_misses >= max_consecutive_misses:
+                    break
+                continue
+
+            strike_df = pd.DataFrame(strike_resp["response"], columns=strike_resp["header"]["format"])
+            if strike_df.empty:
+                consecutive_strike_misses += 1
+                if consecutive_strike_misses >= max_consecutive_misses:
+                    break
+                continue
+
+            strike_col = _detect_column(strike_df, ("strike",))
+            if not strike_col:
+                consecutive_strike_misses += 1
+                if consecutive_strike_misses >= max_consecutive_misses:
+                    break
+                continue
+
+            strike_values = sorted(
+                {
+                    strike
+                    for strike in (
+                        _normalize_strike_value(value) for value in strike_df[strike_col].tolist()
+                    )
+                    if strike
+                }
+            )
+            if not strike_values:
+                consecutive_strike_misses += 1
+                if consecutive_strike_misses >= max_consecutive_misses:
+                    break
+                continue
+
+            chains["CALL"][expiration_iso] = strike_values
+            chains["PUT"][expiration_iso] = list(strike_values)
+            expirations_added += 1
+            consecutive_strike_misses = 0
+
+        idx += len(batch)
 
     logger.debug(
         "Built ThetaData historical chain for %s on %s (expirations=%d)",
@@ -4814,9 +4952,16 @@ def get_chains_cached(
     )
 
     # 3) Check for recent cached file (within RECENT_FILE_TOLERANCE_DAYS) unless hints require fresh data
-    RECENT_FILE_TOLERANCE_DAYS = 7
+    recent_days_default = 7
+    try:
+        recent_days_default = int(os.environ.get("THETADATA_CHAIN_RECENT_FILE_TOLERANCE_DAYS", "7"))
+    except Exception:
+        recent_days_default = 7
+
+    asset_type = str(getattr(asset, "asset_type", "") or "").lower()
+    is_index = asset_type == "index"
+
     if not hint_present:
-        earliest_okay_date = current_date - timedelta(days=RECENT_FILE_TOLERANCE_DAYS)
         pattern = f"{asset.symbol}_*.parquet"
         potential_files = sorted(chain_folder.glob(pattern), reverse=True)
 
@@ -4834,31 +4979,56 @@ def get_chains_cached(
             except ValueError:
                 continue
 
-            # If file is recent enough, reuse it
-            if earliest_okay_date <= file_date <= current_date:
-                logger.debug(f"Reusing chain file {fpath} (file_date={file_date})")
-                df_cached = pd.read_parquet(fpath, engine='pyarrow')
+            if file_date > current_date:
+                continue
 
-                # Convert back to dict with lists (not numpy arrays)
-                data = df_cached["data"][0]
-                if isinstance(data, dict):
-                    cache_version = int(data.get("_chain_cache_version", 0) or 0)
-                    if cache_version < THETADATA_CHAIN_CACHE_VERSION:
-                        logger.debug(
-                            "Skipping outdated ThetaData chain cache %s (version=%s < %s)",
-                            fpath,
-                            cache_version,
-                            THETADATA_CHAIN_CACHE_VERSION,
-                        )
+            # For indexes, allow reusing older chain files as long as the cached chain still
+            # contains future expirations covering `current_date`. Index underlyings don't
+            # have splits, and Theta's expirations payload is not truly point-in-time anyway,
+            # so aggressively reusing valid chain files can reduce year-long backtests from
+            # dozens of chain rebuilds to just a handful.
+            #
+            # For equities, stick to the tighter "recent days" window to minimize any chance
+            # of subtle strike normalization drift around corporate actions.
+            if not is_index:
+                earliest_okay_date = current_date - timedelta(days=recent_days_default)
+                if file_date < earliest_okay_date:
+                    continue
+
+            logger.debug(f"Reusing chain file {fpath} (file_date={file_date})")
+            df_cached = pd.read_parquet(fpath, engine="pyarrow")
+
+            data = df_cached["data"][0]
+            if isinstance(data, dict):
+                cache_version = int(data.get("_chain_cache_version", 0) or 0)
+                if cache_version < THETADATA_CHAIN_CACHE_VERSION:
+                    logger.debug(
+                        "Skipping outdated ThetaData chain cache %s (version=%s < %s)",
+                        fpath,
+                        cache_version,
+                        THETADATA_CHAIN_CACHE_VERSION,
+                    )
+                    continue
+
+            if is_index and isinstance(data, dict):
+                try:
+                    call_chain = data.get("Chains", {}).get("CALL", {}) or {}
+                    expiries = [date.fromisoformat(exp) for exp in call_chain.keys()]
+                    if not expiries:
                         continue
-                # Backfill for older cache files created before UnderlyingSymbol was added.
-                if isinstance(data, dict) and "UnderlyingSymbol" not in data:
-                    data["UnderlyingSymbol"] = asset.symbol
-                for right in data["Chains"]:
-                    for exp_date in data["Chains"][right]:
-                        data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+                    if max(expiries) < current_date:
+                        continue
+                except Exception:
+                    continue
 
-                return data
+            # Backfill for older cache files created before UnderlyingSymbol was added.
+            if isinstance(data, dict) and "UnderlyingSymbol" not in data:
+                data["UnderlyingSymbol"] = asset.symbol
+            for right in data["Chains"]:
+                for exp_date in data["Chains"][right]:
+                    data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+
+            return data
 
     # 4) No suitable file => fetch from ThetaData using exp=0 chain builder
     logger.debug(

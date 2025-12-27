@@ -1226,20 +1226,30 @@ class ThetaDataBacktestingPandas(PandasData):
             if df_quote is None or df_quote.empty:
                 logger.warning(f"No QUOTE data returned for {asset_separated} / {quote_asset} ({ts_unit}); continuing without quotes.")
             else:
-                # Combine the ohlc and quote data using outer join to preserve all data
-                # Use forward fill for missing quote values (ThetaData's recommended approach)
                 timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
-                df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
-                df = self._combine_duplicate_columns(df, timestamp_columns)
                 quotes_attached = True
 
-                # Theta includes duplicate metadata columns (symbol/strike/right/expiration); merge them once.
+                quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
+                # PERFORMANCE: Theta quote responses include a lot of redundant metadata columns
+                # (symbol/strike/right/expiration/etc) that already exist in the OHLC frame.
+                # Concatenating them creates many duplicate column names and forces expensive
+                # de-dup logic (transpose-heavy bfill/ffill). Keep only the actionable quote
+                # fields + timestamp metadata before merging.
+                quote_keep = [col for col in quote_columns + timestamp_columns if col in df_quote.columns]
+                df_quote_reduced = df_quote.loc[:, quote_keep]
+                overlapping = [col for col in df_quote_reduced.columns if col in df_ohlc.columns]
+                if overlapping:
+                    df_quote_reduced = df_quote_reduced.drop(columns=overlapping)
+
+                # Combine the ohlc and quote data using outer join to preserve all data.
+                df = pd.concat([df_ohlc, df_quote_reduced], axis=1, join='outer')
+
+                # Safety net: if duplicates remain (unexpected), combine them once.
                 duplicate_names = df.columns[df.columns.duplicated()].unique().tolist()
                 if duplicate_names:
                     df = self._combine_duplicate_columns(df, duplicate_names)
 
                 # Forward fill missing quote values and timestamp metadata
-                quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
                 forward_fill_columns = [
                     col
                     for col in quote_columns + timestamp_columns
@@ -1740,7 +1750,13 @@ class ThetaDataBacktestingPandas(PandasData):
                 continue
             selection = df.loc[:, column]
             if isinstance(selection, pd.DataFrame):
-                combined = selection.bfill(axis=1).ffill(axis=1).iloc[:, 0]
+                # PERFORMANCE: `bfill/ffill(axis=1)` triggers a transpose on every call which is
+                # extremely expensive for wide, high-row-count frames (options minute data).
+                # A simple left-to-right `combine_first` achieves the same "first non-null wins"
+                # semantics without transposing.
+                combined = selection.iloc[:, 0]
+                for idx in range(1, selection.shape[1]):
+                    combined = combined.combine_first(selection.iloc[:, idx])
                 df = df.drop(columns=column)
                 df[column] = combined
         return df
@@ -2352,7 +2368,36 @@ class ThetaDataBacktestingPandas(PandasData):
                 timestep
             )
 
-        self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
+        # PERFORMANCE: `get_quote()` is called extremely frequently for option-heavy strategies
+        # (e.g., intraday straddle MTM checks). `_update_pandas_data()` is correct but expensive,
+        # even when the in-memory cache already fully covers the current date.
+        #
+        # Fast-path: if we already have quote columns in the cached dataframe and the current dt
+        # is within the cached range, skip the refresh work and just read from the cache.
+        should_refresh = True
+        try:
+            quote_asset = quote if quote is not None else Asset("USD", "forex")
+            _, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
+            if (
+                getattr(asset, "asset_type", None) == Asset.AssetType.OPTION
+                and ts_unit in {"minute", "hour", "second"}
+            ):
+                canonical_key, legacy_key = self._build_dataset_keys(asset, quote_asset, ts_unit)
+                candidate_data = self.pandas_data.get(canonical_key)
+                if candidate_data is None:
+                    candidate_data = self.pandas_data.get(legacy_key)
+
+                if candidate_data is not None and getattr(candidate_data, "timestep", None) == ts_unit:
+                    candidate_df = getattr(candidate_data, "df", None)
+                    if candidate_df is not None and not candidate_df.empty and self._frame_has_quote_columns(candidate_df):
+                        data_end = getattr(candidate_data, "datetime_end", None)
+                        if data_end is not None and dt <= data_end:
+                            should_refresh = False
+        except Exception:
+            should_refresh = True
+
+        if should_refresh:
+            self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
 
         quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
 

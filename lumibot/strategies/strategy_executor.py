@@ -1,6 +1,7 @@
 import inspect
 import logging
 import math
+import os
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -78,6 +79,12 @@ class StrategyExecutor(Thread):
 
         # Cache for market type detection to avoid repeated expensive calendar lookups
         self._market_type_cache = {}
+
+        # Backtests can run millions of iterations; per-iteration "heartbeat" logs dominate runtime
+        # when the sink is stdout/CloudWatch. Keep them opt-in during backtesting.
+        self._log_iteration_heartbeat = True
+        if self.broker.IS_BACKTESTING_BROKER:
+            self._log_iteration_heartbeat = os.environ.get("BACKTESTING_LOG_ITERATION_HEARTBEAT", "").lower() == "true"
 
     def _is_continuous_market(self, market_name):
         """
@@ -705,17 +712,18 @@ class StrategyExecutor(Thread):
         self.strategy.send_account_summary_to_discord()
 
         self._strategy_context = None
-        # Optimization: Use astimezone instead of localize for better performance
-        # datetime.now() already returns a naive datetime, so we can use astimezone
-        # This avoids the expensive localize operation that's called 355k times
-        if start_dt.tzinfo is None:
-            # If naive, use the faster replace+astimezone approach
-            start_dt_tz = start_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
-        else:
-            # If already has timezone, just convert
-            start_dt_tz = start_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
-        start_str = start_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
-        self.strategy.log_message(f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}", color="green")
+        log_iteration_heartbeat = self._log_iteration_heartbeat
+        if log_iteration_heartbeat:
+            # Optimization: avoid tz conversions/strftime unless we are actually logging.
+            if start_dt.tzinfo is None:
+                start_dt_tz = start_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+            else:
+                start_dt_tz = start_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+            start_str = start_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
+            self.strategy.log_message(
+                f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}",
+                color="green",
+            )
         on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
 
         # Time-consuming
@@ -731,8 +739,6 @@ class StrategyExecutor(Thread):
             self.process_queue()
 
             end_dt = datetime.now()
-            end_dt_tz = LUMIBOT_DEFAULT_PYTZ.localize(end_dt.replace(tzinfo=None))
-            end_str = end_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
             runtime = (end_dt - start_dt).total_seconds()
 
             # Variable Backup
@@ -743,14 +749,24 @@ class StrategyExecutor(Thread):
             # occur at the correct time.
             self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
             next_run_time = self.get_next_ap_scheduler_run_time()
-            if next_run_time is not None:
+            if next_run_time is not None and log_iteration_heartbeat:
                 # Format the date to be used in the log message.
+                if end_dt.tzinfo is None:
+                    end_dt_tz = end_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+                else:
+                    end_dt_tz = end_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                end_str = end_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 dt_str = next_run_time.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 self.strategy.log_message(
                     f"Trading iteration ended at {end_str}, next check in time is {dt_str}. Took {runtime:.2f}s", color="blue"
                 )
 
-            else:
+            elif log_iteration_heartbeat:
+                if end_dt.tzinfo is None:
+                    end_dt_tz = end_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+                else:
+                    end_dt_tz = end_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                end_str = end_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
         except Exception as e:
             # If backtesting, raise the exception

@@ -2349,6 +2349,18 @@ class ThetaDataBacktestingPandas(PandasData):
                 getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
             )
 
+        # PERF: cache Quote objects within the same backtest datetime.
+        # Many strategies call get_quote() multiple times per asset per bar (MTM, risk checks,
+        # limit price estimation, etc.). In backtesting, the quote for a given dt is immutable.
+        quote_cache_dt = getattr(self, "_quote_cache_dt", None)
+        if quote_cache_dt != dt:
+            self._quote_cache_dt = dt
+            self._quote_cache = {}
+        cache_key = (asset, quote, exchange, timestep)
+        cached = getattr(self, "_quote_cache", {}).get(cache_key)
+        if cached is not None:
+            return cached
+
         # Log quote request details for debugging (options vs other assets)
         if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION:
             logger.debug(
@@ -2501,6 +2513,12 @@ class ThetaDataBacktestingPandas(PandasData):
             getattr(quote_obj, "last_price", None) if quote_obj else None,
             getattr(quote_obj, "source", None) if quote_obj else None,
         )
+
+        if quote_obj is not None:
+            try:
+                self._quote_cache[cache_key] = quote_obj
+            except Exception:
+                pass
 
         return quote_obj
 

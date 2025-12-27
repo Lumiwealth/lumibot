@@ -2375,6 +2375,7 @@ class ThetaDataBacktestingPandas(PandasData):
         # Fast-path: if we already have quote columns in the cached dataframe and the current dt
         # is within the cached range, skip the refresh work and just read from the cache.
         should_refresh = True
+        fast_data = None
         try:
             quote_asset = quote if quote is not None else Asset("USD", "forex")
             _, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
@@ -2393,13 +2394,72 @@ class ThetaDataBacktestingPandas(PandasData):
                         data_end = getattr(candidate_data, "datetime_end", None)
                         if data_end is not None and dt <= data_end:
                             should_refresh = False
+                            fast_data = candidate_data
         except Exception:
             should_refresh = True
 
         if should_refresh:
             self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
 
-        quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
+        quote_obj = None
+        # Fast-path: build a Quote directly from the cached Data object without calling
+        # Data.get_quote() (which is wrapped in `check_data` and allocates dicts per call).
+        if fast_data is not None:
+            try:
+                from lumibot.entities import Quote
+
+                iter_count = fast_data.get_iter_count(dt)
+
+                def _get(column: str):
+                    if column not in fast_data.datalines:
+                        return None
+                    value = fast_data.datalines[column].dataline[iter_count]
+                    if value is None:
+                        return None
+                    try:
+                        if pd.isna(value):
+                            return None
+                    except Exception:
+                        pass
+                    return value
+
+                close = _get("close")
+                bid = _get("bid")
+                ask = _get("ask")
+                bid_size = _get("bid_size")
+                ask_size = _get("ask_size")
+                volume = _get("volume")
+
+                # Match PandasData.get_quote(): treat non-positive bid/ask as missing.
+                for side_key, side_val in (("bid", bid), ("ask", ask)):
+                    if side_val is None:
+                        continue
+                    try:
+                        numeric_val = float(side_val)
+                    except (TypeError, ValueError):
+                        continue
+                    if numeric_val <= 0:
+                        if side_key == "bid":
+                            bid = None
+                        else:
+                            ask = None
+
+                quote_obj = Quote(
+                    asset=asset,
+                    price=close,
+                    bid=bid,
+                    ask=ask,
+                    volume=volume,
+                    timestamp=dt,
+                    bid_size=bid_size,
+                    ask_size=ask_size,
+                    raw_data=None,
+                )
+            except Exception:
+                quote_obj = None
+
+        if quote_obj is None:
+            quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
         # ThetaData quote history for options can omit trade-derived fields (e.g., close/last), while still providing
         # actionable NBBO. Avoid forcing an OHLC download just to fill Quote.price: prefer quote-derived marks when

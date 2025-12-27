@@ -1532,6 +1532,25 @@ class BacktestingBroker(Broker):
                 )
                 # Check if we got any ohlc data
                 if ohlc is None or ohlc.empty:
+                    # ThetaData option minute OHLC can be sparse/empty even when NBBO quotes exist.
+                    #
+                    # If we immediately cancel here, the order never reaches the quote-fill fallback path
+                    # (`_try_fill_with_quote`) and we can wind up with determinism issues:
+                    # - BUY_TO_CLOSE orders get canceled at 15:55
+                    # - contracts then cash-settle at expiry (large intrinsic losses)
+                    #
+                    # For ThetaData options only, attempt a quote-based fill when OHLC is missing.
+                    if self._is_thetadata_source() and self._is_option_asset(getattr(order, "asset", None)):
+                        quote_fill_price = self._try_fill_with_quote(order, strategy, None, None, None)
+                        if quote_fill_price is not None:
+                            self._execute_filled_order(
+                                order=order,
+                                price=quote_fill_price,
+                                filled_quantity=filled_quantity,
+                                strategy=strategy,
+                            )
+                            continue
+
                     if strategy is not None:
                         display_symbol = getattr(order.asset, "symbol", order.asset)
                         order_identifier = getattr(order, "identifier", None)

@@ -556,9 +556,27 @@ class ThetaDataBacktestingPandas(PandasData):
                 logger.info(f"\nSKIP: Expiry {expiry} date is a weekend, no contract exists: {asset_separated}")
                 return None
 
-        # Get the start datetime and timestep unit
+        # Get the start datetime and timestep unit.
+        #
+        # PERFORMANCE: For point-in-time option quote/price checks (length≈1–5 bars) a 5-day buffer is
+        # overkill and causes the downloader to fetch multiple prior trading days unnecessarily. Keep
+        # the larger buffer for broader historical pulls, daily cadence, and non-option assets.
+        effective_start_buffer = START_BUFFER
+        try:
+            _, ts_unit_preview = self.convert_timestep_str_to_timedelta(timestep)
+        except Exception:
+            ts_unit_preview = None
+        if (
+            getattr(asset_separated, "asset_type", None) == "option"
+            and start_dt is not None
+            and isinstance(length, int)
+            and length <= 5
+            and ts_unit_preview in {"minute", "hour"}
+        ):
+            effective_start_buffer = timedelta(days=1)
+
         start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
-            length, timestep, start_dt, start_buffer=START_BUFFER
+            length, timestep, start_dt, start_buffer=effective_start_buffer
         )
         current_dt = self.get_datetime()
 
@@ -570,7 +588,7 @@ class ThetaDataBacktestingPandas(PandasData):
         elif asset_separated.asset_type != "option" and window_start is not None and window_start < requested_start:
             # For non-options, prefetch the full backtest window once for performance.
             requested_start = window_start
-        start_threshold = requested_start + START_BUFFER if requested_start is not None else None
+        start_threshold = requested_start + effective_start_buffer if requested_start is not None else None
         start_for_fetch = requested_start or start_datetime
         # For non-options we target full backtest coverage on first fetch; reuse thereafter.
         # Options are too numerous/expensive to prefetch to backtest end, so only fetch up to the current sim time.
@@ -752,7 +770,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 if (
                     coverage_start is not None
                     and requested_start is not None
-                    and coverage_start <= requested_start + START_BUFFER
+                    and coverage_start <= requested_start + effective_start_buffer
                     and end_ok
                 ):
                     # CRITICAL FIX (2025-12-07): For options, verify the cached data is for
@@ -790,7 +808,7 @@ class ThetaDataBacktestingPandas(PandasData):
                             if meta.get("prefetch_complete") is None:
                                 meta["prefetch_complete"] = True
                             self._dataset_metadata[canonical_key] = meta
-                            logger.info(
+                            logger.debug(
                                 "[THETA][CACHE][FAST_REUSE][OPTION] asset=%s/%s (%s) strike=%s exp=%s -> reuse",
                                 asset_separated,
                                 quote_asset,
@@ -807,7 +825,7 @@ class ThetaDataBacktestingPandas(PandasData):
                         if meta.get("prefetch_complete") is None:
                             meta["prefetch_complete"] = True
                         self._dataset_metadata[canonical_key] = meta
-                        logger.info(
+                        logger.debug(
                             "[THETA][CACHE][FAST_REUSE] asset=%s/%s (%s) covers start=%s end=%s needed_start=%s needed_end=%s -> reuse (date-level comparison)",
                             asset_separated,
                             quote_asset,
@@ -1078,7 +1096,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 start_buffer_ok = (
                     coverage_start is not None
                     and start_for_fetch is not None
-                    and (coverage_start - start_for_fetch) < START_BUFFER
+                    and (coverage_start - start_for_fetch) < effective_start_buffer
                 )
                 if start_buffer_ok and not end_missing:
                     return None
@@ -1097,7 +1115,7 @@ class ThetaDataBacktestingPandas(PandasData):
             # unless the cache truly lacks coverage. Keep the existing minute cache instead of lowering
             # ts_unit for the fetch.
             if ts_unit == "hour" and data_timestep == "minute":
-                if (data_start_datetime - start_datetime) < START_BUFFER:
+                if (data_start_datetime - start_datetime) < effective_start_buffer:
                     return None
 
         # Download data from ThetaData
@@ -1112,25 +1130,56 @@ class ThetaDataBacktestingPandas(PandasData):
             start_for_fetch,
             end_requirement,
         )
-        df_ohlc = thetadata_helper.get_price_data(
-            asset_separated,
-            start_for_fetch,
-            end_requirement,
-            timespan=ts_unit,
-            quote_asset=quote_asset,
-            dt=date_time_now,
-            datastyle="ohlc",
-            include_after_hours=True,  # Default to True for extended hours data
-            preserve_full_history=True,
-            # Day bars use Theta's EOD endpoint which can return `close=0` on days with no trades.
-            # For options we still need NBBO (bid/ask) so `get_quote()` and ThetaData option
-            # mark-to-market / fill logic can price illiquid days even when there are no trades.
-            include_eod_nbbo=bool(
-                getattr(self, "_use_quote_data", False)
-                and ts_unit == "day"
-                and getattr(asset_separated, "asset_type", None) == "option"
-            ),
-        )
+        df_quote = None
+        quotes_enabled = require_quote_data or existing_has_quotes
+        wants_quotes = bool(getattr(self, "_use_quote_data", False)) and ts_unit in {"minute", "hour", "second"} and quotes_enabled
+
+        def _fetch_ohlc():
+            return thetadata_helper.get_price_data(
+                asset_separated,
+                start_for_fetch,
+                end_requirement,
+                timespan=ts_unit,
+                quote_asset=quote_asset,
+                dt=date_time_now,
+                datastyle="ohlc",
+                include_after_hours=True,  # Default to True for extended hours data
+                preserve_full_history=True,
+                # Day bars use Theta's EOD endpoint which can return `close=0` on days with no trades.
+                # For options we still need NBBO (bid/ask) so `get_quote()` and ThetaData option
+                # mark-to-market / fill logic can price illiquid days even when there are no trades.
+                include_eod_nbbo=bool(
+                    getattr(self, "_use_quote_data", False)
+                    and ts_unit == "day"
+                    and getattr(asset_separated, "asset_type", None) == "option"
+                ),
+            )
+
+        def _fetch_quote():
+            return thetadata_helper.get_price_data(
+                asset_separated,
+                start_for_fetch,
+                end_requirement,
+                timespan=ts_unit,
+                quote_asset=quote_asset,
+                dt=date_time_now,
+                datastyle="quote",
+                include_after_hours=True,  # Default to True for extended hours data
+                preserve_full_history=True,
+            )
+
+        if wants_quotes:
+            # Performance: OHLC + QUOTE requests are independent network calls. Fetch them concurrently
+            # for first-touch cache misses (common for 0DTE option strategies), then merge.
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future_ohlc = executor.submit(_fetch_ohlc)
+                future_quote = executor.submit(_fetch_quote)
+                df_ohlc = future_ohlc.result()
+                df_quote = future_quote.result()
+        else:
+            df_ohlc = _fetch_ohlc()
 
         if df_ohlc is None or df_ohlc.empty:
             expired_reason = (
@@ -1156,31 +1205,22 @@ class ThetaDataBacktestingPandas(PandasData):
 
         df = df_ohlc
         quotes_attached = False
-        quotes_enabled = require_quote_data or existing_has_quotes
 
         # Quote data (bid/ask) is only available for intraday data (minute, hour, second)
         # For daily+ data, only use OHLC
-        if self._use_quote_data and ts_unit in ["minute", "hour", "second"] and quotes_enabled:
-            try:
-                df_quote = thetadata_helper.get_price_data(
-                    asset_separated,
-                    start_for_fetch,
-                    end_requirement,
-                    timespan=ts_unit,
-                    quote_asset=quote_asset,
-                    dt=date_time_now,
-                    datastyle="quote",
-                    include_after_hours=True,  # Default to True for extended hours data
-                    preserve_full_history=True,
-                )
-            except Exception:
-                logger.exception(
-                    "ThetaData quote download failed for %s / %s (%s)",
-                    asset_separated,
-                    quote_asset,
-                    ts_unit,
-                )
-                raise
+        if wants_quotes:
+            if df_quote is None:
+                # Sequential fallback: should be rare, but keeps behavior robust if executor path didn't run.
+                try:
+                    df_quote = _fetch_quote()
+                except Exception:
+                    logger.exception(
+                        "ThetaData quote download failed for %s / %s (%s)",
+                        asset_separated,
+                        quote_asset,
+                        ts_unit,
+                    )
+                    raise
 
             # If the quote dataframe is empty, continue with OHLC but log
             if df_quote is None or df_quote.empty:
@@ -2316,9 +2356,9 @@ class ThetaDataBacktestingPandas(PandasData):
 
         quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
-        # ThetaData day bars can have close=0 when there were no trades. Keep Quote.price aligned to the most recent
-        # trade-based value (potentially stale) so consumers relying on quote.price or quote.mid_price fallback do not
-        # incorrectly see 0.0.
+        # ThetaData quote history for options can omit trade-derived fields (e.g., close/last), while still providing
+        # actionable NBBO. Avoid forcing an OHLC download just to fill Quote.price: prefer quote-derived marks when
+        # bid/ask exist, and only fall back to last trade when NBBO is unavailable.
         if quote_obj is not None and getattr(asset, "asset_type", None) == Asset.AssetType.OPTION:
             try:
                 numeric_price = float(quote_obj.price) if quote_obj.price is not None else None
@@ -2326,9 +2366,23 @@ class ThetaDataBacktestingPandas(PandasData):
                 numeric_price = None
 
             if numeric_price is None or numeric_price <= 0:
-                last_trade = self.get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange)
-                if last_trade is not None:
-                    quote_obj.price = float(last_trade)
+                bid = getattr(quote_obj, "bid", None)
+                ask = getattr(quote_obj, "ask", None)
+                try:
+                    bid = float(bid) if bid is not None else None
+                except (TypeError, ValueError):
+                    bid = None
+                try:
+                    ask = float(ask) if ask is not None else None
+                except (TypeError, ValueError):
+                    ask = None
+
+                if bid is not None and ask is not None and bid > 0 and ask > 0:
+                    quote_obj.price = (bid + ask) / 2.0
+                else:
+                    last_trade = self.get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange)
+                    if last_trade is not None:
+                        quote_obj.price = float(last_trade)
 
         # [INSTRUMENTATION] Final quote result with all details
         logger.debug(

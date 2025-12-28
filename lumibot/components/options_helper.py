@@ -716,21 +716,26 @@ class OptionsHelper:
         else:
             missing_bid_ask = True
 
-        # Last price as secondary signal / fallback anchor
-        try:
-            last_price = self.strategy.get_last_price(option_asset)
-        except Exception as exc:
-            self.strategy.log_message(
-                f"Error fetching last price for {option_asset}: {exc}",
-                color="red",
-            )
+        # Last price as secondary signal / fallback anchor.
+        #
+        # PERFORMANCE: Do not fetch trade-derived OHLC/last when bid/ask is already actionable.
+        # ThetaData can provide NBBO without trades, and calling get_last_price() can trigger
+        # expensive historical OHLC downloads (especially in backtests).
+        if not has_bid_ask:
+            try:
+                last_price = self.strategy.get_last_price(option_asset)
+            except Exception as exc:
+                self.strategy.log_message(
+                    f"Error fetching last price for {option_asset}: {exc}",
+                    color="red",
+                )
 
-        if last_price is None:
-            missing_last_price = True
-        else:
-            last_price = self._coerce_price(last_price, "last_price", data_quality_flags, sanitization_notes)
             if last_price is None:
                 missing_last_price = True
+            else:
+                last_price = self._coerce_price(last_price, "last_price", data_quality_flags, sanitization_notes)
+                if last_price is None:
+                    missing_last_price = True
 
         if not has_bid_ask and allow_fallback and last_price is not None:
             buy_price = last_price

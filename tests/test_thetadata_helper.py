@@ -2910,6 +2910,33 @@ def test_build_historical_chain_parses_quote_payload(monkeypatch):
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
 
+    # build_historical_chain() pipelines strike-list fetches through the queue client.
+    # Patch the queue client so the test remains hermetic.
+    from lumibot.tools import thetadata_queue_client
+
+    class FakeQueueClient:
+        max_concurrent = 8
+
+        def __init__(self):
+            self._next_id = 1
+            self._results = {}
+
+        def check_or_submit(self, method, path, query_params, headers=None, body=None):
+            request_id = f"req-{self._next_id}"
+            self._next_id += 1
+            strike_payload = fake_get_request(
+                thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"],
+                headers or {},
+                query_params,
+            )
+            self._results[request_id] = (strike_payload, 200)
+            return request_id, "pending", False
+
+        def wait_for_result(self, request_id, timeout=None, poll_interval=None):
+            return self._results[request_id]
+
+    monkeypatch.setattr(thetadata_queue_client, "get_queue_client", lambda *args, **kwargs: FakeQueueClient())
+
     result = thetadata_helper.build_historical_chain(asset, as_of_date)
 
     assert result["Multiplier"] == 100
@@ -2927,13 +2954,12 @@ def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
     asset = Asset("SPY", asset_type="stock")
     as_of_date = date(2024, 11, 15)
     captured = []
+    strike_calls = []
 
     def fake_get_request(url, headers, querystring):
         captured.append((url, dict(querystring)))
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["expiration"]}, "response": [["20241220"]]}
-        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
-            return {"header": {"format": ["strike"]}, "response": [[100000], [101000]]}
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"]):
             if querystring["right"] == "call":
                 return {"header": {"format": None, "error_type": "NO_DATA"}, "response": []}
@@ -2945,12 +2971,33 @@ def test_build_historical_chain_uses_v3_option_list_params(monkeypatch):
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
 
+    from lumibot.tools import thetadata_queue_client
+
+    class FakeQueueClient:
+        max_concurrent = 8
+
+        def __init__(self):
+            self._next_id = 1
+            self._results = {}
+
+        def check_or_submit(self, method, path, query_params, headers=None, body=None):
+            request_id = f"req-{self._next_id}"
+            self._next_id += 1
+            strike_calls.append(dict(query_params))
+            self._results[request_id] = (
+                {"header": {"format": ["strike"]}, "response": [[100000], [101000]]},
+                200,
+            )
+            return request_id, "pending", False
+
+        def wait_for_result(self, request_id, timeout=None, poll_interval=None):
+            return self._results[request_id]
+
+    monkeypatch.setattr(thetadata_queue_client, "get_queue_client", lambda *args, **kwargs: FakeQueueClient())
+
     result = thetadata_helper.build_historical_chain(asset, as_of_date)
     assert result is not None
 
-    strike_calls = [
-        params for url, params in captured if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"])
-    ]
     assert strike_calls, "Expected at least one strikes request"
     assert strike_calls[0]["expiration"] == "2024-12-20"
     assert "exp" not in strike_calls[0]
@@ -2971,13 +3018,33 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
     def fake_get_request(url, headers, querystring):
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
             return {"header": {"format": ["date"]}, "response": [[20241129], [20241206]]}
-        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
-            return {"header": {"format": ["strike"]}, "response": [[150000], [155000]]}
-        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["dates_quote"]):
-            return {"header": {"format": None, "error_type": "NO_DATA"}, "response": []}
         raise AssertionError(f"Unexpected URL {url}")
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+
+    from lumibot.tools import thetadata_queue_client
+
+    class FakeQueueClient:
+        max_concurrent = 8
+
+        def __init__(self):
+            self._next_id = 1
+            self._results = {}
+
+        def check_or_submit(self, method, path, query_params, headers=None, body=None):
+            request_id = f"req-{self._next_id}"
+            self._next_id += 1
+            self._results[request_id] = (
+                {"header": {"format": ["strike"]}, "response": [[150000], [155000]]},
+                200,
+            )
+            return request_id, "pending", False
+
+        def wait_for_result(self, request_id, timeout=None, poll_interval=None):
+            return self._results[request_id]
+
+    monkeypatch.setattr(thetadata_queue_client, "get_queue_client", lambda *args, **kwargs: FakeQueueClient())
+
     result = thetadata_helper.build_historical_chain(asset, as_of_date)
 
     assert result is not None

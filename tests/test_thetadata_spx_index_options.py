@@ -30,16 +30,38 @@ def test_build_historical_chain_merges_spx_and_spxw_expirations(monkeypatch):
                 }
             raise AssertionError(f"Unexpected expirations symbol={symbol}")
 
-        if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["strikes"]):
-            strike_requests.append((querystring["symbol"], querystring["expiration"]))
-            return {
-                "header": {"format": ["strike"]},
-                "response": [[100], [105], [110]],
-            }
-
         raise AssertionError(f"Unexpected url={url}")
 
     monkeypatch.setattr(thetadata_helper, "get_request", fake_get_request)
+
+    # build_historical_chain() pipelines strike-list fetches via the queue client to keep
+    # multiple requests in flight. Patch the queue client so this test remains hermetic.
+    from lumibot.tools import thetadata_queue_client
+
+    class FakeQueueClient:
+        max_concurrent = 8
+
+        def __init__(self):
+            self._next_id = 1
+            self._results = {}
+
+        def check_or_submit(self, method, path, query_params, headers=None, body=None):
+            request_id = f"req-{self._next_id}"
+            self._next_id += 1
+            strike_requests.append((query_params["symbol"], query_params["expiration"]))
+            self._results[request_id] = (
+                {
+                    "header": {"format": ["strike"]},
+                    "response": [[100], [105], [110]],
+                },
+                200,
+            )
+            return request_id, "pending", False
+
+        def wait_for_result(self, request_id, timeout=None, poll_interval=None):
+            return self._results[request_id]
+
+    monkeypatch.setattr(thetadata_queue_client, "get_queue_client", lambda *args, **kwargs: FakeQueueClient())
 
     chain = thetadata_helper.build_historical_chain(
         asset=Asset("SPX", asset_type="index"),

@@ -86,6 +86,19 @@ class StrategyExecutor(Thread):
         if self.broker.IS_BACKTESTING_BROKER:
             self._log_iteration_heartbeat = os.environ.get("BACKTESTING_LOG_ITERATION_HEARTBEAT", "").lower() == "true"
 
+        # Backtests can also spend significant CPU time capturing locals from user lifecycle methods.
+        # Keep locals capture opt-in during backtesting; portfolio value/cash/positions are still
+        # recorded via trace_stats even when locals are not captured.
+        self._capture_locals = True
+        if self.broker.IS_BACKTESTING_BROKER:
+            self._capture_locals = os.environ.get("BACKTESTING_CAPTURE_LOCALS", "").lower() == "true"
+
+        self._on_trading_iteration_callable = (
+            append_locals(self.strategy.on_trading_iteration)
+            if self._capture_locals
+            else self.strategy.on_trading_iteration
+        )
+
     def _is_continuous_market(self, market_name):
         """
         Determine if a market trades continuously (24/7 or near-24/7) by checking its trading schedule.
@@ -724,7 +737,7 @@ class StrategyExecutor(Thread):
                 f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}",
                 color="green",
             )
-        on_trading_iteration = append_locals(self.strategy.on_trading_iteration)
+        on_trading_iteration = self._on_trading_iteration_callable
 
         # Time-consuming
         try:
@@ -734,7 +747,10 @@ class StrategyExecutor(Thread):
 
             self.strategy._first_iteration = False
             self.broker._first_iteration = False
-            self._strategy_context = on_trading_iteration.locals
+            if self._capture_locals:
+                self._strategy_context = getattr(on_trading_iteration, "locals", None)
+            else:
+                self._strategy_context = None
             self.strategy._last_on_trading_iteration_datetime = datetime.now()
             self.process_queue()
 

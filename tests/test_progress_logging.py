@@ -15,7 +15,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytz
 
@@ -313,6 +313,69 @@ class TestBackwardCompatibility(unittest.TestCase):
             )
         except TypeError as e:
             self.fail(f"Backward compatibility broken: {e}")
+
+
+class TestProgressHeartbeatDuringDownload(unittest.TestCase):
+    """Ensure progress.csv continues updating while downloads are active."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_download_heartbeat_writes_download_status_when_active(self):
+        start = datetime(2024, 1, 1, tzinfo=pytz.UTC)
+        end = datetime(2024, 12, 31, tzinfo=pytz.UTC)
+
+        # Avoid starting the background heartbeat thread in unit tests.
+        with patch.dict(os.environ, {"BACKTESTING_PROGRESS_HEARTBEAT": "false"}):
+            ds = create_test_data_source(self.temp_dir, start, end)
+
+        # Enable manual heartbeat invocation (thread is disabled by env var above).
+        ds._progress_heartbeat_enabled = True
+        ds._progress_heartbeat_interval_seconds = 0.0
+        ds._last_logging_time = None
+
+        # Seed a baseline progress row with no active download.
+        with patch("lumibot.tools.thetadata_helper.get_download_status", return_value={"active": False}):
+            ds._update_datetime(
+                datetime(2024, 6, 15, 10, 30, tzinfo=pytz.UTC),
+                cash=25000.0,
+                portfolio_value=105234.56,
+                positions=[],
+                initial_budget=100000.0,
+                orders=[],
+            )
+
+        with open(ds._progress_csv_path, "r") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+            self.assertIn("download_status", row)
+            self.assertEqual(row["download_status"], "{}")
+
+        # Simulate an active download and ensure the heartbeat writes it to the CSV.
+        active_status = {
+            "active": True,
+            "asset": {"symbol": "SPXW", "type": "option"},
+            "quote": "USD",
+            "data_type": "quote",
+            "timespan": "minute",
+            "progress": 50,
+            "current": 1,
+            "total": 2,
+        }
+        with patch("lumibot.tools.thetadata_helper.get_download_status", return_value=active_status):
+            wrote = ds._write_progress_heartbeat_if_downloading()
+            self.assertTrue(wrote)
+
+        with open(ds._progress_csv_path, "r") as f:
+            reader = csv.DictReader(f)
+            row = next(reader)
+            parsed = json.loads(row["download_status"])
+            self.assertTrue(parsed.get("active"))
+            self.assertEqual(parsed.get("asset", {}).get("symbol"), "SPXW")
 
 
 if __name__ == "__main__":

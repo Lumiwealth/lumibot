@@ -15,6 +15,34 @@ from .dataline import Dataline
 
 logger = get_logger(__name__)
 
+# PERF: Constants used in tight quote loops (avoid per-call allocations).
+_DATA_REQUIRED_PRICE_COLS = ("open", "high", "low", "close", "volume")
+_DATA_QUOTE_COLS = (
+    "bid",
+    "ask",
+    "bid_size",
+    "ask_size",
+    "bid_condition",
+    "ask_condition",
+    "bid_exchange",
+    "ask_exchange",
+)
+_DATA_QUOTE_FIELDS = {
+    "open": ("open", 2),
+    "high": ("high", 2),
+    "low": ("low", 2),
+    "close": ("close", 2),
+    "volume": ("volume", 0),
+    "bid": ("bid", 2),
+    "ask": ("ask", 2),
+    "bid_size": ("bid_size", 0),
+    "bid_condition": ("bid_condition", 0),
+    "bid_exchange": ("bid_exchange", 0),
+    "ask_size": ("ask_size", 0),
+    "ask_condition": ("ask_condition", 0),
+    "ask_exchange": ("ask_exchange", 0),
+}
+
 # Set the option to raise an error if downcasting is not possible (if available in this pandas version)
 try:
     pd.set_option('future.no_silent_downcasting', True)
@@ -414,6 +442,11 @@ class Data:
             )
             setattr(self, column, self.datalines[column].dataline)
 
+        # Cache column presence flags for `get_quote()` which is called extremely frequently.
+        self._quote_required_cols_present = all(col in self.datalines for col in _DATA_REQUIRED_PRICE_COLS)
+        self._quote_missing_cols = [col for col in _DATA_QUOTE_COLS if col not in self.datalines]
+        self._quote_presence_logged = False
+
     def get_iter_count(self, dt):
         # Return the index location for a given datetime.
 
@@ -639,43 +672,26 @@ class Data:
         -------
         dict
         """
-        required_price_cols = ["open", "high", "low", "close", "volume"]
-        missing_price_cols = [col for col in required_price_cols if col not in self.datalines]
-        if missing_price_cols:
-            logger.warning(
-                "Data object %s is missing price columns %s required for quote retrieval.",
-                self.asset,
-                missing_price_cols,
-            )
+        if not getattr(self, "_quote_required_cols_present", True):
+            # Log once per Data instance; avoid per-call warning spam in tight loops.
+            if not getattr(self, "_quote_presence_logged", False):
+                missing_price_cols = [col for col in _DATA_REQUIRED_PRICE_COLS if col not in self.datalines]
+                logger.warning(
+                    "Data object %s is missing price columns %s required for quote retrieval.",
+                    self.asset,
+                    missing_price_cols,
+                )
+                self._quote_presence_logged = True
             return {}
 
-        quote_fields = {
-            "open": ("open", 2),
-            "high": ("high", 2),
-            "low": ("low", 2),
-            "close": ("close", 2),
-            "volume": ("volume", 0),
-            "bid": ("bid", 2),
-            "ask": ("ask", 2),
-            "bid_size": ("bid_size", 0),
-            "bid_condition": ("bid_condition", 0),
-            "bid_exchange": ("bid_exchange", 0),
-            "ask_size": ("ask_size", 0),
-            "ask_condition": ("ask_condition", 0),
-            "ask_exchange": ("ask_exchange", 0),
-        }
-
-        missing_quote_cols = [
-            col for col in ["bid", "ask", "bid_size", "ask_size", "bid_condition", "ask_condition",
-                            "bid_exchange", "ask_exchange"]
-            if col not in self.datalines
-        ]
-        if missing_quote_cols:
+        missing_quote_cols = getattr(self, "_quote_missing_cols", None)
+        if missing_quote_cols and not getattr(self, "_quote_presence_logged", False):
             logger.warning(
                 "Data object %s is missing quote columns %s; returning None for those values.",
                 self.asset,
                 missing_quote_cols,
             )
+            self._quote_presence_logged = True
 
         iter_count = self.get_iter_count(dt)
 
@@ -690,9 +706,7 @@ class Data:
             except TypeError:
                 return value
 
-        quote_dict = {
-            name: _get_value(column, digits) for name, (column, digits) in quote_fields.items()
-        }
+        quote_dict = {name: _get_value(column, digits) for name, (column, digits) in _DATA_QUOTE_FIELDS.items()}
 
         return quote_dict
 

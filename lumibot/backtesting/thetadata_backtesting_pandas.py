@@ -1226,20 +1226,30 @@ class ThetaDataBacktestingPandas(PandasData):
             if df_quote is None or df_quote.empty:
                 logger.warning(f"No QUOTE data returned for {asset_separated} / {quote_asset} ({ts_unit}); continuing without quotes.")
             else:
-                # Combine the ohlc and quote data using outer join to preserve all data
-                # Use forward fill for missing quote values (ThetaData's recommended approach)
                 timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
-                df = pd.concat([df_ohlc, df_quote], axis=1, join='outer')
-                df = self._combine_duplicate_columns(df, timestamp_columns)
                 quotes_attached = True
 
-                # Theta includes duplicate metadata columns (symbol/strike/right/expiration); merge them once.
+                quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
+                # PERFORMANCE: Theta quote responses include a lot of redundant metadata columns
+                # (symbol/strike/right/expiration/etc) that already exist in the OHLC frame.
+                # Concatenating them creates many duplicate column names and forces expensive
+                # de-dup logic (transpose-heavy bfill/ffill). Keep only the actionable quote
+                # fields + timestamp metadata before merging.
+                quote_keep = [col for col in quote_columns + timestamp_columns if col in df_quote.columns]
+                df_quote_reduced = df_quote.loc[:, quote_keep]
+                overlapping = [col for col in df_quote_reduced.columns if col in df_ohlc.columns]
+                if overlapping:
+                    df_quote_reduced = df_quote_reduced.drop(columns=overlapping)
+
+                # Combine the ohlc and quote data using outer join to preserve all data.
+                df = pd.concat([df_ohlc, df_quote_reduced], axis=1, join='outer')
+
+                # Safety net: if duplicates remain (unexpected), combine them once.
                 duplicate_names = df.columns[df.columns.duplicated()].unique().tolist()
                 if duplicate_names:
                     df = self._combine_duplicate_columns(df, duplicate_names)
 
                 # Forward fill missing quote values and timestamp metadata
-                quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
                 forward_fill_columns = [
                     col
                     for col in quote_columns + timestamp_columns
@@ -1740,7 +1750,13 @@ class ThetaDataBacktestingPandas(PandasData):
                 continue
             selection = df.loc[:, column]
             if isinstance(selection, pd.DataFrame):
-                combined = selection.bfill(axis=1).ffill(axis=1).iloc[:, 0]
+                # PERFORMANCE: `bfill/ffill(axis=1)` triggers a transpose on every call which is
+                # extremely expensive for wide, high-row-count frames (options minute data).
+                # A simple left-to-right `combine_first` achieves the same "first non-null wins"
+                # semantics without transposing.
+                combined = selection.iloc[:, 0]
+                for idx in range(1, selection.shape[1]):
+                    combined = combined.combine_first(selection.iloc[:, idx])
                 df = df.drop(columns=column)
                 df[column] = combined
         return df
@@ -2333,6 +2349,18 @@ class ThetaDataBacktestingPandas(PandasData):
                 getattr(asset, "symbol", asset) if not isinstance(asset, str) else asset,
             )
 
+        # PERF: cache Quote objects within the same backtest datetime.
+        # Many strategies call get_quote() multiple times per asset per bar (MTM, risk checks,
+        # limit price estimation, etc.). In backtesting, the quote for a given dt is immutable.
+        quote_cache_dt = getattr(self, "_quote_cache_dt", None)
+        if quote_cache_dt != dt:
+            self._quote_cache_dt = dt
+            self._quote_cache = {}
+        cache_key = (asset, quote, exchange, timestep)
+        cached = getattr(self, "_quote_cache", {}).get(cache_key)
+        if cached is not None:
+            return cached
+
         # Log quote request details for debugging (options vs other assets)
         if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.OPTION:
             logger.debug(
@@ -2352,9 +2380,98 @@ class ThetaDataBacktestingPandas(PandasData):
                 timestep
             )
 
-        self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
+        # PERFORMANCE: `get_quote()` is called extremely frequently for option-heavy strategies
+        # (e.g., intraday straddle MTM checks). `_update_pandas_data()` is correct but expensive,
+        # even when the in-memory cache already fully covers the current date.
+        #
+        # Fast-path: if we already have quote columns in the cached dataframe and the current dt
+        # is within the cached range, skip the refresh work and just read from the cache.
+        should_refresh = True
+        fast_data = None
+        try:
+            quote_asset = quote if quote is not None else Asset("USD", "forex")
+            _, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
+            if (
+                getattr(asset, "asset_type", None) == Asset.AssetType.OPTION
+                and ts_unit in {"minute", "hour", "second"}
+            ):
+                canonical_key, legacy_key = self._build_dataset_keys(asset, quote_asset, ts_unit)
+                candidate_data = self.pandas_data.get(canonical_key)
+                if candidate_data is None:
+                    candidate_data = self.pandas_data.get(legacy_key)
 
-        quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
+                if candidate_data is not None and getattr(candidate_data, "timestep", None) == ts_unit:
+                    candidate_df = getattr(candidate_data, "df", None)
+                    if candidate_df is not None and not candidate_df.empty and self._frame_has_quote_columns(candidate_df):
+                        data_end = getattr(candidate_data, "datetime_end", None)
+                        if data_end is not None and dt <= data_end:
+                            should_refresh = False
+                            fast_data = candidate_data
+        except Exception:
+            should_refresh = True
+
+        if should_refresh:
+            self._update_pandas_data(asset, quote, 1, timestep, dt, require_quote_data=True)
+
+        quote_obj = None
+        # Fast-path: build a Quote directly from the cached Data object without calling
+        # Data.get_quote() (which is wrapped in `check_data` and allocates dicts per call).
+        if fast_data is not None:
+            try:
+                from lumibot.entities import Quote
+
+                iter_count = fast_data.get_iter_count(dt)
+
+                def _get(column: str):
+                    if column not in fast_data.datalines:
+                        return None
+                    value = fast_data.datalines[column].dataline[iter_count]
+                    if value is None:
+                        return None
+                    try:
+                        if pd.isna(value):
+                            return None
+                    except Exception:
+                        pass
+                    return value
+
+                close = _get("close")
+                bid = _get("bid")
+                ask = _get("ask")
+                bid_size = _get("bid_size")
+                ask_size = _get("ask_size")
+                volume = _get("volume")
+
+                # Match PandasData.get_quote(): treat non-positive bid/ask as missing.
+                for side_key, side_val in (("bid", bid), ("ask", ask)):
+                    if side_val is None:
+                        continue
+                    try:
+                        numeric_val = float(side_val)
+                    except (TypeError, ValueError):
+                        continue
+                    if numeric_val <= 0:
+                        if side_key == "bid":
+                            bid = None
+                        else:
+                            ask = None
+
+                quote_obj = Quote(
+                    asset=asset,
+                    price=close,
+                    bid=bid,
+                    ask=ask,
+                    volume=volume,
+                    timestamp=dt,
+                    bid_size=bid_size,
+                    ask_size=ask_size,
+                    raw_data=None,
+                )
+            except Exception:
+                quote_obj = None
+
+        if quote_obj is None:
+            quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
 
         # ThetaData quote history for options can omit trade-derived fields (e.g., close/last), while still providing
         # actionable NBBO. Avoid forcing an OHLC download just to fill Quote.price: prefer quote-derived marks when
@@ -2396,6 +2513,12 @@ class ThetaDataBacktestingPandas(PandasData):
             getattr(quote_obj, "last_price", None) if quote_obj else None,
             getattr(quote_obj, "source", None) if quote_obj else None,
         )
+
+        if quote_obj is not None:
+            try:
+                self._quote_cache[cache_key] = quote_obj
+            except Exception:
+                pass
 
         return quote_obj
 

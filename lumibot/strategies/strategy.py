@@ -377,12 +377,10 @@ class Strategy(_Strategy):
             # Send the message to Discord
             self.send_discord_message(message)
 
-        # Performance optimization: skip logging if INFO is not enabled
-        # This respects BACKTESTING_QUIET_LOGS via StrategyLoggerAdapter.isEnabledFor()
-        # When BACKTESTING_QUIET_LOGS=true (default), this returns False and saves CPU cycles
-        # When BACKTESTING_QUIET_LOGS=false, this returns True and logs are displayed
+        # Performance optimization: skip work if INFO is not enabled.
+        # This respects BACKTESTING_QUIET_LOGS via StrategyLoggerAdapter.isEnabledFor().
         if not self.logger.isEnabledFor(logging.INFO):
-            return
+            return message
 
         if color:
             if color in COLORS:

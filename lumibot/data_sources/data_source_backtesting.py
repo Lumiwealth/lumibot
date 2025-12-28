@@ -1,6 +1,7 @@
 import csv
 import datetime as dt
 import os
+import threading
 from abc import ABC
 from collections import deque
 from datetime import datetime, timedelta
@@ -76,6 +77,96 @@ class DataSourceBacktesting(DataSource, ABC):
         # Add initialization for the logging timer attribute
         self._last_logging_time = None
         self._portfolio_value = None
+        self._progress_csv_lock = threading.Lock()
+        self._progress_snapshot_lock = threading.Lock()
+        self._last_progress_snapshot = {
+            "percent": 0.0,
+            "elapsed": timedelta(0),
+            "log_eta": None,
+            "portfolio_value": "",
+            "simulation_date": "",
+            "cash": None,
+            "total_return_pct": None,
+            "positions_json": "[]",
+            "orders_json": "[]",
+        }
+        self._progress_heartbeat_enabled = os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT", "true").strip().lower() != "false"
+        self._progress_heartbeat_interval_seconds = float(
+            os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT_SECONDS", "2.0")
+        )
+        self._progress_heartbeat_stop_event = threading.Event()
+        self._progress_heartbeat_thread = None
+        if self.log_backtest_progress_to_file and self._progress_heartbeat_enabled:
+            self._start_progress_heartbeat_thread()
+
+    def shutdown(self):
+        """Cleanup any background resources (thread pools, progress heartbeat)."""
+        self.stop_progress_heartbeat()
+        super().shutdown()
+
+    def _start_progress_heartbeat_thread(self) -> None:
+        if self._progress_heartbeat_thread is not None:
+            return
+
+        if self._progress_heartbeat_interval_seconds <= 0:
+            return
+
+        thread = threading.Thread(
+            target=self._progress_heartbeat_loop,
+            name=f"{type(self).__name__}-progress-heartbeat",
+            daemon=True,
+        )
+        self._progress_heartbeat_thread = thread
+        thread.start()
+
+    def stop_progress_heartbeat(self) -> None:
+        event = getattr(self, "_progress_heartbeat_stop_event", None)
+        if event is None:
+            return
+        event.set()
+
+    def _progress_heartbeat_loop(self) -> None:
+        stop_event = self._progress_heartbeat_stop_event
+        while not stop_event.wait(self._progress_heartbeat_interval_seconds):
+            try:
+                self._write_progress_heartbeat_if_downloading()
+            except Exception:
+                # Heartbeat must never crash the backtest loop.
+                continue
+
+    def _write_progress_heartbeat_if_downloading(self) -> bool:
+        """Write `logs/progress.csv` while a ThetaData download is active.
+
+        Backtests can spend long stretches blocked inside data download calls, during which the
+        simulation datetime does not advance. The UI reads progress from `progress.csv`, so without
+        a heartbeat it looks "stuck". This method preserves the last known percent/metrics while
+        updating the download_status column via `thetadata_helper.get_download_status()`.
+        """
+        if not self.log_backtest_progress_to_file:
+            return False
+        if not self._progress_heartbeat_enabled:
+            return False
+
+        try:
+            from lumibot.tools.thetadata_helper import get_download_status
+        except ImportError:
+            return False
+
+        status = get_download_status()
+        if not status.get("active"):
+            return False
+
+        now_wall = dt.datetime.now()
+        if self._last_logging_time is not None:
+            if (now_wall - self._last_logging_time).total_seconds() < self._progress_heartbeat_interval_seconds:
+                return False
+
+        with self._progress_snapshot_lock:
+            snapshot = dict(self._last_progress_snapshot)
+
+        self._last_logging_time = now_wall
+        self.log_backtest_progress_to_csv(**snapshot)
+        return True
 
     @staticmethod
     def estimate_requested_length(length=None, start_date=None, end_date=None, timestep="minute"):
@@ -238,6 +329,19 @@ class DataSourceBacktesting(DataSource, ABC):
                 positions_json = json.dumps(positions) if positions else "[]"
                 orders_json = json.dumps(orders) if orders else "[]"
 
+                with self._progress_snapshot_lock:
+                    self._last_progress_snapshot = {
+                        "percent": percent,
+                        "elapsed": elapsed,
+                        "log_eta": log_eta,
+                        "portfolio_value": log_portfolio_value,
+                        "simulation_date": simulation_date if simulation_date else "",
+                        "cash": cash,
+                        "total_return_pct": total_return_pct,
+                        "positions_json": positions_json if positions_json else "[]",
+                        "orders_json": orders_json if orders_json else "[]",
+                    }
+
                 self.log_backtest_progress_to_csv(
                     percent,
                     elapsed,
@@ -327,24 +431,25 @@ class DataSourceBacktesting(DataSource, ABC):
             download_status_json
         ]
 
-        # Ensure the directory exists before opening the file.
-        dir_path = os.path.dirname(self._progress_csv_path)
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path, exist_ok=True)
-        with open(self._progress_csv_path, "w", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            # Header with all columns including orders and download status
-            writer.writerow([
-                "timestamp",
-                "percent",
-                "elapsed",
-                "eta",
-                "portfolio_value",
-                "simulation_date",
-                "cash",
-                "total_return_pct",
-                "positions_json",
-                "orders_json",
-                "download_status"
-            ])
-            writer.writerow(row)
+        with self._progress_csv_lock:
+            # Ensure the directory exists before opening the file.
+            dir_path = os.path.dirname(self._progress_csv_path)
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
+            with open(self._progress_csv_path, "w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                # Header with all columns including orders and download status
+                writer.writerow([
+                    "timestamp",
+                    "percent",
+                    "elapsed",
+                    "eta",
+                    "portfolio_value",
+                    "simulation_date",
+                    "cash",
+                    "total_return_pct",
+                    "positions_json",
+                    "orders_json",
+                    "download_status"
+                ])
+                writer.writerow(row)

@@ -481,6 +481,19 @@ To add download status tracking to other data sources (Yahoo, Polygon, etc.):
    )
    ```
 
+## Backtest Performance Notes (Prod)
+
+Minute-cadence option strategies can execute **~100k+ iterations** per backtest window. In production
+(`Bot Manager` + CloudWatch/stdout logging), log volume is often the dominant performance bottleneck.
+
+### Per-iteration heartbeat logs
+
+The StrategyExecutor “heartbeat” logs (start/end of each iteration) are extremely noisy for backtests and are now
+opt-in:
+
+- `BACKTESTING_LOG_ITERATION_HEARTBEAT=true` enables per-iteration start/end logs
+- Default during backtesting: disabled
+
 2. Call `set_download_status()` during fetch operations with current progress
 
 3. Call `clear_download_status()` when fetch completes (success or failure)

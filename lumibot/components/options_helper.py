@@ -605,7 +605,154 @@ class OptionsHelper:
         """
         self.strategy.log_message(f"Computing strike deltas for {underlying_asset.symbol} at expiry {expiry}.", color="blue")
         strike_deltas: Dict[float, Optional[float]] = {}
+
         underlying_price = self.strategy.get_last_price(underlying_asset)
+        if underlying_price is None:
+            return strike_deltas
+
+        # ------------------------------------------------------------------
+        # PERF: Many AI-generated strategies pass hundreds of strikes into this
+        # method and then select the closest-to-target delta outside of LumiBot.
+        # Doing a quote snapshot + greeks solve per strike becomes thousands of
+        # remote calls in production (each with ~1s overhead).
+        #
+        # When the strategy exposes a target delta (common names: target_call_delta
+        # / target_put_delta) and the strike list is large, evaluate only O(log N)
+        # candidates using a bounded binary search over strikes.
+        # ------------------------------------------------------------------
+        target_delta: Optional[float] = None
+        if stop_greater_than is None and stop_less_than is None and len(strikes) >= 80:
+            right_norm = str(right).strip().lower()
+            if right_norm.startswith("c"):
+                var_name = "target_call_delta"
+            elif right_norm.startswith("p"):
+                var_name = "target_put_delta"
+            else:
+                var_name = ""
+
+            if var_name:
+                vars_obj = getattr(self.strategy, "vars", None)
+                if vars_obj is not None and hasattr(vars_obj, var_name):
+                    try:
+                        target_delta = float(getattr(vars_obj, var_name))
+                    except Exception:
+                        target_delta = None
+                if target_delta is None:
+                    params_obj = getattr(self.strategy, "parameters", None)
+                    if isinstance(params_obj, dict) and var_name in params_obj:
+                        try:
+                            target_delta = float(params_obj[var_name])
+                        except Exception:
+                            target_delta = None
+
+            if target_delta is not None and (not math.isfinite(target_delta) or abs(target_delta) > 1):
+                target_delta = None
+
+        if target_delta is not None:
+            strikes_sorted: List[float] = []
+            for value in strikes:
+                try:
+                    strikes_sorted.append(float(value))
+                except Exception:
+                    continue
+            strikes_sorted = sorted(set(strikes_sorted))
+
+            if len(strikes_sorted) >= 2:
+                self.strategy.log_message(
+                    f"Computing strike deltas fast-path: {len(strikes_sorted)} strikes -> binary search (target_delta={target_delta}).",
+                    color="blue",
+                )
+
+                lo = 0
+                hi = len(strikes_sorted) - 1
+                visited: set[int] = set()
+                max_iters = int(math.ceil(math.log2(len(strikes_sorted) + 1))) + 8
+
+                best_idx: Optional[int] = None
+                best_delta: Optional[float] = None
+
+                for _ in range(max_iters):
+                    if lo > hi:
+                        break
+
+                    mid = (lo + hi) // 2
+                    if mid in visited:
+                        break
+                    visited.add(mid)
+
+                    strike = strikes_sorted[mid]
+                    delta = self.get_delta_for_strike(
+                        underlying_asset,
+                        float(underlying_price),
+                        strike,
+                        expiry,
+                        right,
+                    )
+                    strike_deltas[strike] = delta
+
+                    if delta is None:
+                        # Try a few nearby strikes when the midpoint has no actionable prices.
+                        for offset in range(1, 6):
+                            resolved = False
+                            for idx in (mid - offset, mid + offset):
+                                if idx < lo or idx > hi or idx in visited:
+                                    continue
+                                visited.add(idx)
+                                strike_candidate = strikes_sorted[idx]
+                                delta_candidate = self.get_delta_for_strike(
+                                    underlying_asset,
+                                    float(underlying_price),
+                                    strike_candidate,
+                                    expiry,
+                                    right,
+                                )
+                                strike_deltas[strike_candidate] = delta_candidate
+                                if delta_candidate is None:
+                                    continue
+                                mid = idx
+                                strike = strike_candidate
+                                delta = delta_candidate
+                                resolved = True
+                                break
+                            if resolved:
+                                break
+
+                        if delta is None:
+                            break
+
+                    if delta is None:
+                        break
+
+                    if best_delta is None or abs(delta - target_delta) < abs(best_delta - target_delta):
+                        best_delta = delta
+                        best_idx = mid
+
+                    # Delta decreases as strike increases for both calls and puts.
+                    if delta > target_delta:
+                        lo = mid + 1
+                    elif delta < target_delta:
+                        hi = mid - 1
+                    else:
+                        break
+
+                # Add a small neighborhood around the best strike so callers that
+                # choose the closest delta externally still have tie-break context.
+                if best_idx is not None:
+                    for idx in range(max(0, best_idx - 2), min(len(strikes_sorted), best_idx + 3)):
+                        strike = strikes_sorted[idx]
+                        if strike in strike_deltas:
+                            continue
+                        strike_deltas[strike] = self.get_delta_for_strike(
+                            underlying_asset,
+                            float(underlying_price),
+                            strike,
+                            expiry,
+                            right,
+                        )
+
+                return strike_deltas
+
+        # Default: full scan (legacy behavior).
         for strike in strikes:
             option = Asset(
                 underlying_asset.symbol,
@@ -634,7 +781,7 @@ class OptionsHelper:
                 self.strategy.log_message(f"Could not calculate Greeks for {option.symbol} at strike {strike}", color="yellow")
                 continue
             delta = greeks.get("delta")
-            strike_deltas[strike] = delta
+            strike_deltas[float(strike)] = delta
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
                     "[OptionsHelper] strike delta symbol=%s expiry=%s right=%s strike=%s delta=%s",

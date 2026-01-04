@@ -1253,6 +1253,121 @@ def _ensure_event_cache(
     return cache_df.loc[mask].copy()
 
 
+# ==============================================================================
+# In-memory corporate actions cache (per-process / per-backtest)
+# ==============================================================================
+#
+# Corporate actions (splits/dividends) are used in multiple hot paths:
+# - option strike reverse-split adjustments (_get_option_query_strike)
+# - OHLC corporate action normalization (_apply_corporate_actions_to_frame)
+#
+# In production backtests, the strategy code may trigger these helpers many times
+# per simulated bar. The on-disk cache prevents repeated network downloads, but
+# repeatedly loading/merging/filtering the disk cache can still be expensive and
+# creates noisy logs (e.g. "[THETA][SPLITS] Got 1 splits..." on every call).
+#
+# This in-memory cache ensures we only execute the expensive cache load/refresh
+# once per symbol/event_type/range per process (a backtest container runs one
+# strategy), and it also rate-limits repeated retries after transient failures.
+# ==============================================================================
+
+_event_cache_memory: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+
+def _event_cache_failure_ttl_s() -> float:
+    """How long to suppress repeated event-cache refresh attempts after a failure."""
+    try:
+        ttl_s = float(os.environ.get("THETADATA_EVENT_CACHE_FAILURE_TTL_S", "60"))
+        return max(ttl_s, 0.0)
+    except Exception:
+        return 60.0
+
+
+def _get_theta_events_cached(
+    asset: Asset,
+    event_type: str,
+    start_date: date,
+    end_date: date,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> pd.DataFrame:
+    """Return Theta corporate actions using an in-memory memoization layer."""
+    if not asset.symbol:
+        return pd.DataFrame()
+
+    normalized_event_type = str(event_type).lower().strip()
+    if normalized_event_type not in {"dividends", "splits"}:
+        return pd.DataFrame()
+
+    range_start = min(start_date, end_date)
+    range_end = max(start_date, end_date)
+    symbol_key = str(asset.symbol).upper()
+    cache_key = (normalized_event_type, symbol_key)
+
+    entry = _event_cache_memory.get(cache_key)
+    if entry is not None:
+        entry_start = entry.get("range_start")
+        entry_end = entry.get("range_end")
+        cached_df = entry.get("df")
+        if (
+            isinstance(entry_start, date)
+            and isinstance(entry_end, date)
+            and isinstance(cached_df, pd.DataFrame)
+            and entry_start <= range_start
+            and entry_end >= range_end
+        ):
+            if cached_df.empty:
+                return pd.DataFrame()
+            date_series = cached_df["event_date"].dt.date
+            mask = (date_series >= range_start) & (date_series <= range_end)
+            return cached_df.loc[mask].copy()
+
+        last_error_ts = entry.get("last_error_ts")
+        if isinstance(last_error_ts, (int, float)):
+            ttl_s = _event_cache_failure_ttl_s()
+            if ttl_s > 0 and (time.time() - float(last_error_ts)) < ttl_s:
+                return pd.DataFrame()
+
+    try:
+        events = _ensure_event_cache(asset, normalized_event_type, range_start, range_end, username, password)
+    except Exception as exc:
+        now = time.time()
+        prev_ts = entry.get("last_error_ts") if isinstance(entry, dict) else None
+        ttl_s = _event_cache_failure_ttl_s()
+        if not isinstance(prev_ts, (int, float)) or ttl_s <= 0 or (now - float(prev_ts)) >= ttl_s:
+            logger.warning(
+                "[THETA][%s] ThetaData %s fetch failed for %s: %s",
+                normalized_event_type.upper(),
+                normalized_event_type,
+                asset.symbol,
+                exc,
+            )
+        _event_cache_memory[cache_key] = {
+            "range_start": entry.get("range_start") if isinstance(entry, dict) else None,
+            "range_end": entry.get("range_end") if isinstance(entry, dict) else None,
+            "df": entry.get("df") if isinstance(entry, dict) else pd.DataFrame(),
+            "last_error_ts": now,
+            "last_error": str(exc),
+        }
+        return pd.DataFrame()
+
+    # Cache the fetched window in-memory (even when empty).
+    _event_cache_memory[cache_key] = {
+        "range_start": range_start,
+        "range_end": range_end,
+        "df": events if isinstance(events, pd.DataFrame) else pd.DataFrame(),
+        "last_error_ts": None,
+        "last_error": None,
+    }
+
+    if events is None or events.empty:
+        return pd.DataFrame()
+
+    date_series = events["event_date"].dt.date
+    mask = (date_series >= range_start) & (date_series <= range_end)
+    return events.loc[mask].copy()
+
+
 def _get_theta_dividends(
     asset: Asset,
     start_date: date,
@@ -1262,7 +1377,11 @@ def _get_theta_dividends(
 ) -> pd.DataFrame:
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
-    return _ensure_event_cache(asset, "dividends", start_date, end_date, username, password)
+    events = _get_theta_events_cached(asset, "dividends", start_date, end_date, username, password)
+    if events is not None and not events.empty:
+        logger.debug("[THETA][DIVIDENDS] Loaded %d dividend events for %s", len(events), asset.symbol)
+        return events
+    return pd.DataFrame()
 
 
 def _get_theta_splits(
@@ -1272,21 +1391,22 @@ def _get_theta_splits(
     username: Optional[str] = None,
     password: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Fetch split data from ThetaData only. No fallback to other data sources."""
+    """Fetch split data from ThetaData only. No fallback to other data sources.
+
+    Note: this function is called from several hot paths (including option strike
+    reverse-split adjustments). It uses an in-memory memoization layer to avoid
+    repeatedly loading/refreshing the on-disk cache and to suppress retry storms
+    after transient downloader/Theta failures.
+    """
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
 
-    try:
-        splits = _ensure_event_cache(asset, "splits", start_date, end_date, username, password)
-        if splits is not None and not splits.empty:
-            logger.info("[THETA][SPLITS] Got %d splits from ThetaData for %s", len(splits), asset.symbol)
-            return splits
-        else:
-            logger.debug("[THETA][SPLITS] No splits found in ThetaData for %s", asset.symbol)
-            return pd.DataFrame()
-    except Exception as e:
-        logger.warning("[THETA][SPLITS] ThetaData split fetch failed for %s: %s", asset.symbol, e)
-        return pd.DataFrame()
+    splits = _get_theta_events_cached(asset, "splits", start_date, end_date, username, password)
+    if splits is not None and not splits.empty:
+        # Avoid log spam in tight loops: emit this at DEBUG level.
+        logger.debug("[THETA][SPLITS] Loaded %d split events for %s", len(splits), asset.symbol)
+        return splits
+    return pd.DataFrame()
 
 
 def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None) -> float:

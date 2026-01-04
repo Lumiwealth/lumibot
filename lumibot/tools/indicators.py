@@ -1057,6 +1057,27 @@ def create_tearsheet(
         logger.warning("No data to create tearsheet, skipping")
         return
 
+    def _write_placeholder_tearsheet(reason: str) -> None:
+        """Write a small HTML file explaining why QuantStats was skipped/failed."""
+        try:
+            placeholder = f"""<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{strat_name} tearsheet unavailable</title>
+  </head>
+  <body>
+    <h1>{strat_name}</h1>
+    <p><strong>Tearsheet not generated.</strong></p>
+    <p>{reason}</p>
+  </body>
+</html>
+"""
+            with open(str(tearsheet_file), "w", encoding="utf-8") as f:
+                f.write(placeholder)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Failed to write placeholder tearsheet to %s: %s", tearsheet_file, exc)
+
     # Uncomment for debugging
     # _df1.to_csv(f"df1.csv")
     # _df2.to_csv(f"df2.csv")
@@ -1065,7 +1086,21 @@ def create_tearsheet(
 
     bm_text = f"Compared to {benchmark_asset}" if benchmark_asset else ""
     title = f"{strat_name} {bm_text}"
-    
+
+    # QuantStats (via seaborn/scipy) can raise (e.g., LinAlgError) when the return series is
+    # degenerate, such as no trades and a flat portfolio value. In these cases we must not
+    # crash the backtest; write a placeholder tearsheet instead.
+    strategy_returns = df_final["strategy"].dropna()
+    benchmark_returns = df_final["benchmark"].dropna()
+    if strategy_returns.empty or benchmark_returns.empty or strategy_returns.nunique() <= 1 or benchmark_returns.nunique() <= 1:
+        logger.warning(
+            "Not enough return variation to generate QuantStats tearsheet (strategy unique=%d, benchmark unique=%d); writing placeholder.",
+            int(strategy_returns.nunique()) if not strategy_returns.empty else 0,
+            int(benchmark_returns.nunique()) if not benchmark_returns.empty else 0,
+        )
+        _write_placeholder_tearsheet("Return series is flat/degenerate (often caused by zero trades).")
+        return
+
     '''
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:
@@ -1081,20 +1116,25 @@ def create_tearsheet(
     df_final["benchmark"].name = str(benchmark_asset)
 
     # Run quantstats reports surpressing any logs because it can be noisy for no reason
-    with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-        result = qs.reports.html(
-            df_final["strategy"],
-            df_final["benchmark"],
-            title=title,
-            output=tearsheet_file,
-            download_filename=tearsheet_file,  # Consider if you need a different name for clarity
-            rf=risk_free_rate,
-            parameters=strategy_parameters,
-            lumibot_version=lumibot_version,
-            backtesting_data_source=backtesting_data_source,
-            backtesting_data_sources=backtesting_data_sources,
-            backtest_time_seconds=backtest_time_seconds,
-        )
+    try:
+        with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+            result = qs.reports.html(
+                df_final["strategy"],
+                df_final["benchmark"],
+                title=title,
+                output=tearsheet_file,
+                download_filename=tearsheet_file,  # Consider if you need a different name for clarity
+                rf=risk_free_rate,
+                parameters=strategy_parameters,
+                lumibot_version=lumibot_version,
+                backtesting_data_source=backtesting_data_source,
+                backtesting_data_sources=backtesting_data_sources,
+                backtest_time_seconds=backtest_time_seconds,
+            )
+    except Exception as exc:
+        logger.warning("QuantStats tearsheet generation failed: %s", exc)
+        _write_placeholder_tearsheet(f"QuantStats error: {exc}")
+        return
 
     if show_tearsheet:
         url = "file://" + os.path.abspath(str(tearsheet_file))

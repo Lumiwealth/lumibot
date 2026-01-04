@@ -214,6 +214,22 @@ class TestAlpacaOAuth(unittest.TestCase):
             self.assertIn("401 Unauthorized", str(context.exception))
 
     @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_oauth_rate_limit_is_warning(self, mock_trading_client):
+        """Test that OAuth polling rate limits are logged as warnings and do not stop execution."""
+        mock_trading_client.return_value = Mock()
+
+        broker = Alpaca(self.oauth_config, connect_stream=False)
+
+        with patch.object(broker, 'sync_positions') as mock_sync:
+            mock_sync.side_effect = Exception('{"code":42910000,"message":"rate limit exceeded"}')
+
+            with self.assertLogs('lumibot.brokers.alpaca', level='WARNING') as cm:
+                broker.do_polling()
+
+            self.assertTrue(any("rate-limited" in msg.lower() for msg in cm.output))
+            self.assertFalse(any(msg.startswith("ERROR:") for msg in cm.output))
+
+    @patch('lumibot.brokers.alpaca.TradingClient')
     def test_strategy_none_handling(self, mock_trading_client):
         """Test that polling handles None strategy gracefully."""
         mock_trading_client.return_value = Mock()

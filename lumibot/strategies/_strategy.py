@@ -2233,16 +2233,16 @@ class _Strategy:
             self.logger.debug(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
 
         except requests.exceptions.ConnectionError as e:
-            self.logger.error(f"Connection error when sending to cloud: {e}")
-            self.logger.error(traceback.format_exc())
+            self.logger.warning(f"Connection error when sending to cloud: {e}")
+            self.logger.debug(traceback.format_exc())
             return False
         except requests.exceptions.Timeout as e:
-            self.logger.error(f"Timeout error when sending to cloud: {e}")
-            self.logger.error(traceback.format_exc())
+            self.logger.warning(f"Timeout error when sending to cloud: {e}")
+            self.logger.debug(traceback.format_exc())
             return False
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Request error when sending to cloud: {e}")
-            self.logger.error(traceback.format_exc())
+            self.logger.warning(f"Request error when sending to cloud: {e}")
+            self.logger.debug(traceback.format_exc())
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error when sending to cloud: {e}")

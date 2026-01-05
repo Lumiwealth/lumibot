@@ -3600,7 +3600,8 @@ def get_missing_dates(df_all, asset, start, end):
         "NDX", "NDXP",
         "XSP", "DJX", "OEX", "XEO",
     }
-    is_index_asset = asset_type_value == "index" or symbol_upper in index_symbols
+    # TODO: Unused variable - commenting out to fix Ruff F841
+    # is_index_asset = asset_type_value == "index" or symbol_upper in index_symbols
 
     trading_dates = get_trading_dates(asset, start, end)
 

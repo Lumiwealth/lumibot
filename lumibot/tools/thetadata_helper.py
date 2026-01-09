@@ -3640,16 +3640,17 @@ def get_missing_dates(df_all, asset, start, end):
         0 if df_all is None else len(df_all)
     )
 
-    asset_type_value = str(getattr(asset, "asset_type", "")).lower()
-    symbol_upper = str(getattr(asset, "symbol", "") or "").upper()
-    index_symbols = {
-        "SPX", "SPXW",
-        "RUT", "RUTW",
-        "VIX", "VIXW",
-        "NDX", "NDXP",
-        "XSP", "DJX", "OEX", "XEO",
-    }
-    is_index_asset = asset_type_value == "index" or symbol_upper in index_symbols
+    # TODO: Unused code block - commenting out to fix Ruff F841
+    # asset_type_value = str(getattr(asset, "asset_type", "")).lower()
+    # symbol_upper = str(getattr(asset, "symbol", "") or "").upper()
+    # index_symbols = {
+    #     "SPX", "SPXW",
+    #     "RUT", "RUTW",
+    #     "VIX", "VIXW",
+    #     "NDX", "NDXP",
+    #     "XSP", "DJX", "OEX", "XEO",
+    # }
+    # is_index_asset = asset_type_value == "index" or symbol_upper in index_symbols
 
     trading_dates = get_trading_dates(asset, start, end)
 

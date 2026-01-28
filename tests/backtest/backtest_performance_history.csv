@@ -7196,3 +7196,7 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2026-01-27T19:02:10.083698,test_acceptance_ibkr_mes_futures_acceptance,unknown,,6.407,340ed4e7,4.4.41,,,,,Auto-tracked from test_acceptance_backtests_ci
 2026-01-27T21:02:44.774164,test_acceptance_backdoor_smartlimit,unknown,,210.067,8020e12e,4.4.41,,,,,Auto-tracked from test_acceptance_backtests_ci
 2026-01-27T21:06:26.716069,test_acceptance_spx_short_straddle,unknown,,213.94,8020e12e,4.4.41,,,,,Auto-tracked from test_acceptance_backtests_ci
+2026-01-28T01:35:25.382456,test_acceptance_backdoor_smartlimit,unknown,,183.476,dee823d8,4.4.42,,,,,Auto-tracked from test_acceptance_backtests_ci
+2026-01-28T01:38:30.612331,test_acceptance_spx_short_straddle,unknown,,174.229,dee823d8,4.4.42,,,,,Auto-tracked from test_acceptance_backtests_ci
+2026-01-28T02:50:26.849100,test_acceptance_spx_short_straddle,unknown,,165.928,dee823d8,4.4.42,,,,,Auto-tracked from test_acceptance_backtests_ci
+2026-01-28T02:53:19.643089,test_acceptance_backdoor_smartlimit,unknown,,163.98,dee823d8,4.4.42,,,,,Auto-tracked from test_acceptance_backtests_ci

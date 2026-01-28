@@ -1603,23 +1603,26 @@ class BacktestingBroker(Broker):
 
         """
 
-        # OPTIMIZATION: Get orders only once per list to minimize lock acquisitions
-        # This function is called 179k times
+        # This function is called once per bar (minute-level: ~100k/year). Avoid allocating lists
+        # or copying buckets when there are no pending orders.
         strategy_name = strategy.name
-        pending_orders = []
 
-        # Get unprocessed orders once with single lock acquisition
-        if hasattr(self, '_unprocessed_orders'):
-            unprocessed = self._unprocessed_orders.get_list()  # One lock acquisition
-            # Use list comprehension which is faster than extend with filter
-            pending_orders.extend([o for o in unprocessed if o.strategy == strategy_name])
+        unprocessed_bucket = getattr(self, "_unprocessed_orders", None)
+        new_bucket = getattr(self, "_new_orders", None)
+        if not unprocessed_bucket and not new_bucket:
+            return
 
-        # Get new orders once with single lock acquisition
-        if hasattr(self, '_new_orders'):
-            new_orders = self._new_orders.get_list()  # One lock acquisition
-            pending_orders.extend([o for o in new_orders if o.strategy == strategy_name])
+        pending_orders: list[Order] = []
+        if unprocessed_bucket:
+            for order in unprocessed_bucket:
+                if getattr(order, "strategy", None) == strategy_name:
+                    pending_orders.append(order)
+        if new_bucket:
+            for order in new_bucket:
+                if getattr(order, "strategy", None) == strategy_name:
+                    pending_orders.append(order)
 
-        if len(pending_orders) == 0:
+        if not pending_orders:
             return
 
         # Prefetching: Track assets and schedule prefetch

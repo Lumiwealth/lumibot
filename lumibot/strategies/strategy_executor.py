@@ -1948,7 +1948,36 @@ class StrategyExecutor(Thread):
             if is_pure_pandas_data_source:
                 self.broker.initialize_market_calendars(data_source.get_trading_days_pandas())
             else:
-                self.broker.initialize_market_calendars(get_trading_days(market))
+                # PERFORMANCE: default get_trading_days() spans 1950->today, which can cost 10s+
+                # in option-heavy backtests. For backtesting, bound the calendar to the backtest
+                # window (+/- a small buffer) so schedule generation is O(window) instead of
+                # O(75 years).
+                if self.strategy.is_backtesting:
+                    try:
+                        start = getattr(self.strategy, "_backtesting_start", None) or getattr(
+                            self.strategy, "backtesting_start", None
+                        )
+                        end = getattr(self.strategy, "_backtesting_end", None) or getattr(
+                            self.strategy, "backtesting_end", None
+                        )
+                        tzinfo = getattr(getattr(self.broker, "data_source", None), "tzinfo", None) or LUMIBOT_DEFAULT_PYTZ
+
+                        if start is not None and end is not None:
+                            buffer = timedelta(days=14)
+                            self.broker.initialize_market_calendars(
+                                get_trading_days(
+                                    market=market,
+                                    start_date=start - buffer,
+                                    end_date=end + buffer,
+                                    tzinfo=tzinfo,
+                                )
+                            )
+                        else:
+                            self.broker.initialize_market_calendars(get_trading_days(market))
+                    except Exception:
+                        self.broker.initialize_market_calendars(get_trading_days(market))
+                else:
+                    self.broker.initialize_market_calendars(get_trading_days(market))
 
             #####
             # Main strategy execution loop

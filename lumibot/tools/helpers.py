@@ -30,8 +30,6 @@ from ..constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 #
 # We cache schedules by **year** (market, year, tz) and then slice to the requested window.
 # Key: (market, year, tz_str)
-_TRADING_CALENDAR_YEAR_CACHE = {}
-
 # Slice cache (best-effort; primarily avoids repeated `.loc[]` slicing for identical windows).
 # Key: (market, start_date_str, end_date_str, tz_str)
 _TRADING_CALENDAR_CACHE = {}
@@ -41,6 +39,34 @@ _TRADING_CALENDAR_CACHE = {}
 # strategy logs. Throttle to at most ~1 line/second per (output, prefix) when not in quiet mode.
 _PROGRESS_LAST_PRINT: "weakref.WeakKeyDictionary[object, dict[str, tuple[float, str]]]" = weakref.WeakKeyDictionary()
 _PROGRESS_LAST_PRINT_FALLBACK: dict[tuple[int, str], tuple[float, str]] = {}
+
+
+def _format_datetime_to_tz(dtm, tzinfo: pytz.BaseTzInfo):
+    if pd.isna(dtm):
+        return dtm
+    return pd.Timestamp(dtm).tz_convert(tzinfo).to_pydatetime()
+
+
+@lru_cache(maxsize=256)
+def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.DataFrame:
+    """Return a cached trading schedule for a full calendar year.
+
+    NOTE: This function is intentionally module-scoped and `lru_cache`'d (thread-safe) to
+    avoid repeated expensive schedule builds under backtest concurrency.
+    """
+    tzinfo = pytz.timezone(tz_name)
+    year_start = pd.Timestamp(year=year, month=1, day=1)
+    year_end = pd.Timestamp(year=year, month=12, day=31)
+
+    if market == "24/7":
+        cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
+    else:
+        cal = mcal.get_calendar(market)
+
+    schedule = cal.schedule(start_date=year_start, end_date=year_end, tz=tzinfo)
+    schedule.market_open = schedule.market_open.apply(lambda v: _format_datetime_to_tz(v, tzinfo))
+    schedule.market_close = schedule.market_close.apply(lambda v: _format_datetime_to_tz(v, tzinfo))
+    return schedule
 
 
 def get_chunks(l, chunk_size):
@@ -158,13 +184,6 @@ def get_trading_days(
     if not isinstance(tzinfo, pytz.BaseTzInfo):
         raise TypeError('tzinfo must be a pytz.tzinfo object.')
 
-    # More robust datetime conversion with explicit timezone handling
-    def format_datetime(dtm):
-        if pd.isna(dtm):
-            return dtm
-        # Convert to Python datetime and ensure proper timezone conversion
-        return pd.Timestamp(dtm).tz_convert(tzinfo).to_pydatetime()
-
     def ensure_tz_aware(dtm, tzinfo):
         dtm = pd.to_datetime(dtm)
         return dtm.tz_convert(tzinfo) if dtm.tz is not None else dtm.tz_localize(tzinfo)
@@ -202,30 +221,12 @@ def get_trading_days(
     if cache_key in _TRADING_CALENDAR_CACHE:
         return _TRADING_CALENDAR_CACHE[cache_key].copy()
 
-    def _get_year_schedule(year: int) -> pd.DataFrame:
-        year_key = (market, int(year), str(tzinfo))
-        cached_year = _TRADING_CALENDAR_YEAR_CACHE.get(year_key)
-        if cached_year is not None:
-            return cached_year
-
-        year_start = pd.Timestamp(year=year, month=1, day=1)
-        year_end = pd.Timestamp(year=year, month=12, day=31)
-        if market == "24/7":
-            cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
-        else:
-            cal = mcal.get_calendar(market)
-
-        schedule = cal.schedule(start_date=year_start, end_date=year_end, tz=tzinfo)
-        schedule.market_open = schedule.market_open.apply(format_datetime)
-        schedule.market_close = schedule.market_close.apply(format_datetime)
-        _TRADING_CALENDAR_YEAR_CACHE[year_key] = schedule
-        return schedule
-
     start_year = int(start_day.year)
     end_year = int(schedule_end_day.year)
+    tz_name = getattr(tzinfo, "zone", None) or str(tzinfo)
     year_schedules = []
     for year in range(start_year, end_year + 1):
-        year_schedules.append(_get_year_schedule(year))
+        year_schedules.append(_get_trading_schedule_for_year(market, int(year), tz_name))
 
     full_schedule = year_schedules[0] if len(year_schedules) == 1 else pd.concat(year_schedules, axis=0)
 

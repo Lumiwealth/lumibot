@@ -101,6 +101,12 @@ class BacktestCacheManager:
         # downloaded in this process so we can safely reuse the local copy for the remainder of the run.
         self._downloaded_remote_keys: set[str] = set()
         self._downloaded_remote_keys_lock = threading.Lock()
+        # Negative cache for remote keys that are missing in S3. Some backtest code paths can
+        # repeatedly request the same cache file (especially when coverage metadata thrashes).
+        # Without a miss-cache we end up doing thousands of failing S3 calls, which can dominate
+        # cold-local/warm-S3 production runs.
+        self._missing_remote_keys: set[str] = set()
+        self._missing_remote_keys_lock = threading.Lock()
 
         # Lightweight per-process accounting so we can quantify S3 hydration cost in production.
         # NOTE: This deliberately avoids logging per-object at INFO (too spammy); we log a single
@@ -162,6 +168,13 @@ class BacktestCacheManager:
                     with self._downloaded_remote_keys_lock:
                         self._downloaded_remote_keys.add(remote_key)
                     return False
+
+            # If we've already observed this remote key missing in S3 during the current process,
+            # don't keep re-hitting S3 (miss storms can dominate option-heavy runs).
+            if not local_path.exists() and not force_download:
+                with self._missing_remote_keys_lock:
+                    if remote_key in self._missing_remote_keys:
+                        return False
 
             with self._downloaded_remote_keys_lock:
                 already_downloaded = remote_key in self._downloaded_remote_keys
@@ -253,6 +266,8 @@ class BacktestCacheManager:
                 logger.debug(
                     "[REMOTE_CACHE][MISS] %s (reason=%s)", remote_key, self._describe_error(exc)
                 )
+                with self._missing_remote_keys_lock:
+                    self._missing_remote_keys.add(remote_key)
                 # In S3 mode, we intentionally leave no local cache on a miss to force fresh fetch.
                 if local_path.exists():
                     try:

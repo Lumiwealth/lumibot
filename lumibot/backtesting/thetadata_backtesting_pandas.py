@@ -1588,6 +1588,18 @@ class ThetaDataBacktestingPandas(PandasData):
                         end_requirement,
                     )
                     return None
+                # If the cached dataset already covers the requirement, treat it as reusable and
+                # avoid thrashing (STALE → REFRESH loops). This is especially important for
+                # option quote datasets in cold-local/warm-S3 production runs.
+                quotes_ok = (not require_quote_data) or existing_has_quotes or existing_quotes_missing
+                if (
+                    start_ok
+                    and end_ok
+                    and existing_rows >= requested_length
+                    and quotes_ok
+                    and (not require_ohlc_data or existing_has_ohlc)
+                ):
+                    return None
                 if is_index_asset and end_ok and existing_rows >= requested_length:
                     logger.info(
                         "[THETA][CACHE][REUSE] asset=%s/%s (%s) coverage meets requirement; skipping refetch. existing_end=%s target_end=%s",
@@ -2982,7 +2994,9 @@ class ThetaDataBacktestingPandas(PandasData):
                             data_end = getattr(candidate_data, "datetime_end", None)
                             if data_end is None:
                                 data_end = self._normalize_default_timezone(candidate_df.index.max())
-                            if data_end is not None and dt <= data_end:
+                            normalized_dt = self._normalize_default_timezone(dt) if dt is not None else None
+                            normalized_end = self._normalize_default_timezone(data_end) if data_end is not None else None
+                            if normalized_dt is not None and normalized_end is not None and normalized_dt <= normalized_end:
                                 should_refresh = False
             except Exception:
                 should_refresh = True
@@ -3630,7 +3644,9 @@ class ThetaDataBacktestingPandas(PandasData):
                     candidate_df = getattr(candidate_data, "df", None)
                     if candidate_df is not None and not candidate_df.empty and self._frame_has_quote_columns(candidate_df):
                         data_end = getattr(candidate_data, "datetime_end", None)
-                        if data_end is not None and dt <= data_end:
+                        normalized_dt = self._normalize_default_timezone(dt) if dt is not None else None
+                        normalized_end = self._normalize_default_timezone(data_end) if data_end is not None else None
+                        if normalized_dt is not None and normalized_end is not None and normalized_dt <= normalized_end:
                             should_refresh = False
                             fast_data = candidate_data
         except Exception:

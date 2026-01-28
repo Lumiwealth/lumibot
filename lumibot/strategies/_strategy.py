@@ -748,7 +748,7 @@ class _Strategy:
                     else (position.asset, self._quote_asset)
                 )
                 quantity = position.quantity
-                price = prices.get(asset, 0)
+                price = prices.get(asset)
 
                 # If the asset is the quote asset, then we already have included it from cash
                 # Eg. if we have a position of USDT and USDT is the quote_asset then we already consider it as cash
@@ -757,9 +757,22 @@ class _Strategy:
                         self._quote_asset,
                         self._quote_asset,
                     ):
-                        price = 0
+                        continue
                     elif isinstance(asset, Asset) and asset == self._quote_asset:
-                        price = 0
+                        continue
+
+                # Normalize "missing" prices to None so forward-fill fallback can apply.
+                # Some data sources return 0 or NaN for "no price" (common on non-trading timestamps).
+                if price is not None:
+                    try:
+                        price_float = float(price)
+                    except (TypeError, ValueError):
+                        price = None
+                    else:
+                        if (not math.isfinite(price_float)) or price_float == 0:
+                            price = None
+                        else:
+                            price = price_float
 
                 # Track valid prices for forward-fill fallback
                 if price is not None:

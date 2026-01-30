@@ -251,9 +251,12 @@ Why should I use self.log_message() instead of print()?
 How should I use markers and lines for debugging?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use ``add_line()`` for continuous data (indicators), ``add_marker()`` for infrequent events (signals):
+Use ``add_ohlc()`` for price bars, ``add_line()`` for continuous data (indicators), and ``add_marker()`` for infrequent events (signals):
 
 .. code-block:: python
+
+    # add_ohlc - for price bars (OHLC data)
+    self.add_ohlc("SPY", open=o, high=h, low=l, close=c, asset=my_asset)
 
     # add_line - for continuous data like moving averages
     self.add_line("SMA_20", sma_value, color="blue", asset=my_asset)
@@ -265,7 +268,7 @@ Use ``add_line()`` for continuous data (indicators), ``add_marker()`` for infreq
 
 .. warning::
 
-    ``add_line()`` and ``add_marker()`` do NOT have a ``text`` parameter. Use ``detail_text`` for hover text.
+    ``add_ohlc()``, ``add_line()``, and ``add_marker()`` do NOT have a ``text`` parameter. Use ``detail_text`` for hover text.
 
 Backtesting
 -----------

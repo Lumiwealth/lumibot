@@ -244,6 +244,9 @@ class StrategyExecutor(Thread):
                 initial_budget=initial_budget,
                 orders=orders_minimal
             )
+        else:
+            # live: actually sleep
+            time.sleep(sleeptime)
 
     def sync_broker(self):
         # Log that we are syncing the broker.
@@ -1916,8 +1919,9 @@ class StrategyExecutor(Thread):
 
     def run(self):
         try:
-            # Overloading the broker sleep method
-            self.broker.sleep = self.safe_sleep
+            # Only overload the broker sleep method when backtesting
+            if self.broker.IS_BACKTESTING_BROKER:
+                self.broker.sleep = self.safe_sleep
 
             # Set the strategy name at the broker
             self.broker.set_strategy_name(self.strategy._name)

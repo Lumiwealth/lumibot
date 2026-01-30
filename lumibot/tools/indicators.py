@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import pytz
 import quantstats_lumi as qs
@@ -456,6 +457,7 @@ def plot_indicators(
     plot_file_html="indicators.html",
     chart_markers_df=None,
     chart_lines_df=None,
+    chart_ohlc_df=None,
     strategy_name=None,
     show_indicators=True,
 ):
@@ -481,6 +483,13 @@ def plot_indicators(
         else:
             chart_lines_df["plot_name"] = chart_lines_df["plot_name"].fillna("default_plot")
 
+    if chart_ohlc_df is not None and not chart_ohlc_df.empty:
+        chart_ohlc_df = chart_ohlc_df.copy()
+        if "plot_name" not in chart_ohlc_df.columns:
+            chart_ohlc_df["plot_name"] = "default_plot"
+        else:
+            chart_ohlc_df["plot_name"] = chart_ohlc_df["plot_name"].fillna("default_plot")
+
     # Get unique plot_names from markers and lines
     plot_names = set()
 
@@ -489,6 +498,9 @@ def plot_indicators(
 
     if chart_lines_df is not None and not chart_lines_df.empty:
         plot_names.update(chart_lines_df["plot_name"].unique())
+
+    if chart_ohlc_df is not None and not chart_ohlc_df.empty:
+        plot_names.update(chart_ohlc_df["plot_name"].unique())
 
     # Convert to sorted list to ensure consistent order
     plot_names = sorted(list(plot_names))
@@ -616,6 +628,70 @@ def plot_indicators(
         has_chart_data = True
 
     ###############################
+    # Chart OHLC
+    ###############################
+
+    def _generate_ohlc_hover_text(row):
+        base = f"O: {row['open']}<br>H: {row['high']}<br>L: {row['low']}<br>C: {row['close']}"
+        if row.get("detail_text") is None:
+            return base
+        return base + "<br>" + str(row.get("detail_text"))
+
+    if chart_ohlc_df is not None and not chart_ohlc_df.empty:
+        chart_ohlc_df = chart_ohlc_df.copy()
+
+        for col in ("open", "high", "low", "close"):
+            if col not in chart_ohlc_df.columns:
+                logger.warning(f"OHLC data missing required column '{col}', skipping OHLC plotting.")
+                chart_ohlc_df = None
+                break
+
+        if chart_ohlc_df is not None and not chart_ohlc_df.empty:
+            if "color" not in chart_ohlc_df.columns:
+                chart_ohlc_df["color"] = None
+
+            # Default per-bar colors: green for bullish, red for bearish (matches Strategy.add_ohlc defaults).
+            chart_ohlc_df["color"] = chart_ohlc_df["color"].where(
+                chart_ohlc_df["color"].notna(),
+                np.where(chart_ohlc_df["close"] >= chart_ohlc_df["open"], "green", "red"),
+            )
+
+            chart_ohlc_df["detail_text"] = chart_ohlc_df.apply(_generate_ohlc_hover_text, axis=1)
+
+            # Group by plot_name first, then by series name.
+            for plot_name, plot_df in chart_ohlc_df.groupby("plot_name"):
+                for ohlc_name, group_df in plot_df.groupby("name"):
+                    row = plot_names.index(plot_name) + 1
+
+                    # Preserve per-bar colors by splitting into separate traces per color.
+                    color_groups = list(group_df.groupby("color"))
+                    for idx, (bar_color, colored_df) in enumerate(color_groups):
+                        trace_color = _safe_color(bar_color, f"{plot_name}:{ohlc_name}:{bar_color}")
+
+                        fig.add_trace(
+                            go.Candlestick(
+                                x=colored_df["datetime"],
+                                open=colored_df["open"],
+                                high=colored_df["high"],
+                                low=colored_df["low"],
+                                close=colored_df["close"],
+                                name=ohlc_name,
+                                showlegend=idx == 0,
+                                legendgroup=ohlc_name,
+                                increasing_line_color=trace_color,
+                                decreasing_line_color=trace_color,
+                                increasing_fillcolor=trace_color,
+                                decreasing_fillcolor=trace_color,
+                                hovertext=colored_df["detail_text"],
+                                hoverinfo="x+text",
+                            ),
+                            row=row,
+                            col=1,
+                        )
+
+            has_chart_data = True
+
+    ###############################
     # Chart Titles and Layouts
     ###############################
 
@@ -683,30 +759,23 @@ def plot_indicators(
         csv_file = plot_file_html.replace(".html", ".csv")
 
         # Export chart markers and lines to CSV - combine them and sort by datetime
-        if chart_markers_df is not None and not chart_markers_df.empty and chart_lines_df is not None and not chart_lines_df.empty:
-            # Add type column to both dataframes
-            chart_markers_df = chart_markers_df.copy()
-            chart_markers_df["type"] = "marker"
+        export_dfs = []
+        if chart_markers_df is not None and not chart_markers_df.empty:
+            markers_out = chart_markers_df.copy()
+            markers_out["type"] = "marker"
+            export_dfs.append(markers_out)
+        if chart_lines_df is not None and not chart_lines_df.empty:
+            lines_out = chart_lines_df.copy()
+            lines_out["type"] = "line"
+            export_dfs.append(lines_out)
+        if chart_ohlc_df is not None and not chart_ohlc_df.empty:
+            ohlc_out = chart_ohlc_df.copy()
+            ohlc_out["type"] = "ohlc"
+            export_dfs.append(ohlc_out)
 
-            chart_lines_df = chart_lines_df.copy()
-            chart_lines_df["type"] = "line"
-
-            # Both markers and lines exist - combine them and sort by datetime
-            combined_df = pd.concat([chart_markers_df, chart_lines_df], ignore_index=True)
-            combined_df = combined_df.sort_values(by="datetime")
+        if export_dfs:
+            combined_df = pd.concat(export_dfs, ignore_index=True).sort_values(by="datetime")
             combined_df.to_csv(csv_file, index=False)
-        elif chart_markers_df is not None and not chart_markers_df.empty:
-            # Only markers exist
-            chart_markers_df = chart_markers_df.copy()
-            chart_markers_df["type"] = "marker"
-            chart_markers_df = chart_markers_df.sort_values(by="datetime")
-            chart_markers_df.to_csv(csv_file, index=False)
-        elif chart_lines_df is not None and not chart_lines_df.empty:
-            # Only lines exist
-            chart_lines_df = chart_lines_df.copy()
-            chart_lines_df["type"] = "line"
-            chart_lines_df = chart_lines_df.sort_values(by="datetime")
-            chart_lines_df.to_csv(csv_file, index=False)
 
 
 def plot_returns(

@@ -217,38 +217,46 @@ Always log the reasoning behind trading decisions:
 Visualization with Markers and Lines
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use ``add_line`` for continuous data and ``add_marker`` for infrequent events:
+Use ``add_ohlc`` for price bars, ``add_line`` for continuous indicators, and ``add_marker`` for infrequent events:
 
 .. code-block:: python
 
     asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
     bars = self.get_historical_prices(asset, 100, "day")
 
-    # Add a line for the asset price (pass asset parameter for proper charting)
-    self.add_line("SPY", bars.df["close"].iloc[-1], color="black", width=2,
-                  detail_text="SPY Price", asset=asset)
-
     if bars is not None:
         df = bars.df
+        last_bar = df.iloc[-1]
+
+        # Plot SPY price as OHLC candles (pass asset parameter for proper charting)
+        self.add_ohlc(
+            "SPY",
+            open=last_bar["open"],
+            high=last_bar["high"],
+            low=last_bar["low"],
+            close=last_bar["close"],
+            detail_text="SPY Price",
+            asset=asset,
+        )
+
         df["SMA_50"] = df["close"].rolling(window=50).mean()
 
         # Add a line for the moving average (pass asset to overlay on price chart)
         self.add_line("SMA_50", df["SMA_50"].iloc[-1], color="blue", width=2,
                       detail_text="50-day SMA", asset=asset)
 
-        last_ohlc = df.iloc[-1]
-        if last_ohlc["close"] > last_ohlc["SMA_50"]:
-            # Markers only for significant events (not every iteration!)
-            self.add_marker("Buy Signal", last_ohlc["close"], color="green",
+        # Markers only for significant events (not every iteration!)
+        if last_bar["close"] > last_bar["SMA_50"]:
+            self.add_marker("Buy Signal", last_bar["close"], color="green",
                           symbol="arrow-up", size=10, detail_text="Buy Signal", asset=asset)
         else:
-            self.add_marker("Sell Signal", last_ohlc["close"], color="red",
+            self.add_marker("Sell Signal", last_bar["close"], color="red",
                           symbol="arrow-down", size=10, detail_text="Sell Signal", asset=asset)
 
 .. warning::
 
     Never add markers every iteration - this crashes the chart! Only use markers for significant events.
-    Use ``add_line`` for continuous data like indicators.
+    Use ``add_line`` for continuous data like indicators, and ``add_ohlc`` for price bars.
 
 Options
 -------

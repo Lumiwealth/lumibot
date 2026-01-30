@@ -9,6 +9,13 @@ Backtesting “accuracy” is measured against live broker behavior when possibl
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 
+- **Release workflow (STRICT):**
+  - **Never push directly to `dev`.** All work must land via a PR (usually from `version/X.Y.Z` → `dev`).
+  - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.
+  - **Never switch branches without explicit user instruction.** If you suspect you are on the wrong branch, stop and ask.
+  - **PRs must be version-scoped.** If a PR is needed for review/release, the PR head must be the existing `version/X.Y.Z` branch.
+  - **PR title must be release-scoped.** Use `vX.Y.Z - <summary>` and include all notable changes shipped in that version (not just one feature).
+
 - **Branch etiquette (STRICT):** if you are on a version branch (e.g., `version/4.4.31`), treat it as the shared collaboration branch.
   - **Do not create additional branches** (no `git switch -c`, no `git branch`, no `version/4.4.31-foo`, no `version/4.4.31/<topic>`), unless the user explicitly asks.
   - If a PR is needed for review, **the PR head must be the existing version branch** (e.g., `version/4.4.31`), not a new feature branch.

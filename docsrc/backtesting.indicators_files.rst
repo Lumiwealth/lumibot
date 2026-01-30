@@ -7,6 +7,7 @@ The **Indicators HTML** and **Indicators CSV** files contain data on the indicat
 
 - **add_marker()**: Adds markers to the indicators. For more details, refer to `add_marker <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_marker.html>`_.
 - **add_line()**: Adds lines to the indicators. For more details, refer to `add_line <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_line.html>`_.
+- **add_ohlc()**: Adds OHLC (candlestick) bars to the indicators. For more details, refer to `add_ohlc <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_ohlc.html>`_.
 
 These functions help in visualizing how the indicators influenced the strategy's decisions and performance. Key information includes:
 

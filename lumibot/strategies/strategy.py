@@ -3687,27 +3687,156 @@ class Strategy(_Strategy):
             dt = self.get_datetime()
 
         # Whenever you want to add a new line, use the following code
-        self._chart_lines_list.append(
-            {
-                "datetime": dt,
-                "name": name,
-                "value": value,
-                "color": color,
-                "style": style,
-                "width": width,
-                "detail_text": detail_text,
-                "plot_name": plot_name,
-                # Asset fields for multi-symbol charting support
-                "asset_symbol": asset.symbol if asset else None,
-                "asset_type": asset.asset_type if asset else None,
-                "asset_expiration": str(asset.expiration) if asset and asset.expiration else None,
-                "asset_strike": asset.strike if asset else None,
-                "asset_right": asset.right if asset else None,
-                "asset_multiplier": asset.multiplier if asset else None,
-                "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
-                "asset_display_name": str(asset) if asset else None,
-            }
-        )
+        new_line = {
+            "datetime": dt,
+            "name": name,
+            "value": value,
+            "color": color,
+            "style": style,
+            "width": width,
+            "detail_text": detail_text,
+            "plot_name": plot_name,
+            # Asset fields for multi-symbol charting support
+            "asset_symbol": asset.symbol if asset else None,
+            "asset_type": asset.asset_type if asset else None,
+            "asset_expiration": str(asset.expiration) if asset and asset.expiration else None,
+            "asset_strike": asset.strike if asset else None,
+            "asset_right": asset.right if asset else None,
+            "asset_multiplier": asset.multiplier if asset else None,
+            "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+            "asset_display_name": str(asset) if asset else None,
+        }
+
+        self._chart_lines_list.append(new_line)
+        return new_line
+
+    def add_ohlc(
+            self,
+            name: str,
+            open: float,
+            high: float,
+            low: float,
+            close: float,
+            color: str = None,
+            detail_text: str = None,
+            dt: Union[datetime.datetime, pd.Timestamp] = None,
+            plot_name: str = "default_plot",
+            asset: Asset = None
+    ):
+        """Adds an OHLC (candlestick) data point to the indicator chart.
+
+        This can be used to plot price bars, Heikin Ashi candles, or any other
+        OHLC series on the indicator chart. OHLC data is exported to indicators.csv
+        with type="ohlc" and (when supported by the viewer) can be rendered as
+        candlesticks.
+
+        Parameters
+        ----------
+        name : str
+            The name of the OHLC series.
+        open : float
+            The opening value for the bar.
+        high : float
+            The high value for the bar.
+        low : float
+            The low value for the bar.
+        close : float
+            The closing value for the bar.
+        color : str, optional
+            The color for this bar. If omitted, defaults to "green" for bullish
+            (close >= open) and "red" for bearish (close < open).
+        detail_text : str, optional
+            Additional hover text.
+        dt : datetime.datetime or pandas.Timestamp, optional
+            The datetime for this bar. Defaults to current strategy datetime.
+        plot_name : str, optional
+            Subplot name. Default "default_plot".
+        asset : Asset, optional
+            Asset metadata for multi-symbol charting.
+        """
+
+        if not isinstance(name, str):
+            raise ValueError(
+                f"Invalid name parameter in add_ohlc() method. Name must be a string but instead got {name}, "
+                f"which is a type {type(name)}."
+            )
+
+        for label, number in (("open", open), ("high", high), ("low", low), ("close", close)):
+            if not isinstance(number, (float, int, np.float64)):
+                raise ValueError(
+                    f"Invalid {label} parameter in add_ohlc() method. {label} must be a float or int but instead got {number}, "
+                    f"which is a type {type(number)}."
+                )
+
+        if color is not None and not isinstance(color, str):
+            raise ValueError(
+                f"Invalid color parameter in add_ohlc() method. Color must be a string but instead got {color}, "
+                f"which is a type {type(color)}."
+            )
+
+        if detail_text is not None and not isinstance(detail_text, str):
+            raise ValueError(
+                f"Invalid detail_text parameter in add_ohlc() method. Detail_text must be a string but instead got "
+                f"{detail_text}, which is a type {type(detail_text)}."
+            )
+
+        if dt is not None and not isinstance(dt, (datetime.datetime, pd.Timestamp)):
+            raise ValueError(
+                f"Invalid dt parameter in add_ohlc() method. Dt must be a datetime.datetime but instead got {dt}, "
+                f"which is a type {type(dt)}."
+            )
+
+        if asset is not None and not isinstance(asset, Asset):
+            raise TypeError(
+                f"Invalid asset parameter in add_ohlc() method. Asset must be an Asset object, not a string or other type. "
+                f"Got {asset}, which is a type {type(asset)}. Use Asset(symbol='SPY', asset_type='stock') to create an Asset."
+            )
+
+        open = float(open)
+        high = float(high)
+        low = float(low)
+        close = float(close)
+
+        if any(math.isnan(x) or math.isinf(x) for x in (open, high, low, close)):
+            self.logger.error("Skipping OHLC bar because one or more values are not finite.")
+            return None
+
+        if high < low or high < max(open, close) or low > min(open, close):
+            self.logger.error(
+                "Skipping OHLC bar because values are invalid: "
+                f"open={open}, high={high}, low={low}, close={close}."
+            )
+            return None
+
+        if dt is None:
+            dt = self.get_datetime()
+
+        default_color = "green" if close >= open else "red"
+        color = self._normalize_plot_color(color, default=default_color, context="ohlc")
+
+        new_ohlc = {
+            "datetime": dt,
+            "name": name,
+            "open": open,
+            "high": high,
+            "low": low,
+            "close": close,
+            "color": color,
+            "detail_text": detail_text,
+            "plot_name": plot_name,
+            # Asset fields for multi-symbol charting support
+            "asset_symbol": asset.symbol if asset else None,
+            "asset_type": asset.asset_type if asset else None,
+            "asset_expiration": str(asset.expiration) if asset and asset.expiration else None,
+            "asset_strike": asset.strike if asset else None,
+            "asset_right": asset.right if asset else None,
+            "asset_multiplier": asset.multiplier if asset else None,
+            "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+            "asset_display_name": str(asset) if asset else None,
+        }
+
+        self._chart_ohlc_list.append(new_ohlc)
+        return new_ohlc
 
     def get_lines_df(self):
         """Returns a dataframe of the lines on the indicator chart.
@@ -3720,6 +3849,11 @@ class Strategy(_Strategy):
 
         df = pd.DataFrame(self._chart_lines_list)
 
+        return df
+
+    def get_ohlc_df(self):
+        """Returns the OHLC data on the indicator chart as a pandas DataFrame."""
+        df = pd.DataFrame(self._chart_ohlc_list)
         return df
 
     def write_backtest_settings(self, settings_file: str):

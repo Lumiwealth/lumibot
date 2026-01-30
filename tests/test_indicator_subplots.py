@@ -345,6 +345,7 @@ def _make_strategy_stub():
     strat = Strategy.__new__(Strategy)
     strat._chart_markers_list = []
     strat._chart_lines_list = []
+    strat._chart_ohlc_list = []
     strat.logger = logging.getLogger("indicator_tests")
     strat.portfolio_value = 1_000
     strat.get_datetime = lambda: DateTime(2024, 1, 1)
@@ -385,6 +386,14 @@ class TestAddMarkerAndLineGuards:
         assert result is None
         assert strat._chart_lines_list == []
         assert "Skipping line" in caplog.text
+
+    def test_add_line_returns_dict_on_success(self):
+        strat = _make_strategy_stub()
+        result = strat.add_line("test_line", 10.0, color="blue")
+        assert isinstance(result, dict)
+        assert strat._chart_lines_list[-1] is result
+        assert result["name"] == "test_line"
+        assert result["value"] == 10.0
 
     def test_add_line_defaults_color(self, caplog):
         strat = _make_strategy_stub()
@@ -500,3 +509,97 @@ class TestAddMarkerAndLineGuards:
         assert line["asset_symbol"] is None
         assert line["asset_type"] is None
         assert line["asset_display_name"] is None
+
+
+class TestAddOHLCGuards:
+
+    def test_add_ohlc_basic(self):
+        strat = _make_strategy_stub()
+        result = strat.add_ohlc("Test", open=100, high=105, low=98, close=102)
+        assert isinstance(result, dict)
+        assert len(strat._chart_ohlc_list) == 1
+        row = strat._chart_ohlc_list[0]
+        assert row["name"] == "Test"
+        assert row["open"] == 100.0
+        assert row["high"] == 105.0
+        assert row["low"] == 98.0
+        assert row["close"] == 102.0
+        assert row["color"] == "green"
+
+    def test_add_ohlc_invalid_high_low_skips(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.ERROR):
+            result = strat.add_ohlc("Bad", open=100, high=99, low=98, close=102)
+        assert result is None
+        assert strat._chart_ohlc_list == []
+        assert "Skipping OHLC bar because values are invalid" in caplog.text
+
+    def test_add_ohlc_non_finite_skips(self, caplog):
+        strat = _make_strategy_stub()
+        with caplog.at_level(logging.ERROR):
+            result = strat.add_ohlc("NaN", open=100, high=float("nan"), low=98, close=102)
+        assert result is None
+        assert strat._chart_ohlc_list == []
+        assert "not finite" in caplog.text
+
+    def test_add_ohlc_with_asset(self):
+        strat = _make_strategy_stub()
+        asset = Asset(symbol="SPY", asset_type="stock")
+        strat.add_ohlc("SPY", open=400, high=405, low=398, close=403, asset=asset)
+        row = strat._chart_ohlc_list[0]
+        assert row["asset_symbol"] == "SPY"
+        assert row["asset_type"] == "stock"
+        assert row["asset_display_name"] == "SPY"
+
+
+def test_plot_indicators_exports_ohlc_rows(tmp_path, monkeypatch):
+    from lumibot.tools.indicators import plot_indicators
+
+    ohlc_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-01 09:30", "2024-01-01 10:30"]),
+            "plot_name": ["default_plot", "default_plot"],
+            "name": ["SPY", "SPY"],
+            "open": [100, 101],
+            "high": [102, 103],
+            "low": [99, 100],
+            "close": [101, 102],
+            "color": [None, None],
+            "detail_text": [None, None],
+        }
+    )
+
+    line_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-01 09:30", "2024-01-01 10:30"]),
+            "plot_name": ["default_plot", "default_plot"],
+            "name": ["SMA_2", "SMA_2"],
+            "value": [100.5, 101.5],
+            "color": ["blue", "blue"],
+            "style": ["solid", "solid"],
+            "width": [None, None],
+            "detail_text": [None, None],
+        }
+    )
+
+    mock_write = MagicMock()
+    monkeypatch.setattr("plotly.graph_objects.Figure.write_html", mock_write)
+
+    plot_path = tmp_path / "plot.html"
+    plot_indicators(
+        plot_file_html=str(plot_path),
+        chart_markers_df=None,
+        chart_lines_df=line_df,
+        chart_ohlc_df=ohlc_df,
+        strategy_name="Test",
+        show_indicators=True,
+    )
+
+    csv_path = plot_path.with_suffix(".csv")
+    assert csv_path.exists()
+
+    exported = pd.read_csv(csv_path)
+    assert set(exported["type"].unique()) == {"line", "ohlc"}
+    ohlc_rows = exported[exported["type"] == "ohlc"]
+    assert len(ohlc_rows) == 2
+    assert {"open", "high", "low", "close"}.issubset(set(ohlc_rows.columns))

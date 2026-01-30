@@ -258,7 +258,7 @@ Adding Markers Every Iteration
         # Use add_line for continuous data
         self.add_line("SMA_20", sma_value, color="blue", asset=my_asset)
 
-Using 'text' Parameter in add_marker/add_line
+Using 'text' Parameter in add_marker/add_line/add_ohlc
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Impact:** TypeError crash - there is no 'text' parameter.

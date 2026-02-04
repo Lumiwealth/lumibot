@@ -555,7 +555,7 @@ class Bars:
         float, Decimal or None
 
         """
-        return self.df["close"][-1]
+        return self.df["close"].iloc[-1]
 
     def get_last_dividend(self):
         """Return the last dividend of the last bar
@@ -569,7 +569,7 @@ class Bars:
         float
         """
         if "dividend" in self.df.columns:
-            return self.df["dividend"][-1]
+            return self.df["dividend"].iloc[-1]
         else:
             logger.debug("Unable to find 'dividend' column in bars")
             return 0

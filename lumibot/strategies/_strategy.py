@@ -970,13 +970,16 @@ class _Strategy:
                     else:
                         quote = get_quote(base_asset, timestep=timestep_hint or "minute")
                     quote_mark = _thetadata_quote_mark(quote)
-                    if quote_mark is not None:
-                        return quote_mark
+                    day_quote_mark = quote_mark
+                    if timestep_hint != "day":
+                        if quote_mark is not None:
+                            return quote_mark
 
                     # Daily-cadence fallback: intraday quote snapshots are the most robust source
-                    # of option marks when EOD/history endpoints are missing for a contract.
+                    # of option marks. Even when day quotes exist, they can be stale in some
+                    # provider/cache states; prefer snapshot mark when available.
                     if timestep_hint == "day":
-                        # Only attempt snapshot-only fallback when it's safe to do so.
+                        # Only attempt snapshot-only lookup when it's safe to do so.
                         #
                         # Some unit tests (and custom sources) override `get_quote()` at the class
                         # level and treat repeated calls as an error (or always return the same
@@ -984,17 +987,24 @@ class _Strategy:
                         # ThetaDataBacktestingPandas implementation is guaranteed to understand
                         # `snapshot_only`. For non-bound callables (e.g., instance-level stubs used
                         # by tests), allow the fallback.
+                        can_try_snapshot = True
                         func = getattr(get_quote, "__func__", None)
                         if func is not None and func is not ThetaDataBacktestingPandas.get_quote:
-                            return None
-                        quote_kwargs = {"timestep": "minute", "snapshot_only": True}
-                        if quote_asset is not None:
-                            quote = get_quote(base_asset, quote=quote_asset, **quote_kwargs)
-                        else:
-                            quote = get_quote(base_asset, **quote_kwargs)
-                        quote_mark = _thetadata_quote_mark(quote)
-                        if quote_mark is not None:
-                            return quote_mark
+                            can_try_snapshot = False
+                        if can_try_snapshot:
+                            quote_kwargs = {"timestep": "minute", "snapshot_only": True}
+                            if quote_asset is not None:
+                                quote = get_quote(base_asset, quote=quote_asset, **quote_kwargs)
+                            else:
+                                quote = get_quote(base_asset, **quote_kwargs)
+                            quote_mark = _thetadata_quote_mark(quote)
+                            if quote_mark is not None:
+                                return quote_mark
+
+                        # If snapshot probing failed but day quote carried a positive trade-derived
+                        # price, keep that as a last-resort mark to avoid dropping valuation to None.
+                        if day_quote_mark is not None:
+                            return day_quote_mark
             except Exception as e:
                 self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
             return None

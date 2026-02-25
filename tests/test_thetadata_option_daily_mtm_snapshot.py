@@ -70,3 +70,146 @@ def test_thetadata_daily_option_mtm_uses_intraday_snapshot_quote() -> None:
         {"timestep": "day", "snapshot_only": False},
         {"timestep": "minute", "snapshot_only": True},
     ]
+
+
+def test_thetadata_daily_option_mtm_prefers_snapshot_over_day_price_without_nbbo() -> None:
+    """If day quote has only trade `price` (no NBBO), prefer intraday snapshot mark."""
+
+    class DummyBroker:
+        datetime = datetime(2025, 3, 26, 9, 30)
+
+    class DummyStrategy:
+        is_backtesting = True
+        broker = DummyBroker()
+        logger = logging.getLogger("lumibot.test")
+        _quote_asset = Asset("USD", asset_type="forex")
+
+        def _get_sleeptime_seconds(self):
+            return 24 * 3600
+
+    dummy_strategy = DummyStrategy()
+
+    option_asset = Asset(
+        symbol="SPY",
+        asset_type="option",
+        expiration=date(2025, 4, 11),
+        strike=582.5,
+        right="put",
+    )
+
+    source = object.__new__(ThetaDataBacktestingPandas)
+    called = {}
+
+    def fake_get_quote(asset, quote=None, exchange=None, timestep="minute", **kwargs):
+        calls = called.setdefault("calls", [])
+        calls.append({"timestep": timestep, "snapshot_only": bool(kwargs.get("snapshot_only", False))})
+        if timestep == "day":
+            return SimpleNamespace(bid=None, ask=None, price=48.21)
+        assert timestep == "minute"
+        assert bool(kwargs.get("snapshot_only", False)) is True
+        return SimpleNamespace(bid=15.38, ask=15.80, price=None)
+
+    source.get_quote = fake_get_quote
+
+    price = _Strategy._get_price_from_source(dummy_strategy, source, option_asset)
+    assert price == 15.59
+    assert called["calls"] == [
+        {"timestep": "day", "snapshot_only": False},
+        {"timestep": "minute", "snapshot_only": True},
+    ]
+
+
+def test_thetadata_daily_option_mtm_falls_back_to_day_price_if_snapshot_missing() -> None:
+    """Keep last-resort day trade price when snapshot probing returns no actionable quote."""
+
+    class DummyBroker:
+        datetime = datetime(2025, 3, 26, 9, 30)
+
+    class DummyStrategy:
+        is_backtesting = True
+        broker = DummyBroker()
+        logger = logging.getLogger("lumibot.test")
+        _quote_asset = Asset("USD", asset_type="forex")
+
+        def _get_sleeptime_seconds(self):
+            return 24 * 3600
+
+    dummy_strategy = DummyStrategy()
+
+    option_asset = Asset(
+        symbol="SPY",
+        asset_type="option",
+        expiration=date(2025, 4, 11),
+        strike=582.5,
+        right="put",
+    )
+
+    source = object.__new__(ThetaDataBacktestingPandas)
+    called = {}
+
+    def fake_get_quote(asset, quote=None, exchange=None, timestep="minute", **kwargs):
+        calls = called.setdefault("calls", [])
+        calls.append({"timestep": timestep, "snapshot_only": bool(kwargs.get("snapshot_only", False))})
+        if timestep == "day":
+            return SimpleNamespace(bid=None, ask=None, price=48.21)
+        assert timestep == "minute"
+        assert bool(kwargs.get("snapshot_only", False)) is True
+        return SimpleNamespace(bid=None, ask=None, price=None)
+
+    source.get_quote = fake_get_quote
+
+    price = _Strategy._get_price_from_source(dummy_strategy, source, option_asset)
+    assert price == 48.21
+    assert called["calls"] == [
+        {"timestep": "day", "snapshot_only": False},
+        {"timestep": "minute", "snapshot_only": True},
+    ]
+
+
+def test_thetadata_daily_option_mtm_prefers_snapshot_over_stale_day_nbbo() -> None:
+    """Daily MTM should prefer snapshot mark even if day quote has two-sided NBBO."""
+
+    class DummyBroker:
+        datetime = datetime(2025, 10, 8, 9, 30)
+
+    class DummyStrategy:
+        is_backtesting = True
+        broker = DummyBroker()
+        logger = logging.getLogger("lumibot.test")
+        _quote_asset = Asset("USD", asset_type="forex")
+
+        def _get_sleeptime_seconds(self):
+            return 24 * 3600
+
+    dummy_strategy = DummyStrategy()
+
+    option_asset = Asset(
+        symbol="SPY",
+        asset_type="option",
+        expiration=date(2025, 10, 10),
+        strike=668.0,
+        right="put",
+    )
+
+    source = object.__new__(ThetaDataBacktestingPandas)
+    called = {}
+
+    def fake_get_quote(asset, quote=None, exchange=None, timestep="minute", **kwargs):
+        calls = called.setdefault("calls", [])
+        calls.append({"timestep": timestep, "snapshot_only": bool(kwargs.get("snapshot_only", False))})
+        if timestep == "day":
+            # Stale day quote (mirrors the problematic y7kYMO pattern).
+            return SimpleNamespace(bid=12.68, ask=15.23, price=None)
+        assert timestep == "minute"
+        assert bool(kwargs.get("snapshot_only", False)) is True
+        # Snapshot has the actionable current mark.
+        return SimpleNamespace(bid=0.67, ask=0.68, price=None)
+
+    source.get_quote = fake_get_quote
+
+    price = _Strategy._get_price_from_source(dummy_strategy, source, option_asset)
+    assert price == 0.675
+    assert called["calls"] == [
+        {"timestep": "day", "snapshot_only": False},
+        {"timestep": "minute", "snapshot_only": True},
+    ]

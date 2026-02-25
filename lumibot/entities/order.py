@@ -99,12 +99,28 @@ class StrEnum(str, Enum):
 SELL = "sell"
 BUY = "buy"
 
-VALID_STATUS = ["unprocessed", "new", "open", "submitted", "fill", "partial_fill", "cancelling", "canceled", "error", "cash_settled"]
+VALID_STATUS = [
+    "unprocessed",
+    "new",
+    "open",
+    "submitted",
+    "fill",
+    "partial_fill",
+    "cancelling",
+    "canceled",
+    "error",
+    "cash_settled",
+    "assigned",
+    "assignment",
+    "exercise",
+    "exercised",
+    "expired",
+]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
     "cancel": "canceled",
     "cash": "cash_settled",
-    "expired": "canceled",  # Alpaca/Tradier status
+    "expired": "expired",  # Alpaca/Tradier status
     "filled": "fill",  # IBKR/Alpaca/Tradier status
     "partially_filled": "partial_filled",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
@@ -128,6 +144,8 @@ STATUS_ALIAS_MAP = {
     "calculated": "open",  # Alpaca status
     "accepted_for_bidding": "open",  # Alpaca status
     "held": "open",  # Alpaca status
+    "assignment": "assigned",
+    "exercise": "exercised",
 }
 
 NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaround to still access type(None)
@@ -170,6 +188,8 @@ class Order:
         FILLED = "fill"
         PARTIALLY_FILLED = "partial_fill"
         CASH_SETTLED = "cash_settled"
+        ASSIGNED = "assigned"
+        EXERCISED = "exercised"
         ERROR = "error"
         EXPIRED = "expired"
 
@@ -1215,7 +1235,7 @@ class Order:
         bool
             True if the order has been cancelled, False otherwise.
         """
-        return self.status.lower() in ["cancelled", "canceled", "cancel", "error"]
+        return self.status.lower() in ["cancelled", "canceled", "cancel", "error", "expired"]
 
     def is_filled(self):
         """
@@ -1228,7 +1248,15 @@ class Order:
         """
         if self.position_filled:
             return True
-        elif self.status.lower() in ["filled", "fill", "cash_settled"]:
+        elif self.status.lower() in [
+            "filled",
+            "fill",
+            "cash_settled",
+            "assigned",
+            "assignment",
+            "exercise",
+            "exercised",
+        ]:
             return True
         else:
             return False

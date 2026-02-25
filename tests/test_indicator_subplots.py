@@ -284,6 +284,110 @@ def test_plot_returns_preserves_cash_settled_status(tmp_path, monkeypatch):
     trades_parquet = pd.read_parquet(plot_path.with_suffix(".parquet"))
     assert "cash_settled" in trades_parquet["status"].tolist()
 
+
+def test_plot_returns_preserves_assignment_and_exercise_statuses(tmp_path, monkeypatch):
+    plot_path = tmp_path / "plot_assignment_exercise.html"
+
+    def _fake_write_html(self, file, auto_open=True, **kwargs):
+        return file
+
+    monkeypatch.setattr(go.Figure, "write_html", _fake_write_html, raising=False)
+
+    idx = pd.to_datetime(
+        ["2025-09-20 00:00:00-04:00", "2025-09-21 00:00:00-04:00"]
+    ).tz_convert("UTC")
+
+    strategy_df = pd.DataFrame(
+        {
+            "return": [0.0, 0.0],
+            "cash": [100000, 100000],
+            "positions": [[], []],
+        },
+        index=idx,
+    )
+
+    benchmark_df = pd.DataFrame(
+        {
+            "return": [0.0, 0.0],
+            "open": [1.0, 1.0],
+            "high": [1.0, 1.0],
+            "low": [1.0, 1.0],
+            "close": [1.0, 1.0],
+        },
+        index=idx,
+    )
+
+    trades_df = pd.DataFrame(
+        [
+            {
+                "time": "2025-09-20 00:00:00-04:00",
+                "side": "buy",
+                "status": "assigned",
+                "filled_quantity": 1,
+                "symbol": "AAPL",
+                "asset.asset_type": "option",
+                "asset.right": "PUT",
+                "asset.strike": 100,
+                "asset.expiration": "2025-09-20",
+                "price": 5.0,
+                "type": "assigned",
+                "asset.multiplier": 100,
+                "trade_cost": pd.NA,
+            },
+            {
+                "time": "2025-09-21 00:00:00-04:00",
+                "side": "buy",
+                "status": "fill",
+                "filled_quantity": 100,
+                "symbol": "AAPL",
+                "asset.asset_type": "stock",
+                "asset.right": None,
+                "asset.strike": float("nan"),
+                "asset.expiration": None,
+                "price": 100.0,
+                "type": "exercised",
+                "asset.multiplier": 1,
+                "trade_cost": pd.NA,
+            },
+            {
+                "time": "2025-09-21 00:00:00-04:00",
+                "side": "sell",
+                "status": "exercised",
+                "filled_quantity": 1,
+                "symbol": "AAPL",
+                "asset.asset_type": "option",
+                "asset.right": "CALL",
+                "asset.strike": 90,
+                "asset.expiration": "2025-09-21",
+                "price": 10.0,
+                "type": "exercised",
+                "asset.multiplier": 100,
+                "trade_cost": pd.NA,
+            },
+        ]
+    )
+
+    plot_returns(
+        strategy_df,
+        "Strategy",
+        benchmark_df,
+        "Benchmark",
+        plot_file_html=str(plot_path),
+        trades_df=trades_df,
+        show_plot=True,
+        initial_budget=1,
+    )
+
+    trades_csv = pd.read_csv(plot_path.with_suffix(".csv"))
+    statuses = trades_csv["status"].tolist()
+    assert "assigned" in statuses
+    assert "exercised" in statuses
+
+    trades_parquet = pd.read_parquet(plot_path.with_suffix(".parquet"))
+    parquet_statuses = trades_parquet["status"].tolist()
+    assert "assigned" in parquet_statuses
+    assert "exercised" in parquet_statuses
+
     def test_named_lines(self, pandas_data_fixture):
         """Test the named lines"""
         strategy_name = "TestIndicatorStrategy"

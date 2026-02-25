@@ -2,14 +2,23 @@
 
 ## 4.4.50 - Unreleased
 
+### Added
+- Option lifecycle event support in backtesting for option expiration outcomes: `assigned`, `exercised`, and `expired` (in addition to `cash_settled`).
+- Regression coverage for equity/ETF physical settlement and index cash settlement paths at expiration.
+
 ### Changed
 - Indicators HTML: improve subplot scaling so indicator panels render with sane proportions across mixed plots.
 - Indicators export: make HTML export non-fatal so backtests still complete if HTML rendering fails.
+- Options expiration behavior now follows broker-style settlement defaults:
+  - Equity/ETF options settle physically at expiration (short ITM -> assignment, long ITM -> exercise when account constraints allow).
+  - Index options settle to cash at intrinsic value.
+- Trade artifacts now preserve option-expiration lifecycle statuses in `trades.csv` / `trades.parquet` and `trade_events` exports so downstream consumers can render assignment/exercise/cash-settlement explicitly.
 
 ### Fixed
 - ThetaData backtesting: keep intraday index minute/hour fetch bounds aligned to the simulation timestamp instead of forcing full-window end coverage.
 - Acceptance baselines: refresh 0DTE backdoor baseline metrics and timing metadata to match current provider data revisions.
 - Acceptance CI: allow a bounded queue-fill threshold for `spx_short_straddle_repro` while keeping strict queue-free checks for other ThetaData acceptance cases.
+- Long ITM equity option expirations now avoid unrealistic forced delivery when account constraints are not met; these contracts expire unexercised in backtests.
 
 ## 4.4.49 - 2026-02-10
 ### Added

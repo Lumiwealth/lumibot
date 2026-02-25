@@ -102,6 +102,9 @@ class Broker(ABC):
     MODIFIED_ORDER = "modified"
     PARTIALLY_FILLED_ORDER = "partial_fill"
     CASH_SETTLED = "cash_settled"
+    ASSIGNED = "assigned"
+    EXERCISED = "exercised"
+    EXPIRED_OPTION = "expired"
     ERROR_ORDER = "error"
     PLACEHOLDER_ORDER = "placeholder"
 
@@ -1275,19 +1278,21 @@ class Broker(ABC):
         self._error_orders.append(order)
         return order
 
-    def _process_cash_settlement(self, order, price, quantity):
+    def _process_option_lifecycle_event(self, order, price, quantity, lifecycle_status, lifecycle_label):
+        price_value = 0.0 if price is None else float(price)
+        quantity_value = 0.0 if quantity is None else float(quantity)
+
         self.logger.info(
             colored(
-                f"Cash Settled: {order.side} {quantity} of {order.asset.symbol} at {price:,.8f} {'USD'} per share",
+                f"{lifecycle_label}: {order.side} {quantity_value} of {order.asset.symbol} at {price_value:,.8f} USD per share",
                 color="green",
             )
         )
-
         self._new_orders.remove(order.identifier, key="identifier")
         self._unprocessed_orders.remove(order.identifier, key="identifier")
         self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price, quantity)
-        order.status = self.CASH_SETTLED
+        order.add_transaction(price_value, quantity_value)
+        order.status = lifecycle_status
         order.set_filled()
         self._filled_orders.append(order)
 
@@ -1299,7 +1304,7 @@ class Broker(ABC):
             # due to exploding open positions).
             if getattr(self, "IS_BACKTESTING_BROKER", False):
                 try:
-                    position.add_order(order, Decimal(str(quantity)))
+                    position.add_order(order, Decimal(str(quantity_value)))
                 except Exception:
                     # Fallback: still record the settlement order even if quantity normalization failed.
                     position.add_order(order)
@@ -1310,10 +1315,51 @@ class Broker(ABC):
                     except Exception:
                         # SafeList/remove semantics vary by broker; leaving a 0-qty position is acceptable.
                         pass
+                    try:
+                        # Expired/settled contracts should not leave active close orders behind.
+                        self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
+                    except Exception:
+                        pass
             else:
                 # Add the order to the already existing position; don't update quantity here because it's
                 # handled by querying broker positions in live trading.
                 position.add_order(order)
+
+    def _process_cash_settlement(self, order, price, quantity):
+        self._process_option_lifecycle_event(
+            order=order,
+            price=price,
+            quantity=quantity,
+            lifecycle_status=self.CASH_SETTLED,
+            lifecycle_label="Cash Settled",
+        )
+
+    def _process_assigned_option(self, order, price, quantity):
+        self._process_option_lifecycle_event(
+            order=order,
+            price=price,
+            quantity=quantity,
+            lifecycle_status=self.ASSIGNED,
+            lifecycle_label="Assigned",
+        )
+
+    def _process_exercised_option(self, order, price, quantity):
+        self._process_option_lifecycle_event(
+            order=order,
+            price=price,
+            quantity=quantity,
+            lifecycle_status=self.EXERCISED,
+            lifecycle_label="Exercised",
+        )
+
+    def _process_expired_option(self, order, price, quantity):
+        self._process_option_lifecycle_event(
+            order=order,
+            price=price,
+            quantity=quantity,
+            lifecycle_status=self.EXPIRED_OPTION,
+            lifecycle_label="Expired",
+        )
 
     def _process_crypto_quote(self, order, quantity, price):
         """Used to process the quote side of a crypto trade."""
@@ -2183,6 +2229,15 @@ class Broker(ABC):
             elif type_event == self.CASH_SETTLED:
                 self._process_cash_settlement(stored_order, price, filled_quantity)
                 stored_order.order_type = self.CASH_SETTLED
+            elif type_event == self.ASSIGNED:
+                self._process_assigned_option(stored_order, price, filled_quantity)
+                stored_order.order_type = self.ASSIGNED
+            elif type_event == self.EXERCISED:
+                self._process_exercised_option(stored_order, price, filled_quantity)
+                stored_order.order_type = self.EXERCISED
+            elif type_event == self.EXPIRED_OPTION:
+                self._process_expired_option(stored_order, price, filled_quantity)
+                stored_order.order_type = self.EXPIRED_OPTION
             else:
                 self.logger.warning(f"Unknown trade event type: {type_event}")
         else:
@@ -2221,6 +2276,15 @@ class Broker(ABC):
             elif Order.is_equivalent_status(type_event, self.CASH_SETTLED):
                 self._process_cash_settlement(stored_order, price, filled_quantity)
                 stored_order.order_type = self.CASH_SETTLED
+            elif Order.is_equivalent_status(type_event, self.ASSIGNED):
+                self._process_assigned_option(stored_order, price, filled_quantity)
+                stored_order.order_type = self.ASSIGNED
+            elif Order.is_equivalent_status(type_event, self.EXERCISED):
+                self._process_exercised_option(stored_order, price, filled_quantity)
+                stored_order.order_type = self.EXERCISED
+            elif Order.is_equivalent_status(type_event, self.EXPIRED_OPTION):
+                self._process_expired_option(stored_order, price, filled_quantity)
+                stored_order.order_type = self.EXPIRED_OPTION
             else:
                 self.logger.warning(f"Unknown trade event type: {type_event}")
 

@@ -75,6 +75,21 @@ TYPICAL_FUTURES_MARGINS = {
     "DEFAULT": 5000,  # Conservative default
 }
 
+INDEX_ROOT_ALIASES = {
+    "SPXW": "SPX",
+    "RUTW": "RUT",
+    "VIXW": "VIX",
+    "NDXP": "NDX",
+}
+
+INDEX_LIKE_SYMBOLS = {
+    "SPX", "SPXW",
+    "NDX", "NDXP",
+    "VIX", "VIXW",
+    "RUT", "RUTW",
+    "XSP", "DJX", "OEX", "XEO",
+}
+
 
 def get_futures_margin_requirement(asset: Asset) -> float:
     """
@@ -904,16 +919,9 @@ class BacktestingBroker(Broker):
 
     def _process_cash_settlement(self, order, price, quantity):
         """
-        BackTesting needs to create/update positions when orders are filled becuase there is no broker to do it
+        Delegate to Broker-level lifecycle handling.
         """
-        existing_position = self.get_tracked_position(order.strategy, order.asset)
         super()._process_cash_settlement(order, price, quantity)
-        if existing_position:
-            existing_position.add_order(order, quantity)  # Add will update quantity, but not double count the order
-            if existing_position.quantity == 0:
-                logger.info("Position %r liquidated" % existing_position)
-                self._filled_positions.remove(existing_position)
-                self._cancel_open_orders_for_asset(order.strategy, order.asset, {order.identifier})
 
     def _update_parent_order_status(self, order: Order):
         """Update the status of a parent order based on the status of its child orders."""
@@ -1128,90 +1136,70 @@ class BacktestingBroker(Broker):
             wait_until_complete=True,
         )
 
-    def cash_settle_options_contract(self, position, strategy):
-        """Cash settle an options contract position. This method will calculate the
-        profit/loss of the position and add it to the cash position of the strategy. This
-        method will not actually sell the contract, it will just add the profit/loss to the
-        cash position and set the position to 0. Note: only for backtesting"""
+    def _infer_underlying_asset_from_strategy(self, strategy, symbol: str) -> Asset | None:
+        """Best-effort: reuse the strategy's explicit non-option underlying asset when available."""
+        try:
+            symbol_norm = (symbol or "").upper()
+        except Exception:
+            symbol_norm = symbol
 
-        # Check to make sure we are in backtesting mode
-        if not self.IS_BACKTESTING_BROKER:
-            logger.error("Cannot cash settle options contract in live trading")
-            return
+        vars_obj = getattr(strategy, "vars", None)
+        if vars_obj is None:
+            return None
 
-        # Check that the position is an options contract
-        if position.asset.asset_type != "option":
-            logger.error(f"Cannot cash settle non-option contract {position.asset}")
-            return
+        candidates: list[Asset] = []
+        try:
+            if hasattr(vars_obj, "all"):
+                values = list(vars_obj.all().values())
+            else:
+                values = list(getattr(vars_obj, "_vars_dict", {}).values())
+        except Exception:
+            values = []
 
-        def _infer_underlying_asset_from_strategy(symbol: str) -> Asset | None:
-            """Best-effort: reuse the strategy's own underlying Asset object when available.
+        def _maybe_add(value: object) -> None:
+            if not isinstance(value, Asset):
+                return
+            if getattr(value, "symbol", None) != symbol_norm:
+                return
+            if getattr(value, "asset_type", None) == Asset.AssetType.OPTION:
+                return
+            candidates.append(value)
 
-            Some Strategy Library demos construct option Assets without `underlying_asset=...`.
-            In that case we should NOT guess based on symbol strings; instead, look for an
-            explicit non-option Asset already attached to the strategy (e.g. `self.vars.underlying_asset`).
-            """
-            try:
-                symbol_norm = (symbol or "").upper()
-            except Exception:
-                symbol_norm = symbol
+        for value in values:
+            if isinstance(value, (list, tuple, set)):
+                for item in value:
+                    _maybe_add(item)
+            else:
+                _maybe_add(value)
 
-            vars_obj = getattr(strategy, "vars", None)
-            if vars_obj is None:
-                return None
-
-            candidates: list[Asset] = []
-            try:
-                if hasattr(vars_obj, "all"):
-                    values = list(vars_obj.all().values())
-                else:
-                    values = list(getattr(vars_obj, "_vars_dict", {}).values())
-            except Exception:
-                values = []
-
-            def _maybe_add(value: object) -> None:
-                if not isinstance(value, Asset):
-                    return
-                if getattr(value, "symbol", None) != symbol_norm:
-                    return
-                if getattr(value, "asset_type", None) == Asset.AssetType.OPTION:
-                    return
-                candidates.append(value)
-
-            for value in values:
-                if isinstance(value, (list, tuple, set)):
-                    for item in value:
-                        _maybe_add(item)
-                else:
-                    _maybe_add(value)
-
-            if not candidates:
-                return None
-            if len(candidates) == 1:
-                return candidates[0]
-
-            for candidate in candidates:
-                if getattr(candidate, "asset_type", None) == Asset.AssetType.INDEX:
-                    return candidate
+        if not candidates:
+            return None
+        if len(candidates) == 1:
             return candidates[0]
 
-        # First check if the option asset has an underlying asset, otherwise try to reuse the
-        # strategy's explicit underlying Asset (keeps asset_type deterministic for indices).
-        underlying_asset = position.asset.underlying_asset
-        if underlying_asset is None:
-            underlying_asset = _infer_underlying_asset_from_strategy(getattr(position.asset, "symbol", None))
-        if underlying_asset is None:
-            underlying_asset = Asset(symbol=position.asset.symbol, asset_type="stock")
+        for candidate in candidates:
+            if getattr(candidate, "asset_type", None) == Asset.AssetType.INDEX:
+                return candidate
+        return candidates[0]
 
-        # Get the price of the underlying asset.
+    def _resolve_underlying_asset_for_option(self, option_asset: Asset, strategy) -> Asset:
+        underlying_asset = option_asset.underlying_asset
+        if underlying_asset is None:
+            underlying_asset = self._infer_underlying_asset_from_strategy(strategy, getattr(option_asset, "symbol", None))
+        if underlying_asset is None:
+            underlying_asset = Asset(symbol=option_asset.symbol, asset_type="stock")
+        return underlying_asset
+
+    def _get_underlying_price_for_settlement(self, underlying_asset: Asset, strategy) -> tuple[float, Asset]:
         underlying_price = None
         last_price_error = None
+        resolved_asset = underlying_asset
 
         def _try_last_price(asset: Asset) -> None:
-            nonlocal underlying_price, last_price_error, underlying_asset
+            nonlocal underlying_price, last_price_error, resolved_asset
             try:
                 underlying_price = self.get_last_price(asset)
-                underlying_asset = asset
+                resolved_asset = asset
                 last_price_error = None
             except Exception as exc:
                 underlying_price = None
@@ -1219,42 +1207,23 @@ class BacktestingBroker(Broker):
 
         _try_last_price(underlying_asset)
 
-        # Index options can arrive without an explicit underlying_asset. In that case we initially
-        # try the underlying as a stock (historical behavior), but SPX/NDX/VIX-style index symbols
-        # are not valid stocks in ThetaData and can produce placeholder-only minute series. When that
-        # happens (or when the price is None), retry as an index before failing.
-        if underlying_price is None and getattr(underlying_asset, "asset_type", None) == Asset.AssetType.STOCK:
-            symbol_upper = str(getattr(underlying_asset, "symbol", "") or "").upper()
-            index_root_aliases = {
-                "SPXW": "SPX",
-                "RUTW": "RUT",
-                "VIXW": "VIX",
-                "NDXP": "NDX",
-            }
-            index_root = index_root_aliases.get(symbol_upper, symbol_upper)
-            index_like_symbols = {
-                "SPX", "SPXW",
-                "NDX", "NDXP",
-                "VIX", "VIXW",
-                "RUT", "RUTW",
-                "XSP", "DJX", "OEX", "XEO",
-            }
-            if symbol_upper in index_like_symbols:
+        if underlying_price is None and getattr(resolved_asset, "asset_type", None) == Asset.AssetType.STOCK:
+            symbol_upper = str(getattr(resolved_asset, "symbol", "") or "").upper()
+            index_root = INDEX_ROOT_ALIASES.get(symbol_upper, symbol_upper)
+            if symbol_upper in INDEX_LIKE_SYMBOLS:
                 _try_last_price(Asset(symbol=index_root, asset_type="index"))
 
         if underlying_price is None and last_price_error is not None:
-            # Common production failure mode: ThetaData returns placeholder-only minute bars for an
-            # index while daily close remains available. Use day-close as the settlement proxy.
             message = str(last_price_error)
             if "[THETA][COVERAGE]" in message:
                 try:
-                    bars = strategy.get_historical_prices(underlying_asset, length=1, timestep="day")
+                    bars = strategy.get_historical_prices(resolved_asset, length=1, timestep="day")
                     df = getattr(bars, "df", None)
                     if df is not None and not df.empty and "close" in df.columns:
                         underlying_price = float(df["close"].iloc[-1])
                         logger.warning(
-                            "[CASH_SETTLE][FALLBACK] get_last_price(%s) failed (%s); settling using daily close=%s",
-                            underlying_asset,
+                            "[OPTION_SETTLEMENT][FALLBACK] get_last_price(%s) failed (%s); settling using daily close=%s",
+                            resolved_asset,
                             message.splitlines()[0],
                             underlying_price,
                         )
@@ -1264,57 +1233,159 @@ class BacktestingBroker(Broker):
         if underlying_price is None:
             if last_price_error is not None:
                 raise last_price_error
-            raise ValueError(f"Unable to price underlying {underlying_asset} for cash settlement of {position.asset}")
+            raise ValueError(f"Unable to price underlying {resolved_asset} for settlement")
 
-        # Calculate profit/loss per contract
-        if position.asset.right == "CALL":
-            profit_loss_per_contract = underlying_price - position.asset.strike
+        return float(underlying_price), resolved_asset
+
+    def _intrinsic_value_per_contract(self, option_asset: Asset, underlying_price: float) -> float:
+        if option_asset.right == Asset.OptionRight.CALL:
+            return max(0.0, float(underlying_price) - float(option_asset.strike))
+        return max(0.0, float(option_asset.strike) - float(underlying_price))
+
+    def _is_cash_settled_index_option(self, option_asset: Asset, underlying_asset: Asset) -> bool:
+        if getattr(underlying_asset, "asset_type", None) == Asset.AssetType.INDEX:
+            return True
+        symbol_upper = str(getattr(option_asset, "symbol", "") or "").upper()
+        return symbol_upper in INDEX_LIKE_SYMBOLS
+
+    def _dispatch_option_expiration_event(self, position, strategy, event_type: str, price: float) -> None:
+        side = Order.OrderSide.SELL if position.quantity > 0 else Order.OrderSide.BUY
+        order = strategy.create_order(position.asset, abs(position.quantity), side)
+        self.stream.dispatch(
+            event_type,
+            wait_until_complete=True,
+            order=order,
+            price=float(price),
+            filled_quantity=abs(float(position.quantity)),
+        )
+
+    def _dispatch_underlying_delivery_fill(
+        self,
+        strategy,
+        underlying_asset: Asset,
+        side: str,
+        quantity: float,
+        strike_price: float,
+        settlement_kind: str,
+    ) -> None:
+        if quantity <= 0:
+            return
+
+        order = strategy.create_order(underlying_asset, quantity, side)
+        # Tag delivery rows so downstream tooling can distinguish assignment/exercise fills.
+        order.order_type = settlement_kind
+        self._execute_filled_order(
+            order=order,
+            price=float(strike_price),
+            filled_quantity=Decimal(str(quantity)),
+            strategy=strategy,
+        )
+
+    def _can_support_long_exercise(self, strategy, underlying_asset: Asset, option_asset: Asset, contracts: float) -> bool:
+        shares = float(contracts) * float(option_asset.multiplier)
+        if option_asset.right == Asset.OptionRight.CALL:
+            required_cash = Decimal(str(option_asset.strike)) * Decimal(str(shares))
+            current_cash = strategy.get_cash()
+            if current_cash is None:
+                return False
+            return Decimal(str(current_cash)) >= required_cash
+
+        if option_asset.right == Asset.OptionRight.PUT:
+            underlying_position = self.get_tracked_position(strategy.name, underlying_asset)
+            if underlying_position is None:
+                return False
+            return float(underlying_position.quantity) >= shares
+
+        return False
+
+    def settle_expired_option_contract(self, position, strategy):
+        if position.asset.asset_type != Asset.AssetType.OPTION:
+            logger.error(f"Cannot settle non-option contract {position.asset}")
+            return
+
+        contracts = abs(float(position.quantity))
+        if contracts <= 0:
+            return
+
+        underlying_asset = self._resolve_underlying_asset_for_option(position.asset, strategy)
+        underlying_price, underlying_asset = self._get_underlying_price_for_settlement(underlying_asset, strategy)
+        intrinsic_per_contract = self._intrinsic_value_per_contract(position.asset, underlying_price)
+
+        if intrinsic_per_contract <= 0:
+            self._dispatch_option_expiration_event(position, strategy, self.EXPIRED_OPTION, price=0.0)
+            return
+
+        if self._is_cash_settled_index_option(position.asset, underlying_asset):
+            self.cash_settle_options_contract(position, strategy)
+            return
+
+        if position.quantity > 0:
+            if not self._can_support_long_exercise(strategy, underlying_asset, position.asset, contracts):
+                logger.warning(
+                    "[OPTION_EXPIRY][DNE] Long ITM option %s could not be exercised due to account constraints; expiring without exercise.",
+                    position.asset,
+                )
+                self._dispatch_option_expiration_event(position, strategy, self.EXPIRED_OPTION, price=0.0)
+                return
+            option_event_type = self.EXERCISED
         else:
-            profit_loss_per_contract = position.asset.strike - underlying_price
+            option_event_type = self.ASSIGNED
 
-        # Calculate profit/loss for the position
-        profit_loss = profit_loss_per_contract * position.quantity * position.asset.multiplier
+        if position.asset.right == Asset.OptionRight.CALL:
+            underlying_side = Order.OrderSide.BUY if position.quantity > 0 else Order.OrderSide.SELL
+        else:
+            underlying_side = Order.OrderSide.SELL if position.quantity > 0 else Order.OrderSide.BUY
 
-        # Adjust profit/loss based on the option type and position
-        if position.quantity > 0 and profit_loss < 0:
-            profit_loss = 0  # Long position can't lose more than the premium paid
-        elif position.quantity < 0 and profit_loss > 0:
-            profit_loss = 0  # Short position can't gain more than the cash collected
+        self._dispatch_option_expiration_event(
+            position,
+            strategy,
+            option_event_type,
+            price=intrinsic_per_contract,
+        )
 
-        # Add the profit/loss to the cash position
+        self._dispatch_underlying_delivery_fill(
+            strategy=strategy,
+            underlying_asset=underlying_asset,
+            side=underlying_side,
+            quantity=contracts * float(position.asset.multiplier),
+            strike_price=float(position.asset.strike),
+            settlement_kind=option_event_type,
+        )
+
+    def cash_settle_options_contract(self, position, strategy):
+        """Cash settle an options contract (used by cash-settled index options)."""
+        if not self.IS_BACKTESTING_BROKER:
+            logger.error("Cannot cash settle options contract in live trading")
+            return
+        if position.asset.asset_type != Asset.AssetType.OPTION:
+            logger.error(f"Cannot cash settle non-option contract {position.asset}")
+            return
+
+        underlying_asset = self._resolve_underlying_asset_for_option(position.asset, strategy)
+        underlying_price, _ = self._get_underlying_price_for_settlement(underlying_asset, strategy)
+        intrinsic_per_contract = self._intrinsic_value_per_contract(position.asset, underlying_price)
+        profit_loss = intrinsic_per_contract * float(position.quantity) * float(position.asset.multiplier)
+
         current_cash = strategy.get_cash()
         if current_cash is None:
-            # self.strategy.logger.warning("strategy.get_cash() returned None during cash_settle_options_contract. Defaulting to 0.")
             current_cash = Decimal(0)
         else:
-            current_cash = Decimal(str(current_cash)) # Ensure it's Decimal
+            current_cash = Decimal(str(current_cash))
 
-        new_cash = current_cash + Decimal(str(profit_loss))
+        strategy._set_cash_position(float(current_cash + Decimal(str(profit_loss))))
 
-        # Update the cash position
-        strategy._set_cash_position(float(new_cash)) # _set_cash_position expects float
-
-        # Set the side
-        if position.quantity > 0:
-            side = "sell"
-        else:
-            side = "buy"
-
-        # Create offsetting order
+        side = Order.OrderSide.SELL if position.quantity > 0 else Order.OrderSide.BUY
         order = strategy.create_order(position.asset, abs(position.quantity), side)
-
-        # Send filled order event
         self.stream.dispatch(
             self.CASH_SETTLED,
             wait_until_complete=True,
             order=order,
-            price=abs(profit_loss / position.quantity / position.asset.multiplier),
-            filled_quantity=abs(position.quantity),
+            price=float(intrinsic_per_contract),
+            filled_quantity=abs(float(position.quantity)),
         )
 
     def process_expired_option_contracts(self, strategy):
-        """Checks if options or futures contracts have expried and converts
-        to cash.
+        """Process expiration lifecycle events for options contracts.
 
         Parameters
         ----------
@@ -1353,8 +1424,8 @@ class BacktestingBroker(Broker):
                 # get "stuck" indefinitely in long daily-cadence backtests.
                 self._cancel_open_orders_for_asset(strategy.name, position.asset, set())
 
-                # Cash settle the options contract
-                self.cash_settle_options_contract(position, strategy)
+                if position.asset.asset_type == Asset.AssetType.OPTION:
+                    self.settle_expired_option_contract(position, strategy)
 
     def _apply_trade_cost(self, strategy, trade_cost: Decimal) -> None:
         if not trade_cost:
@@ -3783,6 +3854,48 @@ class BacktestingBroker(Broker):
                 broker._process_trade_event(
                     order,
                     broker.CASH_SETTLED,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+                return True
+            except:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.ASSIGNED)
+        def on_trade_event(order, price, filled_quantity):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.ASSIGNED,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+                return True
+            except:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.EXERCISED)
+        def on_trade_event(order, price, filled_quantity):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.EXERCISED,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+                return True
+            except:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.EXPIRED_OPTION)
+        def on_trade_event(order, price, filled_quantity):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.EXPIRED_OPTION,
                     price=price,
                     filled_quantity=filled_quantity,
                     multiplier=order.asset.multiplier,

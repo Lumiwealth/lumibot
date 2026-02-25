@@ -189,6 +189,20 @@ Then, the strategy and backtesting code might look like this:
         pandas_data=pandas_data,
     )
 
+Options Expiration Settlement Policy
+------------------------------------
+
+Pandas backtesting follows broker-style defaults for options expiration:
+
+- Equity/ETF options are physically settled at expiration.
+  - Short in-the-money contracts are modeled as ``assigned``.
+  - Long in-the-money contracts are modeled as ``exercised`` when account constraints allow delivery.
+- Index options are cash settled at intrinsic value and exported as ``cash_settled``.
+- Out-of-the-money contracts expire as ``expired``.
+
+These statuses are written to the trade artifacts so downstream systems can distinguish
+normal fills from expiration lifecycle events.
+
 Optional: Environment Variables
 -------------------------------
 If you prefer not to specify `backtesting_start` and `backtesting_end` in code, you can set the following environment variables, and LumiBot will automatically detect them:

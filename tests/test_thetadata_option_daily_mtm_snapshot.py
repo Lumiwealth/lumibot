@@ -166,6 +166,55 @@ def test_thetadata_daily_option_mtm_falls_back_to_day_price_if_snapshot_missing(
     ]
 
 
+def test_thetadata_daily_option_mtm_uses_forward_fill_when_snapshot_missing() -> None:
+    """If snapshot is missing and we already have a mark, return None so forward-fill is used."""
+
+    class DummyBroker:
+        datetime = datetime(2025, 3, 26, 9, 30)
+
+    class DummyStrategy:
+        is_backtesting = True
+        broker = DummyBroker()
+        logger = logging.getLogger("lumibot.test")
+        _quote_asset = Asset("USD", asset_type="forex")
+        _last_known_prices = {}
+
+        def _get_sleeptime_seconds(self):
+            return 24 * 3600
+
+    dummy_strategy = DummyStrategy()
+
+    option_asset = Asset(
+        symbol="SPY",
+        asset_type="option",
+        expiration=date(2025, 4, 11),
+        strike=582.5,
+        right="put",
+    )
+    dummy_strategy._last_known_prices[option_asset] = 15.59
+
+    source = object.__new__(ThetaDataBacktestingPandas)
+    called = {}
+
+    def fake_get_quote(asset, quote=None, exchange=None, timestep="minute", **kwargs):
+        calls = called.setdefault("calls", [])
+        calls.append({"timestep": timestep, "snapshot_only": bool(kwargs.get("snapshot_only", False))})
+        if timestep == "day":
+            return SimpleNamespace(bid=12.68, ask=15.23, price=None)
+        assert timestep == "minute"
+        assert bool(kwargs.get("snapshot_only", False)) is True
+        return SimpleNamespace(bid=None, ask=None, price=None)
+
+    source.get_quote = fake_get_quote
+
+    price = _Strategy._get_price_from_source(dummy_strategy, source, option_asset)
+    assert price is None
+    assert called["calls"] == [
+        {"timestep": "day", "snapshot_only": False},
+        {"timestep": "minute", "snapshot_only": True},
+    ]
+
+
 def test_thetadata_daily_option_mtm_prefers_snapshot_over_stale_day_nbbo() -> None:
     """Daily MTM should prefer snapshot mark even if day quote has two-sided NBBO."""
 

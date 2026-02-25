@@ -1001,9 +1001,18 @@ class _Strategy:
                             if quote_mark is not None:
                                 return quote_mark
 
-                        # If snapshot probing failed but day quote carried a positive trade-derived
-                        # price, keep that as a last-resort mark to avoid dropping valuation to None.
+                        # If snapshot probing failed, avoid forcing day-quote marks for established
+                        # positions when we already have a prior valid mark to forward-fill from.
+                        # This prevents stale day quotes from creating artificial intraday MTM cliffs.
+                        has_last_known_price = False
+                        try:
+                            has_last_known_price = base_asset in getattr(self, "_last_known_prices", {})
+                        except Exception:
+                            has_last_known_price = False
+
                         if day_quote_mark is not None:
+                            if has_last_known_price:
+                                return None
                             return day_quote_mark
             except Exception as e:
                 self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)

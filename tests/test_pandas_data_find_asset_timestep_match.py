@@ -1,9 +1,23 @@
 from __future__ import annotations
 
+import pytz
 import pandas as pd
+from datetime import datetime
 
 from lumibot.data_sources.pandas_data import PandasData
 from lumibot.entities import Asset, Data
+
+# ---------------------------------------------------------------------------
+# Module-level datetime constants used by the real-constructor helpers below.
+# PandasData.__init__ → DataSourceBacktesting.__init__ requires a timezone-aware
+# datetime_start so that get_timezone_from_datetime() does not crash.  Using the
+# real constructor (rather than __new__) means any future attribute added to
+# find_asset_in_data_store will be present, making test failures meaningful
+# rather than cryptic AttributeErrors.
+# ---------------------------------------------------------------------------
+_TZ = pytz.timezone("America/New_York")
+_START = datetime(2025, 1, 2, 9, 30, tzinfo=_TZ)
+_END = datetime(2025, 1, 3, 16, 0, tzinfo=_TZ)
 
 
 def _minute_df(tz: str = "America/New_York") -> pd.DataFrame:
@@ -25,12 +39,23 @@ def _day_df(tz: str = "America/New_York") -> pd.DataFrame:
 
 
 def _make_ds(data_store: dict, allow_day_resampling: bool = True) -> PandasData:
-    """Build a minimal PandasData-like object without calling __init__."""
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = data_store
-    ds._find_asset_in_data_store_cache = {}
-    ds.allow_day_resampling = allow_day_resampling
-    return ds
+    """Build a PandasData instance using the real constructor.
+
+    Passes the Data objects in *data_store* as a list; PandasData._set_pandas_data_keys()
+    derives the same (asset, quote) 2-tuple key from each Data object's .asset/.quote
+    attributes, so the resulting _data_store is equivalent to passing the dict directly.
+
+    Using the real constructor (rather than PandasData.__new__()) ensures all instance
+    attributes are properly initialised, so a test failure is a meaningful assertion
+    error rather than a cryptic AttributeError if find_asset_in_data_store is ever
+    changed to read an additional attribute.
+    """
+    return PandasData(
+        datetime_start=_START,
+        datetime_end=_END,
+        pandas_data=list(data_store.values()),
+        allow_day_resampling=allow_day_resampling,
+    )
 
 
 def test_find_asset_in_data_store_does_not_return_daily_for_minute_requests():
@@ -256,16 +281,13 @@ def _make_full_pandas_ds(day_df_data: pd.DataFrame, minute_df_data: pd.DataFrame
     store.  This mirrors the situation after a first 15m get_historical_prices call has
     populated minute data, and then a day call is made.
     """
-    from datetime import datetime, timezone
-    from lumibot.entities import Data
-
     minute_data = Data(spy, minute_df_data, timestep="minute", quote=quote)
-
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(spy, quote): minute_data}
-    ds._find_asset_in_data_store_cache = {}
-    ds.allow_day_resampling = allow_day_resampling
-    return ds
+    return PandasData(
+        datetime_start=_START,
+        datetime_end=_END,
+        pandas_data=[minute_data],
+        allow_day_resampling=allow_day_resampling,
+    )
 
 
 def test_get_historical_prices_day_after_minute_cache_allow_resampling():
@@ -275,8 +297,6 @@ def test_get_historical_prices_day_after_minute_cache_allow_resampling():
 
     This is the exact failure scenario from the bug report (Polygon path).
     """
-    from datetime import datetime, timezone
-
     spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
@@ -290,15 +310,17 @@ def test_get_historical_prices_day_after_minute_cache_allow_resampling():
 
     minute_data = Data(spy, minute_df, timestep="minute", quote=quote)
 
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(spy, quote): minute_data}
-    ds._find_asset_in_data_store_cache = {}
-    ds.allow_day_resampling = True  # Polygon / base PandasData default
+    ds = PandasData(
+        datetime_start=_START,
+        datetime_end=_END,
+        pandas_data=[minute_data],
+        allow_day_resampling=True,  # Polygon / base PandasData default
+    )
 
-    # Simulate the backtest clock sitting at end of the trading day
+    # Simulate the backtest clock sitting at end of the trading day.
+    # get_datetime() is monkey-patched so _pull_source_symbol_bars gets the right "now"
+    # without having to advance the backtesting iterator.
     now = pd.Timestamp("2025-01-02 16:00:00", tz="America/New_York").to_pydatetime()
-
-    # Patch get_datetime so _pull_source_symbol_bars knows "now"
     ds.get_datetime = lambda: now
 
     response = ds._pull_source_symbol_bars(spy, length=1, timestep="day", quote=quote)
@@ -313,8 +335,6 @@ def test_get_historical_prices_day_after_minute_cache_no_resampling():
     With allow_day_resampling=False (ThetaData), the same scenario must return None from
     _pull_source_symbol_bars so that the caller is forced to fetch native day bars.
     """
-    from datetime import datetime, timezone
-
     spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
@@ -327,10 +347,12 @@ def test_get_historical_prices_day_after_minute_cache_no_resampling():
 
     minute_data = Data(spy, minute_df, timestep="minute", quote=quote)
 
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(spy, quote): minute_data}
-    ds._find_asset_in_data_store_cache = {}
-    ds.allow_day_resampling = False  # ThetaData-style: exact match required
+    ds = PandasData(
+        datetime_start=_START,
+        datetime_end=_END,
+        pandas_data=[minute_data],
+        allow_day_resampling=False,  # ThetaData-style: exact match required
+    )
 
     now = pd.Timestamp("2025-01-02 16:00:00", tz="America/New_York").to_pydatetime()
     ds.get_datetime = lambda: now
@@ -348,7 +370,7 @@ def test_get_historical_prices_day_after_minute_cache_no_resampling():
 
 def test_pandas_data_default_allow_day_resampling_is_true():
     """PandasData defaults allow_day_resampling=True (Polygon / base PandasData behaviour)."""
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     ds = PandasData(
         datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
@@ -360,7 +382,7 @@ def test_pandas_data_default_allow_day_resampling_is_true():
 
 def test_pandas_data_explicit_false_allow_day_resampling():
     """allow_day_resampling=False can be passed explicitly to PandasData."""
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     ds = PandasData(
         datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
@@ -375,7 +397,7 @@ def test_thetadata_backtesting_sets_allow_day_resampling_false(monkeypatch):
     """ThetaDataBacktestingPandas must hard-set allow_day_resampling=False."""
     import lumibot.tools.thetadata_helper as thetadata_helper
     from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_a, **_kw: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_a, **_kw: None)
@@ -396,7 +418,7 @@ def test_polygon_backtesting_sets_allow_day_resampling_true(monkeypatch):
     """PolygonDataBacktesting must hard-set allow_day_resampling=True."""
     from lumibot.backtesting.polygon_backtesting import PolygonDataBacktesting
     from lumibot.tools.polygon_helper import PolygonClient
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     monkeypatch.setattr(PolygonClient, "create", lambda api_key: None)
 

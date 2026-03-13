@@ -24,15 +24,22 @@ def _day_df(tz: str = "America/New_York") -> pd.DataFrame:
     )
 
 
+def _make_ds(data_store: dict, allow_day_resampling: bool = True) -> PandasData:
+    """Build a minimal PandasData-like object without calling __init__."""
+    ds = PandasData.__new__(PandasData)
+    ds._data_store = data_store
+    ds._find_asset_in_data_store_cache = {}
+    ds.allow_day_resampling = allow_day_resampling
+    return ds
+
+
 def test_find_asset_in_data_store_does_not_return_daily_for_minute_requests():
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
     daily = Data(base, _day_df(), timestep="day", quote=quote)
 
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(base, quote): daily}  # type: ignore[attr-defined]
-    ds._find_asset_in_data_store_cache = {}
+    ds = _make_ds({(base, quote): daily})
 
     # Simulate how crypto/forex often passes assets as a tuple while quote=None.
     asset_tuple = (base, quote)
@@ -47,9 +54,7 @@ def test_find_asset_in_data_store_allows_minute_data_to_satisfy_day_requests():
 
     minute = Data(base, _minute_df(), timestep="minute", quote=quote)
 
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(base, quote): minute}  # type: ignore[attr-defined]
-    ds._find_asset_in_data_store_cache = {}
+    ds = _make_ds({(base, quote): minute})
 
     asset_tuple = (base, quote)
     assert ds.find_asset_in_data_store(asset_tuple, quote=None, timestep="day") == (base, quote)
@@ -57,113 +62,350 @@ def test_find_asset_in_data_store_allows_minute_data_to_satisfy_day_requests():
 
 
 # ---------------------------------------------------------------------------
-# Regression tests for the stock/index guard introduced in _accepts_timestep
-# (pandas_data.py lines ~416-426):
+# Tests for the allow_day_resampling flag — the fix for the Polygon vs ThetaData
+# conflict described in the original bug report.
 #
-#   if requested_unit == "day":
-#       if requested_asset_type in {"stock", "index"}:
-#           return data_ts == "day"   # <-- minute data REJECTED for stocks
-#       return data_ts in {"day", "minute"}
+# allow_day_resampling=True  (default, Polygon / base PandasData):
+#   minute data in the store CAN satisfy a day-bar lookup for stocks/indices so
+#   that Data.get_bars() minute→day resampling fires.
 #
-# Effect: a strategy that loads only minute data for a stock (e.g., via a 15m bar
-# fetch) and then calls get_historical_prices(..., timestep="1 day") receives None,
-# even though data.py's get_bars() (lines 1307-1312) fully supports minute-to-day
-# resampling.
+# allow_day_resampling=False (ThetaData):
+#   Exact timestep match is required. A cached minute dataset must NEVER proxy
+#   for a day request so that ThetaData's split-adjusted day bars are used.
 # ---------------------------------------------------------------------------
 
 
-def test_find_asset_in_data_store_stock_minute_data_day_request_returns_none():
+def test_find_asset_in_data_store_stock_minute_data_day_request_allow_resampling():
     """
-    BUG DEMONSTRATION: find_asset_in_data_store returns None when a STOCK asset
-    has only minute data in the store and a day-bar request is made.
+    FIX VERIFICATION: With allow_day_resampling=True (Polygon / base PandasData default),
+    a stock asset that only has minute data in the store can satisfy a day-bar request.
 
-    This is the root cause of the silent get_historical_prices failure observed in
-    live backtests that call get_historical_prices(asset, timestep="15 minute") first
-    and then get_historical_prices(asset, timestep="1 day").
-
-    The 15-minute call caches minute data in _data_store for the stock. The
-    subsequent day call is then gated out by the stock guard in _accepts_timestep
-    before data.get_bars() is ever reached.
-
-    NOTE: When the bug is fixed (the stock guard is removed or relaxed), the assertion
-    ``assert day_key is None`` below will fail.  At that point change it to
-    ``assert day_key == (spy, quote)`` and add a test that the returned Bars are
-    non-empty daily bars.
+    This is the root cause of the silent get_historical_prices failure when a live backtest
+    calls get_historical_prices(asset, timestep="15 minute") first and then
+    get_historical_prices(asset, timestep="1 day").  With allow_day_resampling=True the
+    second call finds the minute data and lets Data.get_bars() resample it to daily bars.
     """
     spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
     minute_data = Data(spy, _minute_df(), timestep="minute", quote=quote)
 
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(spy, quote): minute_data}
-    ds._find_asset_in_data_store_cache = {}
+    # Default (allow_day_resampling=True) — the fix
+    ds = _make_ds({(spy, quote): minute_data}, allow_day_resampling=True)
 
-    # 15-minute request: minute data IS accepted → key is found (works correctly)
+    # 15-minute request: minute data IS accepted (works correctly both before and after fix)
     min_key = ds.find_asset_in_data_store(spy, quote=quote, timestep="15 minute")
     assert min_key == (spy, quote), (
         "15-minute request must find the minute data store so the strategy can read intraday bars."
     )
 
-    # 1-day request: minute data is NOT accepted for stocks → None returned (BUG)
-    # data.py get_bars() would happily resample minute → day if it were reached, but it
-    # never is because _accepts_timestep blocks the lookup at pandas_data.py:424-425.
+    # 1-day request: with allow_day_resampling=True, minute data IS now accepted for stocks
     day_key = ds.find_asset_in_data_store(spy, quote=quote, timestep="day")
-    assert day_key is None, (
-        "BUG: find_asset_in_data_store returns None for stock + minute data + day request. "
-        "Fix: relax the stock guard in _accepts_timestep so minute data can satisfy day "
-        "requests and reach data.get_bars() minute-to-day resampling."
+    assert day_key == (spy, quote), (
+        "With allow_day_resampling=True, minute data must satisfy day requests so that "
+        "Data.get_bars() can resample minute → day bars."
     )
 
 
-def test_find_asset_in_data_store_stock_vs_crypto_asymmetry():
+def test_find_asset_in_data_store_stock_minute_data_day_request_no_resampling():
     """
-    Demonstrates the stock/crypto asymmetry introduced by the stock guard.
+    With allow_day_resampling=False (ThetaData), a stock with only minute data in the
+    store must NOT satisfy a day-bar request.  This forces an explicit day-bar fetch and
+    preserves ThetaData's split-adjusted day-bar normalisation.
+    """
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    minute_data = Data(spy, _minute_df(), timestep="minute", quote=quote)
 
-    Crypto (BTC) with minute data → day request returns the key (unchanged).
-    Stock (SPY) with minute data → day request returns None (broken by the guard).
+    # ThetaData-style (allow_day_resampling=False)
+    ds = _make_ds({(spy, quote): minute_data}, allow_day_resampling=False)
+
+    # 15-minute request still works (minute data satisfies minute requests)
+    min_key = ds.find_asset_in_data_store(spy, quote=quote, timestep="15 minute")
+    assert min_key == (spy, quote)
+
+    # 1-day request must NOT find the minute data (forces fresh day-bar fetch)
+    day_key = ds.find_asset_in_data_store(spy, quote=quote, timestep="day")
+    assert day_key is None, (
+        "With allow_day_resampling=False (ThetaData), minute data must not satisfy day requests."
+    )
+
+
+def test_find_asset_in_data_store_stock_vs_crypto_symmetry_allow_resampling():
+    """
+    With allow_day_resampling=True, stocks and crypto behave symmetrically:
+    both can use minute data to satisfy day requests.
     """
     usd = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    # --- Crypto: minute data still satisfies day requests ---
+    # Crypto: minute data satisfies day requests
     btc = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     btc_minute = Data(btc, _minute_df(), timestep="minute", quote=usd)
-    ds_crypto = PandasData.__new__(PandasData)
-    ds_crypto._data_store = {(btc, usd): btc_minute}
-    ds_crypto._find_asset_in_data_store_cache = {}
-
+    ds_crypto = _make_ds({(btc, usd): btc_minute}, allow_day_resampling=True)
     assert ds_crypto.find_asset_in_data_store((btc, usd), quote=None, timestep="day") == (btc, usd), (
-        "Crypto with minute data should still satisfy day requests."
+        "Crypto with minute data should satisfy day requests."
     )
 
-    # --- Stock: minute data NO LONGER satisfies day requests (the bug) ---
+    # Stock: minute data also satisfies day requests with allow_day_resampling=True
     spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
     spy_minute = Data(spy, _minute_df(), timestep="minute", quote=usd)
-    ds_stock = PandasData.__new__(PandasData)
-    ds_stock._data_store = {(spy, usd): spy_minute}
-    ds_stock._find_asset_in_data_store_cache = {}
-
-    assert ds_stock.find_asset_in_data_store(spy, quote=usd, timestep="day") is None, (
-        "BUG: Stock with minute data should also satisfy day requests (same as crypto), "
-        "but the stock guard in _accepts_timestep blocks this."
+    ds_stock = _make_ds({(spy, usd): spy_minute}, allow_day_resampling=True)
+    assert ds_stock.find_asset_in_data_store(spy, quote=usd, timestep="day") == (spy, usd), (
+        "Stock with minute data should also satisfy day requests when allow_day_resampling=True."
     )
 
 
-def test_find_asset_in_data_store_index_minute_data_day_request_returns_none():
+def test_find_asset_in_data_store_stock_vs_crypto_no_resampling():
     """
-    The same stock guard also blocks INDEX assets from using minute data for day requests.
+    With allow_day_resampling=False (ThetaData), BOTH stocks AND crypto/other types
+    must use exact timestep matching — minute data never satisfies a day request.
+    This is stricter than the old stock/index-only guard but correct for ThetaData
+    because it stores data under separate (asset, quote, timestep) canonical keys.
+    """
+    usd = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    # Crypto: minute data must NOT satisfy day requests with allow_day_resampling=False
+    btc = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    btc_minute = Data(btc, _minute_df(), timestep="minute", quote=usd)
+    ds_crypto = _make_ds({(btc, usd): btc_minute}, allow_day_resampling=False)
+    assert ds_crypto.find_asset_in_data_store((btc, usd), quote=None, timestep="day") is None, (
+        "With allow_day_resampling=False, even crypto minute data must not satisfy day requests."
+    )
+
+    # Stock: same
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    spy_minute = Data(spy, _minute_df(), timestep="minute", quote=usd)
+    ds_stock = _make_ds({(spy, usd): spy_minute}, allow_day_resampling=False)
+    assert ds_stock.find_asset_in_data_store(spy, quote=usd, timestep="day") is None
+
+
+def test_find_asset_in_data_store_index_minute_data_day_request_allow_resampling():
+    """
+    INDEX assets behave the same as stocks: with allow_day_resampling=True they can
+    use minute data for day requests; with allow_day_resampling=False they cannot.
     """
     spx = Asset("SPX", asset_type=Asset.AssetType.INDEX)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
     minute_data = Data(spx, _minute_df(), timestep="minute", quote=quote)
 
-    ds = PandasData.__new__(PandasData)
-    ds._data_store = {(spx, quote): minute_data}
-    ds._find_asset_in_data_store_cache = {}
+    # Minute requests always work regardless of flag
+    ds = _make_ds({(spx, quote): minute_data}, allow_day_resampling=True)
+    assert ds.find_asset_in_data_store(spx, quote=quote, timestep="minute") == (spx, quote)
+
+    # Day request: allowed when allow_day_resampling=True
+    assert ds.find_asset_in_data_store(spx, quote=quote, timestep="day") == (spx, quote)
+
+
+def test_find_asset_in_data_store_index_minute_data_day_request_no_resampling():
+    """
+    The same INDEX guard: with allow_day_resampling=False, day requests are blocked.
+    """
+    spx = Asset("SPX", asset_type=Asset.AssetType.INDEX)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    minute_data = Data(spx, _minute_df(), timestep="minute", quote=quote)
+
+    ds = _make_ds({(spx, quote): minute_data}, allow_day_resampling=False)
 
     # Minute requests still work for index assets
     assert ds.find_asset_in_data_store(spx, quote=quote, timestep="minute") == (spx, quote)
 
-    # Day requests are blocked for index assets too (same guard as stocks)
+    # Day requests are blocked
     assert ds.find_asset_in_data_store(spx, quote=quote, timestep="day") is None
 
 
+def test_find_asset_in_data_store_native_day_data_always_found():
+    """
+    Regardless of allow_day_resampling, native day data must always satisfy day requests.
+    """
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_data = Data(spy, _day_df(), timestep="day", quote=quote)
+
+    for flag in (True, False):
+        ds = _make_ds({(spy, quote): day_data}, allow_day_resampling=flag)
+        assert ds.find_asset_in_data_store(spy, quote=quote, timestep="day") == (spy, quote), (
+            f"Native day data must always satisfy day requests (allow_day_resampling={flag})."
+        )
+
+
+def test_find_asset_in_data_store_day_data_never_satisfies_minute_request():
+    """
+    Day data must never satisfy minute requests, regardless of allow_day_resampling.
+    """
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_data = Data(spy, _day_df(), timestep="day", quote=quote)
+
+    for flag in (True, False):
+        ds = _make_ds({(spy, quote): day_data}, allow_day_resampling=flag)
+        assert ds.find_asset_in_data_store(spy, quote=quote, timestep="minute") is None, (
+            f"Day data must never satisfy minute requests (allow_day_resampling={flag})."
+        )
+
+
+# ---------------------------------------------------------------------------
+# End-to-end regression test: 15m request → 1d request on a stock.
+#
+# Simulates the exact live-backtest scenario described in the bug report using
+# PandasData._pull_source_symbol_bars directly (no live network calls).
+# ---------------------------------------------------------------------------
+
+def _make_full_pandas_ds(day_df_data: pd.DataFrame, minute_df_data: pd.DataFrame,
+                         spy: Asset, quote: Asset, allow_day_resampling: bool) -> PandasData:
+    """
+    Build a PandasData instance that has BOTH a minute dataset and a day dataset in its
+    store.  This mirrors the situation after a first 15m get_historical_prices call has
+    populated minute data, and then a day call is made.
+    """
+    from datetime import datetime, timezone
+    from lumibot.entities import Data
+
+    minute_data = Data(spy, minute_df_data, timestep="minute", quote=quote)
+
+    ds = PandasData.__new__(PandasData)
+    ds._data_store = {(spy, quote): minute_data}
+    ds._find_asset_in_data_store_cache = {}
+    ds.allow_day_resampling = allow_day_resampling
+    return ds
+
+
+def test_get_historical_prices_day_after_minute_cache_allow_resampling():
+    """
+    Regression: after a 15m request has populated minute data for a stock, a subsequent
+    1d get_historical_prices call must return non-None Bars when allow_day_resampling=True.
+
+    This is the exact failure scenario from the bug report (Polygon path).
+    """
+    from datetime import datetime, timezone
+
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    # Build a minute DataFrame covering a full trading day (390 1-min bars)
+    idx = pd.date_range("2025-01-02 09:31", periods=390, freq="1min", tz="America/New_York")
+    price = [450.0 + i * 0.01 for i in range(390)]
+    minute_df = pd.DataFrame(
+        {"open": price, "high": price, "low": price, "close": price, "volume": [1000] * 390},
+        index=idx,
+    )
+
+    minute_data = Data(spy, minute_df, timestep="minute", quote=quote)
+
+    ds = PandasData.__new__(PandasData)
+    ds._data_store = {(spy, quote): minute_data}
+    ds._find_asset_in_data_store_cache = {}
+    ds.allow_day_resampling = True  # Polygon / base PandasData default
+
+    # Simulate the backtest clock sitting at end of the trading day
+    now = pd.Timestamp("2025-01-02 16:00:00", tz="America/New_York").to_pydatetime()
+
+    # Patch get_datetime so _pull_source_symbol_bars knows "now"
+    ds.get_datetime = lambda: now
+
+    response = ds._pull_source_symbol_bars(spy, length=1, timestep="day", quote=quote)
+    assert response is not None, (
+        "With allow_day_resampling=True and a full trading day of minute data in the store, "
+        "a day-bar request must return non-None (resampled) bars."
+    )
+
+
+def test_get_historical_prices_day_after_minute_cache_no_resampling():
+    """
+    With allow_day_resampling=False (ThetaData), the same scenario must return None from
+    _pull_source_symbol_bars so that the caller is forced to fetch native day bars.
+    """
+    from datetime import datetime, timezone
+
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    idx = pd.date_range("2025-01-02 09:31", periods=390, freq="1min", tz="America/New_York")
+    price = [450.0 + i * 0.01 for i in range(390)]
+    minute_df = pd.DataFrame(
+        {"open": price, "high": price, "low": price, "close": price, "volume": [1000] * 390},
+        index=idx,
+    )
+
+    minute_data = Data(spy, minute_df, timestep="minute", quote=quote)
+
+    ds = PandasData.__new__(PandasData)
+    ds._data_store = {(spy, quote): minute_data}
+    ds._find_asset_in_data_store_cache = {}
+    ds.allow_day_resampling = False  # ThetaData-style: exact match required
+
+    now = pd.Timestamp("2025-01-02 16:00:00", tz="America/New_York").to_pydatetime()
+    ds.get_datetime = lambda: now
+
+    response = ds._pull_source_symbol_bars(spy, length=1, timestep="day", quote=quote)
+    assert response is None, (
+        "With allow_day_resampling=False (ThetaData), minute data must not satisfy a day request. "
+        "_pull_source_symbol_bars must return None so the caller fetches native day bars."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Verify that PandasData.__init__ correctly initialises the flag.
+# ---------------------------------------------------------------------------
+
+def test_pandas_data_default_allow_day_resampling_is_true():
+    """PandasData defaults allow_day_resampling=True (Polygon / base PandasData behaviour)."""
+    from datetime import datetime, timezone
+
+    ds = PandasData(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        pandas_data={},
+    )
+    assert ds.allow_day_resampling is True
+
+
+def test_pandas_data_explicit_false_allow_day_resampling():
+    """allow_day_resampling=False can be passed explicitly to PandasData."""
+    from datetime import datetime, timezone
+
+    ds = PandasData(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        pandas_data={},
+        allow_day_resampling=False,
+    )
+    assert ds.allow_day_resampling is False
+
+
+def test_thetadata_backtesting_sets_allow_day_resampling_false(monkeypatch):
+    """ThetaDataBacktestingPandas must hard-set allow_day_resampling=False."""
+    import lumibot.tools.thetadata_helper as thetadata_helper
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+    from datetime import datetime, timezone
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_a, **_kw: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_a, **_kw: None)
+
+    ds = ThetaDataBacktestingPandas(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        username="test",
+        password="test",
+    )
+    assert ds.allow_day_resampling is False, (
+        "ThetaDataBacktestingPandas must set allow_day_resampling=False to preserve "
+        "split-adjusted day-bar integrity."
+    )
+
+
+def test_polygon_backtesting_sets_allow_day_resampling_true(monkeypatch):
+    """PolygonDataBacktesting must hard-set allow_day_resampling=True."""
+    from lumibot.backtesting.polygon_backtesting import PolygonDataBacktesting
+    from lumibot.tools.polygon_helper import PolygonClient
+    from datetime import datetime, timezone
+
+    monkeypatch.setattr(PolygonClient, "create", lambda api_key: None)
+
+    ds = PolygonDataBacktesting(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        api_key="test",
+    )
+    assert ds.allow_day_resampling is True, (
+        "PolygonDataBacktesting must set allow_day_resampling=True so that cached minute "
+        "data can satisfy day requests via Data.get_bars() resampling."
+    )

@@ -25,7 +25,8 @@ class PandasData(DataSourceBacktesting):
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, *args, pandas_data=None, auto_adjust=True, allow_option_quote_fallback: bool = False, **kwargs):
+    def __init__(self, *args, pandas_data=None, auto_adjust=True, allow_option_quote_fallback: bool = False,
+                 allow_day_resampling: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self.option_quote_fallback_allowed = allow_option_quote_fallback
         self.name = "pandas"
@@ -35,6 +36,16 @@ class PandasData(DataSourceBacktesting):
         self._date_index = None
         self._date_supply = None
         self._timestep = "minute"
+        # Controls whether minute-level cached data may satisfy day-bar lookup requests.
+        #
+        # True  (default) — Polygon and base PandasData: minute data can be resampled to day
+        #                    bars by Data.get_bars(), so find_asset_in_data_store accepts a
+        #                    minute dataset for a day request.
+        # False           — ThetaData: each timestep has its own normalised/adjusted dataset;
+        #                    minute data must never silently proxy for day data.  This prevents
+        #                    bypassing ThetaData's split-spike repair and forces an explicit day
+        #                    fetch when day bars are needed.
+        self.allow_day_resampling: bool = allow_day_resampling
         # PERF: `find_asset_in_data_store()` is called in tight loops (quotes + history). Cache the
         # resolved key for repeated `(asset, quote, timestep)` lookups within a backtest run.
         self._find_asset_in_data_store_cache = {}
@@ -414,14 +425,24 @@ class PandasData(DataSourceBacktesting):
                 # Hour requests can be satisfied by either hour data or minute data (resample).
                 return data_ts in {"hour", "minute"}
             if requested_unit == "day":
-                # IMPORTANT:
-                # Keep explicit day requests pinned to native day datasets.
+                # IMPORTANT — two conflicting philosophies exist across data sources:
                 #
-                # Allowing minute datasets to satisfy day requests can silently bypass provider-
-                # specific day-bar normalization (for example split-spike repair/timestamp
-                # alignment in IBKR helpers), and can trigger expensive minute fetch churn in
-                # daily-cadence backtests.
-                if requested_asset_type in {"stock", "index"}:
+                # allow_day_resampling=False (ThetaData):
+                #   Keep explicit day requests pinned to native day datasets.
+                #   ThetaData stores minute and day data under separate canonical keys
+                #   (asset, quote, "minute") vs (asset, quote, "day").  Allowing minute
+                #   data to satisfy day requests would silently bypass ThetaData's
+                #   split-spike repair / split-adjustment normalisation and could trigger
+                #   expensive re-fetch churn in daily-cadence backtests.
+                #
+                # allow_day_resampling=True (Polygon, base PandasData — the default):
+                #   Polygon's _update_pandas_data always tries to obtain the finest
+                #   granularity available and relies on Data.get_bars() to resample
+                #   minute → day on demand.  If only minute data is cached for a stock,
+                #   the day request must be allowed to reach Data.get_bars() so the
+                #   resampling path fires.  The same applies to user-provided minute
+                #   CSV data in the plain PandasData source.
+                if not self.allow_day_resampling:
                     return data_ts == "day"
                 return data_ts in {"day", "minute"}
             # Fallback: require exact match for other timesteps.

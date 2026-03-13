@@ -37,6 +37,13 @@ class PolygonDataBacktesting(PandasData):
             allow_option_quote_fallback=True, **kwargs
         )
 
+        # Polygon's philosophy: always cache the finest granularity available and resample
+        # up on demand.  When a strategy calls get_historical_prices(..., timestep="1 day")
+        # after a prior "15 minute" call has warmed the cache, the cached minute data must
+        # be allowed to satisfy the day request so Data.get_bars() can resample minute → day.
+        # This is the *opposite* of ThetaData, which requires exact timestep matches.
+        self.allow_day_resampling = True
+
         # Memory limit, off by default
         self.MAX_STORAGE_BYTES = max_memory
         

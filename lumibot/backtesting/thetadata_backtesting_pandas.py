@@ -122,6 +122,14 @@ class ThetaDataBacktestingPandas(PandasData):
         super().__init__(datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data,
                          allow_option_quote_fallback=False, **kwargs)
 
+        # ThetaData stores minute and day data under SEPARATE canonical keys
+        # (asset, quote, "minute") vs (asset, quote, "day") and applies provider-specific
+        # split-spike repair / split-adjustment only to day bars.  Allowing a cached minute
+        # dataset to silently satisfy a day-bar lookup would bypass that normalisation.
+        # Set allow_day_resampling=False so find_asset_in_data_store always requires an
+        # exact timestep match and forces an explicit day fetch when day bars are needed.
+        self.allow_day_resampling = False
+
         # Default to minute; broker can flip to day for daily strategies.
         self._timestep = self.MIN_TIMESTEP
         # PERF: Avoid scanning the entire pandas_data store on every quote/snapshot call to infer day-mode.

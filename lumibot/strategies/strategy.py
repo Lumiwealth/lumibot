@@ -301,7 +301,7 @@ class Strategy(_Strategy):
 
         self.update_broker_balances(force_update=False)
 
-        cash_position = self.get_position(self.quote_asset)
+        cash_position = self._get_cash_position()
         quantity = cash_position.quantity if cash_position else None
 
         # This is not really true:
@@ -1312,15 +1312,27 @@ class Strategy(_Strategy):
 
         """
         include_cash = include_cash_positions or self.include_cash_positions
+        filled_positions = getattr(self.broker, "_filled_positions", None)
+        filled_positions_revision = getattr(filled_positions, "revision", 0)
+        quote_asset = self.quote_asset
+        cache_key = (filled_positions_revision, include_cash, quote_asset)
+        cached = getattr(self, "_positions_cache", {}).get(cache_key) if hasattr(self, "_positions_cache") else None
+        if cached is not None:
+            return list(cached)
+
         tracked_positions = self.broker.get_tracked_positions(self.name)
+        if include_cash:
+            result = list(tracked_positions)
+        else:
+            result = [position for position in tracked_positions if position.asset != quote_asset]
 
-        # Remove the quote asset from the positions list if it is there
-        clean_positions = []
-        for position in tracked_positions:
-            if position.asset != self.quote_asset or include_cash:
-                clean_positions.append(position)
-
-        return clean_positions
+        cache = getattr(self, "_positions_cache", None)
+        if cache is None:
+            cache = {}
+            self._positions_cache = cache
+        cache.clear()
+        cache[cache_key] = tuple(result)
+        return list(result)
 
     def get_historical_bot_stats(self):
         """Get the historical account value.
@@ -2381,30 +2393,49 @@ class Strategy(_Strategy):
         else:
             quote_asset = quote
 
+        is_backtesting_run = bool(
+            IS_BACKTESTING
+            or getattr(self, "is_backtesting", False)
+            or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
+        )
+        if is_backtesting_run:
+            current_datetime = getattr(getattr(self, "broker", None), "datetime", None)
+            cache = getattr(self, "_last_price_request_cache", None)
+            if cache is None:
+                cache = {}
+                self._last_price_request_cache = cache
+                self._last_price_request_cache_datetime = current_datetime
+            elif getattr(self, "_last_price_request_cache_datetime", None) != current_datetime:
+                cache.clear()
+                self._last_price_request_cache_datetime = current_datetime
+            cache_key = (asset, quote_asset, exchange)
+            if cache_key in cache:
+                return cache[cache_key]
+
         try:
             # For daily-cadence backtests, prefer day bars for sources where minute-level
             # fetches are expensive (ThetaData/IBKR/routed backtesting). Keep Yahoo/Polygon
             # on legacy behavior to preserve existing regression anchors.
-            is_backtesting_run = bool(
-                IS_BACKTESTING
-                or getattr(self, "is_backtesting", False)
-                or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
-            )
             should_use_daily = self._should_use_daily_last_price(asset)
             if is_backtesting_run and should_use_daily and self._supports_daily_last_price_optimization():
                 try:
                     bars = self.get_historical_prices(asset, length=2, timestep="day", timeshift=-1, quote=quote_asset, exchange=exchange)
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
-                        return float(bars.df["close"].iloc[-1])
+                        result = float(bars.df["close"].iloc[-1])
+                        cache[cache_key] = result
+                        return result
                 except Exception:
                     # Fall through to the default path on any failure.
                     pass
-            return self.broker.get_last_price(
+            result = self.broker.get_last_price(
                 asset,
                 quote=quote_asset,
                 exchange=exchange,
                 # should_use_last_close=should_use_last_close,
             )
+            if is_backtesting_run:
+                cache[cache_key] = result
+            return result
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
@@ -2452,8 +2483,14 @@ class Strategy(_Strategy):
         value = getattr(self, "_sleeptime", None)
         if value is None:
             return None
+        cached_input = getattr(self, "_sleeptime_seconds_cache_input", object())
+        if value == cached_input:
+            return getattr(self, "_sleeptime_seconds_cache_value", None)
         if isinstance(value, (int, float)):
-            return float(value) * 60.0
+            result = float(value) * 60.0
+            self._sleeptime_seconds_cache_input = value
+            self._sleeptime_seconds_cache_value = result
+            return result
         if isinstance(value, str):
             normalized = value.strip().upper().replace(" ", "")
             if not normalized:
@@ -2471,7 +2508,10 @@ class Strategy(_Strategy):
                 multiplier = 86400.0
             else:
                 multiplier = 60.0
-            return qty * multiplier
+            result = qty * multiplier
+            self._sleeptime_seconds_cache_input = value
+            self._sleeptime_seconds_cache_value = result
+            return result
         return None
 
     def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:

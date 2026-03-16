@@ -1,4 +1,5 @@
 from __future__ import annotations
+import hashlib
 import os
 import re
 import sys
@@ -33,6 +34,7 @@ from ..constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 # Slice cache (best-effort; primarily avoids repeated `.loc[]` slicing for identical windows).
 # Key: (market, start_date_str, end_date_str, tz_str)
 _TRADING_CALENDAR_CACHE = {}
+_TRADING_CALENDAR_DISK_CACHE_VERSION = "v1"
 
 # Progress bar throttling: when BACKTESTING_QUIET_LOGS=false we print progress as newline-separated
 # lines. For fast simulations this can spam thousands of lines in a single second and drown out
@@ -52,6 +54,50 @@ def _format_datetime_to_tz(dtm, tzinfo: pytz.BaseTzInfo):
     return ts.to_pydatetime()
 
 
+def _get_trading_days_cache_dir() -> str | None:
+    cache_dir = os.environ.get("LUMIBOT_TRADING_DAYS_CACHE_DIR", "").strip()
+    if cache_dir:
+        return cache_dir
+    home = os.path.expanduser("~")
+    if not home:
+        return None
+    return os.path.join(home, ".cache", "lumibot", "trading_days")
+
+
+def _get_trading_days_disk_cache_path(market: str, start_day, end_day, tz_name: str) -> str | None:
+    cache_dir = _get_trading_days_cache_dir()
+    if not cache_dir:
+        return None
+
+    market_cal_version = getattr(mcal, "__version__", "unknown")
+    cache_key = "|".join(
+        (
+            _TRADING_CALENDAR_DISK_CACHE_VERSION,
+            market_cal_version,
+            str(market),
+            str(start_day),
+            str(end_day),
+            str(tz_name),
+        )
+    )
+    digest = hashlib.sha1(cache_key.encode("utf-8")).hexdigest()
+    return os.path.join(cache_dir, f"{digest}.pkl")
+
+
+def _normalize_schedule_index(schedule: pd.DataFrame, tzinfo: pytz.BaseTzInfo) -> pd.DataFrame:
+    idx = schedule.index
+    if isinstance(idx, pd.DatetimeIndex):
+        schedule.index = idx.tz_localize(tzinfo) if idx.tz is None else idx.tz_convert(tzinfo)
+    else:
+        try:
+            tmp = pd.to_datetime(idx, errors="raise")
+            schedule.index = pd.DatetimeIndex(tmp).tz_localize(tzinfo)
+        except ValueError:
+            tmp = pd.to_datetime(idx, utc=True)
+            schedule.index = tmp.tz_convert(tzinfo)
+    return schedule
+
+
 @lru_cache(maxsize=256)
 def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.DataFrame:
     """Return a cached trading schedule for a full calendar year.
@@ -69,9 +115,7 @@ def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.D
         cal = mcal.get_calendar(market)
 
     schedule = cal.schedule(start_date=year_start, end_date=year_end, tz=tzinfo)
-    schedule.market_open = schedule.market_open.apply(lambda v: _format_datetime_to_tz(v, tzinfo))
-    schedule.market_close = schedule.market_close.apply(lambda v: _format_datetime_to_tz(v, tzinfo))
-    return schedule
+    return _normalize_schedule_index(schedule, tzinfo)
 
 
 def get_chunks(l, chunk_size):
@@ -248,36 +292,49 @@ def get_trading_days(
     start_year = int(start_day.year)
     end_year = int(schedule_end_day.year)
     tz_name = getattr(tzinfo, "zone", None) or str(tzinfo)
+    disk_cache_path = _get_trading_days_disk_cache_path(market, start_day, schedule_end_day, tz_name)
+
+    if disk_cache_path and os.path.exists(disk_cache_path):
+        try:
+            cached_days = pd.read_pickle(disk_cache_path)
+            _TRADING_CALENDAR_CACHE[cache_key] = cached_days.copy()
+            return cached_days.copy()
+        except Exception:
+            pass
+
+    span_days = int((schedule_end_day - start_day).days)
+    if span_days >= 365:
+        if market == "24/7":
+            cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
+        else:
+            cal = mcal.get_calendar(market)
+
+        days = cal.schedule(start_date=start_day, end_date=schedule_end_day, tz=tzinfo)
+        days = _normalize_schedule_index(days, tzinfo)
+        _TRADING_CALENDAR_CACHE[cache_key] = days.copy()
+        if disk_cache_path:
+            try:
+                os.makedirs(os.path.dirname(disk_cache_path), exist_ok=True)
+                days.to_pickle(disk_cache_path)
+            except Exception:
+                pass
+        return days
+
     year_schedules = []
     for year in range(start_year, end_year + 1):
         year_schedules.append(_get_trading_schedule_for_year(market, int(year), tz_name))
 
     full_schedule = year_schedules[0] if len(year_schedules) == 1 else pd.concat(year_schedules, axis=0)
-
-    # Ensure the index is tz-aware and aligned with requested tz BEFORE slicing
-    # Calendars may return:
-    # - DatetimeIndex (tz-naive or tz-aware)
-    # - Index of Python datetimes (tz-naive or tz-aware)
-    idx = full_schedule.index
-    if isinstance(idx, pd.DatetimeIndex):
-        full_schedule.index = idx.tz_localize(tzinfo) if idx.tz is None else idx.tz_convert(tzinfo)
-    else:
-        # Likely an Index of Python datetime/date objects; can be mixed naive/aware
-        # Prefer parsing as naive and localizing (preserves calendar days)
-        # but fall back to utc=True if any tz-aware elements are present.
-        try:
-            tmp = pd.to_datetime(idx, errors="raise")
-            full_schedule.index = pd.DatetimeIndex(tmp).tz_localize(tzinfo)
-        except ValueError:
-            # Pandas requires utc=True when any tz-aware python datetimes are present
-            tmp = pd.to_datetime(idx, utc=True)
-            full_schedule.index = tmp.tz_convert(tzinfo)
-
-    # Slice to the requested window (inclusive of schedule_end_day).
     days = full_schedule.loc[start_day:schedule_end_day].copy()
 
     # Cache the result
     _TRADING_CALENDAR_CACHE[cache_key] = days.copy()
+    if disk_cache_path:
+        try:
+            os.makedirs(os.path.dirname(disk_cache_path), exist_ok=True)
+            days.to_pickle(disk_cache_path)
+        except Exception:
+            pass
 
     return days
 

@@ -1403,7 +1403,7 @@ class Order:
         result = {
             "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, 'to_minimal_dict') else None,
             "side": str(self.side) if self.side else None,
-            "qty": float(self.quantity) if self.quantity else 0,
+            "qty": self.quantity if self.quantity else 0,
             "type": str(self.order_type) if self.order_type else "market",
             "status": str(self.status) if self.status else "unprocessed",
         }

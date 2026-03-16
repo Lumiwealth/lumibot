@@ -675,6 +675,7 @@ class _Strategy:
             if position is not None and position.asset == self._quote_asset:
                 position.quantity = cash
                 self.broker._filled_positions[x] = position
+                self._cash_position = position
                 return
 
         # If not in positions, create a new position for cash
@@ -687,6 +688,20 @@ class _Strategy:
             available=Decimal(cash),
         )
         self.broker._filled_positions.append(position)
+        self._cash_position = position
+
+    def _get_cash_position(self):
+        cash_position = getattr(self, "_cash_position", None)
+        if (
+            cash_position is not None
+            and getattr(cash_position, "asset", None) == self._quote_asset
+            and getattr(cash_position, "strategy", None) == self._name
+        ):
+            return cash_position
+
+        cash_position = self.broker.get_tracked_position(self._name, self._quote_asset)
+        self._cash_position = cash_position
+        return cash_position
 
     def _sanitize_user_asset(self, asset):
         if isinstance(asset, Asset):
@@ -696,7 +711,18 @@ class _Strategy:
         elif isinstance(asset, str):
             # Make sure the asset is uppercase for consistency (and because some brokers require it)
             asset = asset.upper()
-            return Asset(symbol=asset)
+            cache = getattr(self, "_sanitized_string_asset_cache", None)
+            if cache is None:
+                cache = {}
+                self._sanitized_string_asset_cache = cache
+            cached = cache.get(asset)
+            if cached is not None:
+                return cached
+            sanitized = Asset(symbol=asset)
+            if len(cache) >= 256:
+                cache.clear()
+            cache[asset] = sanitized
+            return sanitized
         else:
             if self.broker.data_source.SOURCE != "CCXT":
                 raise ValueError(f"You must enter a symbol string or an asset object. You " f"entered {asset}")
@@ -774,6 +800,13 @@ class _Strategy:
         if not self.is_backtesting:
             return
 
+        filled_positions = getattr(self.broker, "_filled_positions", None)
+        filled_positions_revision = getattr(filled_positions, "revision", 0)
+        broker_datetime = getattr(self.broker, "datetime", None)
+        cache_key = (broker_datetime, filled_positions_revision)
+        if getattr(self, "_portfolio_value_cache_key", None) == cache_key:
+            return getattr(self, "_portfolio_value_cache_value", self._portfolio_value)
+
         with self._executor.lock:
             # Initialize last known prices tracker for forward-fill fallback.
             # This is used when OHLC data is missing (common for illiquid options like LEAPS).
@@ -799,11 +832,20 @@ class _Strategy:
                 t_local = option_mark_time_local.time()
                 option_marking_allowed = (t_local >= datetime.time(9, 30)) and (t_local <= datetime.time(16, 0))
 
+            def _asset_type_key(asset_obj):
+                cached_asset_type_key = getattr(asset_obj, "_cached_asset_type_key", None)
+                if cached_asset_type_key is not None:
+                    return cached_asset_type_key
+                raw_asset_type = getattr(asset_obj, "asset_type", "")
+                raw_asset_type = getattr(raw_asset_type, "value", raw_asset_type)
+                return str(raw_asset_type).lower()
+
             # Used for traditional brokers, for crypto this could be 0
             portfolio_value = self.cash
-
+            quote_asset = self._quote_asset
+            data_source = self.broker.data_source
+            option_source = self.broker.option_source
             positions = self.broker.get_tracked_positions(self._name)
-            assets_original = [position.asset for position in positions]
 
             # Set the base currency for crypto valuations.
 
@@ -812,40 +854,44 @@ class _Strategy:
                 # Throttle repetitive backtest forward-fill warnings (asset, day) to keep
                 # valuation logs informative without dominating runtime.
                 self._forward_fill_warning_cache = set()
-            for asset in assets_original:
-                if asset != self._quote_asset:
+            for position in positions:
+                asset = position.asset
+                if asset != quote_asset:
                     asset_is_option = False
-                    if asset.asset_type == "crypto" or asset.asset_type == "forex":
-                        asset = (asset, self._quote_asset)
-                    elif asset.asset_type == "option":
+                    asset_type_key = _asset_type_key(asset)
+                    if asset_type_key in {"crypto", "forex"}:
+                        asset = (asset, quote_asset)
+                    elif asset_type_key == "option":
                         asset_is_option = True
 
-                    if self.broker.option_source is not None and asset_is_option:
-                        source = self.broker.option_source
+                    if option_source is not None and asset_is_option:
+                        source = option_source
                     else:
-                        source = self.broker.data_source
+                        source = data_source
                     prices[asset] = self._get_price_from_source(source, asset)
 
             for position in positions:
+                position_asset = position.asset
+                position_asset_type = _asset_type_key(position_asset)
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
-                    position.asset
-                    if (position.asset.asset_type != "crypto") and (position.asset.asset_type != "forex")
-                    else (position.asset, self._quote_asset)
+                    position_asset
+                    if position_asset_type not in {"crypto", "forex"}
+                    else (position_asset, quote_asset)
                 )
                 quantity = position.quantity
                 price = prices.get(asset)
-                is_option_asset = isinstance(asset, Asset) and asset.asset_type == "option"
+                is_option_asset = isinstance(asset, Asset) and position_asset_type == "option"
 
                 # If the asset is the quote asset, then we already have included it from cash
                 # Eg. if we have a position of USDT and USDT is the quote_asset then we already consider it as cash
-                if self._quote_asset is not None:
+                if quote_asset is not None:
                     if isinstance(asset, tuple) and asset == (
-                        self._quote_asset,
-                        self._quote_asset,
+                        quote_asset,
+                        quote_asset,
                     ):
                         continue
-                    elif isinstance(asset, Asset) and asset == self._quote_asset:
+                    elif isinstance(asset, Asset) and asset == quote_asset:
                         continue
 
                 # Normalize "missing" prices to None so forward-fill fallback can apply.
@@ -916,7 +962,7 @@ class _Strategy:
                 if isinstance(asset, tuple):
                     multiplier = 1
                 else:
-                    multiplier = asset.multiplier if asset.asset_type in ["option", "future", "cont_future"] else 1
+                    multiplier = asset.multiplier if position_asset_type in {"option", "future", "cont_future"} else 1
 
                 # BACKTESTING ONLY: Special handling for futures portfolio value
                 # In backtesting, cash has margin deducted, so we need to add it back
@@ -924,7 +970,7 @@ class _Strategy:
                 if (
                     self.is_backtesting
                     and not isinstance(asset, tuple)
-                    and asset.asset_type in ["future", "cont_future"]
+                    and position_asset_type in {"future", "cont_future"}
                 ):
                     # Import here to avoid circular dependency
                     from lumibot.backtesting.backtesting_broker import get_futures_margin_requirement
@@ -944,6 +990,8 @@ class _Strategy:
                     portfolio_value += position_value
 
             self._portfolio_value = portfolio_value
+            self._portfolio_value_cache_key = cache_key
+            self._portfolio_value_cache_value = portfolio_value
         return portfolio_value
 
     def _get_price_from_source(self, source, asset):
@@ -954,8 +1002,12 @@ class _Strategy:
         snapshot_price = None
         timestep_hint = None
         base_asset = asset[0] if isinstance(asset, tuple) else asset
-        base_asset_type = getattr(base_asset, "asset_type", None)
-        is_option_asset = base_asset_type in ("option", Asset.AssetType.OPTION)
+        base_asset_type = getattr(base_asset, "_cached_asset_type_key", None)
+        if base_asset_type is None:
+            base_asset_type = getattr(base_asset, "asset_type", None)
+            base_asset_type = getattr(base_asset_type, "value", base_asset_type)
+            base_asset_type = str(base_asset_type).lower()
+        is_option_asset = base_asset_type == "option"
         is_thetadata_option_backtest = (
             self.is_backtesting
             and is_option_asset
@@ -1359,6 +1411,10 @@ class _Strategy:
                 return self.cash
 
             dividends_per_share = self.get_yesterday_dividends(assets)
+            cash_position = self._get_cash_position()
+            cash = cash_position.quantity if cash_position is not None else 0.0
+            cash_delta = 0.0
+            cash_updated = False
 
             for position in positions:
                 asset = position.asset
@@ -1373,16 +1429,18 @@ class _Strategy:
                 if tracker_key in self._dividends_applied_tracker:
                     continue  # Already applied dividend for this asset on this date
 
-                cash = self.cash
-                if cash is None:
-                    cash = 0
-                cash += dividend_per_share * float(quantity)
-                self._set_cash_position(cash)
+                cash_delta += dividend_per_share * float(quantity)
+                cash_updated = True
 
                 # Mark as applied
                 self._dividends_applied_tracker.add(tracker_key)
 
-            return self.cash
+            if cash_updated:
+                updated_cash = cash + cash_delta
+                self._set_cash_position(updated_cash)
+                return updated_cash
+
+            return cash
 
     # =============Stats functions=====================
 

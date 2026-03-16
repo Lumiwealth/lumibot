@@ -390,7 +390,12 @@ class BacktestingBroker(Broker):
         except Exception:
             # Fallback to the slower path if internal buckets are unavailable.
             orders = self.get_tracked_orders(strategy=strategy)
-            return [o for o in orders if o.is_active()] if orders else []
+            if not orders:
+                return []
+            return [
+                o for o in orders
+                if o.is_active() and (asset is None or getattr(o, "asset", None) == asset)
+            ]
 
         for bucket in buckets:
             for order in bucket:
@@ -616,11 +621,7 @@ class BacktestingBroker(Broker):
         idx = trading_close_values.searchsorted(now_value, side="left")
 
         if idx >= len(self._trading_days):
-            logger.warning(
-                "Backtest has reached the end of available trading days data. Current time: %s, Last trading day: %s",
-                now,
-                self._trading_days.index[-1] if len(self._trading_days) > 0 else "No data",
-            )
+            self._mark_end_of_trading_days(now)
             # Return None to signal that backtesting should stop
             self._time_to_close_cache_datetime = now
             self._time_to_close_cache_value = None

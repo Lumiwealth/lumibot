@@ -30,6 +30,8 @@ from lumibot.tools.smart_limit_utils import (
     round_to_tick,
 )
 
+SNAPSHOT_CAPTURE_THROTTLE_SECONDS = 1.9
+
 
 class StrategyExecutor(Thread):
     # Trading events flags
@@ -229,29 +231,47 @@ class StrategyExecutor(Thread):
             try:
                 last_logging_time = getattr(data_source, "_last_logging_time", None)
                 if last_logging_time is not None:
-                    should_capture_snapshot = (datetime.now() - last_logging_time).total_seconds() >= 1.9
+                    # Stay just under the data-source ~2s logging cadence so we do not miss the boundary.
+                    should_capture_snapshot = (
+                        datetime.now() - last_logging_time
+                    ).total_seconds() >= SNAPSHOT_CAPTURE_THROTTLE_SECONDS
             except Exception:
                 should_capture_snapshot = True
 
         if not should_capture_snapshot:
             return payload
 
-        positions = self.strategy.get_positions()
-        payload["positions"] = [p.to_minimal_dict() for p in positions] if positions else None
         payload["initial_budget"] = getattr(self.strategy, "_initial_budget", None)
+        payload["positions"] = None
+        payload["orders"] = None
 
-        active_orders = None
-        get_active = getattr(self.broker, "get_active_tracked_orders", None)
-        if callable(get_active):
-            try:
-                active_orders = get_active(strategy=self.strategy.name)
-            except Exception:
-                active_orders = None
+        def _safe_minimal_payload(items):
+            minimal_items = []
+            for item in items:
+                try:
+                    minimal_items.append(item.to_minimal_dict())
+                except Exception:
+                    continue
+            return minimal_items or None
 
-        if active_orders is None:
-            orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
-            active_orders = [o for o in orders if o.is_active()] if orders else []
-        payload["orders"] = [o.to_minimal_dict() for o in active_orders] if active_orders else None
+        try:
+            positions = self.strategy.get_positions()
+            payload["positions"] = _safe_minimal_payload(positions) if positions else None
+
+            active_orders = None
+            get_active = getattr(self.broker, "get_active_tracked_orders", None)
+            if callable(get_active):
+                try:
+                    active_orders = get_active(strategy=self.strategy.name)
+                except Exception:
+                    active_orders = None
+
+            if active_orders is None:
+                orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
+                active_orders = [o for o in orders if o.is_active()] if orders else []
+            payload["orders"] = _safe_minimal_payload(active_orders) if active_orders else None
+        except Exception:
+            return payload
         return payload
 
     def sync_broker(self):

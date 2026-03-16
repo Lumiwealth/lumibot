@@ -75,3 +75,34 @@ def test_process_pandas_daily_data_skips_progress_payload_when_outputs_disabled(
     assert ("iteration", None) in update_calls
     assert ("processed", strategy) in update_calls
     assert strategy.dividends_updated is True
+
+
+def test_build_backtest_progress_payload_falls_back_on_snapshot_errors():
+    strategy = SimpleNamespace(
+        cash=100.0,
+        get_portfolio_value=lambda: 123.0,
+        get_positions=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        _initial_budget=1000.0,
+        name="test",
+    )
+    broker = SimpleNamespace(
+        data_source=SimpleNamespace(
+            _show_progress_bar=False,
+            log_backtest_progress_to_file=True,
+            _last_logging_time=None,
+        ),
+        get_tracked_orders=lambda strategy=None: (_ for _ in ()).throw(AssertionError("should not be reached")),
+    )
+    executor = StrategyExecutor.__new__(StrategyExecutor)
+    executor.strategy = strategy
+    executor.broker = broker
+
+    payload = executor._build_backtest_progress_payload()
+
+    assert payload == {
+        "cash": 100.0,
+        "portfolio_value": 123.0,
+        "initial_budget": 1000.0,
+        "positions": None,
+        "orders": None,
+    }

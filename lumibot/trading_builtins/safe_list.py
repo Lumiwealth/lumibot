@@ -13,7 +13,7 @@ class SafeList:
         if initial is None:
             initial = []
         self.__lock = lock
-        self.__items = initial
+        self.__items = list(initial)
         self.revision = 0
 
     def __repr__(self):

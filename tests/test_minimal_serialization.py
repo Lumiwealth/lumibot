@@ -7,6 +7,7 @@ tracking functionality.
 """
 import unittest
 from datetime import date, datetime
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from lumibot.entities import Asset, Position, Order
@@ -306,6 +307,15 @@ class TestOrderMinimalDict(unittest.TestCase):
         result = order.to_minimal_dict()
 
         self.assertEqual(result["side"], "sell")
+
+    def test_order_qty_is_json_serializable_number(self):
+        asset = Asset(symbol="AAPL")
+        order = Order(strategy="TestStrategy", asset=asset, quantity=Decimal("1.25"), side="buy")
+
+        result = order.to_minimal_dict()
+
+        self.assertEqual(result["qty"], 1.25)
+        self.assertIsInstance(result["qty"], float)
 
     def test_order_with_option_asset(self):
         """Test order with option asset includes full asset info."""

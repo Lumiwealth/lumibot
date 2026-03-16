@@ -1330,6 +1330,7 @@ class Strategy(_Strategy):
         if cache is None:
             cache = {}
             self._positions_cache = cache
+        # Single-entry cache: keep only the latest revision/parameter combination to avoid stale results.
         cache.clear()
         cache[cache_key] = tuple(result)
         return list(result)

@@ -221,6 +221,42 @@ class TestBacktestingBroker:
 
         assert broker._should_force_day_fill_timestep(order) is False
 
+    def test_get_active_tracked_orders_fallback_respects_asset_filter(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("SPY")
+        other_asset = Asset("QQQ")
+        matching = MagicMock()
+        matching.asset = asset
+        matching.is_active.return_value = True
+        other = MagicMock()
+        other.asset = other_asset
+        other.is_active.return_value = True
+        broker.get_tracked_orders = MagicMock(return_value=[matching, other])
+        broker._unprocessed_orders = MagicMock()
+        broker._unprocessed_orders.get_list.side_effect = RuntimeError("no bucket access")
+        broker._new_orders = MagicMock()
+        broker._partially_filled_orders = MagicMock()
+
+        orders = broker.get_active_tracked_orders(strategy="test", asset=asset)
+
+        assert orders == [matching]
+
+    def test_get_time_to_close_marks_end_of_trading_days(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.data_source = SimpleNamespace(
+            get_datetime=lambda: pd.Timestamp("2025-01-03 16:00:00", tz="America/New_York")
+        )
+        broker._trading_days = pd.DataFrame(
+            {"market_open": [pd.Timestamp("2025-01-02 09:30:00", tz="America/New_York")]},
+            index=pd.DatetimeIndex([pd.Timestamp("2025-01-02 16:00:00", tz="America/New_York")]),
+        )
+        broker._mark_end_of_trading_days = MagicMock()
+
+        result = broker.get_time_to_close()
+
+        assert result is None
+        broker._mark_end_of_trading_days.assert_called_once_with(broker.datetime)
+
     def test_should_force_day_fill_timestep_false_for_options(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)
 

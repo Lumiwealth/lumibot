@@ -288,7 +288,7 @@ class YahooData(DataSourceBacktesting):
         current_dt = self.to_default_timezone(self._datetime)
 
         if timestep == "day":
-            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+            dt = current_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
             end_filter = dt - timedelta(days=1)
         else:
             end_filter = current_dt

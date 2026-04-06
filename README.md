@@ -1,5 +1,3 @@
-[![Try BotSpot](https://img.shields.io/badge/Try_BotSpot-Build_%26_Deploy_AI_Strategies-blue?style=for-the-badge&logo=robot)](https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot)
-
 [![CI Status](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml/badge.svg?branch=dev)](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml)
 [![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/badge/coverage.svg)](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml)
 
@@ -12,16 +10,18 @@ Lumibot is a backtesting and trading library for stocks, options, crypto, future
 > **Contributor note:** Read `AGENTS.md` before running anything Theta-related. That file spells out the hard rules—never launch ThetaTerminal or the shared downloader locally, always point LumiBot at the AWS-hosted downloader, and wrap all long
 > commands with `/Users/robertgrzesik/bin/safe-timeout`. Breaking these rules kills the only licensed Theta session.
 
-## Build and Deploy Trading Bots with AI
+## No-Code AI Trading Bots
 
-Want to skip the coding and go straight to live trading? **[BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** is built on top of Lumibot and lets you:
+> **Don't want to write code?** [BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) turns Lumibot into a no-code platform -- describe your strategy in plain English and let AI do the rest.
 
-- **Build** trading bots using natural language and AI (no code required)
-- **Backtest** your strategies against historical data with one click
-- **Deploy** your bots to trade automatically with real brokers
-- **Browse** proven strategies from the community marketplace
+- **Describe** your strategy in natural language -- AI writes the code for you
+- **Backtest** against years of historical data with a single click
+- **Deploy** to live trading with real brokers in minutes
+- **Browse** a marketplace of proven, community-built strategies
 
-[![Try BotSpot](https://img.shields.io/badge/Try_BotSpot-Build_%26_Deploy_AI_Strategies-blue?style=for-the-badge&logo=robot)](https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot)
+<a href="https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot">
+  <img src="https://img.shields.io/badge/%F0%9F%9A%80_Try_BotSpot_Free-Build_AI_Trading_Bots_Without_Code-brightgreen?style=for-the-badge&labelColor=2e3440" alt="Try BotSpot Free" height="40">
+</a>
 
 ## Architecture Documentation
 

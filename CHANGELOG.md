@@ -1,6 +1,9 @@
 # Changelog
 
-## 4.4.60 - Unreleased
+## 4.4.61 - Unreleased
+
+### Fixed
+- Release the IBKR downloader fail-closed hotfix from the corrected commit so CI and PyPI ship the same behavior validated locally.
 
 ## 4.4.59 - Unreleased
 

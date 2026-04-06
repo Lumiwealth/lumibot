@@ -1,3 +1,5 @@
+[![Try BotSpot](https://img.shields.io/badge/Try_BotSpot-Build_%26_Deploy_AI_Strategies-blue?style=for-the-badge&logo=robot)](https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot)
+
 [![CI Status](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml/badge.svg?branch=dev)](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml)
 [![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/badge/coverage.svg)](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml)
 
@@ -54,14 +56,14 @@ Start here:
 
 ## Build Trading Bots with AI
 
-Want to build trading bots without code? Check out our new platform [BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) where you can create and deploy trading strategies using AI! BotSpot allows you to:
+Want to build trading bots without code? Check out our new platform [BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) where you can create and deploy trading strategies using AI! BotSpot allows you to:
 
 - Build trading bots using natural language and AI
 - Test your strategies with historical data
 - Deploy your bots to trade automatically
 - Join a community of algorithmic traders
 
-**Visit [BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started building AI-powered trading bots today!**
+**Visit [BotSpot.trade](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started building AI-powered trading bots today!**
 
 ## Learn More
 

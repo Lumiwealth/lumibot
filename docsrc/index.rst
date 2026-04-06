@@ -204,7 +204,7 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
-   Build Bots with AI <https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=Menu+Build+Bots+with+AI>
+   Build Bots with AI <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=Menu+Build+Bots+with+AI>
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
    Discord Community <https://discord.gg/v6asVjTCvh>

@@ -12,6 +12,17 @@ Lumibot is a backtesting and trading library for stocks, options, crypto, future
 > **Contributor note:** Read `AGENTS.md` before running anything Theta-related. That file spells out the hard rules—never launch ThetaTerminal or the shared downloader locally, always point LumiBot at the AWS-hosted downloader, and wrap all long
 > commands with `/Users/robertgrzesik/bin/safe-timeout`. Breaking these rules kills the only licensed Theta session.
 
+## Build and Deploy Trading Bots with AI
+
+Want to skip the coding and go straight to live trading? **[BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** is built on top of Lumibot and lets you:
+
+- **Build** trading bots using natural language and AI (no code required)
+- **Backtest** your strategies against historical data with one click
+- **Deploy** your bots to trade automatically with real brokers
+- **Browse** proven strategies from the community marketplace
+
+[![Try BotSpot](https://img.shields.io/badge/Try_BotSpot-Build_%26_Deploy_AI_Strategies-blue?style=for-the-badge&logo=robot)](https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot)
+
 ## Architecture Documentation
 
 - `docs/BACKTESTING_ARCHITECTURE.md` - Detailed documentation of the backtesting data flow (Yahoo, ThetaData, Polygon data sources, caching, and data flow diagrams)
@@ -54,16 +65,9 @@ Start here:
 - Option example: [lumibot/example_strategies/agent_option_backtest.py](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_option_backtest.py)
 - Repo guide: [docs/AI_TRADING_AGENTS.md](https://github.com/Lumiwealth/lumibot/blob/dev/docs/AI_TRADING_AGENTS.md)
 
-## Build Trading Bots with AI
+## More About BotSpot
 
-Want to build trading bots without code? Check out our new platform [BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) where you can create and deploy trading strategies using AI! BotSpot allows you to:
-
-- Build trading bots using natural language and AI
-- Test your strategies with historical data
-- Deploy your bots to trade automatically
-- Join a community of algorithmic traders
-
-**Visit [BotSpot.trade](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started building AI-powered trading bots today!**
+BotSpot is a platform built on Lumibot that lets anyone build, backtest, and deploy trading strategies using AI. **Visit [BotSpot.trade](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) to get started.**
 
 ## Learn More
 

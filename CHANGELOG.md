@@ -5,6 +5,14 @@
 ### Fixed
 - Release the IBKR downloader fail-closed hotfix from the corrected commit so CI and PyPI ship the same behavior validated locally.
 
+### Changed
+- README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader.
+- PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability.
+- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform.
+
+### Added
+- `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library.
+
 ## 4.4.59 - Unreleased
 
 ### Fixed

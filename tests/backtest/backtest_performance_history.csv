@@ -7579,3 +7579,5 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2026-03-30T12:53:08.140299,test_agent_runtime_emits_future_timestamp_warning_without_blocking,unknown,,0.119,b09445af,4.4.56,,,,,Auto-tracked from test_agent_runtime_backtest
 2026-03-30T12:53:08.408426,test_agent_runtime_invalid_asset_type_emits_observability_warning,unknown,,0.123,b09445af,4.4.56,,,,,Auto-tracked from test_agent_runtime_backtest
 2026-03-30T12:53:08.772168,test_builtin_docs_search_returns_local_doc_snippets,unknown,,0.218,b09445af,4.4.56,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-09T22:07:57.377694,test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches,unknown,,0.546,8220de35,4.4.60,,,,,Auto-tracked from test_ibkr_helper_stale_end_negative_cache
+2026-04-09T22:07:57.699330,test_ibkr_placeholder_window_suppresses_subwindow_refetch_after_restart,unknown,,0.219,8220de35,4.4.60,,,,,Auto-tracked from test_ibkr_helper_stale_end_negative_cache

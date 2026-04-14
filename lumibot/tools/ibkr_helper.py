@@ -917,7 +917,8 @@ def get_price_data(
         if not covers_requested_window:
             logger.warning(
                 "IBKR cached history remained underfilled after refresh for %s/%s timestep=%s exchange=%s source=%s; "
-                "returning empty frame (placeholder_covered=%s)",
+                "returning available real bars instead of synthesizing an empty dataset "
+                "(placeholder_covered=%s)",
                 getattr(asset, "symbol", None),
                 getattr(quote, "symbol", None) if quote else None,
                 timestep,
@@ -925,7 +926,6 @@ def get_price_data(
                 history_source,
                 placeholder_covered,
             )
-            return frame.iloc[0:0].copy()
     elif placeholder_covered:
         return frame
     return frame

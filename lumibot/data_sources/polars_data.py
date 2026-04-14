@@ -547,7 +547,12 @@ class PolarsData(DataSourceBacktesting):
                 if pd.isna(price):
                     # Provide more specific error message for index assets
                     if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                        logger.warning(f"Index asset `{asset.symbol}` returned NaN price. This could be due to missing data for the index or a subscription issue if using Polygon.io. Note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                        logger.warning(
+                            "Index asset `%s` returned a NaN price. This data source did not provide usable "
+                            "index data for the requested window. Verify that index coverage and any required "
+                            "subscriptions are enabled for the active provider.",
+                            asset.symbol,
+                        )
                     else:
                         logger.debug(f"Error getting last price for {tuple_to_find}: price is NaN")
                     return None
@@ -559,7 +564,12 @@ class PolarsData(DataSourceBacktesting):
         else:
             # Provide more specific error message when asset not found in data store
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                logger.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                logger.warning(
+                    "The index asset `%s` does not exist or has no data in this data source. Verify that the "
+                    "active provider supports index data for this symbol and that any required subscriptions "
+                    "are enabled.",
+                    asset.symbol,
+                )
             return None
 
     def get_quote(self, asset, quote=None, exchange=None) -> Quote:
@@ -698,7 +708,12 @@ class PolarsData(DataSourceBacktesting):
             data = self._data_store[asset_to_find]
         else:
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                logger.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                logger.warning(
+                    "The index asset `%s` does not exist or has no data in this data source. Verify that the "
+                    "active provider supports index data for this symbol and that any required subscriptions "
+                    "are enabled.",
+                    asset.symbol,
+                )
             else:
                 logger.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return
@@ -819,7 +834,12 @@ class PolarsData(DataSourceBacktesting):
             data = self._data_store[asset_to_find]
         else:
             if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
-                logger.warning(f"The index asset `{asset.symbol}` does not exist or does not have data. Index data may not be available from this data source. If using Polygon, note that some index data (like SPX) requires a paid subscription. Consider using Yahoo Finance for broader index data coverage.")
+                logger.warning(
+                    "The index asset `%s` does not exist or has no data in this data source. Verify that the "
+                    "active provider supports index data for this symbol and that any required subscriptions "
+                    "are enabled.",
+                    asset.symbol,
+                )
             else:
                 logger.warning(f"The asset: `{asset}` does not exist or does not have data.")
             return

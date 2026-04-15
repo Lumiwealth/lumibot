@@ -1465,8 +1465,25 @@ class Order:
                 order_dict[key] = value
 
         # Add essential properties that might be stored with underscores
+        #
+        # WHY THIS MATTERS:
+        # to_dict() above iterates self.__dict__ and skips any attribute whose
+        # name starts with an underscore. But several of our most important
+        # fields use the `self._foo` backing-store + `@property foo` pattern
+        # (identifier, avg_fill_price, status, quantity). Without these explicit
+        # emissions, those fields would be silently dropped when serializing
+        # Orders — which is exactly what happened historically with the
+        # BotSpot order-history endpoint (timestamp/price/order_id nulls).
         order_dict['quantity'] = float(self.quantity) if isinstance(self.quantity, Decimal) else self.quantity
         order_dict['status'] = self.status
+        # `identifier` is the canonical order ID that downstream consumers
+        # (strategy listener, UI, broker adapters) rely on for dedup and display.
+        order_dict['identifier'] = self._identifier
+        # `avg_fill_price` is the weighted fill price for filled/partially-filled
+        # orders — the single most important field for P&L and trade review.
+        order_dict['avg_fill_price'] = (
+            float(self._avg_fill_price) if self._avg_fill_price is not None else None
+        )
 
         return order_dict
 

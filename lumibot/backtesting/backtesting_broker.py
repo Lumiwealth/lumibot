@@ -2726,7 +2726,65 @@ class BacktestingBroker(Broker):
                             continue
                         df = df_original[df_original.index >= now_ts]
                     else:
-                        df = df_original[df_original.index >= self.datetime]
+                        # FABRICATION GUARD (2026-04-15 incident fix):
+                        # The previous logic (`df_original[>= self.datetime]` then
+                        # `iloc[-1:]` fallback) can silently fabricate fills by picking
+                        # a bar that is far in the future when `df_original` contains
+                        # rows well beyond `self.datetime`. Observed symptom: Alpha Picks
+                        # stock fills frozen at the *open of 2026-04-10* for every fill
+                        # across 2022-2024 because that row was the penultimate bar in
+                        # `df_original` and the forward filter caught it.
+                        #
+                        # Correct semantics for a daily-cadence market fill:
+                        # 1) Prefer a bar within a narrow future window (same session or
+                        #    the next session) so we still price forward when the current
+                        #    bar is available.
+                        # 2) Otherwise fall back to the most recent bar AT OR BEFORE
+                        #    `self.datetime` — never to an arbitrary future bar.
+                        # 3) If nothing is within a reasonable window of `self.datetime`,
+                        #    refuse to fill (skip the order) rather than inventing a price.
+                        sim_ts = pd.Timestamp(self.datetime)
+                        # Normalize timezone so comparisons are consistent with the frame index.
+                        try:
+                            if getattr(df_original.index, "tz", None) is not None:
+                                if sim_ts.tz is None:
+                                    sim_ts = sim_ts.tz_localize(df_original.index.tz)
+                                else:
+                                    sim_ts = sim_ts.tz_convert(df_original.index.tz)
+                        except Exception:
+                            pass
+
+                        if str(timestep) == "day":
+                            future_window = timedelta(days=2)
+                        elif str(timestep) == "hour":
+                            future_window = timedelta(hours=2)
+                        else:
+                            future_window = timedelta(minutes=5)
+
+                        future_bars = df_original[
+                            (df_original.index >= sim_ts)
+                            & (df_original.index <= sim_ts + future_window)
+                        ]
+                        if len(future_bars) > 0:
+                            df = future_bars.iloc[:1]
+                        else:
+                            past_bars = df_original[df_original.index <= sim_ts]
+                            if len(past_bars) == 0:
+                                # No bar at or before sim time AND no bar in the future
+                                # window. Refuse to fabricate a fill. Skip this order this
+                                # iteration; it will retry next bar.
+                                if strategy is not None:
+                                    display_symbol = getattr(order.asset, "symbol", order.asset)
+                                    order_identifier = getattr(order, "identifier", None)
+                                    if order_identifier is None:
+                                        order_identifier = getattr(order, "id", "<unknown>")
+                                    strategy.log_message(
+                                        f"[DIAG] No bar near {self.datetime} for {display_symbol}; "
+                                        f"refusing to fabricate fill for {order.order_type} id={order_identifier}",
+                                        color="yellow",
+                                    )
+                                continue
+                            df = past_bars.iloc[-1:]
 
                     # If the dataframe is empty, then we should get the last row of the original dataframe
                     # because it is the best data we have
@@ -2734,6 +2792,34 @@ class BacktestingBroker(Broker):
                         df = df_original.iloc[-1:]
 
                     dt = df.index[0]
+                    # FABRICATION GUARD (2026-04-15 incident fix): never price a fill
+                    # from a bar that is more than `max_fill_distance_days` away from the
+                    # simulated clock. This catches the flat-price class of bugs where
+                    # upstream returns a frame whose rows are far in the future relative
+                    # to `self.datetime`.
+                    try:
+                        selected_ts = pd.Timestamp(dt)
+                        sim_ts_for_check = pd.Timestamp(self.datetime)
+                        if getattr(selected_ts, "tz", None) is not None and sim_ts_for_check.tz is None:
+                            sim_ts_for_check = sim_ts_for_check.tz_localize(selected_ts.tz)
+                        elif getattr(selected_ts, "tz", None) is None and sim_ts_for_check.tz is not None:
+                            sim_ts_for_check = sim_ts_for_check.tz_localize(None)
+                        elif getattr(selected_ts, "tz", None) is not None and sim_ts_for_check.tz is not None:
+                            sim_ts_for_check = sim_ts_for_check.tz_convert(selected_ts.tz)
+                        max_fill_distance = timedelta(days=7) if str(timestep) == "day" else timedelta(days=1)
+                        if abs(selected_ts - sim_ts_for_check) > max_fill_distance:
+                            logger.error(
+                                "[FILL][REJECT] Selected bar %s is %s away from sim dt %s for %s; "
+                                "refusing to fabricate fill (order=%s).",
+                                selected_ts,
+                                abs(selected_ts - sim_ts_for_check),
+                                sim_ts_for_check,
+                                getattr(order.asset, "symbol", order.asset),
+                                getattr(order, "identifier", getattr(order, "id", "<unknown>")),
+                            )
+                            continue
+                    except Exception as _distance_err:  # noqa: F841
+                        pass
                     open = df["open"].iloc[0]
                     high = df["high"].iloc[0]
                     low = df["low"].iloc[0]

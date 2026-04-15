@@ -3,27 +3,52 @@
 Deployment Guide
 ================
 
-This guide will walk you through the deployment process for your trading strategy. We will cover the following topics:
+This guide walks you through the options for deploying your Lumibot trading strategy to run 24/7. You have two paths:
 
-- **Choosing Your Deployment Platform:** Decide whether to deploy on **Render** or **Replit**.
-- **Deploying to Render:** Step-by-step instructions for deploying on Render.
-- **Deploying to Replit:** Step-by-step instructions for deploying on Replit.
-- **Secrets Configuration:** Detailed information on setting up your environment variables.
-- **Broker Configuration:** Required secrets for different brokers.
-- **General Environment Variables:** Additional environment variables required for the strategy to function correctly.
+- **Option A — BotSpot (recommended):** Managed cloud deployment. No servers to configure, broker integrations built in, paper and live trading, strategy monitoring. Best for most users.
+- **Option B — Self-hosted (Render or Replit):** Deploy it yourself on a general-purpose cloud host. Full control, you manage everything. Best for developers who want to own the infrastructure.
 
-Before deploying your application, ensure that you have the necessary environment variables configured. The environment variables are crucial for the successful deployment of your application. We will cover the required environment variables for different brokers and general environment variables that are essential for the strategy to function correctly.
+Pick the option that matches how much infrastructure you want to manage. Both run the exact same Lumibot strategy code.
+
+Option A — Deploy on BotSpot (Recommended)
+------------------------------------------
+
+`BotSpot <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=deployment_guide>`_ is the managed cloud platform built on Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it for you 24/7 with monitoring, scheduling, and failure alerts. Most Lumibot users should start here.
+
+**Why BotSpot:**
+
+- **No infrastructure to manage.** No servers, no deploy files, no environment-variable setup.
+- **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, and more already wired up.
+- **Backtest in the browser.** Test your strategy on historical data with one click before going live.
+- **Marketplace of proven strategies.** Browse community strategies and deploy any of them without writing code.
+- **Paper and live trading.** Start in paper mode, switch to live when you are ready.
+- **AI strategy builder.** Describe what you want in plain English and BotSpot generates Lumibot code for you.
+
+`Get started on BotSpot <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=deployment_guide>`_ and deploy in minutes, no coding required.
+
+.. tip::
+
+   **Already have a Lumibot strategy you wrote locally?** You can bring your own code into BotSpot through the strategy editor. You can also use BotSpot's AI agent to adapt existing strategies.
+
+Option B — Self-hosted Deployment (Render or Replit)
+----------------------------------------------------
+
+If you want full control of your infrastructure, you can deploy Lumibot yourself on any cloud host that runs Python. This guide covers the two platforms we have tested end-to-end: **Render** and **Replit**.
+
+.. note::
+
+   Self-hosting means you manage the server, environment variables, broker credentials, and uptime. If any of that sounds like more work than you want to take on, use :doc:`Option A — BotSpot <deployment>` instead.
 
 Example Strategy for Deployment
 -------------------------------
 
 .. important::
 
-   **Important:** This example strategy is for those without a strategy ready to deploy. If you have your own strategy, skip to `Choosing Your Deployment Platform <#id1>`_.
+   **Important:** This example strategy is for those without a strategy ready to deploy. If you have your own strategy, skip to `Choosing Your Self-hosted Platform <#id1>`_.
 
-Use this example to see the deployment process in action. It’s not intended for real-money use. More details are available in the GitHub repository: `Example Algorithm GitHub <https://github.com/Lumiwealth-Strategies/stock_example_algo>`_
+Use this example to see the self-hosted deployment process in action. It's not intended for real-money use. More details are available in the GitHub repository: `Example Algorithm GitHub <https://github.com/Lumiwealth-Strategies/stock_example_algo>`_
 
-To run the example strategy, click the Deploy to Render button or the Run on Repl.it button. See `Deploying to Render <#id2>`_ and `Deploying to Replit <#id3>`_ for more details.
+To run the example strategy yourself, click the Deploy to Render button or the Run on Repl.it button below. If you would rather skip the infrastructure setup entirely, `deploy it on BotSpot <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=deployment_guide>`_ instead.
 
 .. raw:: html
 
@@ -36,20 +61,21 @@ To run the example strategy, click the Deploy to Render button or the Run on Rep
         </a>
     </div>
 
-Render is recommended for ease of use and affordability. Replit is more expensive but great for in-browser code editing, if you want to see/edit the code directly in your browser.
-
 .. tip::
 
    **Tip:** Scroll down to the :ref:`Secrets Configuration <secrets-configuration>` section for detailed information on setting up your environment variables.
 
-Choosing Your Deployment Platform
----------------------------------
+Choosing Your Self-hosted Platform
+----------------------------------
 
-We recommend using **Render** for deployment because it is easier to use and more affordable compared to Replit. However, **Replit** is an excellent choice for developers who want to edit code directly in the browser.
+If you have decided to self-host, pick between **Render** and **Replit**:
+
+- **Render** costs about **$7/month**. It is easier to use and more affordable, and is our recommendation for self-hosted deployment.
+- **Replit** costs about **$25/month**. It is more expensive but is a great choice if you want to edit your code directly in the browser.
 
 .. note::
 
-   **Render** costs **$7/month**, while **Replit** is priced at **$25/month**. Choose the platform that best fits your needs and budget.
+   Neither Render nor Replit are affiliated with Lumibot or BotSpot. Prices and features may change; check their websites for current pricing.
 
 Deploying to Render
 -------------------

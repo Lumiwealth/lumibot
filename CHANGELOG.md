@@ -7,8 +7,15 @@
 - IBKR history loading now fails open by returning available real bars instead of synthesizing an empty dataset when the cache refresh leaves the requested window underfilled (commit `5de1362a`, April 14).
 - Interactive Brokers REST backtesting data source now prefers an already-loaded daily stock/index series for `get_last_price`/`get_quote` before triggering a separate intraday minute fetch, which avoids unnecessary VIX/USD midpoint history requests during daily-cadence backtests (commit `5de1362a`, April 14).
 - `Order.to_dict()` now emits `identifier` and `avg_fill_price` consistently so downstream consumers that rely on these fields on serialized orders no longer see missing keys after backtest-time fills (commit `e3cb48fe`, April 15).
+- Release the IBKR downloader fail-closed hotfix from the corrected commit so CI and PyPI ship the same behavior validated locally (merged from dev).
+
+### Changed
+- README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader (merged from dev).
+- PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability (merged from dev).
+- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform (merged from dev).
 
 ### Added
+- `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library (merged from dev).
 - Release readiness script now verifies that every referenced artifact file actually exists on disk (not just that `artifact_path` is non-empty), preventing stale pointer references from passing the deployment gate (commit `323b6488`, April 12).
 - LumiBot matrix runner emits `lumibot_runner_state.json` checkpoint files during long runs so in-flight case state is inspectable during multi-hour acceptance runs (commit `6944e22c`, April 12).
 

@@ -19,6 +19,19 @@ If you find Lumibot useful, a star helps others discover it.
 | **[BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** | Deploy strategies to the cloud with AI assistance, monitoring, and scheduling. No code required. |
 | **Data providers** | Multiple supported. Yahoo Finance is free. ThetaData, Polygon, DataBento, and others available. |
 
+## Introducing BotSpot: No-Code AI Trading Bots
+
+**[BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** is our platform built on top of Lumibot that lets you build, backtest, and deploy trading strategies without writing any code. Just describe what you want in plain English and BotSpot's AI handles the rest.
+
+- **Build** strategies using natural language -- the AI writes production-ready Lumibot code for you
+- **Backtest** against years of historical data with a single click
+- **Deploy** to live trading with real brokers (Alpaca, Interactive Brokers, and more)
+- **Browse** a marketplace of proven, community-built strategies you can run immediately
+
+<a href="https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot">
+  <img src="https://img.shields.io/badge/%F0%9F%9A%80_Try_BotSpot_Free-Build_AI_Trading_Bots_Without_Code-brightgreen?style=for-the-badge&labelColor=2e3440" alt="Try BotSpot Free" height="40">
+</a>
+
 ## Quick Start
 
 ```bash

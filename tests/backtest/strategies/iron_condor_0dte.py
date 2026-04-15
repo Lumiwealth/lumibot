@@ -12,7 +12,6 @@ from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.credentials import IS_BACKTESTING
 
 from lumibot.components.options_helper import OptionsHelper
-from lumibot.components.vix_helper import VixHelper
 
 from datetime import time, timedelta
 import math
@@ -73,12 +72,12 @@ class IronCondor0DTE(Strategy):
         except Exception:
             pass
 
-        # Helpers for options selection and VIX-based filters
+        # Helpers for options selection and provider-backed index filters
         self.options_helper = OptionsHelper(self)
-        self.vix_helper = VixHelper(self)
 
         # Use persistent storage for state that must survive restarts and across lifecycle hooks
         self.vars.underlying_asset = Asset("SPX", asset_type=Asset.AssetType.INDEX)  # SPX index as the underlying for SPX options
+        self.vars.vix_asset = Asset("VIX", asset_type=Asset.AssetType.INDEX)  # Provider-backed VIX index feed
         self.vars.opened_today = 0  # how many positions opened today
         self.vars.underlying_ref_price = None  # reference price for SPX to compute daily % change filter
         self.vars.vix_ref_price = None  # reference price for VIX to compute daily % change filter
@@ -106,6 +105,13 @@ class IronCondor0DTE(Strategy):
     def _minutes_to(self, dt, end_dt) -> int:
         # Helper to compute minutes between two datetimes
         return int((end_dt - dt).total_seconds() // 60)
+
+    def _get_vix_price(self):
+        # Use the configured data provider for VIX instead of a helper-side Yahoo fallback.
+        price = self.get_last_price(self.vars.vix_asset)
+        if price is None:
+            return None
+        return float(price)
 
     def _get_today_expiry(self, chains, call_or_put: str):
         # Get the expiration that is today (0DTE). If not available, return None.
@@ -230,7 +236,7 @@ class IronCondor0DTE(Strategy):
 
         # Get current reference if not set
         if self.vars.vix_ref_price is None:
-            v = self.vix_helper.get_vix_value()
+            v = self._get_vix_price()
             if v is not None:
                 self.vars.vix_ref_price = float(v)
         if self.vars.underlying_ref_price is None:
@@ -240,7 +246,7 @@ class IronCondor0DTE(Strategy):
 
         # VIX filter
         if use_vix and self.vars.vix_ref_price is not None:
-            cur_v = self.vix_helper.get_vix_value()
+            cur_v = self._get_vix_price()
             if cur_v is not None and cur_v > 0:
                 vix_change = 100.0 * (float(cur_v) - self.vars.vix_ref_price) / self.vars.vix_ref_price
                 self.log_message(f"VIX change vs ref: {vix_change:.2f}%", color="white")
@@ -324,7 +330,7 @@ class IronCondor0DTE(Strategy):
             self.add_line("SPX", float(spx_price), color="black", width=2, detail_text="SPX Last Price")
 
         # Also plot VIX when available to understand regime changes
-        vix_val = self.vix_helper.get_vix_value()
+        vix_val = self._get_vix_price()
         if vix_val is not None:
             self.add_line("VIX", float(vix_val), color="orange", width=1, detail_text="VIX")
 

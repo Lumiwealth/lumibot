@@ -197,6 +197,18 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 except Exception:
                     pass
 
+        # If a native daily stock/index series is already loaded, prefer it over triggering a
+        # separate minute fetch. This preserves daily-cadence semantics and avoids unnecessary
+        # intraday index requests such as VIX/USD midpoint history during daily backtests.
+        if asset_type in {"stock", "index"}:
+            day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
+            day_data = self._data_store.get(day_key)
+            if day_data is not None:
+                try:
+                    return day_data.get_last_price(now)
+                except Exception:
+                    pass
+
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
         if minute_key not in self._fully_loaded_series:
             try:
@@ -259,6 +271,26 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     pass
                 self._fully_loaded_series.add(day_key)
 
+            day_data = self._data_store.get(day_key)
+            if day_data is not None:
+                try:
+                    ohlcv_bid_ask_dict = day_data.get_quote(now)
+                    return Quote(
+                        asset=base_asset,
+                        price=ohlcv_bid_ask_dict.get("close"),
+                        bid=ohlcv_bid_ask_dict.get("bid"),
+                        ask=ohlcv_bid_ask_dict.get("ask"),
+                        volume=ohlcv_bid_ask_dict.get("volume"),
+                        timestamp=now,
+                        bid_size=ohlcv_bid_ask_dict.get("bid_size"),
+                        ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                        raw_data=ohlcv_bid_ask_dict,
+                    )
+                except Exception:
+                    pass
+
+        if asset_type in {"stock", "index"}:
+            day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
             if day_data is not None:
                 try:

@@ -5,9 +5,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Discord](https://img.shields.io/discord/1045669553608851456?label=Discord)](https://discord.gg/TmMsJCKY3T)
 
-# Lumibot: Algorithmic Trading Made Easy
+# Lumibot: Algorithmic Trading for Stocks, Options, Crypto, Futures & Forex
 
-**The same code runs your backtest and your live trading.** Python framework for stocks, options, crypto, futures, and forex with built-in AI trading agent support.
+**The same code runs your backtest and your live trading.** The only open-source Python trading library with full options support, built-in AI trading agents, and 5+ broker integrations.
+
+If you find Lumibot useful, a star helps others discover it.
+
+## Use Lumibot Your Way
+
+| Path | Description |
+|------|-------------|
+| **Open source** | Build, backtest, and self-host trading strategies with Python. Free forever. |
+| **[BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** | Deploy strategies to the cloud with AI assistance, monitoring, and scheduling. No code required. |
+| **Data providers** | Multiple supported. Yahoo Finance is free. ThetaData, Polygon, DataBento, and others available. |
 
 ## Introducing BotSpot: No-Code AI Trading Bots
 
@@ -71,6 +81,41 @@ That same strategy code works with live brokers. Just swap the broker class.
 
 **Switching from Backtrader?** See our [migration guide](docs/MIGRATING_FROM_BACKTRADER.md) for a side-by-side comparison with code examples.
 
+## Deploy Live
+
+### Option A: BotSpot (managed cloud)
+
+[BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
+
+- Create trading bots using natural language
+- Backtest with historical data
+- Deploy to trade automatically 24/7
+- Join a community of algorithmic traders
+
+**[Get started at BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)**
+
+### Option B: Self-hosted (full control)
+
+Run Lumibot on your own machine with any supported broker:
+
+```python
+from lumibot.brokers import Alpaca
+from lumibot.traders import Trader
+
+ALPACA_CONFIG = {
+    "API_KEY": "your-key",
+    "API_SECRET": "your-secret",
+    "PAPER": True,
+}
+
+broker = Alpaca(ALPACA_CONFIG)
+strategy = MyStrategy(broker=broker)
+
+trader = Trader()
+trader.add_strategy(strategy)
+trader.run_all()
+```
+
 ## Supported Brokers & Data Sources
 
 | Brokers (live trading) | Data Sources (backtesting) |
@@ -83,11 +128,11 @@ That same strategy code works with live brokers. Just swap the broker class.
 | Bitunix | CCXT |
 | ProjectX | Alpaca |
 
-## Recommended Data Provider
+### Recommended Data Provider
 
 For the deepest historical coverage (stocks, options, futures, indexes), we recommend [ThetaData](https://www.thetadata.net/). Use promo code **`BotSpot10`** for 10% off your first order.
 
-> **Affiliate disclosure:** This is a referral link. ThetaData directly supports the BotSpot ecosystem, and using this code helps fund continued development of Lumibot.
+> *Affiliate disclosure: This is a referral link. Using this code supports the continued development of Lumibot as an open-source project.*
 
 ## AI Trading Agents
 
@@ -103,17 +148,6 @@ Start here:
 - [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_stock_backtest.py)
 - [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_option_backtest.py)
 - [Full Guide](https://github.com/Lumiwealth/lumibot/blob/dev/docs/AI_TRADING_AGENTS.md)
-
-## Deploy with BotSpot
-
-Want to build and deploy trading bots without code? [BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) lets you:
-
-- Build trading bots using natural language and AI
-- Backtest with historical data
-- Deploy to trade automatically
-- Join a community of algorithmic traders
-
-**[Get started at BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)**
 
 ## Community Strategies
 
@@ -178,7 +212,7 @@ Learn to build, backtest, and deploy trading strategies using AI. Join 2,400+ tr
 
 ## DISCLAIMER
 
-> **THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND INFORMATIONAL PURPOSES ONLY. IT IS NOT FINANCIAL ADVICE. THE AUTHORS AND CONTRIBUTORS ASSUME NO RESPONSIBILITY FOR YOUR TRADING RESULTS. ALGORITHMIC TRADING INVOLVES SUBSTANTIAL RISK OF LOSS. PAST BACKTEST PERFORMANCE DOES NOT GUARANTEE FUTURE RESULTS. USE THIS SOFTWARE AT YOUR OWN RISK.**
+> **THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND INFORMATIONAL PURPOSES ONLY. IT IS NOT FINANCIAL ADVICE AND DOES NOT CONSTITUTE A RECOMMENDATION TO BUY OR SELL ANY SECURITY. LUMIBOT AND BOTSPOT ARE NOT REGISTERED BROKER-DEALERS OR FINANCIAL ADVISORS. ALGORITHMIC TRADING INVOLVES SUBSTANTIAL RISK OF LOSS, INCLUDING THE POSSIBILITY OF LOSSES GREATER THAN YOUR INITIAL INVESTMENT. SOFTWARE BUGS AND ERRORS CAN LEAD TO RAPID FINANCIAL LOSSES. PAST BACKTEST PERFORMANCE DOES NOT GUARANTEE FUTURE RESULTS. USE THIS SOFTWARE AT YOUR OWN RISK. YOU ARE SOLELY RESPONSIBLE FOR COMPLIANCE WITH ALL APPLICABLE LAWS AND REGULATIONS REGARDING THE ASSETS YOU CHOOSE TO TRADE.**
 
 ---
 

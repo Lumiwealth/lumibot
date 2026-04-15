@@ -278,7 +278,7 @@ def test_ibkr_downloader_payload_contract_rejects_partial_or_uncacheable_history
         )
 
 
-def test_ibkr_get_price_data_fails_closed_when_cached_window_stays_underfilled_after_refresh_error(monkeypatch, tmp_path):
+def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfilled_after_refresh_error(monkeypatch, tmp_path):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
@@ -329,4 +329,6 @@ def test_ibkr_get_price_data_fails_closed_when_cached_window_stays_underfilled_a
         include_after_hours=True,
     )
 
-    assert df.empty
+    assert not df.empty
+    assert len(df) == len(stale)
+    assert df["close"].tolist() == stale["close"].tolist()

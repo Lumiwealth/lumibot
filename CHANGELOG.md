@@ -1,19 +1,29 @@
 # Changelog
 
-## 4.4.61 - Unreleased
+## 4.4.62 - 2026-04-15
 
 ### Fixed
-- Release the IBKR downloader fail-closed hotfix from the corrected commit so CI and PyPI ship the same behavior validated locally.
+- **CRITICAL: Flat-price fabrication bug in backtesting fills.** `BacktestingBroker._pandas_fill_path` previously picked `df_original.iloc[-1:]` when the "bars at or after self.datetime" filter came back empty, OR `df_original.iloc[0]` when the filter caught rows far in the future. Both paths could silently price every fill at a single bar's OPEN that had nothing to do with the simulation time, producing deterministic constant prices across multi-year backtests. Observed incident: BotSpot "Alpha Picks" backtest where 72 of 84 stocks froze at the OPEN of 2026-04-10 for every fill across 2022-2024. The fix rejects future bars outside a narrow window (2 days for daily, 2 hours for hourly, 5 minutes for minute), prefers the most recent bar at or before the simulation time, and refuses to fabricate a fill when no bar exists within a reasonable window of `self.datetime`. A second-layer `max_fill_distance` sanity check (7 days for daily, 1 day for intraday) hard-rejects any fill price derived from a bar too far from the simulation clock, cancelling the offending iteration rather than producing a garbage fill. Provider-agnostic; applies to every data source that flows through `PANDAS` / `InteractiveBrokersREST` fill paths (ThetaData, IBKR, Polygon, etc.).
+- IBKR history loading now fails open by returning available real bars instead of synthesizing an empty dataset when the cache refresh leaves the requested window underfilled (commit `5de1362a`, April 14).
+- Interactive Brokers REST backtesting data source now prefers an already-loaded daily stock/index series for `get_last_price`/`get_quote` before triggering a separate intraday minute fetch, which avoids unnecessary VIX/USD midpoint history requests during daily-cadence backtests (commit `5de1362a`, April 14).
+- `Order.to_dict()` now emits `identifier` and `avg_fill_price` consistently so downstream consumers that rely on these fields on serialized orders no longer see missing keys after backtest-time fills (commit `e3cb48fe`, April 15).
+- Release the IBKR downloader fail-closed hotfix from the corrected commit so CI and PyPI ship the same behavior validated locally (merged from dev).
 
 ### Changed
-- README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader.
-- PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability.
-- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform.
+- README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader (merged from dev).
+- PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability (merged from dev).
+- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform (merged from dev).
 
 ### Added
-- `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library.
+- `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library (merged from dev).
+- Release readiness script now verifies that every referenced artifact file actually exists on disk (not just that `artifact_path` is non-empty), preventing stale pointer references from passing the deployment gate (commit `323b6488`, April 12).
+- LumiBot matrix runner emits `lumibot_runner_state.json` checkpoint files during long runs so in-flight case state is inspectable during multi-hour acceptance runs (commit `6944e22c`, April 12).
 
-## 4.4.59 - Unreleased
+## 4.4.61 - 2026-04-01
+
+Release bookkeeping only. No functional code changes from 4.4.60.
+
+## 4.4.60 - 2026-04-01
 
 ### Fixed
 - Data Downloader queue client now uses a dedicated configurable connect-timeout budget instead of a hardcoded `5s`, which prevents IBKR/VIX history refreshes from failing closed on slow downloader connections.

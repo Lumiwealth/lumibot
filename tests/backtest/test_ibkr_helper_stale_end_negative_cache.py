@@ -91,9 +91,10 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         )
         history_calls = [c for c in calls if "/ibkr/iserver/marketdata/history" in c["url"]]
         assert len(history_calls) == 1
-        # Underfilled windows now fail closed: the real bar remains in cache, but the returned
-        # frame is empty because the requested bound was not fully covered after refresh.
-        assert df1.empty
+        # Underfilled windows should not synthesize an empty dataset. Return the real cached bars;
+        # the downloader is responsible for rejecting non-cacheable/partial IBKR payloads.
+        assert not df1.empty
+        assert list(df1.index) == [start, last_bar]
         cached_mid = pd.read_parquet(cache_file)
         assert last_bar in cached_mid.index
         assert end in cached_mid.index
@@ -112,7 +113,8 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         )
         history_calls = [c for c in calls if "/ibkr/iserver/marketdata/history" in c["url"]]
         assert len(history_calls) == 1
-        assert df2.empty
+        assert not df2.empty
+        assert list(df2.index) == [start, last_bar]
 
         cached = pd.read_parquet(cache_file)
         # Placeholder rows are used only to extend coverage; they must not replace the real bar.

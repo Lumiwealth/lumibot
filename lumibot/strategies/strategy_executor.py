@@ -198,55 +198,61 @@ class StrategyExecutor(Thread):
 
         if self.broker.IS_BACKTESTING_BROKER:
             self.process_queue()
-
-            # PERF: Serializing positions/orders every bar is expensive and becomes a major cost in
-            # long intraday backtests. The progress CSV is only written every ~2s (wall clock), so
-            # only materialize these payloads when we are likely to log a snapshot.
-            positions_minimal = None
-            orders_minimal = None
-            try:
-                data_source = getattr(self.broker, "data_source", None)
-                should_capture_progress_state = bool(getattr(data_source, "log_backtest_progress_to_file", False))
-                if should_capture_progress_state:
-                    last_logging_time = getattr(data_source, "_last_logging_time", None)
-                    # Mirror DataSourceBacktesting._update_datetime() throttling (~2s); use a small
-                    # cushion to avoid missing the boundary between two datetime.now() calls.
-                    now_wall = datetime.now()
-                    if last_logging_time is not None:
-                        should_capture_progress_state = (now_wall - last_logging_time).total_seconds() >= 1.9
-            except Exception:
-                should_capture_progress_state = True
-
-            if should_capture_progress_state:
-                positions = self.strategy.get_positions()
-                positions_minimal = [p.to_minimal_dict() for p in positions] if positions else None
-
-                active_orders = None
-                if hasattr(self.broker, "get_active_tracked_orders"):
-                    try:
-                        active_orders = self.broker.get_active_tracked_orders(strategy=self.strategy.name)
-                    except Exception:
-                        active_orders = None
-
-                if active_orders is None:
-                    orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
-                    active_orders = [o for o in orders if o.is_active()] if orders else []
-                orders_minimal = [o.to_minimal_dict() for o in active_orders] if active_orders else None
-
-            # Get initial budget for return calculation
-            initial_budget = getattr(self.strategy, '_initial_budget', None)
-
-            self.broker._update_datetime(
-                sleeptime,
-                cash=self.strategy.cash,
-                portfolio_value=self.strategy.get_portfolio_value(),
-                positions=positions_minimal,
-                initial_budget=initial_budget,
-                orders=orders_minimal
-            )
+            update_payload = self._build_backtest_progress_payload()
+            self.broker._update_datetime(sleeptime, **update_payload)
         else:
             # live: actually sleep
             time.sleep(sleeptime)
+
+    def _build_backtest_progress_payload(self):
+        """Build the optional progress/logging payload for backtests.
+
+        Keep this work out of the main loop when both the progress bar and file logging are disabled.
+        When file logging is enabled, only serialize positions/orders near the logging boundary.
+        """
+        data_source = getattr(self.broker, "data_source", None)
+        if data_source is None:
+            return {}
+
+        show_progress = bool(getattr(data_source, "_show_progress_bar", False))
+        log_progress = bool(getattr(data_source, "log_backtest_progress_to_file", False))
+        if not show_progress and not log_progress:
+            return {}
+
+        payload = {
+            "cash": self.strategy.cash,
+            "portfolio_value": self.strategy.get_portfolio_value(),
+        }
+
+        should_capture_snapshot = log_progress
+        if should_capture_snapshot:
+            try:
+                last_logging_time = getattr(data_source, "_last_logging_time", None)
+                if last_logging_time is not None:
+                    should_capture_snapshot = (datetime.now() - last_logging_time).total_seconds() >= 1.9
+            except Exception:
+                should_capture_snapshot = True
+
+        if not should_capture_snapshot:
+            return payload
+
+        positions = self.strategy.get_positions()
+        payload["positions"] = [p.to_minimal_dict() for p in positions] if positions else None
+        payload["initial_budget"] = getattr(self.strategy, "_initial_budget", None)
+
+        active_orders = None
+        get_active = getattr(self.broker, "get_active_tracked_orders", None)
+        if callable(get_active):
+            try:
+                active_orders = get_active(strategy=self.strategy.name)
+            except Exception:
+                active_orders = None
+
+        if active_orders is None:
+            orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
+            active_orders = [o for o in orders if o.is_active()] if orders else []
+        payload["orders"] = [o.to_minimal_dict() for o in active_orders] if active_orders else None
+        return payload
 
     def sync_broker(self):
         # Log that we are syncing the broker.
@@ -1495,6 +1501,7 @@ class StrategyExecutor(Thread):
         # Check if this is a continuous market using actual calendar data
         market_name = getattr(self.broker, "market", None)
         is_continuous_market = market_name and self._is_continuous_market(market_name)
+        time_to_close = None
 
         # Set the sleeptime to close.
         if is_continuous_market and self.strategy.is_backtesting:
@@ -1503,12 +1510,10 @@ class StrategyExecutor(Thread):
         else:
             # For traditional markets or live trading, check actual market close times
             # TODO: next line speed implication: v high (2233 microseconds) get_time_to_close()
-            result = self.broker.get_time_to_close()
+            time_to_close = self.broker.get_time_to_close()
 
-            if result is None:
+            if time_to_close is None:
                 time_to_close = 0
-            else:
-                time_to_close = result
 
             time_to_before_closing = time_to_close - self.strategy.minutes_before_closing * 60
 
@@ -1559,9 +1564,6 @@ class StrategyExecutor(Thread):
 
         # Run process orders at the market close time first (if not continuous market)
         if not is_continuous_market:
-            # Get the time to close.
-            time_to_close = self.broker.get_time_to_close()
-
             # If strategy sleep time is greater than the time to close, process expired option contracts.
             if strategy_sleeptime > time_to_close:
                 # Sleep until the market closes.
@@ -1642,29 +1644,8 @@ class StrategyExecutor(Thread):
             return
 
         dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
-
-        # Get positions and serialize to minimal format for progress logging
-        positions = self.strategy.get_positions()
-        positions_minimal = [p.to_minimal_dict() for p in positions] if positions else None
-
-        # Get ACTIVE (open) orders only and serialize to minimal format for progress logging
-        # Filter to is_active() to avoid serializing thousands of filled orders
-        # which can exceed CSV field size limits in high-frequency strategies
-        orders = self.broker.get_tracked_orders(strategy=self.strategy.name)
-        active_orders = [o for o in orders if o.is_active()] if orders else []
-        orders_minimal = [o.to_minimal_dict() for o in active_orders] if active_orders else None
-
-        # Get initial budget for return calculation
-        initial_budget = getattr(self.strategy, '_initial_budget', None)
-
-        self.broker._update_datetime(
-            dt,
-            cash=self.strategy.cash,
-            portfolio_value=self.strategy.get_portfolio_value(),
-            positions=positions_minimal,
-            initial_budget=initial_budget,
-            orders=orders_minimal
-        )
+        update_payload = self._build_backtest_progress_payload()
+        self.broker._update_datetime(dt, **update_payload)
         self.strategy._update_cash_with_dividends()
 
         self._on_trading_iteration()

@@ -111,7 +111,7 @@ class Position:
 
     @property
     def quantity(self):
-        result = float(self._quantity)
+        result = self._quantity_float
 
         # If result is less than 0.000001, return 0.0 to avoid rounding errors.
         if abs(result) < 0.000001:
@@ -122,6 +122,7 @@ class Position:
     @quantity.setter
     def quantity(self, value):
         self._quantity = Decimal(value)
+        self._quantity_float = float(self._quantity)
 
     @property
     def hold(self):
@@ -217,6 +218,7 @@ class Position:
             increment = qty
 
         self._quantity += increment
+        self._quantity_float = float(self._quantity)
         if order not in self.orders:
             self.orders.append(order)
 
@@ -262,7 +264,7 @@ class Position:
         # Build minimal dict
         result = {
             "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, 'to_minimal_dict') else {"symbol": str(self.symbol)},
-            "qty": float(self.quantity) if self.quantity else 0,
+            "qty": self.quantity if self.quantity else 0,
             "val": round(market_value, 2),
             "pnl": round(pnl, 2),
         }

@@ -42,9 +42,13 @@ class YahooData(DataSourceBacktesting):
         self.name = "yahoo"
         self.auto_adjust = auto_adjust
         self._data_store = {}
+        self._data_index_values = {}
+        self._data_open_values = {}
         # Initialize last-price cache here to avoid per-call hasattr checks
         self._last_price_cache = {}
         self._last_price_cache_datetime = None
+        self._daily_last_price_cache = {}
+        self._daily_last_price_cache_date = None
 
     def _append_data(self, asset, data):
         """
@@ -76,6 +80,8 @@ class YahooData(DataSourceBacktesting):
         data["dividend_yield"] = data["dividend"] / data["close"]
         data["return"] = data["dividend_yield"] + data["price_change"]
         self._data_store[asset] = data
+        self._data_index_values[asset] = data.index.values
+        self._data_open_values[asset] = data["open"].to_numpy(copy=False)
         return data
 
     def _format_futures_symbol(self, symbol):
@@ -191,8 +197,12 @@ class YahooData(DataSourceBacktesting):
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
-        # Log the current backtest datetime being processed
-        logger.info(f"Inside _pull_source_symbol_bars for {asset.symbol}: self._datetime = {self._datetime}, requesting length {length}")
+        logger.info(
+            "Inside _pull_source_symbol_bars for %s: self._datetime = %s, requesting length %s",
+            asset.symbol,
+            self._datetime,
+            length,
+        )
 
         if exchange is not None:
             logger.warning(
@@ -202,112 +212,104 @@ class YahooData(DataSourceBacktesting):
         if quote is not None:
             logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
-        interval = self._parse_source_timestep(timestep, reverse=True)
+        data = self._get_source_symbol_data(asset, timestep)
+        if data is None:
+            return None
 
-        # Check if the asset is a futures contract or index and format the symbol accordingly
-        symbol = asset.symbol
-        symbols_to_try = [symbol]  # Default to just trying the original symbol
-
-        if asset.asset_type == 'futures' or getattr(asset, 'asset_type', None) == Asset.AssetType.FUTURE:
-            symbols_to_try = self._format_futures_symbol(symbol)
-            if not isinstance(symbols_to_try, list):
-                symbols_to_try = [symbols_to_try]
-        elif asset.asset_type == 'index' or getattr(asset, 'asset_type', None) == Asset.AssetType.INDEX:
-            symbols_to_try = self._format_index_symbol(symbol)
-            if not isinstance(symbols_to_try, list):
-                symbols_to_try = [symbols_to_try]
-
-        if asset in self._data_store:
-            data = self._data_store[asset]
-        else:
-            # Try each symbol format until we get data
-            data = None
-            successful_symbol = None
-
-            for sym in symbols_to_try:
-                logger.info(f"Attempting to fetch data for symbol: {sym}")
-                try:
-                    # Fetch data using the helper without restricting dates here
-                    data = YahooHelper.get_symbol_data(
-                        sym,
-                        interval=interval,
-                        auto_adjust=self.auto_adjust,
-                        last_needed_datetime=self.datetime_end, # Keep this if needed for caching logic
-                    )
-                    if data is not None and data.shape[0] > 0:
-                        logger.info(f"Successfully fetched data for symbol: {sym}")
-                        successful_symbol = sym
-                        break
-                except Exception as e:
-                    logger.warning(f"_pull_source_symbol_bars: Error fetching data for symbol {sym}: {str(e)}")
-                    # Print the traceback for debugging
-                    import traceback
-                    traceback.print_exc()
-
-
-
-            if data is None or data.shape[0] == 0:
-                # Use self.datetime_start and self.datetime_end in the error message for clarity
-                message = f"{self.SOURCE} did not return data for symbol {asset.symbol}. Tried: {symbols_to_try}. Make sure this symbol is valid and data exists for the period {self.datetime_start} to {self.datetime_end}."
-                logger.error(message)
-                return None
-
-            data = self._append_data(asset, data)
-
-            # Update the asset symbol to the successful one for future reference
-            if successful_symbol and successful_symbol != asset.symbol:
-                logger.info(f"Updating asset symbol from {asset.symbol} to successful format: {successful_symbol}")
-                # We don't modify the asset directly, but we store the successful format for reference
-
-        # --- Revised Filtering Logic ---
-        # Use the current backtest datetime as the reference point
-        current_dt = self.to_default_timezone(self._datetime)
-
-        if timestep == "day":
-            # For daily data, we want bars up to and including the current backtest day.
-            # Filter data strictly *before* the start of the *next* day.
-            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
-            end_filter = dt - timedelta(days=1)
-        else:
-            # For intraday, filter up to the current datetime
-            end_filter = current_dt
-
-        if timeshift:
-            # Ensure timeshift is a timedelta object
-            if isinstance(timeshift, int):
-                timeshift = timedelta(days=timeshift)
-            end_filter = end_filter - timeshift
-
-        # OPTIMIZED: Use searchsorted for O(log n) filtering instead of expensive boolean indexing
-        index_array = data.index.values  # Get numpy array for fast operations
-
-        # Convert end_filter to numpy datetime64 for comparison
-        if hasattr(end_filter, 'to_numpy'):
-            end_filter_np = end_filter.to_numpy()
-        elif hasattr(end_filter, 'asm8'):  # pandas Timestamp
-            end_filter_np = end_filter.asm8
-        else:
-            # Convert datetime to pandas Timestamp first, then to numpy
-            end_filter_np = pd.Timestamp(end_filter).asm8
-
-        # Find the insertion point for end_filter (first position where index >= end_filter)
-        end_idx = index_array.searchsorted(end_filter_np, side='left')
-
-        # Calculate start index for the requested length
+        end_idx = self._get_filtered_end_index(data, timestep, timeshift=timeshift, asset=asset)
         start_idx = max(0, end_idx - length)
-
-        # Use iloc for fast integer-based slicing (much faster than boolean indexing)
         result = data.iloc[start_idx:end_idx].copy()
 
-        # Log if insufficient data is available
         if len(result) < length:
             logger.warning(
-                f"Insufficient historical data for {asset.symbol} before {end_filter} "
+                f"Insufficient historical data for {asset.symbol} "
                 f"to satisfy length {length}. Available: {len(result)}. "
                 f"Check backtest start date and data availability."
             )
 
         return result
+
+    def _get_source_symbol_data(self, asset, timestep):
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        interval = self._parse_source_timestep(timestep, reverse=True)
+        symbol = asset.symbol
+        symbols_to_try = [symbol]
+
+        if asset.asset_type == "futures" or getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE:
+            symbols_to_try = self._format_futures_symbol(symbol)
+            if not isinstance(symbols_to_try, list):
+                symbols_to_try = [symbols_to_try]
+        elif asset.asset_type == "index" or getattr(asset, "asset_type", None) == Asset.AssetType.INDEX:
+            symbols_to_try = self._format_index_symbol(symbol)
+            if not isinstance(symbols_to_try, list):
+                symbols_to_try = [symbols_to_try]
+
+        if asset in self._data_store:
+            return self._data_store[asset]
+
+        data = None
+        successful_symbol = None
+        for sym in symbols_to_try:
+            logger.info("Attempting to fetch data for symbol: %s", sym)
+            try:
+                data = YahooHelper.get_symbol_data(
+                    sym,
+                    interval=interval,
+                    auto_adjust=self.auto_adjust,
+                    last_needed_datetime=self.datetime_end,
+                )
+                if data is not None and data.shape[0] > 0:
+                    logger.info("Successfully fetched data for symbol: %s", sym)
+                    successful_symbol = sym
+                    break
+            except Exception as e:
+                logger.warning("_pull_source_symbol_bars: Error fetching data for symbol %s: %s", sym, str(e))
+                import traceback
+
+                traceback.print_exc()
+
+        if data is None or data.shape[0] == 0:
+            message = (
+                f"{self.SOURCE} did not return data for symbol {asset.symbol}. Tried: {symbols_to_try}. "
+                f"Make sure this symbol is valid and data exists for the period {self.datetime_start} "
+                f"to {self.datetime_end}."
+            )
+            logger.error(message)
+            return None
+
+        data = self._append_data(asset, data)
+        if successful_symbol and successful_symbol != asset.symbol:
+            logger.info("Updating asset symbol from %s to successful format: %s", asset.symbol, successful_symbol)
+        return data
+
+    def _get_filtered_end_index(self, data, timestep, timeshift=None, asset=None):
+        current_dt = self.to_default_timezone(self._datetime)
+
+        if timestep == "day":
+            dt = self._datetime.replace(hour=23, minute=59, second=59, microsecond=999999)
+            end_filter = dt - timedelta(days=1)
+        else:
+            end_filter = current_dt
+
+        if timeshift:
+            if isinstance(timeshift, int):
+                timeshift = timedelta(days=timeshift)
+            end_filter = end_filter - timeshift
+
+        index_array = self._data_index_values.get(asset) if asset is not None else None
+        if index_array is None:
+            index_array = data.index.values
+
+        if hasattr(end_filter, "to_numpy"):
+            end_filter_np = end_filter.to_numpy()
+        elif hasattr(end_filter, "asm8"):
+            end_filter_np = end_filter.asm8
+        else:
+            end_filter_np = pd.Timestamp(end_filter).asm8
+
+        return index_array.searchsorted(end_filter_np, side="left")
 
     def _pull_source_bars(
         self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=False
@@ -371,6 +373,18 @@ class YahooData(DataSourceBacktesting):
 
         # OPTIMIZATION: Cache last price lookups to avoid redundant get_historical_prices calls
         current_datetime = self._datetime
+        if isinstance(timestep, str) and "day" in timestep.lower():
+            current_date = current_datetime.date() if current_datetime is not None else None
+            cache_key = (asset, timestep, quote, exchange, current_date)
+            if self._daily_last_price_cache_date != current_date:
+                self._daily_last_price_cache.clear()
+                self._daily_last_price_cache_date = current_date
+            if cache_key in self._daily_last_price_cache:
+                return self._daily_last_price_cache[cache_key]
+            price = self._get_last_daily_open_price(asset, timestep=timestep, quote=quote, exchange=exchange)
+            self._daily_last_price_cache[cache_key] = price
+            return price
+
         cache_key = (asset, timestep, quote, exchange, current_datetime)
 
         # Clear cache if datetime changed
@@ -402,6 +416,34 @@ class YahooData(DataSourceBacktesting):
             open_ = df_local["open"].iat[0]
         else:
             open_ = df_local["open"][0]
+        if isinstance(open_, numpy.int64):
+            open_ = Decimal(open_.item())
+        self._last_price_cache[cache_key] = open_
+        return open_
+
+    def _get_last_daily_open_price(self, asset, timestep, quote=None, exchange=None) -> Union[float, Decimal, None]:
+        if exchange is not None:
+            logger.warning(
+                "the exchange parameter is not implemented for YahooData, but %s was passed as the exchange",
+                exchange,
+            )
+
+        if quote is not None:
+            logger.warning("quote is not implemented for YahooData, but %s was passed as the quote", quote)
+
+        data = self._get_source_symbol_data(asset, timestep)
+        if data is None or data.empty:
+            return None
+
+        end_idx = self._get_filtered_end_index(data, timestep, timeshift=None, asset=asset)
+        if end_idx <= 0:
+            return None
+
+        open_values = self._data_open_values.get(asset)
+        if open_values is None:
+            open_ = data["open"].iat[end_idx - 1]
+        else:
+            open_ = open_values[end_idx - 1]
         if isinstance(open_, numpy.int64):
             open_ = Decimal(open_.item())
         return open_

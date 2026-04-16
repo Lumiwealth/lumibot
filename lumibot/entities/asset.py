@@ -274,11 +274,40 @@ class Asset:
 
         self.asset_type = self.asset_type_must_be_one_of(asset_type)
         self.right = self.right_must_be_one_of(right)
+        raw_asset_type = getattr(self.asset_type, "value", self.asset_type)
+        self._cached_asset_type_key = str(raw_asset_type).lower() if raw_asset_type is not None else ""
         # Cache the hash: Asset objects are used heavily as dict keys during backtests (quotes, bars,
         # chains, positions). Recomputing tuple hashes millions of times dominates CPU in option-heavy
         # strategies; caching preserves correctness as long as identity fields remain unchanged.
         auto_expiry_key = self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
         self._cached_hash = hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key))
+        minimal_type = str(self.asset_type) if self.asset_type else "stock"
+        minimal_dict = {
+            "symbol": self.symbol,
+            "type": minimal_type,
+        }
+        if self.asset_type in (self.AssetType.OPTION, "option"):
+            if self.strike:
+                minimal_dict["strike"] = float(self.strike)
+            if self.expiration:
+                minimal_dict["exp"] = self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+            if self.right:
+                minimal_dict["right"] = str(self.right)
+            if self.multiplier:
+                minimal_dict["mult"] = self.multiplier
+        elif self.asset_type in (
+            self.AssetType.FUTURE,
+            self.AssetType.CONT_FUTURE,
+            self.AssetType.CRYPTO_FUTURE,
+            "future",
+            "cont_future",
+            "crypto_future",
+        ):
+            if self.expiration:
+                minimal_dict["exp"] = self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+            if self.multiplier and self.multiplier != 1:
+                minimal_dict["mult"] = self.multiplier
+        self._cached_minimal_dict = minimal_dict
 
     @classmethod
     def symbol2asset(cls, symbol: str):
@@ -343,12 +372,18 @@ class Asset:
             return f"{self.symbol}"
 
     def __eq__(self, other):
+        if self is other:
+            return True
+
         # Check if other is None
         if other is None:
             return False
 
         # Check if other is an Asset object
         if not isinstance(other, Asset):
+            return False
+
+        if self._cached_hash != other._cached_hash:
             return False
 
         # Optimize: Check symbol first as it's most likely to differ
@@ -454,31 +489,7 @@ class Asset:
         >>> option.to_minimal_dict()
         {'symbol': 'AAPL', 'type': 'option', 'strike': 150.0, 'exp': '2024-12-20', 'right': 'CALL', 'mult': 100}
         """
-        result = {
-            "symbol": self.symbol,
-            "type": str(self.asset_type) if self.asset_type else "stock",
-        }
-
-        # Add option-specific fields
-        if self.asset_type in (self.AssetType.OPTION, "option"):
-            if self.strike:
-                result["strike"] = float(self.strike)
-            if self.expiration:
-                result["exp"] = self.expiration.isoformat() if hasattr(self.expiration, 'isoformat') else str(self.expiration)
-            if self.right:
-                result["right"] = str(self.right)
-            if self.multiplier:
-                result["mult"] = self.multiplier
-
-        # Add future-specific fields
-        elif self.asset_type in (self.AssetType.FUTURE, self.AssetType.CONT_FUTURE,
-                                  self.AssetType.CRYPTO_FUTURE, "future", "cont_future", "crypto_future"):
-            if self.expiration:
-                result["exp"] = self.expiration.isoformat() if hasattr(self.expiration, 'isoformat') else str(self.expiration)
-            if self.multiplier and self.multiplier != 1:
-                result["mult"] = self.multiplier
-
-        return result
+        return dict(self._cached_minimal_dict)
 
     def to_dict(self):
         return {
